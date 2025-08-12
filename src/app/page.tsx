@@ -1,4 +1,4 @@
-import { Plus, Building, TrendingUp, DollarSign, AlertTriangle, Users, Calendar, Wrench } from 'lucide-react'
+import { Plus, Building, TrendingUp, DollarSign, AlertTriangle, Users, Calendar, Wrench, FileText, UserCheck, Clock, CheckCircle } from 'lucide-react'
 
 export default function HomePage() {
   return (
@@ -39,9 +39,9 @@ export default function HomePage() {
             <div>
               <p className="text-sm font-medium text-gray-600">Monthly Rent Roll</p>
               <p className="text-2xl font-bold text-gray-900">$17,000</p>
-              <p className="text-sm text-gray-500">74 active leases</p>
+              <p className="text-sm text-gray-500">From 74 active leases</p>
             </div>
-            <DollarSign className="h-8 w-8 text-purple-600" />
+            <DollarSign className="h-8 w-8 text-blue-600" />
           </div>
         </div>
         
@@ -59,8 +59,107 @@ export default function HomePage() {
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Transactions</h3>
+          <div className="flex items-center mb-4">
+            <FileText className="h-5 w-5 text-blue-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Lease Renewals</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600">0</p>
+              <p className="text-sm text-gray-600">Critical (≤30 days)</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-orange-600">0</p>
+              <p className="text-sm text-gray-600">Upcoming (30-60 days)</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">0</p>
+              <p className="text-sm text-gray-600">Future (60-90 days)</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center mb-4">
+            <UserCheck className="h-5 w-5 text-blue-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Property Onboarding</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">2</p>
+              <p className="text-sm text-gray-600">In Progress</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-orange-600">1</p>
+              <p className="text-sm text-gray-600">Pending Approval</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-600">3</p>
+              <p className="text-sm text-gray-600">Overdue</p>
+            </div>
+          </div>
           <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Maple Heights Complex</p>
+                <p className="text-xs text-gray-500">Documentation • Sarah Johnson</p>
+              </div>
+              <div className="flex items-center">
+                <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '60%' }}></div>
+                </div>
+                <span className="text-xs text-gray-600">60%</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Riverside Apartments</p>
+                <p className="text-xs text-gray-500">Inspection • Michael Brown</p>
+              </div>
+              <div className="flex items-center">
+                <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '30%' }}></div>
+                </div>
+                <span className="text-xs text-gray-600">30%</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Downtown Lofts</p>
+                <p className="text-xs text-gray-500">Legal Review • Lisa Wilson</p>
+              </div>
+              <div className="flex items-center">
+                <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                  <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '85%' }}></div>
+                </div>
+                <span className="text-xs text-gray-600">85%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center mb-4">
+            <DollarSign className="h-5 w-5 text-blue-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Recent Transactions</h3>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Electric Bill - Oak Grove Townhomes</p>
+                <p className="text-xs text-gray-500">Oak Grove Townhomes • 8/4/2024</p>
+              </div>
+              <span className="text-sm font-medium text-red-600">-$180</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Plumbing Repair - Kitchen Sink</p>
+                <p className="text-xs text-gray-500">Sunset Apartments • 8/2/2024</p>
+              </div>
+              <span className="text-sm font-medium text-red-600">-$125</span>
+            </div>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900">Rent Payment - Unit 101</p>
@@ -70,30 +169,19 @@ export default function HomePage() {
             </div>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-900">Electric Bill - Oak Grove</p>
-                <p className="text-xs text-gray-500">Oak Grove Townhomes • 8/4/2024</p>
-              </div>
-              <span className="text-sm font-medium text-red-600">-$180</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
                 <p className="text-sm font-medium text-gray-900">Rent Payment - Unit 102</p>
                 <p className="text-xs text-gray-500">Sunset Apartments • 7/31/2024</p>
               </div>
               <span className="text-sm font-medium text-green-600">+$2,200</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Rent Payment - Unit A1</p>
-                <p className="text-xs text-gray-500">Oak Grove Townhomes • 7/31/2024</p>
-              </div>
-              <span className="text-sm font-medium text-green-600">+$4,200</span>
-            </div>
           </div>
         </div>
         
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Active Work Orders</h3>
+          <div className="flex items-center mb-4">
+            <Wrench className="h-5 w-5 text-blue-600 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900">Active Work Orders</h3>
+          </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -120,27 +208,7 @@ export default function HomePage() {
         </div>
       </div>
       
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <Building className="h-8 w-8 text-blue-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">View Properties</span>
-          </button>
-          <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <Users className="h-8 w-8 text-green-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Manage Tenants</span>
-          </button>
-          <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <Calendar className="h-8 w-8 text-purple-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Rent Tracking</span>
-          </button>
-          <button className="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <Wrench className="h-8 w-8 text-orange-600 mb-2" />
-            <span className="text-sm font-medium text-gray-900">Maintenance</span>
-          </button>
-        </div>
-      </div>
+
     </div>
   )
 }

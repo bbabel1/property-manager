@@ -7,8 +7,8 @@ import { Sidebar } from '@/components/layout/sidebar'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'PropertyManager Professional Edition',
-  description: 'Professional property management system',
+  title: 'Ora Property Management',
+  description: 'Modern property management system',
 }
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>
-          <div className="flex h-screen bg-gray-50">
+          <div className="flex h-screen bg-white">
             <Sidebar />
             <main className="flex-1 overflow-auto">
               {children}

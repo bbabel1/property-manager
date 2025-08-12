@@ -1,4 +1,4 @@
-# PropertyManager Professional Edition
+# Ora Property Management
 
 A modern, enterprise-grade property management system built with Next.js 14, TypeScript, and Prisma.
 

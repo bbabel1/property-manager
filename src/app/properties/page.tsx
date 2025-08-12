@@ -25,7 +25,7 @@ export default function PropertiesPage() {
       name: 'Pine Valley Condos',
       address: '789 Pine Street',
       type: 'Condo',
-      units: { total: 18, occupied: 16, available: 2 },
+      units: { total: 36, occupied: 34, available: 2 },
       owners: 3,
       status: 'Inactive'
     },
@@ -34,7 +34,7 @@ export default function PropertiesPage() {
       name: 'Riverside Manor',
       address: '321 River Road',
       type: 'Single Family',
-      units: { total: 8, occupied: 6, available: 2 },
+      units: { total: 8, occupied: 7, available: 1 },
       owners: 1,
       status: 'Inactive'
     }
@@ -55,11 +55,16 @@ export default function PropertiesPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium text-gray-900">Properties</h2>
             <div className="flex items-center space-x-4">
-              <input
-                type="text"
-                placeholder="Search properties..."
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search properties..."
+                  className="pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
               <select className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option>All Status</option>
                 <option>Active</option>
@@ -115,7 +120,7 @@ export default function PropertiesPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{property.units.total}</div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-green-600">
                       {property.units.occupied}/{property.units.available}
                     </div>
                   </td>
@@ -124,7 +129,9 @@ export default function PropertiesPage() {
                       <span className="text-sm text-gray-900">
                         {property.owners}
                       </span>
-                      <Users className="ml-1 h-4 w-4 text-gray-400" />
+                      {Array.from({ length: property.owners }, (_, i) => (
+                        <Users key={i} className="ml-1 h-4 w-4 text-gray-400" />
+                      ))}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
