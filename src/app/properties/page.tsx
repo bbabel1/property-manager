@@ -1,6 +1,11 @@
 import { Building, Users } from 'lucide-react'
+import Link from 'next/link'
+import { useState } from 'react'
+import AddPropertyModal from '@/components/AddPropertyModal'
 
 export default function PropertiesPage() {
+  const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false)
+  
   const properties = [
     {
       id: 1,
@@ -44,7 +49,10 @@ export default function PropertiesPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Properties</h1>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+        <button 
+          onClick={() => setIsAddPropertyModalOpen(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+        >
           <Building className="h-4 w-4 mr-2" />
           Add Property
         </button>
@@ -106,12 +114,14 @@ export default function PropertiesPage() {
               {properties.map((property) => (
                 <tr key={property.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {property.name}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {property.address}
-                    </div>
+                    <Link href={`/properties/${property.id}`} className="hover:text-blue-600">
+                      <div className="text-sm font-medium text-gray-900">
+                        {property.name}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {property.address}
+                      </div>
+                    </Link>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -164,6 +174,12 @@ export default function PropertiesPage() {
           </div>
         </div>
       </div>
+      
+      {/* Add Property Modal */}
+      <AddPropertyModal 
+        isOpen={isAddPropertyModalOpen}
+        onClose={() => setIsAddPropertyModalOpen(false)}
+      />
     </div>
   )
 }

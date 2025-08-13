@@ -32,68 +32,410 @@ enum StaffRole {
   ADMIN
 }
 
+enum Country {
+  Afghanistan
+  Akrotiri
+  Albania
+  Algeria
+  AmericanSamoa
+  Andorra
+  Angola
+  Anguilla
+  Antarctica
+  AntiguaandBarbuda
+  Argentina
+  Armenia
+  Aruba
+  AshmoreandCartierIslands
+  Australia
+  Austria
+  Azerbaijan
+  Bahamas
+  Bahrain
+  Bangladesh
+  Barbados
+  BassasdaIndia
+  Belarus
+  Belgium
+  Belize
+  Benin
+  Bermuda
+  Bhutan
+  Bolivia
+  BosniaandHerzegovina
+  Botswana
+  BouvetIsland
+  Brazil
+  BritishIndianOceanTerritory
+  BritishVirginIslands
+  Brunei
+  Bulgaria
+  BurkinaFaso
+  Burma
+  Burundi
+  Cambodia
+  Cameroon
+  Canada
+  CapeVerde
+  CaymanIslands
+  CentralAfricanRepublic
+  Chad
+  Chile
+  China
+  ChristmasIsland
+  ClippertonIsland
+  CocosIslands
+  Colombia
+  Comoros
+  DemocraticRepublicOfTheCongo
+  RepublicOfTheCongo
+  CookIslands
+  CoralSeaIslands
+  CostaRica
+  CotedIvoire
+  Croatia
+  Cuba
+  Cyprus
+  CzechRepublic
+  Denmark
+  Dhekelia
+  Djibouti
+  Dominica
+  DominicanRepublic
+  Ecuador
+  Egypt
+  ElSalvador
+  EquatorialGuinea
+  Eritrea
+  Estonia
+  Ethiopia
+  EuropaIsland
+  FalklandIslands
+  FaroeIslands
+  Fiji
+  Finland
+  France
+  FrenchGuiana
+  FrenchPolynesia
+  FrenchSouthernandAntarcticLands
+  Gabon
+  Gambia
+  GazaStrip
+  Georgia
+  Germany
+  Ghana
+  Gibraltar
+  GloriosoIslands
+  Greece
+  Greenland
+  Grenada
+  Guadeloupe
+  Guam
+  Guatemala
+  Guernsey
+  Guinea
+  GuineaBissau
+  Guyana
+  Haiti
+  HeardIslandandMcDonaldIslands
+  VaticanCity
+  Honduras
+  HongKong
+  Hungary
+  Iceland
+  India
+  Indonesia
+  Iran
+  Iraq
+  Ireland
+  IsleofMan
+  Israel
+  Italy
+  Jamaica
+  JanMayen
+  Japan
+  Jersey
+  Jordan
+  JuandeNovaIsland
+  Kazakhstan
+  Kenya
+  Kiribati
+  NorthKorea
+  SouthKorea
+  Kuwait
+  Kyrgyzstan
+  Laos
+  Latvia
+  Lebanon
+  Lesotho
+  Liberia
+  Libya
+  Liechtenstein
+  Lithuania
+  Luxembourg
+  Macau
+  Macedonia
+  Madagascar
+  Malawi
+  Malaysia
+  Maldives
+  Mali
+  Malta
+  MarshallIslands
+  Martinique
+  Mauritania
+  Mauritius
+  Mayotte
+  Mexico
+  Micronesia
+  Moldova
+  Monaco
+  Mongolia
+  Montserrat
+  Morocco
+  Mozambique
+  Namibia
+  Nauru
+  NavassaIsland
+  Nepal
+  Netherlands
+  NetherlandsAntilles
+  NewCaledonia
+  NewZealand
+  Nicaragua
+  Niger
+  Nigeria
+  Niue
+  NorfolkIsland
+  NorthernMarianaIslands
+  Norway
+  Oman
+  Pakistan
+  Palau
+  Panama
+  PapuaNewGuinea
+  ParacelIslands
+  Paraguay
+  Peru
+  Philippines
+  PitcairnIslands
+  Poland
+  Portugal
+  PuertoRico
+  Qatar
+  Reunion
+  Romania
+  Russia
+  Rwanda
+  SaintHelena
+  SaintKittsandNevis
+  SaintLucia
+  SaintPierreandMiquelon
+  SaintVincentandtheGrenadines
+  Samoa
+  SanMarino
+  SaoTomeandPrincipe
+  SaudiArabia
+  Senegal
+  SerbiaandMontenegro
+  Seychelles
+  SierraLeone
+  Singapore
+  Slovakia
+  Slovenia
+  SolomonIslands
+  Somalia
+  SouthAfrica
+  SouthGeorgiaandtheSouthSandwichIslands
+  Spain
+  SpratlyIslands
+  SriLanka
+  Sudan
+  Suriname
+  Svalbard
+  Swaziland
+  Sweden
+  Switzerland
+  Syria
+  Taiwan
+  Tajikistan
+  Tanzania
+  Thailand
+  TimorLeste
+  Togo
+  Tokelau
+  Tonga
+  TrinidadandTobago
+  TromelinIsland
+  Tunisia
+  Turkey
+  Turkmenistan
+}
+
+enum RentalSubType {
+  CondoTownhome
+  MultiFamily
+  SingleFamily
+  Industrial
+  Office
+  Retail
+  ShoppingCenter
+  Storage
+  ParkingSpace
+}
+
+enum UnitBedrooms {
+  NotSet
+  Studio
+  OneBed
+  TwoBed
+  ThreeBed
+  FourBed
+  FiveBed
+  SixBed
+  SevenBed
+  EightBed
+  NineBedPlus
+}
+
+enum UnitBathrooms {
+  NotSet
+  OneBath
+  OnePointFiveBath
+  TwoBath
+  TwoPointFiveBath
+  ThreeBath
+  ThreePointFiveBath
+  FourBath
+  FourPointFiveBath
+  FiveBath
+  FivePlusBath
+}
+
+enum TaxPayerType {
+  SSN
+  EIN
+}
+
+enum BankAccountType {
+  Checking
+  Savings
+}
+
+enum CheckLayoutType {
+  Voucher1StubBottomMemo1Signature
+  Voucher2StubBottomMemo1Signature
+  Voucher2StubBottomMemo2Signatures
+  Voucher2StubTopMemo
+  Voucher2StubsPrePrintedLayout
+}
+
 /// Models
 model Property {
-  id               BigInt   @id @default(autoincrement())
-  name             String
-  addressLine1     String?
-  addressLine2     String?
-  city             String?
-  state            String?
-  postalCode       String?
-  numberUnits      Int?      @default(0)
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String        @db.VarChar(127)
+  structureDescription  String?       @map("structure_description") @db.Text
+  addressLine1          String        @map("address_line1") @db.VarChar(100)
+  addressLine2          String?       @map("address_line2") @db.VarChar(100)
+  addressLine3          String?       @map("address_line3") @db.VarChar(100)
+  city                  String?       @db.VarChar(100)
+  state                 String?       @db.VarChar(100)
+  postalCode            String        @map("postal_code") @db.VarChar(20)
+  country               Country       @map("country")
+  buildiumPropertyId    Int?          @map("buildium_property_id")
+  rentalSubType         RentalSubType @map("rental_sub_type")
+  rentalOwnerIds        Int[]         @map("rental_owner_ids")
+  operatingBankAccountId String?      @map("operating_bank_account_id") @db.Uuid
+  primaryOwner          String?       @map("primary_owner") @db.VarChar(255)
+  reserve               Decimal?      @db.Decimal(12,2)
+  yearBuilt             Int?          @map("year_built")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   units            Unit[]
   leases           Lease[]
-  propertyOwners   PropertyOwner[]
+  ownership        Ownership[]
   propertyStaff    PropertyStaff[]
+  operatingBankAccount BankAccount? @relation(fields: [operatingBankAccountId], references: [id], onDelete: SetNull)
 
+  @@map("properties")
   @@index([name])
 }
 
 model Unit {
-  id          BigInt   @id @default(autoincrement())
-  propertyId  BigInt
-  unitNumber  String
-  bedrooms    Decimal? @db.Decimal(3,1)
-  bathrooms   Decimal? @db.Decimal(3,1)
-  sqft        Int?
-  marketRent  Decimal? @db.Decimal(12,2)
-  isOccupied  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId      String        @map("property_id") @db.Uuid
+  unitNumber      String        @map("unit_number") @db.VarChar(30)
+  unitSize        Int?          @map("unit_size")
+  marketRent      Decimal?      @map("market_rent") @db.Decimal(12,2)
+  addressLine1    String        @map("address_line1") @db.VarChar(100)
+  addressLine2    String?       @map("address_line2") @db.VarChar(100)
+  addressLine3    String?       @map("address_line3") @db.VarChar(100)
+  city            String?       @db.VarChar(100)
+  state           String?       @db.VarChar(100)
+  postalCode      String        @map("postal_code") @db.VarChar(20)
+  country         Country       @map("country")
+  unitBedrooms    UnitBedrooms? @map("unit_bedrooms")
+  unitBathrooms   UnitBathrooms? @map("unit_bathrooms")
+  description     String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  leases      Lease[]
+  property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  leases          Lease[]
 
+  @@map("units")
   @@unique([propertyId, unitNumber])
   @@index([propertyId])
 }
 
 model Owner {
-  id          BigInt   @id @default(autoincrement())
-  isCompany   Boolean  @default(false)
-  firstName   String?
-  lastName    String?
-  companyName String?
-  email       String?
-  phone       String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName                       String?       @map("first_name") @db.VarChar(127)
+  lastName                        String?       @map("last_name") @db.VarChar(127)
+  isCompany                       Boolean       @map("is_company") @default(false)
+  companyName                     String?       @map("company_name") @db.VarChar(127)
+  dateOfBirth                     DateTime?     @map("date_of_birth") @db.Date
+  managementAgreementStartDate    DateTime?     @map("management_agreement_start_date") @db.Date
+  managementAgreementEndDate      DateTime?     @map("management_agreement_end_date") @db.Date
+  email                           String?       @db.VarChar(255)
+  alternateEmail                  String?       @map("alternate_email") @db.VarChar(255)
+  phoneHome                       String?       @map("phone_home") @db.VarChar(20)
+  phoneWork                       String?       @map("phone_work") @db.VarChar(20)
+  phoneMobile                     String?       @map("phone_mobile") @db.VarChar(20)
+  phoneFax                        String?       @map("phone_fax") @db.VarChar(20)
+  addressLine1                    String        @map("address_line1") @db.VarChar(100)
+  addressLine2                    String?       @map("address_line2") @db.VarChar(100)
+  addressLine3                    String?       @map("address_line3") @db.VarChar(100)
+  city                            String?       @db.VarChar(100)
+  state                           String?       @db.VarChar(100)
+  postalCode                      String        @map("postal_code") @db.VarChar(20)
+  country                         Country       @map("country")
+  comment                         String?       @db.Text
+  taxPayerId                      String?       @map("tax_payer_id") @db.VarChar(255)
+  taxPayerType                    TaxPayerType? @map("tax_payer_type")
+  taxPayerName1                   String?       @map("tax_payer_name1") @db.VarChar(40)
+  taxPayerName2                   String?       @map("tax_payer_name2") @db.VarChar(40)
+  taxAddressLine1                 String?       @map("tax_address_line1") @db.VarChar(100)
+  taxAddressLine2                 String?       @map("tax_address_line2") @db.VarChar(100)
+  taxAddressLine3                 String?       @map("tax_address_line3") @db.VarChar(100)
+  taxCity                         String?       @map("tax_city") @db.VarChar(100)
+  taxState                        String?       @map("tax_state") @db.VarChar(100)
+  taxPostalCode                   String?       @map("tax_postal_code") @db.VarChar(20)
+  taxCountry                      Country?      @map("tax_country")
+  createdAt                       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  propertyOwners PropertyOwner[]
+  ownership                       Ownership[]
 
+  @@map("owners")
   @@index([lastName, firstName])
 }
 
 model Lease {
   id          BigInt      @id @default(autoincrement())
-  propertyId  BigInt
-  unitId      BigInt
+  propertyId  String      @db.Uuid
+  unitId      String      @db.Uuid
   startDate   DateTime
   endDate     DateTime?
   status      LeaseStatus @default(ACTIVE)
@@ -143,27 +485,61 @@ model Staff {
   @@index([lastName, firstName])
 }
 
-model PropertyOwner {
-  id                  BigInt   @id @default(autoincrement())
-  propertyId          BigInt
-  ownerId             BigInt
-  ownershipPercent    Decimal  @db.Decimal(5,2) // 0.00 - 100.00
-  disbursementPercent Decimal  @db.Decimal(5,2) // 0.00 - 100.00
-  effectiveStart      DateTime @default(now())
-  effectiveEnd        DateTime?
-  notes               String?
+model Ownership {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  primary               Boolean  @default(false)
+  ownershipPercentage   Decimal? @map("ownership_percentage") @db.Decimal(5,2)
+  disbursementPercentage Decimal? @map("disbursement_percentage") @db.Decimal(5,2)
+  ownerName             String?  @map("owner_name") @db.VarChar(255)
+  ownerId               String   @map("owner_id") @db.Uuid
+  propertyId            String   @map("property_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  owner               Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner                 Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  property              Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  @@unique([propertyId, ownerId, effectiveStart])
-  @@index([propertyId])
+  @@map("ownership")
+  @@unique([ownerId, propertyId])
   @@index([ownerId])
+  @@index([propertyId])
+}
+
+model BankAccount {
+  id                          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  buildiumBankId              Int?            @map("buildium_bank_id")
+  name                        String          @db.VarChar(255)
+  description                 String?         @db.Text
+  bankAccountType             BankAccountType @map("bank_account_type")
+  country                     Country         @map("country")
+  accountNumber               String?         @map("account_number") @db.VarChar(255)
+  routingNumber               String?         @map("routing_number") @db.VarChar(255)
+  enableRemoteCheckPrinting   Boolean         @map("enable_remote_check_printing") @default(false)
+  enableLocalCheckPrinting    Boolean         @map("enable_local_check_printing") @default(false)
+  checkLayoutType             CheckLayoutType? @map("check_layout_type")
+  signatureHeading            String?         @map("signature_heading") @db.VarChar(255)
+  fractionalNumber            String?         @map("fractional_number") @db.VarChar(255)
+  bankInformationLine1        String?         @map("bank_information_line1") @db.VarChar(255)
+  bankInformationLine2        String?         @map("bank_information_line2") @db.VarChar(255)
+  bankInformationLine3        String?         @map("bank_information_line3") @db.VarChar(255)
+  bankInformationLine4        String?         @map("bank_information_line4") @db.VarChar(255)
+  bankInformationLine5        String?         @map("bank_information_line5") @db.VarChar(255)
+  companyInformationLine1     String?         @map("company_information_line1") @db.VarChar(255)
+  companyInformationLine2     String?         @map("company_information_line2") @db.VarChar(255)
+  companyInformationLine3     String?         @map("company_information_line3") @db.VarChar(255)
+  companyInformationLine4     String?         @map("company_information_line4") @db.VarChar(255)
+  companyInformationLine5     String?         @map("company_information_line5") @db.VarChar(255)
+  createdAt                   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  properties                  Property[]
+
+  @@map("bank_accounts")
 }
 
 model PropertyStaff {
   id         BigInt   @id @default(autoincrement())
-  propertyId BigInt
+  propertyId String   @db.Uuid
   staffId    BigInt
   role       StaffRole @default(PROPERTY_MANAGER)
   assignedAt DateTime  @default(now())
