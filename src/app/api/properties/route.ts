@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
           primary: owner.primary || false
         }))
 
+        // Use the correct model name - it should be lowercase in Prisma client
         await tx.ownership.createMany({
           data: ownershipRecords
         })
