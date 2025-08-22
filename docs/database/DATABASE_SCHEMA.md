@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Last Updated**: January 2025 (Auto-generated)
+> **Last Updated**: 2025-08-22T19:11:11.527Z (Auto-generated)
 
 ## Overview
 
@@ -21,7 +21,7 @@ This document provides a comprehensive overview of the Supabase database schema 
 **Description**: Creates the bank_accounts table with bank account types and check layout types
 
 ### 005_add_primary_owner_to_properties.sql
-**Description**: Adds primary_owner field to properties table
+**Description**: Adds primary_owner field and triggers to auto-populate from ownership table
 
 
 ## Current Schema Status

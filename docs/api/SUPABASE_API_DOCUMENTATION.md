@@ -1,5 +1,7 @@
 # Supabase API Documentation
 
+> **Last Updated**: 2025-08-22T19:11:11.526Z (Auto-generated)
+
 > **Last Updated**: 2025-08-22T19:00:28.555Z (Auto-generated)
 
 ## Overview
