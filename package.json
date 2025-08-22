@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "playwright test"
+    "test": "playwright test",
+    "docs:check": "npx tsx scripts/doc-monitoring-system.ts check",
+    "docs:update": "npx tsx scripts/doc-monitoring-system.ts update",
+    "docs:validate": "npx tsx scripts/doc-monitoring-system.ts validate",
+    "docs:watch": "nodemon --watch src --watch supabase --ext ts,tsx,sql --exec \"npm run docs:check\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

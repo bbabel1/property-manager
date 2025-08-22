@@ -2,6 +2,8 @@
 
 A modern, enterprise-grade property management system built with Next.js 15, TypeScript, and Supabase.
 
+⚠️ **Migration Status**: This system is currently in **hybrid architecture state** (~80% migrated from Prisma/NextAuth to pure Supabase). See [Migration Status](docs/architecture/MIGRATION_STATUS_AND_ROADMAP.md) for details.
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -14,13 +16,13 @@ npm install
 cp env.example .env.local
 ```
 
-Edit `.env.local` and add your Supabase URL, keys, and NextAuth configuration.
+Edit `.env.local` with your Supabase credentials. See [Supabase Setup Guide](docs/database/SUPABASE_SETUP.md) for detailed instructions.
 
-### 3. Set Up Database
+### 3. Set Up Supabase Database
 ```bash
-# Run the Supabase migrations
-# You can do this through the Supabase dashboard or CLI
-# Import the migration files from supabase/migrations/
+# Apply migrations through Supabase dashboard SQL editor
+# Import migration files from supabase/migrations/ in order
+# Follow the complete setup guide in docs/database/SUPABASE_SETUP.md
 ```
 
 ### 4. Start Development Server
@@ -29,6 +31,13 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+## 📚 Documentation
+
+**Complete documentation** is available in the [`docs/`](docs/) directory:
+- **[📋 Documentation Index](docs/README.md)** - Start here for navigation
+- **[🏗️ Architecture Analysis](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md)** - Current system state
+- **[🗺️ Migration Roadmap](docs/architecture/MIGRATION_STATUS_AND_ROADMAP.md)** - Conversion progress
 
 ## Features
 
