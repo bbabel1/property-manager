@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { supabaseAdmin } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,72 +28,94 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create property with transaction to ensure data consistency
-    const result = await prisma.$transaction(async (tx) => {
-      // Create the property
-      const property = await tx.property.create({
-        data: {
-          name,
-          structureDescription,
-          addressLine1,
-          city,
-          state,
-          postalCode,
-          country: country as any, // Cast to Country enum
-          rentalSubType: rentalSubType as any, // Cast to RentalSubType enum
-          operatingBankAccountId: operatingBankAccountId || null,
-          reserve: reserve ? parseFloat(reserve.toString()) : null,
-          yearBuilt: yearBuilt ? parseInt(yearBuilt) : null,
-          // Initialize with empty arrays for related data
-          rentalOwnerIds: [],
-        }
-      })
+    // Create property data object matching database schema (snake_case)
+    const propertyData = {
+      name,
+      structure_description: structureDescription,
+      address_line1: addressLine1,
+      city,
+      state,
+      postal_code: postalCode,
+      country,
+      rental_sub_type: rentalSubType,
+      operating_bank_account_id: operatingBankAccountId || null,
+      reserve: reserve ? parseFloat(reserve.toString()) : null,
+      year_built: yearBuilt ? parseInt(yearBuilt) : null,
+      rental_owner_ids: [],
+    }
 
-      // Create ownership records if owners are provided
-      if (owners && owners.length > 0) {
-        const ownershipRecords = owners.map((owner: any) => ({
-          ownerId: owner.id,
-          propertyId: property.id,
-          ownershipPercentage: owner.ownershipPercentage ? parseFloat(owner.ownershipPercentage.toString()) : null,
-          disbursementPercentage: owner.disbursementPercentage ? parseFloat(owner.disbursementPercentage.toString()) : null,
-          ownerName: owner.name,
-          primary: owner.primary || false
-        }))
+    // Create the property
+    const { data: property, error: propertyError } = await supabaseAdmin
+      .from('properties')
+      .insert(propertyData)
+      .select()
+      .single()
 
-        // Use the correct model name - it should be lowercase in Prisma client
-        await tx.ownership.createMany({
-          data: ownershipRecords
-        })
+    if (propertyError) {
+      console.error('Error creating property:', propertyError)
+      return NextResponse.json(
+        { error: 'Failed to create property' },
+        { status: 500 }
+      )
+    }
 
-        // Update the property's primary_owner field (this will be handled by the trigger)
-        // But we can also set it manually for immediate access
-        const primaryOwner = owners.find((o: any) => o.primary)
-        if (primaryOwner) {
-          await tx.property.update({
-            where: { id: property.id },
-            data: { primaryOwner: primaryOwner.name }
-          })
-        }
+    // Create ownership records if owners are provided
+    if (owners && owners.length > 0) {
+      const ownershipRecords = owners.map((owner: any) => ({
+        owner_id: owner.id,
+        property_id: property.id,
+        ownership_percentage: owner.ownershipPercentage ? parseFloat(owner.ownershipPercentage.toString()) : null,
+        disbursement_percentage: owner.disbursementPercentage ? parseFloat(owner.disbursementPercentage.toString()) : null,
+        owner_name: owner.name,
+        primary: owner.primary || false
+      }))
+
+      const { error: ownershipError } = await supabaseAdmin
+        .from('ownership')
+        .insert(ownershipRecords)
+
+      if (ownershipError) {
+        console.error('Error creating ownership records:', ownershipError)
+        // Note: In a production app, you might want to rollback the property creation here
+        return NextResponse.json(
+          { error: 'Failed to create ownership records' },
+          { status: 500 }
+        )
       }
 
-      // Create property staff record if property manager is assigned
-      if (propertyManagerId) {
-        await tx.propertyStaff.create({
-          data: {
-            propertyId: property.id,
-            staffId: propertyManagerId,
-            role: 'PROPERTY_MANAGER'
-          }
-        })
-      }
+      // Update the property's primary_owner field if there's a primary owner
+      const primaryOwner = owners.find((o: any) => o.primary)
+      if (primaryOwner) {
+        const { error: updateError } = await supabaseAdmin
+          .from('properties')
+          .update({ primary_owner: primaryOwner.name })
+          .eq('id', property.id)
 
-      return property
-    })
+        if (updateError) {
+          console.error('Error updating primary owner:', updateError)
+        }
+      }
+    }
+
+    // Create property staff record if property manager is assigned
+    if (propertyManagerId) {
+      const { error: staffError } = await supabaseAdmin
+        .from('property_staff')
+        .insert({
+          property_id: property.id,
+          staff_id: propertyManagerId,
+          role: 'PROPERTY_MANAGER'
+        })
+
+      if (staffError) {
+        console.error('Error creating property staff record:', staffError)
+      }
+    }
 
     return NextResponse.json(
       { 
         message: 'Property created successfully',
-        property: result
+        property: property
       },
       { status: 201 }
     )
@@ -111,21 +131,29 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const properties = await prisma.property.findMany({
-      include: {
-        ownership: {
-          include: {
-            owner: true
-          }
-        },
-        operatingBankAccount: true,
-        propertyStaff: {
-          include: {
-            staff: true
-          }
-        }
-      }
-    })
+    // Fetch properties with related data using Supabase joins
+    const { data: properties, error } = await supabaseAdmin
+      .from('properties')
+      .select(`
+        *,
+        ownership!property_id (
+          *,
+          owners!owner_id (*)
+        ),
+        bank_accounts!operating_bank_account_id (*),
+        property_staff!property_id (
+          *,
+          staff!staff_id (*)
+        )
+      `)
+
+    if (error) {
+      console.error('Error fetching properties:', error)
+      return NextResponse.json(
+        { error: 'Failed to fetch properties' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(properties)
   } catch (error) {
