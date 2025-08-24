@@ -16,7 +16,7 @@ npm install
 cp env.example .env.local
 ```
 
-Edit `.env.local` with your Supabase credentials. See [Supabase Setup Guide](docs/database/SUPABASE_SETUP.md) for detailed instructions.
+Edit `.env.local` with your Supabase credentials. See [Supabase Setup Guide](SUPABASE_SETUP.md) for detailed instructions.
 
 ### 3. Set Up Supabase Database
 ```bash

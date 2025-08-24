@@ -11,7 +11,11 @@
     "docs:check": "npx tsx scripts/doc-monitoring-system.ts check",
     "docs:update": "npx tsx scripts/doc-monitoring-system.ts update",
     "docs:validate": "npx tsx scripts/doc-monitoring-system.ts validate",
-    "docs:watch": "nodemon --watch src --watch supabase --ext ts,tsx,sql --exec \"npm run docs:check\""
+    "docs:watch": "nodemon --watch src --watch supabase --ext ts,tsx,sql --exec \"npm run docs:check\"",
+    "monitor:start": "npx tsx scripts/enhanced-monitoring-system.ts start",
+    "monitor:check": "npx tsx scripts/enhanced-monitoring-system.ts check",
+    "monitor:fix": "npx tsx scripts/enhanced-monitoring-system.ts fix",
+    "monitor:stop": "npx tsx scripts/enhanced-monitoring-system.ts stop"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
