@@ -1,0 +1,29 @@
+[Unit]
+Description=Property Manager Enhanced Monitoring System
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/workspace
+ExecStart=/usr/bin/bash /workspace/scripts/background-monitor.sh start
+ExecStop=/usr/bin/bash /workspace/scripts/background-monitor.sh stop
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=NODE_ENV=production
+Environment=MONITOR_CONFIG=/workspace/scripts/monitor-config.json
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/workspace/logs
+
+[Install]
+WantedBy=multi-user.target

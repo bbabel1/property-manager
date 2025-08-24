@@ -1,0 +1,116 @@
+{
+  "monitoring": {
+    "enabled": true,
+    "checkInterval": 30000,
+    "logLevel": "info",
+    "autoFix": true,
+    "backupBeforeFix": true
+  },
+  "watchDirectories": [
+    "src",
+    "docs",
+    "scripts",
+    "supabase"
+  ],
+  "fileTypes": {
+    "markdown": [".md"],
+    "typescript": [".ts", ".tsx"],
+    "javascript": [".js", ".jsx"],
+    "json": [".json"],
+    "sql": [".sql"],
+    "config": [".config.js", ".config.ts", ".config.json"]
+  },
+  "linkValidation": {
+    "checkExternalLinks": false,
+    "checkInternalLinks": true,
+    "checkAnchorLinks": true,
+    "autoFixBrokenLinks": true,
+    "suggestSimilarFiles": true
+  },
+  "fileMappings": [
+    {
+      "source": "src/types/index.ts",
+      "target": "docs/architecture/TYPES_REFERENCE.md",
+      "type": "reference",
+      "autoUpdate": true
+    },
+    {
+      "source": "src/lib/supabase.ts",
+      "target": "docs/architecture/SUPABASE_CLIENT_SETUP.md",
+      "type": "reference",
+      "autoUpdate": true
+    },
+    {
+      "source": "supabase/migrations",
+      "target": "docs/database/MIGRATIONS.md",
+      "type": "reference",
+      "autoUpdate": true
+    },
+    {
+      "source": "src/app/api",
+      "target": "docs/api/ENDPOINTS.md",
+      "type": "reference",
+      "autoUpdate": true
+    },
+    {
+      "source": "package.json",
+      "target": "docs/architecture/DEPENDENCIES.md",
+      "type": "reference",
+      "autoUpdate": true
+    }
+  ],
+  "documentationRules": [
+    {
+      "pattern": "src/app/api/**/*.ts",
+      "targetDocs": ["docs/api/SUPABASE_API_DOCUMENTATION.md"],
+      "updateOnChange": true
+    },
+    {
+      "pattern": "supabase/migrations/*.sql",
+      "targetDocs": [
+        "docs/database/DATABASE_SCHEMA.md",
+        "docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md"
+      ],
+      "updateOnChange": true
+    },
+    {
+      "pattern": "src/types/**/*.ts",
+      "targetDocs": ["docs/architecture/BUSINESS_LOGIC_DOCUMENTATION.md"],
+      "updateOnChange": true
+    },
+    {
+      "pattern": "src/lib/**/*.ts",
+      "targetDocs": ["docs/architecture/BUSINESS_LOGIC_DOCUMENTATION.md"],
+      "updateOnChange": true
+    }
+  ],
+  "importValidation": {
+    "checkBrokenImports": true,
+    "checkUnusedImports": false,
+    "checkCircularImports": false,
+    "autoFixImportPaths": true
+  },
+  "logging": {
+    "logFile": "logs/monitoring.log",
+    "maxLogSize": "10MB",
+    "maxLogFiles": 5,
+    "logLevels": ["error", "warn", "info", "debug"]
+  },
+  "notifications": {
+    "enabled": false,
+    "webhook": "",
+    "email": "",
+    "slack": ""
+  },
+  "backup": {
+    "enabled": true,
+    "backupDir": "logs/backups",
+    "maxBackups": 10,
+    "backupBeforeFix": true
+  },
+  "performance": {
+    "maxConcurrentChecks": 5,
+    "fileSizeLimit": "10MB",
+    "skipLargeFiles": true
+  }
+}
