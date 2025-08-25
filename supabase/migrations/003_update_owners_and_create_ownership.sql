@@ -74,7 +74,7 @@ CREATE TABLE ownership (
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     
     -- Ownership details
-    primary BOOLEAN DEFAULT false,
+    is_primary BOOLEAN DEFAULT false,
     ownership_percentage NUMERIC(5,2) CHECK (ownership_percentage >= 0 AND ownership_percentage <= 100),
     disbursement_percentage NUMERIC(5,2) CHECK (disbursement_percentage >= 0 AND disbursement_percentage <= 100),
     owner_name VARCHAR(255),
@@ -127,7 +127,7 @@ COMMENT ON TABLE ownership IS 'Join table for many-to-many relationship between 
 COMMENT ON COLUMN ownership.id IS 'Unique identifier for the ownership record (UUID)';
 COMMENT ON COLUMN ownership.owner_id IS 'References the owner (foreign key)';
 COMMENT ON COLUMN ownership.property_id IS 'References the property (foreign key)';
-COMMENT ON COLUMN ownership.primary IS 'Indicates if this is the primary owner';
+COMMENT ON COLUMN ownership.is_primary IS 'Indicates if this is the primary owner';
 COMMENT ON COLUMN ownership.ownership_percentage IS 'Percentage of ownership (0-100)';
 COMMENT ON COLUMN ownership.disbursement_percentage IS 'Percentage of income distribution (0-100)';
 COMMENT ON COLUMN ownership.owner_name IS 'Display name of the owner';
@@ -153,7 +153,7 @@ CREATE INDEX idx_owners_updated_at ON owners(updated_at);
 -- Create indexes for ownership table
 CREATE INDEX idx_ownership_owner_id ON ownership(owner_id);
 CREATE INDEX idx_ownership_property_id ON ownership(property_id);
-CREATE INDEX idx_ownership_primary ON ownership(primary);
+CREATE INDEX idx_ownership_primary ON ownership(is_primary);
 CREATE INDEX idx_ownership_created_at ON ownership(created_at);
 CREATE INDEX idx_ownership_updated_at ON ownership(updated_at);
 
