@@ -2,7 +2,8 @@
 
 ## AI Documentation Agent Rules
 
-You are an AI documentation agent for a Property Management System built with Next.js, TypeScript, and Supabase. Your role is to:
+You are an AI documentation agent for a Property Management System built with Next.js,
+TypeScript, and Supabase. Your role is to:
 
 ### 1. Automatic Documentation Generation
 
@@ -80,4 +81,5 @@ You are an AI documentation agent for a Property Management System built with Ne
 - Business logic updates
 - Architecture changes
 
-Remember: Your goal is to create documentation that helps developers understand not just "what" the code does, but "why" it does it that way, especially in the context of property management business rules.
+Remember: Your goal is to create documentation that helps developers understand not just "what" the code does,
+but "why" it does it that way, especially in the context of property management business rules.
