@@ -3,21 +3,31 @@
 ## Current State vs Target State
 
 ### Current (Hybrid) Authentication
+
 - ✅ **Supabase Auth Configured**: Email/password and magic links enabled
+
 - ❌ **NextAuth Still Active**: SessionProvider still in use
+
 - ❌ **Mixed Dependencies**: Both NextAuth and Supabase Auth in package.json
+
 - ❌ **No Auth Pages**: Missing sign-in/sign-up implementations
 
 ### Target (Pure Supabase) Authentication
+
 - ✅ **Supabase Auth Only**: Complete authentication through Supabase
+
 - ✅ **Clean Dependencies**: Remove NextAuth completely
+
 - ✅ **Native Integration**: Use Supabase session management
+
 - ✅ **Magic Links**: Email-based authentication flow
 
 ## Supabase Auth Configuration
 
 ### Current Configuration (supabase/config.toml)
+
 ```toml
+
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
@@ -35,18 +45,25 @@ enable_confirmations = true
 max_frequency = "1m0s"
 otp_length = 6
 otp_expiry = 3600
+
 ```
 
 ### Environment Variables
+
 ```bash
+
 # Required for Supabase Auth
+
 NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 
 # Remove these NextAuth variables after conversion
+
 NEXTAUTH_URL="http://localhost:3000"     # ← REMOVE
+
 NEXTAUTH_SECRET="your-secret-key"        # ← REMOVE
+
 ```
 
 ## Implementation Plan
@@ -54,7 +71,9 @@ NEXTAUTH_SECRET="your-secret-key"        # ← REMOVE
 ### Phase 1: Create Supabase Auth Context
 
 **Create Auth Provider** (`src/lib/auth-context.tsx`):
+
 ```typescript
+
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
@@ -153,12 +172,15 @@ export function useAuth() {
   }
   return context
 }
+
 ```
 
 ### Phase 2: Create Authentication Pages
 
 **Sign In Page** (`src/app/auth/signin/page.tsx`):
+
 ```typescript
+
 'use client'
 
 import { useState } from 'react'
@@ -223,7 +245,7 @@ export default function SignInPage() {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
             />
           </div>
-          
+
           {!useMagicLink && (
             <div>
               <label htmlFor="password" className="block text-sm font-medium">
@@ -263,7 +285,8 @@ export default function SignInPage() {
         </form>
 
         {message && (
-          <div className={`text-center text-sm ${message.includes('Check your email') ? 'text-green-600' : 'text-red-600'}`}>
+<div className={`text-center text-sm ${message.includes('Check your email') ? 'text-green-600' :
+'text-red-600'}`}>
             {message}
           </div>
         )}
@@ -271,10 +294,13 @@ export default function SignInPage() {
     </div>
   )
 }
+
 ```
 
 **Auth Callback Page** (`src/app/auth/callback/page.tsx`):
+
 ```typescript
+
 'use client'
 
 import { useEffect } from 'react'
@@ -287,10 +313,11 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       const { data, error } = await supabase.auth.getSession()
-      
+
       if (error) {
         console.error('Auth callback error:', error)
         router.push('/auth/signin?error=' + encodeURIComponent(error.message))
+
         return
       }
 
@@ -313,12 +340,15 @@ export default function AuthCallback() {
     </div>
   )
 }
+
 ```
 
 ### Phase 3: Implement Protected Routes
 
 **Auth Middleware** (`src/middleware.ts`):
+
 ```typescript
+
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -332,11 +362,11 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession()
 
   // Protect dashboard routes
-  if (req.nextUrl.pathname.startsWith('/dashboard') || 
+  if (req.nextUrl.pathname.startsWith('/dashboard') ||
       req.nextUrl.pathname.startsWith('/properties') ||
       req.nextUrl.pathname.startsWith('/owners') ||
       req.nextUrl.pathname.startsWith('/units')) {
-    
+
     if (!session) {
       const redirectUrl = req.nextUrl.clone()
       redirectUrl.pathname = '/auth/signin'
@@ -346,7 +376,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Redirect authenticated users from auth pages
-  if ((req.nextUrl.pathname.startsWith('/auth/signin') || 
+  if ((req.nextUrl.pathname.startsWith('/auth/signin') ||
        req.nextUrl.pathname.startsWith('/auth/signup')) && session) {
     const redirectUrl = req.nextUrl.clone()
     redirectUrl.pathname = '/dashboard'
@@ -359,17 +389,24 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     '/dashboard/:path*',
-    '/properties/:path*', 
+
+    '/properties/:path*',
+
     '/owners/:path*',
+
     '/units/:path*',
+
     '/auth/signin',
     '/auth/signup'
   ]
 }
+
 ```
 
 **Protected Layout** (`src/app/(protected)/layout.tsx`):
+
 ```typescript
+
 'use client'
 
 import { useAuth } from '@/lib/auth-context'
@@ -406,12 +443,15 @@ export default function ProtectedLayout({
 
   return <>{children}</>
 }
+
 ```
 
 ### Phase 4: Update Root Layout
 
 **Updated Providers** (`src/components/providers.tsx`):
+
 ```typescript
+
 'use client'
 
 import { AuthProvider } from '@/lib/auth-context'
@@ -423,10 +463,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </AuthProvider>
   )
 }
+
 ```
 
 **Updated Root Layout** (`src/app/layout.tsx`):
+
 ```typescript
+
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
@@ -454,6 +497,7 @@ export default function RootLayout({
     </html>
   )
 }
+
 ```
 
 ## Authentication Flows
@@ -461,7 +505,9 @@ export default function RootLayout({
 ### 1. Email/Password Authentication
 
 **Sign Up Flow:**
+
 ```typescript
+
 const signUp = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -470,37 +516,43 @@ const signUp = async (email: string, password: string) => {
       emailRedirectTo: `${window.location.origin}/auth/callback`
     }
   })
-  
+
   if (!error) {
     // User will receive confirmation email
     // Redirect to email confirmation page
   }
-  
+
   return { data, error }
 }
+
 ```
 
 **Sign In Flow:**
+
 ```typescript
+
 const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password
   })
-  
+
   if (!error) {
     // Automatic redirect to dashboard
     router.push('/dashboard')
   }
-  
+
   return { data, error }
 }
+
 ```
 
 ### 2. Magic Link Authentication
 
 **Magic Link Flow:**
+
 ```typescript
+
 const signInWithMagicLink = async (email: string) => {
   const { data, error } = await supabase.auth.signInWithOtp({
     email,
@@ -508,20 +560,23 @@ const signInWithMagicLink = async (email: string) => {
       emailRedirectTo: `${window.location.origin}/auth/callback`
     }
   })
-  
+
   if (!error) {
     // User receives email with magic link
     // Show message to check email
   }
-  
+
   return { data, error }
 }
+
 ```
 
 ### 3. Session Management
 
 **Client-Side Session Handling:**
+
 ```typescript
+
 useEffect(() => {
   // Get initial session
   supabase.auth.getSession().then(({ data: { session } }) => {
@@ -534,11 +589,11 @@ useEffect(() => {
     (event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      
+
       if (event === 'SIGNED_IN') {
         router.push('/dashboard')
       }
-      
+
       if (event === 'SIGNED_OUT') {
         router.push('/auth/signin')
       }
@@ -547,10 +602,13 @@ useEffect(() => {
 
   return () => subscription.unsubscribe()
 }, [])
+
 ```
 
 **Server-Side Session Validation:**
+
 ```typescript
+
 // src/lib/auth-server.ts
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
@@ -568,6 +626,7 @@ export async function requireAuth() {
   }
   return session
 }
+
 ```
 
 ## Row Level Security Integration
@@ -575,16 +634,21 @@ export async function requireAuth() {
 ### User-Based Access Control
 
 **Link Auth Users to Business Entities:**
+
 ```sql
+
 -- Add auth_user_id to staff table for property managers
 ALTER TABLE staff ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 
--- Add auth_user_id to owners table for property owners  
+-- Add auth_user_id to owners table for property owners
 ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
+
 ```
 
 **Property Access Policies:**
+
 ```sql
+
 -- Property managers can access their assigned properties
 CREATE POLICY "Property managers can access assigned properties" ON properties
     FOR ALL USING (
@@ -606,10 +670,13 @@ CREATE POLICY "Property owners can access their properties" ON properties
         AND ow.auth_user_id = auth.uid()
       )
     );
+
 ```
 
 **Ownership Access Policies:**
+
 ```sql
+
 -- Users can only see ownership records for their properties
 CREATE POLICY "Users can access ownership for their properties" ON ownership
     FOR ALL USING (
@@ -628,22 +695,31 @@ CREATE POLICY "Users can access ownership for their properties" ON ownership
         AND o.auth_user_id = auth.uid()
       )
     );
+
 ```
 
 ## Migration Steps
 
 ### Step 1: Package Dependencies
+
 ```bash
+
 # Remove NextAuth
+
 npm uninstall next-auth
 
 # Add Supabase auth helpers
+
 npm install @supabase/auth-helpers-nextjs
+
 ```
 
 ### Step 2: Update Environment Variables
+
 ```bash
+
 # Remove from .env.local
+
 NEXTAUTH_URL=...
 NEXTAUTH_SECRET=...
 EMAIL_SERVER_HOST=...
@@ -653,34 +729,45 @@ EMAIL_SERVER_PASSWORD=...
 EMAIL_FROM=...
 
 # Keep only Supabase variables
+
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
+
 ```
 
 ### Step 3: Replace Components
+
 1. **Remove** `SessionProvider` from providers.tsx
+
 2. **Add** `AuthProvider` with Supabase Auth
+
 3. **Create** authentication pages
+
 4. **Implement** protected route middleware
+
 5. **Update** navigation and user interface
 
 ### Step 4: Database Integration
+
 ```sql
+
 -- Add auth_user_id columns to relevant tables
 ALTER TABLE staff ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 
 -- Create proper RLS policies
 -- (Replace current "allow all" policies with user-specific ones)
+
 ```
 
 ## Testing Authentication
 
 ### Manual Testing Checklist
+
 - [ ] Sign up with email/password
 - [ ] Receive and click confirmation email
-- [ ] Sign in with email/password  
+- [ ] Sign in with email/password
 - [ ] Sign out successfully
 - [ ] Request magic link
 - [ ] Click magic link from email
@@ -689,7 +776,9 @@ ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 - [ ] Session persistence across browser refresh
 
 ### Automated Testing
+
 ```typescript
+
 // Example test
 describe('Authentication Flow', () => {
   it('should sign up user successfully', async () => {
@@ -697,16 +786,18 @@ describe('Authentication Flow', () => {
       email: 'test@example.com',
       password: 'password123'
     })
-    
+
     expect(error).toBeNull()
     expect(data.user).toBeDefined()
   })
 })
+
 ```
 
 ## Security Considerations
 
 ### Production Checklist
+
 - [ ] Enable email confirmations in production
 - [ ] Configure proper SMTP server for emails
 - [ ] Set up proper RLS policies (remove "allow all" policies)
@@ -717,11 +808,17 @@ describe('Authentication Flow', () => {
 - [ ] Configure session timeouts
 
 ### Best Practices
+
 1. **Never expose service role key** to client-side code
+
 2. **Use RLS policies** instead of API-level authorization
+
 3. **Validate all user inputs** before database operations
+
 4. **Log authentication events** for security monitoring
+
 5. **Implement proper session timeout** handling
+
 6. **Use HTTPS** in production for all auth operations
 
 ## Rollback Plan
@@ -729,8 +826,11 @@ describe('Authentication Flow', () => {
 If issues arise during migration:
 
 1. **Revert package.json** to include NextAuth
+
 2. **Restore SessionProvider** in providers.tsx
+
 3. **Keep Supabase configuration** for database operations
+
 4. **Maintain hybrid state** until issues resolved
 
 The database layer remains unaffected during authentication migration, ensuring system stability.
