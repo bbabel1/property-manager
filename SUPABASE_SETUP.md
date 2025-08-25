@@ -1,59 +1,248 @@
 # Supabase Setup Guide
 
-This document provides an overview of the Supabase setup for the Property Management System.
+This guide will help you connect your Ora Property Management application to Supabase.
 
-## Overview
+## Prerequisites
 
-This project uses Supabase as the backend database and authentication service. The setup includes:
+1. A Supabase account (sign up at [supabase.com](https://supabase.com))
+2. A Supabase project created
 
-- **Database**: PostgreSQL database with custom schema for property management
-- **Authentication**: Supabase Auth for user management
-- **Edge Functions**: Serverless functions for Buildium integration
-- **Real-time**: WebSocket connections for live updates
+## Step 1: Get Your Supabase Credentials
 
-## Quick Start
+1. Go to your Supabase project dashboard
+2. Navigate to **Settings** → **API**
 
-1. **Environment Variables**: Ensure your `.env` file contains the necessary Supabase credentials
-2. **Database Schema**: Run migrations in the `supabase/migrations/` directory
-3. **Edge Functions**: Deploy functions from `supabase/functions/`
+3. Copy the following values:
+   - **Project URL** (e.g., `https://your-project-ref.supabase.co`)
 
-## Documentation
+   - **anon public** key
 
-For detailed information, see the following documentation:
+   - **service_role** key (keep this secret!)
 
-- **Database Schema**: [`docs/database/database-schema.md`](docs/database/database-schema.md)
-- **Buildium Integration**: [`docs/buildium-integration-complete.md`](docs/buildium-integration-complete.md)
-- **API Documentation**: [`docs/api/api-documentation.md`](docs/api/api-documentation.md)
+## Step 2: Configure Environment Variables
 
-## Key Components
+1. Copy `.env.example` to `.env.local`:
 
-### Database Tables
-- Properties, Units, Owners, Tenants
-- Leases, Transactions, Bank Accounts
-- Buildium integration tables
+   ```bash
 
-### Edge Functions
-- `buildium-sync`: Syncs data from Buildium API
-- `buildium-webhook`: Handles Buildium webhooks
-- `buildium-lease-transactions`: Processes lease transactions
-- `buildium-status`: Status monitoring
+   cp env.example .env.local
+   ```
 
-### Authentication
-- Supabase Auth with custom user roles
-- Protected routes and API endpoints
-- Session management
+2. Update your `.env.local` file with your Supabase credentials:
 
-## Development
+   ```env
 
-To work with the database locally:
+   # Supabase Configuration
 
-1. Install Supabase CLI
-2. Run `supabase start` to start local development
-3. Run `supabase db reset` to reset with latest migrations
-4. Use `supabase db push` to apply schema changes
+   NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
+   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key-here"
+   SUPABASE_SERVICE_ROLE_KEY="your-service-role-key-here"
+   ```
 
-## Production
+## Step 3: Create Database Tables
 
-The production database is hosted on Supabase Cloud. All migrations are automatically applied through the CI/CD pipeline.
+You can create tables in Supabase using the SQL editor or the table interface. Here's an example SQL for the properties
+table:
 
-For more detailed setup instructions, refer to the documentation in the `docs/` directory.
+```sql
+
+-- Create properties table
+CREATE TABLE properties (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  address TEXT NOT NULL,
+  type VARCHAR(100) NOT NULL,
+  total_units INTEGER NOT NULL DEFAULT 0,
+  occupied_units INTEGER NOT NULL DEFAULT 0,
+  available_units INTEGER NOT NULL DEFAULT 0,
+  status VARCHAR(50) NOT NULL DEFAULT 'Active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create owners table
+CREATE TABLE owners (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  phone VARCHAR(50),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create property_owners junction table
+CREATE TABLE property_owners (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
+  owner_id UUID REFERENCES owners(id) ON DELETE CASCADE,
+  ownership_percentage DECIMAL(5,2) NOT NULL DEFAULT 100.00,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(property_id, owner_id)
+);
+
+-- Create units table
+CREATE TABLE units (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
+  unit_number VARCHAR(50) NOT NULL,
+  type VARCHAR(100) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'Available',
+  rent_amount DECIMAL(10,2),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create tenants table
+CREATE TABLE tenants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  phone VARCHAR(50),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create leases table
+CREATE TABLE leases (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
+  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  rent_amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'Active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+```
+
+## Step 4: Set Up Row Level Security (RLS)
+
+Enable RLS on your tables and create policies as needed:
+
+```sql
+
+-- Enable RLS on all tables
+ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE owners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE property_owners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE units ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leases ENABLE ROW LEVEL SECURITY;
+
+-- Example policy for properties (allow all operations for now)
+CREATE POLICY "Allow all operations on properties" ON properties
+  FOR ALL USING (true);
+
+```
+
+## Step 5: Test the Connection
+
+1. Start your development server:
+
+   ```bash
+
+   npm run dev
+   ```
+
+2. Visit `http://localhost:3000/api/properties` to test the API endpoint
+
+## Usage Examples
+
+### Using the Custom Hook
+
+```tsx
+
+import { useSupabaseQuery, useSupabaseMutation } from '@/lib/hooks/useSupabase'
+
+// In your component
+function PropertiesList() {
+  const { data: properties, loading, error } = useSupabaseQuery('properties', {
+    orderBy: { column: 'created_at', ascending: false }
+  })
+
+  const { insert, loading: insertLoading } = useSupabaseMutation()
+
+  const addProperty = async () => {
+    const newProperty = await insert('properties', {
+      name: 'New Property',
+      address: '123 Main St',
+      type: 'Apartment',
+      total_units: 10,
+      occupied_units: 8,
+      available_units: 2,
+      status: 'Active'
+    })
+
+    if (newProperty) {
+      console.log('Property added:', newProperty)
+    }
+  }
+
+  if (loading) return <div>Loading...</div>
+  if (error) return <div>Error: {error}</div>
+
+  return (
+    <div>
+      {properties.map(property => (
+        <div key={property.id}>{property.name}</div>
+      ))}
+      <button onClick={addProperty} disabled={insertLoading}>
+        Add Property
+      </button>
+    </div>
+  )
+}
+
+```
+
+### Direct Supabase Client Usage
+
+```tsx
+
+import { supabase } from '@/lib/supabase'
+
+// Fetch data
+const { data, error } = await supabase
+  .from('properties')
+  .select('*')
+
+  .eq('status', 'Active')
+
+// Insert data
+const { data, error } = await supabase
+  .from('properties')
+  .insert([{ name: 'New Property', address: '123 Main St' }])
+  .select()
+
+// Update data
+const { data, error } = await supabase
+  .from('properties')
+  .update({ status: 'Inactive' })
+  .eq('id', 'property-id')
+  .select()
+
+// Delete data
+const { error } = await supabase
+  .from('properties')
+  .delete()
+  .eq('id', 'property-id')
+
+```
+
+## Next Steps
+
+1. **Authentication**: Consider using Supabase Auth instead of NextAuth
+
+2. **Real-time**: Enable real-time subscriptions for live updates
+
+3. **Storage**: Use Supabase Storage for file uploads
+
+4. **Edge Functions**: Create serverless functions for complex operations
+
+## Troubleshooting
+
+- **Connection errors**: Verify your environment variables are correct
+
+- **RLS errors**: Check your Row Level Security policies
+
+- **Type errors**: Generate TypeScript types from your Supabase schema
+
+For more information, visit the [Supabase documentation](https://supabase.com/docs).

@@ -1,0 +1,574 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase, supabaseAdmin } from '@/lib/db'
+import { requireUser } from '@/lib/auth'
+import { logger } from '@/lib/logger'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { sanitizeAndValidate } from '@/lib/sanitize'
+import { OwnerCreateSchema, OwnerQuerySchema } from '@/schemas/owner'
+import { buildiumSync } from '@/lib/buildium-sync'
+
+export async function GET(request: NextRequest) {
+  try {
+    console.log('🔍 Owners API: Starting request...');
+    
+    // Rate limiting
+    const rateLimit = await checkRateLimit(request);
+    if (!rateLimit.success) {
+      console.log('🔍 Owners API: Rate limit exceeded');
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
+        { status: 429 }
+      );
+    }
+
+    console.log('🔍 Owners API: Rate limit check passed');
+
+    // Authentication
+    const user = await requireUser(request);
+    console.log('🔍 Owners API: User authenticated:', user.id);
+    
+    // Validate query parameters
+    const { searchParams } = new URL(request.url);
+    const query = sanitizeAndValidate(Object.fromEntries(searchParams), OwnerQuerySchema);
+    console.log('🔍 Owners API: Validated query parameters:', query);
+    
+    // Fetch owners from database with contact information and calculate total units
+    console.log('🔍 Owners API: About to query Supabase...');
+    
+    const { data: owners, error } = await supabaseAdmin
+      .from('owners')
+      .select(`
+        id,
+        contact_id,
+        management_agreement_start_date,
+        management_agreement_end_date,
+        comment,
+        etf_account_type,
+        etf_account_number,
+        etf_routing_number,
+        tax_payer_id,
+        tax_payer_type,
+        tax_payer_name,
+        tax_address_line_1,
+        tax_address_line_2,
+        tax_address_line_3,
+        tax_city,
+        tax_state,
+        tax_postal_code,
+        tax_country,
+        buildium_owner_id,
+        buildium_created_at,
+        buildium_updated_at,
+        created_at,
+        updated_at,
+        contacts (
+          id,
+          is_company,
+          first_name,
+          last_name,
+          company_name,
+          display_name,
+          primary_email,
+          alt_email,
+          primary_phone,
+          alt_phone,
+          date_of_birth,
+          primary_address_line_1,
+          primary_address_line_2,
+          primary_address_line_3,
+          primary_city,
+          primary_state,
+          primary_postal_code,
+          primary_country,
+          alt_address_line_1,
+          alt_address_line_2,
+          alt_address_line_3,
+          alt_city,
+          alt_state,
+          alt_postal_code,
+          alt_country,
+          mailing_preference
+        )
+      `)
+      .order('contacts(last_name)', { ascending: true })
+      .order('contacts(first_name)', { ascending: true });
+
+    // Calculate total units for each owner by summing total_units from their properties
+    console.log('🔍 Owners API: Calculating total units for each owner...');
+    const ownersWithTotalUnits = await Promise.all(
+      owners?.map(async (owner) => {
+        // Get all properties owned by this owner through ownerships table
+        const { data: ownerships, error: ownershipError } = await supabaseAdmin
+          .from('ownerships')
+          .select(`
+            property_id,
+            ownership_percentage,
+            disbursement_percentage,
+            primary,
+            properties (
+              id,
+              name,
+              total_units
+            )
+          `)
+          .eq('owner_id', owner.id);
+
+        if (ownershipError) {
+          console.error('🔍 Owners API: Error fetching ownerships for owner', owner.id, ownershipError);
+          return {
+            ...owner,
+            totalUnits: 0,
+            properties: []
+          };
+        }
+
+        // Calculate total units and prepare properties array
+        const totalUnits = ownerships?.reduce((sum, ownership) => {
+          const property = Array.isArray(ownership.properties) ? ownership.properties[0] : ownership.properties;
+          return sum + (property?.total_units || 0);
+        }, 0) || 0;
+
+        const properties = ownerships?.map(ownership => {
+          const property = Array.isArray(ownership.properties) ? ownership.properties[0] : ownership.properties;
+          return {
+            id: property?.id,
+            name: property?.name,
+            ownershipPercentage: ownership.ownership_percentage,
+            disbursementPercentage: ownership.disbursement_percentage,
+            primary: ownership.primary
+          };
+        }) || [];
+
+        return {
+          ...owner,
+          totalUnits,
+          properties
+        };
+      }) || []
+    );
+
+    if (error) {
+      console.error('🔍 Owners API: Error fetching owners:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch owners' },
+        { status: 500 }
+      );
+    }
+
+    console.log('🔍 Owners API: Successfully fetched', ownersWithTotalUnits.length, 'owners');
+    return NextResponse.json(ownersWithTotalUnits);
+  } catch (error) {
+    console.error('🔍 Owners API: Caught error:', error);
+    
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ error: errorMessage }, 'Error fetching owners');
+    return NextResponse.json(
+      { error: 'Failed to fetch owners' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('🔍 Owners API POST: Starting request...');
+    
+    // Rate limiting
+    const rateLimit = await checkRateLimit(request);
+    if (!rateLimit.success) {
+      console.log('🔍 Owners API POST: Rate limit exceeded');
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
+        { status: 429 }
+      );
+    }
+
+    // Authentication
+    const user = await requireUser(request);
+    console.log('�� Owners API POST: User authenticated:', user.id);
+
+    // Parse and validate request body
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.error('🔍 Owners API POST: Failed to parse request body:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
+
+    console.log('🔍 Owners API POST: Received request body:', body);
+    const data = sanitizeAndValidate(body, OwnerCreateSchema);
+    console.log('🔍 Owners API POST: Validated data:', data);
+
+    // Extract and validate data
+    const {
+      isCompany,
+      firstName,
+      lastName,
+      companyName,
+      primaryEmail,
+      altEmail,
+      primaryPhone,
+      altPhone,
+      dateOfBirth,
+      primaryAddressLine1,
+      primaryAddressLine2,
+      primaryAddressLine3,
+      primaryCity,
+      primaryState,
+      primaryPostalCode,
+      primaryCountry,
+      altAddressLine1,
+      altAddressLine2,
+      altAddressLine3,
+      altCity,
+      altState,
+      altPostalCode,
+      altCountry,
+      mailingPreference,
+      managementAgreementStartDate,
+      managementAgreementEndDate,
+      comment,
+      etfAccountType,
+      etfAccountNumber,
+      etfRoutingNumber,
+      taxPayerId,
+      taxPayerType,
+      taxPayerName,
+      taxAddressLine1,
+      taxAddressLine2,
+      taxAddressLine3,
+      taxCity,
+      taxState,
+      taxPostalCode,
+      taxCountry
+    } = data;
+
+    // Validate required fields based on company status
+    if (isCompany) {
+      if (!companyName) {
+        return NextResponse.json(
+          { error: 'Company name is required for company owners' },
+          { status: 400 }
+        );
+      }
+    } else {
+      if (!firstName || !lastName) {
+        return NextResponse.json(
+          { error: 'First name and last name are required for individual owners' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate email format if provided
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (primaryEmail && !emailRegex.test(primaryEmail)) {
+      return NextResponse.json(
+        { error: 'Invalid primary email format' },
+        { status: 400 }
+      );
+    }
+    if (altEmail && !emailRegex.test(altEmail)) {
+      return NextResponse.json(
+        { error: 'Invalid alternate email format' },
+        { status: 400 }
+      );
+    }
+
+    // Check if contact already exists (by email for individuals, by company name for companies)
+    let contactId: string;
+    let existingContact = null;
+
+    if (isCompany) {
+      // For companies, check by company name
+      const { data: existingCompany } = await supabaseAdmin
+        .from('contacts')
+        .select('id, company_name')
+        .eq('is_company', true)
+        .eq('company_name', companyName)
+        .single();
+
+      existingContact = existingCompany;
+    } else {
+      // For individuals, check by email
+      if (primaryEmail) {
+        const { data: existingIndividual } = await supabaseAdmin
+          .from('contacts')
+          .select('id, first_name, last_name, primary_email')
+          .eq('is_company', false)
+          .eq('primary_email', primaryEmail)
+          .single();
+
+        existingContact = existingIndividual;
+      }
+    }
+
+    if (existingContact) {
+      console.log('🔍 Owners API POST: Found existing contact:', existingContact.id);
+      contactId = existingContact.id;
+    } else {
+      console.log('🔍 Owners API POST: Creating new contact');
+      
+      // Create new contact
+      const contactData = {
+        is_company: isCompany,
+        first_name: isCompany ? null : firstName,
+        last_name: isCompany ? null : lastName,
+        company_name: isCompany ? companyName : null,
+        // display_name will be auto-generated by the trigger
+        primary_email: primaryEmail,
+        alt_email: altEmail,
+        primary_phone: primaryPhone,
+        alt_phone: altPhone,
+        date_of_birth: dateOfBirth,
+        primary_address_line_1: primaryAddressLine1,
+        primary_address_line_2: primaryAddressLine2,
+        primary_address_line_3: primaryAddressLine3,
+        primary_city: primaryCity,
+        primary_state: primaryState,
+        primary_postal_code: primaryPostalCode,
+        primary_country: primaryCountry,
+        alt_address_line_1: altAddressLine1,
+        alt_address_line_2: altAddressLine2,
+        alt_address_line_3: altAddressLine3,
+        alt_city: altCity,
+        alt_state: altState,
+        alt_postal_code: altPostalCode,
+        alt_country: altCountry,
+        mailing_preference: mailingPreference,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: newContact, error: contactError } = await supabaseAdmin
+        .from('contacts')
+        .insert(contactData)
+        .select('id')
+        .single();
+
+      if (contactError) {
+        console.error('🔍 Owners API POST: Error creating contact:', contactError);
+        return NextResponse.json(
+          { error: 'Failed to create contact' },
+          { status: 500 }
+        );
+      }
+
+      contactId = newContact.id;
+      console.log('🔍 Owners API POST: Created new contact with ID:', contactId);
+    }
+
+    // Create owner record
+    console.log('🔍 Owners API POST: Creating owner record with contact_id:', contactId);
+    const ownerData = {
+      contact_id: contactId,
+      management_agreement_start_date: managementAgreementStartDate,
+      management_agreement_end_date: managementAgreementEndDate,
+      comment: comment,
+      etf_account_type: etfAccountType,
+      etf_account_number: etfAccountNumber,
+      etf_routing_number: etfRoutingNumber,
+      // Tax information
+      tax_payer_id: taxPayerId,
+      tax_payer_type: taxPayerType,
+      tax_payer_name: taxPayerName,
+      tax_address_line_1: taxAddressLine1,
+      tax_address_line_2: taxAddressLine2,
+      tax_address_line_3: taxAddressLine3,
+      tax_city: taxCity,
+      tax_state: taxState,
+      tax_postal_code: taxPostalCode,
+      tax_country: taxCountry,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: newOwner, error: ownerError } = await supabaseAdmin
+      .from('owners')
+      .insert(ownerData)
+      .select(`
+        id,
+        contact_id,
+        management_agreement_start_date,
+        management_agreement_end_date,
+        comment,
+        etf_account_type,
+        etf_account_number,
+        etf_routing_number,
+        tax_payer_id,
+        tax_payer_type,
+        tax_payer_name,
+        tax_address_line_1,
+        tax_address_line_2,
+        tax_address_line_3,
+        tax_city,
+        tax_state,
+        tax_postal_code,
+        tax_country,
+        created_at,
+        updated_at,
+        contacts (
+          id,
+          is_company,
+          first_name,
+          last_name,
+          company_name,
+          primary_email,
+          primary_phone,
+          primary_address_line_1,
+          primary_city,
+          primary_state,
+          primary_postal_code,
+          primary_country
+        )
+      `)
+      .single();
+
+    if (ownerError) {
+      console.error('🔍 Owners API POST: Error creating owner:', ownerError);
+      return NextResponse.json(
+        { error: 'Failed to create owner' },
+        { status: 500 }
+      );
+    }
+
+    // ============================================================================
+    // BUILDIUM SYNC - NEW SECTION
+    // ============================================================================
+
+    let buildiumSyncResult = { success: true, buildiumId: undefined, error: undefined };
+
+    try {
+      // Get the contact information for Buildium sync
+      const contact = Array.isArray(newOwner.contacts) ? newOwner.contacts[0] : newOwner.contacts;
+      
+      // Prepare owner data for Buildium sync
+      const buildiumOwnerData = {
+        FirstName: contact?.first_name || '',
+        LastName: contact?.last_name || '',
+        Email: contact?.primary_email || undefined,
+        PhoneNumber: contact?.primary_phone || undefined,
+        Address: {
+          AddressLine1: contact?.primary_address_line_1 || '',
+          AddressLine2: contact?.primary_address_line_2 || undefined,
+          City: contact?.primary_city || '',
+          State: contact?.primary_state || '',
+          PostalCode: contact?.primary_postal_code || '',
+          Country: contact?.primary_country || 'US'
+        },
+        TaxId: newOwner.tax_payer_id || undefined,
+        IsActive: true,
+        Notes: newOwner.comment || undefined
+      };
+
+      // Sync to Buildium
+      buildiumSyncResult = await buildiumSync.syncOwnerToBuildium(buildiumOwnerData);
+
+      if (buildiumSyncResult.success && buildiumSyncResult.buildiumId) {
+        logger.info({ 
+          ownerId: newOwner.id, 
+          buildiumId: buildiumSyncResult.buildiumId,
+          userId: user.id 
+        }, 'Owner successfully synced to Buildium');
+      } else if (!buildiumSyncResult.success) {
+        logger.warn({ 
+          ownerId: newOwner.id, 
+          error: buildiumSyncResult.error,
+          userId: user.id 
+        }, 'Owner created locally but Buildium sync failed');
+      }
+
+    } catch (syncError) {
+      logger.error({ 
+        ownerId: newOwner.id, 
+        error: syncError,
+        userId: user.id 
+      }, 'Error during Buildium sync');
+      
+      buildiumSyncResult = { 
+        success: false, 
+        buildiumId: undefined, 
+        error: syncError instanceof Error ? syncError.message : 'Unknown sync error' 
+      };
+    }
+
+    // Transform response to match expected format
+    const contact = Array.isArray(newOwner.contacts) ? newOwner.contacts[0] : newOwner.contacts;
+    const transformedOwner = {
+      id: newOwner.id,
+      contact_id: newOwner.contact_id,
+      management_agreement_start_date: newOwner.management_agreement_start_date,
+      management_agreement_end_date: newOwner.management_agreement_end_date,
+      comment: newOwner.comment,
+      etf_account_type: newOwner.etf_account_type,
+      etf_account_number: newOwner.etf_account_number,
+      etf_routing_number: newOwner.etf_routing_number,
+      created_at: newOwner.created_at,
+      updated_at: newOwner.updated_at,
+      // Contact information flattened
+      is_company: contact?.is_company,
+      first_name: contact?.first_name,
+      last_name: contact?.last_name,
+      company_name: contact?.company_name,
+      primary_email: contact?.primary_email,
+      primary_phone: contact?.primary_phone,
+      primary_address_line_1: contact?.primary_address_line_1,
+      primary_city: contact?.primary_city,
+      primary_state: contact?.primary_state,
+      primary_postal_code: contact?.primary_postal_code,
+      primary_country: contact?.primary_country,
+      // Tax information from owners table
+      tax_payer_id: newOwner.tax_payer_id,
+      tax_payer_type: newOwner.tax_payer_type,
+      tax_payer_name: newOwner.tax_payer_name,
+      tax_address_line_1: newOwner.tax_address_line_1,
+      tax_address_line_2: newOwner.tax_address_line_2,
+      tax_address_line_3: newOwner.tax_address_line_3,
+      tax_city: newOwner.tax_city,
+      tax_state: newOwner.tax_state,
+      tax_postal_code: newOwner.tax_postal_code,
+      tax_country: newOwner.tax_country,
+      // Computed fields
+      displayName: contact?.is_company 
+        ? contact?.company_name 
+        : `${contact?.first_name || ''} ${contact?.last_name || ''}`.trim(),
+      addressLine1: contact?.primary_address_line_1, // Legacy compatibility
+      // Buildium sync information
+      buildiumSync: {
+        success: buildiumSyncResult.success,
+        buildiumId: buildiumSyncResult.buildiumId,
+        error: buildiumSyncResult.error
+      }
+    };
+
+    console.log('🔍 Owners API POST: Owner created successfully:', newOwner.id);
+    return NextResponse.json(transformedOwner, { status: 201 });
+  } catch (error) {
+    console.error('🔍 Owners API POST: Caught error:', error);
+    
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      console.log('🔍 Owners API POST: Authentication error detected');
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('🔍 Owners API POST: Final error message:', errorMessage);
+    logger.error({ error: errorMessage }, 'Error creating owner');
+    return NextResponse.json(
+      { error: 'Failed to create owner', details: errorMessage },
+      { status: 500 }
+    );
+  }
+}

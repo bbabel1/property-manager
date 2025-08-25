@@ -1,42 +1,84 @@
-# Documentation Index
+# Documentation
 
-> **Last Updated**: 2025-08-22T19:00:28.564Z (Auto-generated)
+Welcome to the Property Management System documentation. This directory contains comprehensive documentation for all
+aspects of the system.
 
-## Architecture Documentation
+## Documentation Structure
 
-- [Current Architecture Analysis](architecture/CURRENT_ARCHITECTURE_ANALYSIS.md) - System state and hybrid architecture
-- [Migration Status and Roadmap](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Conversion progress tracking
-- [Business Logic Documentation](architecture/BUSINESS_LOGIC_DOCUMENTATION.md) - Property management business rules
-- [Supabase Auth Implementation](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication implementation guide
+### Architecture Documentation
 
-## API Documentation
+- **[Current Architecture Analysis](architecture/CURRENT_ARCHITECTURE_ANALYSIS.md)** - Detailed analysis of the current
 
-- [Supabase API Documentation](api/SUPABASE_API_DOCUMENTATION.md) - Complete API reference
+system architecture
 
-## Database Documentation
+- **[Migration Status and Roadmap](architecture/MIGRATION_STATUS_AND_ROADMAP.md)** - Current migration progress and
 
-- [Database Schema](database/DATABASE_SCHEMA.md) - Complete schema overview
-- [Supabase Setup Guide](../docs/database/SUPABASE_SETUP.md) - Initial setup instructions
+future plans
 
-## Migration Guides
+- **[Business Logic Documentation](architecture/BUSINESS_LOGIC_DOCUMENTATION.md)** - Core business rules and domain
 
-- [Prisma to Supabase Migration](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Step-by-step migration guide
-- [NextAuth to Supabase Auth](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication migration
+concepts
 
-## Monitoring
+### API Documentation
 
-This documentation is automatically updated by the documentation monitoring system. 
+- **[API Documentation](api/api-documentation.md)** - Complete API reference and usage examples
 
-**Last automated check**: 2025-08-22T19:00:28.564Z
+- **[Buildium API Documentation](api/buildium-api-documentation.md)** - Buildium integration API details
 
-**Monitoring patterns**:
-- API routes (`src/app/api/**/*.ts`)
-- Database migrations (`supabase/migrations/*.sql`) 
-- Authentication files (`src/lib/auth*`, `src/app/auth*`)
-- Business logic (`src/types/*`, `src/lib/*-service.ts`)
-- Dependencies (`package.json`)
+- **[Bank Account Sync Documentation](api/bank-account-sync-documentation.md)** - Banking integration documentation
 
-To run manual documentation updates:
-```bash
-npm run docs:update
-```
+### Database Documentation
+
+- **[Database Schema](database/database-schema.md)** - Complete database schema documentation
+
+- **[Buildium Integration Summary](database/buildium-integration-summary.md)** - Database integration overview
+
+### AI Analysis
+
+- **[API Insights](ai-analysis/api-insights.md)** - AI-generated insights about API design
+
+- **[Architecture Insights](ai-analysis/architecture-insights.md)** - AI analysis of system architecture
+
+- **[Buildium Integration Analysis](ai-analysis/buildium-integration-improvement-analysis.md)** - AI recommendations for
+
+Buildium integration
+
+## Quick Navigation
+
+### For Developers
+
+1. Start with [Current Architecture Analysis](architecture/CURRENT_ARCHITECTURE_ANALYSIS.md)
+2. Review [API Documentation](api/api-documentation.md) for endpoint details
+3. Check [Database Schema](database/database-schema.md) for data structure
+
+### For Business Users
+
+1. Read [Business Logic Documentation](architecture/BUSINESS_LOGIC_DOCUMENTATION.md)
+2. Review [Buildium Integration Summary](database/buildium-integration-summary.md)
+3. Check [Migration Status](architecture/MIGRATION_STATUS_AND_ROADMAP.md) for current state
+
+### For System Administrators
+
+1. Review [Current Architecture Analysis](architecture/CURRENT_ARCHITECTURE_ANALYSIS.md)
+2. Check [Migration Status](architecture/MIGRATION_STATUS_AND_ROADMAP.md)
+3. Review [API Documentation](api/api-documentation.md) for integration points
+
+## Contributing to Documentation
+
+When updating documentation:
+
+1. Follow the existing structure and formatting
+2. Update the relevant sections when making code changes
+3. Include practical examples and use cases
+4. Explain business logic and architectural decisions
+5. Keep documentation in sync with code changes
+
+## Documentation Standards
+
+- Use clear, professional language
+- Include code examples where appropriate
+- Explain the "why" behind implementation decisions
+- Keep documentation up-to-date with code changes
+- Use consistent formatting and structure
+
+For questions about documentation or to suggest improvements, please refer to the project's contribution guidelines.
