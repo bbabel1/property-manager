@@ -13,6 +13,7 @@ This document outlines the core business logic implemented in the Ora Property M
 **Primary Entity**: Central to the entire system, representing rental properties.
 
 **Key Business Rules:**
+
 - Each property must have a unique name and complete address
 - Properties require an operating bank account for financial operations
 - Optional reserve funds for unexpected expenses (non-disbursable cash)
@@ -21,6 +22,7 @@ This document outlines the core business logic implemented in the Ora Property M
 - Year built validation (1000 to current year)
 
 **Schema Highlights:**
+
 ```sql
 CREATE TABLE properties (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -35,6 +37,7 @@ CREATE TABLE properties (
 ```
 
 **Property Types:**
+
 - `CondoTownhome` - Condominium and townhome properties
 - `MultiFamily` - Apartment buildings and multi-unit properties  
 - `SingleFamily` - Single-family rental homes
@@ -50,14 +53,16 @@ CREATE TABLE properties (
 **Business Model**: Properties can have multiple owners with different ownership stakes and income distribution rights.
 
 **Owner Types:**
+
 - **Individual Owners**: `is_company = false`
   - Requires first_name OR last_name
   - Personal tax information (SSN)
-- **Company Owners**: `is_company = true` 
+- **Company Owners**: `is_company = true`
   - Requires company_name
   - Business tax information (EIN)
 
 **Ownership Structure:**
+
 ```sql
 CREATE TABLE ownership (
   owner_id UUID REFERENCES owners(id),
@@ -69,6 +74,7 @@ CREATE TABLE ownership (
 ```
 
 **Key Business Rules:**
+
 1. **Ownership Percentage**: Represents actual equity stake (0-100%)
 2. **Disbursement Percentage**: Controls income distribution (0-100%)
 3. **Primary Owner**: One owner per property can be designated as primary
@@ -76,7 +82,8 @@ CREATE TABLE ownership (
 
 **Business Logic Examples:**
 
-*Example 1: Equal Ownership, Unequal Distribution*
+#### Example 1: Equal Ownership, Unequal Distribution
+
 ```typescript
 // Property with 2 owners, equal ownership, unequal income distribution
 const ownership = [
@@ -86,7 +93,8 @@ const ownership = [
 // Owner A gets 70% of rental income despite 50% ownership
 ```
 
-*Example 2: Management Company Arrangement*
+#### Example 2: Management Company Arrangement
+
 ```typescript
 // Property owner + management company
 const ownership = [
@@ -101,12 +109,14 @@ const ownership = [
 **Business Model**: Properties contain individual rental units with specific characteristics.
 
 **Unit Classification:**
+
 - **Bedrooms**: `Studio`, `OneBed`, `TwoBed`, ..., `NineBedPlus`
 - **Bathrooms**: `OneBath`, `OnePointFiveBath`, ..., `FivePlusBath`
 - **Market Rent**: Expected rental income per unit
 - **Unit Size**: Square footage
 
 **Key Relationships:**
+
 - Each unit belongs to exactly one property (`property_id` FK)
 - Units inherit property address but can have unit-specific address lines
 - Units can have different market rents within the same property
@@ -114,17 +124,20 @@ const ownership = [
 ### 4. Financial Architecture
 
 **Bank Accounts (`bank_accounts` table):**
+
 - **Operating Accounts**: Primary accounts for property income/expenses
 - **Reserve Funds**: Property-level cash reserves (non-distributable)
 - **Check Printing**: Multiple layouts and configurations
 - **Integration**: Buildium bank account linking
 
 **Financial Flow:**
-```
+
+```text
 Rental Income → Operating Bank Account → (Reserve Allocation) → Owner Distributions
 ```
 
 **Reserve Fund Logic:**
+
 - Maintained at property level
 - Not included in owner distributions  
 - Used for unexpected expenses
@@ -133,16 +146,19 @@ Rental Income → Operating Bank Account → (Reserve Allocation) → Owner Dist
 ### 5. Tax Information Management
 
 **Individual Owners:**
+
 - Tax ID Type: `SSN`
 - Personal tax information
 - Tax address (can differ from primary address)
 
-**Business Owners:** 
+**Business Owners:**
+
 - Tax ID Type: `EIN`
 - Business tax information  
 - Corporate tax address
 
 **Validation Rules:**
+
 ```sql
 CHECK (
   (tax_payer_id IS NULL AND tax_payer_type IS NULL) OR
@@ -211,6 +227,7 @@ async function calculatePropertyValue(propertyId: string) {
 ## Data Integrity Constraints
 
 ### Database-Level Constraints
+
 ```sql
 -- Ensure ownership percentages are valid
 ALTER TABLE ownership ADD CONSTRAINT check_ownership_percentages 
@@ -232,6 +249,7 @@ ALTER TABLE owners ADD CONSTRAINT check_individual_owner_names
 ```
 
 ### Business Logic Validation
+
 ```typescript
 // Validate total ownership percentages don't exceed 100%
 function validateOwnershipPercentages(ownerships: Ownership[]): boolean {
@@ -249,11 +267,13 @@ function validateDisbursementPercentages(ownerships: Ownership[]): boolean {
 ## Integration Points
 
 ### Buildium Integration
+
 - Property mapping via `buildium_property_id`
 - Owner synchronization via `rental_owner_ids` array
 - Bank account linking via `buildium_bank_id`
 
 ### International Support
+
 - 200+ country enum support
 - Address format validation
 - Multi-currency potential (currently USD focused)

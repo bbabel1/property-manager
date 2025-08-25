@@ -5,6 +5,7 @@ This directory contains SQL migrations for the Ora Property Management database 
 ## Migration Files
 
 ### `001_create_properties_table.sql`
+
 Creates the main Properties table with comprehensive schema including:
 
 - **Enums**: `country_enum` and `rental_sub_type_enum`
@@ -19,12 +20,14 @@ Creates the main Properties table with comprehensive schema including:
 ## How to Apply Migrations
 
 ### Option 1: Supabase Dashboard (Recommended)
+
 1. Go to your [Supabase Dashboard](https://supabase.com/dashboard/project/cidfgplknvueaivsxiqa)
 2. Navigate to **SQL Editor**
 3. Copy and paste the migration SQL
 4. Click **Run** to execute
 
 ### Option 2: Supabase CLI
+
 ```bash
 # Install Supabase CLI
 npm install -g supabase
@@ -37,6 +40,7 @@ supabase db push
 ```
 
 ### Option 3: Direct Database Connection
+
 ```bash
 # Connect to your Supabase database and run the SQL
 psql "postgresql://postgres:[YOUR-PASSWORD]@db.cidfgplknvueaivsxiqa.supabase.co:5432/postgres"
@@ -45,6 +49,7 @@ psql "postgresql://postgres:[YOUR-PASSWORD]@db.cidfgplknvueaivsxiqa.supabase.co:
 ## Schema Overview
 
 ### Properties Table
+
 ```sql
 CREATE TABLE properties (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -71,9 +76,11 @@ CREATE TABLE properties (
 ### Enums
 
 #### Country Enum
+
 Contains 200+ countries for international property support.
 
 #### Rental Sub Type Enum
+
 - `CondoTownhome` - Condominiums and townhomes
 - `MultiFamily` - Multi-family residential properties
 - `SingleFamily` - Single-family homes
@@ -87,6 +94,7 @@ Contains 200+ countries for international property support.
 ## Constraints and Validation
 
 ### Data Validation
+
 - **Name**: Required, non-empty string, max 127 characters
 - **Address**: Required address line 1 and postal code
 - **Country**: Must match predefined enum values
@@ -95,6 +103,7 @@ Contains 200+ countries for international property support.
 - **Rental Sub Type**: Must match predefined enum values
 
 ### Business Rules
+
 - **Operating Bank Account**: Required for financial operations
 - **Buildium Integration**: Optional field for external system integration
 - **Owner IDs**: Array of integers for multiple property owners
@@ -102,6 +111,7 @@ Contains 200+ countries for international property support.
 ## Performance Optimizations
 
 ### Indexes Created
+
 - Primary key index (automatic)
 - Name search index
 - Country filter index
@@ -111,7 +121,9 @@ Contains 200+ countries for international property support.
 - Timestamp indexes for sorting
 
 ### Query Optimization
+
 The schema is optimized for common property management queries:
+
 - Property search by name
 - Geographic filtering (city, state, country)
 - Type-based filtering
@@ -121,11 +133,13 @@ The schema is optimized for common property management queries:
 ## Security
 
 ### Row Level Security (RLS)
+
 - Enabled on all tables
 - Basic policy allows all operations (customize based on auth requirements)
 - Ready for user-based access control implementation
 
 ### Data Protection
+
 - UUID primary keys for security
 - Proper data types and constraints
 - Input validation at database level
@@ -149,13 +163,16 @@ import { Property, CountryEnum, RentalSubTypeEnum } from '@/types/properties';
 ## Troubleshooting
 
 ### Common Issues
+
 - **Enum values**: Ensure exact case matching for enum values
 - **UUID generation**: Requires `uuid-ossp` extension (included in Supabase)
 - **Array columns**: Use proper array syntax for `rental_owner_ids`
 - **Timestamps**: All timestamps are in UTC with timezone information
 
 ### Support
+
 For migration issues, check:
+
 1. Supabase dashboard logs
 2. Database connection settings
 3. SQL syntax validation
