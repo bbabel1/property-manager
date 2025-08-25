@@ -84,7 +84,7 @@ async function insertBillIntoDatabase(buildiumBill: any) {
       .single()
 
     if (insertError) {
-      logger.error(`Error inserting bill into database:`, insertError)
+      logger.error(`Error inserting bill into database: ${insertError.message}`)
       throw new Error(`Failed to insert bill: ${insertError.message}`)
     }
 
@@ -92,7 +92,7 @@ async function insertBillIntoDatabase(buildiumBill: any) {
     return insertedBill
 
   } catch (error) {
-    logger.error(`Error inserting bill into database:`, error)
+    logger.error(`Error inserting bill into database: ${error instanceof Error ? error.message : String(error)}`)
     throw error
   }
 }
