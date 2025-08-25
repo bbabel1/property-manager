@@ -5,6 +5,7 @@
 ### ✅ COMPLETED MIGRATIONS
 
 #### 1. Database Layer (100% Complete)
+
 - **Old**: Prisma ORM with PostgreSQL
 - **New**: Direct Supabase client operations
 - **Status**: ✅ **FULLY MIGRATED**
@@ -16,6 +17,7 @@
   - Auto-updating timestamps
 
 #### 2. API Layer (100% Complete)  
+
 - **Old**: Prisma operations in API routes
 - **New**: Supabase Admin client operations
 - **Status**: ✅ **FULLY MIGRATED**
@@ -26,9 +28,10 @@
   - Type-safe operations
 
 #### 3. Database Hooks (100% Complete)
+
 - **Old**: Custom Prisma hooks
 - **New**: Custom Supabase hooks (`useSupabase.ts`)
-- **Status**: ✅ **FULLY MIGRATED** 
+- **Status**: ✅ **FULLY MIGRATED**
 - **Details**:
   - `useSupabaseQuery` for data fetching
   - `useSupabaseMutation` for CRUD operations
@@ -37,6 +40,7 @@
 ### ⚠️ PENDING MIGRATIONS
 
 #### 4. Authentication Provider (0% Complete)
+
 - **Old**: NextAuth SessionProvider
 - **Current**: NextAuth SessionProvider (still active)
 - **Target**: Supabase Auth Provider
@@ -44,18 +48,21 @@
 - **Impact**: HIGH - Required for true Supabase-only architecture
 
 #### 5. Authentication Pages (0% Complete)
+
 - **Current**: No auth pages (NextAuth handled routing)
 - **Target**: Supabase Auth sign-in/sign-up pages
 - **Status**: ❌ **NOT STARTED**
 - **Impact**: HIGH - Required for user authentication
 
 #### 6. Protected Route Middleware (0% Complete)
+
 - **Current**: No middleware (NextAuth handled protection)
 - **Target**: Supabase Auth middleware
-- **Status**: ❌ **NOT STARTED** 
+- **Status**: ❌ **NOT STARTED**
 - **Impact**: HIGH - Required for route protection
 
 #### 7. Session Management (0% Complete)
+
 - **Current**: NextAuth session handling
 - **Target**: Supabase session management
 - **Status**: ❌ **NOT STARTED**
@@ -66,6 +73,7 @@
 ### Phase 1: Prepare for Auth Migration (1-2 hours)
 
 **Tasks:**
+
 1. ✅ Analyze current architecture
 2. ✅ Document business logic
 3. ✅ Create Supabase Auth implementation guide
@@ -78,6 +86,7 @@
 ### Phase 2: Implement Supabase Auth (4-6 hours)
 
 **Tasks:**
+
 1. ❌ Install `@supabase/auth-helpers-nextjs`
 2. ❌ Create Supabase Auth context provider
 3. ❌ Create sign-in/sign-up pages with magic link support
@@ -91,6 +100,7 @@
 ### Phase 3: Remove NextAuth (1-2 hours)
 
 **Tasks:**
+
 1. ❌ Remove NextAuth from package.json
 2. ❌ Remove NextAuth SessionProvider
 3. ❌ Clean up NextAuth environment variables
@@ -103,6 +113,7 @@
 ### Phase 4: Production Hardening (2-3 hours)
 
 **Tasks:**
+
 1. ❌ Implement proper RLS policies (replace "allow all")
 2. ❌ Add auth_user_id columns to staff and owners tables
 3. ❌ Configure production email settings
@@ -115,6 +126,7 @@
 ## Current System Dependencies
 
 ### Package.json Analysis
+
 ```json
 {
   "dependencies": {
@@ -125,6 +137,7 @@
 ```
 
 **Required Additions:**
+
 ```bash
 npm install @supabase/auth-helpers-nextjs
 npm uninstall next-auth  # After migration complete
@@ -133,6 +146,7 @@ npm uninstall next-auth  # After migration complete
 ### Environment Variables Status
 
 **Currently Required:**
+
 ```bash
 # Supabase (Active)
 NEXT_PUBLIC_SUPABASE_URL="..."
@@ -145,6 +159,7 @@ NEXTAUTH_SECRET="..."
 ```
 
 **After Migration:**
+
 ```bash
 # Only Supabase variables needed
 NEXT_PUBLIC_SUPABASE_URL="..."
@@ -155,6 +170,7 @@ SUPABASE_SERVICE_ROLE_KEY="..."
 ## File Changes Required
 
 ### Files to Create
+
 - `src/lib/auth-context.tsx` - Supabase Auth provider
 - `src/lib/auth-server.ts` - Server-side auth utilities  
 - `src/app/auth/signin/page.tsx` - Sign-in page
@@ -163,12 +179,14 @@ SUPABASE_SERVICE_ROLE_KEY="..."
 - `src/middleware.ts` - Protected route middleware
 
 ### Files to Modify
+
 - `src/components/providers.tsx` - Replace NextAuth with Supabase Auth
 - `src/app/layout.tsx` - Remove Sidebar (move to protected layout)
 - `src/app/(protected)/layout.tsx` - Add auth protection and Sidebar
 - `package.json` - Remove next-auth, add auth-helpers
 
 ### Files to Update
+
 - All documentation files to remove NextAuth references
 - Environment variable examples
 - Setup guides and README
@@ -176,18 +194,21 @@ SUPABASE_SERVICE_ROLE_KEY="..."
 ## Risk Assessment
 
 ### Low Risk Components ✅
+
 - Database operations (already working)
 - API endpoints (already converted)
 - Business logic (independent of auth provider)
 - Data integrity (protected by database constraints)
 
 ### Medium Risk Components ⚠️
+
 - User session state management
 - Protected route access patterns
 - Authentication flow UX
 - Email delivery configuration
 
 ### High Risk Areas 🔴
+
 - Authentication provider swap (potential breaking change)
 - Session persistence across browser refresh
 - Production email configuration
@@ -196,6 +217,7 @@ SUPABASE_SERVICE_ROLE_KEY="..."
 ## Testing Strategy
 
 ### Pre-Migration Tests
+
 ```bash
 # Test current NextAuth flow works
 npm run dev
@@ -206,12 +228,14 @@ npm run dev
 ```
 
 ### During Migration Tests
+
 ```bash
 # Test each phase incrementally
 # Maintain working authentication at each step
 ```
 
 ### Post-Migration Tests
+
 ```bash
 # Test complete Supabase Auth flow
 # Automated test suite for auth operations
@@ -221,13 +245,15 @@ npm run dev
 ## Rollback Strategy
 
 ### If Migration Fails
-1. **Revert to git backup branch** 
+
+1. **Revert to git backup branch**
 2. **Restore NextAuth dependency** in package.json
 3. **Restore NextAuth SessionProvider** in providers.tsx
 4. **Keep Supabase database operations** (these work independently)
 5. **Continue with hybrid setup** until issues resolved
 
 ### Emergency Rollback Commands
+
 ```bash
 git checkout backup-before-auth-migration
 npm install  # Restore NextAuth dependency
@@ -237,6 +263,7 @@ npm run dev  # Should restore working state
 ## Success Metrics
 
 ### Technical Metrics
+
 - [ ] Zero NextAuth dependencies in package.json
 - [ ] All authentication flows working with Supabase Auth
 - [ ] Protected routes properly secured
@@ -244,6 +271,7 @@ npm run dev  # Should restore working state
 - [ ] RLS policies implemented and tested
 
 ### User Experience Metrics  
+
 - [ ] Sign-in/sign-up flows intuitive
 - [ ] Magic link authentication working
 - [ ] Session persistence across browser refresh
@@ -251,6 +279,7 @@ npm run dev  # Should restore working state
 - [ ] Performance equivalent or better than NextAuth
 
 ### Security Metrics
+
 - [ ] RLS policies properly restrict data access
 - [ ] No unauthorized access to protected routes
 - [ ] Auth tokens properly validated
@@ -259,10 +288,10 @@ npm run dev  # Should restore working state
 
 ## Estimated Timeline
 
-**Total Time: 8-12 hours**
+### Total Time: 8-12 hours
 
 - **Analysis and Planning**: ✅ 2 hours (Complete)
-- **Supabase Auth Implementation**: ❌ 4-6 hours 
+- **Supabase Auth Implementation**: ❌ 4-6 hours
 - **NextAuth Removal**: ❌ 1-2 hours
 - **Testing and Hardening**: ❌ 2-3 hours
 - **Documentation Updates**: ❌ 1 hour

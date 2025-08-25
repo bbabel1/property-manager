@@ -7,23 +7,27 @@
 ## Current Architecture State (January 2025)
 
 ### Database Layer ✅ FULLY CONVERTED
+
 - **Primary Database**: PostgreSQL via Supabase
 - **ORM**: Direct Supabase client calls (no Prisma in active use)
 - **Schema Management**: Supabase migrations (5 comprehensive migrations)
 - **Status**: **COMPLETE** - Fully migrated to Supabase
 
 ### API Layer ✅ FULLY CONVERTED  
+
 - **Database Operations**: Using `supabaseAdmin` client
 - **Endpoint Structure**: Next.js App Router API routes
 - **Status**: **COMPLETE** - All API calls use Supabase client
 
 ### Authentication Layer ⚠️ HYBRID STATE
+
 - **Current Setup**: NextAuth + Supabase Auth (both configured)
 - **Active Provider**: NextAuth SessionProvider in layout
 - **Supabase Auth**: Configured but not actively used
 - **Status**: **INCOMPLETE** - Needs conversion to Supabase Auth
 
 ### Frontend Layer ⚠️ HYBRID STATE  
+
 - **Auth Provider**: Still using NextAuth SessionProvider
 - **Database Hooks**: Custom Supabase hooks (`useSupabase.ts`)
 - **Status**: **INCOMPLETE** - Needs auth provider migration
@@ -33,6 +37,7 @@
 ### 1. Database Architecture (✅ Complete)
 
 **Supabase Configuration:**
+
 ```typescript
 // src/lib/db.ts
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
@@ -40,6 +45,7 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 ```
 
 **Migration Status:**
+
 - ✅ Properties table with comprehensive schema
 - ✅ Owners table with tax information
 - ✅ Ownership junction table with percentages  
@@ -51,6 +57,7 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 ### 2. API Layer (✅ Complete)
 
 **Current Implementation:**
+
 ```typescript
 // Example from src/app/api/properties/route.ts
 import { supabaseAdmin } from '@/lib/db'
@@ -65,12 +72,14 @@ export async function POST(request: NextRequest) {
 ```
 
 **Endpoints Using Supabase:**
+
 - `/api/properties` - Property CRUD operations
 - Additional API routes to be documented
 
 ### 3. Authentication Layer (⚠️ Needs Conversion)
 
 **Current Hybrid Setup:**
+
 ```typescript
 // src/components/providers.tsx - USING NEXTAUTH
 import { SessionProvider } from 'next-auth/react'
@@ -85,6 +94,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 ```
 
 **Supabase Auth Configuration:**
+
 ```toml
 # supabase/config.toml - CONFIGURED BUT NOT USED
 [auth]
@@ -99,6 +109,7 @@ enable_confirmations = true
 ```
 
 **Dependencies Still Present:**
+
 ```json
 // package.json - NEXTAUTH STILL INSTALLED
 "dependencies": {
@@ -110,12 +121,14 @@ enable_confirmations = true
 ### 4. Business Logic Implementation
 
 **Multi-Owner Property Management:**
+
 - Properties support multiple owners via `ownership` junction table
 - Ownership percentages (0-100%) for equity tracking  
 - Disbursement percentages (0-100%) for income distribution
 - Primary owner designation for management authority
 
 **Financial Architecture:**
+
 - Operating bank accounts linked to properties
 - Reserve funds management with decimal precision
 - Check printing capabilities with multiple layouts
@@ -124,6 +137,7 @@ enable_confirmations = true
 ## Required Actions for Full Supabase Conversion
 
 ### Phase 1: Authentication Migration
+
 1. **Remove NextAuth dependency** from package.json
 2. **Create Supabase Auth provider** to replace NextAuth SessionProvider  
 3. **Implement Supabase Auth hooks** for sign-in/sign-up
@@ -131,12 +145,14 @@ enable_confirmations = true
 5. **Update environment variables** to remove NextAuth configs
 
 ### Phase 2: Frontend Updates
+
 1. **Replace NextAuth providers** with Supabase Auth context
 2. **Update authentication checks** throughout the application
 3. **Implement protected route patterns** using Supabase Auth
 4. **Create sign-in/sign-up pages** using Supabase Auth
 
 ### Phase 3: Documentation Updates
+
 1. **Remove all NextAuth references** from documentation
 2. **Update environment variable examples**
 3. **Document Supabase Auth flow**
@@ -145,11 +161,13 @@ enable_confirmations = true
 ## Risk Assessment
 
 **Low Risk:**
+
 - Database layer is fully functional on Supabase
 - API endpoints are working with Supabase client
 - No data migration required
 
 **Medium Risk:**  
+
 - Authentication provider swap requires careful testing
 - User session management needs verification
 - Protected routes need validation

@@ -19,11 +19,13 @@ This guide will help you connect your Ora Property Management application to Sup
 ## Step 2: Configure Environment Variables
 
 1. Copy `.env.example` to `.env.local`:
+
    ```bash
    cp env.example .env.local
    ```
 
 2. Update your `.env.local` file with your Supabase credentials:
+
    ```env
    # Supabase Configuration
    NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
@@ -33,7 +35,8 @@ This guide will help you connect your Ora Property Management application to Sup
 
 ## Step 3: Create Database Tables
 
-You can create tables in Supabase using the SQL editor or the table interface. Here's an example SQL for the properties table:
+You can create tables in Supabase using the SQL editor or the table
+interface. Here's an example SQL for the properties table:
 
 ```sql
 -- Create properties table
@@ -123,6 +126,7 @@ CREATE POLICY "Allow all operations on properties" ON properties
 ## Step 5: Test the Connection
 
 1. Start your development server:
+
    ```bash
    npm run dev
    ```

@@ -4,11 +4,15 @@
 
 ## Overview
 
-The Ora Property Management API is built using Next.js App Router API routes with Supabase as the database layer. All endpoints use the Supabase client for database operations, providing a clean separation between database logic and API routing.
+The Ora Property Management API is built using Next.js App Router API routes
+with Supabase as the database layer. All endpoints use the Supabase client
+for database operations, providing a clean separation between database logic
+and API routing.
 
 ## Architecture
 
 ### Database Client Configuration
+
 ```typescript
 // src/lib/db.ts
 import { createClient } from '@supabase/supabase-js'
@@ -21,12 +25,15 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 ```
 
 ### Authentication
+
 - **Current State**: NextAuth SessionProvider (hybrid setup)
 - **Database**: Supabase Auth configured but not actively used
 - **API Security**: Service role key for admin operations
 
 ### Error Handling
+
 All endpoints follow consistent error handling patterns:
+
 ```typescript
 try {
   // Supabase operation
@@ -55,9 +62,11 @@ try {
 ### Properties API
 
 #### `POST /api/properties`
+
 Creates a new property with optional ownership and staff assignments.
 
 **Request Body:**
+
 ```typescript
 {
   // Required fields
@@ -86,6 +95,7 @@ Creates a new property with optional ownership and staff assignments.
 ```
 
 **Response:**
+
 ```typescript
 // Success (201)
 {
@@ -105,12 +115,14 @@ Creates a new property with optional ownership and staff assignments.
 ```
 
 **Database Operations:**
+
 1. **Insert Property**: Creates main property record
 2. **Create Ownership**: If owners provided, creates ownership relationships
 3. **Update Primary Owner**: Sets primary owner name on property
 4. **Assign Staff**: If propertyManagerId provided, creates staff assignment
 
 **Business Logic:**
+
 - Validates required fields before processing
 - Converts camelCase request to snake_case database fields
 - Creates ownership records with percentage validation
@@ -118,6 +130,7 @@ Creates a new property with optional ownership and staff assignments.
 - Handles partial failures (property created but ownership fails)
 
 **Example Request:**
+
 ```bash
 curl -X POST /api/properties \
   -H "Content-Type: application/json" \
@@ -151,9 +164,11 @@ curl -X POST /api/properties \
 ```
 
 #### `GET /api/properties`
+
 Retrieves all properties with related data using Supabase joins.
 
 **Response:**
+
 ```typescript
 // Success (200)
 Array<{
@@ -204,6 +219,7 @@ Array<{
 ```
 
 **Database Query:**
+
 ```typescript
 const { data: properties, error } = await supabaseAdmin
   .from('properties')
@@ -222,6 +238,7 @@ const { data: properties, error } = await supabaseAdmin
 ```
 
 **Features:**
+
 - **Complex Joins**: Retrieves related owners, bank accounts, and staff
 - **Nested Data**: Ownership records include full owner information
 - **Efficient Queries**: Single query returns comprehensive property data
@@ -231,6 +248,7 @@ const { data: properties, error } = await supabaseAdmin
 ### Supabase Client Patterns
 
 **Basic CRUD Operations:**
+
 ```typescript
 // Create
 const { data, error } = await supabaseAdmin
@@ -261,6 +279,7 @@ const { error } = await supabaseAdmin
 ```
 
 **Advanced Joins:**
+
 ```typescript
 // Many-to-many relationships
 const { data } = await supabaseAdmin
@@ -280,6 +299,7 @@ const { data } = await supabaseAdmin
 ### Row Level Security (RLS)
 
 All tables have RLS enabled with basic policies:
+
 ```sql
 -- Current policy (allow all - needs refinement)
 CREATE POLICY "Allow all operations on properties" ON properties
@@ -287,6 +307,7 @@ CREATE POLICY "Allow all operations on properties" ON properties
 ```
 
 **Future RLS Implementation:**
+
 ```sql
 -- Example user-based policy
 CREATE POLICY "Users can only see their properties" ON properties
@@ -303,6 +324,7 @@ CREATE POLICY "Users can only see their properties" ON properties
 ## Data Validation
 
 ### Client-Side Validation
+
 ```typescript
 // Type definitions ensure compile-time validation
 interface CreatePropertyRequest {
@@ -313,6 +335,7 @@ interface CreatePropertyRequest {
 ```
 
 ### Database Constraints
+
 ```sql
 -- Properties table constraints
 CHECK (name != ''),
@@ -326,6 +349,7 @@ CHECK (disbursement_percentage >= 0 AND disbursement_percentage <= 100)
 ```
 
 ### API-Level Validation
+
 ```typescript
 // Required field validation
 if (!rentalSubType || !name || !addressLine1 || !city || !state || !postalCode || !country) {
@@ -345,23 +369,27 @@ const yearBuilt = yearBuilt ? parseInt(yearBuilt) : null;
 Based on the database schema, additional endpoints will be needed:
 
 ### Owners API
+
 - `GET /api/owners` - List all owners
 - `POST /api/owners` - Create new owner
 - `PUT /api/owners/[id]` - Update owner
 - `DELETE /api/owners/[id]` - Remove owner
 
 ### Units API  
+
 - `GET /api/properties/[id]/units` - Get units for property
 - `POST /api/units` - Create new unit
 - `PUT /api/units/[id]` - Update unit
 - `DELETE /api/units/[id]` - Remove unit
 
 ### Bank Accounts API
+
 - `GET /api/bank-accounts` - List bank accounts
 - `POST /api/bank-accounts` - Create bank account
 - `PUT /api/bank-accounts/[id]` - Update bank account
 
 ### Ownership API
+
 - `GET /api/properties/[id]/ownership` - Get ownership for property
 - `POST /api/ownership` - Create ownership relationship
 - `PUT /api/ownership/[id]` - Update ownership percentages
@@ -369,7 +397,9 @@ Based on the database schema, additional endpoints will be needed:
 ## Performance Considerations
 
 ### Indexing Strategy
+
 All frequently queried columns have indexes:
+
 ```sql
 -- Property indexes for common queries
 CREATE INDEX idx_properties_name ON properties(name);
@@ -381,12 +411,14 @@ CREATE INDEX idx_properties_address_search ON properties(city, state, postal_cod
 ```
 
 ### Query Optimization
+
 - Use `select()` to specify exact fields needed
 - Implement pagination for large datasets
 - Use `single()` when expecting one result
 - Leverage Supabase's built-in query optimization
 
 ### Caching Strategy
+
 ```typescript
 // Future implementation with Next.js caching
 export async function GET() {
@@ -406,6 +438,7 @@ export async function GET() {
 ## Security Best Practices
 
 ### Environment Variables
+
 ```bash
 # Required environment variables
 NEXT_PUBLIC_SUPABASE_URL="https://project.supabase.co"
@@ -414,11 +447,13 @@ SUPABASE_SERVICE_ROLE_KEY="secret-service-role-key"
 ```
 
 ### Service Role Usage
+
 - Use `supabaseAdmin` only in API routes (server-side)
 - Never expose service role key to client
 - Implement proper RLS policies before production
 
 ### Data Sanitization
+
 ```typescript
 // Sanitize and validate all inputs
 const sanitizedData = {
@@ -446,6 +481,7 @@ const sanitizedData = {
 ## Testing Examples
 
 ### Unit Tests (Future)
+
 ```typescript
 describe('/api/properties', () => {
   it('should create property with owners', async () => {
@@ -461,6 +497,7 @@ describe('/api/properties', () => {
 ```
 
 ### Integration Tests (Future)
+
 ```typescript
 describe('Property creation flow', () => {
   it('should create property and ownership records', async () => {

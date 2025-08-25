@@ -3,12 +3,14 @@
 ## Current State vs Target State
 
 ### Current (Hybrid) Authentication
+
 - ✅ **Supabase Auth Configured**: Email/password and magic links enabled
 - ❌ **NextAuth Still Active**: SessionProvider still in use
 - ❌ **Mixed Dependencies**: Both NextAuth and Supabase Auth in package.json
 - ❌ **No Auth Pages**: Missing sign-in/sign-up implementations
 
 ### Target (Pure Supabase) Authentication
+
 - ✅ **Supabase Auth Only**: Complete authentication through Supabase
 - ✅ **Clean Dependencies**: Remove NextAuth completely
 - ✅ **Native Integration**: Use Supabase session management
@@ -17,6 +19,7 @@
 ## Supabase Auth Configuration
 
 ### Current Configuration (supabase/config.toml)
+
 ```toml
 [auth]
 enabled = true
@@ -38,6 +41,7 @@ otp_expiry = 3600
 ```
 
 ### Environment Variables
+
 ```bash
 # Required for Supabase Auth
 NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
@@ -54,6 +58,7 @@ NEXTAUTH_SECRET="your-secret-key"        # ← REMOVE
 ### Phase 1: Create Supabase Auth Context
 
 **Create Auth Provider** (`src/lib/auth-context.tsx`):
+
 ```typescript
 'use client'
 
@@ -158,6 +163,7 @@ export function useAuth() {
 ### Phase 2: Create Authentication Pages
 
 **Sign In Page** (`src/app/auth/signin/page.tsx`):
+
 ```typescript
 'use client'
 
@@ -274,6 +280,7 @@ export default function SignInPage() {
 ```
 
 **Auth Callback Page** (`src/app/auth/callback/page.tsx`):
+
 ```typescript
 'use client'
 
@@ -318,6 +325,7 @@ export default function AuthCallback() {
 ### Phase 3: Implement Protected Routes
 
 **Auth Middleware** (`src/middleware.ts`):
+
 ```typescript
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
@@ -369,6 +377,7 @@ export const config = {
 ```
 
 **Protected Layout** (`src/app/(protected)/layout.tsx`):
+
 ```typescript
 'use client'
 
@@ -411,6 +420,7 @@ export default function ProtectedLayout({
 ### Phase 4: Update Root Layout
 
 **Updated Providers** (`src/components/providers.tsx`):
+
 ```typescript
 'use client'
 
@@ -426,6 +436,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 ```
 
 **Updated Root Layout** (`src/app/layout.tsx`):
+
 ```typescript
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
@@ -461,6 +472,7 @@ export default function RootLayout({
 ### 1. Email/Password Authentication
 
 **Sign Up Flow:**
+
 ```typescript
 const signUp = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signUp({
@@ -481,6 +493,7 @@ const signUp = async (email: string, password: string) => {
 ```
 
 **Sign In Flow:**
+
 ```typescript
 const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -500,6 +513,7 @@ const signIn = async (email: string, password: string) => {
 ### 2. Magic Link Authentication
 
 **Magic Link Flow:**
+
 ```typescript
 const signInWithMagicLink = async (email: string) => {
   const { data, error } = await supabase.auth.signInWithOtp({
@@ -521,6 +535,7 @@ const signInWithMagicLink = async (email: string) => {
 ### 3. Session Management
 
 **Client-Side Session Handling:**
+
 ```typescript
 useEffect(() => {
   // Get initial session
@@ -550,6 +565,7 @@ useEffect(() => {
 ```
 
 **Server-Side Session Validation:**
+
 ```typescript
 // src/lib/auth-server.ts
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -575,6 +591,7 @@ export async function requireAuth() {
 ### User-Based Access Control
 
 **Link Auth Users to Business Entities:**
+
 ```sql
 -- Add auth_user_id to staff table for property managers
 ALTER TABLE staff ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
@@ -584,6 +601,7 @@ ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 ```
 
 **Property Access Policies:**
+
 ```sql
 -- Property managers can access their assigned properties
 CREATE POLICY "Property managers can access assigned properties" ON properties
@@ -609,6 +627,7 @@ CREATE POLICY "Property owners can access their properties" ON properties
 ```
 
 **Ownership Access Policies:**
+
 ```sql
 -- Users can only see ownership records for their properties
 CREATE POLICY "Users can access ownership for their properties" ON ownership
@@ -633,6 +652,7 @@ CREATE POLICY "Users can access ownership for their properties" ON ownership
 ## Migration Steps
 
 ### Step 1: Package Dependencies
+
 ```bash
 # Remove NextAuth
 npm uninstall next-auth
@@ -642,6 +662,7 @@ npm install @supabase/auth-helpers-nextjs
 ```
 
 ### Step 2: Update Environment Variables
+
 ```bash
 # Remove from .env.local
 NEXTAUTH_URL=...
@@ -659,6 +680,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
 ### Step 3: Replace Components
+
 1. **Remove** `SessionProvider` from providers.tsx
 2. **Add** `AuthProvider` with Supabase Auth
 3. **Create** authentication pages
@@ -666,6 +688,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 5. **Update** navigation and user interface
 
 ### Step 4: Database Integration
+
 ```sql
 -- Add auth_user_id columns to relevant tables
 ALTER TABLE staff ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
@@ -678,6 +701,7 @@ ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 ## Testing Authentication
 
 ### Manual Testing Checklist
+
 - [ ] Sign up with email/password
 - [ ] Receive and click confirmation email
 - [ ] Sign in with email/password  
@@ -689,6 +713,7 @@ ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 - [ ] Session persistence across browser refresh
 
 ### Automated Testing
+
 ```typescript
 // Example test
 describe('Authentication Flow', () => {
@@ -707,6 +732,7 @@ describe('Authentication Flow', () => {
 ## Security Considerations
 
 ### Production Checklist
+
 - [ ] Enable email confirmations in production
 - [ ] Configure proper SMTP server for emails
 - [ ] Set up proper RLS policies (remove "allow all" policies)
@@ -717,6 +743,7 @@ describe('Authentication Flow', () => {
 - [ ] Configure session timeouts
 
 ### Best Practices
+
 1. **Never expose service role key** to client-side code
 2. **Use RLS policies** instead of API-level authorization
 3. **Validate all user inputs** before database operations

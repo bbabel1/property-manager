@@ -1,17 +1,20 @@
 # Ora Property Management
 
-A modern, enterprise-grade property management system built with Next.js 15, TypeScript, and Supabase.
+A modern, enterprise-grade property management system built with Next.js 15,
+TypeScript, and Supabase.
 
 ⚠️ **Migration Status**: This system is currently in **hybrid architecture state** (~80% migrated from Prisma/NextAuth to pure Supabase). See [Migration Status](docs/architecture/MIGRATION_STATUS_AND_ROADMAP.md) for details.
 
 ## Quick Start
 
 ### 1. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 2. Set Up Environment
+
 ```bash
 cp env.example .env.local
 ```
@@ -19,6 +22,7 @@ cp env.example .env.local
 Edit `.env.local` with your Supabase credentials. See [Supabase Setup Guide](docs/database/SUPABASE_SETUP.md) for detailed instructions.
 
 ### 3. Set Up Supabase Database
+
 ```bash
 # Apply migrations through Supabase dashboard SQL editor
 # Import migration files from supabase/migrations/ in order
@@ -26,6 +30,7 @@ Edit `.env.local` with your Supabase credentials. See [Supabase Setup Guide](doc
 ```
 
 ### 4. Start Development Server
+
 ```bash
 npm run dev
 ```
@@ -35,7 +40,9 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 ## 📚 Documentation
 
 **Complete documentation** is available in the [`docs/`](docs/) directory:
-- **[📋 Documentation Index](docs/README.md)** - Start here for navigation
+
+- **[📋 Documentation Index](docs/README.md)** - Start here for
+  navigation
 - **[🏗️ Architecture Analysis](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md)** - Current system state
 - **[🗺️ Migration Roadmap](docs/architecture/MIGRATION_STATUS_AND_ROADMAP.md)** - Conversion progress
 
@@ -75,12 +82,12 @@ Required environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for server-side operations)
-- `NEXTAUTH_URL` - Your app URL (http://localhost:3000 for development)
+- `NEXTAUTH_URL` - Your app URL (<http://localhost:3000> for development)
 - `NEXTAUTH_SECRET` - Random string for JWT encryption
 
 ## Project Structure
 
-```
+```text
 src/
 ├── app/                    # Next.js App Router
 │   ├── (protected)/       # Protected dashboard routes
@@ -118,16 +125,19 @@ The system uses a PostgreSQL database through Supabase with the following main e
 ## Key Features
 
 ### Multi-Owner Support
+
 - Properties can have multiple owners with different ownership percentages
 - Separate ownership and disbursement percentages
 - Primary owner designation for management purposes
 
 ### International Support
+
 - Support for 200+ countries
 - Comprehensive address handling
 - Multi-currency support (planned)
 
 ### Financial Management
+
 - Percentage-based ownership calculations
 - Disbursement tracking
 - Operating account management
