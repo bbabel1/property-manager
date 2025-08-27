@@ -73,32 +73,38 @@ interface BuildiumUnit {
   }
 }
 
-// MCP Buildium Client - Uses MCP server for authentication
-class MCPBuildiumClient {
-  private mcpServerUrl: string
+// Buildium API Client - Direct API calls with client credentials
+class BuildiumClient {
+  private baseUrl: string
+  private clientId: string
+  private clientSecret: string
   private timeout: number
   private retryAttempts: number
   private retryDelay: number
 
-  constructor(config: { mcpServerUrl?: string; timeout?: number; retryAttempts?: number; retryDelay?: number }) {
-    this.mcpServerUrl = config.mcpServerUrl || 'http://localhost:3001'
+  constructor(config: { baseUrl?: string; clientId?: string; clientSecret?: string; timeout?: number; retryAttempts?: number; retryDelay?: number }) {
+    this.baseUrl = config.baseUrl || 'https://apisandbox.buildium.com/v1'
+    this.clientId = config.clientId || ''
+    this.clientSecret = config.clientSecret || ''
     this.timeout = config.timeout || 30000
     this.retryAttempts = config.retryAttempts || 3
     this.retryDelay = config.retryDelay || 1000
   }
 
-  private async makeMCPRequest<T>(
+  private async makeRequest<T>(
     method: string,
     endpoint: string,
     data?: any
   ): Promise<T> {
-    const url = `${this.mcpServerUrl}/buildium${endpoint}`
+    const url = `${this.baseUrl}${endpoint}`
     
     const config: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'x-buildium-client-id': this.clientId,
+        'x-buildium-client-secret': this.clientSecret
       },
       signal: AbortSignal.timeout(this.timeout)
     }
@@ -115,7 +121,7 @@ class MCPBuildiumClient {
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(`MCP Buildium API error: ${response.status} ${response.statusText} - ${errorData.message || 'Unknown error'}`)
+          throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${errorData.message || 'Unknown error'}`)
         }
 
         const result = await response.json()
@@ -136,31 +142,31 @@ class MCPBuildiumClient {
   }
 
   async createProperty(data: any): Promise<BuildiumProperty> {
-    return this.makeMCPRequest<BuildiumProperty>('POST', '/properties', data)
+    return this.makeRequest<BuildiumProperty>('POST', '/rentals', data)
   }
 
   async updateProperty(id: number, data: any): Promise<BuildiumProperty> {
-    return this.makeMCPRequest<BuildiumProperty>('PUT', `/properties/${id}`, data)
+    return this.makeRequest<BuildiumProperty>('PUT', `/rentals/${id}`, data)
   }
 
   async createOwner(data: any): Promise<BuildiumOwner> {
-    return this.makeMCPRequest<BuildiumOwner>('POST', '/owners', data)
+    return this.makeRequest<BuildiumOwner>('POST', '/rentals/owners', data)
   }
 
   async updateOwner(id: number, data: any): Promise<BuildiumOwner> {
-    return this.makeMCPRequest<BuildiumOwner>('PUT', `/owners/${id}`, data)
+    return this.makeRequest<BuildiumOwner>('PUT', `/rentals/owners/${id}`, data)
   }
 
   async getProperty(id: number): Promise<BuildiumProperty> {
-    return this.makeMCPRequest<BuildiumProperty>('GET', `/properties/${id}`)
+    return this.makeRequest<BuildiumProperty>('GET', `/rentals/${id}`)
   }
 
   async getUnits(propertyId: number): Promise<BuildiumUnit[]> {
-    return this.makeMCPRequest<BuildiumUnit[]>('GET', `/properties/${propertyId}/units`)
+    return this.makeRequest<BuildiumUnit[]>('GET', `/rentals/${propertyId}/units`)
   }
 
   async getOwner(id: number): Promise<BuildiumOwner> {
-    return this.makeMCPRequest<BuildiumOwner>('GET', `/owners/${id}`)
+    return this.makeRequest<BuildiumOwner>('GET', `/rentals/owners/${id}`)
   }
 }
 
@@ -251,9 +257,11 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Initialize MCP Buildium client
-    const buildiumClient = new MCPBuildiumClient({
-      mcpServerUrl: Deno.env.get('MCP_SERVER_URL') || 'http://localhost:3001',
+    // Initialize Buildium client
+    const buildiumClient = new BuildiumClient({
+      baseUrl: Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1',
+      clientId: Deno.env.get('BUILDIUM_CLIENT_ID') || '',
+      clientSecret: Deno.env.get('BUILDIUM_CLIENT_SECRET') || '',
       timeout: 30000,
       retryAttempts: 3,
       retryDelay: 1000
