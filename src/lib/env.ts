@@ -1,16 +1,21 @@
 import { z } from "zod";
 
 const envSchema = z.object({
+  // Supabase Configuration (Required)
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(10),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(10),
-  NEXTAUTH_URL: z.string().url().optional(),
+  
+  // Buildium Integration (Optional)
+  BUILDIUM_BASE_URL: z.string().url().optional(),
+  BUILDIUM_CLIENT_ID: z.string().optional(),
+  BUILDIUM_CLIENT_SECRET: z.string().optional(),
+  BUILDIUM_API_KEY: z.string().optional(),
+  BUILDIUM_WEBHOOK_SECRET: z.string().optional(),
+  
+  // App Configuration (Required)
+  NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(32),
-  EMAIL_SERVER_HOST: z.string().min(1),
-  EMAIL_SERVER_PORT: z.coerce.number().int(),
-  EMAIL_SERVER_USER: z.string().email().or(z.string().min(3)),
-  EMAIL_SERVER_PASSWORD: z.string().min(8),
-  EMAIL_FROM: z.string().email().or(z.string().min(3)),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 });
 
@@ -19,6 +24,7 @@ console.log('🔧 Environment variables debug:', {
   hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
   hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  hasBuildium: !!process.env.BUILDIUM_CLIENT_SECRET,
   urlLength: process.env.NEXT_PUBLIC_SUPABASE_URL?.length || 0,
   anonKeyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0,
   serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0,
@@ -38,12 +44,9 @@ try {
     NEXT_PUBLIC_SUPABASE_URL: '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
     SUPABASE_SERVICE_ROLE_KEY: '',
+    NEXTAUTH_URL: 'http://localhost:3000',
     NEXTAUTH_SECRET: 'fallback-secret-key-for-development-only',
-    EMAIL_SERVER_HOST: 'localhost',
-    EMAIL_SERVER_PORT: 587,
-    EMAIL_SERVER_USER: 'test@example.com',
-    EMAIL_SERVER_PASSWORD: 'password',
-    EMAIL_FROM: 'test@example.com',
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   } as z.infer<typeof envSchema>;
   console.log('🔄 Using fallback environment values');
 }

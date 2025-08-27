@@ -1,0 +1,30 @@
+---
+alwaysApply: true
+---
+
+Error Handling Rules:
+
+1. **Surface errors transparently**: Never hide or suppress errors; always surface 
+   them transparently with clear, actionable information.
+
+2. **Never claim success unless verified**: Don't claim success unless the operation 
+   has been verified to work correctly.
+
+3. **Handle routine operations automatically**: Handle routine/native operations 
+   without being explicitly asked when they're clearly needed for the task.
+
+4. **Remove temporary files**: Always clean up test scripts and temporary files 
+   before finishing any task.
+
+5. **Log actionable context**: Log information that helps with debugging and 
+   troubleshooting, but never log secrets, API keys, or personally identifiable 
+   information (PII).
+
+6. **Use consistent error formats**: Implement consistent error response formats 
+   across all API endpoints and functions.
+
+7. **Provide clear error messages**: Error messages should be clear, actionable, 
+   and help developers understand what went wrong and how to fix it.
+
+8. **Handle edge cases**: Consider and handle edge cases, especially when dealing 
+   with external APIs or database operations.

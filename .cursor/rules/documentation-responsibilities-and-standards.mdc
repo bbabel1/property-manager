@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+Maintain professional docs:
+
+- Keep README, API, component, database, and architecture docs current.
+- When code changes, update only the relevant section(s) and preserve manual edits.
+- Use concise, professional language with examples and “why” rationale.
+- Call out business rules, constraints, and assumptions.
+- Provide diff-friendly edits (small, targeted updates).

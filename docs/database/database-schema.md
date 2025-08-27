@@ -247,49 +247,28 @@ with comprehensive Buildium API integration support.
 
 - **id** (UUID, Primary Key) - Unique identifier
 
-- **buildium_bank_id** (INTEGER) - Buildium API bank account ID
+**Relationships:**
+- **gl_account** → `gl_accounts.id` (Many-to-One): Each bank account can be associated with one general ledger account
 
-- **name** (VARCHAR(255)) - Bank account name
+- **buildium_bank_id** (INTEGER, NOT NULL) - Buildium API bank account ID
+
+- **name** (VARCHAR(255), NOT NULL) - Bank account name
 
 - **description** (TEXT) - Account description
 
 - **bank_account_type** (VARCHAR(20)) - Account type
 
-- **country** (VARCHAR(100)) - Country
-
 - **account_number** (VARCHAR(255)) - Account number
 
 - **routing_number** (VARCHAR(255)) - Routing number
 
-- **enable_remote_check_printing** (BOOLEAN) - Remote check printing flag
+- **is_active** (BOOLEAN) - Whether the bank account is active or inactive
 
-- **enable_local_check_printing** (BOOLEAN) - Local check printing flag
+- **balance** (NUMERIC(15,2)) - Current balance of the bank account in local system
 
-- **check_layout_type** (VARCHAR(50)) - Check layout type
+- **buildium_balance** (NUMERIC(15,2)) - Current balance of the bank account from Buildium API
 
-- **signature_heading** (VARCHAR(255)) - Signature heading
-
-- **fractional_number** (VARCHAR(255)) - Fractional number
-
-- **bank_information_line1** (VARCHAR(255)) - Bank info line 1
-
-- **bank_information_line2** (VARCHAR(255)) - Bank info line 2
-
-- **bank_information_line3** (VARCHAR(255)) - Bank info line 3
-
-- **bank_information_line4** (VARCHAR(255)) - Bank info line 4
-
-- **bank_information_line5** (VARCHAR(255)) - Bank info line 5
-
-- **company_information_line1** (VARCHAR(255)) - Company info line 1
-
-- **company_information_line2** (VARCHAR(255)) - Company info line 2
-
-- **company_information_line3** (VARCHAR(255)) - Company info line 3
-
-- **company_information_line4** (VARCHAR(255)) - Company info line 4
-
-- **company_information_line5** (VARCHAR(255)) - Company info line 5
+- **gl_account** (UUID, NOT NULL) - Reference to the associated general ledger account
 
 - **created_at** (TIMESTAMP WITH TIME ZONE) - Creation timestamp
 
@@ -386,6 +365,44 @@ with comprehensive Buildium API integration support.
 - **reference_number** (VARCHAR(255)) - Reference number
 
 - **memo** (TEXT) - Payment memo
+
+- **created_at** (TIMESTAMP WITH TIME ZONE) - Creation timestamp
+
+- **updated_at** (TIMESTAMP WITH TIME ZONE) - Update timestamp
+
+### GL Accounts
+
+- **id** (UUID, Primary Key) - Unique identifier
+
+- **buildium_gl_account_id** (INTEGER, NOT NULL) - Buildium API GL account ID
+
+- **account_number** (VARCHAR(50)) - Account number
+
+- **name** (VARCHAR(255), NOT NULL) - Account name
+
+- **description** (TEXT) - Account description
+
+- **type** (VARCHAR(50), NOT NULL) - Account type (Income, Liability, Asset, Expense, Equity)
+
+- **sub_type** (VARCHAR(50)) - Account subtype (CurrentLiability, Income, etc.)
+
+- **is_default_gl_account** (BOOLEAN) - Whether this is a default GL account
+
+- **default_account_name** (VARCHAR(255)) - Default account name
+
+- **is_contra_account** (BOOLEAN) - Whether this is a contra account
+
+- **is_bank_account** (BOOLEAN) - Whether this is a bank account
+
+- **cash_flow_classification** (VARCHAR(50)) - Cash flow classification
+
+- **exclude_from_cash_balances** (BOOLEAN) - Whether to exclude from cash balances
+
+- **is_active** (BOOLEAN) - Whether the account is active
+
+- **buildium_parent_gl_account_id** (INTEGER) - Buildium API parent GL account ID
+
+- **is_credit_card_account** (BOOLEAN) - Whether this is a credit card account
 
 - **created_at** (TIMESTAMP WITH TIME ZONE) - Creation timestamp
 

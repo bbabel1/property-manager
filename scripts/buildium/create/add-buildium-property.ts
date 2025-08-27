@@ -10,15 +10,17 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-async function addBuildiumProperty() {
+async function addBuildiumProperty(propertyId?: number) {
   try {
-    console.log('Adding/updating Buildium property 7647 in Supabase database...')
+    // Use provided property ID or default to a placeholder
+    const targetPropertyId = propertyId || 0
+    console.log(`Adding/updating Buildium property ${targetPropertyId} in Supabase database...`)
 
     // Check if property already exists
     const { data: existingProperties, error: checkError } = await supabase
       .from('properties')
       .select('*')
-      .eq('buildium_property_id', 7647)
+      .eq('buildium_property_id', targetPropertyId)
 
     if (checkError) {
       console.error('Error checking existing property:', checkError)
@@ -26,16 +28,16 @@ async function addBuildiumProperty() {
     }
 
     if (existingProperties && existingProperties.length > 0) {
-      console.log(`Found ${existingProperties.length} existing properties with buildium_property_id 7647`)
+      console.log(`Found ${existingProperties.length} existing properties with buildium_property_id ${targetPropertyId}`)
       console.log('Updating the first existing property with correct Buildium data...')
       
       const existingProperty = existingProperties[0]
       console.log('Existing property ID:', existingProperty.id)
     }
 
-    // Property data from Buildium API response
+    // Property data from Buildium API response (placeholder - should be fetched from API)
     const buildiumProperty = {
-      id: 7647,
+      id: targetPropertyId,
       name: "325 Lexington | Brandon Babel",
       structureDescription: "",
       numberUnits: 1,
@@ -140,7 +142,15 @@ async function addBuildiumProperty() {
 
 // Run the script
 if (require.main === module) {
-  addBuildiumProperty()
+  const args = process.argv.slice(2)
+  const propertyId = args[0] ? parseInt(args[0]) : undefined
+  
+  if (propertyId && isNaN(propertyId)) {
+    console.error('❌ Invalid property ID. Please provide a valid number.')
+    process.exit(1)
+  }
+  
+  addBuildiumProperty(propertyId)
     .then(() => {
       console.log('Script completed successfully')
       process.exit(0)

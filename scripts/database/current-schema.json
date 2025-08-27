@@ -1,0 +1,519 @@
+{
+  "properties": [
+    {
+      "column_name": "id",
+      "data_type": "string",
+      "sample_value": "93fab410-f366-46e6-b2db-64b8f9cd3f21"
+    },
+    {
+      "column_name": "name",
+      "data_type": "string",
+      "sample_value": "325 Lexington | Brandon Babel"
+    },
+    {
+      "column_name": "structure_description",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "address_line1",
+      "data_type": "string",
+      "sample_value": "325 Lexington Ave"
+    },
+    {
+      "column_name": "address_line2",
+      "data_type": "string",
+      "sample_value": ""
+    },
+    {
+      "column_name": "address_line3",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "city",
+      "data_type": "string",
+      "sample_value": "New York"
+    },
+    {
+      "column_name": "state",
+      "data_type": "string",
+      "sample_value": "NY"
+    },
+    {
+      "column_name": "postal_code",
+      "data_type": "string",
+      "sample_value": "10016"
+    },
+    {
+      "column_name": "buildium_property_id",
+      "data_type": "number",
+      "sample_value": 7647
+    },
+    {
+      "column_name": "rental_owner_ids",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "reserve",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "year_built",
+      "data_type": "number",
+      "sample_value": 2008
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "string",
+      "sample_value": "2025-08-26T00:18:57.763+00:00"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "string",
+      "sample_value": "2025-08-26T00:18:57.763+00:00"
+    },
+    {
+      "column_name": "country",
+      "data_type": "string",
+      "sample_value": "UnitedStates"
+    },
+    {
+      "column_name": "rental_sub_type",
+      "data_type": "string",
+      "sample_value": "SingleFamily"
+    },
+    {
+      "column_name": "operating_bank_account_id",
+      "data_type": "string",
+      "sample_value": "d279c23e-4ea0-43df-b40f-e76145fe82d5"
+    },
+    {
+      "column_name": "primary_owner",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "status",
+      "data_type": "string",
+      "sample_value": "Active"
+    },
+    {
+      "column_name": "deposit_trust_account_id",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "total_units",
+      "data_type": "number",
+      "sample_value": 1
+    },
+    {
+      "column_name": "property_type",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "sample_value": true
+    },
+    {
+      "column_name": "buildium_created_at",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "buildium_updated_at",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "rental_type",
+      "data_type": "string",
+      "sample_value": "Residential"
+    }
+  ],
+  "units": [
+    {
+      "column_name": "id",
+      "data_type": "string",
+      "sample_value": "c8d0defa-f9f8-436b-848b-5714683448c8"
+    },
+    {
+      "column_name": "property_id",
+      "data_type": "string",
+      "sample_value": "93fab410-f366-46e6-b2db-64b8f9cd3f21"
+    },
+    {
+      "column_name": "unit_number",
+      "data_type": "string",
+      "sample_value": "1A"
+    },
+    {
+      "column_name": "unit_size",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "market_rent",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "address_line1",
+      "data_type": "string",
+      "sample_value": "325 Lexington Ave"
+    },
+    {
+      "column_name": "address_line2",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "address_line3",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "city",
+      "data_type": "string",
+      "sample_value": "New York"
+    },
+    {
+      "column_name": "state",
+      "data_type": "string",
+      "sample_value": "NY"
+    },
+    {
+      "column_name": "postal_code",
+      "data_type": "string",
+      "sample_value": "10016"
+    },
+    {
+      "column_name": "country",
+      "data_type": "string",
+      "sample_value": "UnitedStates"
+    },
+    {
+      "column_name": "unit_bedrooms",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "unit_bathrooms",
+      "data_type": "string",
+      "sample_value": "1"
+    },
+    {
+      "column_name": "description",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "string",
+      "sample_value": "2025-08-26T01:42:35.303+00:00"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "string",
+      "sample_value": "2025-08-26T01:42:35.303+00:00"
+    },
+    {
+      "column_name": "last_inspection_date",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "next_inspection_date",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "status",
+      "data_type": "string",
+      "sample_value": "Vacant"
+    },
+    {
+      "column_name": "service_start",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "service_end",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "service_plan",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "fee_type",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "fee_percent",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "management_fee",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "fee_frequency",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "active_services",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "fee_notes",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "buildium_unit_id",
+      "data_type": "number",
+      "sample_value": 20616
+    },
+    {
+      "column_name": "buildium_property_id",
+      "data_type": "number",
+      "sample_value": 7647
+    },
+    {
+      "column_name": "unit_type",
+      "data_type": "string",
+      "sample_value": "Apartment"
+    },
+    {
+      "column_name": "square_footage",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "sample_value": false
+    },
+    {
+      "column_name": "buildium_created_at",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "buildium_updated_at",
+      "data_type": "object",
+      "sample_value": null
+    }
+  ],
+  "bank_accounts": [
+    {
+      "column_name": "id",
+      "data_type": "string",
+      "sample_value": "d279c23e-4ea0-43df-b40f-e76145fe82d5"
+    },
+    {
+      "column_name": "buildium_bank_id",
+      "data_type": "number",
+      "sample_value": 10407
+    },
+    {
+      "column_name": "name",
+      "data_type": "string",
+      "sample_value": "Trust account"
+    },
+    {
+      "column_name": "description",
+      "data_type": "string",
+      "sample_value": "For all trust/escrow funds for daily operation of rental properties"
+    },
+    {
+      "column_name": "bank_account_type",
+      "data_type": "string",
+      "sample_value": "checking"
+    },
+    {
+      "column_name": "country",
+      "data_type": "string",
+      "sample_value": "US"
+    },
+    {
+      "column_name": "account_number",
+      "data_type": "string",
+      "sample_value": "**4321"
+    },
+    {
+      "column_name": "routing_number",
+      "data_type": "string",
+      "sample_value": "123456789"
+    },
+    {
+      "column_name": "enable_remote_check_printing",
+      "data_type": "boolean",
+      "sample_value": false
+    },
+    {
+      "column_name": "enable_local_check_printing",
+      "data_type": "boolean",
+      "sample_value": false
+    },
+    {
+      "column_name": "check_layout_type",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "signature_heading",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "fractional_number",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "bank_information_line1",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "bank_information_line2",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "bank_information_line3",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "bank_information_line4",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "bank_information_line5",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "company_information_line1",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "company_information_line2",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "company_information_line3",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "company_information_line4",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "company_information_line5",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "string",
+      "sample_value": "2025-08-25T19:41:10.961+00:00"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "string",
+      "sample_value": "2025-08-25T19:41:11.354+00:00"
+    }
+  ],
+  "buildium_webhook_events": [
+    {
+      "column_name": "id",
+      "data_type": "string",
+      "sample_value": "14fb37d2-614a-4167-a3d6-466de333f057"
+    },
+    {
+      "column_name": "event_id",
+      "data_type": "string",
+      "sample_value": "test-1756081521139"
+    },
+    {
+      "column_name": "event_type",
+      "data_type": "string",
+      "sample_value": "LeaseTransactionCreated"
+    },
+    {
+      "column_name": "event_data",
+      "data_type": "object",
+      "sample_value": {
+        "Events": [
+          {
+            "Id": "test-1756081521139",
+            "Data": {
+              "test": true,
+              "timestamp": 1756081521142
+            },
+            "EntityId": 12345,
+            "EventDate": "2025-08-25T00:25:21.139Z",
+            "EventType": "LeaseTransactionCreated",
+            "EntityType": "LeaseTransaction"
+          }
+        ]
+      }
+    },
+    {
+      "column_name": "processed",
+      "data_type": "boolean",
+      "sample_value": true
+    },
+    {
+      "column_name": "processed_at",
+      "data_type": "string",
+      "sample_value": "2025-08-25T00:25:26.039+00:00"
+    },
+    {
+      "column_name": "error_message",
+      "data_type": "object",
+      "sample_value": null
+    },
+    {
+      "column_name": "retry_count",
+      "data_type": "number",
+      "sample_value": 0
+    },
+    {
+      "column_name": "max_retries",
+      "data_type": "number",
+      "sample_value": 3
+    },
+    {
+      "column_name": "created_at",
+      "data_type": "string",
+      "sample_value": "2025-08-25T00:25:25.329616+00:00"
+    },
+    {
+      "column_name": "updated_at",
+      "data_type": "string",
+      "sample_value": "2025-08-25T00:25:25.329616+00:00"
+    }
+  ]
+}

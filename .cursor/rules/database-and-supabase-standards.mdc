@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+- Prefer single-table hierarchies with self-referential FKs for trees (e.g., GL accounts).
+- Use RLS; scope by org_id; least-privilege policies.
+- Migrations are idempotent and reversible; include comments and rationale.
+- Add indexes for FKs and common filters; verify query plans on large tables.
+- Update database-schema.md whenever schema changes.

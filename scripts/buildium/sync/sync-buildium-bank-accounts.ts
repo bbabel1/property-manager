@@ -15,7 +15,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
-import { logger } from './utils/logger'
+import { logger } from '../../utils/logger'
 
 // Load environment variables
 config()

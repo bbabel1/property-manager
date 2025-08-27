@@ -1,0 +1,33 @@
+---
+alwaysApply: true
+---
+
+File Organization Rules:
+
+1. **Follow Next.js conventions**: Use conventional naming, structure, and file 
+   placement for Next.js + TypeScript projects.
+
+2. **Maintain stable file paths**: Keep file paths and exports stable during 
+   refactors to avoid breaking existing imports.
+
+3. **Prefer additive refactors**: Use additive, small focused refactors without 
+   removing existing business logic when possible.
+
+4. **Use consistent directory structure**: 
+   - src/lib/ for utility functions and shared logic
+   - src/types/ for TypeScript type definitions
+   - scripts/ for utility and automation scripts
+   - docs/ for project documentation
+   - supabase/migrations/ for database migrations
+
+5. **Group related files**: Organize files logically by feature or functionality 
+   rather than by type.
+
+6. **Use descriptive file names**: Choose file names that clearly indicate their 
+   purpose and content.
+
+7. **Maintain import organization**: Keep imports organized and use consistent 
+   import patterns throughout the project.
+
+8. **Separate concerns**: Keep different types of logic (UI, business logic, 
+   data access) properly separated in appropriate directories.

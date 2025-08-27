@@ -18,32 +18,26 @@ npm install
 ### 2. Set Up Environment
 
 ```bash
-
+# Copy the environment template
 cp env.example .env.local
-
 ```
 
-Edit `.env.local` with your Supabase credentials. See [Supabase Setup Guide](docs/database/SUPABASE_SETUP.md) for
-detailed instructions.
+Edit `.env.local` with your local development credentials. See [Environment Setup Guide](ENVIRONMENT_SETUP.md) for detailed instructions.
+
+**Important**: Use different Supabase projects for local development vs production to ensure your live environment is protected.
 
 ### 3. Set Up Supabase Database
 
 ```bash
-
 # Apply migrations through Supabase dashboard SQL editor
-
 # Import migration files from supabase/migrations/ in order
-
 # Follow the complete setup guide in docs/database/SUPABASE_SETUP.md
-
 ```
 
 ### 4. Start Development Server
 
 ```bash
-
 npm run dev
-
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
@@ -53,9 +47,8 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 **Complete documentation** is available in the [`docs/`](docs/) directory:
 
 - **[📋 Documentation Index](docs/README.md)** - Start here for navigation
-
+- **[🛡️ Environment Setup](ENVIRONMENT_SETUP.md)** - Safe environment management
 - **[🏗️ Architecture Analysis](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md)** - Current system state
-
 - **[🗺️ Migration Roadmap](docs/architecture/MIGRATION_STATUS_AND_ROADMAP.md)** - Conversion progress
 
 ## Features

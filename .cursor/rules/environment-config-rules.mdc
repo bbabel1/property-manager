@@ -1,6 +1,4 @@
 ---
-description: Guidelines for managing environment variables, including local vs production configuration and security best practices
-globs: [".env*", "src/lib/env.ts", "scripts/**/*.ts"]
 alwaysApply: true
 ---
 

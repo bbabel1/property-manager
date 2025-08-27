@@ -1,0 +1,30 @@
+---
+alwaysApply: true
+---
+
+Database Schema and Migration Rules:
+
+1. **Always check actual migration files first**: Before suggesting schema changes, 
+   examine the current migration files in supabase/migrations/ to understand the 
+   existing structure.
+
+2. **Use RLS policies with org_id scoping**: All tables must have Row Level Security 
+   policies that scope by org_id for proper multi-tenant isolation.
+
+3. **Prefer single-table hierarchies**: Use self-referential foreign keys for tree 
+   structures (e.g., GL accounts hierarchy) rather than separate tables.
+
+4. **Add performance indexes**: Create indexes for foreign keys and commonly filtered 
+   columns to ensure query performance.
+
+5. **Migrations must be idempotent**: All migrations should be safe to run multiple 
+   times and include proper rollback capabilities.
+
+6. **Update documentation**: When schema changes occur, update docs/database/database-schema.md 
+   to reflect the current state.
+
+7. **Use proper constraints**: Implement NOT NULL, foreign key, and unique constraints 
+   appropriately based on business requirements.
+
+8. **Test locally first**: Always test migrations on local database before applying 
+   to remote environments.

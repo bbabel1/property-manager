@@ -1,0 +1,35 @@
+---
+alwaysApply: true
+---
+
+TypeScript and Code Quality Rules:
+
+1. **Use TypeScript strict mode**: Follow TypeScript strict mode conventions and 
+   avoid using 'any' type without clear justification.
+
+2. **Return typed responses**: Always return properly typed responses; never use 
+   'any' as a return type unless absolutely necessary.
+
+3. **Validate inputs at the edge**: Use Zod or similar validation libraries to 
+   validate all inputs at the boundaries of your application.
+
+4. **Consistent error handling**: Use consistent error shapes: { error: { code, message } } 
+   with appropriate HTTP status codes.
+
+5. **Prefer clear, secure, performant solutions**: Choose solutions that prioritize 
+   clarity, security, and performance over cleverness.
+
+6. **Handle routine operations automatically**: Handle routine/native operations 
+   without being explicitly asked when they're clearly needed.
+
+7. **Follow conventional naming**: Use conventional naming, structure, and file 
+   placement for Next.js + TypeScript projects.
+
+8. **Explain trade-offs briefly**: When choosing between patterns, briefly explain 
+   the trade-offs and rationale for the chosen approach.
+
+9. **Never claim success unless verified**: Surface errors transparently and never 
+   claim success unless the operation has been verified to work.
+
+10. **Remove temporary files**: Always remove test scripts and temporary files 
+    before finishing any task.

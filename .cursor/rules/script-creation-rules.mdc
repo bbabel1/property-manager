@@ -1,6 +1,4 @@
 ---
-description: Guidelines for creating and executing scripts, including Buildium API calls, environment loading, and error handling patterns
-globs: ["scripts/**/*.ts", "scripts/**/*.js"]
 alwaysApply: true
 ---
 

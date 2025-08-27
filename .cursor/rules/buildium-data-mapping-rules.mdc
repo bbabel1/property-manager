@@ -1,0 +1,32 @@
+---
+alwaysApply: true
+---
+
+When working with Buildium API data mapping and database relationships:
+
+1. **Always verify field existence first**: Check both Buildium type definitions 
+   (src/types/buildium.ts) and database schema (migrations/docs) before mapping fields. 
+   Never assume field names or types.
+
+2. **Use explicit field mapping**: Create clear mapping tables showing Buildium → Database 
+   field relationships with types and notes. Document any transformations 
+   (e.g., AccountNumberUnmasked vs AccountNumber).
+
+3. **Handle relationships systematically**: 
+   - For foreign key relationships: Create resolve*Id() helper functions
+   - For array relationships: Create resolve*Array() helper functions
+   - Always handle "not found" scenarios by fetching from Buildium API
+
+4. **Provide both basic and enhanced mappers**:
+   - Basic: map*FromBuildium() - simple field mapping only
+   - Enhanced: map*FromBuildiumWith*() - includes relationship resolution
+   - Document which to use when
+
+5. **Validate database constraints**: Check NOT NULL, foreign key, and unique constraints 
+   before mapping. Handle defaults appropriately (e.g., country: 'UnitedStates').
+
+6. **Test with real data**: Always test mappers with actual Buildium API responses, 
+   not just type definitions.
+
+7. **Document resolution chains**: When relationships cascade 
+   (Property → Bank Account → GL Account → Sub Accounts), document the full resolution process.

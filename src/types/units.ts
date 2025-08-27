@@ -1,6 +1,6 @@
-// Enum types for unit bedrooms and bathrooms
-export type BedroomEnum = 'Studio' | '1' | '2' | '3' | '4' | '5+';
-export type BathroomEnum = '1' | '1.5' | '2' | '2.5' | '3' | '3.5' | '4+';
+// Enum types for unit bedrooms and bathrooms (matching database enum names)
+export type BedroomEnum = 'Studio' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9+';
+export type BathroomEnum = '1' | '1.5' | '2' | '2.5' | '3' | '3.5' | '4' | '4.5' | '5' | '5+';
 
 // Service-related enums
 export type ServicePlan = 'Full' | 'Basic' | 'A-la-carte';
@@ -8,8 +8,8 @@ export type FeeFrequency = 'Monthly' | 'Annually';
 export type FeeType = 'Percentage' | 'Flat Rate';
 
 // Array constants for use in dropdowns
-export const BEDROOM_OPTIONS: BedroomEnum[] = ['Studio', '1', '2', '3', '4', '5+'];
-export const BATHROOM_OPTIONS: BathroomEnum[] = ['1', '1.5', '2', '2.5', '3', '3.5', '4+'];
+export const BEDROOM_OPTIONS: BedroomEnum[] = ['Studio', '1', '2', '3', '4', '5', '6', '7', '8', '9+'];
+export const BATHROOM_OPTIONS: BathroomEnum[] = ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5+'];
 export const SERVICE_PLAN_OPTIONS: ServicePlan[] = ['Full', 'Basic', 'A-la-carte'];
 export const FEE_FREQUENCY_OPTIONS: FeeFrequency[] = ['Monthly', 'Annually'];
 export const FEE_TYPE_OPTIONS: FeeType[] = ['Percentage', 'Flat Rate'];
