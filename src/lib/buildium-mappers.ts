@@ -21,72 +21,412 @@ import type {
   BuildiumSyncStatus
 } from '../types/buildium'
 
+
 // ============================================================================
-// BANK ACCOUNT & GL ACCOUNT RESOLUTION DOCUMENTATION
+// COUNTRY MAPPING UTILITIES
+// ============================================================================
+
+/**
+ * Comprehensive mapping of Buildium country values to database enum values
+ * Buildium uses concatenated names (e.g., "UnitedStates") while our enum uses proper spacing
+ */
+const BUILDIUM_TO_DATABASE_COUNTRY_MAP: Record<string, string> = {
+  // Direct matches (no change needed)
+  'Afghanistan': 'Afghanistan',
+  'Albania': 'Albania',
+  'Algeria': 'Algeria',
+  'Andorra': 'Andorra',
+  'Angola': 'Angola',
+  'Argentina': 'Argentina',
+  'Armenia': 'Armenia',
+  'Australia': 'Australia',
+  'Austria': 'Austria',
+  'Azerbaijan': 'Azerbaijan',
+  'Bahamas': 'Bahamas',
+  'Bahrain': 'Bahrain',
+  'Bangladesh': 'Bangladesh',
+  'Barbados': 'Barbados',
+  'Belarus': 'Belarus',
+  'Belgium': 'Belgium',
+  'Belize': 'Belize',
+  'Benin': 'Benin',
+  'Bhutan': 'Bhutan',
+  'Bolivia': 'Bolivia',
+  'Botswana': 'Botswana',
+  'Brazil': 'Brazil',
+  'Brunei': 'Brunei',
+  'Bulgaria': 'Bulgaria',
+  'Burundi': 'Burundi',
+  'Cambodia': 'Cambodia',
+  'Cameroon': 'Cameroon',
+  'Canada': 'Canada',
+  'Chad': 'Chad',
+  'Chile': 'Chile',
+  'China': 'China',
+  'Colombia': 'Colombia',
+  'Comoros': 'Comoros',
+  'CostaRica': 'Costa Rica',
+  'Croatia': 'Croatia',
+  'Cuba': 'Cuba',
+  'Cyprus': 'Cyprus',
+  'Denmark': 'Denmark',
+  'Djibouti': 'Djibouti',
+  'Dominica': 'Dominica',
+  'Ecuador': 'Ecuador',
+  'Egypt': 'Egypt',
+  'ElSalvador': 'El Salvador',
+  'Eritrea': 'Eritrea',
+  'Estonia': 'Estonia',
+  'Ethiopia': 'Ethiopia',
+  'Fiji': 'Fiji',
+  'Finland': 'Finland',
+  'France': 'France',
+  'Gabon': 'Gabon',
+  'Gambia': 'Gambia',
+  'Georgia': 'Georgia',
+  'Germany': 'Germany',
+  'Ghana': 'Ghana',
+  'Greece': 'Greece',
+  'Grenada': 'Grenada',
+  'Guatemala': 'Guatemala',
+  'Guinea': 'Guinea',
+  'Guyana': 'Guyana',
+  'Haiti': 'Haiti',
+  'Honduras': 'Honduras',
+  'Hungary': 'Hungary',
+  'Iceland': 'Iceland',
+  'India': 'India',
+  'Indonesia': 'Indonesia',
+  'Iran': 'Iran',
+  'Iraq': 'Iraq',
+  'Ireland': 'Ireland',
+  'Israel': 'Israel',
+  'Italy': 'Italy',
+  'Jamaica': 'Jamaica',
+  'Japan': 'Japan',
+  'Jordan': 'Jordan',
+  'Kazakhstan': 'Kazakhstan',
+  'Kenya': 'Kenya',
+  'Kiribati': 'Kiribati',
+  'Kuwait': 'Kuwait',
+  'Kyrgyzstan': 'Kyrgyzstan',
+  'Laos': 'Laos',
+  'Latvia': 'Latvia',
+  'Lebanon': 'Lebanon',
+  'Lesotho': 'Lesotho',
+  'Liberia': 'Liberia',
+  'Libya': 'Libya',
+  'Liechtenstein': 'Liechtenstein',
+  'Lithuania': 'Lithuania',
+  'Luxembourg': 'Luxembourg',
+  'Madagascar': 'Madagascar',
+  'Malawi': 'Malawi',
+  'Malaysia': 'Malaysia',
+  'Maldives': 'Maldives',
+  'Mali': 'Mali',
+  'Malta': 'Malta',
+  'Mauritania': 'Mauritania',
+  'Mauritius': 'Mauritius',
+  'Mexico': 'Mexico',
+  'Micronesia': 'Micronesia',
+  'Moldova': 'Moldova',
+  'Monaco': 'Monaco',
+  'Mongolia': 'Mongolia',
+  'Morocco': 'Morocco',
+  'Mozambique': 'Mozambique',
+  'Namibia': 'Namibia',
+  'Nauru': 'Nauru',
+  'Nepal': 'Nepal',
+  'Netherlands': 'Netherlands',
+  'NewZealand': 'New Zealand',
+  'Nicaragua': 'Nicaragua',
+  'Niger': 'Niger',
+  'Nigeria': 'Nigeria',
+  'Norway': 'Norway',
+  'Oman': 'Oman',
+  'Pakistan': 'Pakistan',
+  'Palau': 'Palau',
+  'Panama': 'Panama',
+  'PapuaNewGuinea': 'Papua New Guinea',
+  'Paraguay': 'Paraguay',
+  'Peru': 'Peru',
+  'Philippines': 'Philippines',
+  'Poland': 'Poland',
+  'Portugal': 'Portugal',
+  'Qatar': 'Qatar',
+  'Romania': 'Romania',
+  'Russia': 'Russia',
+  'Rwanda': 'Rwanda',
+  'Samoa': 'Samoa',
+  'SanMarino': 'San Marino',
+  'SaoTomeandPrincipe': 'São Tomé and Príncipe',
+  'SaudiArabia': 'Saudi Arabia',
+  'Senegal': 'Senegal',
+  'Seychelles': 'Seychelles',
+  'SierraLeone': 'Sierra Leone',
+  'Singapore': 'Singapore',
+  'Slovakia': 'Slovakia',
+  'Slovenia': 'Slovenia',
+  'SolomonIslands': 'Solomon Islands',
+  'Somalia': 'Somalia',
+  'SouthAfrica': 'South Africa',
+  'SouthSudan': 'South Sudan',
+  'Spain': 'Spain',
+  'SriLanka': 'Sri Lanka',
+  'Sudan': 'Sudan',
+  'Suriname': 'Suriname',
+  'Sweden': 'Sweden',
+  'Switzerland': 'Switzerland',
+  'Syria': 'Syria',
+  'Taiwan': 'Taiwan',
+  'Tajikistan': 'Tajikistan',
+  'Tanzania': 'Tanzania',
+  'Thailand': 'Thailand',
+  'Togo': 'Togo',
+  'Tonga': 'Tonga',
+  'TrinidadandTobago': 'Trinidad and Tobago',
+  'Tunisia': 'Tunisia',
+  'Turkey': 'Turkey',
+  'Turkmenistan': 'Turkmenistan',
+  'Tuvalu': 'Tuvalu',
+  'Uganda': 'Uganda',
+  'Ukraine': 'Ukraine',
+  'UnitedArabEmirates': 'United Arab Emirates',
+  'UnitedKingdom': 'United Kingdom',
+  'UnitedStates': 'United States',
+  'Uruguay': 'Uruguay',
+  'Uzbekistan': 'Uzbekistan',
+  'Vanuatu': 'Vanuatu',
+  'VaticanCity': 'Vatican City (Holy See)',
+  'Venezuela': 'Venezuela',
+  'Vietnam': 'Vietnam',
+  'Yemen': 'Yemen',
+  'Zambia': 'Zambia',
+  'Zimbabwe': 'Zimbabwe',
+
+  // Special cases and territories
+  'AmericanSamoa': 'American Samoa',
+  'AntiguaandBarbuda': 'Antigua and Barbuda',
+  'BosniaandHerzegovina': 'Bosnia and Herzegovina',
+  'BurkinaFaso': 'Burkina Faso',
+  'Burma': 'Myanmar (Burma)',
+  'CapeVerde': 'Cape Verde',
+  'CentralAfricanRepublic': 'Central African Republic',
+  'ChristmasIsland': 'Christmas Island',
+  'CocosIslands': 'Cocos Islands',
+  'CoralSeaIslands': 'Coral Sea Islands',
+  'CotedIvoire': 'Ivory Coast (Côte d\'Ivoire)',
+  'CzechRepublic': 'Czech Republic (Czechia)',
+  'DemocraticRepublicOfTheCongo': 'Democratic Republic of the Congo',
+  'DominicanRepublic': 'Dominican Republic',
+  'EquatorialGuinea': 'Equatorial Guinea',
+  'Eswatini': 'Eswatini',
+  'FalklandIslands': 'Falkland Islands',
+  'FaroeIslands': 'Faroe Islands',
+  'FrenchGuiana': 'French Guiana',
+  'FrenchPolynesia': 'French Polynesia',
+  'FrenchSouthernandAntarcticLands': 'French Southern and Antarctic Lands',
+  'GuineaBissau': 'Guinea-Bissau',
+  'HeardIslandandMcDonaldIslands': 'Heard Island and McDonald Islands',
+  'HongKong': 'Hong Kong',
+  'IsleofMan': 'Isle of Man',
+  'JanMayen': 'Jan Mayen',
+  'JuandeNovaIsland': 'Juan de Nova Island',
+  'MarshallIslands': 'Marshall Islands',
+  'Mayotte': 'Mayotte',
+  'NetherlandsAntilles': 'Netherlands Antilles',
+  'NewCaledonia': 'New Caledonia',
+  'Niue': 'Niue',
+  'NorfolkIsland': 'Norfolk Island',
+  'NorthernMarianaIslands': 'Northern Mariana Islands',
+  'PitcairnIslands': 'Pitcairn Islands',
+  'PuertoRico': 'Puerto Rico',
+  'RepublicOfTheCongo': 'Congo (Republic of the Congo)',
+  'SaintHelena': 'Saint Helena',
+  'SaintKittsandNevis': 'Saint Kitts and Nevis',
+  'SaintLucia': 'Saint Lucia',
+  'SaintPierreandMiquelon': 'Saint Pierre and Miquelon',
+  'SaintVincentandtheGrenadines': 'Saint Vincent and the Grenadines',
+  'SouthGeorgiaandtheSouthSandwichIslands': 'South Georgia and the South Sandwich Islands',
+  'TimorLeste': 'East Timor (Timor-Leste)',
+  'Tokelau': 'Tokelau',
+  'TurksandCaicosIslands': 'Turks and Caicos Islands',
+  'VirginIslands': 'Virgin Islands',
+  'WallisandFutuna': 'Wallis and Futuna',
+
+  // Territories and disputed areas (mapped to closest match or kept as-is)
+  'Akrotiri': 'Akrotiri',
+  'Anguilla': 'Anguilla',
+  'Antarctica': 'Antarctica',
+  'Aruba': 'Aruba',
+  'AshmoreandCartierlslands': 'Ashmore and Cartier Islands',
+  'Bassasdalndia': 'Bassas da India',
+  'Bouvetisland': 'Bouvet Island',
+  'BritishIndianOceanTerritory': 'British Indian Ocean Territory',
+  'BritishVirginIslands': 'British Virgin Islands',
+  'CaymanIslands': 'Cayman Islands',
+  'ClippertonIsland': 'Clipperton Island',
+  'CookIslands': 'Cook Islands',
+  'Dhekelia': 'Dhekelia',
+  'EuropaIsland': 'Europa Island',
+  'GazaStrip': 'Gaza Strip',
+  'Gibraltar': 'Gibraltar',
+  'GloriosoIslands': 'Glorioso Islands',
+  'Greenland': 'Greenland',
+  'Guadeloupe': 'Guadeloupe',
+  'Guam': 'Guam',
+  'Guernsey': 'Guernsey',
+  'Jersey': 'Jersey',
+  'Macau': 'Macau',
+  'Macedonia': 'North Macedonia',
+  'Martinique': 'Martinique',
+  'Montserrat': 'Montserrat',
+  'NavassaIsland': 'Navassa Island',
+  'NorthKorea': 'Korea (North Korea)',
+  'SouthKorea': 'Korea (South Korea)',
+  'ParacelIslands': 'Paracel Islands',
+  'Reunion': 'Réunion',
+  'SerbiaandMontenegro': 'Serbia',
+  'SpratlyIslands': 'Spratly Islands',
+  'Svalbard': 'Svalbard',
+  'Swaziland': 'Eswatini',
+  'TromelinIsland': 'Tromelin Island',
+  'WakeIsland': 'Wake Island',
+  'WestBank': 'Palestine',
+  'WesternSahara': 'Western Sahara'
+}
+
+/**
+ * Converts a Buildium country value to the corresponding database enum value
+ * 
+ * @param buildiumCountry - The country value from Buildium API
+ * @returns The corresponding database enum value, or the original value if no mapping found
+ * 
+ * @example
+ * mapCountryFromBuildium('UnitedStates') // Returns 'United States'
+ * mapCountryFromBuildium('AntiguaandBarbuda') // Returns 'Antigua and Barbuda'
+ * mapCountryFromBuildium('Canada') // Returns 'Canada' (no change needed)
+ */
+export function mapCountryFromBuildium(buildiumCountry: string | null | undefined): string | null {
+  if (!buildiumCountry) {
+    return null
+  }
+
+  // Check if we have a direct mapping
+  const mappedCountry = BUILDIUM_TO_DATABASE_COUNTRY_MAP[buildiumCountry]
+  if (mappedCountry) {
+    return mappedCountry
+  }
+
+  // If no direct mapping found, try to add spaces before capital letters
+  // This handles cases where Buildium concatenates words without spaces
+  const spacedCountry = buildiumCountry.replace(/([a-z])([A-Z])/g, '$1 $2')
+  
+  // Check if the spaced version exists in our map
+  const spacedMapping = BUILDIUM_TO_DATABASE_COUNTRY_MAP[spacedCountry]
+  if (spacedMapping) {
+    return spacedMapping
+  }
+
+  // If still no match, return the original value
+  // This allows for graceful degradation and easy debugging
+  console.warn(`⚠️  No country mapping found for Buildium value: "${buildiumCountry}"`)
+  return buildiumCountry
+}
+
+/**
+ * Converts a database enum country value to Buildium format
+ * 
+ * @param databaseCountry - The country value from our database enum
+ * @returns The corresponding Buildium value, or the original value if no mapping found
+ * 
+ * @example
+ * mapCountryToBuildium('United States') // Returns 'UnitedStates'
+ * mapCountryToBuildium('Antigua and Barbuda') // Returns 'AntiguaandBarbuda'
+ * mapCountryToBuildium('Canada') // Returns 'Canada' (no change needed)
+ */
+export function mapCountryToBuildium(databaseCountry: string | null | undefined): string | null {
+  if (!databaseCountry) {
+    return null
+  }
+
+  // Create reverse mapping
+  const reverseMap: Record<string, string> = {}
+  for (const [buildiumKey, databaseValue] of Object.entries(BUILDIUM_TO_DATABASE_COUNTRY_MAP)) {
+    reverseMap[databaseValue] = buildiumKey
+  }
+
+  // Check if we have a direct reverse mapping
+  const mappedCountry = reverseMap[databaseCountry]
+  if (mappedCountry) {
+    return mappedCountry
+  }
+
+  // If no direct mapping found, try to remove spaces
+  // This handles cases where our enum has spaces but Buildium doesn't
+  const concatenatedCountry = databaseCountry.replace(/\s+/g, '')
+  
+  // Check if the concatenated version exists in our reverse map
+  const concatenatedMapping = reverseMap[concatenatedCountry]
+  if (concatenatedMapping) {
+    return concatenatedMapping
+  }
+
+  // If still no match, return the original value
+  console.warn(`⚠️  No reverse country mapping found for database value: "${databaseCountry}"`)
+  return databaseCountry
+}
+
+// ============================================================================
+// ⚠️  IMPORTANT: MAPPER USAGE GUIDELINES
 // ============================================================================
 /*
-IMPORTANT: Bank Account and GL Account Relationship Handling
+CRITICAL: Choose the correct mapper function to avoid missing relationships!
 
-When mapping properties from Buildium to local database, the operating_bank_account_id 
-field requires special handling:
+BASIC MAPPERS (DEPRECATED for most use cases):
+- mapPropertyFromBuildium() - ❌ Does NOT handle bank account relationships
+- mapBankAccountFromBuildium() - ❌ Does NOT handle GL account relationships  
+- mapGLAccountFromBuildium() - ❌ Does NOT handle sub_accounts relationships
 
-1. Buildium Property has: OperatingBankAccountId (e.g., 10407)
-2. Local Property needs: operating_bank_account_id (UUID reference to bank_accounts table)
+ENHANCED MAPPERS (RECOMMENDED):
+- mapPropertyFromBuildiumWithBankAccount() - ✅ Handles bank account lookup/fetch/create
+- mapBankAccountFromBuildiumWithGLAccount() - ✅ Handles GL account lookup/fetch/create
+- mapGLAccountFromBuildiumWithSubAccounts() - ✅ Handles sub_accounts lookup/fetch/create
 
-Process:
-1. Use Buildium OperatingBankAccountId to search bank_accounts table by buildium_bank_id
-2. If found: Use the local bank account ID
-3. If not found: 
-   - Fetch bank account from Buildium API: bankaccounts/{bankAccountId}
-   - Create bank_account record in local database
-   - Use the new local bank account ID
+WHEN TO USE WHICH:
+- Use BASIC mappers ONLY for:
+  * Simple data validation/testing
+  * When you explicitly want to ignore relationships
+  * Legacy code that you're gradually migrating
 
-When mapping bank accounts from Buildium to local database, the GL account relationship
-requires special handling:
+- Use ENHANCED mappers for:
+  * All production code
+  * Scripts that sync data from Buildium
+  * Any case where you want complete data integrity
+  * New development work
 
-1. Buildium Bank Account has: GLAccount.Id (e.g., 10407)
-2. Local Bank Account needs: gl_account (UUID reference to gl_accounts table)
+EXAMPLES:
+❌ WRONG (will miss relationships):
+  const property = mapPropertyFromBuildium(buildiumData)
 
-Process:
-1. Use Buildium GLAccount.Id to search gl_accounts table by buildium_gl_account_id
-2. If found: Use the local GL account ID
-3. If not found:
-   - Fetch GL account from Buildium API: glaccounts/{glAccountId}
-   - Create gl_accounts record in local database
-   - Use the new local GL account ID
+✅ CORRECT (handles relationships):
+  const property = await mapPropertyFromBuildiumWithBankAccount(buildiumData, supabase)
 
-When mapping GL accounts from Buildium to local database, the sub_accounts relationship
-requires special handling:
-
-1. Buildium GL Account has: SubAccounts array of GL account IDs (e.g., [10408, 10409])
-2. Local GL Account needs: sub_accounts (UUID array referencing gl_accounts table)
-
-Process:
-1. For each Buildium GL account ID in SubAccounts array:
-   - Search gl_accounts table by buildium_gl_account_id
-   - If found: Collect the local GL account UUID
-   - If not found: Fetch from Buildium API and create new record, then collect UUID
-2. Store all collected UUIDs as sub_accounts array
-
-Functions:
+HELPER FUNCTIONS:
 - resolveBankAccountId(): Handles bank account lookup/fetch/create process
 - resolveGLAccountId(): Handles GL account lookup/fetch/create process
 - resolveSubAccounts(): Handles sub_accounts array resolution
-- mapPropertyFromBuildiumWithBankAccount(): Enhanced property mapping with bank account resolution
-- mapBankAccountFromBuildiumWithGLAccount(): Enhanced bank account mapping with GL account resolution
-- mapGLAccountFromBuildiumWithSubAccounts(): Enhanced GL account mapping with sub_accounts resolution
-- mapPropertyFromBuildium(): Basic property mapping (does NOT handle bank accounts)
-- mapBankAccountFromBuildium(): Basic bank account mapping (does NOT handle GL accounts)
-- mapGLAccountFromBuildium(): Basic GL account mapping (does NOT handle sub_accounts)
-
-Usage:
-- For simple property mapping: use mapPropertyFromBuildium()
-- For property mapping with bank account relationships: use mapPropertyFromBuildiumWithBankAccount()
-- For simple bank account mapping: use mapBankAccountFromBuildium()
-- For bank account mapping with GL account relationships: use mapBankAccountFromBuildiumWithGLAccount()
-- For simple GL account mapping: use mapGLAccountFromBuildium()
-- For GL account mapping with sub_accounts relationships: use mapGLAccountFromBuildiumWithSubAccounts()
 */
+
+// ============================================================================
+// DEPRECATION WARNINGS
+// ============================================================================
+
+function showDeprecationWarning(functionName: string, enhancedFunction: string) {
+  console.warn(`⚠️  DEPRECATION WARNING: ${functionName}() is deprecated for production use.`)
+  console.warn(`   Use ${enhancedFunction}() instead to ensure proper relationship handling.`)
+  console.warn(`   This will prevent missing bank accounts, GL accounts, and other relationships.`)
+}
 
 // ============================================================================
 // SUB ACCOUNTS HELPERS
@@ -349,7 +689,7 @@ export function mapPropertyToBuildium(localProperty: any): BuildiumPropertyCreat
       City: localProperty.city || '',
       State: localProperty.state || '',
       PostalCode: localProperty.postal_code,
-      Country: localProperty.country
+      Country: mapCountryToBuildium(localProperty.country)
     },
     YearBuilt: localProperty.year_built || undefined,
     RentalType: localProperty.rental_type || 'Rental',
@@ -358,7 +698,16 @@ export function mapPropertyToBuildium(localProperty: any): BuildiumPropertyCreat
   }
 }
 
+/**
+ * @deprecated Use mapPropertyFromBuildiumWithBankAccount() instead to ensure proper bank account relationship handling
+ * This basic mapper does NOT handle bank account relationships and will result in missing data
+ */
 export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): any {
+  // Show deprecation warning in development
+  if (process.env.NODE_ENV === 'development') {
+    showDeprecationWarning('mapPropertyFromBuildium', 'mapPropertyFromBuildiumWithBankAccount')
+  }
+  
   return {
     name: buildiumProperty.Name,
     rental_type: buildiumProperty.RentalType,
@@ -368,13 +717,14 @@ export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): any
     city: buildiumProperty.Address.City,
     state: buildiumProperty.Address.State,
     postal_code: buildiumProperty.Address.PostalCode,
-    country: buildiumProperty.Address.Country,
+    country: mapCountryFromBuildium(buildiumProperty.Address.Country),
     year_built: buildiumProperty.YearBuilt,
     is_active: buildiumProperty.IsActive,
     // Note: Description field doesn't exist in BuildiumProperty
     buildium_property_id: buildiumProperty.Id,
     buildium_created_at: buildiumProperty.CreatedDate,
-    buildium_updated_at: buildiumProperty.ModifiedDate
+    buildium_updated_at: buildiumProperty.ModifiedDate,
+    updated_at: new Date().toISOString()
     // Note: operating_bank_account_id will be resolved separately using resolveBankAccountId()
   }
 }
@@ -420,12 +770,12 @@ export function mapUnitToBuildium(localUnit: any): BuildiumUnitCreate {
 
 export function mapUnitFromBuildium(buildiumUnit: BuildiumUnit): any {
   return {
-    unit_number: buildiumUnit.Number,
-    unit_type: mapUnitTypeFromBuildium(buildiumUnit.UnitType),
+    unit_number: buildiumUnit.Number || buildiumUnit.UnitNumber,
+    unit_type: mapUnitTypeFromBuildium(buildiumUnit.UnitType || 'Apartment'),
     unit_size: buildiumUnit.UnitSize,
-    bedrooms: buildiumUnit.Bedrooms,
-    bathrooms: buildiumUnit.Bathrooms,
-    is_active: buildiumUnit.IsActive,
+    unit_bedrooms: buildiumUnit.Bedrooms || buildiumUnit.UnitBedrooms,
+    unit_bathrooms: buildiumUnit.Bathrooms || buildiumUnit.UnitBathrooms,
+    is_active: buildiumUnit.IsActive !== false,
     market_rent: buildiumUnit.MarketRent,
     description: buildiumUnit.Description,
     buildium_unit_id: buildiumUnit.Id,
@@ -494,7 +844,7 @@ export function mapOwnerToBuildium(localOwner: any): BuildiumOwnerCreate {
       City: localOwner.city || '',
       State: localOwner.state || '',
       PostalCode: localOwner.postal_code,
-      Country: localOwner.country
+      Country: mapCountryToBuildium(localOwner.country)
     },
     TaxId: localOwner.tax_id || undefined,
     IsActive: localOwner.is_active !== false
@@ -512,7 +862,7 @@ export function mapOwnerFromBuildium(buildiumOwner: BuildiumOwner): any {
     city: buildiumOwner.Address.City,
     state: buildiumOwner.Address.State,
     postal_code: buildiumOwner.Address.PostalCode,
-    country: buildiumOwner.Address.Country,
+    country: mapCountryFromBuildium(buildiumOwner.Address.Country),
     tax_id: buildiumOwner.TaxId,
     is_active: buildiumOwner.IsActive,
     buildium_owner_id: buildiumOwner.Id,
@@ -538,7 +888,7 @@ export function mapVendorToBuildium(localVendor: any): BuildiumVendorCreate {
       City: localVendor.city || '',
       State: localVendor.state || '',
       PostalCode: localVendor.postal_code,
-      Country: localVendor.country
+      Country: mapCountryToBuildium(localVendor.country)
     },
     TaxId: localVendor.tax_id || undefined,
     Notes: localVendor.notes || undefined,
@@ -558,7 +908,7 @@ export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): any {
     city: buildiumVendor.Address.City,
     state: buildiumVendor.Address.State,
     postal_code: buildiumVendor.Address.PostalCode,
-    country: buildiumVendor.Address.Country,
+    country: mapCountryFromBuildium(buildiumVendor.Address.Country),
     tax_id: buildiumVendor.TaxId,
     notes: buildiumVendor.Notes,
     is_active: buildiumVendor.IsActive,
@@ -741,10 +1091,14 @@ export function mapGLAccountToBuildium(localGLAccount: any): any {
 }
 
 /**
- * Basic GL account mapping (does NOT handle sub_accounts relationships)
- * Use this for simple GL account mapping without sub_accounts resolution
+ * @deprecated Use mapGLAccountFromBuildiumWithSubAccounts() instead to ensure proper sub_accounts relationship handling
+ * This basic mapper does NOT handle sub_accounts relationships and will result in missing data
  */
 export function mapGLAccountFromBuildium(buildiumGLAccount: any): any {
+  // Show deprecation warning in development
+  if (process.env.NODE_ENV === 'development') {
+    showDeprecationWarning('mapGLAccountFromBuildium', 'mapGLAccountFromBuildiumWithSubAccounts')
+  }
   return {
     buildium_gl_account_id: buildiumGLAccount.Id,
     account_number: buildiumGLAccount.AccountNumber,
@@ -804,36 +1158,25 @@ export function mapBankAccountToBuildium(localBankAccount: any): BuildiumBankAcc
 
 /**
  * Basic bank account mapping (does NOT handle GL account relationships)
- * Use this for simple bank account mapping without GL account resolution
+ * @deprecated Use mapBankAccountFromBuildiumWithGLAccount() instead to ensure proper GL account relationship handling
+ * This basic mapper does NOT handle GL account relationships and will result in missing data
  */
 export function mapBankAccountFromBuildium(buildiumBankAccount: any): any {
+  // Show deprecation warning in development
+  if (process.env.NODE_ENV === 'development') {
+    showDeprecationWarning('mapBankAccountFromBuildium', 'mapBankAccountFromBuildiumWithGLAccount')
+  }
   return {
     buildium_bank_id: buildiumBankAccount.Id,
     name: buildiumBankAccount.Name,
     description: buildiumBankAccount.Description,
     bank_account_type: mapBankAccountTypeFromBuildium(buildiumBankAccount.BankAccountType),
-    country: buildiumBankAccount.Country || 'UnitedStates', // Default to UnitedStates if null
     account_number: buildiumBankAccount.AccountNumberUnmasked, // Use unmasked account number
     routing_number: buildiumBankAccount.RoutingNumber,
     is_active: buildiumBankAccount.IsActive,
-    buildium_balance: buildiumBankAccount.Balance,
+    buildium_balance: buildiumBankAccount.Balance
     // Note: gl_account will be resolved separately using resolveGLAccountId()
-    // Check printing info if available
-    enable_remote_check_printing: buildiumBankAccount.CheckPrintingInfo?.EnableRemoteCheckPrinting || false,
-    enable_local_check_printing: buildiumBankAccount.CheckPrintingInfo?.EnableLocalCheckPrinting || false,
-    check_layout_type: buildiumBankAccount.CheckPrintingInfo?.CheckLayoutType || null,
-    signature_heading: buildiumBankAccount.CheckPrintingInfo?.SignatureHeading || null,
-    fractional_number: buildiumBankAccount.CheckPrintingInfo?.FractionalNumber || null,
-    bank_information_line1: buildiumBankAccount.CheckPrintingInfo?.BankInformationLine1 || null,
-    bank_information_line2: buildiumBankAccount.CheckPrintingInfo?.BankInformationLine2 || null,
-    bank_information_line3: buildiumBankAccount.CheckPrintingInfo?.BankInformationLine3 || null,
-    bank_information_line4: buildiumBankAccount.CheckPrintingInfo?.BankInformationLine4 || null,
-    bank_information_line5: buildiumBankAccount.CheckPrintingInfo?.BankInformationLine5 || null,
-    company_information_line1: buildiumBankAccount.CheckPrintingInfo?.CompanyInformationLine1 || null,
-    company_information_line2: buildiumBankAccount.CheckPrintingInfo?.CompanyInformationLine2 || null,
-    company_information_line3: buildiumBankAccount.CheckPrintingInfo?.CompanyInformationLine3 || null,
-    company_information_line4: buildiumBankAccount.CheckPrintingInfo?.CompanyInformationLine4 || null,
-    company_information_line5: buildiumBankAccount.CheckPrintingInfo?.CompanyInformationLine5 || null
+    // Note: Check printing and information fields were removed from database schema
   }
 }
 
