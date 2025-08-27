@@ -1,0 +1,37 @@
+-- Update tenants and lease_contacts tables
+-- Migration: 20250825205059_update_tenants_and_lease_contacts_tables.sql
+-- Description: Remove tenant-specific fields from tenants table and add lease-specific fields to lease_contacts table
+
+-- Remove tenant-specific fields from tenants table
+ALTER TABLE tenants DROP COLUMN IF EXISTS move_in_date;
+ALTER TABLE tenants DROP COLUMN IF EXISTS move_out_date;
+ALTER TABLE tenants DROP COLUMN IF EXISTS is_rent_responsible;
+
+-- Add lease-specific fields to lease_contacts table
+ALTER TABLE lease_contacts ADD COLUMN IF NOT EXISTS move_out_date DATE;
+ALTER TABLE lease_contacts ADD COLUMN IF NOT EXISTS notice_given_date DATE;
+
+-- Add comments to document the new fields
+COMMENT ON COLUMN lease_contacts.move_out_date IS 'Date when the tenant moved out of the property';
+COMMENT ON COLUMN lease_contacts.notice_given_date IS 'Date when the tenant gave notice of intent to move out';
+
+-- Create indexes for better performance when querying by these dates
+CREATE INDEX IF NOT EXISTS idx_lease_contacts_move_out_date ON lease_contacts(move_out_date);
+CREATE INDEX IF NOT EXISTS idx_lease_contacts_notice_given_date ON lease_contacts(notice_given_date);
+
+-- Log the migration completion
+DO $$
+BEGIN
+    RAISE NOTICE 'Updated tenants and lease_contacts tables:';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Removed from tenants table:';
+    RAISE NOTICE '- move_in_date';
+    RAISE NOTICE '- move_out_date';
+    RAISE NOTICE '- is_rent_responsible';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Added to lease_contacts table:';
+    RAISE NOTICE '- move_out_date (DATE)';
+    RAISE NOTICE '- notice_given_date (DATE)';
+    RAISE NOTICE '';
+    RAISE NOTICE 'Created indexes for performance on new date fields';
+END $$;

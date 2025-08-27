@@ -1,6 +1,4 @@
 ---
-description: Guidelines for integrating with Buildium API, including authentication, rate limiting, response validation, and relationship handling
-globs: ["src/lib/buildium-*.ts", "scripts/**/*buildium*.ts"]
 alwaysApply: true
 ---
 

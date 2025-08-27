@@ -1,0 +1,29 @@
+---
+alwaysApply: true
+---
+
+Documentation Rules:
+
+1. **Keep documentation current**: Maintain README, API, component, database, and 
+   architecture documentation to reflect the current state of the project.
+
+2. **Update relevant sections only**: When code changes, update only the relevant 
+   documentation sections and preserve any manual edits made by developers.
+
+3. **Use professional language**: Write documentation using concise, professional 
+   language with clear examples and explanations of "why" decisions were made.
+
+4. **Call out business rules**: Document business rules, constraints, and assumptions 
+   that affect how the system operates.
+
+5. **Provide diff-friendly edits**: Make small, targeted documentation updates that 
+   are easy to review and understand.
+
+6. **Include examples**: Provide practical examples in documentation to help 
+   developers understand how to use the system correctly.
+
+7. **Document architecture decisions**: Explain the rationale behind architectural 
+   choices and design patterns used in the project.
+
+8. **Maintain API documentation**: Keep API documentation up-to-date with current 
+   endpoints, parameters, and response formats.

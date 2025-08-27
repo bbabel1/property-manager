@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-// Enums for unit properties
-const BedroomEnum = z.enum(['Studio', '1', '2', '3', '4', '5+']);
-const BathroomEnum = z.enum(['1', '1.5', '2', '2.5', '3', '3.5', '4+']);
+// Enums for unit properties (matching database enum names)
+const BedroomEnum = z.enum(['Studio', '1', '2', '3', '4', '5', '6', '7', '8', '9+']);
+const BathroomEnum = z.enum(['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5+']);
 const ServicePlanEnum = z.enum(['Full', 'Basic', 'A-la-carte']);
 const FeeFrequencyEnum = z.enum(['Monthly', 'Annually']);
 const FeeTypeEnum = z.enum(['Percentage', 'Flat Rate']);

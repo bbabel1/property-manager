@@ -94,7 +94,7 @@ export async function getOrCreateGLAccount(glAccount: BuildiumGLAccount | number
       cash_flow_classification: buildiumGLAccount.CashFlowClassification,
       exclude_from_cash_balances: buildiumGLAccount.ExcludeFromCashBalances,
       is_active: buildiumGLAccount.IsActive,
-      parent_gl_account_id: buildiumGLAccount.ParentGLAccountId,
+      buildium_parent_gl_account_id: buildiumGLAccount.ParentGLAccountId,
       is_credit_card_account: buildiumGLAccount.IsCreditCardAccount,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

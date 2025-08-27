@@ -1,6 +1,4 @@
 ---
-description: Guidelines for AI assistant context and limitations when working with this project
-globs: ["**/*"]
 alwaysApply: true
 ---
 

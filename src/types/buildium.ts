@@ -87,8 +87,11 @@ export interface BuildiumUnit {
   UnitType: BuildiumUnitType;
   Number: string;
   SquareFootage?: number;
+  UnitSize?: number;
   Bedrooms?: number;
   Bathrooms?: number;
+  MarketRent?: number;
+  Description?: string;
   IsActive: boolean;
   CreatedDate: string; // ISO 8601
   ModifiedDate: string; // ISO 8601
@@ -124,7 +127,25 @@ export interface BuildiumOwner {
     PostalCode: string;
     Country: string;
   };
-  TaxId?: string;
+  ManagementAgreementStartDate?: string; // ISO 8601
+  ManagementAgreementEndDate?: string; // ISO 8601
+  TaxInformation?: {
+    TaxPayerIdType?: string;
+    TaxPayerId?: string;
+    TaxPayerName1?: string;
+    TaxPayerName2?: string;
+    IncludeIn1099?: boolean;
+    Address?: {
+      AddressLine1?: string;
+      AddressLine2?: string;
+      AddressLine3?: string;
+      City?: string;
+      State?: string;
+      PostalCode?: string;
+      Country?: string;
+    };
+  };
+  TaxId?: string; // Legacy field, prefer TaxInformation.TaxPayerId
   IsActive: boolean;
   CreatedDate: string; // ISO 8601
   ModifiedDate: string; // ISO 8601

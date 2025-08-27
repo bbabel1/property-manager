@@ -65,7 +65,7 @@ async function createGLAccountRecord(glAccount: BuildiumGLAccount) {
     cash_flow_classification: glAccount.CashFlowClassification,
     exclude_from_cash_balances: glAccount.ExcludeFromCashBalances,
     is_active: glAccount.IsActive,
-    parent_gl_account_id: glAccount.ParentGLAccountId,
+    buildium_parent_gl_account_id: glAccount.ParentGLAccountId,
     is_credit_card_account: glAccount.IsCreditCardAccount,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()

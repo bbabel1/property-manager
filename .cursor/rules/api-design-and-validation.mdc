@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+- Validate all inputs at the edge (zod or similar).
+- Return typed responses; never `any`.
+- Use consistent error shapes: { error: { code, message } } with appropriate HTTP status.
+- Log actionable context, never secrets or PII.
+- Add minimal usage docs to api-documentation.md when endpoints change.

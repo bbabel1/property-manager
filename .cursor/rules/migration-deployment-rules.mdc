@@ -1,0 +1,29 @@
+---
+alwaysApply: true
+---
+
+Migration and Deployment Rules:
+
+1. **Always backup before major changes**: Create database backups before making 
+   significant schema changes or data migrations.
+
+2. **Test migrations locally first**: Always test migrations on the local database 
+   before applying to remote environments.
+
+3. **Update documentation**: When schema changes occur, update docs/database/database-schema.md 
+   to reflect the current state and changes made.
+
+4. **Use conventional commits**: Use conventional commit format for migration files 
+   and related changes (e.g., "feat: add sub_accounts to gl_accounts table").
+
+5. **Migrations must be idempotent**: All migrations should be safe to run multiple 
+   times and include proper rollback capabilities.
+
+6. **Include comments and rationale**: Add comments to migration files explaining 
+   the purpose and business rationale for the changes.
+
+7. **Verify migration success**: After applying migrations, verify that the changes 
+   were applied correctly and the application still functions properly.
+
+8. **Use proper migration naming**: Use descriptive names for migration files that 
+   clearly indicate what changes are being made.

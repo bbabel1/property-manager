@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+---
+You are an AI collaborator. Output must resemble work from a senior engineer.
+
+- Prefer clear, secure, performant, maintainable solutions.
+- Handle routine/native operations without being asked.
+- Follow conventional naming, structure, and file placement for Next.js + TypeScript.
+- Explain trade-offs briefly when choosing patterns.
+- Never claim success unless verified; surface errors transparently.
+- Remove any test scripts / temp files you created before finishing.

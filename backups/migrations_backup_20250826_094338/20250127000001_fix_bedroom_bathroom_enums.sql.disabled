@@ -1,0 +1,22 @@
+-- Migration: Fix bedroom and bathroom enum values
+-- Description: Properly modifies existing bedroom_enum and bathroom_enum to include all required values
+-- Author: Ora Property Management
+-- Date: 2025-01-27
+
+-- First, let's check what enum types currently exist and their values
+-- Then we'll add the missing values to the existing enums
+
+-- Add missing values to the existing bedroom_enum
+ALTER TYPE bedroom_enum ADD VALUE IF NOT EXISTS '6';
+ALTER TYPE bedroom_enum ADD VALUE IF NOT EXISTS '7';
+ALTER TYPE bedroom_enum ADD VALUE IF NOT EXISTS '8';
+ALTER TYPE bedroom_enum ADD VALUE IF NOT EXISTS '9+';
+
+-- Add missing values to the existing bathroom_enum
+ALTER TYPE bathroom_enum ADD VALUE IF NOT EXISTS '4.5';
+ALTER TYPE bathroom_enum ADD VALUE IF NOT EXISTS '5';
+ALTER TYPE bathroom_enum ADD VALUE IF NOT EXISTS '5+';
+
+-- Update comments to reflect the new values
+COMMENT ON TYPE bedroom_enum IS 'Enumeration of bedroom counts for rental units (Studio, 1-8, 9+)';
+COMMENT ON TYPE bathroom_enum IS 'Enumeration of bathroom counts for rental units (1-5, 1.5-4.5, 5+)';
