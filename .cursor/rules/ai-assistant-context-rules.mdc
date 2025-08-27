@@ -1,0 +1,43 @@
+---
+description: Guidelines for AI assistant context and limitations when working with this project
+globs: ["**/*"]
+alwaysApply: true
+---
+
+AI Assistant Context Rules:
+
+1. **Environment variable limitations**: AI assistants cannot access process.env directly
+   - Always use scripts with dotenv.config() for environment access
+   - Never try to access environment variables in direct code
+
+2. **Script execution pattern**: 
+   - Create scripts in scripts/buildium/sync/ directory
+   - Use existing scripts as templates
+   - Always clean up temporary scripts after use
+
+3. **Buildium API access**: 
+   - Use direct API calls, not MCP tools
+   - Follow authentication pattern with client credentials
+   - Use proper error handling and logging
+
+4. **File creation limitations**: 
+   - Cannot create files directly in some contexts
+   - Use terminal commands or provide file content for manual creation
+   - Always verify file creation before proceeding
+
+5. **Error handling expectations**:
+   - Expect environment loading issues
+   - Handle missing dependencies gracefully
+   - Provide clear error messages and solutions
+
+6. **Quick reference usage**: 
+   - Always check docs/QUICK_REFERENCE.md first
+   - Use established patterns from existing scripts
+   - Follow project conventions for naming and structure
+
+7. **Common workflow for API requests**:
+   - Copy existing script template
+   - Modify for target entity/ID
+   - Run with npx tsx
+   - Clean up temporary files
+   - Document results

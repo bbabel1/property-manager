@@ -1,0 +1,49 @@
+---
+description: Guidelines for creating and executing scripts, including Buildium API calls, environment loading, and error handling patterns
+globs: ["scripts/**/*.ts", "scripts/**/*.js"]
+alwaysApply: true
+---
+
+Script Creation and Execution Rules:
+
+1. **Use existing script templates**: Always start with existing scripts in `scripts/buildium/sync/` as templates
+   - Copy `fetch-buildium-lease.ts` for API calls
+   - Use `dotenv.config({ path: '.env.local' })` for environment loading
+
+2. **Standard environment loading pattern**:
+   ```typescript
+   import { config } from 'dotenv'
+   config({ path: '.env.local' })
+   ```
+
+3. **Standard Buildium API call pattern**:
+   ```typescript
+   const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals/${id}`, {
+     method: 'GET',
+     headers: {
+       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
+       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+       'Content-Type': 'application/json',
+       'Accept': 'application/json'
+     }
+   })
+   ```
+
+4. **Always clean up temporary scripts**: Remove test scripts after use with `rm scripts/**/temp-*.ts`
+
+5. **Use descriptive script names**: Follow pattern `fetch-buildium-[entity]-[id].ts`
+
+6. **Include proper error handling**: Always wrap API calls in try-catch with detailed error logging
+
+7. **Use npx tsx for execution**: Always run scripts with `npx tsx scripts/**/*.ts`
+
+8. **Quick script modification commands**:
+   ```bash
+   # Copy template
+   cp scripts/buildium/sync/fetch-buildium-lease.ts scripts/buildium/sync/fetch-buildium-[entity]-[id].ts
+   
+   # Modify for different entities
+   sed -i '' 's/leaseId/propertyId/g' scripts/buildium/sync/fetch-buildium-[entity]-[id].ts
+   sed -i '' 's/\/leases\//\/rentals\//g' scripts/buildium/sync/fetch-buildium-[entity]-[id].ts
+   sed -i '' 's/lease/property/g' scripts/buildium/sync/fetch-buildium-[entity]-[id].ts
+   ```

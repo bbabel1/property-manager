@@ -1,0 +1,45 @@
+---
+description: Guidelines for managing environment variables, including local vs production configuration and security best practices
+globs: [".env*", "src/lib/env.ts", "scripts/**/*.ts"]
+alwaysApply: true
+---
+
+Environment and Configuration Rules:
+
+1. **Use proper environment file structure**: 
+   - .env for production variables
+   - .env.local for local development variables
+   - env.example as a clean template
+
+2. **Script environment loading pattern**:
+   ```typescript
+   import { config } from 'dotenv'
+   config({ path: '.env.local' })  // Always specify .env.local for scripts
+   ```
+
+3. **Central validation required**: All new config/secrets must be read from process.env 
+   with central validation in src/lib/env.ts using Zod schemas.
+
+4. **Never hardcode secrets**: Never hardcode API keys, passwords, or sensitive data 
+   in source code. Always use environment variables.
+
+5. **Validate at startup**: Use src/lib/env.ts for comprehensive environment variable 
+   validation with clear error messages for missing or invalid values.
+
+6. **Document required variables**: Keep env.example updated with all required 
+   environment variables and their expected formats.
+
+7. **Secure production variables**: Ensure production environment variables in .env 
+   are properly secured and not committed to version control.
+
+8. **Use descriptive variable names**: Use clear, descriptive names for environment 
+   variables that indicate their purpose and scope.
+
+9. **Script execution context**: AI assistants cannot access process.env directly - 
+   always use scripts with dotenv.config() for environment variable access.
+
+10. **Environment variable priority**: 
+    - .env.local (highest priority - local development)
+    - .env.development (development environment)
+    - .env.production (production environment)
+    - .env (lowest priority - fallback)
