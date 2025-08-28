@@ -3963,6 +3963,10 @@ CREATE OR REPLACE TRIGGER "trg_contacts_updated_at" BEFORE UPDATE ON "public"."c
 
 
 
+CREATE OR REPLACE TRIGGER "trg_lease_updated_at" BEFORE UPDATE ON "public"."lease" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_olc_updated_at" BEFORE UPDATE ON "public"."owners_list_cache" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
@@ -3980,6 +3984,10 @@ CREATE OR REPLACE TRIGGER "trg_poc_updated_at" BEFORE UPDATE ON "public"."proper
 
 
 CREATE OR REPLACE TRIGGER "trg_set_buildium_property_id" BEFORE INSERT OR UPDATE ON "public"."units" FOR EACH ROW EXECUTE FUNCTION "public"."set_buildium_property_id"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_staff_updated_at" BEFORE UPDATE ON "public"."staff" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 

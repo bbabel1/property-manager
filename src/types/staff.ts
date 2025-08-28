@@ -14,8 +14,8 @@ export interface StaffDB {
   role: StaffRoleEnum;
   isActive: boolean;
   buildium_user_id?: number;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Application interface (camelCase) - Updated to match live database
@@ -35,8 +35,8 @@ export function mapStaffFromDB(dbStaff: StaffDB): Staff {
     role: dbStaff.role,
     isActive: dbStaff.isActive,
     buildiumUserId: dbStaff.buildium_user_id,
-    createdAt: dbStaff.createdAt,
-    updatedAt: dbStaff.updatedAt,
+    createdAt: dbStaff.created_at,
+    updatedAt: dbStaff.updated_at,
   };
 }
 
