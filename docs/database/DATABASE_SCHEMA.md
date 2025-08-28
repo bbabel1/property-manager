@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Last Updated**: 2025-08-28T05:25:50.459Z (Auto-generated)
+> **Last Updated**: 2025-08-28T05:34:42.966Z (Auto-generated)
 
 ## Overview
 
@@ -59,10 +59,16 @@ This document provides a comprehensive overview of the Supabase database schema 
 ### 20250828063500_cleanup_timestamp_standardization.sql
 **Description**: No description available
 
+### 20250828070000_add_missing_updated_at_triggers.sql
+**Description**: No description available
+
+### 20250828070500_staged_country_enum_constraints_and_report.sql
+**Description**: No description available
+
 
 ## Current Schema Status
 
-- **Total Migrations**: 17
+- **Total Migrations**: 19
 - **Database Provider**: PostgreSQL via Supabase
 - **ORM**: Direct Supabase client operations
 - **Security**: Row Level Security (RLS) enabled on all tables

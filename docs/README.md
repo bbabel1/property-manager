@@ -1,6 +1,6 @@
 # Documentation Index
 
-> **Last Updated**: 2025-08-28T05:25:50.469Z (Auto-generated)
+> **Last Updated**: 2025-08-28T05:34:42.977Z (Auto-generated)
 
 ## Architecture Documentation
 
@@ -27,7 +27,7 @@
 
 This documentation is automatically updated by the documentation monitoring system. 
 
-**Last automated check**: 2025-08-28T05:25:50.469Z
+**Last automated check**: 2025-08-28T05:34:42.977Z
 
 **Monitoring patterns**:
 - API routes (`src/app/api/**/*.ts`)
