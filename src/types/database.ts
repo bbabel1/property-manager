@@ -1870,7 +1870,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      invalid_country_values: {
+        Row: {
+          column_name: string | null
+          id: string | null
+          table_name: string | null
+          value: Database["public"]["Enums"]["countries"] | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_owner_total_properties: {
@@ -1939,6 +1947,10 @@ export type Database = {
       handle_unit_webhook_update: {
         Args: { event_data: Json }
         Returns: undefined
+      }
+      is_valid_country: {
+        Args: { val: string }
+        Returns: boolean
       }
       map_bill_to_buildium: {
         Args: { p_bill_id: string }

@@ -910,6 +910,28 @@ $$;
 ALTER FUNCTION "public"."handle_unit_webhook_update"("event_data" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."is_valid_country"("val" "text") RETURNS boolean
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v public.countries;
+BEGIN
+  IF val IS NULL THEN
+    RETURN true;
+  END IF;
+  BEGIN
+    v := val::public.countries;
+    RETURN true;
+  EXCEPTION WHEN others THEN
+    RETURN false;
+  END;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."is_valid_country"("val" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."map_bill_to_buildium"("p_bill_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql"
     AS $$
@@ -2192,44 +2214,6 @@ CREATE TABLE IF NOT EXISTS "public"."inspections" (
 ALTER TABLE "public"."inspections" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."lease_contacts" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "lease_id" bigint NOT NULL,
-    "tenant_id" "uuid" NOT NULL,
-    "role" character varying(20) DEFAULT 'Tenant'::character varying NOT NULL,
-    "status" character varying(20) DEFAULT 'Active'::character varying NOT NULL,
-    "move_in_date" "date",
-    "is_rent_responsible" boolean DEFAULT false,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone NOT NULL,
-    "move_out_date" "date",
-    "notice_given_date" "date"
-);
-
-
-ALTER TABLE "public"."lease_contacts" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."lease_contacts" IS 'Join table linking leases to tenants with role and status';
-
-
-
-COMMENT ON COLUMN "public"."lease_contacts"."role" IS 'Role of the contact in the lease (Tenant, Cosigner, Guarantor)';
-
-
-
-COMMENT ON COLUMN "public"."lease_contacts"."status" IS 'Status of the contact in the lease (Future, Active, Past)';
-
-
-
-COMMENT ON COLUMN "public"."lease_contacts"."move_out_date" IS 'Date when the tenant moved out of the property';
-
-
-
-COMMENT ON COLUMN "public"."lease_contacts"."notice_given_date" IS 'Date when the tenant gave notice of intent to move out';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."owners" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "management_agreement_start_date" "date",
@@ -2293,56 +2277,6 @@ COMMENT ON COLUMN "public"."owners"."buildium_updated_at" IS 'Timestamp when own
 
 
 COMMENT ON COLUMN "public"."owners"."tax_include1099" IS 'Indicates whether this owner should be included in 1099 tax reporting (maps to Buildium IncludeIn1099)';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."owners_list_cache" (
-    "owner_id" "uuid" NOT NULL,
-    "contact_id" bigint NOT NULL,
-    "display_name" "text",
-    "primary_email" "text",
-    "primary_phone" "text",
-    "management_agreement_start_date" "date",
-    "management_agreement_end_date" "date",
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "public"."owners_list_cache" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."owners_list_cache" IS 'Owners list cache table - RLS disabled for trigger operations';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."ownerships" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "owner_id" "uuid" NOT NULL,
-    "primary" boolean DEFAULT false NOT NULL,
-    "ownership_percentage" numeric(5,2) NOT NULL,
-    "disbursement_percentage" numeric(5,2) NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "total_units" integer DEFAULT 0 NOT NULL,
-    "total_properties" integer DEFAULT 0 NOT NULL,
-    CONSTRAINT "ownerships_disbursement_percentage_check" CHECK ((("disbursement_percentage" >= (0)::numeric) AND ("disbursement_percentage" <= (100)::numeric))),
-    CONSTRAINT "ownerships_ownership_percentage_check" CHECK ((("ownership_percentage" >= (0)::numeric) AND ("ownership_percentage" <= (100)::numeric)))
-);
-
-
-ALTER TABLE "public"."ownerships" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."ownerships" IS 'Ownerships table - RLS temporarily disabled for NextAuth integration';
-
-
-
-COMMENT ON COLUMN "public"."ownerships"."total_units" IS 'Sum of total_units from all properties owned by this owner';
-
-
-
-COMMENT ON COLUMN "public"."ownerships"."total_properties" IS 'Count of active properties (status != Inactive) owned by this owner';
 
 
 
@@ -2417,6 +2351,282 @@ COMMENT ON COLUMN "public"."properties"."buildium_updated_at" IS 'Timestamp when
 
 
 COMMENT ON COLUMN "public"."properties"."rental_type" IS 'The main rental type from Buildium (Rental, Association, Commercial)';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."units" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "property_id" "uuid" NOT NULL,
+    "unit_number" character varying(30) NOT NULL,
+    "unit_size" integer,
+    "market_rent" numeric,
+    "address_line1" character varying(100) NOT NULL,
+    "address_line2" character varying(100),
+    "address_line3" character varying(100),
+    "city" character varying(100),
+    "state" character varying(100),
+    "postal_code" character varying(20) NOT NULL,
+    "country" "public"."countries" NOT NULL,
+    "unit_bedrooms" "public"."bedroom_enum",
+    "unit_bathrooms" "public"."bathroom_enum",
+    "description" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone NOT NULL,
+    "last_inspection_date" "date",
+    "next_inspection_date" "date",
+    "status" "public"."unit_status_enum" DEFAULT 'Vacant'::"public"."unit_status_enum" NOT NULL,
+    "service_start" "date",
+    "service_end" "date",
+    "service_plan" "public"."ServicePlan",
+    "fee_type" "public"."FeeType",
+    "fee_percent" numeric,
+    "management_fee" numeric,
+    "fee_frequency" "public"."FeeFrequency",
+    "active_services" "text",
+    "fee_notes" "text",
+    "buildium_unit_id" integer,
+    "buildium_property_id" integer,
+    "unit_type" character varying(50),
+    "square_footage" integer,
+    "is_active" boolean DEFAULT true,
+    "buildium_created_at" timestamp with time zone,
+    "buildium_updated_at" timestamp with time zone,
+    "building_name" "text"
+);
+
+
+ALTER TABLE "public"."units" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."units"."country" IS 'Unit address country - uses standardized countries enum';
+
+
+
+COMMENT ON COLUMN "public"."units"."buildium_unit_id" IS 'Unique identifier from Buildium API';
+
+
+
+COMMENT ON COLUMN "public"."units"."buildium_property_id" IS 'Buildium property ID this unit belongs to';
+
+
+
+COMMENT ON COLUMN "public"."units"."unit_type" IS 'Type of unit from Buildium (Apartment, Condo, House, etc.)';
+
+
+
+COMMENT ON COLUMN "public"."units"."square_footage" IS 'Square footage of the unit';
+
+
+
+COMMENT ON COLUMN "public"."units"."is_active" IS 'Whether the unit is active in Buildium';
+
+
+
+COMMENT ON COLUMN "public"."units"."buildium_created_at" IS 'When the unit was created in Buildium';
+
+
+
+COMMENT ON COLUMN "public"."units"."buildium_updated_at" IS 'When the unit was last updated in Buildium';
+
+
+
+COMMENT ON COLUMN "public"."units"."building_name" IS 'Building name for units in multi-building properties';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."vendors" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "buildium_vendor_id" integer,
+    "name" character varying(255) NOT NULL,
+    "category_id" integer,
+    "contact_name" character varying(255),
+    "email" character varying(255),
+    "phone_number" character varying(50),
+    "address_line1" character varying(255),
+    "address_line2" character varying(255),
+    "city" character varying(100),
+    "state" character varying(100),
+    "postal_code" character varying(20),
+    "country" "public"."countries",
+    "tax_id" character varying(255),
+    "notes" "text",
+    "is_active" boolean DEFAULT true,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."vendors" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."vendors" IS 'Vendors/suppliers for property management services and supplies';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."buildium_vendor_id" IS 'Buildium API vendor ID for synchronization';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."name" IS 'Vendor company or individual name';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."category_id" IS 'Buildium vendor category ID';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."contact_name" IS 'Primary contact person name';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."country" IS 'Vendor address country - uses standardized countries enum';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."tax_id" IS 'Tax identification number';
+
+
+
+COMMENT ON COLUMN "public"."vendors"."is_active" IS 'Whether the vendor is active';
+
+
+
+CREATE OR REPLACE VIEW "public"."invalid_country_values" AS
+ SELECT 'contacts'::"text" AS "table_name",
+    ("contacts"."id")::"text" AS "id",
+    'primary_country'::"text" AS "column_name",
+    "contacts"."primary_country" AS "value"
+   FROM "public"."contacts"
+  WHERE (NOT "public"."is_valid_country"(("contacts"."primary_country")::"text"))
+UNION ALL
+ SELECT 'contacts'::"text" AS "table_name",
+    ("contacts"."id")::"text" AS "id",
+    'alt_country'::"text" AS "column_name",
+    "contacts"."alt_country" AS "value"
+   FROM "public"."contacts"
+  WHERE (NOT "public"."is_valid_country"(("contacts"."alt_country")::"text"))
+UNION ALL
+ SELECT 'owners'::"text" AS "table_name",
+    ("owners"."id")::"text" AS "id",
+    'tax_country'::"text" AS "column_name",
+    "owners"."tax_country" AS "value"
+   FROM "public"."owners"
+  WHERE (NOT "public"."is_valid_country"(("owners"."tax_country")::"text"))
+UNION ALL
+ SELECT 'properties'::"text" AS "table_name",
+    ("properties"."id")::"text" AS "id",
+    'country'::"text" AS "column_name",
+    "properties"."country" AS "value"
+   FROM "public"."properties"
+  WHERE (NOT "public"."is_valid_country"(("properties"."country")::"text"))
+UNION ALL
+ SELECT 'units'::"text" AS "table_name",
+    ("units"."id")::"text" AS "id",
+    'country'::"text" AS "column_name",
+    "units"."country" AS "value"
+   FROM "public"."units"
+  WHERE (NOT "public"."is_valid_country"(("units"."country")::"text"))
+UNION ALL
+ SELECT 'vendors'::"text" AS "table_name",
+    ("vendors"."id")::"text" AS "id",
+    'country'::"text" AS "column_name",
+    "vendors"."country" AS "value"
+   FROM "public"."vendors"
+  WHERE (NOT "public"."is_valid_country"(("vendors"."country")::"text"));
+
+
+ALTER VIEW "public"."invalid_country_values" OWNER TO "postgres";
+
+
+COMMENT ON VIEW "public"."invalid_country_values" IS 'Lists rows/columns where country values are not valid enum labels; use to drive normalization before converting types.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."lease_contacts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "lease_id" bigint NOT NULL,
+    "tenant_id" "uuid" NOT NULL,
+    "role" character varying(20) DEFAULT 'Tenant'::character varying NOT NULL,
+    "status" character varying(20) DEFAULT 'Active'::character varying NOT NULL,
+    "move_in_date" "date",
+    "is_rent_responsible" boolean DEFAULT false,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone NOT NULL,
+    "move_out_date" "date",
+    "notice_given_date" "date"
+);
+
+
+ALTER TABLE "public"."lease_contacts" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."lease_contacts" IS 'Join table linking leases to tenants with role and status';
+
+
+
+COMMENT ON COLUMN "public"."lease_contacts"."role" IS 'Role of the contact in the lease (Tenant, Cosigner, Guarantor)';
+
+
+
+COMMENT ON COLUMN "public"."lease_contacts"."status" IS 'Status of the contact in the lease (Future, Active, Past)';
+
+
+
+COMMENT ON COLUMN "public"."lease_contacts"."move_out_date" IS 'Date when the tenant moved out of the property';
+
+
+
+COMMENT ON COLUMN "public"."lease_contacts"."notice_given_date" IS 'Date when the tenant gave notice of intent to move out';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."owners_list_cache" (
+    "owner_id" "uuid" NOT NULL,
+    "contact_id" bigint NOT NULL,
+    "display_name" "text",
+    "primary_email" "text",
+    "primary_phone" "text",
+    "management_agreement_start_date" "date",
+    "management_agreement_end_date" "date",
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."owners_list_cache" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."owners_list_cache" IS 'Owners list cache table - RLS disabled for trigger operations';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."ownerships" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "property_id" "uuid" NOT NULL,
+    "owner_id" "uuid" NOT NULL,
+    "primary" boolean DEFAULT false NOT NULL,
+    "ownership_percentage" numeric(5,2) NOT NULL,
+    "disbursement_percentage" numeric(5,2) NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "total_units" integer DEFAULT 0 NOT NULL,
+    "total_properties" integer DEFAULT 0 NOT NULL,
+    CONSTRAINT "ownerships_disbursement_percentage_check" CHECK ((("disbursement_percentage" >= (0)::numeric) AND ("disbursement_percentage" <= (100)::numeric))),
+    CONSTRAINT "ownerships_ownership_percentage_check" CHECK ((("ownership_percentage" >= (0)::numeric) AND ("ownership_percentage" <= (100)::numeric)))
+);
+
+
+ALTER TABLE "public"."ownerships" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."ownerships" IS 'Ownerships table - RLS temporarily disabled for NextAuth integration';
+
+
+
+COMMENT ON COLUMN "public"."ownerships"."total_units" IS 'Sum of total_units from all properties owned by this owner';
+
+
+
+COMMENT ON COLUMN "public"."ownerships"."total_properties" IS 'Count of active properties (status != Inactive) owned by this owner';
 
 
 
@@ -2917,86 +3127,6 @@ COMMENT ON COLUMN "public"."transactions"."recurring_schedule" IS 'JSON schedule
 
 
 
-CREATE TABLE IF NOT EXISTS "public"."units" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "property_id" "uuid" NOT NULL,
-    "unit_number" character varying(30) NOT NULL,
-    "unit_size" integer,
-    "market_rent" numeric,
-    "address_line1" character varying(100) NOT NULL,
-    "address_line2" character varying(100),
-    "address_line3" character varying(100),
-    "city" character varying(100),
-    "state" character varying(100),
-    "postal_code" character varying(20) NOT NULL,
-    "country" "public"."countries" NOT NULL,
-    "unit_bedrooms" "public"."bedroom_enum",
-    "unit_bathrooms" "public"."bathroom_enum",
-    "description" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone NOT NULL,
-    "last_inspection_date" "date",
-    "next_inspection_date" "date",
-    "status" "public"."unit_status_enum" DEFAULT 'Vacant'::"public"."unit_status_enum" NOT NULL,
-    "service_start" "date",
-    "service_end" "date",
-    "service_plan" "public"."ServicePlan",
-    "fee_type" "public"."FeeType",
-    "fee_percent" numeric,
-    "management_fee" numeric,
-    "fee_frequency" "public"."FeeFrequency",
-    "active_services" "text",
-    "fee_notes" "text",
-    "buildium_unit_id" integer,
-    "buildium_property_id" integer,
-    "unit_type" character varying(50),
-    "square_footage" integer,
-    "is_active" boolean DEFAULT true,
-    "buildium_created_at" timestamp with time zone,
-    "buildium_updated_at" timestamp with time zone,
-    "building_name" "text"
-);
-
-
-ALTER TABLE "public"."units" OWNER TO "postgres";
-
-
-COMMENT ON COLUMN "public"."units"."country" IS 'Unit address country - uses standardized countries enum';
-
-
-
-COMMENT ON COLUMN "public"."units"."buildium_unit_id" IS 'Unique identifier from Buildium API';
-
-
-
-COMMENT ON COLUMN "public"."units"."buildium_property_id" IS 'Buildium property ID this unit belongs to';
-
-
-
-COMMENT ON COLUMN "public"."units"."unit_type" IS 'Type of unit from Buildium (Apartment, Condo, House, etc.)';
-
-
-
-COMMENT ON COLUMN "public"."units"."square_footage" IS 'Square footage of the unit';
-
-
-
-COMMENT ON COLUMN "public"."units"."is_active" IS 'Whether the unit is active in Buildium';
-
-
-
-COMMENT ON COLUMN "public"."units"."buildium_created_at" IS 'When the unit was created in Buildium';
-
-
-
-COMMENT ON COLUMN "public"."units"."buildium_updated_at" IS 'When the unit was last updated in Buildium';
-
-
-
-COMMENT ON COLUMN "public"."units"."building_name" IS 'Building name for units in multi-building properties';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."vendor_categories" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "buildium_category_id" integer,
@@ -3028,63 +3158,6 @@ COMMENT ON COLUMN "public"."vendor_categories"."description" IS 'Category descri
 
 
 COMMENT ON COLUMN "public"."vendor_categories"."is_active" IS 'Whether the category is active';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."vendors" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "buildium_vendor_id" integer,
-    "name" character varying(255) NOT NULL,
-    "category_id" integer,
-    "contact_name" character varying(255),
-    "email" character varying(255),
-    "phone_number" character varying(50),
-    "address_line1" character varying(255),
-    "address_line2" character varying(255),
-    "city" character varying(100),
-    "state" character varying(100),
-    "postal_code" character varying(20),
-    "country" "public"."countries",
-    "tax_id" character varying(255),
-    "notes" "text",
-    "is_active" boolean DEFAULT true,
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
-);
-
-
-ALTER TABLE "public"."vendors" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."vendors" IS 'Vendors/suppliers for property management services and supplies';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."buildium_vendor_id" IS 'Buildium API vendor ID for synchronization';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."name" IS 'Vendor company or individual name';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."category_id" IS 'Buildium vendor category ID';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."contact_name" IS 'Primary contact person name';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."country" IS 'Vendor address country - uses standardized countries enum';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."tax_id" IS 'Tax identification number';
-
-
-
-COMMENT ON COLUMN "public"."vendors"."is_active" IS 'Whether the vendor is active';
 
 
 
@@ -3249,8 +3322,18 @@ ALTER TABLE ONLY "public"."buildium_webhook_events"
 
 
 
+ALTER TABLE "public"."contacts"
+    ADD CONSTRAINT "contacts_alt_country_is_valid" CHECK ("public"."is_valid_country"(("alt_country")::"text")) NOT VALID;
+
+
+
 ALTER TABLE ONLY "public"."contacts"
     ADD CONSTRAINT "contacts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE "public"."contacts"
+    ADD CONSTRAINT "contacts_primary_country_is_valid" CHECK ("public"."is_valid_country"(("primary_country")::"text")) NOT VALID;
 
 
 
@@ -3299,6 +3382,11 @@ ALTER TABLE ONLY "public"."owners"
 
 
 
+ALTER TABLE "public"."owners"
+    ADD CONSTRAINT "owners_tax_country_is_valid" CHECK ("public"."is_valid_country"(("tax_country")::"text")) NOT VALID;
+
+
+
 ALTER TABLE ONLY "public"."ownerships"
     ADD CONSTRAINT "ownerships_pkey" PRIMARY KEY ("id");
 
@@ -3315,6 +3403,11 @@ ALTER TABLE ONLY "public"."properties"
 
 
 COMMENT ON CONSTRAINT "properties_buildium_property_id_unique" ON "public"."properties" IS 'Ensures each Buildium property ID can only exist once in the database';
+
+
+
+ALTER TABLE "public"."properties"
+    ADD CONSTRAINT "properties_country_is_valid" CHECK ("public"."is_valid_country"(("country")::"text")) NOT VALID;
 
 
 
@@ -3412,6 +3505,11 @@ ALTER TABLE ONLY "public"."units"
 
 
 
+ALTER TABLE "public"."units"
+    ADD CONSTRAINT "units_country_is_valid" CHECK ("public"."is_valid_country"(("country")::"text")) NOT VALID;
+
+
+
 ALTER TABLE ONLY "public"."units"
     ADD CONSTRAINT "units_pkey" PRIMARY KEY ("id");
 
@@ -3429,6 +3527,11 @@ ALTER TABLE ONLY "public"."vendor_categories"
 
 ALTER TABLE ONLY "public"."vendors"
     ADD CONSTRAINT "vendors_buildium_vendor_id_key" UNIQUE ("buildium_vendor_id");
+
+
+
+ALTER TABLE "public"."vendors"
+    ADD CONSTRAINT "vendors_country_is_valid" CHECK ("public"."is_valid_country"(("country")::"text")) NOT VALID;
 
 
 
@@ -3955,6 +4058,30 @@ CREATE OR REPLACE TRIGGER "ownerships_to_cache" AFTER INSERT OR UPDATE ON "publi
 
 
 
+CREATE OR REPLACE TRIGGER "trg_appliances_updated_at" BEFORE UPDATE ON "public"."appliances" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_bank_accounts_updated_at" BEFORE UPDATE ON "public"."bank_accounts" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_bill_categories_updated_at" BEFORE UPDATE ON "public"."bill_categories" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_buildium_api_cache_updated_at" BEFORE UPDATE ON "public"."buildium_api_cache" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_buildium_sync_status_updated_at" BEFORE UPDATE ON "public"."buildium_sync_status" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_buildium_webhook_events_updated_at" BEFORE UPDATE ON "public"."buildium_webhook_events" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_contacts_display_name" BEFORE INSERT OR UPDATE ON "public"."contacts" FOR EACH ROW EXECUTE FUNCTION "public"."generate_display_name"();
 
 
@@ -3963,11 +4090,27 @@ CREATE OR REPLACE TRIGGER "trg_contacts_updated_at" BEFORE UPDATE ON "public"."c
 
 
 
+CREATE OR REPLACE TRIGGER "trg_gl_accounts_updated_at" BEFORE UPDATE ON "public"."gl_accounts" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_inspections_updated_at" BEFORE UPDATE ON "public"."inspections" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_lease_contacts_updated_at" BEFORE UPDATE ON "public"."lease_contacts" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_lease_updated_at" BEFORE UPDATE ON "public"."lease" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
 CREATE OR REPLACE TRIGGER "trg_olc_updated_at" BEFORE UPDATE ON "public"."owners_list_cache" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_owners_list_cache_updated_at" BEFORE UPDATE ON "public"."owners_list_cache" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -3983,11 +4126,71 @@ CREATE OR REPLACE TRIGGER "trg_poc_updated_at" BEFORE UPDATE ON "public"."proper
 
 
 
+CREATE OR REPLACE TRIGGER "trg_properties_updated_at" BEFORE UPDATE ON "public"."properties" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_property_ownerships_cache_updated_at" BEFORE UPDATE ON "public"."property_ownerships_cache" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_rent_schedules_updated_at" BEFORE UPDATE ON "public"."rent_schedules" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_set_buildium_property_id" BEFORE INSERT OR UPDATE ON "public"."units" FOR EACH ROW EXECUTE FUNCTION "public"."set_buildium_property_id"();
 
 
 
 CREATE OR REPLACE TRIGGER "trg_staff_updated_at" BEFORE UPDATE ON "public"."staff" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_sync_operations_updated_at" BEFORE UPDATE ON "public"."sync_operations" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_task_categories_updated_at" BEFORE UPDATE ON "public"."task_categories" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_task_history_files_updated_at" BEFORE UPDATE ON "public"."task_history_files" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_task_history_updated_at" BEFORE UPDATE ON "public"."task_history" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_tasks_updated_at" BEFORE UPDATE ON "public"."tasks" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_tenants_updated_at" BEFORE UPDATE ON "public"."tenants" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_transaction_lines_updated_at" BEFORE UPDATE ON "public"."transaction_lines" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_transactions_updated_at" BEFORE UPDATE ON "public"."transactions" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_units_updated_at" BEFORE UPDATE ON "public"."units" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_vendor_categories_updated_at" BEFORE UPDATE ON "public"."vendor_categories" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_vendors_updated_at" BEFORE UPDATE ON "public"."vendors" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_work_orders_updated_at" BEFORE UPDATE ON "public"."work_orders" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -5082,6 +5285,12 @@ GRANT ALL ON FUNCTION "public"."handle_unit_webhook_update"("event_data" "jsonb"
 
 
 
+GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."map_bill_to_buildium"("p_bill_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."map_bill_to_buildium"("p_bill_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."map_bill_to_buildium"("p_bill_id" "uuid") TO "service_role";
@@ -5355,15 +5564,39 @@ GRANT ALL ON TABLE "public"."inspections" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."lease_contacts" TO "anon";
-GRANT ALL ON TABLE "public"."lease_contacts" TO "authenticated";
-GRANT ALL ON TABLE "public"."lease_contacts" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."owners" TO "anon";
 GRANT ALL ON TABLE "public"."owners" TO "authenticated";
 GRANT ALL ON TABLE "public"."owners" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."properties" TO "anon";
+GRANT ALL ON TABLE "public"."properties" TO "authenticated";
+GRANT ALL ON TABLE "public"."properties" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."units" TO "anon";
+GRANT ALL ON TABLE "public"."units" TO "authenticated";
+GRANT ALL ON TABLE "public"."units" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."vendors" TO "anon";
+GRANT ALL ON TABLE "public"."vendors" TO "authenticated";
+GRANT ALL ON TABLE "public"."vendors" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."invalid_country_values" TO "anon";
+GRANT ALL ON TABLE "public"."invalid_country_values" TO "authenticated";
+GRANT ALL ON TABLE "public"."invalid_country_values" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."lease_contacts" TO "anon";
+GRANT ALL ON TABLE "public"."lease_contacts" TO "authenticated";
+GRANT ALL ON TABLE "public"."lease_contacts" TO "service_role";
 
 
 
@@ -5376,12 +5609,6 @@ GRANT ALL ON TABLE "public"."owners_list_cache" TO "service_role";
 GRANT ALL ON TABLE "public"."ownerships" TO "anon";
 GRANT ALL ON TABLE "public"."ownerships" TO "authenticated";
 GRANT ALL ON TABLE "public"."ownerships" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."properties" TO "anon";
-GRANT ALL ON TABLE "public"."properties" TO "authenticated";
-GRANT ALL ON TABLE "public"."properties" TO "service_role";
 
 
 
@@ -5445,21 +5672,9 @@ GRANT ALL ON TABLE "public"."transactions" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."units" TO "anon";
-GRANT ALL ON TABLE "public"."units" TO "authenticated";
-GRANT ALL ON TABLE "public"."units" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."vendor_categories" TO "anon";
 GRANT ALL ON TABLE "public"."vendor_categories" TO "authenticated";
 GRANT ALL ON TABLE "public"."vendor_categories" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."vendors" TO "anon";
-GRANT ALL ON TABLE "public"."vendors" TO "authenticated";
-GRANT ALL ON TABLE "public"."vendors" TO "service_role";
 
 
 
