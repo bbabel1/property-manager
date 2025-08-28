@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
+import { mapGoogleCountryToEnum } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create property data object matching database schema (snake_case)
+    const normalizedCountry = mapGoogleCountryToEnum(country)
     const propertyData = {
       name,
       structure_description: structureDescription,
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
       city,
       state,
       postal_code: postalCode,
-      country,
+      country: normalizedCountry,
       rental_sub_type: rentalSubType,
       operating_bank_account_id: operatingBankAccountId || null,
       reserve: reserve ? parseFloat(reserve.toString()) : null,

@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from './db'
+import type { Database } from '@/types/database'
 
 export interface Property {
   id: string
@@ -9,7 +10,7 @@ export interface Property {
   city: string
   state: string
   postal_code: string
-  country: string
+  country: Database['public']['Enums']['countries']
   rental_sub_type: string
   // primary_owner removed - now determined from ownerships table where primary = true
   status: string
@@ -34,7 +35,7 @@ export interface Unit {
   city: string
   state: string
   postal_code: string
-  country: string
+  country: Database['public']['Enums']['countries']
   unit_bedrooms?: string
   unit_bathrooms?: string
   description?: string
