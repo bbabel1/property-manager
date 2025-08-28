@@ -102,6 +102,11 @@ CREATE TYPE "public"."property_status" AS ENUM (
 - **Many-to-Many**: `properties` ↔ `owners` (via `ownerships` table)
 - **One-to-One**: `properties` → `bank_accounts` (via `operating_bank_account_id`)
 
+**Buildium Integration Notes:**
+- `buildium_property_id` is populated during sync and has a unique constraint (`properties_buildium_property_id_unique`).
+- `buildium_created_at` and `buildium_updated_at` mirror timestamps from Buildium for auditing.
+- Indexes exist on Buildium ID fields in related tables for efficient joins and lookups.
+
 ### Units
 
 **Table**: `public.units`
@@ -160,6 +165,13 @@ CREATE TABLE "public"."units" (
 **Relationships:**
 - **Many-to-One**: `units` → `properties` (via `property_id`)
 - **One-to-Many**: `units` → `leases` (via `unit_id`)
+
+**Buildium Integration Notes:**
+- Buildium ID fields used for cross-system mapping:
+  - `buildium_unit_id` (unique per unit)
+  - `buildium_property_id` (the parent property’s Buildium ID)
+- Timestamps (if present): `buildium_created_at`, `buildium_updated_at` capture first seen/last updated from Buildium.
+- Common indexes: `idx_units_buildium_id` on `buildium_unit_id` and triggers to set `buildium_property_id` from related property when available.
 
 ### Owners
 
@@ -552,20 +564,27 @@ CREATE TABLE "public"."tenants" (
 
 **Table**: `public.gl_accounts`
 
-**Purpose**: General ledger accounts for financial management.
+**Purpose**: General ledger accounts imported from Buildium, supporting hierarchical parent/child structures.
 
 **Schema Definition:**
 ```sql
 CREATE TABLE "public"."gl_accounts" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "buildium_gl_account_id" integer NOT NULL,
+    "account_number" character varying(50),
     "name" character varying(255) NOT NULL,
     "description" "text",
-    "account_type" character varying(50) NOT NULL,
-    "account_number" character varying(50),
-    "is_active" boolean DEFAULT true NOT NULL,
-    "parent_gl_account_id" "uuid",
+    "type" character varying(50) NOT NULL,
+    "sub_type" character varying(50),
+    "is_default_gl_account" boolean DEFAULT false,
+    "default_account_name" character varying(255),
+    "is_contra_account" boolean DEFAULT false,
+    "is_bank_account" boolean DEFAULT false,
+    "cash_flow_classification" character varying(50),
+    "exclude_from_cash_balances" boolean DEFAULT false,
+    "is_active" boolean DEFAULT true,
     "buildium_parent_gl_account_id" integer,
+    "is_credit_card_account" boolean DEFAULT false,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
     "sub_accounts" "uuid"[] DEFAULT '{}'::"uuid"[]
@@ -576,22 +595,36 @@ CREATE TABLE "public"."gl_accounts" (
 
 | Field | Type | Constraints | Default | Description |
 |-------|------|-------------|---------|-------------|
-| `id` | UUID | NOT NULL, Primary Key | `gen_random_uuid()` | Unique identifier |
-| `buildium_gl_account_id` | INTEGER | NOT NULL | - | Buildium API GL account ID |
+| `id` | UUID | NOT NULL, Primary Key | `gen_random_uuid()` | Local unique identifier |
+| `buildium_gl_account_id` | INTEGER | NOT NULL, UNIQUE | - | GL account ID from Buildium |
+| `account_number` | VARCHAR(50) | - | - | Account number/code |
 | `name` | VARCHAR(255) | NOT NULL | - | Account name |
 | `description` | TEXT | - | - | Account description |
-| `account_type` | VARCHAR(50) | NOT NULL | - | Account type |
-| `account_number` | VARCHAR(50) | - | - | Account number |
-| `is_active` | BOOLEAN | NOT NULL | `true` | Active status |
-| `parent_gl_account_id` | UUID | - | - | Parent account reference |
-| `buildium_parent_gl_account_id` | INTEGER | - | - | Buildium parent account ID |
-| `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | `now()` | Creation timestamp |
-| `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | - | Update timestamp |
-| `sub_accounts` | UUID[] | - | `'{}'` | Sub-account references |
+| `type` | VARCHAR(50) | NOT NULL | - | Account type (Income, Liability, Asset, Expense, Equity) |
+| `sub_type` | VARCHAR(50) | - | - | Buildium subtype (e.g., CurrentLiability) |
+| `is_default_gl_account` | BOOLEAN | - | `false` | Default account flag |
+| `default_account_name` | VARCHAR(255) | - | - | Default account name (if default) |
+| `is_contra_account` | BOOLEAN | - | `false` | Contra-account flag |
+| `is_bank_account` | BOOLEAN | - | `false` | Whether this GL is a bank account |
+| `cash_flow_classification` | VARCHAR(50) | - | - | Cash flow classification |
+| `exclude_from_cash_balances` | BOOLEAN | - | `false` | Exclude from cash balances |
+| `is_active` | BOOLEAN | - | `true` | Active flag |
+| `buildium_parent_gl_account_id` | INTEGER | - | - | Parent’s Buildium GL account ID (if this is a child) |
+| `is_credit_card_account` | BOOLEAN | - | `false` | Credit card account flag |
+| `created_at` | TIMESTAMPTZ | NOT NULL | `now()` | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | - | Update timestamp |
+| `sub_accounts` | UUID[] | - | `'{}'` | Array of local UUIDs for child accounts |
+
+**Hierarchy Model:**
+- Parent/child relationships come from Buildium’s `ParentGLAccountId` field on the child.
+- Locally, the parent maintains a denormalized list of its children in `sub_accounts` (UUIDs of child `gl_accounts.id`).
+- The parent’s `sub_accounts` array is updated during sync when both parent and child exist locally. An index `idx_gl_accounts_sub_accounts` (GIN) supports efficient querying.
 
 **Relationships:**
-- **Self-Referential**: `gl_accounts` → `gl_accounts` (via `parent_gl_account_id`)
-- **One-to-Many**: `gl_accounts` → `bank_accounts` (via `gl_account`)
+- **Self-Referential (denormalized)**: Parent → children via `sub_accounts` (UUID[]).
+- **External**: `bank_accounts.gl_account` → `gl_accounts.id` (Many bank accounts can reference a GL account).
+
+See `docs/database/current_schema.sql:2129` for the full authoritative DDL and comments.
 
 ### Vendors
 
@@ -1012,3 +1045,58 @@ npm run db:types
 - **Workflow Guide**: `docs/database/SCHEMA_MANAGEMENT_WORKFLOW.md`
 
 This consolidated documentation provides a single source of truth for all database schema information.
+
+## Integration & Sync Tables
+
+### Sync Operations
+
+- Table: `public.sync_operations`
+- Purpose: Tracks outbound/inbound Buildium sync operations for error recovery, retries, and auditing.
+
+Schema Definition:
+```sql
+CREATE TABLE IF NOT EXISTS sync_operations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type VARCHAR(10) NOT NULL CHECK (type IN ('CREATE', 'UPDATE', 'DELETE')),
+  entity VARCHAR(20) NOT NULL CHECK (entity IN ('property', 'unit', 'lease', 'tenant', 'contact', 'owner')),
+  buildium_id INTEGER NOT NULL,
+  local_id UUID,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'ROLLED_BACK')),
+  data JSONB NOT NULL,
+  dependencies TEXT[],
+  error TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_attempt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_sync_operations_status ON sync_operations(status);
+CREATE INDEX IF NOT EXISTS idx_sync_operations_entity_buildium_id ON sync_operations(entity, buildium_id);
+CREATE INDEX IF NOT EXISTS idx_sync_operations_created_at ON sync_operations(created_at);
+
+-- RLS
+ALTER TABLE sync_operations ENABLE ROW LEVEL SECURITY;
+```
+
+Field Details:
+
+| Field | Type | Constraints | Default | Description |
+|-------|------|-------------|---------|-------------|
+| `id` | UUID | PK, NOT NULL | `gen_random_uuid()` | Unique identifier for the operation |
+| `type` | VARCHAR(10) | NOT NULL, CHECK | - | Operation type: `CREATE`, `UPDATE`, `DELETE` |
+| `entity` | VARCHAR(20) | NOT NULL, CHECK | - | Entity being synced: `property`, `unit`, `lease`, `tenant`, `contact`, `owner` |
+| `buildium_id` | INTEGER | NOT NULL | - | Target/source Buildium entity ID |
+| `local_id` | UUID | - | - | Local DB entity ID (once available) |
+| `status` | VARCHAR(20) | NOT NULL, CHECK | `'PENDING'` | `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `ROLLED_BACK` |
+| `data` | JSONB | NOT NULL | - | Original payload/response data for auditing and retries |
+| `dependencies` | TEXT[] | - | - | Operation IDs that must complete first |
+| `error` | TEXT | - | - | Error message for failed attempts |
+| `attempts` | INTEGER | NOT NULL | `0` | Number of retry attempts |
+| `last_attempt` | TIMESTAMPTZ | - | `now()` | Timestamp of last attempt |
+| `created_at` | TIMESTAMPTZ | - | `now()` | Creation timestamp |
+| `updated_at` | TIMESTAMPTZ | - | `now()` | Update timestamp |
+
+Relationships:
+- None at this time. This table deliberately has no foreign keys to avoid blocking retries and allow cross-entity workflows.

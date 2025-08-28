@@ -117,6 +117,11 @@ curl -X GET "http://localhost:3000/api/buildium/sync" \
 
 ```
 
+#### **Inspect Error Tracking Table:**
+
+- Failed and retried sync attempts are persisted in `public.sync_operations`.
+- Query this table to audit errors and drive retry workflows.
+
 ## 🔧 **Configuration Options**
 
 ### **Environment Variables:**

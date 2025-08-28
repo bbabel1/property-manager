@@ -71,6 +71,8 @@ const result = await resolveEntityRelationships(
 
 #### **Day 4-5: Set Up Error Recovery**
 
+Note: Failed Buildium sync attempts are persisted in `public.sync_operations` for auditing and retries. Use this table to inspect errors, dependency chains, and retry progress.
+
 ```typescript
 // Add to your sync processes
 import { runSyncRecovery } from "@/lib/sync-error-recovery";
@@ -167,6 +169,8 @@ async function validateBeforeDeployment() {
 ```
 
 ### **3. Error Recovery Pattern**
+
+See also: `public.sync_operations` (error tracking and retry log).
 
 ```typescript
 // ALWAYS wrap sync operations with error recovery

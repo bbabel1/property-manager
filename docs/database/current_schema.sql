@@ -744,6 +744,56 @@ END$$;
 ALTER FUNCTION "public"."count_active_units_for_property"("property_uuid" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") RETURNS TABLE("buildium_id" integer, "count" bigint)
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  RETURN QUERY EXECUTE format('
+    SELECT %I::INTEGER, COUNT(*)::BIGINT
+    FROM %I
+    WHERE %I IS NOT NULL
+    GROUP BY %I
+    HAVING COUNT(*) > 1
+  ', buildium_field, table_name, buildium_field, buildium_field);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."find_duplicate_ownerships"() RETURNS TABLE("owner_id" "uuid", "property_id" "uuid", "count" bigint)
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT o.owner_id, o.property_id, COUNT(*)::BIGINT
+  FROM ownerships o
+  GROUP BY o.owner_id, o.property_id
+  HAVING COUNT(*) > 1;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."find_duplicate_ownerships"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."find_duplicate_units"() RETURNS TABLE("property_id" "uuid", "unit_number" character varying, "count" bigint)
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT u.property_id, u.unit_number, COUNT(*)::BIGINT
+  FROM units u
+  GROUP BY u.property_id, u.unit_number
+  HAVING COUNT(*) > 1;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."find_duplicate_units"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."generate_display_name"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public'
@@ -2428,6 +2478,69 @@ COMMENT ON COLUMN "public"."rent_schedules"."backdate_charges" IS 'Whether charg
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."sync_operations" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "type" character varying(10) NOT NULL,
+    "entity" character varying(20) NOT NULL,
+    "buildium_id" integer NOT NULL,
+    "local_id" "uuid",
+    "status" character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
+    "data" "jsonb" NOT NULL,
+    "dependencies" "text"[],
+    "error" "text",
+    "attempts" integer DEFAULT 0 NOT NULL,
+    "last_attempt" timestamp with time zone DEFAULT "now"(),
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "sync_operations_entity_check" CHECK ((("entity")::"text" = ANY ((ARRAY['property'::character varying, 'unit'::character varying, 'lease'::character varying, 'tenant'::character varying, 'contact'::character varying, 'owner'::character varying])::"text"[]))),
+    CONSTRAINT "sync_operations_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['PENDING'::character varying, 'IN_PROGRESS'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying, 'ROLLED_BACK'::character varying])::"text"[]))),
+    CONSTRAINT "sync_operations_type_check" CHECK ((("type")::"text" = ANY ((ARRAY['CREATE'::character varying, 'UPDATE'::character varying, 'DELETE'::character varying])::"text"[])))
+);
+
+
+ALTER TABLE "public"."sync_operations" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."sync_operations" IS 'Tracks sync operations for error recovery and monitoring';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."type" IS 'Type of operation: CREATE, UPDATE, DELETE';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."entity" IS 'Entity type being synced';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."buildium_id" IS 'Buildium ID for the entity';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."local_id" IS 'Local database ID after successful creation';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."status" IS 'Current status of the operation';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."data" IS 'Original Buildium data for the operation';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."dependencies" IS 'IDs of operations this depends on';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."error" IS 'Error message if operation failed';
+
+
+
+COMMENT ON COLUMN "public"."sync_operations"."attempts" IS 'Number of retry attempts made';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."task_categories" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "buildium_category_id" integer,
@@ -3220,6 +3333,11 @@ ALTER TABLE ONLY "public"."rent_schedules"
 
 
 
+ALTER TABLE ONLY "public"."sync_operations"
+    ADD CONSTRAINT "sync_operations_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."task_categories"
     ADD CONSTRAINT "task_categories_buildium_category_id_key" UNIQUE ("buildium_category_id");
 
@@ -3546,6 +3664,18 @@ CREATE INDEX "idx_rent_schedules_lease_id" ON "public"."rent_schedules" USING "b
 
 
 CREATE INDEX "idx_rent_schedules_start_date" ON "public"."rent_schedules" USING "btree" ("start_date");
+
+
+
+CREATE INDEX "idx_sync_operations_created_at" ON "public"."sync_operations" USING "btree" ("created_at");
+
+
+
+CREATE INDEX "idx_sync_operations_entity_buildium_id" ON "public"."sync_operations" USING "btree" ("entity", "buildium_id");
+
+
+
+CREATE INDEX "idx_sync_operations_status" ON "public"."sync_operations" USING "btree" ("status");
 
 
 
@@ -4370,6 +4500,14 @@ CREATE POLICY "Property ownerships cache update policy" ON "public"."property_ow
 
 
 
+CREATE POLICY "Service role can manage sync operations" ON "public"."sync_operations" USING (("auth"."role"() = 'service_role'::"text"));
+
+
+
+CREATE POLICY "Users can view sync operations for their org" ON "public"."sync_operations" FOR SELECT USING (true);
+
+
+
 ALTER TABLE "public"."appliances" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4569,6 +4707,9 @@ CREATE POLICY "rent_schedules_update_policy" ON "public"."rent_schedules" FOR UP
 
 
 ALTER TABLE "public"."staff" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."sync_operations" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."task_categories" ENABLE ROW LEVEL SECURITY;
@@ -4864,6 +5005,24 @@ GRANT ALL ON FUNCTION "public"."clear_expired_buildium_cache"() TO "service_role
 GRANT ALL ON FUNCTION "public"."count_active_units_for_property"("property_uuid" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."count_active_units_for_property"("property_uuid" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."count_active_units_for_property"("property_uuid" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."find_duplicate_ownerships"() TO "anon";
+GRANT ALL ON FUNCTION "public"."find_duplicate_ownerships"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."find_duplicate_ownerships"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."find_duplicate_units"() TO "anon";
+GRANT ALL ON FUNCTION "public"."find_duplicate_units"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."find_duplicate_units"() TO "service_role";
 
 
 
@@ -5227,6 +5386,12 @@ GRANT ALL ON TABLE "public"."property_ownerships_cache" TO "service_role";
 GRANT ALL ON TABLE "public"."rent_schedules" TO "anon";
 GRANT ALL ON TABLE "public"."rent_schedules" TO "authenticated";
 GRANT ALL ON TABLE "public"."rent_schedules" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."sync_operations" TO "anon";
+GRANT ALL ON TABLE "public"."sync_operations" TO "authenticated";
+GRANT ALL ON TABLE "public"."sync_operations" TO "service_role";
 
 
 

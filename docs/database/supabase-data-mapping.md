@@ -15,6 +15,17 @@ The database contains several core tables that map to different UI components:
 
 ## Properties Table
 
+### Integration Fields
+
+```typescript
+// Buildium integration + sync metadata
+interface PropertyIntegration {
+  buildium_property_id?: number; // Buildium property ID (unique per property)
+  buildium_created_at?: string;  // Timestamp from Buildium when first seen
+  buildium_updated_at?: string;  // Timestamp from Buildium for last update
+}
+```
+
 ### Units Card
 
 ```typescript
@@ -240,6 +251,12 @@ interface Unit {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // Buildium integration
+  buildium_unit_id?: number;     // Unique Buildium unit ID
+  buildium_property_id?: number; // Parent Buildium property ID
+  buildium_created_at?: string;  // First-seen timestamp from Buildium
+  buildium_updated_at?: string;  // Last update timestamp from Buildium
 }
 
 ```
@@ -326,8 +343,21 @@ ALTER TABLE units ADD COLUMN IF NOT EXISTS:
   unit_type VARCHAR(50),
   square_footage INTEGER,
   bedrooms INTEGER,
-  bathrooms DECIMAL(3,1);
+  bathrooms DECIMAL(3,1),
+  -- Buildium integration columns (documented; may already exist in schema)
+  buildium_unit_id BIGINT UNIQUE,
+  buildium_property_id BIGINT;
 
+```
+
+### Properties Table (Buildium Columns)
+
+```sql
+-- Buildium integration columns (documented; may already exist in schema)
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS
+  buildium_property_id BIGINT UNIQUE,
+  buildium_created_at TIMESTAMPTZ,
+  buildium_updated_at TIMESTAMPTZ;
 ```
 
 ### New Tables Needed
