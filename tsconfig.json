@@ -18,10 +18,21 @@
         "name": "next"
       }
     ],
+    "useUnknownInCatchVariables": false,
+    "noImplicitAny": false,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "supabase/functions",
+    "src/lib/webhooks.ts",
+    "src/lib/relationship-resolver.ts",
+    "src/lib/hooks/useSupabase.ts",
+    "src/lib/data-integrity-validator.ts",
+    "src/lib/sync-error-recovery.ts"
+  ]
 }

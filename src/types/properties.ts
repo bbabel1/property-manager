@@ -38,6 +38,9 @@ export type RentalSubTypeEnum =
   | 'Storage' 
   | 'ParkingSpace';
 
+// Matches public.property_status enum
+export type StatusEnum = 'Active' | 'Inactive' | 'Pending' | 'Sold' | 'Under Construction';
+
 export interface Property {
   // Primary key
   id: string; // UUID

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+import * as dotenv from 'dotenv'
+import { resolveGLAccountId } from '../../../src/lib/buildium-mappers'
 
 dotenv.config()
 
@@ -8,47 +9,12 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-async function getOrCreateGLAccount(glAccount: any) {
-  const glAccountData = {
-    buildium_gl_account_id: glAccount.Id,
-    account_number: glAccount.AccountNumber,
-    name: glAccount.Name,
-    description: glAccount.Description,
-    type: glAccount.Type,
-    sub_type: glAccount.SubType,
-    is_default_gl_account: glAccount.IsDefaultGLAccount,
-    default_account_name: glAccount.DefaultAccountName,
-    is_contra_account: glAccount.IsContraAccount,
-    is_bank_account: glAccount.IsBankAccount,
-    cash_flow_classification: glAccount.CashFlowClassification,
-    exclude_from_cash_balances: glAccount.ExcludeFromCashBalances,
-    is_active: glAccount.IsActive,
-    buildium_parent_gl_account_id: glAccount.ParentGLAccountId,
-    is_credit_card_account: glAccount.IsCreditCardAccount,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-
-  const { data, error } = await supabase
-    .from('gl_accounts')
-    .upsert(glAccountData, {
-      onConflict: 'buildium_gl_account_id'
-    })
-    .select()
-    .single()
-
-  if (error) {
-    throw new Error(`Failed to create GL account record: ${error.message}`)
-  }
-  return data.id
-}
-
 async function createTransactionLine(transactionId: string, line: any, journalMemo: string) {
   // Determine posting type based on amount sign
   const postingType = line.Amount >= 0 ? 'Credit' : 'Debit'
 
   // Get or create GL account
-  const glAccountId = await getOrCreateGLAccount(line.GLAccount)
+  const glAccountId = await resolveGLAccountId(line?.GLAccount?.Id ?? line?.GLAccount, supabase)
 
   const transactionLineData = {
     transaction_id: transactionId,

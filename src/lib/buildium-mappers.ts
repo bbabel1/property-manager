@@ -567,6 +567,38 @@ export async function resolveGLAccountId(
     }
 
     console.log(`Created new GL account: ${newGLAccount.id}`);
+
+    // If this new GL account has a parent in Buildium, try to append this child
+    // to the local parent's sub_accounts array (if the parent already exists locally).
+    try {
+      const parentBuildiumId = buildiumGLAccount?.ParentGLAccountId as number | null | undefined;
+      if (parentBuildiumId) {
+        const { data: parentAccount, error: parentFetchError } = await supabase
+          .from('gl_accounts')
+          .select('id, sub_accounts')
+          .eq('buildium_gl_account_id', parentBuildiumId)
+          .single();
+
+        if (!parentFetchError && parentAccount) {
+          const existingSubs: string[] = Array.isArray(parentAccount.sub_accounts) ? parentAccount.sub_accounts : [];
+          if (!existingSubs.includes(newGLAccount.id)) {
+            const updatedSubs = [...existingSubs, newGLAccount.id];
+            const { error: parentUpdateError } = await supabase
+              .from('gl_accounts')
+              .update({ sub_accounts: updatedSubs, updated_at: now })
+              .eq('id', parentAccount.id);
+
+            if (parentUpdateError) {
+              console.warn('Failed to update parent sub_accounts for GL account:', parentUpdateError);
+            } else {
+              console.log(`Updated parent GL account ${parentAccount.id} sub_accounts to include ${newGLAccount.id}`);
+            }
+          }
+        }
+      }
+    } catch (parentLinkErr) {
+      console.warn('Non-fatal: error linking GL account to parent sub_accounts:', parentLinkErr);
+    }
     return newGLAccount.id;
 
   } catch (error) {

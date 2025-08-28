@@ -40,7 +40,7 @@ import type {
 } from '@/types/buildium'
 
 export class BuildiumSyncService {
-  private client: ReturnType<typeof createBuildiumClient>
+  private client!: ReturnType<typeof createBuildiumClient>
   private isEnabled: boolean
 
   constructor() {

@@ -648,7 +648,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                 <div className="relative">
                   <Listbox
                     value={''}
-                    onChange={(value) => {
+                    onChange={(value: string) => {
                       if (value) {
                         addOwner(value)
                         // Clear the selected value after adding
@@ -668,7 +668,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                           value={owner.id}
                           className="relative flex w-full select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
                         >
-                          {({ selected }) => (
+                          {({ selected }: { selected: boolean }) => (
                             <>
                               <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>{owner.displayName}</span>
                               {selected ? (
@@ -684,7 +684,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                         value="create-new-owner"
                         className="relative flex w-full select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
                       >
-                        {({ selected }) => (
+                        {({ selected }: { selected: boolean }) => (
                           <>
                             <span className="text-primary font-medium">+ Create New Owner</span>
                             {selected ? (

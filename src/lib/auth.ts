@@ -81,7 +81,6 @@ export async function requireUser(request?: NextRequest): Promise<AuthenticatedU
     }
 
     // Try to get the session from the request
-    let session = null
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)

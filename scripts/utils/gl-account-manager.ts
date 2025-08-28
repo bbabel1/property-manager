@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+import { resolveGLAccountId } from '../../src/lib/buildium-mappers'
+import * as dotenv from 'dotenv'
 
 dotenv.config()
 
@@ -24,6 +25,7 @@ export interface BuildiumGLAccount {
   IsActive: boolean
   ParentGLAccountId: number | null
   IsCreditCardAccount: boolean
+  SubAccounts?: number[]
 }
 
 export async function fetchGLAccountFromBuildium(glAccountId: number): Promise<BuildiumGLAccount> {
@@ -66,57 +68,14 @@ export async function getOrCreateGLAccount(glAccount: BuildiumGLAccount | number
     return existingAccount.id
   }
 
-  // GL account doesn't exist, fetch it from Buildium
-  console.log(`  🔄 GL account ${glAccountId} not found in database, fetching from Buildium...`)
-  
-  try {
-    let buildiumGLAccount: BuildiumGLAccount
-
-    if (typeof glAccount === 'number') {
-      // We only have the ID, fetch the full details from Buildium
-      buildiumGLAccount = await fetchGLAccountFromBuildium(glAccount)
-    } else {
-      // We already have the full GL account data
-      buildiumGLAccount = glAccount
-    }
-    
-    const glAccountData = {
-      buildium_gl_account_id: buildiumGLAccount.Id,
-      account_number: buildiumGLAccount.AccountNumber,
-      name: buildiumGLAccount.Name,
-      description: buildiumGLAccount.Description,
-      type: buildiumGLAccount.Type,
-      sub_type: buildiumGLAccount.SubType,
-      is_default_gl_account: buildiumGLAccount.IsDefaultGLAccount,
-      default_account_name: buildiumGLAccount.DefaultAccountName,
-      is_contra_account: buildiumGLAccount.IsContraAccount,
-      is_bank_account: buildiumGLAccount.IsBankAccount,
-      cash_flow_classification: buildiumGLAccount.CashFlowClassification,
-      exclude_from_cash_balances: buildiumGLAccount.ExcludeFromCashBalances,
-      is_active: buildiumGLAccount.IsActive,
-      buildium_parent_gl_account_id: buildiumGLAccount.ParentGLAccountId,
-      is_credit_card_account: buildiumGLAccount.IsCreditCardAccount,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-
-    const { data: newAccount, error: insertError } = await supabase
-      .from('gl_accounts')
-      .insert(glAccountData)
-      .select()
-      .single()
-
-    if (insertError) {
-      throw new Error(`Failed to create GL account record: ${insertError.message}`)
-    }
-
-    console.log(`  ✅ Created new GL account: ${buildiumGLAccount.Name} (ID: ${buildiumGLAccount.Id})`)
-    return newAccount.id
-
-  } catch (error) {
-    console.error(`  ❌ Failed to fetch/create GL account ${glAccountId}:`, error)
-    throw error
+  // Delegate creation to shared resolver to avoid duplication.
+  console.log(`  🔄 GL account ${glAccountId} not found locally, resolving via shared mapper...`)
+  const resolvedId = await resolveGLAccountId(glAccountId, supabase)
+  if (!resolvedId) {
+    throw new Error(`Failed to resolve/create GL account ${glAccountId}`)
   }
+  console.log(`  ✅ Resolved GL account ${glAccountName} → ${resolvedId}`)
+  return resolvedId
 }
 
 export async function ensureGLAccountExists(glAccountId: number): Promise<string> {

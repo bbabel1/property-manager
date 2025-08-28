@@ -212,7 +212,7 @@ export default function AddUnitModal({
                 </label>
                 <Dropdown
                   value={formData.unitBedrooms}
-                  onChange={value => setFormData({ ...formData, unitBedrooms: value })}
+                  onChange={(value) => setFormData({ ...formData, unitBedrooms: value as BedroomEnum })}
                   options={BEDROOM_OPTIONS.map(option => ({ value: option, label: option }))}
                   placeholder="Select bedrooms"
                 />
@@ -224,7 +224,7 @@ export default function AddUnitModal({
                 </label>
                 <Dropdown
                   value={formData.unitBathrooms}
-                  onChange={value => setFormData({ ...formData, unitBathrooms: value })}
+                  onChange={(value) => setFormData({ ...formData, unitBathrooms: value as BathroomEnum })}
                   options={BATHROOM_OPTIONS.map(option => ({ value: option, label: option }))}
                   placeholder="Select bathrooms"
                 />

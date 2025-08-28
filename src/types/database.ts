@@ -1082,6 +1082,54 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_operations: {
+        Row: {
+          attempts: number
+          buildium_id: number
+          created_at: string | null
+          data: Json
+          dependencies: string[] | null
+          entity: string
+          error: string | null
+          id: string
+          last_attempt: string | null
+          local_id: string | null
+          status: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          buildium_id: number
+          created_at?: string | null
+          data: Json
+          dependencies?: string[] | null
+          entity: string
+          error?: string | null
+          id?: string
+          last_attempt?: string | null
+          local_id?: string | null
+          status?: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          buildium_id?: number
+          created_at?: string | null
+          data?: Json
+          dependencies?: string[] | null
+          entity?: string
+          error?: string | null
+          id?: string
+          last_attempt?: string | null
+          local_id?: string | null
+          status?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       task_categories: {
         Row: {
           buildium_category_id: number | null
@@ -1840,6 +1888,29 @@ export type Database = {
       count_active_units_for_property: {
         Args: { property_uuid: string }
         Returns: number
+      }
+      find_duplicate_buildium_ids: {
+        Args: { buildium_field: string; table_name: string }
+        Returns: {
+          buildium_id: number
+          count: number
+        }[]
+      }
+      find_duplicate_ownerships: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          count: number
+          owner_id: string
+          property_id: string
+        }[]
+      }
+      find_duplicate_units: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          count: number
+          property_id: string
+          unit_number: string
+        }[]
       }
       generate_display_name: {
         Args: { company_name: string; first_name: string; last_name: string }

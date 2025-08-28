@@ -85,7 +85,7 @@ const MOCK_PROPERTY_MANAGERS = [
   { id: '3', name: 'Lisa Chen' }
 ]
 
-export default function AddPropertyModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<AddPropertyFormData>({
     rentalSubType: '',
@@ -137,6 +137,7 @@ export default function AddPropertyModal({ isOpen, onClose }: { isOpen: boolean;
       console.log('Property created successfully:', result)
       
       onClose()
+      if (onSuccess) onSuccess()
       // Reset form
       setFormData({
         rentalSubType: '',

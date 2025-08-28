@@ -247,7 +247,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
                       <div className="font-medium">{getOperatingBankAccount()?.name}</div>
                       <div className="text-sm text-muted-foreground">
                         {getOperatingBankAccount()?.account_number ? 
-                          `****${getOperatingBankAccount()?.account_number.slice(-4)}` : 
+                          `****${getOperatingBankAccount()?.account_number?.slice(-4) || ''}` : 
                           'No account number'
                         }
                       </div>
@@ -270,7 +270,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
                       <div className="font-medium">{getDepositTrustBankAccount()?.name}</div>
                       <div className="text-sm text-muted-foreground">
                         {getDepositTrustBankAccount()?.account_number ? 
-                          `****${getDepositTrustBankAccount()?.account_number.slice(-4)}` : 
+                          `****${getDepositTrustBankAccount()?.account_number?.slice(-4) || ''}` : 
                           'No account number'
                         }
                       </div>
