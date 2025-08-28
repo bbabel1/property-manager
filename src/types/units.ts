@@ -27,7 +27,7 @@ export interface UnitDB {
   city?: string;
   state?: string;
   postal_code: string;
-  country: string;
+  country: Database["public"]["Enums"]["countries"];
   unit_bedrooms?: BedroomEnum;
   unit_bathrooms?: BathroomEnum;
   description?: string;
@@ -168,3 +168,4 @@ export function mapUnitToDB(unit: Partial<Unit>): Partial<UnitDB> {
   
   return dbUnit;
 }
+import type { Database } from './database'

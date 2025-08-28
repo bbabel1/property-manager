@@ -19,14 +19,14 @@ export interface ContactDB {
   primary_city?: string;
   primary_state?: string;
   primary_postal_code?: string;
-  primary_country?: string;
+  primary_country?: Database["public"]["Enums"]["countries"];
   alt_address_line_1?: string;
   alt_address_line_2?: string;
   alt_address_line_3?: string;
   alt_city?: string;
   alt_state?: string;
   alt_postal_code?: string;
-  alt_country?: string;
+  alt_country?: Database["public"]["Enums"]["countries"];
   mailing_preference?: string;
   tax_payer_id?: string;
   tax_payer_type?: string;
@@ -271,3 +271,4 @@ export const CONTACT_CONSTRAINTS = {
     maxLength: 20
   }
 } as const;
+import type { Database } from './database'
