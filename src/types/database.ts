@@ -1980,6 +1980,10 @@ export type Database = {
         Args: { p_work_order_id: string }
         Returns: Json
       }
+      normalize_country: {
+        Args: { val: string }
+        Returns: string
+      }
       process_buildium_webhook_event: {
         Args: { p_event_data: Json; p_event_id: string; p_event_type: string }
         Returns: boolean
