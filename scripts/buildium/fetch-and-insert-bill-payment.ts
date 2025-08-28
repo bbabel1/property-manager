@@ -2,6 +2,7 @@
 
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { resolveGLAccountId } from '../../src/lib/buildium-mappers'
 
 // Load environment variables first
 config()
@@ -136,8 +137,8 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
 
 async function insertPaymentLine(transactionId: string, line: any, billId: number) {
   try {
-    // Get GL account ID from Buildium GL account ID
-    const glAccountId = await getGlAccountId(line.GLAccountId)
+    // Resolve or create local GL account from Buildium GL account ID
+    const glAccountId = await resolveGLAccountId(line.GLAccountId, supabaseAdmin)
 
     // Get property and unit info from the accounting entity
     const propertyId = line.AccountingEntity?.Id || null
@@ -175,26 +176,7 @@ async function insertPaymentLine(transactionId: string, line: any, billId: numbe
   }
 }
 
-// Helper function to get GL account ID from Buildium GL account ID
-async function getGlAccountId(buildiumGlAccountId: number): Promise<string | null> {
-  try {
-    const { data: glAccount } = await supabaseAdmin
-      .from('gl_accounts')
-      .select('id')
-      .eq('buildium_gl_account_id', buildiumGlAccountId)
-      .single()
-
-    if (glAccount) {
-      return glAccount.id
-    }
-
-    logger.warn(`GL account with Buildium ID ${buildiumGlAccountId} not found in database`)
-    return null
-  } catch (error) {
-    logger.warn(`Error finding GL account with Buildium ID ${buildiumGlAccountId}:`, error)
-    return null
-  }
-}
+// Note: GL account resolution is handled by resolveGLAccountId()
 
 async function main() {
   const billId = 723092

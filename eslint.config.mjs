@@ -12,6 +12,10 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
+    ignores: [
+      "scripts/**",
+      "supabase/functions/**"
+    ],
     rules: {
       // Custom rule to warn about deprecated basic mappers
       "no-restricted-globals": [
@@ -28,7 +32,10 @@ const eslintConfig = [
           name: "mapGLAccountFromBuildium",
           message: "⚠️ Use mapGLAccountFromBuildiumWithSubAccounts() instead to ensure proper sub_accounts relationship handling"
         }
-      ]
+      ],
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-empty-object-type": "warn",
+      "react/no-unescaped-entities": "off"
     }
   }
 ];

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
-import { getOrCreateGLAccount } from './utils/gl-account-manager'
+import * as dotenv from 'dotenv'
+import { resolveGLAccountId } from '../../../src/lib/buildium-mappers'
 
 dotenv.config()
 
@@ -13,8 +13,8 @@ async function createTransactionLine(transactionId: string, line: any, journalMe
   // Determine posting type based on amount sign
   const postingType = line.Amount >= 0 ? 'Credit' : 'Debit'
 
-  // Get or create GL account
-  const glAccountId = await getOrCreateGLAccount(line.GLAccount)
+  // Resolve or create GL account using shared mapper
+  const glAccountId = await resolveGLAccountId(line?.GLAccount?.Id ?? line?.GLAccount, supabase)
 
   const transactionLineData = {
     transaction_id: transactionId,
