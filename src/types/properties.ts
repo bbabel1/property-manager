@@ -1,31 +1,7 @@
 // TypeScript interfaces for the Properties table
-// These match the database schema defined in the migration
-
-export type CountryEnum = 
-  | 'Afghanistan' | 'Akrotiri' | 'Albania' | 'Algeria' | 'AmericanSamoa' | 'Andorra' | 'Angola' | 'Anguilla' | 'Antarctica' | 'AntiguaandBarbuda'
-  | 'Argentina' | 'Armenia' | 'Aruba' | 'AshmoreandCartierIslands' | 'Australia' | 'Austria' | 'Azerbaijan' | 'Bahamas' | 'Bahrain' | 'Bangladesh'
-  | 'Barbados' | 'BassasdaIndia' | 'Belarus' | 'Belgium' | 'Belize' | 'Benin' | 'Bermuda' | 'Bhutan' | 'Bolivia' | 'BosniaandHerzegovina' | 'Botswana'
-  | 'BouvetIsland' | 'Brazil' | 'BritishIndianOceanTerritory' | 'BritishVirginIslands' | 'Brunei' | 'Bulgaria' | 'BurkinaFaso' | 'Burma' | 'Burundi'
-  | 'Cambodia' | 'Cameroon' | 'Canada' | 'CapeVerde' | 'CaymanIslands' | 'CentralAfricanRepublic' | 'Chad' | 'Chile' | 'China' | 'ChristmasIsland'
-  | 'ClippertonIsland' | 'CocosIslands' | 'Colombia' | 'Comoros' | 'DemocraticRepublicOfTheCongo' | 'RepublicOfTheCongo' | 'CookIslands'
-  | 'CoralSeaIslands' | 'CostaRica' | 'CotedIvoire' | 'Croatia' | 'Cuba' | 'Cyprus' | 'CzechRepublic' | 'Denmark' | 'Dhekelia' | 'Djibouti' | 'Dominica'
-  | 'DominicanRepublic' | 'Ecuador' | 'Egypt' | 'ElSalvador' | 'EquatorialGuinea' | 'Eritrea' | 'Estonia' | 'Ethiopia' | 'EuropaIsland'
-  | 'FalklandIslands' | 'FaroeIslands' | 'Fiji' | 'Finland' | 'France' | 'FrenchGuiana' | 'FrenchPolynesia' | 'FrenchSouthernandAntarcticLands'
-  | 'Gabon' | 'Gambia' | 'GazaStrip' | 'Georgia' | 'Germany' | 'Ghana' | 'Gibraltar' | 'GloriosoIslands' | 'Greece' | 'Greenland' | 'Grenada' | 'Guadeloupe'
-  | 'Guam' | 'Guatemala' | 'Guernsey' | 'Guinea' | 'GuineaBissau' | 'Guyana' | 'Haiti' | 'HeardIslandandMcDonaldIslands' | 'VaticanCity' | 'Honduras'
-  | 'HongKong' | 'Hungary' | 'Iceland' | 'India' | 'Indonesia' | 'Iran' | 'Iraq' | 'Ireland' | 'IsleofMan' | 'Israel' | 'Italy' | 'Jamaica' | 'JanMayen'
-  | 'Japan' | 'Jersey' | 'Jordan' | 'JuandeNovaIsland' | 'Kazakhstan' | 'Kenya' | 'Kiribati' | 'NorthKorea' | 'SouthKorea' | 'Kuwait' | 'Kyrgyzstan'
-  | 'Laos' | 'Latvia' | 'Lebanon' | 'Lesotho' | 'Liberia' | 'Libya' | 'Liechtenstein' | 'Lithuania' | 'Luxembourg' | 'Macau' | 'Macedonia' | 'Madagascar'
-  | 'Malawi' | 'Malaysia' | 'Maldives' | 'Mali' | 'Malta' | 'MarshallIslands' | 'Martinique' | 'Mauritania' | 'Mauritius' | 'Mayotte' | 'Mexico'
-  | 'Micronesia' | 'Moldova' | 'Monaco' | 'Mongolia' | 'Montserrat' | 'Morocco' | 'Mozambique' | 'Namibia' | 'Nauru' | 'NavassaIsland' | 'Nepal'
-  | 'Netherlands' | 'NetherlandsAntilles' | 'NewCaledonia' | 'NewZealand' | 'Nicaragua' | 'Niger' | 'Nigeria' | 'Niue' | 'NorfolkIsland'
-  | 'NorthernMarianaIslands' | 'Norway' | 'Oman' | 'Pakistan' | 'Palau' | 'Panama' | 'PapuaNewGuinea' | 'ParacelIslands' | 'Paraguay' | 'Peru'
-  | 'Philippines' | 'PitcairnIslands' | 'Poland' | 'Portugal' | 'PuertoRico' | 'Qatar' | 'Reunion' | 'Romania' | 'Russia' | 'Rwanda' | 'SaintHelena'
-  | 'SaintKittsandNevis' | 'SaintLucia' | 'SaintPierreandMiquelon' | 'SaintVincentandtheGrenadines' | 'Samoa' | 'SanMarino' | 'SaoTomeandPrincipe'
-  | 'SaudiArabia' | 'Senegal' | 'SerbiaandMontenegro' | 'Seychelles' | 'SierraLeone' | 'Singapore' | 'Slovakia' | 'Slovenia' | 'SolomonIslands'
-  | 'Somalia' | 'SouthAfrica' | 'SouthGeorgiaandtheSouthSandwichIslands' | 'Spain' | 'SpratlyIslands' | 'SriLanka' | 'Sudan' | 'Suriname'
-  | 'Svalbard' | 'Swaziland' | 'Sweden' | 'Switzerland' | 'Syria' | 'Taiwan' | 'Tajikistan' | 'Tanzania' | 'Thailand' | 'TimorLeste' | 'Togo' | 'Tokelau'
-  | 'Tonga' | 'TrinidadandTobago' | 'TromelinIsland' | 'Tunisia' | 'Turkey' | 'Turkmenistan';
+// These match the database schema. Country type is sourced from Supabase-generated Database types.
+import type { Database } from './database'
+export type CountryEnum = Database['public']['Enums']['countries']
 
 export type RentalSubTypeEnum = 
   | 'CondoTownhome' 
@@ -56,7 +32,7 @@ export interface Property {
   city?: string; // VARCHAR(100), NULL
   state?: string; // VARCHAR(100), NULL
   postal_code: string; // VARCHAR(20), NOT NULL
-  country: CountryEnum; // country_enum, NOT NULL
+  country: CountryEnum; // public.countries enum, NOT NULL
   
   // Integration and business fields
   buildium_property_id?: number; // INTEGER, NULL
