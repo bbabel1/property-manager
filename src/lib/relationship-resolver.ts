@@ -1,4 +1,5 @@
 // Relationship Resolution System
+import { mapCountryFromBuildium } from './buildium-mappers'
 // Handles complex entity relationships during Buildium sync operations
 
 interface ResolutionContext {
@@ -535,7 +536,7 @@ export class RelationshipResolver {
       city: buildiumProperty.Address?.City || '',
       state: buildiumProperty.Address?.State || '',
       postal_code: buildiumProperty.Address?.PostalCode || '',
-      country: buildiumProperty.Address?.Country || 'United States',
+      country: mapCountryFromBuildium(buildiumProperty.Address?.Country) || 'United States',
       is_active: buildiumProperty.IsActive ?? true,
       updated_at: new Date().toISOString()
     }
@@ -550,7 +551,7 @@ export class RelationshipResolver {
       city: buildiumUnit.Address?.City || '',
       state: buildiumUnit.Address?.State || '',
       postal_code: buildiumUnit.Address?.PostalCode || '',
-      country: buildiumUnit.Address?.Country || 'United States',
+      country: mapCountryFromBuildium(buildiumUnit.Address?.Country) || 'United States',
       market_rent: buildiumUnit.MarketRent,
       updated_at: new Date().toISOString()
     }
@@ -567,7 +568,7 @@ export class RelationshipResolver {
       primary_city: contactData.Address?.City,
       primary_state: contactData.Address?.State,
       primary_postal_code: contactData.Address?.PostalCode,
-      primary_country: contactData.Address?.Country || 'USA',
+      primary_country: mapCountryFromBuildium(contactData.Address?.Country) || 'United States',
       updated_at: new Date().toISOString()
     }
   }

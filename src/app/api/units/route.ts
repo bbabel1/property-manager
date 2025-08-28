@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { supabase } from '@/lib/db'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { UnitCreateSchema, UnitQuerySchema } from '@/schemas/unit'
+import { mapGoogleCountryToEnum } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
     } = validatedData
 
     // Create unit
+    const normalizedCountry = mapGoogleCountryToEnum(country)
     const { data: unit, error } = await supabase
       .from('units')
       .insert({
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
         city,
         state,
         postal_code: postalCode,
-        country,
+        country: normalizedCountry,
         unit_bedrooms: unitBedrooms,
         unit_bathrooms: unitBathrooms,
         description,
