@@ -94,6 +94,7 @@ This document details the enhancements made to existing API routes to integrate 
 - **Batch Retry**: Retry multiple failed syncs at once
 
 - **Error Reporting**: Detailed error reporting for failed syncs
+  - Storage: Failed attempts are persisted in `public.sync_operations` for auditing and retries
 
 **Usage Examples:**
 

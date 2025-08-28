@@ -123,7 +123,7 @@ Manual synchronization function:
 ### Integration Tables
 
 - `buildium_webhook_events` - Webhook event processing
-- `buildium_sync_logs` - Sync operation logs
+- `sync_operations` - Error tracking and retry log for Buildium syncs
 
 ### Key Fields
 
@@ -160,6 +160,8 @@ All tables include Buildium integration fields:
 - Retry mechanism for transient failures
 - Dead letter queue for persistent failures
 - Monitoring and alerting for error rates
+
+Note: Failed and retried Buildium sync attempts are persisted in `public.sync_operations` for auditing and automated retries.
 
 ## Webhook Testing
 

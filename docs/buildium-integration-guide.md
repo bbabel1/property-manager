@@ -107,6 +107,7 @@ Created `src/lib/buildium-client.ts` with a comprehensive API client:
 - `task_history` - Task history tracking
 - `task_history_files` - Task file attachments
 - `buildium_sync_status` - Sync status tracking
+- `sync_operations` - Error tracking and retry log for Buildium syncs
 - `buildium_api_cache` - API response caching
 - `buildium_webhook_events` - Webhook event processing
 - `buildium_api_log` - API request/response logging
@@ -273,6 +274,7 @@ const results = await buildiumClient.batchCreateProperties(properties)
 - Retry logic for temporary failures
 - Detailed error logging
 - Sync status tracking for failed operations
+- Failed Buildium sync attempts are recorded in `public.sync_operations` for auditing and automated retries
 
 ### **Rate Limiting:**
 

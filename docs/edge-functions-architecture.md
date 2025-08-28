@@ -110,6 +110,7 @@ server-side processing via Supabase Edge Functions.
 - List failed sync operations
 - Retry failed syncs
 - Update sync status
+  - Backing storage: reads/writes to `public.sync_operations` for failure tracking and retries
 
 ## 🔄 Data Flow
 

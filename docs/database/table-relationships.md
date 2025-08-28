@@ -39,6 +39,13 @@ erDiagram
 
 - **Sync Tracking**: `last_synced_at` tracks when data was last synchronized
 
+Fields (integration):
+```text
+properties.buildium_property_id  BIGINT UNIQUE
+properties.buildium_created_at   TIMESTAMPTZ
+properties.buildium_updated_at   TIMESTAMPTZ
+```
+
 ### 🏢 **Units** (Property Sub-entities)
 
 Units represent individual spaces within properties (apartments, offices, etc.).
@@ -61,6 +68,14 @@ erDiagram
 - **One-to-Many**: A unit can have multiple leases over time
 
 - **Buildium Integration**: `buildium_unit_id` links to Buildium's unit records
+
+Fields (integration):
+```text
+units.buildium_unit_id      BIGINT UNIQUE
+units.buildium_property_id  BIGINT
+units.buildium_created_at   TIMESTAMPTZ
+units.buildium_updated_at   TIMESTAMPTZ
+```
 
 ### 👥 **Owners** (Property Ownership)
 
@@ -155,6 +170,33 @@ erDiagram
 - **Financial Processing**: Handles rent payments, owner distributions, etc.
 
 - **Buildium Integration**: `buildium_bank_account_id` links to Buildium's bank account records
+
+### 📚 **GL Accounts** (Chart of Accounts)
+
+GL accounts are imported from Buildium and maintain a hierarchical structure.
+
+```mermaid
+erDiagram
+    gl_accounts {
+      uuid id PK
+      int buildium_gl_account_id UK
+      int buildium_parent_gl_account_id
+      uuid[] sub_accounts
+    }
+    bank_accounts {
+      uuid id PK
+      uuid gl_account FK
+    }
+
+    gl_accounts ||--o{ bank_accounts : "referenced_by"
+    gl_accounts ||--o{ gl_accounts : "parent_of (via sub_accounts)"
+```
+
+Key Notes:
+- Parent/child relationships come from the child’s `buildium_parent_gl_account_id`.
+- The parent record stores a denormalized list of child UUIDs in `sub_accounts` for quick traversal and UI trees.
+- Indexes: `idx_gl_accounts_buildium_id` (btree), `idx_gl_accounts_sub_accounts` (GIN), `idx_gl_accounts_type`.
+
 
 ## Maintenance Relationships
 
@@ -472,3 +514,13 @@ Understanding these table relationships is essential for:
 
 The relationship structure supports a comprehensive property management system with full Buildium integration while
 maintaining data integrity and performance.
+
+## Sync Operations (Error Tracking)
+
+- Table: `public.sync_operations`
+- Purpose: Track Buildium sync attempts, failures, retries, and payloads.
+- Relationships: None currently. This table is intentionally decoupled (no FKs) to simplify retry workflows and avoid cascading failures.
+
+Notes:
+- Use this table to audit failures and drive retry logic in services and Edge Functions.
+- Indexed by `status`, and `(entity, buildium_id)` for fast lookups.
