@@ -3,6 +3,7 @@
     "supabase/functions"
   ],
   "deno.lint": true,
+  "editor.formatOnSave": true,
   "deno.unstable": [
     "bare-node-builtins",
     "byonm",
@@ -20,5 +21,10 @@
   ],
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
+  },
+  "markdownlint.fixOnSave": true,
+  "[markdown]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   }
 }

@@ -4,35 +4,44 @@ alwaysApply: true
 
 Buildium Integration Rules:
 
-1. **Use live database for inspection**: Always query the live Supabase database when 
+1. **Official API documentation priority**: 
+   - ALWAYS reference the indexed "Open API, powered by Buildium (v1)" documentation first for any Buildium API questions
+   - Use this official OpenAPI spec as the authoritative source for endpoints, request/response schemas, and API behavior
+   - ALWAYS reference docs/BUILDIUM_API_QUICK_REFERENCE.md for authentication patterns and script templates
+   - ALWAYS reference docs/QUICK_REFERENCE.md for script patterns and quick commands
+   - Use docs/buildium-integration-guide.md for complex integration scenarios
+   - Use docs/buildium-authentication-guide.md for authentication issues
+   - Use docs/buildium-property-import-guide.md for property-specific operations
+
+2. **Use live database for inspection**: Always query the live Supabase database when 
    inspecting data to avoid confusion with local database state.
 
-2. **Test with real API responses**: Always test mappers and functions with actual 
+3. **Test with real API responses**: Always test mappers and functions with actual 
    Buildium API responses, not just type definitions from src/types/buildium.ts.
 
-3. **Handle API limitations**: Implement proper rate limiting, pagination, and error 
+4. **Handle API limitations**: Implement proper rate limiting, pagination, and error 
    handling for all Buildium API calls.
 
-4. **Log appropriately**: Log actionable context for debugging, but never log secrets, 
+5. **Log appropriately**: Log actionable context for debugging, but never log secrets, 
    API keys, or personally identifiable information (PII).
 
-5. **Validate responses**: Always validate Buildium API responses before processing 
+6. **Validate responses**: Always validate Buildium API responses before processing 
    to ensure data integrity and prevent runtime errors.
 
-6. **Use proper authentication**: Ensure all Buildium API calls use the correct 
+7. **Use proper authentication**: Ensure all Buildium API calls use the correct 
    authentication headers and credentials from environment variables.
 
-7. **Handle relationship resolution**: When dealing with related data (e.g., 
+8. **Handle relationship resolution**: When dealing with related data (e.g., 
    properties with bank accounts), use systematic resolution patterns with proper 
    error handling.
 
-8. **Document field mappings**: Maintain clear documentation of field mappings 
+9. **Document field mappings**: Maintain clear documentation of field mappings 
    between Buildium API responses and local database schema.
 
-9. **Use direct API calls**: Always use direct API calls with client credentials, 
-   not MCP tools or other intermediaries.
+10. **Use direct API calls**: Always use direct API calls with client credentials, 
+    not MCP tools or other intermediaries.
 
-10. **Standard API call pattern**:
+11. **Standard API call pattern**:
     ```typescript
     const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/[endpoint]/[id]`, {
       method: 'GET',
@@ -45,8 +54,14 @@ Buildium Integration Rules:
     })
     ```
 
-11. **Quick script creation**: Use existing scripts in scripts/buildium/sync/ as templates
+12. **Quick script creation**: Use existing scripts in scripts/buildium/sync/ as templates
     and modify for specific entities and IDs.
 
-12. **Environment loading**: Always use dotenv.config({ path: '.env.local' }) in scripts
+13. **Environment loading**: Always use dotenv.config({ path: '.env.local' }) in scripts
     to ensure proper environment variable loading.
+
+14. **Quick reference commands**: Use the patterns from docs/QUICK_REFERENCE.md for:
+    - Creating temporary scripts for specific entities
+    - Environment variable checks
+    - Standard script templates
+    - Common API endpoints

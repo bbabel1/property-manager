@@ -1,96 +1,147 @@
 # Buildium API Quick Reference
 
-## Authentication Pattern
-```typescript
-headers: {
-  'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-  'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-  'Content-Type': 'application/json',
-  'Accept': 'application/json'
-}
-```
+## Authentication
+
+- **Base URL**: `https://api.buildium.com/v1`
+- **Headers Required**:
+  - `x-buildium-client-id`: Your Buildium client ID
+  - `x-buildium-client-secret`: Your Buildium client secret
+  - `Accept`: `application/json`
+  - `Content-Type`: `application/json` (for POST/PUT requests)
 
 ## Common Endpoints
-- **Properties**: `GET /rentals/{id}`
-- **Owners**: `GET /rentals/owners/{id}`
-- **Leases**: `GET /leases/{id}`
-- **Units**: `GET /rentals/{propertyId}/units`
-- **Bank Accounts**: `GET /bankaccounts/{id}`
-- **Vendors**: `GET /vendors/{id}`
 
-## Script Template
+### Properties
+
+- **GET** `/rentals` - List all rental properties
+- **GET** `/rentals/{id}` - Get specific property
+- **POST** `/rentals` - Create new property
+
+### Units
+
+- **GET** `/rentals/units` - List all units
+- **GET** `/rentals/units/{id}` - Get specific unit
+- **POST** `/rentals/units` - Create new unit
+
+### Leases
+
+- **GET** `/leases` - List all leases
+- **GET** `/leases/{id}` - Get specific lease
+- **POST** `/leases` - Create new lease
+
+### Tenants
+
+- **GET** `/leases/tenants` - List all tenants
+- **GET** `/leases/tenants/{tenantId}` - Get specific tenant
+- **PUT** `/leases/tenants/{tenantId}` - Update tenant
+
+### Bank Accounts
+
+- **GET** `/bankaccounts` - List all bank accounts
+- **GET** `/bankaccounts/{id}` - Get specific bank account
+
+### General Ledger
+
+- **GET** `/generalLedger/accounts` - List GL accounts
+- **GET** `/generalLedger/entries` - List journal entries
+
+## Script Templates
+
+### Basic API Call Template
+
 ```typescript
-import { config } from 'dotenv'
-config({ path: '.env.local' })
+import { config } from "dotenv";
+config({ path: ".env.local" });
 
-const entityId = '[ID]'
-
-async function fetchFromBuildium(entityId: string) {
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/[endpoint]/${entityId}`
-  
-  const response = await fetch(buildiumUrl, {
-    method: 'GET',
+async function fetchFromBuildium(endpoint: string) {
+  const response = await fetch(`${process.env.BUILDIUM_BASE_URL}${endpoint}`, {
+    method: "GET",
     headers: {
-      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    }
-  })
+      "x-buildium-client-id": process.env.BUILDIUM_CLIENT_ID!,
+      "x-buildium-client-secret": process.env.BUILDIUM_CLIENT_SECRET!,
+      Accept: "application/json",
+    },
+  });
 
   if (!response.ok) {
-    throw new Error(`Buildium API error: ${response.status} ${response.statusText}`)
+    throw new Error(
+      `Buildium API error: ${response.status} ${response.statusText}`
+    );
   }
 
-  return response.json()
+  return await response.json();
 }
 ```
 
-## Quick Commands
+### Environment Setup
+
 ```bash
-# Fetch property
-npx tsx scripts/buildium/sync/fetch-buildium-lease.ts  # Copy and modify
-
-# Environment check
-echo "BUILDIUM_CLIENT_ID: $BUILDIUM_CLIENT_ID"
-
-# Create quick script
-cp scripts/buildium/sync/fetch-buildium-lease.ts temp-fetch.ts
-# Modify temp-fetch.ts
-npx tsx temp-fetch.ts
-rm temp-fetch.ts
+# Required environment variables in .env.local
+BUILDIUM_BASE_URL=https://api.buildium.com/v1
+BUILDIUM_CLIENT_ID=your_client_id
+BUILDIUM_CLIENT_SECRET=your_client_secret
 ```
 
-## Common Response Fields
-### Property Response
-```json
-{
-  "Id": 12345,
-  "Name": "Property Name",
-  "Address": {
-    "AddressLine1": "123 Main St",
-    "City": "Anytown",
-    "State": "CA",
-    "PostalCode": "12345"
-  },
-  "IsActive": true,
-  "RentalType": "Residential"
+## Common Patterns
+
+### Pagination
+
+Most endpoints support pagination with `limit` and `offset` parameters:
+
+```
+GET /rentals?limit=50&offset=0
+```
+
+### Filtering
+
+Many endpoints support filtering by various parameters:
+
+```
+GET /leases?propertyId=123&status=Active
+```
+
+### Error Handling
+
+Always check response status and handle errors appropriately:
+
+```typescript
+if (!response.ok) {
+  const errorData = await response.json().catch(() => ({}));
+  console.error("Buildium API error:", response.status, errorData);
+  throw new Error(`API call failed: ${response.status}`);
 }
 ```
 
-### Owner Response
-```json
-{
-  "Id": 67890,
-  "FirstName": "John",
-  "LastName": "Doe",
-  "Email": "john@example.com",
-  "IsActive": true
-}
-```
+## Important Notes
 
-## Error Handling
-- Check `response.ok` before processing
-- Log full error details for debugging
-- Handle rate limiting (429 errors)
-- Validate response structure
+1. **API Documentation Priority**: ALWAYS reference the official "Open API, powered by Buildium (v1)" documentation first when working with any Buildium-related functions. This documentation is the authoritative source for endpoints, request/response schemas, and API behavior.
+
+2. **Schema Consolidation**: The project now uses enhanced schemas (`BuildiumPropertyCreateEnhancedSchema`, `BuildiumPropertyUpdateEnhancedSchema`) for all property operations. These schemas provide:
+   - Better validation with max length constraints
+   - Simplified PropertyType enum (`'Rental'`, `'Association'`, `'Commercial'`)
+   - Additional fields like `OperatingBankAccountId` and `Reserve`
+   - Consistent field validation across all operations
+
+3. **Rate Limiting**: Be mindful of API rate limits. Implement appropriate delays between requests when making bulk operations.
+
+4. **Data Consistency**: Always validate data from Buildium API responses before processing to ensure data integrity.
+
+5. **Environment Variables**: Use `.env.local` for local development and ensure all Buildium credentials are properly configured.
+
+6. **Error Logging**: Log actionable context for debugging, but never log secrets, API keys, or personally identifiable information (PII).
+
+## Troubleshooting
+
+### Common Issues
+
+- **401 Unauthorized**: Check your client ID and secret
+- **403 Forbidden**: Verify your API permissions
+- **404 Not Found**: Confirm the resource ID exists
+- **422 Unprocessable Entity**: Validate request payload format
+
+### Debugging Tips
+
+- Use the official Buildium API documentation to verify endpoint URLs and parameters
+- Check response headers for additional error information
+- Verify environment variables are loaded correctly
+- Test API calls in Postman or similar tool before implementing in code

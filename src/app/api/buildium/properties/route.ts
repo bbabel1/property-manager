@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { BuildiumPropertyCreateSchema } from '@/schemas/buildium';
+import { BuildiumPropertyCreateEnhancedSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
 export async function GET(request: NextRequest) {
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validate request body against schema
-    const validatedData = sanitizeAndValidate(body, BuildiumPropertyCreateSchema);
+    const validatedData = sanitizeAndValidate(body, BuildiumPropertyCreateEnhancedSchema);
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals`;

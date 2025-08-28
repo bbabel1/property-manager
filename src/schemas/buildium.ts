@@ -221,64 +221,9 @@ export const BuildiumGeneralLedgerAccountUpdateSchema = z.object({
   IsActive: z.boolean().optional()
 })
 
-// Buildium Property Creation Schema
-// Based on: https://developer.buildium.com/#tag/Rental-Properties
-export const BuildiumPropertyCreateSchema = z.object({
-  Name: z.string().min(1, "Property name is required"),
-  Address: z.object({
-    AddressLine1: z.string().min(1, "Address line 1 is required"),
-    AddressLine2: z.string().optional(),
-    City: z.string().min(1, "City is required"),
-    State: z.string().min(1, "State is required"),
-    PostalCode: z.string().min(1, "Postal code is required"),
-    Country: z.string().default("United States")
-  }),
-  PropertyType: z.enum([
-    'SingleHomeUpToThreeHundredThousand',
-    'SingleHomeThreeHundredToFiveHundredThousand',
-    'SingleHomeFiveHundredThousandToOneMillion',
-    'SingleHomeOverOneMillion',
-    'MultiFamilyTwoToFourUnits',
-    'MultiFamilyFiveToNineteenUnits',
-    'MultiFamilyTwentyToFortyNineUnits',
-    'MultiFamilyOverOneHundredUnits'
-  ]).optional(),
-  YearBuilt: z.number().int().positive().optional(),
-  SquareFootage: z.number().positive().optional(),
-  Bedrooms: z.number().int().positive().optional(),
-  Bathrooms: z.number().positive().optional(),
-  Description: z.string().optional(),
-  IsActive: z.boolean().default(true)
-})
 
-// Buildium Property Update Schema
-export const BuildiumPropertyUpdateSchema = z.object({
-  Name: z.string().min(1, "Property name is required").optional(),
-  Address: z.object({
-    AddressLine1: z.string().min(1, "Address line 1 is required"),
-    AddressLine2: z.string().optional(),
-    City: z.string().min(1, "City is required"),
-    State: z.string().min(1, "State is required"),
-    PostalCode: z.string().min(1, "Postal code is required"),
-    Country: z.string().default("United States")
-  }).optional(),
-  PropertyType: z.enum([
-    'SingleHomeUpToThreeHundredThousand',
-    'SingleHomeThreeHundredToFiveHundredThousand',
-    'SingleHomeFiveHundredThousandToOneMillion',
-    'SingleHomeOverOneMillion',
-    'MultiFamilyTwoToFourUnits',
-    'MultiFamilyFiveToNineteenUnits',
-    'MultiFamilyTwentyToFortyNineUnits',
-    'MultiFamilyOverOneHundredUnits'
-  ]).optional(),
-  YearBuilt: z.number().int().positive().optional(),
-  SquareFootage: z.number().positive().optional(),
-  Bedrooms: z.number().int().positive().optional(),
-  Bathrooms: z.number().positive().optional(),
-  Description: z.string().optional(),
-  IsActive: z.boolean().optional()
-})
+
+
 
 // Buildium Property Preferred Vendors Update Schema
 export const BuildiumPropertyPreferredVendorsUpdateSchema = z.object({
@@ -1105,8 +1050,7 @@ export type BuildiumGeneralLedgerEntryCreateInput = z.infer<typeof BuildiumGener
 export type BuildiumGeneralLedgerEntryUpdateInput = z.infer<typeof BuildiumGeneralLedgerEntryUpdateSchema>
 export type BuildiumGeneralLedgerAccountCreateInput = z.infer<typeof BuildiumGeneralLedgerAccountCreateSchema>
 export type BuildiumGeneralLedgerAccountUpdateInput = z.infer<typeof BuildiumGeneralLedgerAccountUpdateSchema>
-export type BuildiumPropertyCreateInput = z.infer<typeof BuildiumPropertyCreateSchema>
-export type BuildiumPropertyUpdateInput = z.infer<typeof BuildiumPropertyUpdateSchema>
+
 export type BuildiumPropertyPreferredVendorsUpdateInput = z.infer<typeof BuildiumPropertyPreferredVendorsUpdateSchema>
 export type BuildiumPropertyAmenitiesUpdateInput = z.infer<typeof BuildiumPropertyAmenitiesUpdateSchema>
 export type BuildiumPropertyEPaySettingsUpdateInput = z.infer<typeof BuildiumPropertyEPaySettingsUpdateSchema>
@@ -1191,8 +1135,7 @@ export const BuildiumSchemas = {
   GeneralLedgerEntryUpdate: BuildiumGeneralLedgerEntryUpdateSchema,
   GeneralLedgerAccountCreate: BuildiumGeneralLedgerAccountCreateSchema,
   GeneralLedgerAccountUpdate: BuildiumGeneralLedgerAccountUpdateSchema,
-  PropertyCreate: BuildiumPropertyCreateSchema,
-  PropertyUpdate: BuildiumPropertyUpdateSchema,
+
   PropertyPreferredVendorsUpdate: BuildiumPropertyPreferredVendorsUpdateSchema,
   PropertyAmenitiesUpdate: BuildiumPropertyAmenitiesUpdateSchema,
   PropertyEPaySettingsUpdate: BuildiumPropertyEPaySettingsUpdateSchema,
@@ -1279,6 +1222,28 @@ export const BuildiumPropertyCreateEnhancedSchema = z.object({
   Bedrooms: z.number().int().min(0).max(50).optional(),
   Bathrooms: z.number().min(0).max(50).optional(),
   IsActive: z.boolean().default(true),
+  Description: z.string().max(1000).optional(),
+  OperatingBankAccountId: z.number().int().positive().optional(),
+  Reserve: z.number().min(0).optional()
+});
+
+// Enhanced Property Update Schema (all fields optional for updates)
+export const BuildiumPropertyUpdateEnhancedSchema = z.object({
+  Name: z.string().min(1, "Property name is required").max(255, "Property name too long").optional(),
+  PropertyType: z.enum(['Rental', 'Association', 'Commercial']).optional(),
+  Address: z.object({
+    AddressLine1: z.string().min(1, "Address line 1 is required").max(255),
+    AddressLine2: z.string().max(255).optional(),
+    City: z.string().min(1, "City is required").max(100),
+    State: z.string().min(1, "State is required").max(100),
+    PostalCode: z.string().min(1, "Postal code is required").max(20),
+    Country: z.string().min(1, "Country is required").max(100)
+  }).optional(),
+  YearBuilt: z.number().int().min(1800).max(new Date().getFullYear()).optional(),
+  SquareFootage: z.number().int().positive("Square footage must be positive").optional(),
+  Bedrooms: z.number().int().min(0).max(50).optional(),
+  Bathrooms: z.number().min(0).max(50).optional(),
+  IsActive: z.boolean().optional(),
   Description: z.string().max(1000).optional(),
   OperatingBankAccountId: z.number().int().positive().optional(),
   Reserve: z.number().min(0).optional()
@@ -1371,17 +1336,13 @@ export const BuildiumBillCreateEnhancedSchema = z.object({
     StartDate: z.string().datetime("Start date must be in ISO 8601 format"),
     EndDate: z.string().datetime("End date must be in ISO 8601 format").optional()
   }).optional(),
-  Status: z.enum(['Pending', 'Paid', 'Overdue', 'Cancelled', 'PartiallyPaid'], {
-    errorMap: () => ({ message: "Invalid bill status" })
-  }).default('Pending')
+  Status: z.enum(['Pending', 'Paid', 'Overdue', 'Cancelled', 'PartiallyPaid']).default('Pending')
 });
 
 // Enhanced Bank Account Create Schema
 export const BuildiumBankAccountCreateEnhancedSchema = z.object({
   Name: z.string().min(1, "Bank account name is required").max(255),
-  BankAccountType: z.enum(['Checking', 'Savings', 'MoneyMarket', 'CertificateOfDeposit'], {
-    errorMap: () => ({ message: "Invalid bank account type" })
-  }),
+  BankAccountType: z.enum(['Checking', 'Savings', 'MoneyMarket', 'CertificateOfDeposit']),
   AccountNumber: z.string().min(1, "Account number is required").max(50),
   RoutingNumber: z.string().length(9, "Routing number must be exactly 9 digits"),
   Description: z.string().max(500).optional(),
@@ -1392,9 +1353,7 @@ export const BuildiumBankAccountCreateEnhancedSchema = z.object({
 export const BuildiumLeaseCreateEnhancedSchema = z.object({
   PropertyId: z.number().int().positive("Property ID must be a positive integer"),
   UnitId: z.number().int().positive().optional(),
-  Status: z.enum(['Future', 'Active', 'Past', 'Cancelled'], {
-    errorMap: () => ({ message: "Invalid lease status" })
-  }),
+  Status: z.enum(['Future', 'Active', 'Past', 'Cancelled']),
   StartDate: z.string().datetime("Start date must be in ISO 8601 format"),
   EndDate: z.string().datetime("End date must be in ISO 8601 format").optional(),
   RentAmount: z.number().positive("Rent amount must be positive"),
@@ -1412,9 +1371,7 @@ export const BuildiumWebhookEventSchema = z.object({
     'LeaseCreated', 'LeaseUpdated', 'LeaseDeleted',
     'BillCreated', 'BillUpdated', 'BillPaid',
     'TaskCreated', 'TaskUpdated', 'TaskCompleted'
-  ], {
-    errorMap: () => ({ message: "Invalid webhook event type" })
-  }),
+  ]),
   EntityId: z.number().int().positive("Entity ID must be a positive integer"),
   EntityType: z.string().min(1, "Entity type is required"),
   EventDate: z.string().datetime("Event date must be in ISO 8601 format"),
@@ -1432,9 +1389,7 @@ export const BuildiumSyncStatusSchema = z.object({
   entityId: z.string().uuid("Entity ID must be a valid UUID"),
   buildiumId: z.number().int().positive().optional(),
   lastSyncedAt: z.string().datetime("Last synced date must be in ISO 8601 format").optional(),
-  syncStatus: z.enum(['pending', 'syncing', 'synced', 'failed', 'conflict'], {
-    errorMap: () => ({ message: "Invalid sync status" })
-  }),
+  syncStatus: z.enum(['pending', 'syncing', 'synced', 'failed', 'conflict']),
   errorMessage: z.string().optional(),
   createdAt: z.string().datetime("Created date must be in ISO 8601 format"),
   updatedAt: z.string().datetime("Updated date must be in ISO 8601 format")
@@ -1451,6 +1406,7 @@ export const BuildiumApiConfigSchema = z.object({
 
 // Export enhanced schema types
 export type BuildiumPropertyCreateEnhancedInput = z.infer<typeof BuildiumPropertyCreateEnhancedSchema>
+export type BuildiumPropertyUpdateEnhancedInput = z.infer<typeof BuildiumPropertyUpdateEnhancedSchema>
 export type BuildiumUnitCreateEnhancedInput = z.infer<typeof BuildiumUnitCreateEnhancedSchema>
 export type BuildiumOwnerCreateEnhancedInput = z.infer<typeof BuildiumOwnerCreateEnhancedSchema>
 export type BuildiumVendorCreateEnhancedInput = z.infer<typeof BuildiumVendorCreateEnhancedSchema>
@@ -1466,6 +1422,7 @@ export type BuildiumApiConfigInput = z.infer<typeof BuildiumApiConfigSchema>
 // Add enhanced schemas to the main export
 export const BuildiumSchemasEnhanced = {
   PropertyCreateEnhanced: BuildiumPropertyCreateEnhancedSchema,
+  PropertyUpdateEnhanced: BuildiumPropertyUpdateEnhancedSchema,
   UnitCreateEnhanced: BuildiumUnitCreateEnhancedSchema,
   OwnerCreateEnhanced: BuildiumOwnerCreateEnhancedSchema,
   VendorCreateEnhanced: BuildiumVendorCreateEnhancedSchema,
