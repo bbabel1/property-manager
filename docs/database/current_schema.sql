@@ -1214,6 +1214,65 @@ COMMENT ON FUNCTION "public"."map_work_order_to_buildium"("p_work_order_id" "uui
 
 
 
+CREATE OR REPLACE FUNCTION "public"."normalize_country"("val" "text") RETURNS "text"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v text;
+BEGIN
+  IF val IS NULL THEN RETURN NULL; END IF;
+  v := trim(val);
+  IF v = '' THEN RETURN NULL; END IF;
+  -- lowercase, strip punctuation, collapse whitespace
+  v := lower(v);
+  v := regexp_replace(v, '[\.]', '', 'g');         -- remove dots
+  v := regexp_replace(v, '[_-]', ' ', 'g');         -- underscores/hyphens to space
+  v := regexp_replace(v, '\s+', ' ', 'g');         -- collapse spaces
+  v := trim(v);
+
+  -- canonical mappings
+  IF v IN ('us','u s','usa','u s a','united states','united states of america','unitedstates') THEN
+    RETURN 'United States';
+  ELSIF v IN ('uk','u k','united kingdom','great britain') THEN
+    RETURN 'United Kingdom';
+  ELSIF v IN ('uae','u a e','united arab emirates') THEN
+    RETURN 'United Arab Emirates';
+  ELSIF v IN ('czech republic','czechia') THEN
+    RETURN 'Czech Republic (Czechia)';
+  ELSIF v IN ('ivory coast','cote divoire','cote d ivoire') THEN
+    RETURN 'Ivory Coast (Côte d''Ivoire)';
+  ELSIF v = 'north korea' THEN
+    RETURN 'Korea (North Korea)';
+  ELSIF v = 'south korea' THEN
+    RETURN 'Korea (South Korea)';
+  ELSIF v = 'macedonia' THEN
+    RETURN 'North Macedonia';
+  ELSIF v = 'burma' THEN
+    RETURN 'Myanmar (Burma)';
+  ELSIF v IN ('sao tome and principe','sao tome & principe') THEN
+    RETURN 'São Tomé and Príncipe';
+  ELSIF v = 'vatican city' THEN
+    RETURN 'Vatican City (Holy See)';
+  ELSIF v IN ('saint kitts and nevis','st kitts and nevis','st. kitts and nevis') THEN
+    RETURN 'Saint Kitts and Nevis';
+  ELSIF v IN ('saint lucia','st lucia','st. lucia') THEN
+    RETURN 'Saint Lucia';
+  ELSIF v IN ('saint vincent and the grenadines','st vincent and the grenadines','st. vincent and the grenadines') THEN
+    RETURN 'Saint Vincent and the Grenadines';
+  ELSIF v IN ('democratic republic of congo','congo drc','dr congo') THEN
+    RETURN 'Democratic Republic of the Congo';
+  ELSIF v IN ('republic of the congo','congo') THEN
+    RETURN 'Congo (Republic of the Congo)';
+  ELSE
+    RETURN NULL;
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."normalize_country"("val" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character varying, "p_event_type" character varying, "p_event_data" "jsonb") RETURNS boolean
     LANGUAGE "plpgsql"
     AS $$
@@ -3322,18 +3381,8 @@ ALTER TABLE ONLY "public"."buildium_webhook_events"
 
 
 
-ALTER TABLE "public"."contacts"
-    ADD CONSTRAINT "contacts_alt_country_is_valid" CHECK ("public"."is_valid_country"(("alt_country")::"text")) NOT VALID;
-
-
-
 ALTER TABLE ONLY "public"."contacts"
     ADD CONSTRAINT "contacts_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE "public"."contacts"
-    ADD CONSTRAINT "contacts_primary_country_is_valid" CHECK ("public"."is_valid_country"(("primary_country")::"text")) NOT VALID;
 
 
 
@@ -3382,11 +3431,6 @@ ALTER TABLE ONLY "public"."owners"
 
 
 
-ALTER TABLE "public"."owners"
-    ADD CONSTRAINT "owners_tax_country_is_valid" CHECK ("public"."is_valid_country"(("tax_country")::"text")) NOT VALID;
-
-
-
 ALTER TABLE ONLY "public"."ownerships"
     ADD CONSTRAINT "ownerships_pkey" PRIMARY KEY ("id");
 
@@ -3403,11 +3447,6 @@ ALTER TABLE ONLY "public"."properties"
 
 
 COMMENT ON CONSTRAINT "properties_buildium_property_id_unique" ON "public"."properties" IS 'Ensures each Buildium property ID can only exist once in the database';
-
-
-
-ALTER TABLE "public"."properties"
-    ADD CONSTRAINT "properties_country_is_valid" CHECK ("public"."is_valid_country"(("country")::"text")) NOT VALID;
 
 
 
@@ -3505,11 +3544,6 @@ ALTER TABLE ONLY "public"."units"
 
 
 
-ALTER TABLE "public"."units"
-    ADD CONSTRAINT "units_country_is_valid" CHECK ("public"."is_valid_country"(("country")::"text")) NOT VALID;
-
-
-
 ALTER TABLE ONLY "public"."units"
     ADD CONSTRAINT "units_pkey" PRIMARY KEY ("id");
 
@@ -3527,11 +3561,6 @@ ALTER TABLE ONLY "public"."vendor_categories"
 
 ALTER TABLE ONLY "public"."vendors"
     ADD CONSTRAINT "vendors_buildium_vendor_id_key" UNIQUE ("buildium_vendor_id");
-
-
-
-ALTER TABLE "public"."vendors"
-    ADD CONSTRAINT "vendors_country_is_valid" CHECK ("public"."is_valid_country"(("country")::"text")) NOT VALID;
 
 
 
@@ -5330,6 +5359,12 @@ GRANT ALL ON FUNCTION "public"."map_vendor_to_buildium"("p_vendor_id" "uuid") TO
 GRANT ALL ON FUNCTION "public"."map_work_order_to_buildium"("p_work_order_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."map_work_order_to_buildium"("p_work_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."map_work_order_to_buildium"("p_work_order_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."normalize_country"("val" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."normalize_country"("val" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."normalize_country"("val" "text") TO "service_role";
 
 
 

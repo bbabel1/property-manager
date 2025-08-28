@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Last Updated**: 2025-08-28T05:34:42.966Z (Auto-generated)
+> **Last Updated**: 2025-08-28T06:09:12.915Z (Auto-generated)
 
 ## Overview
 
@@ -53,6 +53,9 @@ This document provides a comprehensive overview of the Supabase database schema 
 ### 20250828032609_add_data_integrity_functions.sql
 **Description**: No description available
 
+### 20250828013805_remote_drift_check.sql.sql
+**Description**: No description available
+
 ### 20250828060000_non_destructive_remote_alignment.sql
 **Description**: No description available
 
@@ -65,10 +68,13 @@ This document provides a comprehensive overview of the Supabase database schema 
 ### 20250828070500_staged_country_enum_constraints_and_report.sql
 **Description**: No description available
 
+### 20250828073000_normalize_countries_and_convert_to_enum.sql
+**Description**: No description available
+
 
 ## Current Schema Status
 
-- **Total Migrations**: 19
+- **Total Migrations**: 21
 - **Database Provider**: PostgreSQL via Supabase
 - **ORM**: Direct Supabase client operations
 - **Security**: Row Level Security (RLS) enabled on all tables
