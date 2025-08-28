@@ -143,6 +143,15 @@ src/
 
 ## Database Schema
 
+### Schema Documentation
+- **[Detailed Schema](docs/database/DETAILED_SCHEMA.md)** - Comprehensive field-level details with constraints, defaults, and enums
+- **[Schema Management Workflow](docs/database/SCHEMA_MANAGEMENT_WORKFLOW.md)** - Workflow guide for managing schema documentation
+- **[Current Schema](docs/database/current_schema.sql)** - Auto-generated current database schema
+- **[TypeScript Types](src/types/database.ts)** - Auto-generated TypeScript types
+- **[Table Relationships](docs/database/table-relationships.md)** - Detailed table relationship documentation
+- **[Buildium Integration](docs/database/buildium-integration-summary.md)** - Buildium API integration documentation
+
+
 The system uses a PostgreSQL database through Supabase with the following main entities:
 
 - **Properties**: Core property information with address and metadata

@@ -11,7 +11,10 @@
     "docs:check": "npx tsx scripts/doc-monitoring-system.ts check",
     "docs:update": "npx tsx scripts/doc-monitoring-system.ts update",
     "docs:validate": "npx tsx scripts/doc-monitoring-system.ts validate",
-    "docs:watch": "nodemon --watch src --watch supabase --ext ts,tsx,sql --exec \"npm run docs:check\""
+    "docs:watch": "nodemon --watch src --watch supabase --ext ts,tsx,sql --exec \"npm run docs:check\"",
+    "db:schema": "npx supabase db dump --local --file docs/database/current_schema.sql",
+    "db:types": "npx supabase gen types typescript --local > src/types/database.ts",
+    "db:docs": "npm run db:schema && npm run db:types && npm run docs:update"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

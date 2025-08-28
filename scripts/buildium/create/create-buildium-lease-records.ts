@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
-import { logger } from './utils/logger'
+import { mapLeaseFromBuildiumWithTenants, createLeaseContactRelationship } from '@/lib/buildium-mappers'
 
 // Load environment variables
-config()
+config({ path: '.env.local' })
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -97,10 +97,10 @@ async function fetchLeaseFromBuildium(leaseId: string): Promise<BuildiumLease> {
     }
 
     const data = await response.json()
-    logger.info(`Successfully fetched lease ${leaseId} from Buildium`)
+    console.log(`✅ Successfully fetched lease ${leaseId} from Buildium`)
     return data
   } catch (error) {
-    logger.error('Error fetching lease from Buildium:', error)
+    console.error('❌ Error fetching lease from Buildium:', error)
     throw error
   }
 }
@@ -179,10 +179,10 @@ async function createContactRecord(buildiumTenant: BuildiumTenant): Promise<numb
       throw error
     }
 
-    logger.info(`Created contact record with ID: ${contact.id}`)
+    console.log(`✅ Created contact record with ID: ${contact.id}`)
     return contact.id
   } catch (error) {
-    logger.error('Failed to create contact record:', error)
+    console.error('❌ Failed to create contact record:', error)
     throw error
   }
 }
@@ -217,36 +217,25 @@ async function createTenantRecord(contactId: number, buildiumTenant: BuildiumTen
       throw error
     }
 
-    logger.info(`Created tenant record with ID: ${tenant.id}`)
+    console.log(`✅ Created tenant record with ID: ${tenant.id}`)
     return tenant.id
   } catch (error) {
-    logger.error('Failed to create tenant record:', error)
+    console.error('❌ Failed to create tenant record:', error)
     throw error
   }
 }
 
 async function createLeaseRecord(buildiumLease: BuildiumLease, localPropertyId: string, localUnitId: string): Promise<number> {
   try {
+    // Use the enhanced mapper function with tenant processing
+    const enhancedLease = await mapLeaseFromBuildiumWithTenants(buildiumLease, supabase)
+    
     const leaseData = {
       propertyId: localPropertyId,
       unitId: localUnitId,
-      lease_from_date: buildiumLease.LeaseFromDate,
-      lease_to_date: buildiumLease.LeaseToDate,
-      status: buildiumLease.LeaseStatus,
-      security_deposit: buildiumLease.AccountDetails.SecurityDeposit,
-      rent_amount: buildiumLease.AccountDetails.Rent,
-      comment: null,
-      unit_number: buildiumLease.UnitNumber,
-      lease_type: buildiumLease.LeaseType,
-      term_type: buildiumLease.TermType,
-      renewal_offer_status: buildiumLease.RenewalOfferStatus,
-      is_eviction_pending: buildiumLease.IsEvictionPending,
-      current_number_of_occupants: buildiumLease.CurrentNumberOfOccupants,
-      payment_due_day: buildiumLease.PaymentDueDay,
-      automatically_move_out_tenants: buildiumLease.AutomaticallyMoveOutTenants,
-      buildium_lease_id: buildiumLease.Id,
-      buildium_created_at: buildiumLease.CreatedDateTime,
-      buildium_updated_at: buildiumLease.LastUpdatedDateTime,
+      ...enhancedLease,
+      // Remove tenantRelationships as it's not part of lease table
+      tenantRelationships: undefined,
       updatedAt: new Date().toISOString()
     }
 
@@ -262,10 +251,18 @@ async function createLeaseRecord(buildiumLease: BuildiumLease, localPropertyId: 
       throw error
     }
 
-    logger.info(`Created lease record with ID: ${lease.id}`)
+    console.log(`✅ Created lease record with ID: ${lease.id}`)
+    
+    // Create lease_contacts relationships
+    if (enhancedLease.tenantRelationships) {
+      for (const relationship of enhancedLease.tenantRelationships) {
+        await createLeaseContactRelationship(lease.id, relationship.tenantId, relationship.role, supabase)
+      }
+    }
+    
     return lease.id
   } catch (error) {
-    logger.error('Failed to create lease record:', error)
+    console.error('❌ Failed to create lease record:', error)
     throw error
   }
 }
@@ -294,51 +291,31 @@ async function createLeaseContactRecord(leaseId: number, tenantId: string, build
       throw error
     }
 
-    logger.info(`Created lease contact record with ID: ${leaseContact.id}`)
+    console.log(`✅ Created lease contact record with ID: ${leaseContact.id}`)
     return leaseContact.id
   } catch (error) {
-    logger.error('Failed to create lease contact record:', error)
+    console.error('❌ Failed to create lease contact record:', error)
     throw error
   }
 }
 
 async function main() {
   try {
-    logger.info(`Fetching lease ${buildiumLeaseId} from Buildium...`)
+    console.log(`🔍 Fetching lease ${buildiumLeaseId} from Buildium...`)
     const buildiumLease = await fetchLeaseFromBuildium(buildiumLeaseId)
     
-    logger.info('Getting local property and unit IDs...')
+    console.log('🔍 Getting local property and unit IDs...')
     const localPropertyId = await getLocalPropertyId(buildiumLease.PropertyId)
     const localUnitId = await getLocalUnitId(buildiumLease.UnitId)
     
-    logger.info('Creating lease record...')
+    console.log('📝 Creating lease record with enhanced tenant processing...')
     const localLeaseId = await createLeaseRecord(buildiumLease, localPropertyId, localUnitId)
     
-    logger.info('Creating tenant records...')
-    const tenantIds: string[] = []
-    
-    for (const buildiumTenant of buildiumLease.CurrentTenants) {
-      logger.info(`Creating contact for tenant ${buildiumTenant.FirstName} ${buildiumTenant.LastName}...`)
-      const contactId = await createContactRecord(buildiumTenant)
-      
-      logger.info(`Creating tenant record for contact ${contactId}...`)
-      const tenantId = await createTenantRecord(contactId, buildiumTenant)
-      tenantIds.push(tenantId)
-      
-      // Find the corresponding tenant info from the Tenants array
-      const tenantInfo = buildiumLease.Tenants.find(t => t.Id === buildiumTenant.Id)
-      if (tenantInfo) {
-        logger.info(`Creating lease contact record...`)
-        await createLeaseContactRecord(localLeaseId, tenantId, buildiumTenant, tenantInfo)
-      }
-    }
-    
-    logger.info('Successfully created all lease records!')
+    console.log('✅ Successfully created lease with all tenant relationships!')
     console.log('Lease ID:', localLeaseId)
-    console.log('Tenant IDs:', tenantIds)
     
   } catch (error) {
-    logger.error('Failed to create lease records:', error)
+    console.error('❌ Failed to create lease records:', error)
     console.error('Full error details:', error)
     process.exit(1)
   }

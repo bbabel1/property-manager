@@ -47,6 +47,7 @@ export interface UnitDB {
   is_active?: boolean;
   buildium_created_at?: string;
   buildium_updated_at?: string;
+  building_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +85,7 @@ export interface Unit {
   isActive?: boolean;
   buildiumCreatedAt?: string;
   buildiumUpdatedAt?: string;
+  buildingName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -122,6 +124,7 @@ export function mapUnitFromDB(dbUnit: UnitDB): Unit {
     isActive: dbUnit.is_active,
     buildiumCreatedAt: dbUnit.buildium_created_at,
     buildiumUpdatedAt: dbUnit.buildium_updated_at,
+    buildingName: dbUnit.building_name,
     createdAt: dbUnit.created_at,
     updatedAt: dbUnit.updated_at,
   };
@@ -161,6 +164,7 @@ export function mapUnitToDB(unit: Partial<Unit>): Partial<UnitDB> {
   if (unit.isActive !== undefined) dbUnit.is_active = unit.isActive;
   if (unit.buildiumCreatedAt !== undefined) dbUnit.buildium_created_at = unit.buildiumCreatedAt;
   if (unit.buildiumUpdatedAt !== undefined) dbUnit.buildium_updated_at = unit.buildiumUpdatedAt;
+  if (unit.buildingName !== undefined) dbUnit.building_name = unit.buildingName;
   
   return dbUnit;
 }

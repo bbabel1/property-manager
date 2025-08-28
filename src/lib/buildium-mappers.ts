@@ -689,7 +689,7 @@ export function mapPropertyToBuildium(localProperty: any): BuildiumPropertyCreat
       City: localProperty.city || '',
       State: localProperty.state || '',
       PostalCode: localProperty.postal_code,
-      Country: mapCountryToBuildium(localProperty.country)
+      Country: mapCountryToBuildium(localProperty.country) || ''
     },
     YearBuilt: localProperty.year_built || undefined,
     RentalType: localProperty.rental_type || 'Rental',
@@ -717,7 +717,7 @@ export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): any
     city: buildiumProperty.Address.City,
     state: buildiumProperty.Address.State,
     postal_code: buildiumProperty.Address.PostalCode,
-    country: mapCountryFromBuildium(buildiumProperty.Address.Country),
+    country: mapCountryFromBuildium(buildiumProperty.Address.Country) || 'United States',
     year_built: buildiumProperty.YearBuilt,
     is_active: buildiumProperty.IsActive,
     // Note: Description field doesn't exist in BuildiumProperty
@@ -770,18 +770,58 @@ export function mapUnitToBuildium(localUnit: any): BuildiumUnitCreate {
 
 export function mapUnitFromBuildium(buildiumUnit: BuildiumUnit): any {
   return {
-    unit_number: buildiumUnit.Number || buildiumUnit.UnitNumber,
-    unit_type: mapUnitTypeFromBuildium(buildiumUnit.UnitType || 'Apartment'),
-    unit_size: buildiumUnit.UnitSize,
-    unit_bedrooms: buildiumUnit.Bedrooms || buildiumUnit.UnitBedrooms,
-    unit_bathrooms: buildiumUnit.Bathrooms || buildiumUnit.UnitBathrooms,
-    is_active: buildiumUnit.IsActive !== false,
-    market_rent: buildiumUnit.MarketRent,
-    description: buildiumUnit.Description,
     buildium_unit_id: buildiumUnit.Id,
     buildium_property_id: buildiumUnit.PropertyId,
-    buildium_created_at: buildiumUnit.CreatedDate,
-    buildium_updated_at: buildiumUnit.ModifiedDate
+    building_name: buildiumUnit.BuildingName,
+    unit_number: buildiumUnit.UnitNumber,
+    description: buildiumUnit.Description,
+    market_rent: buildiumUnit.MarketRent,
+    address_line1: buildiumUnit.Address?.AddressLine1,
+    address_line2: buildiumUnit.Address?.AddressLine2,
+    address_line3: buildiumUnit.Address?.AddressLine3,
+    city: buildiumUnit.Address?.City,
+    state: buildiumUnit.Address?.State,
+    postal_code: buildiumUnit.Address?.PostalCode,
+    country: mapCountryFromBuildium(buildiumUnit.Address?.Country),
+    unit_bedrooms: mapBedroomsFromBuildium(buildiumUnit.UnitBedrooms),
+    unit_bathrooms: mapBathroomsFromBuildium(buildiumUnit.UnitBathrooms),
+    unit_size: buildiumUnit.UnitSize
+  }
+}
+
+function mapBedroomsFromBuildium(buildiumBedrooms: string | null | undefined): string | null {
+  if (!buildiumBedrooms) return null
+  
+  switch (buildiumBedrooms) {
+    case 'Studio': return 'Studio'
+    case 'OneBed': return '1'
+    case 'TwoBed': return '2'
+    case 'ThreeBed': return '3'
+    case 'FourBed': return '4'
+    case 'FiveBed': return '5+'
+    case 'SixBed': return '6'
+    case 'SevenBed': return '7'
+    case 'EightBed': return '8'
+    case 'NineBedPlus': return '9+'
+    default: return null
+  }
+}
+
+function mapBathroomsFromBuildium(buildiumBathrooms: string | null | undefined): string | null {
+  if (!buildiumBathrooms) return null
+  
+  switch (buildiumBathrooms) {
+    case 'OneBath': return '1'
+    case 'OnePointFiveBath': return '1.5'
+    case 'TwoBath': return '2'
+    case 'TwoPointFiveBath': return '2.5'
+    case 'ThreeBath': return '3'
+    case 'ThreePointFiveBath': return '3.5'
+    case 'FourBath': return '4+'
+    case 'FourPointFiveBath': return '4.5'
+    case 'FiveBath': return '5'
+    case 'FivePlusBath': return '5+'
+    default: return null
   }
 }
 
@@ -844,7 +884,7 @@ export function mapOwnerToBuildium(localOwner: any): BuildiumOwnerCreate {
       City: localOwner.city || '',
       State: localOwner.state || '',
       PostalCode: localOwner.postal_code,
-      Country: mapCountryToBuildium(localOwner.country)
+      Country: mapCountryToBuildium(localOwner.country) || ''
     },
     TaxId: localOwner.tax_id || undefined,
     IsActive: localOwner.is_active !== false
@@ -862,7 +902,7 @@ export function mapOwnerFromBuildium(buildiumOwner: BuildiumOwner): any {
     city: buildiumOwner.Address.City,
     state: buildiumOwner.Address.State,
     postal_code: buildiumOwner.Address.PostalCode,
-    country: mapCountryFromBuildium(buildiumOwner.Address.Country),
+    country: mapCountryFromBuildium(buildiumOwner.Address.Country) || 'United States',
     tax_id: buildiumOwner.TaxId,
     is_active: buildiumOwner.IsActive,
     buildium_owner_id: buildiumOwner.Id,
@@ -888,7 +928,7 @@ export function mapVendorToBuildium(localVendor: any): BuildiumVendorCreate {
       City: localVendor.city || '',
       State: localVendor.state || '',
       PostalCode: localVendor.postal_code,
-      Country: mapCountryToBuildium(localVendor.country)
+      Country: mapCountryToBuildium(localVendor.country) || ''
     },
     TaxId: localVendor.tax_id || undefined,
     Notes: localVendor.notes || undefined,
@@ -908,7 +948,7 @@ export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): any {
     city: buildiumVendor.Address.City,
     state: buildiumVendor.Address.State,
     postal_code: buildiumVendor.Address.PostalCode,
-    country: mapCountryFromBuildium(buildiumVendor.Address.Country),
+    country: mapCountryFromBuildium(buildiumVendor.Address.Country) || 'United States',
     tax_id: buildiumVendor.TaxId,
     notes: buildiumVendor.Notes,
     is_active: buildiumVendor.IsActive,
@@ -1232,30 +1272,47 @@ function mapBankAccountTypeFromBuildium(buildiumType: 'Checking' | 'Savings' | '
 // LEASE MAPPERS
 // ============================================================================
 
-export function mapLeaseToBuildium(localLease: any): BuildiumLeaseCreate {
+export function mapLeaseToBuildium(localLease: any): any {
   return {
     PropertyId: localLease.buildium_property_id || localLease.property_id,
     UnitId: localLease.buildium_unit_id || localLease.unit_id,
-    Status: mapLeaseStatusToBuildium(localLease.status || 'Active'),
-    StartDate: localLease.start_date,
-    EndDate: localLease.end_date || undefined,
-    RentAmount: localLease.rent_amount,
-    SecurityDepositAmount: localLease.security_deposit_amount || undefined
+    LeaseStatus: localLease.status || 'Active',
+    LeaseFromDate: localLease.lease_from_date,
+    LeaseToDate: localLease.lease_to_date || undefined,
+    LeaseType: localLease.lease_type || undefined,
+    TermType: localLease.term_type || undefined,
+    RenewalOfferStatus: localLease.renewal_offer_status || undefined,
+    CurrentNumberOfOccupants: localLease.current_number_of_occupants || undefined,
+    IsEvictionPending: localLease.is_eviction_pending || false,
+    AutomaticallyMoveOutTenants: localLease.automatically_move_out_tenants || false,
+    PaymentDueDay: localLease.payment_due_day || undefined,
+    AccountDetails: {
+      Rent: localLease.rent_amount,
+      SecurityDeposit: localLease.security_deposit || undefined
+    }
   }
 }
 
 export function mapLeaseFromBuildium(buildiumLease: BuildiumLease): any {
   return {
-    property_id: buildiumLease.PropertyId,
-    unit_id: buildiumLease.UnitId,
-    status: mapLeaseStatusFromBuildium(buildiumLease.Status),
-    start_date: buildiumLease.StartDate,
-    end_date: buildiumLease.EndDate,
-    rent_amount: buildiumLease.RentAmount,
-    security_deposit_amount: buildiumLease.SecurityDepositAmount,
     buildium_lease_id: buildiumLease.Id,
-    buildium_created_at: buildiumLease.CreatedDate,
-    buildium_updated_at: buildiumLease.ModifiedDate
+    buildium_property_id: buildiumLease.PropertyId,
+    buildium_unit_id: buildiumLease.UnitId,
+    unit_number: buildiumLease.UnitNumber,
+    lease_from_date: buildiumLease.LeaseFromDate,
+    lease_to_date: buildiumLease.LeaseToDate,
+    lease_type: buildiumLease.LeaseType,
+    status: buildiumLease.LeaseStatus,
+    is_eviction_pending: buildiumLease.IsEvictionPending,
+    term_type: buildiumLease.TermType,
+    renewal_offer_status: buildiumLease.RenewalOfferStatus,
+    current_number_of_occupants: buildiumLease.CurrentNumberOfOccupants,
+    security_deposit: buildiumLease.AccountDetails.SecurityDeposit,
+    rent_amount: buildiumLease.AccountDetails.Rent,
+    automatically_move_out_tenants: buildiumLease.AutomaticallyMoveOutTenants,
+    buildium_created_at: buildiumLease.CreatedDateTime,
+    buildium_updated_at: buildiumLease.LastUpdatedDateTime,
+    payment_due_day: buildiumLease.PaymentDueDay
   }
 }
 
@@ -1343,4 +1400,297 @@ export function extractBuildiumId(response: any): number | null {
   if (response?.id) return response.id
   if (response?.data?.Id) return response.data.Id
   return null
+}
+
+// ============================================================================
+// TENANT MAPPING FUNCTIONS
+// ============================================================================
+
+/**
+ * Maps a Buildium tenant to database contact format
+ * Handles phone numbers, country mapping, and data type conversions
+ */
+export function mapTenantToContact(buildiumTenant: any): any {
+  // Handle phone numbers
+  const mobilePhone = buildiumTenant.PhoneNumbers?.find((p: any) => p.Type === 'Cell')?.Number || ''
+  const homePhone = buildiumTenant.PhoneNumbers?.find((p: any) => p.Type === 'Home')?.Number || ''
+  const workPhone = buildiumTenant.PhoneNumbers?.find((p: any) => p.Type === 'Work')?.Number || ''
+
+  // Determine primary and alternate phone
+  const primaryPhone = mobilePhone || homePhone || ''
+  const altPhone = workPhone || homePhone || ''
+
+  // Convert date format
+  const dateOfBirth = buildiumTenant.DateOfBirth 
+    ? new Date(buildiumTenant.DateOfBirth).toISOString().split('T')[0]
+    : null
+
+  return {
+    is_company: false,
+    first_name: buildiumTenant.FirstName || '',
+    last_name: buildiumTenant.LastName || '',
+    company_name: null,
+    primary_email: buildiumTenant.Email || '',
+    alt_email: buildiumTenant.AlternateEmail || '',
+    primary_phone: primaryPhone,
+    alt_phone: altPhone,
+    date_of_birth: dateOfBirth,
+    primary_address_line_1: buildiumTenant.Address?.AddressLine1 || '',
+    primary_address_line_2: buildiumTenant.Address?.AddressLine2 || '',
+    primary_address_line_3: buildiumTenant.Address?.AddressLine3 || '',
+    primary_city: buildiumTenant.Address?.City || '',
+    primary_state: buildiumTenant.Address?.State || '',
+    primary_postal_code: buildiumTenant.Address?.PostalCode || '',
+    primary_country: mapCountryFromBuildium(buildiumTenant.Address?.Country),
+    alt_address_line_1: buildiumTenant.AlternateAddress?.AddressLine1 || '',
+    alt_address_line_2: buildiumTenant.AlternateAddress?.AddressLine2 || '',
+    alt_address_line_3: buildiumTenant.AlternateAddress?.AddressLine3 || '',
+    alt_city: buildiumTenant.AlternateAddress?.City || '',
+    alt_state: buildiumTenant.AlternateAddress?.State || '',
+    alt_postal_code: buildiumTenant.AlternateAddress?.PostalCode || '',
+    alt_country: mapCountryFromBuildium(buildiumTenant.AlternateAddress?.Country),
+    mailing_preference: buildiumTenant.MailingPreference || 'primary'
+  }
+}
+
+/**
+ * Maps a Buildium tenant to database tenant format
+ */
+export function mapTenantToTenantRecord(buildiumTenant: any): any {
+  return {
+    buildium_tenant_id: buildiumTenant.Id,
+    emergency_contact_name: buildiumTenant.EmergencyContact?.Name || '',
+    emergency_contact_relationship: buildiumTenant.EmergencyContact?.RelationshipDescription || '',
+    emergency_contact_phone: buildiumTenant.EmergencyContact?.Phone || '',
+    emergency_contact_email: buildiumTenant.EmergencyContact?.Email || '',
+    sms_opt_in_status: buildiumTenant.SMSOptInStatus || false,
+    comment: buildiumTenant.Comment || '',
+    tax_id: buildiumTenant.TaxId || ''
+  }
+}
+
+/**
+ * Finds an existing contact by email or creates a new one
+ * Updates missing fields if contact exists
+ */
+export async function findOrCreateContact(buildiumTenant: any, supabase: any): Promise<number> {
+  try {
+    // Try to find existing contact by email
+    const { data: existingContact, error: findError } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('primary_email', buildiumTenant.Email)
+      .single()
+
+    if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error finding contact:', findError)
+      throw findError
+    }
+
+    if (existingContact) {
+      // Update missing fields only
+      const contactData = mapTenantToContact(buildiumTenant)
+      const updateData: any = {}
+      
+      // Only update fields that are empty in the existing record
+      Object.entries(contactData).forEach(([key, value]) => {
+        if (value && !existingContact[key]) {
+          updateData[key] = value
+        }
+      })
+
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabase
+          .from('contacts')
+          .update(updateData)
+          .eq('id', existingContact.id)
+
+        if (updateError) {
+          console.error('Error updating contact:', updateError)
+          throw updateError
+        }
+        console.log(`✅ Updated existing contact: ${existingContact.id}`)
+      }
+
+      return existingContact.id
+    } else {
+      // Create new contact
+      const contactData = mapTenantToContact(buildiumTenant)
+      const { data: newContact, error: createError } = await supabase
+        .from('contacts')
+        .insert(contactData)
+        .select('id')
+        .single()
+
+      if (createError) {
+        console.error('Error creating contact:', createError)
+        throw createError
+      }
+
+      console.log(`✅ Created new contact: ${newContact.id}`)
+      return newContact.id
+    }
+  } catch (error) {
+    console.error('❌ Failed to find or create contact:', error)
+    throw error
+  }
+}
+
+/**
+ * Finds an existing tenant by buildium_tenant_id or creates a new one
+ */
+export async function findOrCreateTenant(contactId: number, buildiumTenant: any, supabase: any): Promise<string> {
+  try {
+    // Try to find existing tenant by buildium_tenant_id
+    const { data: existingTenant, error: findError } = await supabase
+      .from('tenants')
+      .select('*')
+      .eq('buildium_tenant_id', buildiumTenant.Id)
+      .single()
+
+    if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error finding tenant:', findError)
+      throw findError
+    }
+
+    if (existingTenant) {
+      // Update missing fields only
+      const tenantData = mapTenantToTenantRecord(buildiumTenant)
+      const updateData: any = {}
+      
+      // Only update fields that are empty in the existing record
+      Object.entries(tenantData).forEach(([key, value]) => {
+        if (value && !existingTenant[key]) {
+          updateData[key] = value
+        }
+      })
+
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabase
+          .from('tenants')
+          .update(updateData)
+          .eq('id', existingTenant.id)
+
+        if (updateError) {
+          console.error('Error updating tenant:', updateError)
+          throw updateError
+        }
+        console.log(`✅ Updated existing tenant: ${existingTenant.id}`)
+      }
+
+      return existingTenant.id
+    } else {
+      // Create new tenant
+      const tenantData = {
+        ...mapTenantToTenantRecord(buildiumTenant),
+        contact_id: contactId,
+        updated_at: new Date().toISOString()
+      }
+
+      const { data: newTenant, error: createError } = await supabase
+        .from('tenants')
+        .insert(tenantData)
+        .select('id')
+        .single()
+
+      if (createError) {
+        console.error('Error creating tenant:', createError)
+        throw createError
+      }
+
+      console.log(`✅ Created new tenant: ${newTenant.id}`)
+      return newTenant.id
+    }
+  } catch (error) {
+    console.error('❌ Failed to find or create tenant:', error)
+    throw error
+  }
+}
+
+/**
+ * Creates lease_contacts relationship between lease and tenant
+ */
+export async function createLeaseContactRelationship(
+  leaseId: number, 
+  tenantId: string, 
+  role: string, 
+  supabase: any
+): Promise<string> {
+  try {
+    const leaseContactData = {
+      lease_id: leaseId,
+      tenant_id: tenantId,
+      role: role,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    const { data: leaseContact, error } = await supabase
+      .from('lease_contacts')
+      .insert(leaseContactData)
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('Error creating lease contact relationship:', error)
+      throw error
+    }
+
+    console.log(`✅ Created lease contact relationship: ${leaseContact.id}`)
+    return leaseContact.id
+  } catch (error) {
+    console.error('❌ Failed to create lease contact relationship:', error)
+    throw error
+  }
+}
+
+/**
+ * Enhanced lease mapper that handles tenant relationships
+ * Processes Tenants array and Cosigners array from Buildium lease
+ */
+export async function mapLeaseFromBuildiumWithTenants(
+  buildiumLease: any,
+  supabase: any
+): Promise<any> {
+  const baseLease = mapLeaseFromBuildium(buildiumLease)
+  const tenantRelationships: Array<{ tenantId: string; role: string }> = []
+
+  try {
+    // Process Tenants array
+    if (buildiumLease.Tenants && Array.isArray(buildiumLease.Tenants)) {
+      for (const tenant of buildiumLease.Tenants) {
+        try {
+          const contactId = await findOrCreateContact(tenant, supabase)
+          const tenantId = await findOrCreateTenant(contactId, tenant, supabase)
+          tenantRelationships.push({ tenantId, role: 'Tenant' })
+        } catch (error) {
+          console.warn(`⚠️ Skipping tenant ${tenant.Id}:`, error)
+          // Continue with other tenants
+        }
+      }
+    }
+
+    // Process Cosigners array (Guarantors)
+    if (buildiumLease.Cosigners && Array.isArray(buildiumLease.Cosigners)) {
+      for (const cosigner of buildiumLease.Cosigners) {
+        try {
+          const contactId = await findOrCreateContact(cosigner, supabase)
+          const tenantId = await findOrCreateTenant(contactId, cosigner, supabase)
+          tenantRelationships.push({ tenantId, role: 'Guarantor' })
+        } catch (error) {
+          console.warn(`⚠️ Skipping cosigner ${cosigner.Id}:`, error)
+          // Continue with other cosigners
+        }
+      }
+    }
+
+    return {
+      ...baseLease,
+      tenantRelationships
+    }
+  } catch (error) {
+    console.error('❌ Error in enhanced lease mapping:', error)
+    // Return base lease even if tenant processing fails
+    return baseLease
+  }
 }

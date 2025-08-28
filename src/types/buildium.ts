@@ -84,17 +84,32 @@ export interface BuildiumPropertyUpdate extends Partial<BuildiumPropertyCreate> 
 export interface BuildiumUnit {
   Id: number;
   PropertyId: number;
-  UnitType: BuildiumUnitType;
-  Number: string;
+  UnitType?: BuildiumUnitType;
+  Number?: string;
+  UnitNumber?: string; // Alternative field name from API
   SquareFootage?: number;
   UnitSize?: number;
   Bedrooms?: number;
+  UnitBedrooms?: string; // Alternative field name from API
   Bathrooms?: number;
+  UnitBathrooms?: string; // Alternative field name from API
   MarketRent?: number;
   Description?: string;
-  IsActive: boolean;
-  CreatedDate: string; // ISO 8601
-  ModifiedDate: string; // ISO 8601
+  IsActive?: boolean;
+  IsUnitListed?: boolean; // Alternative field name from API
+  IsUnitOccupied?: boolean; // Additional field from API
+  BuildingName?: string; // Additional field from API
+  Address?: {
+    AddressLine1?: string;
+    AddressLine2?: string;
+    AddressLine3?: string;
+    City?: string;
+    State?: string;
+    PostalCode?: string;
+    Country?: string;
+  };
+  CreatedDate?: string; // ISO 8601
+  ModifiedDate?: string; // ISO 8601
 }
 
 export interface BuildiumUnitCreate {
@@ -177,14 +192,33 @@ export interface BuildiumOwnerUpdate extends Partial<BuildiumOwnerCreate> {}
 export interface BuildiumLease {
   Id: number;
   PropertyId: number;
-  UnitId?: number;
-  Status: BuildiumLeaseStatus;
-  StartDate: string; // ISO 8601
-  EndDate?: string; // ISO 8601
-  RentAmount: number;
-  SecurityDepositAmount?: number;
-  CreatedDate: string; // ISO 8601
-  ModifiedDate: string; // ISO 8601
+  UnitId: number;
+  UnitNumber: string;
+  LeaseFromDate: string; // ISO 8601
+  LeaseToDate: string; // ISO 8601
+  LeaseType: string;
+  LeaseStatus: string;
+  IsEvictionPending: boolean;
+  TermType: string;
+  RenewalOfferStatus: string;
+  CurrentNumberOfOccupants: number;
+  AccountDetails: {
+    SecurityDeposit: number;
+    Rent: number;
+  };
+  AutomaticallyMoveOutTenants: boolean;
+  CreatedDateTime: string; // ISO 8601
+  LastUpdatedDateTime: string; // ISO 8601
+  PaymentDueDay: number;
+  // Additional fields that may be present
+  CurrentTenants?: any[];
+  Cosigners?: any[];
+  MoveOutData?: any[];
+  Tenants?: Array<{
+    Id: number;
+    Status: string;
+    MoveInDate: string;
+  }>;
 }
 
 export interface BuildiumLeaseCreate {
