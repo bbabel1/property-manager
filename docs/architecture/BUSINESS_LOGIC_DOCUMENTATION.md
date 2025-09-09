@@ -1,5 +1,27 @@
 # Property Management Business Logic Documentation
 
+> **Last Updated**: 2025-09-07T02:46:22.836Z (Auto-generated)
+
+> **Last Updated**: 2025-09-07T02:45:29.077Z (Auto-generated)
+
+> **Last Updated**: 2025-09-07T01:50:49.064Z (Auto-generated)
+
+> **Last Updated**: 2025-09-06T23:17:54.648Z (Auto-generated)
+
+> **Last Updated**: 2025-09-06T03:12:46.057Z (Auto-generated)
+
+> **Last Updated**: 2025-09-06T02:31:57.421Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T22:24:48.444Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:33:06.242Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:32:42.964Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:14:14.580Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:13:20.500Z (Auto-generated)
+
 > **Last Updated**: 2025-08-28T06:09:12.938Z (Auto-generated)
 
 > **Last Updated**: 2025-08-28T06:00:33.684Z (Auto-generated)
@@ -61,7 +83,7 @@ multi-owner property management, financial calculations, and property-unit relat
 CREATE TABLE properties (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name VARCHAR(127) NOT NULL,
-  rental_sub_type rental_sub_type_enum NOT NULL,
+  property_type property_type_enum,
   operating_bank_account_id INTEGER NOT NULL,
   reserve NUMERIC(12,2) CHECK (reserve >= 0),
   -- Address fields with validation

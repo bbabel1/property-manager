@@ -41,7 +41,7 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
   "state": "CA",
   "postal_code": "12345",
   "country": "US",
-  "rental_sub_type": "MultiFamily",
+  "property_type": "Mult-Family",
   "operating_bank_account_id": 123,
   "reserve": 5000.00,
   "year_built": 2020
@@ -333,7 +333,7 @@ Property
 **1. Property Creation Fails**
 - Check that operating_bank_account_id exists
 - Ensure all required address fields are provided
-- Verify rental_sub_type is valid
+- Verify property_type is valid
 
 **2. Unit Creation Fails**
 - Ensure property_id exists and is valid

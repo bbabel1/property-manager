@@ -18,19 +18,22 @@ interface BuildiumWebhookPayload {
 // Buildium API Client for lease transactions
 class BuildiumClient {
   private baseUrl: string
-  private apiKey: string
+  private clientId: string
+  private clientSecret: string
 
   constructor() {
     this.baseUrl = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1'
-    this.apiKey = Deno.env.get('BUILDIUM_CLIENT_SECRET') || Deno.env.get('BUILDIUM_API_KEY') || ''
+    this.clientId = Deno.env.get('BUILDIUM_CLIENT_ID') || ''
+    this.clientSecret = Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'x-buildium-client-id': this.clientId,
+      'x-buildium-client-secret': this.clientSecret
     }
 
     const response = await fetch(url, { method, headers })
@@ -42,25 +45,29 @@ class BuildiumClient {
     return response.json()
   }
 
-  async getLeaseTransaction(id: number): Promise<any> {
-    return this.makeRequest('GET', `/leases/transactions/${id}`)
+  async getLeaseTransaction(leaseId: number, id: number): Promise<any> {
+    return this.makeRequest('GET', `/leases/${leaseId}/transactions/${id}`)
   }
 }
 
-// Data mapping function for lease transactions
+// Data mapping function for lease transactions -> transactions table
 function mapLeaseTransactionFromBuildium(buildiumTransaction: any): any {
+  const txType = buildiumTransaction?.TransactionTypeEnum || buildiumTransaction?.TransactionType
+  const amount = typeof buildiumTransaction?.TotalAmount === 'number' ? buildiumTransaction.TotalAmount : (buildiumTransaction?.Amount ?? 0)
+  const date = buildiumTransaction?.Date || buildiumTransaction?.TransactionDate || buildiumTransaction?.PostDate
+
   return {
-    lease_id: buildiumTransaction.LeaseId,
-    transaction_type: buildiumTransaction.TransactionType,
-    amount: buildiumTransaction.Amount,
-    date: buildiumTransaction.Date,
-    description: buildiumTransaction.Description,
-    reference_number: buildiumTransaction.ReferenceNumber,
-    payment_method: buildiumTransaction.PaymentMethod,
-    is_active: buildiumTransaction.IsActive,
-    buildium_transaction_id: buildiumTransaction.Id,
-    buildium_created_at: buildiumTransaction.CreatedDate,
-    buildium_updated_at: buildiumTransaction.ModifiedDate
+    buildium_transaction_id: buildiumTransaction?.Id,
+    date: (date || new Date().toISOString()).slice(0, 10),
+    transaction_type: txType,
+    total_amount: Number(amount || 0),
+    check_number: buildiumTransaction?.CheckNumber ?? null,
+    memo: buildiumTransaction?.Memo || buildiumTransaction?.Journal?.Memo || null,
+    buildium_lease_id: buildiumTransaction?.LeaseId ?? null,
+    payee_tenant_id: buildiumTransaction?.PayeeTenantId ?? null,
+    // payment_method is an enum locally; leave null here to avoid mismatch
+    payment_method: null,
+    updated_at: new Date().toISOString(),
   }
 }
 
@@ -227,20 +234,21 @@ async function processLeaseTransactionEvent(
     console.log('Processing lease transaction event:', event.EventType, 'for entity:', event.EntityId)
     
     if (event.EventType === 'LeaseTransactionDeleted') {
-      // Handle deletion - mark as inactive
+      // Handle deletion - no hard delete; cannot reliably map without more info
+      // Leave a breadcrumb in transactions (optional: set memo)
       const { data: existingTransaction } = await supabase
-        .from('lease_transactions')
+        .from('transactions')
         .select('id')
         .eq('buildium_transaction_id', event.EntityId)
         .single()
 
       if (existingTransaction) {
         await supabase
-          .from('lease_transactions')
-          .update({ is_active: false, buildium_updated_at: new Date().toISOString() })
+          .from('transactions')
+          .update({ memo: 'Buildium LeaseTransactionDeleted', updated_at: new Date().toISOString() })
           .eq('id', existingTransaction.id)
 
-        console.log('Lease transaction marked as inactive:', existingTransaction.id)
+        console.log('Lease transaction flagged as deleted:', existingTransaction.id)
         return { success: true }
       }
       
@@ -248,14 +256,19 @@ async function processLeaseTransactionEvent(
     }
 
     // Fetch the full transaction data from Buildium
-    const transaction = await buildiumClient.getLeaseTransaction(event.EntityId)
+    const leaseId = (event as any)?.Data?.LeaseId
+    if (!leaseId) {
+      console.warn('LeaseId missing on webhook event; cannot fetch transaction', event)
+      return { success: false, error: 'LeaseId missing on webhook event' }
+    }
+    const transaction = await buildiumClient.getLeaseTransaction(leaseId, event.EntityId)
     
     // Map to local format
     const localData = mapLeaseTransactionFromBuildium(transaction)
 
     // Check if transaction already exists locally
     const { data: existingTransaction } = await supabase
-      .from('lease_transactions')
+      .from('transactions')
       .select('id')
       .eq('buildium_transaction_id', transaction.Id)
       .single()
@@ -263,7 +276,7 @@ async function processLeaseTransactionEvent(
     if (existingTransaction) {
       // Update existing transaction
       await supabase
-        .from('lease_transactions')
+        .from('transactions')
         .update(localData)
         .eq('id', existingTransaction.id)
 
@@ -272,8 +285,8 @@ async function processLeaseTransactionEvent(
     } else {
       // Create new transaction
       const { data: newTransaction, error } = await supabase
-        .from('lease_transactions')
-        .insert(localData)
+        .from('transactions')
+        .insert({ ...localData, created_at: new Date().toISOString() })
         .select()
         .single()
 

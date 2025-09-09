@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Last Updated**: 2025-08-28T06:09:12.915Z (Auto-generated)
+> **Last Updated**: 2025-09-07T02:46:22.789Z (Auto-generated)
 
 ## Overview
 
@@ -24,7 +24,7 @@ This document provides a comprehensive overview of the Supabase database schema 
 **Description**: Remove check printing and information fields, make key fields non-nullable
 
 ### 006_update_gl_accounts_field_mapping.sql
-**Description**: Rename parent_gl_account_id to buildium_parent_gl_account_id for proper Buildium field mapping
+**Description**: No description available
 
 ### 007_add_building_name_to_units.sql
 **Description**: No description available
@@ -47,13 +47,28 @@ This document provides a comprehensive overview of the Supabase database schema 
 ### 013_add_buildium_unit_id_to_lease.sql
 **Description**: Add buildium_unit_id field to lease table for direct unit reference
 
+### 044_add_vacant_units_count_to_properties.sql
+**Description**: Adds a computed column that tracks the count of units with status 'Vacant' for each property
+
+### 045_fix_properties_updated_at_default.sql
+**Description**: No description available
+
+### 20250103000000_fix_property_unit_counts.sql
+**Description**: No description available
+
+### 20250103000001_remove_vacant_units_count.sql
+**Description**: No description available
+
 ### 20250826233007_add_sub_accounts_to_gl_accounts.sql
 **Description**: Add sub_accounts field as UUID array to store child GL account references
 
 ### 20250828032609_add_data_integrity_functions.sql
 **Description**: No description available
 
-### 20250828013805_remote_drift_check.sql.sql
+### 20250828054100_rename_transactions_columns_to_snake_case.sql
+**Description**: No description available
+
+### 20250828054110_rename_staff_and_lease_columns_to_snake_case.sql
 **Description**: No description available
 
 ### 20250828060000_non_destructive_remote_alignment.sql
@@ -71,10 +86,103 @@ This document provides a comprehensive overview of the Supabase database schema 
 ### 20250828073000_normalize_countries_and_convert_to_enum.sql
 **Description**: No description available
 
+### 20250828134000_add_buildium_lease_id_to_transactions.sql
+**Description**: Adds a nullable integer column `buildium_lease_id` to `public.transactions`
+
+### 20250828143500_add_payment_method_enum_and_alter_transactions.sql
+**Description**: Normalizes payment methods and converts column from text to enum, mapping known values and setting unknowns to NULL
+
+### 20250828143600_drop_buildium_journal_id_from_transaction_lines.sql
+**Description**: Field no longer needed per requirements
+
+### 20250829010000_gl_journal_entry_and_sync_cursor.sql
+**Description**: No description available
+
+### 20250829013000_gl_reporting_views.sql
+**Description**: No description available
+
+### 20250829014500_bank_accounts_country_and_indexes.sql
+**Description**: No description available
+
+### 20250829021000_bank_account_type_check_constraint.sql
+**Description**: No description available
+
+### 20250829024550_add_unit_images_and_notes.sql
+**Description**: No description available
+
+### 20250829120000_update_vendors_schema_add_fields_remove_legacy.sql
+**Description**: No description available
+
+### 20250829123000_add_expense_gl_account_id_to_vendors.sql
+**Description**: No description available
+
+### 20250829124500_update_vendors_category_fields.sql
+**Description**: No description available
+
+### 20250829131500_add_vendor_contact_fk.sql
+**Description**: No description available
+
+### 20250829133000_require_vendors_contact_id.sql
+**Description**: No description available
+
+### 20250829140000_tasks_categories_and_relationships.sql
+**Description**: No description available
+
+### 20250829150000_add_appliance_buildium_and_service_history.sql
+**Description**: No description available
+
+### 20250829153000_tenants_sms_bool_and_tenant_notes.sql
+**Description**: No description available
+
+### 20250829154500_add_property_id_to_appliances.sql
+**Description**: No description available
+
+### 20250829180000_bank_accounts_extend_for_buildium.sql
+**Description**: No description available
+
+### 20250829181000_update_gl_accounts_field_mapping.sql
+**Description**: Rename parent_gl_account_id to buildium_parent_gl_account_id for proper Buildium field mapping
+
+### 20250829190000_owner_indexes.sql
+**Description**: No description available
+
+### 20250829190500_add_lease_notes_and_recurring.sql
+**Description**: No description available
+
+### 20250902090000_add_indexes_for_lease_transactions.sql
+**Description**: No description available
+
+### 20250904180100_add_more_unit_counts_to_properties.sql
+**Description**: No description available
+
+### 20250904_add_total_vacant_units_to_properties.sql
+**Description**: Adds total_vacant_units integer column and reuses the existing
+
+### 20250905010000_remove_vacant_units_count_and_add_occupancy_rate.sql
+**Description**: No description available
+
+### 20250905011000_remove_vacant_units_count.sql
+**Description**: No description available
+
+### 20250905013000_drop_square_footage_from_units.sql
+**Description**: No description available
+
+### 20250906000000_create_property_staff.sql
+**Description**: No description available
+
+### 20250906001000_add_location_fields_to_properties.sql
+**Description**: No description available
+
+### 20250906002000_add_property_type_enum_and_convert.sql
+**Description**: No description available
+
+### 20250906003000_drop_rental_sub_type.sql
+**Description**: No description available
+
 
 ## Current Schema Status
 
-- **Total Migrations**: 21
+- **Total Migrations**: 57
 - **Database Provider**: PostgreSQL via Supabase
 - **ORM**: Direct Supabase client operations
 - **Security**: Row Level Security (RLS) enabled on all tables

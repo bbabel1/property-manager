@@ -1,5 +1,27 @@
 # Supabase API Documentation
 
+> **Last Updated**: 2025-09-07T02:46:22.785Z (Auto-generated)
+
+> **Last Updated**: 2025-09-07T02:45:29.018Z (Auto-generated)
+
+> **Last Updated**: 2025-09-07T01:50:49.023Z (Auto-generated)
+
+> **Last Updated**: 2025-09-06T23:17:54.597Z (Auto-generated)
+
+> **Last Updated**: 2025-09-06T03:12:46.021Z (Auto-generated)
+
+> **Last Updated**: 2025-09-06T02:31:57.374Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T22:24:48.418Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:33:06.231Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:32:42.944Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:14:14.545Z (Auto-generated)
+
+> **Last Updated**: 2025-08-28T17:13:20.479Z (Auto-generated)
+
 > **Last Updated**: 2025-08-28T06:09:12.911Z (Auto-generated)
 
 > **Last Updated**: 2025-08-28T06:00:33.664Z (Auto-generated)
@@ -60,11 +82,8 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 
 ### Authentication
 
-- **Current State**: NextAuth SessionProvider (hybrid setup)
-
-- **Database**: Supabase Auth configured but not actively used
-
-- **API Security**: Service role key for admin operations
+- **Current State**: Supabase Auth with SSR helpers (`@supabase/ssr`) and middleware
+- **API Security**: Cookie-based session; service role used only server-side where required
 
 ### Error Handling
 
@@ -109,7 +128,7 @@ Creates a new property with optional ownership and staff assignments.
 
 {
   // Required fields
-  rentalSubType: RentalSubTypeEnum;
+  propertyType: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
   name: string;
   addressLine1: string;
   city: string;
@@ -182,7 +201,7 @@ curl -X POST /api/properties \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Sunset Apartments",
-    "rentalSubType": "MultiFamily",
+    "propertyType": "Mult-Family",
     "addressLine1": "123 Main St",
     "city": "Portland",
     "state": "OR",
@@ -223,7 +242,7 @@ Array<{
   // Property fields
   id: string;
   name: string;
-  rental_sub_type: RentalSubTypeEnum;
+  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
   address_line1: string;
   // ... other property fields
 
@@ -398,7 +417,7 @@ CREATE POLICY "Users can only see their properties" ON properties
 // Type definitions ensure compile-time validation
 interface CreatePropertyRequest {
   name: string;
-  rental_sub_type: RentalSubTypeEnum;
+  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
   // ... other fields with proper types
 }
 
@@ -425,7 +444,7 @@ CHECK (disbursement_percentage >= 0 AND disbursement_percentage <= 100)
 ```typescript
 
 // Required field validation
-if (!rentalSubType || !name || !addressLine1 || !city || !state || !postalCode || !country) {
+if (!propertyType || !name || !addressLine1 || !city || !state || !postalCode || !country) {
   return NextResponse.json(
     { error: 'Missing required fields' },
     { status: 400 }
@@ -478,7 +497,7 @@ All frequently queried columns have indexes:
 
 -- Property indexes for common queries
 CREATE INDEX idx_properties_name ON properties(name);
-CREATE INDEX idx_properties_rental_sub_type ON properties(rental_sub_type);
+CREATE INDEX idx_properties_type ON properties(property_type);
 CREATE INDEX idx_properties_city ON properties(city);
 
 -- Composite indexes for complex queries

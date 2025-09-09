@@ -2,8 +2,7 @@
 
 A modern, enterprise-grade property management system built with Next.js 15, TypeScript, and Supabase.
 
-⚠️ **Migration Status**: This system is currently in **hybrid architecture state** (~80% migrated from Prisma/NextAuth
-to pure Supabase). See [Migration Status](docs/architecture/MIGRATION_STATUS_AND_ROADMAP.md) for details.
+⚠️ **Migration Status**: Authentication is now consolidated on Supabase Auth. Remaining references to NextAuth in docs/env have been removed.
 
 ## Quick Start
 
@@ -67,7 +66,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 - **Financial Calculations**: Track ownership and disbursement percentages
 
-- **Authentication**: Secure authentication with NextAuth.js and Supabase
+- **Authentication**: Secure authentication with Supabase Auth (email/password, magic links, OAuth)
 
 ## Tech Stack
 
@@ -77,7 +76,9 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 - **Database**: Supabase (PostgreSQL)
 
-- **Authentication**: NextAuth.js with Supabase
+- **Authentication**: Supabase Auth
+- **State Management**: Zustand (global app store)
+- **Monitoring**: Optional Sentry for errors and performance
 
 - **Styling**: Tailwind CSS
 
@@ -101,8 +102,7 @@ Required environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for server-side operations)
-- `NEXTAUTH_URL` - Your app URL (<http://localhost:3000> for development)
-- `NEXTAUTH_SECRET` - Random string for JWT encryption
+  (NextAuth variables removed)
 
 ## Project Structure
 

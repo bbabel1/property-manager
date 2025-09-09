@@ -18,24 +18,23 @@ export async function GET(request: NextRequest) {
       .from('staff')
       .select(`
         id,
-        first_name,
-        last_name,
-        email,
-        phone,
         role,
         is_active,
         created_at,
-        updated_at
+        updated_at,
+        buildium_user_id
       `)
       .eq('is_active', true)
-      .order('last_name', { ascending: true })
-      .order('first_name', { ascending: true })
+      .not('buildium_user_id', 'is', null)
+      .order('id', { ascending: true })
 
     if (error) {
       console.error('Error fetching staff:', error)
-      // If the table doesn't exist, return empty array instead of error
-      if (error.message.includes('does not exist') || error.message.includes('Could not find the table')) {
-        console.log('Staff table not found, returning empty array')
+      // If schema/columns are missing or table is absent, return an empty list for dev
+      const msg = String(error.message || '')
+      const code = (error as any).code
+      if (code === '42703' || msg.includes('does not exist') || msg.includes('Could not find the table')) {
+        console.log('Staff schema incomplete or table missing, returning empty array')
         return NextResponse.json([])
       }
       return NextResponse.json(
@@ -47,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Transform data to include display name
     const transformedStaff = staff?.map(member => ({
       ...member,
-      displayName: `${member.first_name} ${member.last_name}`.trim()
+      displayName: `Staff ${member.id}` // Since we don't have name fields, use ID
     })) || []
 
     return NextResponse.json(transformedStaff)

@@ -34,15 +34,70 @@ export type Database = {
   }
   public: {
     Tables: {
+      appliance_service_history: {
+        Row: {
+          appliance_id: string
+          buildium_service_history_id: number | null
+          cost: number | null
+          created_at: string
+          description: string | null
+          id: string
+          notes: string | null
+          service_date: string
+          service_type: Database["public"]["Enums"]["appliance_service_type_enum"]
+          updated_at: string
+          vendor_name: string | null
+        }
+        Insert: {
+          appliance_id: string
+          buildium_service_history_id?: number | null
+          cost?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          service_date: string
+          service_type: Database["public"]["Enums"]["appliance_service_type_enum"]
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Update: {
+          appliance_id?: string
+          buildium_service_history_id?: number | null
+          cost?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          notes?: string | null
+          service_date?: string
+          service_type?: Database["public"]["Enums"]["appliance_service_type_enum"]
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appliance_service_history_appliance_id_fkey"
+            columns: ["appliance_id"]
+            isOneToOne: false
+            referencedRelation: "appliances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appliances: {
         Row: {
+          buildium_appliance_id: number | null
           created_at: string
+          description: string | null
           id: string
+          installation_date: string | null
+          is_active: boolean | null
           last_service_date: string | null
           manufacturer: string | null
           model_number: string | null
           name: string
           notes: string | null
+          property_id: string | null
           serial_number: string | null
           type: string
           unit_id: string
@@ -50,13 +105,18 @@ export type Database = {
           warranty_expiration_date: string | null
         }
         Insert: {
+          buildium_appliance_id?: number | null
           created_at?: string
+          description?: string | null
           id?: string
+          installation_date?: string | null
+          is_active?: boolean | null
           last_service_date?: string | null
           manufacturer?: string | null
           model_number?: string | null
           name: string
           notes?: string | null
+          property_id?: string | null
           serial_number?: string | null
           type: string
           unit_id: string
@@ -64,13 +124,18 @@ export type Database = {
           warranty_expiration_date?: string | null
         }
         Update: {
+          buildium_appliance_id?: number | null
           created_at?: string
+          description?: string | null
           id?: string
+          installation_date?: string | null
+          is_active?: boolean | null
           last_service_date?: string | null
           manufacturer?: string | null
           model_number?: string | null
           name?: string
           notes?: string | null
+          property_id?: string | null
           serial_number?: string | null
           type?: string
           unit_id?: string
@@ -78,6 +143,13 @@ export type Database = {
           warranty_expiration_date?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "appliances_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appliances_unit_id_fkey"
             columns: ["unit_id"]
@@ -91,14 +163,21 @@ export type Database = {
         Row: {
           account_number: string | null
           balance: number | null
-          bank_account_type: string
+          bank_account_type:
+            | Database["public"]["Enums"]["bank_account_type_enum"]
+            | null
           buildium_balance: number | null
           buildium_bank_id: number
+          check_printing_info: Json | null
+          country: Database["public"]["Enums"]["countries"]
           created_at: string
           description: string | null
+          electronic_payments: Json | null
           gl_account: string
           id: string
           is_active: boolean
+          last_source: Database["public"]["Enums"]["sync_source_enum"] | null
+          last_source_ts: string | null
           name: string
           routing_number: string | null
           updated_at: string
@@ -106,14 +185,21 @@ export type Database = {
         Insert: {
           account_number?: string | null
           balance?: number | null
-          bank_account_type: string
+          bank_account_type?:
+            | Database["public"]["Enums"]["bank_account_type_enum"]
+            | null
           buildium_balance?: number | null
           buildium_bank_id: number
+          check_printing_info?: Json | null
+          country?: Database["public"]["Enums"]["countries"]
           created_at?: string
           description?: string | null
+          electronic_payments?: Json | null
           gl_account: string
           id?: string
           is_active?: boolean
+          last_source?: Database["public"]["Enums"]["sync_source_enum"] | null
+          last_source_ts?: string | null
           name: string
           routing_number?: string | null
           updated_at: string
@@ -121,14 +207,21 @@ export type Database = {
         Update: {
           account_number?: string | null
           balance?: number | null
-          bank_account_type?: string
+          bank_account_type?:
+            | Database["public"]["Enums"]["bank_account_type_enum"]
+            | null
           buildium_balance?: number | null
           buildium_bank_id?: number
+          check_printing_info?: Json | null
+          country?: Database["public"]["Enums"]["countries"]
           created_at?: string
           description?: string | null
+          electronic_payments?: Json | null
           gl_account?: string
           id?: string
           is_active?: boolean
+          last_source?: Database["public"]["Enums"]["sync_source_enum"] | null
+          last_source_ts?: string | null
           name?: string
           routing_number?: string | null
           updated_at?: string
@@ -140,6 +233,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_gl_account_fkey"
+            columns: ["gl_account"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
           },
         ]
       }
@@ -328,6 +428,7 @@ export type Database = {
           alt_phone: string | null
           alt_postal_code: string | null
           alt_state: string | null
+          buildium_contact_id: number | null
           company_name: string | null
           created_at: string
           date_of_birth: string | null
@@ -358,6 +459,7 @@ export type Database = {
           alt_phone?: string | null
           alt_postal_code?: string | null
           alt_state?: string | null
+          buildium_contact_id?: number | null
           company_name?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -388,6 +490,7 @@ export type Database = {
           alt_phone?: string | null
           alt_postal_code?: string | null
           alt_state?: string | null
+          buildium_contact_id?: number | null
           company_name?: string | null
           created_at?: string
           date_of_birth?: string | null
@@ -476,6 +579,27 @@ export type Database = {
         }
         Relationships: []
       }
+      gl_import_cursors: {
+        Row: {
+          key: string
+          last_imported_at: string
+          updated_at: string
+          window_days: number
+        }
+        Insert: {
+          key: string
+          last_imported_at?: string
+          updated_at?: string
+          window_days?: number
+        }
+        Update: {
+          key?: string
+          last_imported_at?: string
+          updated_at?: string
+          window_days?: number
+        }
+        Relationships: []
+      }
       inspections: {
         Row: {
           created_at: string
@@ -520,6 +644,50 @@ export type Database = {
           },
         ]
       }
+      journal_entries: {
+        Row: {
+          buildium_gl_entry_id: number | null
+          check_number: string | null
+          created_at: string
+          date: string
+          id: string
+          memo: string | null
+          total_amount: number
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          buildium_gl_entry_id?: number | null
+          check_number?: string | null
+          created_at?: string
+          date: string
+          id?: string
+          memo?: string | null
+          total_amount?: number
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          buildium_gl_entry_id?: number | null
+          check_number?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          memo?: string | null
+          total_amount?: number
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey1"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lease: {
         Row: {
           automatically_move_out_tenants: boolean | null
@@ -537,14 +705,14 @@ export type Database = {
           lease_to_date: string | null
           lease_type: string | null
           payment_due_day: number | null
-          propertyId: string
+          property_id: string
           renewal_offer_status: string | null
           rent_amount: number | null
           security_deposit: number | null
           status: string
           term_type: string | null
+          unit_id: string
           unit_number: string | null
-          unitId: string
           updated_at: string
         }
         Insert: {
@@ -563,14 +731,14 @@ export type Database = {
           lease_to_date?: string | null
           lease_type?: string | null
           payment_due_day?: number | null
-          propertyId: string
+          property_id: string
           renewal_offer_status?: string | null
           rent_amount?: number | null
           security_deposit?: number | null
           status?: string
           term_type?: string | null
+          unit_id: string
           unit_number?: string | null
-          unitId: string
           updated_at: string
         }
         Update: {
@@ -589,27 +757,27 @@ export type Database = {
           lease_to_date?: string | null
           lease_type?: string | null
           payment_due_day?: number | null
-          propertyId?: string
+          property_id?: string
           renewal_offer_status?: string | null
           rent_amount?: number | null
           security_deposit?: number | null
           status?: string
           term_type?: string | null
+          unit_id?: string
           unit_number?: string | null
-          unitId?: string
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "Lease_propertyId_fkey"
-            columns: ["propertyId"]
+            columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "Lease_unitId_fkey"
-            columns: ["unitId"]
+            columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
             referencedColumns: ["id"]
@@ -669,6 +837,100 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lease_notes: {
+        Row: {
+          body: string | null
+          buildium_lease_id: number | null
+          buildium_note_id: number | null
+          created_at: string | null
+          id: string
+          is_private: boolean | null
+          lease_id: number
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body?: string | null
+          buildium_lease_id?: number | null
+          buildium_note_id?: number | null
+          created_at?: string | null
+          id?: string
+          is_private?: boolean | null
+          lease_id: number
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string | null
+          buildium_lease_id?: number | null
+          buildium_note_id?: number | null
+          created_at?: string | null
+          id?: string
+          is_private?: boolean | null
+          lease_id?: number
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_notes_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lease_recurring_transactions: {
+        Row: {
+          amount: number | null
+          buildium_lease_id: number | null
+          buildium_recurring_id: number | null
+          created_at: string | null
+          description: string | null
+          end_date: string | null
+          frequency: string | null
+          id: string
+          lease_id: number
+          start_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          buildium_lease_id?: number | null
+          buildium_recurring_id?: number | null
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string | null
+          id?: string
+          lease_id: number
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          buildium_lease_id?: number | null
+          buildium_recurring_id?: number | null
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          frequency?: string | null
+          id?: string
+          lease_id?: number
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_recurring_transactions_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
             referencedColumns: ["id"]
           },
         ]
@@ -869,6 +1131,7 @@ export type Database = {
           address_line1: string
           address_line2: string | null
           address_line3: string | null
+          borough: string | null
           buildium_created_at: string | null
           buildium_property_id: number | null
           buildium_updated_at: string | null
@@ -878,19 +1141,29 @@ export type Database = {
           deposit_trust_account_id: string | null
           id: string
           is_active: boolean | null
+          latitude: number | null
+          location_verified: boolean | null
+          longitude: number | null
           name: string
+          neighborhood: string | null
+          occupancy_rate: number | null
           operating_bank_account_id: string | null
           postal_code: string
           primary_owner: string | null
-          property_type: string | null
+          property_type:
+            | Database["public"]["Enums"]["property_type_enum"]
+            | null
           rental_owner_ids: number[] | null
-          rental_sub_type: string | null
           rental_type: string | null
           reserve: number | null
           state: string | null
           status: Database["public"]["Enums"]["property_status"]
           structure_description: string | null
+          total_active_units: number
+          total_inactive_units: number
+          total_occupied_units: number
           total_units: number
+          total_vacant_units: number
           updated_at: string
           year_built: number | null
         }
@@ -898,6 +1171,7 @@ export type Database = {
           address_line1: string
           address_line2?: string | null
           address_line3?: string | null
+          borough?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
           buildium_updated_at?: string | null
@@ -907,26 +1181,37 @@ export type Database = {
           deposit_trust_account_id?: string | null
           id?: string
           is_active?: boolean | null
+          latitude?: number | null
+          location_verified?: boolean | null
+          longitude?: number | null
           name: string
+          neighborhood?: string | null
+          occupancy_rate?: number | null
           operating_bank_account_id?: string | null
           postal_code: string
           primary_owner?: string | null
-          property_type?: string | null
+          property_type?:
+            | Database["public"]["Enums"]["property_type_enum"]
+            | null
           rental_owner_ids?: number[] | null
-          rental_sub_type?: string | null
           rental_type?: string | null
           reserve?: number | null
           state?: string | null
           status?: Database["public"]["Enums"]["property_status"]
           structure_description?: string | null
+          total_active_units?: number
+          total_inactive_units?: number
+          total_occupied_units?: number
           total_units?: number
-          updated_at: string
+          total_vacant_units?: number
+          updated_at?: string
           year_built?: number | null
         }
         Update: {
           address_line1?: string
           address_line2?: string | null
           address_line3?: string | null
+          borough?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
           buildium_updated_at?: string | null
@@ -936,19 +1221,29 @@ export type Database = {
           deposit_trust_account_id?: string | null
           id?: string
           is_active?: boolean | null
+          latitude?: number | null
+          location_verified?: boolean | null
+          longitude?: number | null
           name?: string
+          neighborhood?: string | null
+          occupancy_rate?: number | null
           operating_bank_account_id?: string | null
           postal_code?: string
           primary_owner?: string | null
-          property_type?: string | null
+          property_type?:
+            | Database["public"]["Enums"]["property_type_enum"]
+            | null
           rental_owner_ids?: number[] | null
-          rental_sub_type?: string | null
           rental_type?: string | null
           reserve?: number | null
           state?: string | null
           status?: Database["public"]["Enums"]["property_status"]
           structure_description?: string | null
+          total_active_units?: number
+          total_inactive_units?: number
+          total_occupied_units?: number
           total_units?: number
+          total_vacant_units?: number
           updated_at?: string
           year_built?: number | null
         }
@@ -1008,6 +1303,45 @@ export type Database = {
         }
         Relationships: []
       }
+      property_staff: {
+        Row: {
+          created_at: string
+          property_id: string
+          role: string
+          staff_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          property_id: string
+          role?: string
+          staff_id: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          property_id?: string
+          role?: string
+          staff_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_staff_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_staff_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_schedules: {
         Row: {
           backdate_charges: boolean
@@ -1060,7 +1394,7 @@ export type Database = {
           buildium_user_id: number | null
           created_at: string
           id: number
-          isActive: boolean
+          is_active: boolean
           role: string
           updated_at: string
         }
@@ -1068,7 +1402,7 @@ export type Database = {
           buildium_user_id?: number | null
           created_at?: string
           id?: number
-          isActive?: boolean
+          is_active?: boolean
           role?: string
           updated_at: string
         }
@@ -1076,7 +1410,7 @@ export type Database = {
           buildium_user_id?: number | null
           created_at?: string
           id?: number
-          isActive?: boolean
+          is_active?: boolean
           role?: string
           updated_at?: string
         }
@@ -1133,35 +1467,49 @@ export type Database = {
       task_categories: {
         Row: {
           buildium_category_id: number | null
+          buildium_subcategory_id: number | null
           color: string | null
           created_at: string | null
           description: string | null
           id: string
           is_active: boolean | null
           name: string
+          parent_id: string | null
           updated_at: string | null
         }
         Insert: {
           buildium_category_id?: number | null
+          buildium_subcategory_id?: number | null
           color?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          parent_id?: string | null
           updated_at?: string | null
         }
         Update: {
           buildium_category_id?: number | null
+          buildium_subcategory_id?: number | null
           color?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          parent_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "task_categories_parent_fk"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_history: {
         Row: {
@@ -1258,61 +1606,127 @@ export type Database = {
         Row: {
           actual_cost: number | null
           assigned_to: string | null
+          assigned_to_staff_id: number | null
+          buildium_assigned_to_user_id: number | null
+          buildium_lease_id: number | null
+          buildium_owner_id: number | null
+          buildium_property_id: number | null
           buildium_task_id: number | null
+          buildium_tenant_id: number | null
+          buildium_unit_id: number | null
           category: string | null
           completed_date: string | null
           created_at: string | null
           description: string | null
           estimated_cost: number | null
           id: string
+          lease_id: number | null
           notes: string | null
+          owner_id: string | null
           priority: string | null
           property_id: string | null
+          requested_by_buildium_id: number | null
+          requested_by_contact_id: number | null
+          requested_by_type: string | null
           scheduled_date: string | null
           status: string | null
           subject: string
+          task_category_id: string | null
+          task_kind: Database["public"]["Enums"]["task_kind_enum"] | null
+          tenant_id: string | null
           unit_id: string | null
           updated_at: string | null
         }
         Insert: {
           actual_cost?: number | null
           assigned_to?: string | null
+          assigned_to_staff_id?: number | null
+          buildium_assigned_to_user_id?: number | null
+          buildium_lease_id?: number | null
+          buildium_owner_id?: number | null
+          buildium_property_id?: number | null
           buildium_task_id?: number | null
+          buildium_tenant_id?: number | null
+          buildium_unit_id?: number | null
           category?: string | null
           completed_date?: string | null
           created_at?: string | null
           description?: string | null
           estimated_cost?: number | null
           id?: string
+          lease_id?: number | null
           notes?: string | null
+          owner_id?: string | null
           priority?: string | null
           property_id?: string | null
+          requested_by_buildium_id?: number | null
+          requested_by_contact_id?: number | null
+          requested_by_type?: string | null
           scheduled_date?: string | null
           status?: string | null
           subject: string
+          task_category_id?: string | null
+          task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
+          tenant_id?: string | null
           unit_id?: string | null
           updated_at?: string | null
         }
         Update: {
           actual_cost?: number | null
           assigned_to?: string | null
+          assigned_to_staff_id?: number | null
+          buildium_assigned_to_user_id?: number | null
+          buildium_lease_id?: number | null
+          buildium_owner_id?: number | null
+          buildium_property_id?: number | null
           buildium_task_id?: number | null
+          buildium_tenant_id?: number | null
+          buildium_unit_id?: number | null
           category?: string | null
           completed_date?: string | null
           created_at?: string | null
           description?: string | null
           estimated_cost?: number | null
           id?: string
+          lease_id?: number | null
           notes?: string | null
+          owner_id?: string | null
           priority?: string | null
           property_id?: string | null
+          requested_by_buildium_id?: number | null
+          requested_by_contact_id?: number | null
+          requested_by_type?: string | null
           scheduled_date?: string | null
           status?: string | null
           subject?: string
+          task_category_id?: string | null
+          task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
+          tenant_id?: string | null
           unit_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_staff_fk"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_lease_fk"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_owner_fk"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_property_id_fkey"
             columns: ["property_id"]
@@ -1321,10 +1735,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_requested_by_contact_fk"
+            columns: ["requested_by_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_task_category_fk"
+            columns: ["task_category_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_tenant_fk"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasks_unit_id_fkey"
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_notes: {
+        Row: {
+          buildium_created_at: string | null
+          buildium_note_id: number | null
+          buildium_tenant_id: number | null
+          buildium_updated_at: string | null
+          created_at: string
+          id: string
+          note: string | null
+          subject: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          buildium_created_at?: string | null
+          buildium_note_id?: number | null
+          buildium_tenant_id?: number | null
+          buildium_updated_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          subject?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          buildium_created_at?: string | null
+          buildium_note_id?: number | null
+          buildium_tenant_id?: number | null
+          buildium_updated_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          subject?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -1340,7 +1822,7 @@ export type Database = {
           emergency_contact_phone: string | null
           emergency_contact_relationship: string | null
           id: string
-          sms_opt_in_status: string | null
+          sms_opt_in_status: boolean | null
           tax_id: string | null
           updated_at: string
         }
@@ -1354,7 +1836,7 @@ export type Database = {
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           id?: string
-          sms_opt_in_status?: string | null
+          sms_opt_in_status?: boolean | null
           tax_id?: string | null
           updated_at: string
         }
@@ -1368,7 +1850,7 @@ export type Database = {
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           id?: string
-          sms_opt_in_status?: string | null
+          sms_opt_in_status?: boolean | null
           tax_id?: string | null
           updated_at?: string
         }
@@ -1387,7 +1869,6 @@ export type Database = {
           account_entity_id: number | null
           account_entity_type: Database["public"]["Enums"]["entity_type_enum"]
           amount: number | null
-          buildium_journal_id: number | null
           buildium_lease_id: number | null
           buildium_property_id: number | null
           buildium_unit_id: number | null
@@ -1407,7 +1888,6 @@ export type Database = {
           account_entity_id?: number | null
           account_entity_type: Database["public"]["Enums"]["entity_type_enum"]
           amount?: number | null
-          buildium_journal_id?: number | null
           buildium_lease_id?: number | null
           buildium_property_id?: number | null
           buildium_unit_id?: number | null
@@ -1427,7 +1907,6 @@ export type Database = {
           account_entity_id?: number | null
           account_entity_type?: Database["public"]["Enums"]["entity_type_enum"]
           amount?: number | null
-          buildium_journal_id?: number | null
           buildium_lease_id?: number | null
           buildium_property_id?: number | null
           buildium_unit_id?: number | null
@@ -1450,6 +1929,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "journal_entries_lease_id_fkey"
@@ -1484,67 +1970,76 @@ export type Database = {
       transactions: {
         Row: {
           buildium_bill_id: number | null
+          buildium_lease_id: number | null
           buildium_transaction_id: number | null
           category_id: string | null
-          CheckNumber: string | null
+          check_number: string | null
           created_at: string
-          Date: string
+          date: string
           due_date: string | null
           id: string
           is_recurring: boolean | null
           lease_id: number | null
-          Memo: string | null
-          PayeeTenantId: number | null
-          PaymentMethod: string | null
+          memo: string | null
+          payee_tenant_id: number | null
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           recurring_schedule: Json | null
           reference_number: string | null
           status: string | null
-          TotalAmount: number
-          TransactionType: Database["public"]["Enums"]["transaction_type_enum"]
+          total_amount: number
+          transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at: string
           vendor_id: string | null
         }
         Insert: {
           buildium_bill_id?: number | null
+          buildium_lease_id?: number | null
           buildium_transaction_id?: number | null
           category_id?: string | null
-          CheckNumber?: string | null
+          check_number?: string | null
           created_at?: string
-          Date: string
+          date: string
           due_date?: string | null
           id?: string
           is_recurring?: boolean | null
           lease_id?: number | null
-          Memo?: string | null
-          PayeeTenantId?: number | null
-          PaymentMethod?: string | null
+          memo?: string | null
+          payee_tenant_id?: number | null
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
-          TotalAmount: number
-          TransactionType: Database["public"]["Enums"]["transaction_type_enum"]
+          total_amount: number
+          transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at: string
           vendor_id?: string | null
         }
         Update: {
           buildium_bill_id?: number | null
+          buildium_lease_id?: number | null
           buildium_transaction_id?: number | null
           category_id?: string | null
-          CheckNumber?: string | null
+          check_number?: string | null
           created_at?: string
-          Date?: string
+          date?: string
           due_date?: string | null
           id?: string
           is_recurring?: boolean | null
           lease_id?: number | null
-          Memo?: string | null
-          PayeeTenantId?: number | null
-          PaymentMethod?: string | null
+          memo?: string | null
+          payee_tenant_id?: number | null
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
-          TotalAmount?: number
-          TransactionType?: Database["public"]["Enums"]["transaction_type_enum"]
+          total_amount?: number
+          transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at?: string
           vendor_id?: string | null
         }
@@ -1568,6 +2063,100 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      unit_images: {
+        Row: {
+          buildium_image_id: number
+          created_at: string
+          description: string | null
+          file_size: number | null
+          file_type: string | null
+          href: string | null
+          id: string
+          is_private: boolean | null
+          name: string | null
+          sort_index: number | null
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          buildium_image_id: number
+          created_at?: string
+          description?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          href?: string | null
+          id?: string
+          is_private?: boolean | null
+          name?: string | null
+          sort_index?: number | null
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          buildium_image_id?: number
+          created_at?: string
+          description?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          href?: string | null
+          id?: string
+          is_private?: boolean | null
+          name?: string | null
+          sort_index?: number | null
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unit_images_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      unit_notes: {
+        Row: {
+          body: string | null
+          buildium_note_id: number
+          created_at: string
+          id: string
+          is_private: boolean | null
+          subject: string | null
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          buildium_note_id: number
+          created_at?: string
+          id?: string
+          is_private?: boolean | null
+          subject?: string | null
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          buildium_note_id?: number
+          created_at?: string
+          id?: string
+          is_private?: boolean | null
+          subject?: string | null
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unit_notes_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
@@ -1602,7 +2191,6 @@ export type Database = {
           service_end: string | null
           service_plan: Database["public"]["Enums"]["ServicePlan"] | null
           service_start: string | null
-          square_footage: number | null
           state: string | null
           status: Database["public"]["Enums"]["unit_status_enum"]
           unit_bathrooms: Database["public"]["Enums"]["bathroom_enum"] | null
@@ -1641,7 +2229,6 @@ export type Database = {
           service_end?: string | null
           service_plan?: Database["public"]["Enums"]["ServicePlan"] | null
           service_start?: string | null
-          square_footage?: number | null
           state?: string | null
           status?: Database["public"]["Enums"]["unit_status_enum"]
           unit_bathrooms?: Database["public"]["Enums"]["bathroom_enum"] | null
@@ -1680,7 +2267,6 @@ export type Database = {
           service_end?: string | null
           service_plan?: Database["public"]["Enums"]["ServicePlan"] | null
           service_start?: string | null
-          square_footage?: number | null
           state?: string | null
           status?: Database["public"]["Enums"]["unit_status_enum"]
           unit_bathrooms?: Database["public"]["Enums"]["bathroom_enum"] | null
@@ -1732,66 +2318,128 @@ export type Database = {
       }
       vendors: {
         Row: {
-          address_line1: string | null
-          address_line2: string | null
+          account_number: string | null
+          buildium_category_id: number | null
           buildium_vendor_id: number | null
-          category_id: number | null
-          city: string | null
-          contact_name: string | null
-          country: Database["public"]["Enums"]["countries"] | null
+          comments: string | null
+          contact_id: number
           created_at: string | null
-          email: string | null
+          expense_gl_account_id: number | null
+          gl_account: string | null
           id: string
+          include_1099: boolean | null
+          insurance_expiration_date: string | null
+          insurance_policy_number: string | null
+          insurance_provider: string | null
           is_active: boolean | null
-          name: string
           notes: string | null
-          phone_number: string | null
-          postal_code: string | null
-          state: string | null
+          tax_address_city: string | null
+          tax_address_country: string | null
+          tax_address_line1: string | null
+          tax_address_line2: string | null
+          tax_address_line3: string | null
+          tax_address_postal_code: string | null
+          tax_address_state: string | null
           tax_id: string | null
+          tax_payer_name1: string | null
+          tax_payer_name2: string | null
+          tax_payer_type: string | null
           updated_at: string | null
+          vendor_category: string | null
+          website: string | null
         }
         Insert: {
-          address_line1?: string | null
-          address_line2?: string | null
+          account_number?: string | null
+          buildium_category_id?: number | null
           buildium_vendor_id?: number | null
-          category_id?: number | null
-          city?: string | null
-          contact_name?: string | null
-          country?: Database["public"]["Enums"]["countries"] | null
+          comments?: string | null
+          contact_id: number
           created_at?: string | null
-          email?: string | null
+          expense_gl_account_id?: number | null
+          gl_account?: string | null
           id?: string
+          include_1099?: boolean | null
+          insurance_expiration_date?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
           is_active?: boolean | null
-          name: string
           notes?: string | null
-          phone_number?: string | null
-          postal_code?: string | null
-          state?: string | null
+          tax_address_city?: string | null
+          tax_address_country?: string | null
+          tax_address_line1?: string | null
+          tax_address_line2?: string | null
+          tax_address_line3?: string | null
+          tax_address_postal_code?: string | null
+          tax_address_state?: string | null
           tax_id?: string | null
+          tax_payer_name1?: string | null
+          tax_payer_name2?: string | null
+          tax_payer_type?: string | null
           updated_at?: string | null
+          vendor_category?: string | null
+          website?: string | null
         }
         Update: {
-          address_line1?: string | null
-          address_line2?: string | null
+          account_number?: string | null
+          buildium_category_id?: number | null
           buildium_vendor_id?: number | null
-          category_id?: number | null
-          city?: string | null
-          contact_name?: string | null
-          country?: Database["public"]["Enums"]["countries"] | null
+          comments?: string | null
+          contact_id?: number
           created_at?: string | null
-          email?: string | null
+          expense_gl_account_id?: number | null
+          gl_account?: string | null
           id?: string
+          include_1099?: boolean | null
+          insurance_expiration_date?: string | null
+          insurance_policy_number?: string | null
+          insurance_provider?: string | null
           is_active?: boolean | null
-          name?: string
           notes?: string | null
-          phone_number?: string | null
-          postal_code?: string | null
-          state?: string | null
+          tax_address_city?: string | null
+          tax_address_country?: string | null
+          tax_address_line1?: string | null
+          tax_address_line2?: string | null
+          tax_address_line3?: string | null
+          tax_address_postal_code?: string | null
+          tax_address_state?: string | null
           tax_id?: string | null
+          tax_payer_name1?: string | null
+          tax_payer_name2?: string | null
+          tax_payer_type?: string | null
           updated_at?: string | null
+          vendor_category?: string | null
+          website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vendors_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendors_gl_account_fkey"
+            columns: ["gl_account"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendors_gl_account_fkey"
+            columns: ["gl_account"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "vendors_vendor_category_fkey"
+            columns: ["vendor_category"]
+            isOneToOne: false
+            referencedRelation: "vendor_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       work_orders: {
         Row: {
@@ -1875,7 +2523,21 @@ export type Database = {
           column_name: string | null
           id: string | null
           table_name: string | null
-          value: Database["public"]["Enums"]["countries"] | null
+          value: string | null
+        }
+        Relationships: []
+      }
+      v_gl_trial_balance: {
+        Row: {
+          account_number: string | null
+          balance: number | null
+          buildium_gl_account_id: number | null
+          credits: number | null
+          debits: number | null
+          gl_account_id: string | null
+          name: string | null
+          sub_type: string | null
+          type: string | null
         }
         Relationships: []
       }
@@ -1928,6 +2590,31 @@ export type Database = {
         Args: { p_endpoint: string; p_parameters?: Json }
         Returns: Json
       }
+      gl_account_activity: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          account_number: string
+          credits: number
+          debits: number
+          gl_account_id: string
+          name: string
+          net_change: number
+        }[]
+      }
+      gl_trial_balance_as_of: {
+        Args: { p_as_of_date: string }
+        Returns: {
+          account_number: string
+          balance: number
+          buildium_gl_account_id: number
+          credits: number
+          debits: number
+          gl_account_id: string
+          name: string
+          sub_type: string
+          type: string
+        }[]
+      }
       handle_lease_payment_webhook: {
         Args: { event_data: Json }
         Returns: undefined
@@ -1949,7 +2636,9 @@ export type Database = {
         Returns: undefined
       }
       is_valid_country: {
-        Args: { val: string }
+        Args:
+          | { val: Database["public"]["Enums"]["countries"] }
+          | { val: string }
         Returns: boolean
       }
       map_bill_to_buildium: {
@@ -2031,6 +2720,10 @@ export type Database = {
         Args: { property_uuid: string }
         Returns: undefined
       }
+      update_property_unit_counts: {
+        Args: { property_uuid: string }
+        Returns: undefined
+      }
       upsert_owners_list_cache: {
         Args: { p_owner_id: string }
         Returns: undefined
@@ -2041,6 +2734,13 @@ export type Database = {
       }
     }
     Enums: {
+      appliance_service_type_enum:
+        | "Maintenance"
+        | "Repair"
+        | "Replacement"
+        | "Installation"
+        | "Inspection"
+        | "Other"
       appliance_type_enum:
         | "Refrigerator"
         | "Freezer"
@@ -2048,6 +2748,11 @@ export type Database = {
         | "Microwave"
         | "Dishwasher"
         | "Washer/Dryer"
+      bank_account_type_enum:
+        | "checking"
+        | "savings"
+        | "money_market"
+        | "certificate_of_deposit"
       bathroom_enum:
         | "1"
         | "1.5"
@@ -2346,7 +3051,22 @@ export type Database = {
       inspection_type_enum: "Periodic" | "Move-In" | "Move-Out"
       lease_contact_role_enum: "Tenant" | "Cosigner"
       lease_contact_status_enum: "Future" | "Active" | "Past"
+      payment_method_enum:
+        | "Check"
+        | "Cash"
+        | "MoneyOrder"
+        | "CashierCheck"
+        | "DirectDeposit"
+        | "CreditCard"
+        | "ElectronicPayment"
       property_status: "Active" | "Inactive"
+      property_type_enum:
+        | "Condo"
+        | "Co-op"
+        | "Condop"
+        | "Rental Building"
+        | "Townhouse"
+        | "Mult-Family"
       rent_cycle_enum:
         | "Monthly"
         | "Weekly"
@@ -2357,7 +3077,14 @@ export type Database = {
         | "Daily"
         | "Every6Months"
       ServicePlan: "Full" | "Basic" | "A-la-carte"
-      transaction_type_enum: "Bill" | "Charge" | "Credit" | "Payment"
+      sync_source_enum: "local" | "buildium"
+      task_kind_enum: "owner" | "resident" | "contact" | "todo" | "other"
+      transaction_type_enum:
+        | "Bill"
+        | "Charge"
+        | "Credit"
+        | "Payment"
+        | "JournalEntry"
       unit_status_enum: "Occupied" | "Vacant" | "Inactive"
     }
     CompositeTypes: {
@@ -2489,6 +3216,14 @@ export const Constants = {
   },
   public: {
     Enums: {
+      appliance_service_type_enum: [
+        "Maintenance",
+        "Repair",
+        "Replacement",
+        "Installation",
+        "Inspection",
+        "Other",
+      ],
       appliance_type_enum: [
         "Refrigerator",
         "Freezer",
@@ -2496,6 +3231,12 @@ export const Constants = {
         "Microwave",
         "Dishwasher",
         "Washer/Dryer",
+      ],
+      bank_account_type_enum: [
+        "checking",
+        "savings",
+        "money_market",
+        "certificate_of_deposit",
       ],
       bathroom_enum: [
         "1",
@@ -2795,7 +3536,24 @@ export const Constants = {
       inspection_type_enum: ["Periodic", "Move-In", "Move-Out"],
       lease_contact_role_enum: ["Tenant", "Cosigner"],
       lease_contact_status_enum: ["Future", "Active", "Past"],
+      payment_method_enum: [
+        "Check",
+        "Cash",
+        "MoneyOrder",
+        "CashierCheck",
+        "DirectDeposit",
+        "CreditCard",
+        "ElectronicPayment",
+      ],
       property_status: ["Active", "Inactive"],
+      property_type_enum: [
+        "Condo",
+        "Co-op",
+        "Condop",
+        "Rental Building",
+        "Townhouse",
+        "Mult-Family",
+      ],
       rent_cycle_enum: [
         "Monthly",
         "Weekly",
@@ -2807,7 +3565,15 @@ export const Constants = {
         "Every6Months",
       ],
       ServicePlan: ["Full", "Basic", "A-la-carte"],
-      transaction_type_enum: ["Bill", "Charge", "Credit", "Payment"],
+      sync_source_enum: ["local", "buildium"],
+      task_kind_enum: ["owner", "resident", "contact", "todo", "other"],
+      transaction_type_enum: [
+        "Bill",
+        "Charge",
+        "Credit",
+        "Payment",
+        "JournalEntry",
+      ],
       unit_status_enum: ["Occupied", "Vacant", "Inactive"],
     },
   },

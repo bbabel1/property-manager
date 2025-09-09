@@ -32,7 +32,7 @@ SELECT * FROM properties WHERE id = 'c21aee3e-54f3-4b02-8966-cfdf2a9e348d' LIMIT
   "state": "CA",
   "postal_code": "90210",
   "country": "USA",
-  "rental_sub_type": "Apartment",
+  "property_type": "Mult-Family",
   // "primary_owner": "John Smith", // removed - now determined from ownerships table
   "status": "Active",
   "reserve": 200.00,
@@ -198,7 +198,7 @@ const total_owners = ownership?.length || 0;  // 1
   city: "Los Angeles",
   state: "CA",
   postal_code: "90210",
-  rental_sub_type: "Apartment",
+  property_type: "Mult-Family",
   // primary_owner: "John Smith", // removed - now determined from ownerships table
   status: "Active",
   reserve: 200.00,

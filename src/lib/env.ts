@@ -19,18 +19,39 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 });
 
-// Debug environment variables
-console.log('🔧 Environment variables debug:', {
-  hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-  hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-  hasBuildium: !!process.env.BUILDIUM_CLIENT_SECRET,
-  urlLength: process.env.NEXT_PUBLIC_SUPABASE_URL?.length || 0,
-  anonKeyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0,
-  serviceKeyLength: process.env.SUPABASE_SERVICE_ROLE_KEY?.length || 0,
-  urlValue: process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20) + '...' || 'undefined',
-  anonKeyValue: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20) + '...' || 'undefined'
-});
+// Environment variable validation and debugging
+export function validateEnvironment() {
+  const requiredVars = {
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  }
+
+  const missingVars = Object.entries(requiredVars)
+    .filter(([_, value]) => !value)
+    .map(([key]) => key)
+
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingVars)
+    console.error('💡 Ensure these are set in .env.local and restart the dev server')
+    return false
+  }
+
+  // Debug info (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 Environment variables debug:')
+    console.log('  - hasUrl:', !!requiredVars.NEXT_PUBLIC_SUPABASE_URL)
+    console.log('  - hasAnonKey:', !!requiredVars.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    console.log('  - anonKeyLength:', requiredVars.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0)
+    console.log('  - hasServiceRoleKey:', !!requiredVars.SUPABASE_SERVICE_ROLE_KEY)
+    console.log('  - supabaseUrl:', requiredVars.NEXT_PUBLIC_SUPABASE_URL)
+  }
+
+  return true
+}
+
+// Call validation on module load
+validateEnvironment()
 
 // Try to parse environment, but don't throw if validation fails
 let env: z.infer<typeof envSchema>;

@@ -33,14 +33,14 @@ async function fetchAllTransactionsFromBuildium(leaseId: string) {
 async function createTransactionRecord(transaction: any) {
   const transactionData = {
     buildium_transaction_id: transaction.Id,
-    Date: transaction.Date,
-    TransactionType: transaction.TransactionType,
-    TotalAmount: transaction.TotalAmount,
-    CheckNumber: transaction.CheckNumber,
+    date: transaction.Date,
+    transaction_type: transaction.TransactionType,
+    total_amount: transaction.TotalAmount,
+    check_number: transaction.CheckNumber,
     buildium_lease_id: parseInt(leaseId),
-    PayeeTenantId: transaction.PayeeTenantId,
-    PaymentMethod: transaction.PaymentMethod,
-    Memo: transaction.Memo,
+    payee_tenant_id: transaction.PayeeTenantId,
+    payment_method: transaction.PaymentMethod,
+    memo: transaction.Memo,
     buildium_bill_id: transaction.BillId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -108,14 +108,14 @@ async function main() {
       .from('transactions')
       .select('*')
       .eq('buildium_lease_id', parseInt(leaseId))
-      .order('Date', { ascending: false })
+      .order('date', { ascending: false })
     
     if (verifyError) {
       console.error('Error verifying transactions:', verifyError)
     } else {
       console.log(`Found ${dbTransactions.length} transactions in database for lease ${leaseId}:`)
       dbTransactions.forEach((tx, index) => {
-        console.log(`  ${index + 1}. ${tx.TransactionType} - $${tx.TotalAmount} (${tx.Date})`)
+        console.log(`  ${index + 1}. ${tx.transaction_type} - $${tx.total_amount} (${tx.date})`)
       })
     }
     

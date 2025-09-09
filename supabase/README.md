@@ -8,7 +8,7 @@ This directory contains SQL migrations for the Ora Property Management database 
 
 Creates the main Properties table with comprehensive schema including:
 
-- **Enums**: `country_enum` and `rental_sub_type_enum`
+- **Enums**: `countries` and `property_type_enum`
 
 - **Primary Key**: UUID with `gen_random_uuid()` default
 
@@ -80,7 +80,7 @@ CREATE TABLE properties (
     postal_code VARCHAR(20) NOT NULL,
     country country_enum NOT NULL,
     buildium_property_id INTEGER,
-    rental_sub_type rental_sub_type_enum NOT NULL,
+    property_type property_type_enum,
     rental_owner_ids INTEGER[],
     operating_bank_account_id INTEGER NOT NULL,
     reserve NUMERIC(12,2),

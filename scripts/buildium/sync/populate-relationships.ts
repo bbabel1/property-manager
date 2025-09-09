@@ -88,8 +88,8 @@ async function populateRelationships() {
         const { data: lease, error: leaseError } = await supabase
           .from('lease')
           .select(`
-            unitId,
-            propertyId,
+            unit_id,
+            property_id,
             unit:units(
               id,
               buildium_unit_id,
@@ -112,8 +112,8 @@ async function populateRelationships() {
         const { error: updateError } = await supabase
           .from('transaction_lines')
           .update({
-            property_id: lease.propertyId,
-            unit_id: lease.unitId,
+            property_id: lease.property_id,
+            unit_id: lease.unit_id,
             buildium_property_id: lease.unit?.property?.buildium_property_id,
             buildium_unit_id: lease.unit?.buildium_unit_id
           })
@@ -122,7 +122,7 @@ async function populateRelationships() {
         if (updateError) {
           console.error(`Failed to update transaction line ${line.id}: ${updateError.message}`)
         } else {
-          console.log(`✅ Updated transaction line ${line.id} with property_id: ${lease.propertyId}, unit_id: ${lease.unitId}`)
+          console.log(`✅ Updated transaction line ${line.id} with property_id: ${lease.property_id}, unit_id: ${lease.unit_id}`)
         }
       }
     } else {

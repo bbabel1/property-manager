@@ -1,26 +1,10 @@
 # Supabase Authentication Implementation Guide
 
-## Current State vs Target State
+## Current State
 
-### Current (Hybrid) Authentication
-
-- ✅ **Supabase Auth Configured**: Email/password and magic links enabled
-
-- ❌ **NextAuth Still Active**: SessionProvider still in use
-
-- ❌ **Mixed Dependencies**: Both NextAuth and Supabase Auth in package.json
-
-- ❌ **No Auth Pages**: Missing sign-in/sign-up implementations
-
-### Target (Pure Supabase) Authentication
-
-- ✅ **Supabase Auth Only**: Complete authentication through Supabase
-
-- ✅ **Clean Dependencies**: Remove NextAuth completely
-
-- ✅ **Native Integration**: Use Supabase session management
-
-- ✅ **Magic Links**: Email-based authentication flow
+- ✅ **Supabase Auth Only**: Complete authentication through Supabase (email/password + magic links)
+- ✅ **Clean Dependencies**: NextAuth removed
+- ✅ **Native Integration**: Session via cookies using `@supabase/ssr`
 
 ## Supabase Auth Configuration
 
@@ -51,19 +35,10 @@ otp_expiry = 3600
 ### Environment Variables
 
 ```bash
-
 # Required for Supabase Auth
-
 NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-
-# Remove these NextAuth variables after conversion
-
-NEXTAUTH_URL="http://localhost:3000"     # ← REMOVE
-
-NEXTAUTH_SECRET="your-secret-key"        # ← REMOVE
-
 ```
 
 ## Implementation Plan
@@ -349,56 +324,46 @@ export default function AuthCallback() {
 
 ```typescript
 
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
+  const supabase = createServerClient(url, anon, {
+    cookies: {
+      get: (name) => req.cookies.get(name)?.value,
+      set: (name, value, options) => res.cookies.set({ name, value, ...options }),
+      remove: (name, options) => res.cookies.set({ name, value: '', ...options }),
+    },
+  })
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data } = await supabase.auth.getUser()
+  const user = data?.user
+  const pathname = req.nextUrl.pathname
+  const protectedPrefixes = ['/dashboard', '/properties', '/owners', '/units']
+  const requiresAuth = protectedPrefixes.some((p) => pathname.startsWith(p))
 
-  // Protect dashboard routes
-  if (req.nextUrl.pathname.startsWith('/dashboard') ||
-      req.nextUrl.pathname.startsWith('/properties') ||
-      req.nextUrl.pathname.startsWith('/owners') ||
-      req.nextUrl.pathname.startsWith('/units')) {
-
-    if (!session) {
-      const redirectUrl = req.nextUrl.clone()
-      redirectUrl.pathname = '/auth/signin'
-      redirectUrl.searchParams.set('redirectedFrom', req.nextUrl.pathname)
-      return NextResponse.redirect(redirectUrl)
-    }
+  if (requiresAuth && !user) {
+    const redirectUrl = req.nextUrl.clone()
+    redirectUrl.pathname = '/auth/signin'
+    redirectUrl.searchParams.set('next', pathname + req.nextUrl.search)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // Redirect authenticated users from auth pages
-  if ((req.nextUrl.pathname.startsWith('/auth/signin') ||
-       req.nextUrl.pathname.startsWith('/auth/signup')) && session) {
-    const redirectUrl = req.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
-    return NextResponse.redirect(redirectUrl)
+  if (user && pathname.startsWith('/auth')) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
   }
 
   return res
 }
 
 export const config = {
-  matcher: [
-    '/dashboard/:path*',
-
-    '/properties/:path*',
-
-    '/owners/:path*',
-
-    '/units/:path*',
-
-    '/auth/signin',
-    '/auth/signup'
-  ]
+  matcher: ['/dashboard/:path*', '/properties/:path*', '/owners/:path*', '/units/:path*', '/auth/:path*'],
 }
 
 ```
@@ -698,20 +663,13 @@ CREATE POLICY "Users can access ownership for their properties" ON ownership
 
 ```
 
-## Migration Steps
+## Migration Steps (Completed)
 
 ### Step 1: Package Dependencies
 
 ```bash
-
-# Remove NextAuth
-
-npm uninstall next-auth
-
-# Add Supabase auth helpers
-
-npm install @supabase/auth-helpers-nextjs
-
+# Added Supabase SSR helpers
+npm install @supabase/ssr
 ```
 
 ### Step 2: Update Environment Variables
@@ -821,16 +779,13 @@ describe('Authentication Flow', () => {
 
 6. **Use HTTPS** in production for all auth operations
 
-## Rollback Plan
+## Rollback Plan (Historical)
 
-If issues arise during migration:
+If issues arise (historical hybrid context):
 
-1. **Revert package.json** to include NextAuth
+1. (Legacy) Revert package.json to include NextAuth
+2. (Legacy) Restore SessionProvider in providers.tsx
+3. Keep Supabase configuration for database operations
+4. Maintain hybrid state until issues resolved
 
-2. **Restore SessionProvider** in providers.tsx
-
-3. **Keep Supabase configuration** for database operations
-
-4. **Maintain hybrid state** until issues resolved
-
-The database layer remains unaffected during authentication migration, ensuring system stability.
+Note: Current architecture is Supabase-only; this section is kept for historical reference.

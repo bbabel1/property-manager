@@ -3,16 +3,7 @@
 import type { Database } from './database'
 export type CountryEnum = Database['public']['Enums']['countries']
 
-export type RentalSubTypeEnum = 
-  | 'CondoTownhome' 
-  | 'MultiFamily' 
-  | 'SingleFamily' 
-  | 'Industrial' 
-  | 'Office' 
-  | 'Retail' 
-  | 'ShoppingCenter' 
-  | 'Storage' 
-  | 'ParkingSpace';
+// Deprecated: rental_sub_type removed from DB and UI. Use property_type instead.
 
 // Matches public.property_status enum
 export type StatusEnum = 'Active' | 'Inactive' | 'Pending' | 'Sold' | 'Under Construction';
@@ -36,7 +27,7 @@ export interface Property {
   
   // Integration and business fields
   buildium_property_id?: number; // INTEGER, NULL
-  rental_sub_type: RentalSubTypeEnum; // rental_sub_type_enum, NOT NULL
+  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids?: number[]; // INTEGER[], NULL
   operating_bank_account_id: number; // INTEGER, NOT NULL
   reserve?: number; // NUMERIC(12,2), NULL
@@ -58,7 +49,7 @@ export interface CreatePropertyRequest {
   postal_code: string;
   country: CountryEnum;
   buildium_property_id?: number;
-  rental_sub_type: RentalSubTypeEnum;
+  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids?: number[];
   operating_bank_account_id: number;
   reserve?: number;
@@ -81,7 +72,7 @@ export interface PropertyFormData {
   postal_code: string;
   country: CountryEnum;
   buildium_property_id: string; // Form field as string
-  rental_sub_type: RentalSubTypeEnum;
+  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids: string; // Form field as comma-separated string
   operating_bank_account_id: string; // Form field as string
   reserve: string; // Form field as string

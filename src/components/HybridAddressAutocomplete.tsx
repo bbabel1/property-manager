@@ -11,6 +11,10 @@ interface AddressAutocompleteProps {
     state: string
     postalCode: string
     country: string
+    latitude?: number
+    longitude?: number
+    borough?: string
+    neighborhood?: string
   }) => void
   placeholder?: string
   className?: string

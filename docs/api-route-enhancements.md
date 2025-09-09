@@ -173,7 +173,7 @@ POST /api/buildium/sync
     "state": "NY",
     "postalCode": "10001",
     "country": "US",
-    "rentalSubType": "Office",
+    "propertyType": "Condo",
     "status": "Active",
     "createdAt": "2025-01-15T10:30:00Z",
     "updatedAt": "2025-01-15T10:30:00Z"
@@ -271,7 +271,7 @@ const response = await fetch('/api/properties', {
     state: 'NY',
     postalCode: '10001',
     country: 'US',
-    rentalSubType: 'Office',
+    propertyType: 'Condo',
     status: 'Active'
   })
 });

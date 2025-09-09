@@ -11,12 +11,22 @@ export interface Property {
   state: string
   postal_code: string
   country: Database['public']['Enums']['countries']
-  rental_sub_type: string
+  borough?: string | null
+  neighborhood?: string | null
+  longitude?: number | null
+  latitude?: number | null
+  location_verified?: boolean
+  property_type?: string | null
   // primary_owner removed - now determined from ownerships table where primary = true
   status: string
   reserve: number
   year_built?: number
   total_units: number
+  // Aggregated unit counts maintained by DB triggers
+  total_active_units?: number
+  total_occupied_units?: number
+  total_vacant_units?: number
+  total_inactive_units?: number
   operating_bank_account_id?: string
   deposit_trust_account_id?: string
   created_at: string
@@ -78,6 +88,11 @@ export interface PropertyWithDetails extends Property {
   }
   occupancy_rate: number
   total_owners: number
+  primary_owner_name?: string
+  // Banking + manager enrichments
+  operating_account?: { id: string; name: string; last4?: string | null }
+  deposit_trust_account?: { id: string; name: string; last4?: string | null }
+  property_manager_name?: string
 
 }
 
@@ -90,6 +105,19 @@ export class PropertyService {
       if (!supabase) {
         console.warn('❌ Supabase client not available')
         return null
+      }
+
+      // If running on the client (no admin key), use server API to bypass RLS and get enriched data
+      const isBrowser = typeof window !== 'undefined'
+      if (isBrowser && !supabaseAdmin) {
+        const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          // Coerce occupancy_rate to number if needed
+          const occ = typeof data.occupancy_rate === 'number' ? data.occupancy_rate : Number(data.occupancy_rate || 0)
+          return { ...data, occupancy_rate: occ }
+        }
+        console.warn('Fallback to client Supabase due to API error')
       }
 
       console.log('✅ Supabase client available, fetching from database...')
@@ -166,11 +194,20 @@ export class PropertyService {
         console.log('✅ Ownership found:', ownership?.length || 0, 'ownership records')
       }
 
-      // Calculate summary data using total_units from database for active units
+      // Calculate summary data preferring DB-maintained aggregates, then fallback to units list
+      const aggTotal = (property.total_active_units ?? property.total_units) || 0
+      const aggOccupied = property.total_occupied_units ?? undefined
+      const aggVacant = property.total_vacant_units ?? undefined
+
+      // Fallbacks using units table if aggregates not present
+      const occupiedFromUnits = (units || []).filter(u => (u as any).status === 'Occupied').length
+      const vacantFromUnits = (units || []).filter(u => (u as any).status === 'Vacant').length
+      const activeFromUnits = (units || []).filter(u => (u as any).status !== 'Inactive').length
+
       const units_summary = {
-        total: property.total_units || 0,
-        occupied: 0, // This would need to be calculated based on lease data
-        available: property.total_units || 0 // This would need to be calculated based on lease data
+        total: property.total_active_units ?? aggTotal || activeFromUnits,
+        occupied: (aggOccupied ?? occupiedFromUnits) || 0,
+        available: (aggVacant ?? vacantFromUnits) || Math.max((aggTotal || activeFromUnits) - (aggOccupied ?? occupiedFromUnits), 0)
       }
 
       console.log('📊 Units summary calculated:', {
@@ -180,9 +217,13 @@ export class PropertyService {
         actualUnitsCount: units?.length || 0
       })
 
-      const occupancy_rate = units_summary.total > 0 
-        ? Math.round((units_summary.occupied / units_summary.total) * 100) 
-        : 0
+      // Use DB computed occupancy_rate when available; otherwise derive from summary
+      const occRaw = (property as any).occupancy_rate
+      const occupancy_rate = (typeof occRaw === 'number' ? occRaw : (occRaw != null ? Number(occRaw) : undefined)) ?? (
+        units_summary.total > 0
+          ? Math.round((units_summary.occupied / units_summary.total) * 100)
+          : 0
+      )
 
       const total_owners = ownership?.length || 0
 
@@ -193,16 +234,71 @@ export class PropertyService {
         ownership_percentage: o.ownership_percentage,
         disbursement_percentage: o.disbursement_percentage,
         primary: o.primary
-      })).filter(Boolean) || []
+      })).filter(Boolean)
+        // Primary owner first for display purposes
+        .sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)) || []
 
-      const result = {
+      // Enrich: banking accounts (names + masked last4)
+      let operating_account: PropertyWithDetails['operating_account'] | undefined
+      let deposit_trust_account: PropertyWithDetails['deposit_trust_account'] | undefined
+      if (property.operating_bank_account_id) {
+        const { data: op } = await supabase
+          .from('bank_accounts')
+          .select('id, name, account_number')
+          .eq('id', property.operating_bank_account_id)
+          .maybeSingle()
+        if (op) operating_account = { id: op.id, name: op.name, last4: op.account_number ? String(op.account_number).slice(-4) : null }
+      }
+      if (property.deposit_trust_account_id) {
+        const { data: tr } = await supabase
+          .from('bank_accounts')
+          .select('id, name, account_number')
+          .eq('id', property.deposit_trust_account_id)
+          .maybeSingle()
+        if (tr) deposit_trust_account = { id: tr.id, name: tr.name, last4: tr.account_number ? String(tr.account_number).slice(-4) : null }
+      }
+
+      // Enrich: property manager name (if any)
+      let property_manager_name: string | undefined
+      const { data: staffLink } = await adminClient
+        .from('property_staff')
+        .select('staff_id, role')
+        .eq('property_id', id)
+        .eq('role', 'PROPERTY_MANAGER')
+        .maybeSingle()
+      if (staffLink?.staff_id) {
+        const { data: staff } = await adminClient
+          .from('staff')
+          .select('first_name, last_name')
+          .eq('id', staffLink.staff_id)
+          .maybeSingle()
+        if (staff) {
+          property_manager_name = [staff.first_name, staff.last_name].filter(Boolean).join(' ').trim() || undefined
+        }
+      }
+
+      // Compute primary owner name for display
+      let primary_owner_name: string | undefined
+      if (owners.length) {
+        const po = owners.find(o => (o as any).primary) || owners[0]
+        primary_owner_name = (po as any).company_name || [
+          (po as any).first_name,
+          (po as any).last_name
+        ].filter(Boolean).join(' ').trim() || undefined
+      }
+
+      const result: PropertyWithDetails = {
         ...property,
         units: units || [],
         owners: owners,
         units_summary,
         occupancy_rate,
         total_owners,
-        isMockData: false
+        primary_owner_name,
+        isMockData: false,
+        operating_account,
+        deposit_trust_account,
+        property_manager_name,
       }
 
       console.log('✅ Returning property with real data:', {

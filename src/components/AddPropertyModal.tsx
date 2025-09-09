@@ -1,21 +1,35 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Building, MapPin, Users, DollarSign, UserCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { X, Building, MapPin, Users, DollarSign, UserCheck, Home } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import AddressAutocomplete from './HybridAddressAutocomplete'
+import { mapGoogleCountryToEnum } from '@/lib/utils'
+import { Dropdown } from '@/components/ui/Dropdown'
+import { SelectWithDescription } from '@/components/ui/SelectWithDescription'
+import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property'
 
 interface AddPropertyFormData {
   // Step 1: Property Type
-  rentalSubType: string
+  propertyType: string
   
   // Step 2: Property Details
   name: string
   addressLine1: string
+  addressLine2?: string
   city: string
   state: string
   postalCode: string
   country: string
   yearBuilt?: string
   structureDescription?: string
+  status?: 'Active' | 'Inactive'
+  // Location extras
+  borough?: string
+  neighborhood?: string
+  longitude?: number
+  latitude?: number
+  locationVerified?: boolean
   
   // Step 3: Ownership
   owners: Array<{
@@ -24,13 +38,36 @@ interface AddPropertyFormData {
     ownershipPercentage: number
     disbursementPercentage: number
     primary: boolean
+    status?: string | null
   }>
   
-  // Step 4: Bank Account
+  // Step 4: Units
+  units: Array<{
+    unitNumber: string
+    unitBedrooms?: string
+    unitBathrooms?: string
+    unitSize?: number
+    description?: string
+  }>
+
+  // Step 5: Bank Account
   operatingBankAccountId?: string
+  depositTrustAccountId?: string
   reserve?: number
+  // Management/Service/Fee fields (Step 4 with banking)
+  management_scope?: 'Building' | 'Unit'
+  service_assignment?: 'Property Level' | 'Unit Level'
+  service_plan?: 'Full' | 'Basic' | 'A-la-carte'
+  active_services?: (
+    'Rent Collection' | 'Maintenance' | 'Turnovers' | 'Compliance' | 'Bill Pay' | 'Condition Reports' | 'Renewals'
+  )[]
+  fee_assignment?: 'Building' | 'Unit'
+  fee_type?: 'Percentage' | 'Flat Rate'
+  fee_percentage?: number
+  management_fee?: number
+  billing_frequency?: 'Annual' | 'Monthly'
   
-  // Step 5: Property Manager
+  // Step 6: Property Manager
   propertyManagerId?: string
 }
 
@@ -38,20 +75,17 @@ const STEPS = [
   { id: 1, title: 'Property Type', icon: Building },
   { id: 2, title: 'Property Details', icon: MapPin },
   { id: 3, title: 'Ownership', icon: Users },
-  { id: 4, title: 'Bank Account', icon: DollarSign },
-  { id: 5, title: 'Property Manager', icon: UserCheck }
+  { id: 4, title: 'Unit Details', icon: Home },
+  { id: 5, title: 'Bank Account', icon: DollarSign },
+  { id: 6, title: 'Property Manager', icon: UserCheck }
 ]
 
 const PROPERTY_TYPES = [
-  'CondoTownhome',
-  'MultiFamily', 
-  'SingleFamily',
-  'Industrial',
-  'Office',
-  'Retail',
-  'ShoppingCenter',
-  'Storage',
-  'ParkingSpace'
+  'Condo',
+  'Co-op',
+  'Condop',
+  'Mult-Family',
+  'Townhouse'
 ]
 
 const COUNTRIES = [
@@ -67,44 +101,176 @@ const COUNTRIES = [
   'Brazil'
 ]
 
-// Mock data - in a real app, this would come from your database
-const MOCK_OWNERS = [
-  { id: '1', name: 'John Smith' },
-  { id: '2', name: 'Jane Doe' },
-  { id: '3', name: 'ABC Properties LLC' }
-]
-
-const MOCK_BANK_ACCOUNTS = [
-  { id: '1', name: 'Sunset Apartments Operating', accountNumber: '5678', routingNumber: '1234' },
-  { id: '2', name: 'Main Operating Account', accountNumber: '9012', routingNumber: '5678' }
-]
-
-const MOCK_PROPERTY_MANAGERS = [
-  { id: '1', name: 'Sarah Johnson' },
-  { id: '2', name: 'Mike Wilson' },
-  { id: '3', name: 'Lisa Chen' }
-]
+type OwnerOption = { id: string; name: string; status?: string | null }
+type BankAccountOption = { id: string; name: string; account_number?: string | null; routing_number?: string | null }
+type StaffOption = { id: string; displayName: string }
 
 export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<AddPropertyFormData>({
-    rentalSubType: '',
+    propertyType: '',
     name: '',
     addressLine1: '',
+    addressLine2: '',
     city: '',
     state: '',
     postalCode: '',
     country: '',
     yearBuilt: '',
     structureDescription: '',
+    status: 'Active',
+    borough: '',
+    neighborhood: '',
+    longitude: undefined,
+    latitude: undefined,
+    locationVerified: false,
     owners: [],
+    units: [{ unitNumber: '' }],
     operatingBankAccountId: '',
+    depositTrustAccountId: '',
     reserve: 0,
+    management_scope: undefined,
+    service_assignment: undefined,
+    service_plan: undefined,
+    active_services: [],
+    fee_assignment: undefined,
+    fee_type: undefined,
+    fee_percentage: undefined,
+    management_fee: undefined,
+    billing_frequency: undefined,
     propertyManagerId: ''
   })
 
+  // Options fetched from API
+  const [owners, setOwners] = useState<OwnerOption[]>([])
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([])
+  const [managers, setManagers] = useState<StaffOption[]>([])
+  const [loadingOptions, setLoadingOptions] = useState(false)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+
+  const canProceed = (step: number, data: AddPropertyFormData) => {
+    switch (step) {
+      case 1:
+        return !!data.propertyType
+      case 2:
+        return (
+          !!data.name &&
+          !!data.addressLine1 &&
+          !!data.city &&
+          !!data.state &&
+          !!data.postalCode &&
+          !!data.country
+        )
+      case 3: {
+        const total = (data.owners || []).reduce((sum, o) => sum + (Number(o.ownershipPercentage) || 0), 0)
+        return (data.owners || []).length > 0 && total === 100
+      }
+      case 4: {
+        return (data.units || []).some(u => (u.unitNumber || '').trim().length > 0)
+      }
+      case 5: {
+        // Require Operating Bank Account, Management Scope, Service Assignment, Service Plan
+        const hasOp = !!data.operatingBankAccountId && String(data.operatingBankAccountId).trim().length > 0
+        const hasMgmtScope = !!data.management_scope && String(data.management_scope).trim().length > 0
+        const hasServiceAssign = !!data.service_assignment && String(data.service_assignment).trim().length > 0
+        const hasServicePlan = !!data.service_plan && String(data.service_plan).trim().length > 0
+
+        // Fees: when Fee Assignment = Building, require all fee fields
+        const requiresFees = data.fee_assignment === 'Building'
+        const hasFeeAssignment = !!data.fee_assignment && String(data.fee_assignment).trim().length > 0
+        const hasFeeType = !requiresFees || (!!data.fee_type && String(data.fee_type).trim().length > 0)
+        const requirePct = requiresFees && data.fee_type === 'Percentage'
+        const requireFlat = requiresFees && data.fee_type === 'Flat Rate'
+        const hasFeePct = !requirePct || (data.fee_percentage !== undefined && data.fee_percentage !== null && String(data.fee_percentage).trim() !== '')
+        const hasMgmtFee = !requireFlat || (data.management_fee !== undefined && data.management_fee !== null && String(data.management_fee).trim() !== '')
+        const hasBillingFreq = !requiresFees || (!!data.billing_frequency && String(data.billing_frequency).trim().length > 0)
+
+        return (
+          hasOp && hasMgmtScope && hasServiceAssign && hasServicePlan && hasFeeAssignment && hasFeeType && hasFeePct && hasMgmtFee && hasBillingFreq
+        )
+      }
+      default:
+        return true
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    const fetchOptions = async () => {
+      try {
+        setLoadingOptions(true)
+        setOptionsError(null)
+        const [ownersRes, accountsRes, staffRes] = await Promise.all([
+          fetch('/api/owners'),
+          fetch('/api/bank-accounts?revealNumbers=false'),
+          fetch('/api/staff')
+        ])
+        if (!ownersRes.ok) throw new Error('Failed to load owners')
+        if (!accountsRes.ok) throw new Error('Failed to load bank accounts')
+        // staff can be empty if no table; treat non-200 as empty but non-fatal
+        const ownersJson = await ownersRes.json()
+        const accountsJson = await accountsRes.json()
+        const staffJson = staffRes.ok ? await staffRes.json() : []
+
+        if (cancelled) return
+        setOwners(
+          ownersJson.map((o: any) => {
+            const label = (
+              o.displayName ||
+              o.name ||
+              `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() ||
+              `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() ||
+              o.companyName ||
+              o.company_name ||
+              'Unnamed Owner'
+            )
+            const status = o.status || o.owner_status || null
+            return { id: String(o.id), name: label, status }
+          })
+        )
+        setBankAccounts(
+          accountsJson.map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number }))
+        )
+        setManagers(
+          (staffJson || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() }))
+        )
+      } catch (e) {
+        if (!cancelled) setOptionsError(e instanceof Error ? e.message : 'Failed to load options')
+      } finally {
+        if (!cancelled) setLoadingOptions(false)
+      }
+    }
+    fetchOptions()
+    return () => { cancelled = true }
+  }, [isOpen])
+
+  // Auto-select all active services when Service Plan is 'Full'
+  useEffect(() => {
+    if (formData.service_plan === 'Full') {
+      const allServices = ['Rent Collection','Maintenance','Turnovers','Compliance','Bill Pay','Condition Reports','Renewals'] as const
+      if ((formData.active_services || []).length !== allServices.length) {
+        setFormData(prev => ({ ...prev, active_services: [...allServices] as any }))
+      }
+    }
+  }, [formData.service_plan])
+
+  // Auto-calculate property name from Street Address and Primary Owner
+  useEffect(() => {
+    const address = (formData.addressLine1 || '').trim()
+    const primaryOwner = (formData.owners || []).find(o => o.primary)
+    const ownerName = (primaryOwner?.name || '').trim()
+    const computed = ownerName ? (address ? `${address} | ${ownerName}` : ownerName) : address
+    if ((computed || '') !== (formData.name || '')) {
+      setFormData(prev => ({ ...prev, name: computed }))
+    }
+  }, [formData.addressLine1, formData.owners])
+
   const handleNext = () => {
-    if (currentStep < 5) {
+    if (currentStep < 6) {
       setCurrentStep(currentStep + 1)
     } else {
       handleSubmit()
@@ -119,6 +285,32 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
 
   const handleSubmit = async () => {
     try {
+      setSubmitting(true)
+      setSubmitError(null)
+      setSubmitSuccess(null)
+
+      // Validate with Zod before submit
+      const parsed = PropertyCreateSchema.safeParse({
+        propertyType: formData.propertyType,
+        name: formData.name,
+        addressLine1: formData.addressLine1,
+        city: formData.city,
+        state: formData.state,
+        postalCode: formData.postalCode,
+        country: formData.country,
+        yearBuilt: formData.yearBuilt || undefined,
+        structureDescription: formData.structureDescription || undefined,
+        owners: formData.owners,
+        operatingBankAccountId: formData.operatingBankAccountId || undefined,
+        reserve: formData.reserve || undefined,
+        propertyManagerId: formData.propertyManagerId || undefined,
+      } as PropertyCreateInput)
+
+      if (!parsed.success) {
+        const msg = parsed.error.errors.map(e => e.message).join('\n')
+        throw new Error(msg || 'Please correct the form errors')
+      }
+
       // Submit the form data to your API
       const response = await fetch('/api/properties', {
         method: 'POST',
@@ -135,22 +327,26 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
 
       const result = await response.json()
       console.log('Property created successfully:', result)
+      setSubmitSuccess('Property created successfully')
       
       onClose()
       if (onSuccess) onSuccess()
       // Reset form
       setFormData({
-        rentalSubType: '',
+        propertyType: '',
         name: '',
         addressLine1: '',
+        addressLine2: '',
         city: '',
         state: '',
         postalCode: '',
         country: '',
         yearBuilt: '',
         structureDescription: '',
+        status: 'Active',
         owners: [],
         operatingBankAccountId: '',
+        depositTrustAccountId: '',
         reserve: 0,
         propertyManagerId: ''
       })
@@ -160,12 +356,14 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       window.location.reload()
     } catch (error) {
       console.error('Error creating property:', error)
-      alert('Failed to create property. Please try again.')
+      setSubmitError(error instanceof Error ? error.message : 'Failed to create property. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const addOwner = (ownerId: string) => {
-    const owner = MOCK_OWNERS.find(o => o.id === ownerId)
+    const owner = owners.find(o => o.id === ownerId)
     if (owner && !formData.owners.find(o => o.id === ownerId)) {
       setFormData(prev => ({
         ...prev,
@@ -197,40 +395,41 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
   }
 
   const setPrimaryOwner = (ownerId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      owners: prev.owners.map(o => ({
-        ...o,
-        primary: o.id === ownerId
-      }))
-    }))
+    // Toggle behavior: if the clicked owner is already primary, uncheck all; otherwise set as sole primary
+    setFormData(prev => {
+      const current = prev.owners.find(o => o.id === ownerId)?.primary
+      const owners = current
+        ? prev.owners.map(o => ({ ...o, primary: false }))
+        : prev.owners.map(o => ({ ...o, primary: o.id === ownerId }))
+      return { ...prev, owners }
+    })
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-card rounded-2xl border border-border/80 shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Add New Property</h2>
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">Add New Property</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-6 w-6" />
           </button>
         </div>
 
         {/* Progress Steps */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-border">
           <div className="flex items-center justify-between">
             {STEPS.map((step, index) => (
               <div key={step.id} className="flex items-center">
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
                   currentStep >= step.id 
-                    ? 'bg-blue-600 border-blue-600 text-white' 
-                    : 'border-gray-300 text-gray-500'
+                    ? 'bg-primary border-primary text-primary-foreground' 
+                    : 'border-input text-muted-foreground'
                 }`}>
                   {currentStep > step.id ? (
                     <span className="text-sm">✓</span>
@@ -240,7 +439,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
                 </div>
                 {index < STEPS.length - 1 && (
                   <div className={`w-16 h-0.5 mx-2 ${
-                    currentStep > step.id ? 'bg-blue-600' : 'bg-gray-300'
+                    currentStep > step.id ? 'bg-primary' : 'bg-border'
                   }`} />
                 )}
               </div>
@@ -250,6 +449,16 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
 
         {/* Step Content */}
         <div className="p-6">
+          {submitError && (
+            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <p className="text-sm text-destructive">{submitError}</p>
+            </div>
+          )}
+          {submitSuccess && (
+            <div className="mb-4 p-3 bg-success/10 border border-success/20 rounded-md">
+              <p className="text-sm text-success">{submitSuccess}</p>
+            </div>
+          )}
           {currentStep === 1 && (
             <Step1PropertyType 
               formData={formData} 
@@ -276,13 +485,20 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
           )}
           
           {currentStep === 4 && (
+            <Step4UnitDetails 
+              formData={formData}
+              setFormData={setFormData}
+            />
+          )}
+          
+          {currentStep === 5 && (
             <Step4BankAccount 
               formData={formData} 
               setFormData={setFormData} 
             />
           )}
           
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <Step5PropertyManager 
               formData={formData} 
               setFormData={setFormData} 
@@ -291,25 +507,19 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200">
-          <button
+        <div className="flex items-center justify-between p-6 border-t border-border">
+          <Button
+            type="button"
+            variant="ghost"
             onClick={handlePrevious}
             disabled={currentStep === 1}
-            className={`px-4 py-2 rounded-md ${
-              currentStep === 1
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
           >
             Previous
-          </button>
-          
-          <button
-            onClick={handleNext}
-            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-          >
-            {currentStep === 5 ? 'Create Property' : 'Next'}
-          </button>
+          </Button>
+
+          <Button type="button" onClick={handleNext} disabled={submitting || !canProceed(currentStep, formData)}>
+            {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
+          </Button>
         </div>
       </div>
     </div>
@@ -328,25 +538,28 @@ function Step1PropertyType({
 
   return (
     <div className="text-center">
-      <CurrentIcon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">Property Type</h3>
-      <p className="text-gray-600 mb-6">What type of property are you adding?</p>
+      <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+      <h3 className="text-xl font-semibold text-foreground mb-2">Property Type</h3>
+      <p className="text-muted-foreground mb-6">What type of property are you adding?</p>
       
-      <div className="grid grid-cols-3 gap-4">
-        {PROPERTY_TYPES.map((type) => (
-          <button
-            key={type}
-            onClick={() => setFormData({ ...formData, rentalSubType: type })}
-            className={`p-4 border-2 rounded-lg text-center hover:border-blue-300 transition-colors ${
-              formData.rentalSubType === type
-                ? 'border-blue-600 bg-blue-50'
-                : 'border-gray-200'
-            }`}
-          >
-            <Building className="h-8 w-8 text-gray-600 mx-auto mb-2" />
-            <div className="text-sm font-medium">{type}</div>
-          </button>
-        ))}
+      <div className="max-w-2xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {PROPERTY_TYPES.map((type) => {
+            const selected = formData.propertyType === type
+            return (
+              <Button
+                key={type}
+                type="button"
+                variant={selected ? 'default' : 'outline'}
+                className={`h-16 flex-col gap-1 justify-center ${selected ? 'bg-primary text-primary-foreground' : 'bg-card'} transition-colors`}
+                onClick={() => setFormData({ ...formData, propertyType: type })}
+              >
+                <Building className={`h-5 w-5 ${selected ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+                <span className={`text-sm ${selected ? 'text-primary-foreground' : 'text-foreground'}`}>{type}</span>
+              </Button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -365,121 +578,132 @@ function Step2PropertyDetails({
   return (
     <div>
       <div className="text-center mb-6">
-        <CurrentIcon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Property Details</h3>
-        <p className="text-gray-600">Enter the property address and basic information</p>
+        <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-foreground mb-2">Property Details</h3>
+        <p className="text-muted-foreground">Enter the property address and basic information</p>
       </div>
-      
-      <div className="space-y-4">
+
+      <div className="max-w-2xl mx-auto space-y-4">
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Property Name *
-          </label>
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter property name"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Street Address *
-          </label>
-          <input
-            type="text"
+          <label className="block text-sm font-medium text-foreground mb-1">Street Address *</label>
+          <AddressAutocomplete
             value={formData.addressLine1}
-            onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter street address"
+            onChange={(value) => setFormData(prev => ({ ...prev, addressLine1: value }))}
+            onPlaceSelect={(place) => {
+              const mappedCountry = mapGoogleCountryToEnum(place.country)
+              setFormData(prev => ({
+                ...prev,
+                addressLine1: place.address,
+                city: place.city,
+                state: place.state,
+                postalCode: place.postalCode,
+                country: mappedCountry,
+                borough: place.borough || prev.borough,
+                neighborhood: place.neighborhood || prev.neighborhood,
+                longitude: place.longitude ?? prev.longitude,
+                latitude: place.latitude ?? prev.latitude,
+                locationVerified: true
+              }))
+            }}
+            placeholder="e.g., 123 Main Street"
+            required
           />
         </div>
-        
-        <div className="grid grid-cols-2 gap-4">
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Address Line 2 (Optional)</label>
+          <input
+            type="text"
+            value={formData.addressLine2}
+            onChange={(e) => setFormData(prev => ({ ...prev, addressLine2: e.target.value }))}
+            className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            placeholder="Apartment, suite, unit, building, floor, etc."
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              City *
-            </label>
-            <input
+            <label className="block text-sm font-medium text-foreground mb-1">City *</label>
+          <input
               type="text"
               value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               placeholder="Enter city"
             />
           </div>
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              State *
-            </label>
-            <input
+            <label className="block text-sm font-medium text-foreground mb-1">State *</label>
+          <input
               type="text"
               value={formData.state}
-              onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
+              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               placeholder="Enter state"
             />
           </div>
         </div>
-        
-        <div className="grid grid-cols-2 gap-4">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              ZIP Code *
-            </label>
-            <input
+            <label className="block text-sm font-medium text-foreground mb-1">ZIP Code *</label>
+          <input
               type="text"
               value={formData.postalCode}
-              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setFormData(prev => ({ ...prev, postalCode: e.target.value }))}
+              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               placeholder="Enter ZIP code"
             />
           </div>
-          
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Country *
-            </label>
-            <select
+            <label className="block text-sm font-medium text-foreground mb-1">Country *</label>
+          <select
               value={formData.country}
-              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
+              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
               <option value="">Select country</option>
-              {COUNTRIES.map((country) => (
-                <option key={country} value={country}>{country}</option>
+              {COUNTRIES.map(c => (
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
         </div>
-        
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Year Built (Optional)
-          </label>
-          <input
-            type="text"
-            value={formData.yearBuilt}
-            onChange={(e) => setFormData({ ...formData, yearBuilt: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Enter year built"
-          />
+          <label className="block text-sm font-medium text-foreground mb-1">Status</label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'Active' | 'Inactive' }))}
+            className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
         </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description (Optional)
-          </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Year Built (Optional)</label>
+          <input
+              type="text"
+              value={formData.yearBuilt}
+              onChange={(e) => setFormData(prev => ({ ...prev, yearBuilt: e.target.value }))}
+              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              placeholder="e.g., 2008"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-foreground mb-1">Description (Optional)</label>
           <textarea
-            value={formData.structureDescription}
-            onChange={(e) => setFormData({ ...formData, structureDescription: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows={3}
-            placeholder="Brief description of the property..."
-          />
+              value={formData.structureDescription}
+              onChange={(e) => setFormData(prev => ({ ...prev, structureDescription: e.target.value }))}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              rows={3}
+              placeholder="Brief description of the property..."
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -503,89 +727,283 @@ function Step3Ownership({
   setPrimaryOwner: (ownerId: string) => void;
 }) {
   const CurrentIcon = STEPS[2].icon
+  const [ownerList, setOwnerList] = useState<OwnerOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [showCreateInline, setShowCreateInline] = useState(false)
+  const [createFirst, setCreateFirst] = useState('')
+  const [createLast, setCreateLast] = useState('')
+  const [createEmail, setCreateEmail] = useState('')
+  const [createPhone, setCreatePhone] = useState('')
+  const [createOwnershipPct, setCreateOwnershipPct] = useState<number>(100)
+  const [createDisbursementPct, setCreateDisbursementPct] = useState<number>(100)
+  const [createPrimary, setCreatePrimary] = useState<boolean>(false)
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        setLoading(true)
+        setErr(null)
+        const res = await fetch('/api/owners')
+        if (!res.ok) throw new Error('Failed to load owners')
+        const data = await res.json()
+        if (!cancelled) {
+          setOwnerList(
+            (Array.isArray(data) ? data : []).map((o: any) => {
+              const label = (
+                o.displayName ||
+                o.name ||
+                `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() ||
+                `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() ||
+                o.companyName ||
+                o.company_name ||
+                'Unnamed Owner'
+              )
+              return { id: String(o.id), name: label }
+            })
+          )
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load owners')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleSelectOwner = async (value: string) => {
+    if (!value) return
+    if (value === 'create-new-owner') {
+      setShowCreateInline(true)
+      setCreateOwnershipPct(100)
+      setCreateDisbursementPct(100)
+      setCreatePrimary((formData.owners?.length || 0) === 0)
+      return
+    }
+    addOwner(value)
+  }
+
+  const getCSRFCookie = (): string | null => {
+    if (typeof document === 'undefined') return null
+    const m = document.cookie.match(/(?:^|; )csrf-token=([^;]+)/)
+    return m ? decodeURIComponent(m[1]) : null
+  }
+
+  const handleCreateOwner = async () => {
+    try {
+      setCreating(true)
+      setErr(null)
+      // Basic validation
+      if (!createFirst || !createLast || !createEmail) {
+        setErr('First name, last name, and email are required')
+        return
+      }
+      const csrf = getCSRFCookie()
+      const res = await fetch('/api/owners', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrf ? { 'x-csrf-token': csrf } : {})
+        },
+        body: JSON.stringify({
+          isCompany: false,
+          firstName: createFirst,
+          lastName: createLast,
+          primaryEmail: createEmail,
+          primaryPhone: createPhone || undefined
+        })
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j?.error || 'Failed to create owner')
+      }
+      const j = await res.json()
+      const newOwner = j?.owner
+      if (newOwner?.id) {
+        const name = (
+          newOwner.displayName ||
+          `${newOwner.firstName ?? ''} ${newOwner.lastName ?? ''}`.trim() ||
+          `${newOwner.first_name ?? ''} ${newOwner.last_name ?? ''}`.trim() ||
+          newOwner.companyName ||
+          newOwner.company_name ||
+          'New Owner'
+        )
+        // Update dropdown options
+        setOwnerList(prev => [{ id: newOwner.id, name: name || newOwner.companyName || 'New Owner' }, ...prev])
+        // Add to form selections using provided ownership values and primary flag
+        setFormData(prev => {
+          const entry = {
+            id: String(newOwner.id),
+            name: name || newOwner.companyName || 'New Owner',
+            ownershipPercentage: Number.isFinite(createOwnershipPct) ? createOwnershipPct : 100,
+            disbursementPercentage: Number.isFinite(createDisbursementPct) ? createDisbursementPct : 100,
+            primary: !!createPrimary,
+            status: 'new'
+          }
+          let owners = [...prev.owners, entry]
+          if (entry.primary) {
+            owners = owners.map(o => ({ ...o, primary: o.id === entry.id }))
+          }
+          return { ...prev, owners }
+        })
+        // Reset form
+        setShowCreateInline(false)
+        setCreateFirst(''); setCreateLast(''); setCreateEmail(''); setCreatePhone('')
+        setCreateOwnershipPct(100); setCreateDisbursementPct(100); setCreatePrimary(false)
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create owner')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   return (
     <div>
       <div className="text-center mb-6">
-        <CurrentIcon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Ownership</h3>
-        <p className="text-gray-600">Select the owners related to this property</p>
+        <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-foreground mb-2">Ownership</h3>
+        <p className="text-muted-foreground">Select the owners related to this property</p>
       </div>
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Add Owners *
           </label>
           <select
-            onChange={(e) => {
-              if (e.target.value) {
-                addOwner(e.target.value)
-                e.target.value = ''
-              }
-            }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => { handleSelectOwner(e.target.value); e.target.value = '' }}
+            className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
           >
             <option value="">Choose owners to add...</option>
-            {MOCK_OWNERS.map((owner) => (
+            <option value="create-new-owner">+ Create new owner…</option>
+            {ownerList.map((owner) => (
               <option key={owner.id} value={owner.id}>{owner.name}</option>
             ))}
           </select>
         </div>
+
+        {showCreateInline && (
+          <div className="border border-border rounded-lg p-4 bg-muted/10">
+            <h4 className="text-sm font-medium mb-3">Create New Owner</h4>
+            {err && <p className="text-sm text-destructive mb-2">{err}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">First Name *</label>
+                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createFirst} onChange={e=>setCreateFirst(e.target.value)} placeholder="e.g., John" />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Last Name *</label>
+                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createLast} onChange={e=>setCreateLast(e.target.value)} placeholder="e.g., Smith" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-muted-foreground mb-1">Email *</label>
+                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createEmail} onChange={e=>setCreateEmail(e.target.value)} placeholder="e.g., john.smith@example.com" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-muted-foreground mb-1">Phone (Optional)</label>
+                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createPhone} onChange={e=>setCreatePhone(e.target.value)} placeholder="e.g., (555) 123-4567" />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
+                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value))} />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
+                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value))} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={createPrimary} onChange={e=>setCreatePrimary(e.target.checked)} />
+                  Primary
+                </label>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button type="button" onClick={handleCreateOwner} disabled={creating}>
+                {creating ? 'Adding…' : 'Add Owner'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => { setShowCreateInline(false); setErr(null) }}>Cancel</Button>
+            </div>
+          </div>
+        )}
         
         {formData.owners.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Selected Owners</h4>
-            <div className="space-y-3">
-              {formData.owners.map((owner) => (
-                <div key={owner.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-medium">{owner.name}</span>
-                    <button
-                      onClick={() => removeOwner(owner.id)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 mb-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Ownership %</label>
-                      <input
-                        type="number"
-                        value={owner.ownershipPercentage}
-                        onChange={(e) => updateOwnerPercentage(owner.id, 'ownershipPercentage', Number(e.target.value))}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                        min="0"
-                        max="100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Disbursement %</label>
-                      <input
-                        type="number"
-                        value={owner.disbursementPercentage}
-                        onChange={(e) => updateOwnerPercentage(owner.id, 'disbursementPercentage', Number(e.target.value))}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                        min="0"
-                        max="100"
-                      />
-                    </div>
-                  </div>
-                  
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={owner.primary}
-                      onChange={() => setPrimaryOwner(owner.id)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">Primary</span>
-                  </label>
-                </div>
-              ))}
+            <h4 className="text-sm font-medium text-foreground mb-2">Selected Owners</h4>
+            <div className="border border-border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium">Owner</th>
+                    <th className="text-center px-4 py-2 font-medium">Ownership %</th>
+                    <th className="text-center px-4 py-2 font-medium">Disbursement %</th>
+                    <th className="text-center px-4 py-2 font-medium">Primary</th>
+                    <th className="text-right px-4 py-2 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formData.owners.map((owner) => (
+                    <tr key={owner.id} className="border-t border-border">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{owner.name || 'Unnamed Owner'}</span>
+                          {String(owner.status || '').toLowerCase() === 'new' && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">New Owner</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="number"
+                          value={owner.ownershipPercentage}
+                          onChange={(e) => updateOwnerPercentage(owner.id, 'ownershipPercentage', Number(e.target.value))}
+                          className="w-24 px-2 py-1 border border-border rounded text-sm text-foreground bg-background"
+                          min={0}
+                          max={100}
+                          step={1}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="number"
+                          value={owner.disbursementPercentage}
+                          onChange={(e) => updateOwnerPercentage(owner.id, 'disbursementPercentage', Number(e.target.value))}
+                          className="w-24 px-2 py-1 border border-border rounded text-sm text-foreground bg-background"
+                          min={0}
+                          max={100}
+                          step={1}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={!!owner.primary}
+                          onChange={() => setPrimaryOwner(owner.id)}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => removeOwner(owner.id)} className="text-destructive hover:underline">Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            {/* Ownership total validation */}
+            {(() => {
+              const total = formData.owners.reduce((s, o) => s + (Number(o.ownershipPercentage) || 0), 0)
+              if (total !== 100) {
+                return (
+                  <p className="text-sm text-destructive mt-2">Ownership total is {total}%. It must equal 100% to continue.</p>
+                )
+              }
+              return null
+            })()}
           </div>
         )}
       </div>
@@ -601,64 +1019,229 @@ function Step4BankAccount({
   formData: AddPropertyFormData; 
   setFormData: (data: AddPropertyFormData) => void 
 }) {
-  const CurrentIcon = STEPS[3].icon
-  const selectedBankAccount = MOCK_BANK_ACCOUNTS.find(b => b.id === formData.operatingBankAccountId)
+  const CurrentIcon = STEPS[4].icon
+  const [accounts, setAccounts] = useState<BankAccountOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        setLoading(true)
+        setErr(null)
+        const res = await fetch('/api/bank-accounts?revealNumbers=false')
+        if (!res.ok) throw new Error('Failed to load bank accounts')
+        const data = await res.json()
+        if (!cancelled) setAccounts(data.map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number })))
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load bank accounts')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+  const selectedBankAccount = accounts.find(b => b.id === formData.operatingBankAccountId)
+  const selectedTrustAccount = accounts.find(b => b.id === formData.depositTrustAccountId)
 
   return (
     <div>
       <div className="text-center mb-6">
-        <CurrentIcon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Bank Account</h3>
-        <p className="text-gray-600">Select the operating bank account for this property</p>
+        <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-foreground mb-2">Bank Account</h3>
+        <p className="text-muted-foreground">Select the operating bank account for this property</p>
       </div>
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Operating Bank Account (Optional)
-          </label>
-          <select
-            value={formData.operatingBankAccountId}
-            onChange={(e) => setFormData({ ...formData, operatingBankAccountId: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select a bank account...</option>
-            {MOCK_BANK_ACCOUNTS.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} (...{account.accountNumber})
-              </option>
-            ))}
-          </select>
+          <label className="block text-sm font-medium text-foreground mb-1">Operating Bank Account *</label>
+          <SelectWithDescription
+            value={formData.operatingBankAccountId || ''}
+            onChange={(value: string) => setFormData({ ...formData, operatingBankAccountId: value })}
+            options={accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))}
+            placeholder="Select account..."
+          />
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Reserve Amount (Optional)
-          </label>
+          <label className="block text-sm font-medium text-foreground mb-1">Deposit Trust Account</label>
+          <SelectWithDescription
+            value={formData.depositTrustAccountId || ''}
+            onChange={(value: string) => setFormData({ ...formData, depositTrustAccountId: value })}
+            options={accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))}
+            placeholder="Select account..."
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Reserve Amount</label>
           <div className="relative">
-            <span className="absolute left-3 top-2 text-gray-500">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
             <input
               type="number"
               value={formData.reserve}
               onChange={(e) => setFormData({ ...formData, reserve: Number(e.target.value) })}
-              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="0.00"
+              className="w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+              placeholder="e.g., 0.00"
               step="0.01"
               min="0"
             />
           </div>
-          <p className="text-xs text-gray-500 mt-1">Minimum amount to maintain in the account</p>
         </div>
         
-        {selectedBankAccount && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900 mb-2">{selectedBankAccount.name}</h4>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>Account ending in {selectedBankAccount.accountNumber}</p>
-              <p>Routing: ...{selectedBankAccount.routingNumber}</p>
+        {/* Selected account summary modules removed per request */}
+
+        {/* Management & Services */}
+        <div className="mt-6 border-t border-border pt-6">
+          <h4 className="font-medium text-foreground mb-3">Management & Services</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Management Scope *</label>
+              <SelectWithDescription
+                value={formData.management_scope || ''}
+                onChange={(value: string) => setFormData({ ...formData, management_scope: (value || undefined) as any })}
+                options={[
+                  { value: 'Building', label: 'Building', description: 'Manage entire property' },
+                  { value: 'Unit', label: 'Unit', description: 'Manage specific units' }
+                ]}
+                placeholder="Select scope..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Service Assignment *</label>
+              <SelectWithDescription
+                value={formData.service_assignment || ''}
+                onChange={(value: string) => setFormData({ ...formData, service_assignment: (value || undefined) as any })}
+                options={[
+                  { value: 'Property Level', label: 'Property Level' },
+                  { value: 'Unit Level', label: 'Unit Level' }
+                ]}
+                placeholder="Select level..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Service Plan *</label>
+              <SelectWithDescription
+                value={formData.service_plan || ''}
+                onChange={(value: string) => setFormData({ ...formData, service_plan: (value || undefined) as any })}
+                options={[
+                  { value: 'Full', label: 'Full' },
+                  { value: 'Basic', label: 'Basic' },
+                  { value: 'A-la-carte', label: 'A-la-carte' }
+                ]}
+                placeholder="Select plan..."
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-foreground mb-1">Active Services</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 border border-border rounded-md bg-background">
+                {['Rent Collection','Maintenance','Turnovers','Compliance','Bill Pay','Condition Reports','Renewals'].map((svc) => {
+                  const checked = (formData.active_services || []).includes(svc as any)
+                  return (
+                    <label key={svc} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const curr = new Set(formData.active_services || [])
+                          if (e.target.checked) curr.add(svc as any)
+                          else curr.delete(svc as any)
+                          setFormData({ ...formData, active_services: Array.from(curr) as any })
+                        }}
+                      />
+                      <span>{svc}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Select the active management services for this property.</p>
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Fees */}
+        <div className="mt-6 border-t border-border pt-6">
+          <h4 className="font-medium text-foreground mb-3">Management Fees</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Fee Assignment *</label>
+              <SelectWithDescription
+                value={formData.fee_assignment || ''}
+                onChange={(value: string) => setFormData({ ...formData, fee_assignment: (value || undefined) as any })}
+                options={[
+                  { value: 'Building', label: 'Building' },
+                  { value: 'Unit', label: 'Unit' }
+                ]}
+                placeholder="Select assignment..."
+              />
+            </div>
+            {formData.fee_assignment === 'Building' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Fee Type *</label>
+                  <SelectWithDescription
+                    value={formData.fee_type || ''}
+                    onChange={(value: string) => setFormData({ ...formData, fee_type: (value || undefined) as any })}
+                    options={[
+                      { value: 'Percentage', label: 'Percentage of rent' },
+                      { value: 'Flat Rate', label: 'Flat Rate' }
+                    ]}
+                    placeholder="Select type..."
+                  />
+                </div>
+                {formData.fee_type === 'Percentage' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Fee Percentage *</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={formData.fee_percentage ?? ''}
+                        onChange={(e) => setFormData({ ...formData, fee_percentage: e.target.value === '' ? undefined : Number(e.target.value) })}
+                        className="w-full h-9 px-3 pr-10 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+                        placeholder="e.g., 8"
+                        step="0.01"
+                        min={0}
+                        max={100}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Enter 0–100 (e.g., 8 for 8%).</p>
+                  </div>
+                )}
+                {formData.fee_type === 'Flat Rate' && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1">Management Fee *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                      <input
+                        type="number"
+                        value={formData.management_fee ?? ''}
+                        onChange={(e) => setFormData({ ...formData, management_fee: e.target.value === '' ? undefined : Number(e.target.value) })}
+                        className="w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+                        placeholder="e.g., 0.00"
+                        step="0.01"
+                        min={0}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Billing Frequency *</label>
+                  <SelectWithDescription
+                    value={formData.billing_frequency || ''}
+                    onChange={(value: string) => setFormData({ ...formData, billing_frequency: (value || undefined) as any })}
+                    options={[
+                      { value: 'Monthly', label: 'Monthly' },
+                      { value: 'Annual', label: 'Annual' }
+                    ]}
+                    placeholder="Select frequency..."
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -672,79 +1255,216 @@ function Step5PropertyManager({
   formData: AddPropertyFormData; 
   setFormData: (data: AddPropertyFormData) => void 
 }) {
-  const CurrentIcon = STEPS[4].icon
+  const CurrentIcon = STEPS[5].icon
+  const [staff, setStaff] = useState<StaffOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        setLoading(true)
+        setErr(null)
+        const res = await fetch('/api/staff')
+        if (!res.ok) {
+          // Not fatal if staff table missing; leave list empty
+          setStaff([])
+          return
+        }
+        const data = await res.json()
+        if (!cancelled) setStaff((data || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() })))
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load staff')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div>
       <div className="text-center mb-6">
-        <CurrentIcon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Property Manager</h3>
-        <p className="text-gray-600">Assign a property manager (optional)</p>
+        <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-foreground mb-2">Property Manager</h3>
+        <p className="text-muted-foreground">Assign a property manager (optional)</p>
       </div>
       
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Property Manager (Optional)
           </label>
           <select
             value={formData.propertyManagerId}
             onChange={(e) => setFormData({ ...formData, propertyManagerId: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
           >
             <option value="">Choose a manager...</option>
-            {MOCK_PROPERTY_MANAGERS.map((manager) => (
-              <option key={manager.id} value={manager.id}>{manager.name}</option>
+            {staff.map((m) => (
+              <option key={m.id} value={m.id}>{m.displayName}</option>
             ))}
           </select>
         </div>
         
         {/* Property Summary */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-3">Property Summary</h4>
+        <div className="bg-muted border border-border rounded-lg p-4">
+          <h4 className="font-medium text-foreground mb-3">Property Summary</h4>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-600">Property:</span>
+              <span className="text-muted-foreground">Property:</span>
               <span className="font-medium">{formData.name || 'Not specified'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Type:</span>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                {formData.rentalSubType || 'Not selected'}
+              <span className="text-muted-foreground">Type:</span>
+              <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs">
+                {formData.propertyType || 'Not selected'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Address:</span>
+              <span className="text-muted-foreground">Status:</span>
+              <span className="font-medium">{formData.status || 'Active'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Address:</span>
               <span className="font-medium">{formData.addressLine1 || 'Not specified'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Country:</span>
+              <span className="text-muted-foreground">Country:</span>
               <span className="font-medium">{formData.country || 'Not specified'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Year Built:</span>
+              <span className="text-muted-foreground">Year Built:</span>
               <span className="font-medium">{formData.yearBuilt || 'Not specified'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Owners:</span>
+              <span className="text-muted-foreground">Owners:</span>
               <span className="font-medium">
                 {formData.owners.map(o => o.name).join(', ') || 'None selected'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Primary Owner:</span>
+              <span className="text-muted-foreground">Primary Owner:</span>
               <span className="font-medium">
                 {formData.owners.find(o => o.primary)?.name || 'None selected'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Bank Account:</span>
+              <span className="text-muted-foreground">Bank Account:</span>
               <span className="font-medium">
-                {MOCK_BANK_ACCOUNTS.find(b => b.id === formData.operatingBankAccountId)?.name || 'None selected'}
+                {formData.operatingBankAccountId || 'None selected'}
               </span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Deposit Trust:</span>
+              <span className="font-medium">
+                {formData.depositTrustAccountId || 'None selected'}
+          </span>
+          </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+// Step 4: Unit Details
+function Step4UnitDetails({
+  formData,
+  setFormData
+}: {
+  formData: AddPropertyFormData
+  setFormData: (data: AddPropertyFormData) => void
+}) {
+  const CurrentIcon = STEPS[3].icon
+  const addUnit = () => {
+    setFormData({ ...formData, units: [...formData.units, { unitNumber: '' }] })
+  }
+  const updateUnit = (idx: number, patch: Partial<AddPropertyFormData['units'][number]>) => {
+    const next = formData.units.map((u, i) => (i === idx ? { ...u, ...patch } : u))
+    setFormData({ ...formData, units: next })
+  }
+  const removeUnit = (idx: number) => {
+    const next = formData.units.filter((_, i) => i !== idx)
+    setFormData({ ...formData, units: next.length ? next : [{ unitNumber: '' }] })
+  }
+
+  const BEDROOMS = ['Studio', '1', '2', '3', '4', '5+']
+  const BATHROOMS = ['1', '1.5', '2', '2.5', '3', '3.5', '4+']
+
+  return (
+    <div>
+      <div className="text-center mb-6">
+        <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-foreground mb-2">Unit Details</h3>
+        <p className="text-muted-foreground">Add details for each unit in this property</p>
+      </div>
+
+      <div className="space-y-4">
+        {formData.units.map((u, idx) => (
+          <div key={idx} className="border border-border rounded-lg p-4 bg-card">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-medium">Unit {idx + 1}</span>
+              {formData.units.length > 1 && (
+                <button onClick={() => removeUnit(idx)} className="text-destructive hover:underline text-sm">Remove</button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {/* Unit Number */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Unit Number *</label>
+                <input value={u.unitNumber} onChange={e=>updateUnit(idx,{ unitNumber:e.target.value })} className="w-full h-9 px-3 border border-border rounded-md bg-background" placeholder="e.g., 101, A, 1" />
+              </div>
+              {/* Bedrooms */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Bedrooms</label>
+                <div className="flex rounded-md border border-border overflow-hidden divide-x divide-border">
+                  {BEDROOMS.map(b => {
+                    const selected = (u.unitBedrooms || '') === b
+                    return (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => updateUnit(idx, { unitBedrooms: b })}
+                        className={`flex-1 py-2 text-sm text-center focus:outline-none ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'}`}
+                        aria-pressed={selected}
+                      >
+                        {b}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* Bathrooms */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Bathrooms</label>
+                <div className="flex rounded-md border border-border overflow-hidden divide-x divide-border">
+                  {BATHROOMS.map(b => {
+                    const selected = (u.unitBathrooms || '') === b
+                    return (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => updateUnit(idx, { unitBathrooms: b })}
+                        className={`flex-1 py-2 text-sm text-center focus:outline-none ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'}`}
+                        aria-pressed={selected}
+                      >
+                        {b}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Description (Optional)</label>
+                <textarea value={u.description || ''} onChange={e=>updateUnit(idx,{ description: e.target.value || undefined })} rows={3} className="w-full px-3 py-2 border border-border rounded-lg bg-background" placeholder="Unit-specific details, amenities, notes..." />
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <Button type="button" variant="outline" onClick={addUnit} className="w-full">+ Add Another Unit</Button>
       </div>
     </div>
   )

@@ -11,6 +11,10 @@ interface GooglePlacesAutocompleteProps {
     state: string
     postalCode: string
     country: string
+    latitude?: number
+    longitude?: number
+    borough?: string
+    neighborhood?: string
   }) => void
   placeholder?: string
   className?: string
@@ -74,37 +78,76 @@ export default function GooglePlacesAutocomplete({
     try {
       autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ['address'],
-        componentRestrictions: { country: 'us' },
-        fields: ['address_components', 'formatted_address']
+        fields: ['address_components', 'formatted_address', 'geometry']
       })
       autocompleteRef.current.addListener('place_changed', () => {
         const place = autocompleteRef.current.getPlace()
         if (place.address_components) {
           let address = ''
+          let streetNumber = ''
+          let routeName = ''
           let city = ''
           let state = ''
           let postalCode = ''
+          let postalSuffix = ''
           let country = ''
+          let countryLong = ''
+
+          let locality = ''
+          let postalTown = ''
+          let sublocality1 = ''
+          let sublocality = ''
+          let adminLevel3 = ''
+          let adminLevel2 = ''
+
           for (const component of place.address_components) {
             const types = component.types
             if (types.includes('street_number')) {
-              address = component.long_name + ' '
+              streetNumber = component.long_name
             } else if (types.includes('route')) {
-              address += component.long_name
+              routeName = component.long_name
             } else if (types.includes('locality')) {
-              city = component.long_name
+              locality = component.long_name
+            } else if (types.includes('postal_town')) {
+              postalTown = component.long_name
+            } else if (types.includes('sublocality_level_1')) {
+              sublocality1 = component.long_name
+            } else if (types.includes('sublocality')) {
+              sublocality = component.long_name
+            } else if (types.includes('administrative_area_level_3')) {
+              adminLevel3 = component.long_name
+            } else if (types.includes('administrative_area_level_2')) {
+              adminLevel2 = component.long_name
             } else if (types.includes('administrative_area_level_1')) {
               state = component.short_name
             } else if (types.includes('postal_code')) {
               postalCode = component.long_name
+            } else if (types.includes('postal_code_suffix')) {
+              postalSuffix = component.long_name
             } else if (types.includes('country')) {
               country = component.short_name
+              countryLong = component.long_name
             }
           }
+
+          address = [streetNumber, routeName].filter(Boolean).join(' ').trim()
+          if (postalCode && postalSuffix) postalCode = `${postalCode}-${postalSuffix}`
+          // Fallbacks for city selection
+          city = locality || postalTown || sublocality1 || sublocality || adminLevel3 || adminLevel2 || ''
+
+          // geometry
+          const lat = place?.geometry?.location?.lat ? Number(place.geometry.location.lat()) : undefined
+          const lng = place?.geometry?.location?.lng ? Number(place.geometry.location.lng()) : undefined
+
+          // heuristics for borough and neighborhood
+          const borough = sublocality1 || adminLevel2 || ''
+          const neighborhood = (place.address_components.find((c:any)=>c.types.includes('neighborhood'))?.long_name)
+            || sublocality || sublocality1 || ''
+
           onChange(address)
           if (onPlaceSelect) {
-            console.log('GooglePlacesAutocomplete onPlaceSelect country:', country);
-            onPlaceSelect({ address, city, state, postalCode, country })
+            const countryOut = countryLong || country
+            onPlaceSelect({ address, city, state, postalCode, country: countryOut, latitude: lat, longitude: lng, borough, neighborhood })
           }
         }
       })

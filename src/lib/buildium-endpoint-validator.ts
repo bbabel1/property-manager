@@ -146,14 +146,14 @@ export class BuildiumEndpointValidator {
       // General Ledger
       {
         name: 'List GL Accounts',
-        endpoint: '/generalLedger/accounts',
+        endpoint: '/glaccounts',
         method: 'GET',
         expectedStatus: [200],
         critical: false
       },
       {
         name: 'List GL Entries',
-        endpoint: '/generalLedger/entries',
+        endpoint: '/glentries',
         method: 'GET',
         expectedStatus: [200],
         critical: false

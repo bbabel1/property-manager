@@ -60,11 +60,11 @@ async function getLocalLeaseId(buildiumLeaseId: number): Promise<number> {
 async function createTransactionRecord(charge: BuildiumCharge, localLeaseId: number) {
   const transactionData = {
     buildium_transaction_id: charge.Id,
-    Date: charge.Date,
-    TransactionType: 'Charge',
-    TotalAmount: charge.TotalAmount,
+    date: charge.Date,
+    transaction_type: 'Charge',
+    total_amount: charge.TotalAmount,
     buildium_lease_id: parseInt(leaseId),
-    Memo: charge.Memo,
+    memo: charge.Memo,
     buildium_bill_id: charge.BillId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
