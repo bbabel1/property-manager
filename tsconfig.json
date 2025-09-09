@@ -22,8 +22,8 @@
         "name": "next"
       }
     ],
-    "useUnknownInCatchVariables": false,
-    "noImplicitAny": false,
+    "useUnknownInCatchVariables": true,
+    "noImplicitAny": true,
     "paths": {
       "@/*": [
         "./src/*"
