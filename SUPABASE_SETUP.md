@@ -229,7 +229,7 @@ const { error } = await supabase
 
 ## Next Steps
 
-1. **Authentication**: Consider using Supabase Auth instead of NextAuth
+1. **Authentication**: Supabase Auth is the primary auth system. Ensure email/password or magic link are configured in `supabase/config.toml`.
 
 2. **Real-time**: Enable real-time subscriptions for live updates
 

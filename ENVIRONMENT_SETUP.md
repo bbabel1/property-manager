@@ -6,11 +6,11 @@ This guide ensures your production environment is protected while providing a cl
 
 ## 📁 Environment File Structure
 
-```
-.env                    # Production environment (DON'T MODIFY)
-.env.local              # Local development environment
-.env.example            # Template for new developers
-```
+.env # Production environment (DON'T MODIFY)
+.env.local # Local development environment
+.env.example # Template for new developers
+
+````
 
 ## 🚀 Setup Instructions
 
@@ -19,7 +19,7 @@ This guide ensures your production environment is protected while providing a cl
 ```bash
 # Copy the template for local development
 cp env.example .env.local
-```
+````
 
 ### Step 2: Edit .env.local with Local Credentials
 
@@ -55,6 +55,7 @@ cp env.example .env
 ## 🔒 Security Best Practices
 
 ### ✅ DO:
+
 - Use different Supabase projects for local vs production
 - Use Buildium sandbox for local development
 - Keep `.env` files out of git (already in .gitignore)
@@ -62,6 +63,7 @@ cp env.example .env
 - Test locally before deploying to production
 
 ### ❌ DON'T:
+
 - Never commit `.env` files to git
 - Never use production credentials in local development
 - Never share environment files with others
@@ -79,12 +81,14 @@ Next.js loads environment files in this order (later files override earlier ones
 ## 🧪 Testing Your Setup
 
 ### Test Local Development:
+
 ```bash
 npm run dev
 # Should connect to your local Supabase project
 ```
 
 ### Test Environment Validation:
+
 ```bash
 # Check console output for environment validation
 # Should show "✅ Environment validation successful"
@@ -93,11 +97,13 @@ npm run dev
 ## 📋 Required Variables Checklist
 
 ### Supabase (Required):
+
 - [ ] `NEXT_PUBLIC_SUPABASE_URL`
 - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 
 ### Buildium (Optional):
+
 - [ ] `BUILDIUM_BASE_URL`
 - [ ] `BUILDIUM_CLIENT_ID`
 - [ ] `BUILDIUM_CLIENT_SECRET`
@@ -105,6 +111,7 @@ npm run dev
 - [ ] `BUILDIUM_WEBHOOK_SECRET`
 
 ### App (Required):
+
 - [ ] `NEXTAUTH_URL`
 - [ ] `NEXTAUTH_SECRET`
 - [ ] `NEXT_PUBLIC_APP_URL`
@@ -112,16 +119,19 @@ npm run dev
 ## 🆘 Troubleshooting
 
 ### Environment Validation Fails:
+
 - Check that all required variables are set
 - Ensure URLs are valid (start with http:// or https://)
 - Verify secrets are at least 32 characters long
 
 ### Local Development Issues:
+
 - Ensure `.env.local` exists and has correct values
 - Check that you're using local Supabase project
 - Verify Buildium sandbox credentials
 
 ### Production Issues:
+
 - Check that `.env` has production credentials
 - Verify Supabase project is correct
 - Ensure Buildium production credentials are valid

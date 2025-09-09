@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { BuildiumBankAccountUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(
   request: NextRequest,
@@ -15,27 +16,17 @@ export async function GET(
     
     logger.info({ userId: user.id, bankAccountId, action: 'get_buildium_bank_account' }, 'Fetching Buildium bank account details');
 
-    // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/${bankAccountId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
+    const prox = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}`)
+    if (!prox.ok) {
+      if (prox.status === 404) {
         return NextResponse.json(
           { error: 'Bank account not found' },
           { status: 404 }
         );
       }
-      throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Buildium API error: ${prox.status} ${prox.errorText || ''}`);
     }
-
-    const bankAccount = await response.json();
+    const bankAccount = prox.json;
 
     return NextResponse.json({
       success: true,
@@ -66,29 +57,17 @@ export async function PUT(
     const body = await request.json();
     const data = sanitizeAndValidate(body, BuildiumBankAccountUpdateSchema);
 
-    // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/${bankAccountId}`, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
+    const prox = await buildiumFetch('PUT', `/bankaccounts/${bankAccountId}`, undefined, data)
+    if (!prox.ok) {
+      if (prox.status === 404) {
         return NextResponse.json(
           { error: 'Bank account not found' },
           { status: 404 }
         );
       }
-      throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
+      throw new Error(`Buildium API error: ${prox.status} ${prox.errorText || ''}`);
     }
-
-    const updatedBankAccount = await response.json();
+    const updatedBankAccount = prox.json;
 
     return NextResponse.json({
       success: true,

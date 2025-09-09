@@ -26,7 +26,7 @@ export async function PUT(
     const body = await request.json()
 
     // Validate required fields
-    const requiredFields = ['name', 'address_line1', 'city', 'state', 'postal_code', 'country', 'rental_sub_type', 'status']
+    const requiredFields = ['name', 'address_line1', 'city', 'state', 'postal_code', 'country', 'status']
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 })
@@ -37,23 +37,36 @@ export async function PUT(
     const adminClient = supabaseAdmin || supabase
 
     // Update the property
+    const updatePatch: any = {
+      name: body.name,
+      address_line1: body.address_line1,
+      address_line2: body.address_line2 || null,
+      address_line3: body.address_line3 || null,
+      city: body.city,
+      state: body.state,
+      postal_code: body.postal_code,
+      country: body.country,
+      property_type: body.property_type ?? null,
+      status: body.status,
+      reserve: body.reserve || 0,
+      year_built: body.year_built || null,
+      updated_at: new Date().toISOString()
+    }
+    // Optional management/service/fee fields (only update when provided)
+    if (Object.prototype.hasOwnProperty.call(body, 'management_scope')) updatePatch.management_scope = body.management_scope || null
+    if (Object.prototype.hasOwnProperty.call(body, 'service_assignment')) updatePatch.service_assignment = body.service_assignment || null
+    if (Object.prototype.hasOwnProperty.call(body, 'service_plan')) updatePatch.service_plan = body.service_plan || null
+    if (Object.prototype.hasOwnProperty.call(body, 'active_services')) updatePatch.active_services = Array.isArray(body.active_services) ? body.active_services : null
+    else if (Object.prototype.hasOwnProperty.call(body, 'included_services')) updatePatch.active_services = Array.isArray(body.included_services) ? body.included_services : null
+    if (Object.prototype.hasOwnProperty.call(body, 'fee_assignment')) updatePatch.fee_assignment = body.fee_assignment || null
+    if (Object.prototype.hasOwnProperty.call(body, 'fee_type')) updatePatch.fee_type = body.fee_type || null
+    if (Object.prototype.hasOwnProperty.call(body, 'fee_percentage')) updatePatch.fee_percentage = (body.fee_percentage ?? null) !== null ? Number(body.fee_percentage) : null
+    if (Object.prototype.hasOwnProperty.call(body, 'management_fee')) updatePatch.management_fee = (body.management_fee ?? null) !== null ? Number(body.management_fee) : null
+    if (Object.prototype.hasOwnProperty.call(body, 'billing_frequency')) updatePatch.billing_frequency = body.billing_frequency || null
+
     const { data, error } = await adminClient
       .from('properties')
-      .update({
-        name: body.name,
-        address_line1: body.address_line1,
-        address_line2: body.address_line2 || null,
-        address_line3: body.address_line3 || null,
-        city: body.city,
-        state: body.state,
-        postal_code: body.postal_code,
-        country: body.country,
-        rental_sub_type: body.rental_sub_type,
-        status: body.status,
-        reserve: body.reserve || 0,
-        year_built: body.year_built || null,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePatch)
       .eq('id', propertyId)
       .select()
       .single()

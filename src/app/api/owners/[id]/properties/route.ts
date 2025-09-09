@@ -35,7 +35,7 @@ export async function GET(
       .select(`
         id,
         property_id,
-        "primary",
+        primary,
         ownership_percentage,
         disbursement_percentage,
         properties (
@@ -50,7 +50,7 @@ export async function GET(
           country,
           total_units,
           status,
-          rental_sub_type,
+          property_type,
           year_built,
           reserve,
           created_at,
@@ -88,7 +88,7 @@ export async function GET(
         country: property.country,
         total_units: property.total_units || 0,
         status: property.status,
-        rental_sub_type: property.rental_sub_type,
+        property_type: property.property_type,
         year_built: property.year_built,
         reserve: property.reserve,
         created_at: property.created_at,
@@ -97,7 +97,7 @@ export async function GET(
         ownership_id: ownership.id,
         ownership_percentage: ownership.ownership_percentage || 0,
         disbursement_percentage: ownership.disbursement_percentage || 0,
-        is_primary: ownership.primary || false
+        primary: ownership.primary || false
       };
     }) || [];
 

@@ -49,11 +49,19 @@ class BuildiumClient {
   async getOwner(id: number): Promise<any> {
     return this.makeRequest('GET', `/owners/${id}`)
   }
+
+  async getLease(id: number): Promise<any> {
+    return this.makeRequest('GET', `/leases/${id}`)
+  }
 }
 
 // Data mapping functions
-function mapPropertyFromBuildium(buildiumProperty: any): any {
-  return {
+async function mapPropertyFromBuildiumWithBankAccount(
+  buildiumProperty: any, 
+  supabase: any,
+  buildiumClient: BuildiumClient
+): Promise<any> {
+  const baseProperty = {
     name: buildiumProperty.Name,
     rental_sub_type: mapPropertyTypeFromBuildium(buildiumProperty.PropertyType),
     address_line1: buildiumProperty.Address.AddressLine1,
@@ -71,24 +79,147 @@ function mapPropertyFromBuildium(buildiumProperty: any): any {
     buildium_created_at: buildiumProperty.CreatedDate,
     buildium_updated_at: buildiumProperty.ModifiedDate
   }
+
+  // Resolve bank account ID if OperatingBankAccountId exists
+  let operatingBankAccountId = null
+  if (buildiumProperty.OperatingBankAccountId) {
+    try {
+      // Check if bank account exists locally
+      const { data: existingBankAccount } = await supabase
+        .from('bank_accounts')
+        .select('id')
+        .eq('buildium_bank_id', buildiumProperty.OperatingBankAccountId)
+        .single()
+      
+      if (existingBankAccount) {
+        operatingBankAccountId = existingBankAccount.id
+      } else {
+        console.log(`Bank account ${buildiumProperty.OperatingBankAccountId} not found locally - skipping relationship`)
+        // Note: In webhook context, we don't fetch missing bank accounts to avoid complexity
+        // The full sync process should handle creating missing bank accounts
+      }
+    } catch (error) {
+      console.warn('Error resolving bank account:', error)
+    }
+  }
+
+  return {
+    ...baseProperty,
+    operating_bank_account_id: operatingBankAccountId
+  }
 }
 
-function mapOwnerFromBuildium(buildiumOwner: any): any {
+function mapCountryFromBuildium(country?: string | null): string | null {
+  if (!country) return null
+  return country.replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
+function mapOwnerToContactFromBuildium(o: any) {
   return {
-    name: `${buildiumOwner.FirstName} ${buildiumOwner.LastName}`.trim(),
-    email: buildiumOwner.Email,
-    phone_number: buildiumOwner.PhoneNumber,
-    address_line1: buildiumOwner.Address.AddressLine1,
-    address_line2: buildiumOwner.Address.AddressLine2,
-    city: buildiumOwner.Address.City,
-    state: buildiumOwner.Address.State,
-    postal_code: buildiumOwner.Address.PostalCode,
-    country: buildiumOwner.Address.Country,
-    tax_id: buildiumOwner.TaxId,
-    is_active: buildiumOwner.IsActive,
-    buildium_owner_id: buildiumOwner.Id,
-    buildium_created_at: buildiumOwner.CreatedDate,
-    buildium_updated_at: buildiumOwner.ModifiedDate
+    is_company: !!o.IsCompany,
+    first_name: o.IsCompany ? null : (o.FirstName || null),
+    last_name: o.IsCompany ? null : (o.LastName || null),
+    company_name: o.IsCompany ? (o.CompanyName || null) : null,
+    primary_email: o.Email || null,
+    alt_email: o.AlternateEmail || null,
+    primary_phone: (o.PhoneNumbers?.Mobile || o.PhoneNumbers?.Home || o.PhoneNumbers?.Work || null),
+    alt_phone: (o.PhoneNumbers?.Work || o.PhoneNumbers?.Home || null),
+    date_of_birth: o.DateOfBirth || null,
+    primary_address_line_1: o.Address?.AddressLine1 || null,
+    primary_address_line_2: o.Address?.AddressLine2 || null,
+    primary_address_line_3: o.Address?.AddressLine3 || null,
+    primary_city: o.Address?.City || null,
+    primary_state: o.Address?.State || null,
+    primary_postal_code: o.Address?.PostalCode || null,
+    primary_country: mapCountryFromBuildium(o.Address?.Country),
+    alt_address_line_1: null,
+    alt_address_line_2: null,
+    alt_address_line_3: null,
+    alt_city: null,
+    alt_state: null,
+    alt_postal_code: null,
+    alt_country: null,
+    mailing_preference: 'primary'
+  }
+}
+
+async function findOrCreateOwnerContactEdge(o: any, supabase: any): Promise<number> {
+  const email = o.Email || null
+  if (email) {
+    const { data: existing, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('primary_email', email)
+      .single()
+    if (error && error.code !== 'PGRST116') throw error
+    if (existing) {
+      const mapped = mapOwnerToContactFromBuildium(o)
+      const patch: Record<string, any> = {}
+      for (const [k, v] of Object.entries(mapped)) {
+        if (v !== null && v !== '' && (existing as any)[k] == null) patch[k] = v
+      }
+      if (Object.keys(patch).length) {
+        const { error: updErr } = await supabase.from('contacts').update(patch).eq('id', existing.id)
+        if (updErr) throw updErr
+      }
+      return existing.id
+    }
+  }
+  const now = new Date().toISOString()
+  const payload = mapOwnerToContactFromBuildium(o)
+  const { data: created, error: insErr } = await supabase
+    .from('contacts')
+    .insert({ ...payload, created_at: now, updated_at: now })
+    .select('id')
+    .single()
+  if (insErr) throw insErr
+  return created.id
+}
+
+async function upsertOwnerFromBuildiumEdge(o: any, supabase: any): Promise<{ ownerId: string; created: boolean }>{
+  const contactId = await findOrCreateOwnerContactEdge(o, supabase)
+  const now = new Date().toISOString()
+  const base: any = {
+    contact_id: contactId,
+    is_active: true,
+    management_agreement_start_date: o.ManagementAgreementStartDate || null,
+    management_agreement_end_date: o.ManagementAgreementEndDate || null,
+    tax_address_line1: o.TaxInformation?.Address?.AddressLine1 || null,
+    tax_address_line2: o.TaxInformation?.Address?.AddressLine2 || null,
+    tax_address_line3: o.TaxInformation?.Address?.AddressLine3 || null,
+    tax_city: o.TaxInformation?.Address?.City || null,
+    tax_state: o.TaxInformation?.Address?.State || null,
+    tax_postal_code: o.TaxInformation?.Address?.PostalCode || null,
+    tax_country: mapCountryFromBuildium(o.TaxInformation?.Address?.Country),
+    tax_payer_id: o.TaxInformation?.TaxPayerId || o.TaxId || null,
+    tax_payer_name1: o.TaxInformation?.TaxPayerName1 || null,
+    tax_payer_name2: o.TaxInformation?.TaxPayerName2 || null,
+    tax_include1099: typeof o.TaxInformation?.IncludeIn1099 === 'boolean' ? o.TaxInformation.IncludeIn1099 : null,
+    buildium_owner_id: o.Id,
+    buildium_created_at: o.CreatedDate || null,
+    buildium_updated_at: o.ModifiedDate || null,
+    updated_at: now
+  }
+
+  const { data: existing, error } = await supabase
+    .from('owners')
+    .select('id')
+    .eq('buildium_owner_id', o.Id)
+    .single()
+  if (error && error.code !== 'PGRST116') throw error
+  if (existing) {
+    const { error: updErr } = await supabase.from('owners').update(base).eq('id', existing.id)
+    if (updErr) throw updErr
+    return { ownerId: existing.id, created: false }
+  } else {
+    const insertPayload = { ...base, created_at: now }
+    const { data: created, error: insErr2 } = await supabase
+      .from('owners')
+      .insert(insertPayload)
+      .select('id')
+      .single()
+    if (insErr2) throw insErr2
+    return { ownerId: created.id, created: true }
   }
 }
 
@@ -265,6 +396,10 @@ async function processWebhookEvent(
       case 'OwnerCreated':
       case 'OwnerUpdated':
         return await processOwnerEvent(event, buildiumClient, supabase)
+
+      case 'LeaseCreated':
+      case 'LeaseUpdated':
+        return await processLeaseEvent(event, buildiumClient, supabase)
       
       default:
         console.log('Unhandled webhook event type:', event.EventType)
@@ -286,8 +421,8 @@ async function processPropertyEvent(
     // Fetch the full property data from Buildium
     const property = await buildiumClient.getProperty(event.EntityId)
     
-    // Map to local format
-    const localData = mapPropertyFromBuildium(property)
+    // Map to local format with bank account resolution
+    const localData = await mapPropertyFromBuildiumWithBankAccount(property, supabase, buildiumClient)
 
     // Check if property already exists locally
     const { data: existingProperty } = await supabase
@@ -332,41 +467,38 @@ async function processOwnerEvent(
   try {
     // Fetch the full owner data from Buildium
     const owner = await buildiumClient.getOwner(event.EntityId)
-    
-    // Map to local format
-    const localData = mapOwnerFromBuildium(owner)
-
-    // Check if owner already exists locally
-    const { data: existingOwner } = await supabase
-      .from('owners')
-      .select('id')
-      .eq('buildium_owner_id', owner.Id)
-      .single()
-
-    if (existingOwner) {
-      // Update existing owner
-      await supabase
-        .from('owners')
-        .update(localData)
-        .eq('id', existingOwner.id)
-
-      console.log('Owner updated from Buildium:', existingOwner.id)
-      return { success: true }
-    } else {
-      // Create new owner
-      const { data: newOwner, error } = await supabase
-        .from('owners')
-        .insert(localData)
-        .select()
-        .single()
-
-      if (error) throw error
-
-      console.log('Owner created from Buildium:', newOwner.id)
-      return { success: true }
-    }
+    const res = await upsertOwnerFromBuildiumEdge(owner, supabase)
+    console.log(res.created ? 'Owner created from webhook' : 'Owner updated from webhook', res.ownerId)
+    return { success: true }
   } catch (error) {
     const errorMessage = error.message || 'Unknown error'
+    return { success: false, error: errorMessage }
+  }
+}
+
+async function processLeaseEvent(
+  event: BuildiumWebhookEvent,
+  buildiumClient: BuildiumClient,
+  supabase: any
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Delegate to buildium-sync edge function to ensure consistent mapping/upsert
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/buildium-sync`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ entityType: 'lease', operation: 'syncOneFromBuildium', entityData: { Id: event.EntityId } })
+    })
+    if (!res.ok) {
+      const details = await res.json().catch(() => ({}))
+      console.error('Edge lease sync failed', details)
+      return { success: false, error: 'Edge lease sync failed' }
+    }
+    return { success: true }
+  } catch (error) {
+    const errorMessage = (error as any)?.message || 'Unknown error'
     return { success: false, error: errorMessage }
   }
 }

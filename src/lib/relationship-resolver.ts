@@ -1,5 +1,5 @@
 // Relationship Resolution System
-import { mapCountryFromBuildium } from './buildium-mappers'
+import { mapCountryFromBuildium, mapPropertyFromBuildiumWithBankAccount } from './buildium-mappers'
 // Handles complex entity relationships during Buildium sync operations
 
 interface ResolutionContext {
@@ -185,7 +185,7 @@ export class RelationshipResolver {
         return { success: true, localId: 'dry-run-property-id', created: true }
       }
 
-      const propertyData = this.mapPropertyFromBuildium(buildiumProperty)
+      const propertyData = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, this.context.supabase)
       const { data: newProperty, error: createError } = await this.context.supabase
         .from('properties')
         .insert(propertyData)

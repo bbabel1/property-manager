@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/db'
+import { supabase, supabaseAdmin } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { OwnerCreateSchema, OwnerQuerySchema } from '@/schemas/owner'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
     logger.info({ userId: user.id, action: 'create_owner' }, 'Creating owner');
 
     // Parse and validate request body
-    let body;
+    let bodyRaw: any;
     try {
-      body = await request.json();
+      bodyRaw = await request.json();
     } catch (parseError) {
       logger.error({ error: parseError }, 'Failed to parse request body');
       return NextResponse.json(
@@ -44,26 +44,49 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    // Provide sensible defaults so quick-create forms can work without full address
+    const body = {
+      addressLine1: 'N/A',
+      postalCode: '00000',
+      country: 'United States',
+      ...bodyRaw
+    }
 
-    const data = sanitizeAndValidate(body, OwnerCreateSchema);
+    let data;
+    try {
+      data = sanitizeAndValidate(body, OwnerCreateSchema);
+    } catch (zerr: any) {
+      // Surface validation errors to the client clearly
+      const details = zerr?.errors?.map((e: any) => e.message).join('; ')
+      return NextResponse.json(
+        { error: 'Invalid owner input', details: details || zerr?.message || String(zerr) },
+        { status: 400 }
+      )
+    }
 
-    // First create the contact
+    // Use admin client for writes (bypass RLS)
+    const db = supabaseAdmin || supabase
+
+    // First create the contact (map to snake_case DB columns)
+    const now = new Date().toISOString();
     const contactData = {
-      isCompany: data.isCompany || false,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      companyName: data.companyName,
-      primaryEmail: data.primaryEmail,
-      primaryPhone: data.primaryPhone,
-      primaryAddressLine1: data.addressLine1,
-      primaryAddressLine2: data.addressLine2,
-      primaryCity: data.city,
-      primaryState: data.state,
-      primaryPostalCode: data.postalCode,
-      primaryCountry: data.country || 'US'
-    };
+      is_company: data.isCompany || false,
+      first_name: data.firstName || null,
+      last_name: data.lastName || null,
+      company_name: data.companyName || null,
+      primary_email: data.primaryEmail || null,
+      primary_phone: data.primaryPhone || null,
+      primary_address_line_1: data.addressLine1 || null,
+      primary_address_line_2: data.addressLine2 || null,
+      primary_city: data.city || null,
+      primary_state: data.state || null,
+      primary_postal_code: data.postalCode || null,
+      primary_country: data.country || 'United States',
+      created_at: now,
+      updated_at: now
+    } as any;
 
-    const { data: contact, error: contactError } = await supabase
+    const { data: contact, error: contactError } = await db
       .from('contacts')
       .insert(contactData)
       .select()
@@ -90,14 +113,14 @@ export async function POST(request: NextRequest) {
     });
 
     // Add required timestamp fields
-    const now = new Date().toISOString();
     const finalDbData = {
       ...dbData,
-      updated_at: now
+       created_at: now,
+       updated_at: now
     };
 
     // Create the owner
-    const { data: owner, error: ownerError } = await supabase
+    const { data: owner, error: ownerError } = await db
       .from('owners')
       .insert(finalDbData)
       .select()
@@ -120,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Get contact data for Buildium sync
-      const { data: contact } = await supabase
+      const { data: contact } = await db
         .from('contacts')
         .select('*')
         .eq('id', owner.contact_id)
@@ -157,6 +180,16 @@ export async function POST(request: NextRequest) {
           buildiumId: buildiumSyncResult.buildiumId,
           userId: user.id 
         }, 'Owner successfully synced to Buildium via Edge Function');
+
+        // Persist Buildium owner id locally
+        try {
+          await db
+            .from('owners')
+            .update({ buildium_owner_id: buildiumSyncResult.buildiumId })
+            .eq('id', owner.id)
+        } catch (persistErr) {
+          console.warn('Failed to persist buildium_owner_id on owner create:', persistErr)
+        }
       } else if (!buildiumSyncResult.success) {
         logger.warn({ 
           ownerId: owner.id, 
@@ -179,8 +212,18 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Map response back to application format
+    // Map response back to application format and include contact display fields
     const mappedOwner = mapOwnerFromDB(owner as OwnerDB);
+    const ownerResponse = {
+      ...mappedOwner,
+      // Include contact-friendly fields for UI display
+      first_name: (contact as any)?.first_name ?? null,
+      last_name: (contact as any)?.last_name ?? null,
+      company_name: (contact as any)?.company_name ?? null,
+      displayName: (contact as any)?.is_company
+        ? (contact as any)?.company_name
+        : `${(contact as any)?.first_name ?? ''} ${(contact as any)?.last_name ?? ''}`.trim() || null
+    } as any
 
     console.log('Owner created successfully:', { 
       ownerId: owner.id, 
@@ -192,7 +235,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         message: 'Owner created successfully',
-        owner: mappedOwner,
+        owner: ownerResponse,
         buildiumSync: {
           success: buildiumSyncResult.success,
           buildiumId: buildiumSyncResult.buildiumId,
@@ -238,8 +281,9 @@ export async function GET(request: NextRequest) {
     const queryParams = Object.fromEntries(url.searchParams.entries());
     const query = sanitizeAndValidate(queryParams, OwnerQuerySchema);
 
-    // Build query with pagination and filters - using new owners/contacts structure
-    let queryBuilder = supabase
+    // Build query with pagination and filters - using admin client to bypass RLS
+    const db = supabaseAdmin || supabase
+    let queryBuilder = db
       .from('owners')
       .select(`
         id,
@@ -289,38 +333,47 @@ export async function GET(request: NextRequest) {
     }
 
     // Map database results to application format - combine owner and contact data
-    const mappedOwners = owners?.map((dbOwner) => {
-      const owner = mapOwnerFromDB(dbOwner as OwnerDB);
-      const contact = dbOwner.contacts?.[0]; // Get first contact since it's an array
-      
+    const mappedOwners = (owners || []).map((dbOwner: any) => {
+      const owner = mapOwnerFromDB(dbOwner as OwnerDB)
+      const contactRaw = (dbOwner as any).contacts
+      const contact = Array.isArray(contactRaw) ? contactRaw[0] : contactRaw
+
+      const displayName = contact?.is_company
+        ? (contact?.company_name || contact?.primary_email || `Owner ${owner.id.slice(0, 6)}`)
+        : ([contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim())
+            || contact?.company_name
+            || contact?.primary_email
+            || `Owner ${owner.id.slice(0, 6)}`
+
       // Combine owner and contact data for backward compatibility
       return {
         ...owner,
         // Add contact fields for backward compatibility
-        firstName: contact?.first_name,
-        lastName: contact?.last_name,
-        companyName: contact?.company_name,
-        primaryEmail: contact?.primary_email,
-        primaryPhone: contact?.primary_phone,
-        primaryAddressLine1: contact?.primary_address_line_1,
-        primaryAddressLine2: contact?.primary_address_line_2,
-        primaryCity: contact?.primary_city,
-        primaryState: contact?.primary_state,
-        primaryPostalCode: contact?.primary_postal_code,
-        primaryCountry: contact?.primary_country,
-        isCompany: contact?.is_company,
-        // Legacy fields for backward compatibility
-        name: contact ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : '',
-        email: contact?.primary_email,
-        phoneNumber: contact?.primary_phone,
-        addressLine1: contact?.primary_address_line_1,
-        addressLine2: contact?.primary_address_line_2,
-        city: contact?.primary_city,
-        state: contact?.primary_state,
-        postalCode: contact?.primary_postal_code,
-        country: contact?.primary_country
-      };
-    }) || [];
+        firstName: contact?.first_name || undefined,
+        lastName: contact?.last_name || undefined,
+        companyName: contact?.company_name || undefined,
+        primaryEmail: contact?.primary_email || undefined,
+        primaryPhone: contact?.primary_phone || undefined,
+        primaryAddressLine1: contact?.primary_address_line_1 || undefined,
+        primaryAddressLine2: contact?.primary_address_line_2 || undefined,
+        primaryCity: contact?.primary_city || undefined,
+        primaryState: contact?.primary_state || undefined,
+        primaryPostalCode: contact?.primary_postal_code || undefined,
+        primaryCountry: contact?.primary_country || undefined,
+        isCompany: contact?.is_company || false,
+        // Legacy fields for dropdowns
+        displayName,
+        name: displayName,
+        email: contact?.primary_email || undefined,
+        phoneNumber: contact?.primary_phone || undefined,
+        addressLine1: contact?.primary_address_line_1 || undefined,
+        addressLine2: contact?.primary_address_line_2 || undefined,
+        city: contact?.primary_city || undefined,
+        state: contact?.primary_state || undefined,
+        postalCode: contact?.primary_postal_code || undefined,
+        country: contact?.primary_country || undefined
+      }
+    })
 
     console.log('Owners fetched successfully:', { count: mappedOwners.length, userId: user.id });
     return NextResponse.json(mappedOwners)

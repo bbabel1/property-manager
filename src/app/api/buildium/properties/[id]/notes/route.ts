@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(
   request: NextRequest,
@@ -36,32 +37,16 @@ export async function GET(
     if (offset) queryParams.append('offset', offset);
     if (orderby) queryParams.append('orderby', orderby);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/notes?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+    const prox = await buildiumFetch('GET', `/rentals/${id}/notes`, Object.fromEntries(queryParams.entries()))
+    if (!prox.ok) {
       logger.error(`Buildium property notes fetch failed`);
 
       return NextResponse.json(
-        { 
-          error: 'Failed to fetch property notes from Buildium',
-          details: errorData
-        },
-        { status: response.status }
+        { error: 'Failed to fetch property notes from Buildium', details: prox.errorText || prox.json },
+        { status: prox.status || 502 }
       );
     }
-
-    const notes = await response.json();
+    const notes = prox.json;
 
     logger.info(`Buildium property notes fetched successfully`);
 
@@ -106,34 +91,16 @@ export async function POST(
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyNoteCreateSchema);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/notes`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+    const prox = await buildiumFetch('POST', `/rentals/${id}/notes`, undefined, validatedData)
+    if (!prox.ok) {
       logger.error(`Buildium property note creation failed`);
 
       return NextResponse.json(
-        { 
-          error: 'Failed to create property note in Buildium',
-          details: errorData
-        },
-        { status: response.status }
+        { error: 'Failed to create property note in Buildium', details: prox.errorText || prox.json },
+        { status: prox.status || 502 }
       );
     }
-
-    const note = await response.json();
+    const note = prox.json;
 
     logger.info(`Buildium property note created successfully`);
 

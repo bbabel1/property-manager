@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyUpdateEnhancedSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(
   request: NextRequest,
@@ -23,33 +24,15 @@ export async function GET(
     const user = await requireUser();
 
     const { id } = params;
-
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+    const prox = await buildiumFetch('GET', `/rentals/${id}`)
+    if (!prox.ok) {
       logger.error(`Buildium property fetch failed`);
-
       return NextResponse.json(
-        { 
-          error: 'Failed to fetch property from Buildium',
-          details: errorData
-        },
-        { status: response.status }
+        { error: 'Failed to fetch property from Buildium', details: prox.errorText || prox.json },
+        { status: prox.status || 502 }
       );
     }
-
-    const property = await response.json();
+    const property = prox.json;
 
     logger.info(`Buildium property fetched successfully`);
 
@@ -86,41 +69,20 @@ export async function PUT(
     const user = await requireUser();
 
     const { id } = params;
-
     // Parse and validate request body
     const body = await request.json();
     
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyUpdateEnhancedSchema);
-
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+    const prox = await buildiumFetch('PUT', `/rentals/${id}`, undefined, validatedData)
+    if (!prox.ok) {
       logger.error(`Buildium property update failed`);
-
       return NextResponse.json(
-        { 
-          error: 'Failed to update property in Buildium',
-          details: errorData
-        },
-        { status: response.status }
+        { error: 'Failed to update property in Buildium', details: prox.errorText || prox.json },
+        { status: prox.status || 502 }
       );
     }
-
-    const property = await response.json();
+    const property = prox.json;
 
     logger.info(`Buildium property updated successfully`);
 

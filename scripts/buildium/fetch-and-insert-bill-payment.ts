@@ -2,7 +2,7 @@
 
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import { resolveGLAccountId } from '../../src/lib/buildium-mappers'
+import { resolveGLAccountId, mapPaymentMethodToEnum } from '../../src/lib/buildium-mappers'
 
 // Load environment variables first
 config()
@@ -54,7 +54,7 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
       .from('transactions')
       .select('id, buildium_transaction_id')
       .eq('buildium_transaction_id', buildiumPayment.Id)
-      .eq('TransactionType', 'Payment')
+      .eq('transaction_type', 'Payment')
       .single()
 
     if (existingPayment) {
@@ -86,7 +86,7 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
       .from('transactions')
       .select('lease_id')
       .eq('buildium_bill_id', billId)
-      .eq('TransactionType', 'Bill')
+      .eq('transaction_type', 'Bill')
       .single()
 
     const leaseId = billData?.lease_id || 1 // Default to 1 if not found
@@ -99,14 +99,14 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
       .from('transactions')
       .insert({
         buildium_transaction_id: buildiumPayment.Id,
-        Date: buildiumPayment.EntryDate,
-        TransactionType: 'Payment',
-        TotalAmount: totalAmount,
-        CheckNumber: buildiumPayment.CheckNumber || '',
+        date: buildiumPayment.EntryDate,
+        transaction_type: 'Payment',
+        total_amount: totalAmount,
+        check_number: buildiumPayment.CheckNumber || '',
         lease_id: leaseId,
-        PayeeTenantId: buildiumPayment.PayeeTenantId,
-        PaymentMethod: buildiumPayment.PaymentMethod || 'None',
-        Memo: buildiumPayment.Memo,
+        payee_tenant_id: buildiumPayment.PayeeTenantId,
+        payment_method: mapPaymentMethodToEnum(buildiumPayment.PaymentMethod),
+        memo: buildiumPayment.Memo,
         buildium_bill_id: billId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -151,7 +151,6 @@ async function insertPaymentLine(transactionId: string, line: any, billId: numbe
         gl_account_id: glAccountId,
         amount: line.Amount,
         memo: line.Memo || null,
-        buildium_journal_id: line.Id || null,
         date: new Date().toISOString().split('T')[0], // Use current date
         account_entity_type: line.AccountingEntity?.AccountingEntityType || 'Rental',
         buildium_property_id: propertyId,
@@ -198,10 +197,10 @@ async function main() {
     console.log('Transaction ID:', insertedPayment.id)
     console.log('Buildium Payment ID:', insertedPayment.buildium_transaction_id)
     console.log('Bill ID:', insertedPayment.buildium_bill_id)
-    console.log('Date:', insertedPayment.Date)
-    console.log('Amount:', insertedPayment.TotalAmount)
-    console.log('Payment Method:', insertedPayment.PaymentMethod)
-    console.log('Memo:', insertedPayment.Memo)
+    console.log('Date:', insertedPayment.date)
+    console.log('Amount:', insertedPayment.total_amount)
+    console.log('Payment Method:', insertedPayment.payment_method)
+    console.log('Memo:', insertedPayment.memo)
 
     logger.info('Bill payment fetch and insert process completed successfully!')
 

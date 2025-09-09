@@ -16,10 +16,7 @@ NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key-here"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key-here"
 
-# NextAuth.js
-
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key-here"
+# (NextAuth removed) No NextAuth variables required
 
 # Email (for magic link auth)
 

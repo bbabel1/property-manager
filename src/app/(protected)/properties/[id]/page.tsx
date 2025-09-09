@@ -1,14 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Building2, DollarSign, Home, FileText, Users, TrendingUp, TrendingDown, BarChart3, Folder, Upload, File, Star, Wrench, Calendar, CheckCircle, XCircle } from 'lucide-react'
+import { useState, useEffect, use } from 'react'
+import { ArrowLeft, Building2, DollarSign, Home, FileText, Users, TrendingUp, Edit, Building, Bed, Bath } from 'lucide-react'
 import Link from 'next/link'
-import { use } from 'react'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { PropertySummary, PropertyFinancials, PropertyUnits, PropertyFiles, PropertyVendors } from '@/components/property'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { PropertyService, type PropertyWithDetails } from '@/lib/property-service'
-
 
 export default function PropertyDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
@@ -28,270 +26,28 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
       setLoading(true)
       setError(null)
       
-      console.log('🔍 Property details page - fetching property with ID:', resolvedParams.id)
-      
-      // Force refresh by adding a timestamp to avoid caching
       const propertyData = await PropertyService.getPropertyById(resolvedParams.id)
       
       if (propertyData) {
-        console.log('✅ Property details page - received property data:', {
-          id: propertyData.id,
-          name: propertyData.name,
-          address: propertyData.address_line1
-        })
         setProperty(propertyData)
       } else {
-        console.log('❌ Property details page - no property data returned')
-        // This should never happen now since we return null
         setError('Property not found')
       }
     } catch (err: any) {
-      console.error('❌ Property details page - Error fetching property details:', err)
-      console.log('🔄 Property details page - Error occurred, setting error state')
-      setError('Failed to load property details')
+      console.error('Error fetching property details:', err)
+      setError(err.message || 'Failed to load property details')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleRetry = () => {
-    console.log('🔄 Retrying property fetch...')
-    fetchPropertyDetails()
-  }
-
-  // Render KPIs based on active tab
-  const renderKPIs = () => {
-    if (!property) return null
-
-    switch (activeTab) {
-      case 'summary':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Home className="w-4 h-4 text-primary" />
-                <span>Units</span>
-              </div>
-              <p className="text-2xl">{property.units_summary.total}</p>
-              <p className="text-xs text-muted-foreground">
-                {property.units_summary.occupied} occupied • {property.units_summary.available} available
-              </p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-primary" />
-                <span>Owners</span>
-              </div>
-              <p className="text-2xl">{property.total_owners}</p>
-              <p className="text-xs text-muted-foreground">
-                Primary: {'Determined from ownerships table'}
-              </p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Building2 className="w-4 h-4 text-primary" />
-                <span>Type</span>
-              </div>
-              <p className="text-2xl">{property.rental_sub_type}</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-primary" />
-                <span>Occupancy</span>
-              </div>
-              <p className="text-2xl">
-                {property.occupancy_rate}%
-              </p>
-            </div>
-          </div>
-        )
-
-      case 'financials':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-green-600" />
-                <span>Monthly Revenue</span>
-              </div>
-              <p className="text-2xl">$45,000</p>
-              <div className="flex items-center text-xs text-green-600 mt-1">
-                <TrendingUp className="w-3 h-3 mr-1" />
-                +5.2%
-              </div>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-red-600" />
-                <span>Monthly Expenses</span>
-              </div>
-              <p className="text-2xl">$32,000</p>
-              <div className="flex items-center text-xs text-red-600 mt-1">
-                <TrendingDown className="w-3 h-3 mr-1" />
-                +2.1%
-              </div>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-primary" />
-                <span>Net Income</span>
-              </div>
-              <p className="text-2xl">$13,000</p>
-              <div className="flex items-center text-xs text-green-600 mt-1">
-                <TrendingUp className="w-3 h-3 mr-1" />
-                +12.8% YoY
-              </div>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="w-4 h-4 text-primary" />
-                <span>Average Rent</span>
-              </div>
-              <p className="text-2xl">$1,875</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                per unit
-              </p>
-            </div>
-          </div>
-        )
-
-      case 'units':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Home className="w-4 h-4 text-primary" />
-                <span>Total Units</span>
-              </div>
-              <p className="text-2xl">{property.units_summary.total}</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-green-600" />
-                <span>Occupied</span>
-              </div>
-              <p className="text-2xl">{property.units_summary.occupied}</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Home className="w-4 h-4 text-blue-600" />
-                <span>Available</span>
-              </div>
-              <p className="text-2xl">{property.units_summary.available}</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="w-4 h-4 text-primary" />
-                <span>Avg Rent</span>
-              </div>
-              <p className="text-2xl">$1,875</p>
-            </div>
-          </div>
-        )
-
-      case 'files':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="w-4 h-4 text-primary" />
-                <span>Total Files</span>
-              </div>
-              <p className="text-2xl">6</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Folder className="w-4 h-4 text-blue-600" />
-                <span>Categories</span>
-              </div>
-              <p className="text-2xl">6</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Upload className="w-4 h-4 text-green-600" />
-                <span>This Month</span>
-              </div>
-              <p className="text-2xl">3</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <File className="w-4 h-4 text-primary" />
-                <span>Total Size</span>
-              </div>
-              <p className="text-2xl">13.4 MB</p>
-            </div>
-          </div>
-        )
-
-      case 'vendors':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4 text-primary" />
-                <span>Total Vendors</span>
-              </div>
-              <p className="text-2xl">5</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Star className="w-4 h-4 text-yellow-600" />
-                <span>Avg Rating</span>
-              </div>
-              <p className="text-2xl">4.7</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Wrench className="w-4 h-4 text-green-600" />
-                <span>Categories</span>
-              </div>
-              <p className="text-2xl">5</p>
-            </div>
-
-            <div className="bg-card p-4 rounded-lg border">
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="w-4 h-4 text-primary" />
-                <span>This Month</span>
-              </div>
-              <p className="text-2xl">3</p>
-            </div>
-          </div>
-        )
-
-      default:
-        return null
-    }
-  }
-
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" asChild>
-            <Link href="/properties">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Properties
-            </Link>
-          </Button>
-        </div>
+      <div className="p-6 space-y-6">
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading property details...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Loading property details...</p>
           </div>
         </div>
       </div>
@@ -300,127 +56,510 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
 
   if (error || !property) {
     return (
-      <div className="p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" asChild>
-            <Link href="/properties">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Properties
-            </Link>
-          </Button>
-        </div>
-        <div className="text-center py-12">
-          <h2 className="mb-4">Failed to Load Property</h2>
-          <p className="text-destructive mb-4">{error || 'Property not found'}</p>
-          <div className="space-y-2">
-            <Button onClick={handleRetry} variant="outline">
-              Try Again
-            </Button>
-            <div className="text-sm text-muted-foreground">
-              <p>Property ID: {resolvedParams.id}</p>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="text-destructive mb-4">
+              <Building2 className="h-12 w-12 mx-auto" />
             </div>
+            <h3 className="text-lg font-medium text-foreground mb-2">Error Loading Property</h3>
+            <p className="text-muted-foreground mb-4">{error || 'Property not found'}</p>
+            <Link href="/properties">
+              <Button variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Properties
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
     )
   }
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
+
   return (
     <div className="p-6 space-y-6">
-
-      
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" asChild>
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
           <Link href="/properties">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Properties
+            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Properties
+            </Button>
           </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="flex items-center gap-2">
-            <Building2 className="w-6 h-6" />
-            Property Details
-          </h1>
-          <div className="flex items-center justify-between">
-            <p className="text-muted-foreground">{property.name} • {property.address_line1}, {property.city}, {property.state} {property.postal_code}</p>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                property.status === 'Active' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {property.status}
-              </span>
-              {property.status === 'Active' ? (
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              ) : (
-                <XCircle className="h-4 w-4 text-red-600" />
-              )}
-            </div>
-          </div>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded ${String(property.status).toLowerCase() === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+            {property.status || '—'}
+          </span>
         </div>
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <Building2 className="h-6 w-6" />
+          {property.name || 'Property'}
+        </h1>
+        <p className="text-muted-foreground">
+          {[ (property as any).property_type || '—', (property as any).management_scope || '—', (property as any).service_plan || '—' ].join(' | ')}
+        </p>
       </div>
 
-      {/* Dynamic KPIs based on active tab */}
-      {renderKPIs()}
+      {/* Metrics KPIs removed as requested */}
 
-
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="summary" className="flex items-center gap-2">
-            <Building2 className="w-4 h-4" />
+      {/* Navigation Tabs */}
+      <div className="border-b border-border">
+        <nav className="flex space-x-8">
+          <button
+            onClick={() => setActiveTab("summary")}
+            className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "summary"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
             Summary
-          </TabsTrigger>
-          <TabsTrigger value="financials" className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setActiveTab("financials")}
+            className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "financials"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+            }`}
+          >
+            <DollarSign className="h-4 w-4" />
             Financials
-          </TabsTrigger>
-          <TabsTrigger value="units" className="flex items-center gap-2">
-            <Home className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setActiveTab("units")}
+            className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "units"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+            }`}
+          >
+            <Home className="h-4 w-4" />
             Units
-          </TabsTrigger>
-          <TabsTrigger value="files" className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setActiveTab("files")}
+            className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "files"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+            }`}
+          >
+            <FileText className="h-4 w-4" />
             Files
-          </TabsTrigger>
-          <TabsTrigger value="vendors" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Vendors
-          </TabsTrigger>
-        </TabsList>
+          </button>
+          <button
+            onClick={() => setActiveTab("contacts")}
+            className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "contacts"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Contacts
+          </button>
+          <button
+            onClick={() => setActiveTab("tasks")}
+            className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "tasks"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+            }`}
+          >
+            <TrendingUp className="h-4 w-4 rotate-90" />
+            Tasks
+          </button>
+        </nav>
+      </div>
 
+      {/* Tab Content */}
+      {activeTab === "summary" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Property Details (2/3 width) */}
+          <Card className="lg:col-span-2">
+            <CardHeader className="py-3 px-4">
+              <div className="flex items-center justify-between">
+                <CardTitle>Property Details</CardTitle>
+                <Button variant="outline" size="sm">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8 items-start">
+                {/* Column 1: Property Image */}
+                <div className="relative md:col-span-2">
+                  <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+                    <Building2 className="h-14 w-14 text-muted-foreground" />
+                  </div>
+                  <div className="pt-1.5">
+                    <Button variant="link" size="sm" className="p-0 h-auto text-primary">
+                      Replace photo
+                    </Button>
+                  </div>
+                </div>
 
+                {/* Column 2: Property Information */}
+                <div className="space-y-5 md:col-span-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">ADDRESS</label>
+                    <div className="mt-1">
+                      <p className="text-sm font-medium text-foreground leading-tight">{property.address_line1}</p>
+                      {property.address_line2 ? (
+                        <p className="text-sm font-medium text-foreground leading-tight">{property.address_line2}</p>
+                      ) : null}
+                      <p className="text-sm text-muted-foreground leading-tight">{property.city}, {property.state} {property.postal_code}</p>
+                    </div>
+                  </div>
 
-        <TabsContent value="summary">
-          <PropertySummary 
-            property={property} 
-            onPropertyUpdate={fetchPropertyDetails}
-          />
-        </TabsContent>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">PROPERTY MANAGER</label>
+                    <p className="text-sm text-foreground mt-1 leading-tight">{property.property_manager_name || 'No manager assigned'}</p>
+                  </div>
 
-        <TabsContent value="financials">
-          <PropertyFinancials propertyId={resolvedParams.id} />
-        </TabsContent>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">PROPERTY TYPE</label>
+                    <p className="text-sm text-foreground mt-1 leading-tight">{(property as any).property_type || 'None'}</p>
+                  </div>
 
-        <TabsContent value="units">
-          <PropertyUnits 
-            propertyId={resolvedParams.id} 
-            property={property}
-            onUnitsChange={fetchPropertyDetails}
-          />
-        </TabsContent>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">RENTAL OWNERS</label>
+                    <div className="mt-2 space-y-1.5">
+                      {property.owners && property.owners.length > 0 ? (
+                        <>
+                          {/* Header row for Ownership/Disbursement labels */}
+                          <div className="flex items-center justify-between text-xs text-muted-foreground pb-1.5 border-b border-border">
+                            <span className="sr-only md:not-sr-only">Name</span>
+                            <div className="grid grid-cols-2 gap-8 min-w-[140px] text-right">
+                              <span className="block">Ownership</span>
+                              <span className="block">Disbursement</span>
+                            </div>
+                          </div>
+                          {property.owners.map((o, idx) => {
+                          const name = o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Unnamed Owner'
+                          const ownPct = typeof (o as any).ownership_percentage === 'number' ? (o as any).ownership_percentage : undefined
+                          const disbPct = typeof (o as any).disbursement_percentage === 'number' ? (o as any).disbursement_percentage : undefined
+                          const isPrimary = Boolean((o as any).primary)
+                          return (
+                            <div key={idx} className="flex items-center justify-between py-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <p className="text-sm text-foreground truncate leading-tight">{name}</p>
+                                {isPrimary && (
+                                  <Badge variant="secondary" className="text-xs">Primary</Badge>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-8 text-sm text-foreground whitespace-nowrap text-right min-w-[140px]">
+                                <span className="font-medium">{ownPct != null ? `${ownPct}%` : '—'}</span>
+                                <span className="font-medium">{disbPct != null ? `${disbPct}%` : '—'}</span>
+                              </div>
+                            </div>
+                          )
+                          })}
+                          {/* Totals row */}
+                          <div className="flex items-center justify-between pt-2 mt-1 border-t border-border">
+                            <span className="text-sm font-medium text-foreground">Total</span>
+                            <div className="grid grid-cols-2 gap-8 text-sm text-right min-w-[140px]">
+                              <span className="font-bold">
+                                {(() => {
+                                  const t = property.owners.reduce((a, o) => a + ((o as any).ownership_percentage || 0), 0);
+                                  return `${t}%`;
+                                })()}
+                              </span>
+                              <span className="font-bold">
+                                {(() => {
+                                  const t = property.owners.reduce((a, o) => a + ((o as any).disbursement_percentage || 0), 0);
+                                  return `${t}%`;
+                                })()}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-foreground">No ownership information available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <TabsContent value="files">
-          <PropertyFiles propertyId={resolvedParams.id} />
-        </TabsContent>
+          {/* Right rail: Financials stacked */}
+          <div className="space-y-6">
+            {/* Cash Balance */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Cash balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Cash balance:</span>
+                  <span className="text-lg font-bold text-foreground">{formatCurrency(3061.80)}</span>
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>- Security deposits and early payments:</span>
+                    <span>{formatCurrency(875.00)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>- Property reserve:</span>
+                    <span>{formatCurrency(200.00)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                  <span className="text-sm font-medium text-foreground">Available:</span>
+                  <span className="text-sm font-bold text-foreground">{formatCurrency(2576.80)}</span>
+                </div>
+                <Button variant="link" size="sm" className="p-0 h-auto text-primary mt-2">
+                  View income statement
+                </Button>
+              </CardContent>
+            </Card>
 
-        <TabsContent value="vendors">
-          <PropertyVendors propertyId={resolvedParams.id} />
-        </TabsContent>
-      </Tabs>
+            {/* Banking details */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Banking details</CardTitle>
+                  <Button variant="outline" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">Operating Account</span>
+                    <span className="text-sm text-muted-foreground">
+                      {property.operating_account ? (
+                        <Link className="text-primary hover:underline" href={`/bank-accounts/${property.operating_account.id}`}>
+                          {`${property.operating_account.name}${property.operating_account.last4 ? ' ••••' + property.operating_account.last4 : ''}`}
+                        </Link>
+                      ) : (
+                        'Setup'
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">Deposit Trust Account</span>
+                    <span className="text-sm text-muted-foreground">
+                      {property.deposit_trust_account ? (
+                        <Link className="text-primary hover:underline" href={`/bank-accounts/${property.deposit_trust_account.id}`}>
+                          {`${property.deposit_trust_account.name}${property.deposit_trust_account.last4 ? ' ••••' + property.deposit_trust_account.last4 : ''}`}
+                        </Link>
+                      ) : (
+                        'Setup'
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">Property Reserve</span>
+                    <span className="text-sm text-foreground">{formatCurrency(property.reserve || 0)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Management Services */}
+            <Card className="bg-primary/5">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Management Services</CardTitle>
+                  <Button variant="outline" size="sm">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assignment Level</div>
+                    <div className="text-sm text-foreground mt-1">{(property as any).management_scope || '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Service Plan</div>
+                    <div className="text-sm text-foreground mt-1">{(property as any).service_plan || '—'}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Services</div>
+                    <div className="text-sm text-foreground mt-1">{Array.isArray((property as any).active_services) && (property as any).active_services.length
+                      ? (property as any).active_services.join(', ')
+                      : '—'}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Management Fee</div>
+                    <div className="text-sm text-foreground mt-1">
+                      {(() => {
+                        const feeType = (property as any).fee_type as string | undefined
+                        const pct = (property as any).fee_percentage as number | undefined
+                        const mgmtFee = (property as any).management_fee as number | undefined
+                        if (feeType === 'Percentage' && pct != null) return `${pct}% of Gross Rent`
+                        if (feeType === 'Flat Rate' && mgmtFee != null) return formatCurrency(mgmtFee)
+                        return '—'
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Location Card (hidden on Units tab) */}
+      {activeTab !== "units" && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Location</CardTitle>
+              <Button variant="outline" size="sm">
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Borough</label>
+                <p className="text-sm text-foreground mt-1">{property.borough || '—'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Neighborhood</label>
+                <p className="text-sm text-foreground mt-1">{property.neighborhood || '—'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Longitude</label>
+                <p className="text-sm text-foreground mt-1">{property.longitude ?? '—'}</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Latitude</label>
+                <p className="text-sm text-foreground mt-1">{property.latitude ?? '—'}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Location Verified</label>
+              <p className={`text-sm mt-1 ${property.location_verified ? 'text-success' : 'text-muted-foreground'}`}>
+                {property.location_verified ? 'Verified' : 'Not verified'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Other Tab Content Placeholders */}
+      {activeTab === "financials" && (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground">Financials content coming soon...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "units" && (
+        <Card>
+          <CardContent className="p-0">
+            {(!property.units || property.units.length === 0) ? (
+              <div className="text-center py-12">
+                <Building className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No units found</h3>
+                <p className="text-muted-foreground">Add units to this property to start managing rentals and leases.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Address</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Layout</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Size</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Market Rent</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-card divide-y divide-border">
+                    {property.units.map((unit: any) => (
+                      <tr key={unit.id} className="hover:bg-muted/50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-foreground">{unit.unit_number || '-'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-foreground">{unit.address_line1 || '-'}</div>
+                          <div className="text-sm text-muted-foreground">{[unit.city, unit.state].filter(Boolean).join(', ')}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center text-sm text-foreground">
+                            <Bed className="h-4 w-4 mr-1" />
+                            {unit.unit_bedrooms ?? '-'} bed
+                            <Bath className="h-4 w-4 ml-2 mr-1" />
+                            {unit.unit_bathrooms ?? '-'} bath
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{unit.unit_size ?? '-'} sq ft</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{unit.market_rent != null ? `$${Number(unit.market_rent).toLocaleString()}` : '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {unit.status ? (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${unit.status === 'Occupied' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                              {unit.status}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <Link href={`/units/${unit.id}`}>
+                            <Button variant="outline" size="sm">View</Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "files" && (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground">Files content coming soon...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "contacts" && (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground">Contacts content coming soon...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "tasks" && (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-muted-foreground">Tasks content coming soon...</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

@@ -16,8 +16,7 @@ Authorization: Bearer <your-jwt-token>
 
 ### Auth Endpoints
 
-- `GET /api/auth/[...nextauth]` - NextAuth.js routes
-- `POST /api/auth/signup` - User registration
+- Authentication is handled via Supabase Auth (client + cookies). There are no NextAuth routes.
 
 ### Bank Accounts
 
@@ -64,9 +63,6 @@ Authorization: Bearer <your-jwt-token>
 ```text
 
 src/app/api/
-├── auth/
-│   ├── [...nextauth]/route.ts
-│   └── signup/route.ts
 ├── bank-accounts/
 │   ├── route.ts
 │   └── sync/route.ts

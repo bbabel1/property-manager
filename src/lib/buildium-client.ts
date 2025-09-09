@@ -26,6 +26,19 @@ import type {
   BuildiumLease,
   BuildiumLeaseCreate,
   BuildiumLeaseUpdate,
+  BuildiumAppliance,
+  BuildiumApplianceCreate,
+  BuildiumApplianceUpdate,
+  BuildiumApplianceServiceHistory,
+  BuildiumApplianceServiceHistoryCreate,
+  BuildiumApplianceServiceHistoryUpdate,
+  BuildiumGLAccount,
+  BuildiumGLEntry,
+  BuildiumGLTransaction,
+  BuildiumGLAccountBalance,
+  BuildiumWorkOrder,
+  BuildiumWorkOrderCreate,
+  BuildiumWorkOrderUpdate,
   BuildiumApiResponse,
   BuildiumApiError,
   BuildiumApiConfig,
@@ -62,6 +75,7 @@ import {
   mapBankAccountFromBuildium,
   mapLeaseToBuildium,
   mapLeaseFromBuildium,
+  mapGLAccountToBuildium,
   sanitizeForBuildium,
   validateBuildiumResponse,
   extractBuildiumId
@@ -318,6 +332,75 @@ export class BuildiumClient {
     )
   }
 
+  // ============================================================================
+  // GENERAL LEDGER METHODS
+  // ============================================================================
+
+  async getGLAccounts(params?: { type?: string; subType?: string; isActive?: boolean; limit?: number; offset?: number }): Promise<BuildiumGLAccount[]> {
+    const qp = new URLSearchParams()
+    if (params?.type) qp.append('type', params.type)
+    if (params?.subType) qp.append('subType', params.subType)
+    if (params?.isActive !== undefined) qp.append('isActive', String(params.isActive))
+    if (params?.limit) qp.append('limit', String(params.limit))
+    if (params?.offset) qp.append('offset', String(params.offset))
+    return this.makeRequest<BuildiumGLAccount[]>(`GET`, `/glaccounts?${qp.toString()}`)
+  }
+
+  async getGLAccount(id: number): Promise<BuildiumGLAccount> {
+    return this.makeRequest<BuildiumGLAccount>(`GET`, `/glaccounts/${id}`)
+  }
+
+  async createGLAccount(local: any): Promise<BuildiumGLAccount> {
+    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local))
+    return this.makeRequest<BuildiumGLAccount>(`POST`, `/glaccounts`, payload)
+  }
+
+  async updateGLAccount(id: number, local: any): Promise<BuildiumGLAccount> {
+    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local))
+    return this.makeRequest<BuildiumGLAccount>(`PUT`, `/glaccounts/${id}`, payload)
+  }
+
+  async getGLEntries(params?: { glAccountId?: number; dateFrom?: string; dateTo?: string; limit?: number; offset?: number }): Promise<BuildiumGLEntry[]> {
+    const qp = new URLSearchParams()
+    if (params?.glAccountId) qp.append('glAccountId', String(params.glAccountId))
+    if (params?.dateFrom) qp.append('dateFrom', params.dateFrom)
+    if (params?.dateTo) qp.append('dateTo', params.dateTo)
+    if (params?.limit) qp.append('limit', String(params.limit))
+    if (params?.offset) qp.append('offset', String(params.offset))
+    return this.makeRequest<BuildiumGLEntry[]>(`GET`, `/glentries?${qp.toString()}`)
+  }
+
+  async getGLEntry(id: number): Promise<BuildiumGLEntry> {
+    return this.makeRequest<BuildiumGLEntry>(`GET`, `/glentries/${id}`)
+  }
+
+  async createGLEntry(data: any): Promise<BuildiumGLEntry> {
+    // Assume caller passes GL-ready payload matching schema
+    const payload = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumGLEntry>(`POST`, `/glentries`, payload)
+  }
+
+  async updateGLEntry(id: number, data: any): Promise<BuildiumGLEntry> {
+    const payload = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumGLEntry>(`PUT`, `/glentries/${id}`, payload)
+  }
+
+  async getGLTransactions(params?: { glAccountId?: number; dateFrom?: string; dateTo?: string; limit?: number; offset?: number }): Promise<BuildiumGLTransaction[]> {
+    const qp = new URLSearchParams()
+    if (params?.glAccountId) qp.append('glAccountId', String(params.glAccountId))
+    if (params?.dateFrom) qp.append('dateFrom', params.dateFrom)
+    if (params?.dateTo) qp.append('dateTo', params.dateTo)
+    if (params?.limit) qp.append('limit', String(params.limit))
+    if (params?.offset) qp.append('offset', String(params.offset))
+    return this.makeRequest<BuildiumGLTransaction[]>(`GET`, `/gltransactions?${qp.toString()}`)
+  }
+
+  async getGLAccountBalance(glAccountId: number, asOfDate?: string): Promise<BuildiumGLAccountBalance> {
+    const qp = new URLSearchParams()
+    if (asOfDate) qp.append('asOfDate', asOfDate)
+    return this.makeRequest<BuildiumGLAccountBalance>(`GET`, `/glaccounts/${glAccountId}/balances?${qp.toString()}`)
+  }
+
   async getBill(id: number): Promise<BuildiumBill> {
     return this.makeRequest<BuildiumBill>(`GET`, `/bills/${id}`)
   }
@@ -424,6 +507,107 @@ export class BuildiumClient {
 
   async deleteLease(id: number): Promise<void> {
     return this.makeRequest<void>(`DELETE`, `/leases/${id}`)
+  }
+
+  // ============================================================================
+  // WORK ORDER METHODS
+  // ============================================================================
+
+  async getWorkOrders(params?: {
+    propertyId?: number
+    unitId?: number
+    status?: string
+    categoryId?: number
+    limit?: number
+    offset?: number
+  }): Promise<BuildiumWorkOrder[]> {
+    const queryParams = new URLSearchParams()
+    if (params?.propertyId) queryParams.append('propertyId', params.propertyId.toString())
+    if (params?.unitId) queryParams.append('unitId', params.unitId.toString())
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.categoryId) queryParams.append('categoryId', params.categoryId.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.offset) queryParams.append('offset', params.offset.toString())
+
+    // Buildium returns an array for /workorders
+    const result = await this.makeRequest<any>(`GET`, `/workorders?${queryParams.toString()}`)
+    // Some environments might wrap or not; normalize to array
+    const data = Array.isArray(result?.Data) ? result.Data : Array.isArray(result) ? result : []
+    return data as BuildiumWorkOrder[]
+  }
+
+  async getWorkOrder(id: number): Promise<BuildiumWorkOrder> {
+    return this.makeRequest<BuildiumWorkOrder>(`GET`, `/workorders/${id}`)
+  }
+
+  async createWorkOrder(data: BuildiumWorkOrderCreate): Promise<BuildiumWorkOrder> {
+    const sanitizedData = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumWorkOrder>(`POST`, `/workorders`, sanitizedData)
+  }
+
+  async updateWorkOrder(id: number, data: BuildiumWorkOrderUpdate): Promise<BuildiumWorkOrder> {
+    const sanitizedData = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumWorkOrder>(`PUT`, `/workorders/${id}`, sanitizedData)
+  }
+
+  // ============================================================================
+  // APPLIANCE METHODS (Rental Appliances)
+  // ============================================================================
+
+  async getAppliances(params?: {
+    propertyId?: number
+    unitId?: number
+    applianceType?: string
+    limit?: number
+    offset?: number
+  }): Promise<BuildiumAppliance[]> {
+    const queryParams = new URLSearchParams()
+    if (params?.propertyId) queryParams.append('propertyId', params.propertyId.toString())
+    if (params?.unitId) queryParams.append('unitId', params.unitId.toString())
+    if (params?.applianceType) queryParams.append('applianceType', params.applianceType)
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.offset) queryParams.append('offset', params.offset.toString())
+
+    return this.makeRequest<BuildiumAppliance[]>(`GET`, `/rentals/appliances?${queryParams.toString()}`)
+  }
+
+  async getAppliance(id: number): Promise<BuildiumAppliance> {
+    return this.makeRequest<BuildiumAppliance>(`GET`, `/rentals/appliances/${id}`)
+  }
+
+  async createAppliance(data: BuildiumApplianceCreate): Promise<BuildiumAppliance> {
+    const sanitizedData = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumAppliance>(`POST`, `/rentals/appliances`, sanitizedData)
+  }
+
+  async updateAppliance(id: number, data: BuildiumApplianceUpdate): Promise<BuildiumAppliance> {
+    const sanitizedData = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumAppliance>(`PUT`, `/rentals/appliances/${id}`, sanitizedData)
+  }
+
+  async deleteAppliance(id: number): Promise<void> {
+    return this.makeRequest<void>(`DELETE`, `/rentals/appliances/${id}`)
+  }
+
+  async listApplianceServiceHistory(applianceId: number, params?: { limit?: number; offset?: number }): Promise<BuildiumApplianceServiceHistory[]> {
+    const qp = new URLSearchParams()
+    if (params?.limit) qp.append('limit', String(params.limit))
+    if (params?.offset) qp.append('offset', String(params.offset))
+    return this.makeRequest<BuildiumApplianceServiceHistory[]>(`GET`, `/rentals/appliances/${applianceId}/servicehistory?${qp.toString()}`)
+  }
+
+  async getApplianceServiceHistory(applianceId: number, serviceHistoryId: number): Promise<BuildiumApplianceServiceHistory> {
+    return this.makeRequest<BuildiumApplianceServiceHistory>(`GET`, `/rentals/appliances/${applianceId}/servicehistory/${serviceHistoryId}`)
+  }
+
+  async createApplianceServiceHistory(applianceId: number, data: BuildiumApplianceServiceHistoryCreate): Promise<BuildiumApplianceServiceHistory> {
+    const sanitized = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumApplianceServiceHistory>(`POST`, `/rentals/appliances/${applianceId}/servicehistory`, sanitized)
+  }
+
+  async updateApplianceServiceHistory(applianceId: number, serviceHistoryId: number, data: BuildiumApplianceServiceHistoryUpdate): Promise<BuildiumApplianceServiceHistory> {
+    const sanitized = sanitizeForBuildium(data)
+    return this.makeRequest<BuildiumApplianceServiceHistory>(`PUT`, `/rentals/appliances/${applianceId}/servicehistory/${serviceHistoryId}`, sanitized)
   }
 
   // ============================================================================

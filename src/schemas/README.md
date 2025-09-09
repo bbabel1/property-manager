@@ -49,7 +49,7 @@ const propertyData = {
   state: "CA",
   postalCode: "90210",
   country: "USA",
-  rentalSubType: "MultiFamily"
+  propertyType: "Mult-Family"
 };
 
 const validatedData = PropertyCreateSchema.parse(propertyData);
@@ -214,7 +214,7 @@ export const CustomPropertySchema = PropertyCreateSchema.extend({
 
 // Add conditional validation
 export const ConditionalSchema = PropertyCreateSchema.refine(
-  (data) => data.rentalSubType !== 'MultiFamily' || data.totalUnits > 1,
+  (data) => data.propertyType !== 'Mult-Family' || data.totalUnits > 1,
   {
     message: "Multi-family properties must have more than 1 unit",
     path: ["totalUnits"]

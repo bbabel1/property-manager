@@ -143,9 +143,9 @@ export class DataIntegrityValidator {
       const { data: invalidLeases } = await this.supabase
         .from('lease')
         .select(`
-          id, buildium_lease_id, propertyId, unitId,
-          property:properties!propertyId(id, name),
-          unit:units!unitId(id, unit_number)
+          id, buildium_lease_id, property_id, unit_id,
+          property:properties!Lease_propertyId_fkey(id, name),
+          unit:units!Lease_unitId_fkey(id, unit_number)
         `)
         .or('property.id.is.null,unit.id.is.null')
 
@@ -386,11 +386,11 @@ export class DataIntegrityValidator {
         result.errors.push(`Unit (ID: ${unit.id}) missing required fields`)
       })
 
-      // Leases: propertyId, unitId, lease_from_date are required
+      // Leases: property_id, unit_id, lease_from_date are required
       const { data: incompleteLeases } = await this.supabase
         .from('lease')
-        .select('id, propertyId, unitId, lease_from_date')
-        .or('propertyId.is.null,unitId.is.null,lease_from_date.is.null')
+        .select('id, property_id, unit_id, lease_from_date')
+        .or('property_id.is.null,unit_id.is.null,lease_from_date.is.null')
 
       incompleteLeases?.forEach(lease => {
         result.errors.push(`Lease (ID: ${lease.id}) missing required fields`)

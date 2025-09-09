@@ -10,7 +10,7 @@ well-represented through intuitive endpoint design.
 
 ## Key Insights
 
-- Authentication is properly implemented using NextAuth.js
+- Authentication is properly implemented using Supabase Auth
 - API routes follow consistent naming conventions
 - Error handling is comprehensive across all endpoints
 - Business logic is appropriately separated from presentation

@@ -152,7 +152,7 @@ const { data: property, error } = await supabase
     state: 'NY',
     postal_code: '10001',
     country: 'US',
-    rental_sub_type: 'Office',
+    property_type: 'Condo',
     status: 'Active'
   })
   .select()

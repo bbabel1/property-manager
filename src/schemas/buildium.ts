@@ -4,31 +4,35 @@ import { z } from 'zod'
 // Based on: https://developer.buildium.com/#tag/Bank-Accounts/operation/ExternalApiBankAccounts_CreateBankAccount
 export const BuildiumBankAccountCreateSchema = z.object({
   Name: z.string().min(1, "Bank account name is required"),
+  Description: z.string().optional(),
   BankAccountType: z.enum([
     'Checking',
     'Savings', 
     'MoneyMarket',
     'CertificateOfDeposit'
   ]),
+  Country: z.string().min(1, 'Country is required'),
   AccountNumber: z.string().min(1, "Account number is required"),
   RoutingNumber: z.string().min(9, "Routing number must be at least 9 digits").max(9, "Routing number must be exactly 9 digits"),
-  Description: z.string().optional(),
-  IsActive: z.boolean().default(true)
+  IsActive: z.boolean().default(true),
+  GLAccountId: z.number().int().positive().optional()
 })
 
 // Buildium Bank Account Update Schema
 export const BuildiumBankAccountUpdateSchema = z.object({
   Name: z.string().min(1, "Bank account name is required").optional(),
+  Description: z.string().optional(),
   BankAccountType: z.enum([
     'Checking',
     'Savings', 
     'MoneyMarket',
     'CertificateOfDeposit'
   ]).optional(),
+  Country: z.string().min(1, 'Country is required').optional(),
   AccountNumber: z.string().min(1, "Account number is required").optional(),
   RoutingNumber: z.string().min(9, "Routing number must be at least 9 digits").max(9, "Routing number must be exactly 9 digits").optional(),
-  Description: z.string().optional(),
-  IsActive: z.boolean().optional()
+  IsActive: z.boolean().optional(),
+  GLAccountId: z.number().int().positive().optional()
 })
 
 // Buildium Check Creation Schema
@@ -145,6 +149,13 @@ export const BuildiumBillFileUploadSchema = z.object({
   ContentType: z.string().min(1, "Content type is required")
 })
 
+// Buildium Bill File Update Schema
+export const BuildiumBillFileUpdateSchema = z.object({
+  Name: z.string().min(1, 'File name is required').optional(),
+  Description: z.string().optional(),
+  IsPrivate: z.boolean().optional()
+})
+
 // Buildium Bill Payment Creation Schema
 export const BuildiumBillPaymentCreateSchema = z.object({
   BankAccountId: z.number().int().positive("Bank account ID must be a positive integer"),
@@ -166,59 +177,80 @@ export const BuildiumBulkBillPaymentCreateSchema = z.object({
   Memo: z.string().optional()
 })
 
-// Buildium General Ledger Entry Creation Schema
-// Based on: https://developer.buildium.com/#tag/General-Ledger
+// Buildium General Ledger Entry Creation Schema (v1 /glentries)
+// See: https://developer.buildium.com/#tag/General-Ledger
 export const BuildiumGeneralLedgerEntryCreateSchema = z.object({
   Date: z.string().datetime("Date must be in ISO 8601 format"),
-  ReferenceNumber: z.string().optional(),
   Memo: z.string().optional(),
   Lines: z.array(z.object({
-    AccountId: z.number().int().positive("Account ID must be a positive integer"),
-    Amount: z.number("Amount must be a number"),
-    Memo: z.string().optional()
-  })).min(2, "At least 2 lines are required for a journal entry")
+    GLAccountId: z.number().int().positive("GLAccountId must be a positive integer"),
+    Amount: z.number({ required_error: "Amount is required" }),
+    PostingType: z.enum(['Credit', 'Debit'], { required_error: 'PostingType is required' }),
+    Memo: z.string().optional(),
+    AccountingEntity: z.object({
+      Id: z.number().int().positive().optional(),
+      AccountingEntityType: z.enum(['Association', 'Rental', 'Commercial']).optional(),
+      UnitId: z.number().int().positive().nullable().optional()
+    }).optional()
+  })).min(2, "At least 2 lines are required for a journal entry"),
+  TransactionType: z.string().optional(),
+  CheckNumber: z.string().optional()
 })
 
 // Buildium General Ledger Entry Update Schema
 export const BuildiumGeneralLedgerEntryUpdateSchema = z.object({
   Date: z.string().datetime("Date must be in ISO 8601 format").optional(),
-  ReferenceNumber: z.string().optional(),
   Memo: z.string().optional(),
   Lines: z.array(z.object({
-    AccountId: z.number().int().positive("Account ID must be a positive integer"),
-    Amount: z.number("Amount must be a number"),
-    Memo: z.string().optional()
-  })).min(2, "At least 2 lines are required for a journal entry").optional()
+    Id: z.number().int().positive().optional(),
+    GLAccountId: z.number().int().positive("GLAccountId must be a positive integer"),
+    Amount: z.number({ required_error: "Amount is required" }),
+    PostingType: z.enum(['Credit', 'Debit']).optional(),
+    Memo: z.string().optional(),
+    AccountingEntity: z.object({
+      Id: z.number().int().positive().optional(),
+      AccountingEntityType: z.enum(['Association', 'Rental', 'Commercial']).optional(),
+      UnitId: z.number().int().positive().nullable().optional()
+    }).optional()
+  })).min(2, "At least 2 lines are required for a journal entry").optional(),
+  TransactionType: z.string().optional(),
+  CheckNumber: z.string().optional()
 })
 
-// Buildium General Ledger Account Creation Schema
+// Buildium General Ledger Account Creation Schema (v1 /glaccounts)
 export const BuildiumGeneralLedgerAccountCreateSchema = z.object({
-  Name: z.string().min(1, "Account name is required"),
-  AccountType: z.enum([
-    'Asset',
-    'Liability',
-    'Equity',
-    'Revenue',
-    'Expense'
-  ]),
   AccountNumber: z.string().optional(),
+  Name: z.string().min(1, 'Account name is required'),
   Description: z.string().optional(),
-  IsActive: z.boolean().default(true)
+  Type: z.enum(['Asset','Liability','Equity','Revenue','Expense']),
+  SubType: z.string().optional(),
+  IsDefaultGLAccount: z.boolean().optional(),
+  DefaultAccountName: z.string().optional(),
+  IsContraAccount: z.boolean().optional(),
+  IsBankAccount: z.boolean().optional(),
+  CashFlowClassification: z.enum(['Operating','Investing','Financing']).optional(),
+  ExcludeFromCashBalances: z.boolean().optional(),
+  IsActive: z.boolean().optional(),
+  ParentGLAccountId: z.number().int().positive().optional(),
+  IsCreditCardAccount: z.boolean().optional()
 })
 
 // Buildium General Ledger Account Update Schema
 export const BuildiumGeneralLedgerAccountUpdateSchema = z.object({
-  Name: z.string().min(1, "Account name is required").optional(),
-  AccountType: z.enum([
-    'Asset',
-    'Liability',
-    'Equity',
-    'Revenue',
-    'Expense'
-  ]).optional(),
   AccountNumber: z.string().optional(),
+  Name: z.string().min(1, 'Account name is required').optional(),
   Description: z.string().optional(),
-  IsActive: z.boolean().optional()
+  Type: z.enum(['Asset','Liability','Equity','Revenue','Expense']).optional(),
+  SubType: z.string().optional(),
+  IsDefaultGLAccount: z.boolean().optional(),
+  DefaultAccountName: z.string().optional(),
+  IsContraAccount: z.boolean().optional(),
+  IsBankAccount: z.boolean().optional(),
+  CashFlowClassification: z.enum(['Operating','Investing','Financing']).optional(),
+  ExcludeFromCashBalances: z.boolean().optional(),
+  IsActive: z.boolean().optional(),
+  ParentGLAccountId: z.number().int().positive().optional(),
+  IsCreditCardAccount: z.boolean().optional()
 })
 
 
@@ -280,54 +312,105 @@ export const BuildiumPropertyNoteUpdateSchema = z.object({
   IsPrivate: z.boolean().optional()
 })
 
-// Buildium Unit Creation Schema
-// Based on: https://developer.buildium.com/#tag/Rental-Units
+// Buildium Unit Creation Schema (v1 Rentals/Units)
+// See: https://developer.buildium.com/#tag/Rental-Units
 export const BuildiumUnitCreateSchema = z.object({
-  PropertyId: z.number().int().positive("Property ID must be a positive integer"),
-  UnitNumber: z.string().min(1, "Unit number is required"),
-  UnitType: z.enum([
-    'Apartment',
-    'Condo',
-    'House',
-    'Townhouse',
-    'Studio',
-    'Loft',
-    'Duplex',
-    'Triplex',
-    'Fourplex',
-    'MobileHome',
-    'Other'
-  ]).optional(),
-  Bedrooms: z.number().int().positive().optional(),
-  Bathrooms: z.number().positive().optional(),
-  SquareFootage: z.number().positive().optional(),
-  MarketRent: z.number().positive().optional(),
-  Description: z.string().optional(),
-  IsActive: z.boolean().default(true)
+  UnitNumber: z.string().min(1, 'Unit number is required'),
+  PropertyId: z.number().int().positive('Property ID must be a positive integer'),
+  UnitSize: z.number().int().positive().nullable().optional(),
+  MarketRent: z.number().positive().nullable().optional(),
+  Address: z
+    .object({
+      AddressLine1: z.string().optional(),
+      AddressLine2: z.string().optional(),
+      AddressLine3: z.string().optional(),
+      City: z.string().optional(),
+      State: z.string().optional(),
+      PostalCode: z.string().optional(),
+      Country: z.string().optional()
+    })
+    .optional(),
+  UnitBedrooms: z
+    .enum([
+      'NotSet',
+      'Studio',
+      'OneBed',
+      'TwoBed',
+      'ThreeBed',
+      'FourBed',
+      'FiveBed',
+      'SixBed',
+      'SevenBed',
+      'EightBed',
+      'NineBedPlus'
+    ])
+    .optional(),
+  UnitBathrooms: z
+    .enum([
+      'NotSet',
+      'OneBath',
+      'OnePointFiveBath',
+      'TwoBath',
+      'TwoPointFiveBath',
+      'ThreeBath',
+      'ThreePointFiveBath',
+      'FourBath',
+      'FourPointFiveBath',
+      'FiveBath',
+      'FivePlusBath'
+    ])
+    .optional(),
+  Description: z.string().optional()
 })
 
 // Buildium Unit Update Schema
 export const BuildiumUnitUpdateSchema = z.object({
-  UnitNumber: z.string().min(1, "Unit number is required").optional(),
-  UnitType: z.enum([
-    'Apartment',
-    'Condo',
-    'House',
-    'Townhouse',
-    'Studio',
-    'Loft',
-    'Duplex',
-    'Triplex',
-    'Fourplex',
-    'MobileHome',
-    'Other'
-  ]).optional(),
-  Bedrooms: z.number().int().positive().optional(),
-  Bathrooms: z.number().positive().optional(),
-  SquareFootage: z.number().positive().optional(),
-  MarketRent: z.number().positive().optional(),
-  Description: z.string().optional(),
-  IsActive: z.boolean().optional()
+  UnitNumber: z.string().min(1, 'Unit number is required').optional(),
+  PropertyId: z.number().int().positive().optional(),
+  UnitSize: z.number().int().positive().nullable().optional(),
+  MarketRent: z.number().positive().nullable().optional(),
+  Address: z
+    .object({
+      AddressLine1: z.string().optional(),
+      AddressLine2: z.string().optional(),
+      AddressLine3: z.string().optional(),
+      City: z.string().optional(),
+      State: z.string().optional(),
+      PostalCode: z.string().optional(),
+      Country: z.string().optional()
+    })
+    .optional(),
+  UnitBedrooms: z
+    .enum([
+      'NotSet',
+      'Studio',
+      'OneBed',
+      'TwoBed',
+      'ThreeBed',
+      'FourBed',
+      'FiveBed',
+      'SixBed',
+      'SevenBed',
+      'EightBed',
+      'NineBedPlus'
+    ])
+    .optional(),
+  UnitBathrooms: z
+    .enum([
+      'NotSet',
+      'OneBath',
+      'OnePointFiveBath',
+      'TwoBath',
+      'TwoPointFiveBath',
+      'ThreeBath',
+      'ThreePointFiveBath',
+      'FourBath',
+      'FourPointFiveBath',
+      'FiveBath',
+      'FivePlusBath'
+    ])
+    .optional(),
+  Description: z.string().optional()
 })
 
 // Buildium Unit Amenities Update Schema
@@ -377,6 +460,7 @@ export const BuildiumUnitNoteUpdateSchema = z.object({
 export const BuildiumApplianceCreateSchema = z.object({
   PropertyId: z.number().int().positive("Property ID must be a positive integer"),
   UnitId: z.number().int().positive("Unit ID must be a positive integer").optional(),
+  Name: z.string().min(1, "Name is required"),
   ApplianceType: z.enum([
     'Refrigerator',
     'Dishwasher',
@@ -390,7 +474,7 @@ export const BuildiumApplianceCreateSchema = z.object({
     'GarbageDisposal',
     'Other'
   ]),
-  Brand: z.string().min(1, "Brand is required"),
+  Manufacturer: z.string().min(1, "Manufacturer is required"),
   Model: z.string().min(1, "Model is required"),
   SerialNumber: z.string().optional(),
   InstallationDate: z.string().datetime().optional(),
@@ -401,6 +485,7 @@ export const BuildiumApplianceCreateSchema = z.object({
 
 // Buildium Appliance Update Schema
 export const BuildiumApplianceUpdateSchema = z.object({
+  Name: z.string().min(1, "Name is required").optional(),
   ApplianceType: z.enum([
     'Refrigerator',
     'Dishwasher',
@@ -414,7 +499,7 @@ export const BuildiumApplianceUpdateSchema = z.object({
     'GarbageDisposal',
     'Other'
   ]).optional(),
-  Brand: z.string().min(1, "Brand is required").optional(),
+  Manufacturer: z.string().min(1, "Manufacturer is required").optional(),
   Model: z.string().min(1, "Model is required").optional(),
   SerialNumber: z.string().optional(),
   InstallationDate: z.string().datetime().optional(),
@@ -490,54 +575,66 @@ export const BuildiumOwnerNoteUpdateSchema = z.object({
   IsPrivate: z.boolean().optional()
 })
 
-// Buildium Tenant Creation Schema
-// Based on: https://developer.buildium.com/#tag/Rental-Tenants
+// Buildium Tenant Creation Schema (v1 Rentals/Tenants)
+// Matches: https://developer.buildium.com/#tag/Rental-Tenants
+// Accepts Buildium-native shape so we can POST directly
 export const BuildiumTenantCreateSchema = z.object({
-  FirstName: z.string().min(1, "First name is required"),
-  LastName: z.string().min(1, "Last name is required"),
-  Email: z.string().email("Valid email is required"),
-  PhoneNumber: z.string().optional(),
-  Address: z.object({
-    AddressLine1: z.string().min(1, "Address line 1 is required"),
-    AddressLine2: z.string().optional(),
-    City: z.string().min(1, "City is required"),
-    State: z.string().min(1, "State is required"),
-    PostalCode: z.string().min(1, "Postal code is required"),
-    Country: z.string().default("United States")
-  }).optional(),
-  DateOfBirth: z.string().datetime("Date of birth is required"),
-  SocialSecurityNumber: z.string().optional(),
-  EmergencyContact: z.object({
-    Name: z.string().min(1, "Emergency contact name is required"),
-    PhoneNumber: z.string().min(1, "Emergency contact phone is required"),
-    Relationship: z.string().optional()
-  }).optional(),
-  IsActive: z.boolean().default(true)
+  FirstName: z.string().min(1, 'First name is required').optional(),
+  LastName: z.string().min(1, 'Last name is required').optional(),
+  IsCompany: z.boolean().optional(),
+  CompanyName: z.string().optional(),
+  DateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/,
+      'DateOfBirth must be YYYY-MM-DD')
+    .optional(),
+  Email: z.string().email().optional(),
+  AlternateEmail: z.string().email().optional(),
+  PhoneNumbers: z
+    .object({
+      Home: z.string().optional(),
+      Work: z.string().optional(),
+      Mobile: z.string().optional()
+    })
+    .optional(),
+  PrimaryAddress: z
+    .object({
+      AddressLine1: z.string().optional(),
+      AddressLine2: z.string().optional(),
+      AddressLine3: z.string().optional(),
+      City: z.string().optional(),
+      State: z.string().optional(),
+      PostalCode: z.string().optional(),
+      Country: z.string().optional()
+    })
+    .optional(),
+  AlternateAddress: z
+    .object({
+      AddressLine1: z.string().optional(),
+      AddressLine2: z.string().optional(),
+      AddressLine3: z.string().optional(),
+      City: z.string().optional(),
+      State: z.string().optional(),
+      PostalCode: z.string().optional(),
+      Country: z.string().optional()
+    })
+    .optional(),
+  EmergencyContact: z
+    .object({
+      Name: z.string().optional(),
+      RelationshipDescription: z.string().optional(),
+      Phone: z.string().optional(),
+      Email: z.string().email().optional()
+    })
+    .optional(),
+  Comment: z.string().optional(),
+  MailingPreference: z.enum(['PrimaryAddress', 'AlternateAddress']).optional(),
+  TaxId: z.string().optional(),
+  SMSOptInStatus: z.boolean().optional()
 })
 
-// Buildium Tenant Update Schema
-export const BuildiumTenantUpdateSchema = z.object({
-  FirstName: z.string().min(1, "First name is required").optional(),
-  LastName: z.string().min(1, "Last name is required").optional(),
-  Email: z.string().email("Valid email is required").optional(),
-  PhoneNumber: z.string().optional(),
-  Address: z.object({
-    AddressLine1: z.string().min(1, "Address line 1 is required"),
-    AddressLine2: z.string().optional(),
-    City: z.string().min(1, "City is required"),
-    State: z.string().min(1, "State is required"),
-    PostalCode: z.string().min(1, "Postal code is required"),
-    Country: z.string().default("United States")
-  }).optional(),
-  DateOfBirth: z.string().datetime("Date of birth is required").optional(),
-  SocialSecurityNumber: z.string().optional(),
-  EmergencyContact: z.object({
-    Name: z.string().min(1, "Emergency contact name is required"),
-    PhoneNumber: z.string().min(1, "Emergency contact phone is required"),
-    Relationship: z.string().optional()
-  }).optional(),
-  IsActive: z.boolean().optional()
-})
+// Buildium Tenant Update Schema (same shape as create)
+export const BuildiumTenantUpdateSchema = BuildiumTenantCreateSchema.partial()
 
 // Buildium Tenant Note Create Schema
 export const BuildiumTenantNoteCreateSchema = z.object({
@@ -558,19 +655,13 @@ export const BuildiumTenantNoteUpdateSchema = z.object({
 export const BuildiumLeaseCreateSchema = z.object({
   PropertyId: z.number().int().positive("Property ID must be a positive integer"),
   UnitId: z.number().int().positive("Unit ID must be a positive integer"),
-  TenantId: z.number().int().positive("Tenant ID must be a positive integer"),
   StartDate: z.string().datetime("Start date is required"),
-  EndDate: z.string().datetime("End date is required"),
+  EndDate: z.string().datetime("End date is required").optional(),
   RentAmount: z.number().positive("Rent amount must be positive"),
   SecurityDepositAmount: z.number().positive("Security deposit amount must be positive").optional(),
-  PetDepositAmount: z.number().positive("Pet deposit amount must be positive").optional(),
-  LeaseType: z.enum([
-    'MonthToMonth',
-    'FixedTerm',
-    'WeekToWeek',
-    'YearToYear'
-  ]),
-  IsActive: z.boolean().default(true),
+  LeaseType: z.enum(['Standard','MonthToMonth','WeekToWeek','Other']),
+  TermType: z.enum(['Fixed','MonthToMonth','WeekToWeek','Other']).optional(),
+  RenewalOfferStatus: z.enum(['NotOffered','Offered','Accepted','Declined','Expired']).optional(),
   Notes: z.string().optional()
 })
 
@@ -578,19 +669,13 @@ export const BuildiumLeaseCreateSchema = z.object({
 export const BuildiumLeaseUpdateSchema = z.object({
   PropertyId: z.number().int().positive("Property ID must be a positive integer").optional(),
   UnitId: z.number().int().positive("Unit ID must be a positive integer").optional(),
-  TenantId: z.number().int().positive("Tenant ID must be a positive integer").optional(),
   StartDate: z.string().datetime("Start date is required").optional(),
   EndDate: z.string().datetime("End date is required").optional(),
   RentAmount: z.number().positive("Rent amount must be positive").optional(),
   SecurityDepositAmount: z.number().positive("Security deposit amount must be positive").optional(),
-  PetDepositAmount: z.number().positive("Pet deposit amount must be positive").optional(),
-  LeaseType: z.enum([
-    'MonthToMonth',
-    'FixedTerm',
-    'WeekToWeek',
-    'YearToYear'
-  ]).optional(),
-  IsActive: z.boolean().optional(),
+  LeaseType: z.enum(['Standard','MonthToMonth','WeekToWeek','Other']).optional(),
+  TermType: z.enum(['Fixed','MonthToMonth','WeekToWeek','Other']).optional(),
+  RenewalOfferStatus: z.enum(['NotOffered','Offered','Accepted','Declined','Expired']).optional(),
   Notes: z.string().optional()
 })
 
@@ -637,6 +722,49 @@ export const BuildiumLeaseChargeCreateSchema = z.object({
   ]).optional(),
   Notes: z.string().optional()
 })
+
+// Buildium Lease Transaction Create/Update Schemas
+// Mirrors: https://developer.buildium.com/#tag/Lease-Transactions
+export const BuildiumLeaseTransactionCreateSchema = z.object({
+  TransactionType: z.enum(['Charge', 'Payment', 'Credit', 'Adjustment']),
+  TransactionDate: z.string().min(1, 'TransactionDate is required'),
+  PostDate: z.string().optional(),
+  Amount: z.number(),
+  Memo: z.string().optional(),
+  ReferenceNumber: z.string().optional(),
+  Lines: z
+    .array(
+      z.object({
+        GLAccountId: z.number().int().positive(),
+        Amount: z.number(),
+        Memo: z.string().optional(),
+      })
+    )
+    .optional(),
+})
+
+export const BuildiumLeaseTransactionUpdateSchema = BuildiumLeaseTransactionCreateSchema.partial()
+
+// Recurring Transactions (Lease)
+export const BuildiumRecurringTransactionCreateSchema = z.object({
+  StartDate: z.string().min(1, 'StartDate is required'),
+  EndDate: z.string().optional(),
+  TotalAmount: z.number(),
+  RentCycle: z.enum(['None', 'Monthly', 'Weekly', 'BiWeekly', 'Quarterly', 'Yearly']),
+  BackdateCharges: z.boolean().optional(),
+  Charges: z.array(
+    z.object({
+      GLAccountId: z.number().int().positive(),
+      Amount: z.number(),
+      Memo: z.string().optional(),
+      FirstChargeDate: z.string().optional(),
+      PostDaysInAdvance: z.number().int().optional(),
+      DueOnDayOfTheMonth: z.number().int().optional(),
+    })
+  ),
+})
+
+export const BuildiumRecurringTransactionUpdateSchema = BuildiumRecurringTransactionCreateSchema.partial()
 
 // Buildium Lease Charge Update Schema
 export const BuildiumLeaseChargeUpdateSchema = z.object({
@@ -1087,6 +1215,10 @@ export type BuildiumLeaseNoteCreateInput = z.infer<typeof BuildiumLeaseNoteCreat
 export type BuildiumLeaseNoteUpdateInput = z.infer<typeof BuildiumLeaseNoteUpdateSchema>
 export type BuildiumLeaseChargeCreateInput = z.infer<typeof BuildiumLeaseChargeCreateSchema>
 export type BuildiumLeaseChargeUpdateInput = z.infer<typeof BuildiumLeaseChargeUpdateSchema>
+export type BuildiumLeaseTransactionCreateInput = z.infer<typeof BuildiumLeaseTransactionCreateSchema>
+export type BuildiumLeaseTransactionUpdateInput = z.infer<typeof BuildiumLeaseTransactionUpdateSchema>
+export type BuildiumRecurringTransactionCreateInput = z.infer<typeof BuildiumRecurringTransactionCreateSchema>
+export type BuildiumRecurringTransactionUpdateInput = z.infer<typeof BuildiumRecurringTransactionUpdateSchema>
 export type BuildiumTaskHistoryUpdateInput = z.infer<typeof BuildiumTaskHistoryUpdateSchema>
 export type BuildiumTaskHistoryFileUploadInput = z.infer<typeof BuildiumTaskHistoryFileUploadSchema>
 export type BuildiumTaskCategoryCreateInput = z.infer<typeof BuildiumTaskCategoryCreateSchema>
@@ -1172,6 +1304,10 @@ export const BuildiumSchemas = {
   LeaseNoteUpdate: BuildiumLeaseNoteUpdateSchema,
   LeaseChargeCreate: BuildiumLeaseChargeCreateSchema,
   LeaseChargeUpdate: BuildiumLeaseChargeUpdateSchema,
+  LeaseTransactionCreate: BuildiumLeaseTransactionCreateSchema,
+  LeaseTransactionUpdate: BuildiumLeaseTransactionUpdateSchema,
+  RecurringTransactionCreate: BuildiumRecurringTransactionCreateSchema,
+  RecurringTransactionUpdate: BuildiumRecurringTransactionUpdateSchema,
   TaskHistoryUpdate: BuildiumTaskHistoryUpdateSchema,
   TaskHistoryFileUpload: BuildiumTaskHistoryFileUploadSchema,
   TaskCategoryCreate: BuildiumTaskCategoryCreateSchema,

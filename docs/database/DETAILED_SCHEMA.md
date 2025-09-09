@@ -35,7 +35,7 @@ CREATE TABLE "public"."properties" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
     "country" "public"."countries" NOT NULL,
-    "rental_sub_type" character varying(50),
+    "property_type" public.property_type_enum,
     "operating_bank_account_id" "uuid",
     "primary_owner" character varying(255),
     "status" "public"."property_status" DEFAULT 'Active'::"public"."property_status" NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE "public"."properties" (
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | `now()` | Creation timestamp |
 | `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL | - | Update timestamp |
 | `country` | `public.countries` | NOT NULL | - | Country (enum) |
-| `rental_sub_type` | VARCHAR(50) | - | - | Property type classification |
+| `property_type` | property_type_enum | ✓ (NULL=None) | - | UI property type enum |
 | `operating_bank_account_id` | UUID | - | - | Operating bank account reference |
 | `primary_owner` | VARCHAR(255) | - | - | Primary owner name |
 | `status` | `public.property_status` | NOT NULL | `'Active'` | Property status (enum) |

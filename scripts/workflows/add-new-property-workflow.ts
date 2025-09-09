@@ -40,7 +40,7 @@ interface UnitData {
   unit_number: string
   bedrooms: number
   bathrooms: number
-  square_footage?: number
+  unit_size?: number
   market_rent: number
   unit_type: string
 }
@@ -126,7 +126,7 @@ async function addNewPropertyWorkflow() {
         unit_number: "A1",
         bedrooms: 2,
         bathrooms: 1,
-        square_footage: 850,
+        unit_size: 850,
         market_rent: 1200.00,
         unit_type: "Apartment"
       },
@@ -135,7 +135,7 @@ async function addNewPropertyWorkflow() {
         unit_number: "A2",
         bedrooms: 1,
         bathrooms: 1,
-        square_footage: 650,
+        unit_size: 650,
         market_rent: 1000.00,
         unit_type: "Apartment"
       }

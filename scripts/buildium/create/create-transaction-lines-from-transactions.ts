@@ -21,10 +21,10 @@ async function createTransactionLinesFromTransactions() {
       .select(`
         id,
         buildium_transaction_id,
-        TransactionType,
-        TotalAmount,
-        Date,
-        Memo
+        transaction_type,
+        total_amount,
+        date,
+        memo
       `)
       .eq('buildium_lease_id', 16235)
 
@@ -67,11 +67,11 @@ async function createTransactionLinesFromTransactions() {
       const transactionLineData = {
         transaction_id: transaction.id,
         gl_account_id: null, // Would need to be set based on actual GL account
-        amount: Math.abs(transaction.TotalAmount),
-        posting_type: transaction.TotalAmount >= 0 ? 'Credit' : 'Debit',
-        memo: transaction.Memo || `Transaction ${transaction.TransactionType}`,
+        amount: Math.abs(transaction.total_amount),
+        posting_type: transaction.total_amount >= 0 ? 'Credit' : 'Debit',
+        memo: transaction.memo || `Transaction ${transaction.transaction_type}`,
         account_entity_type: 'Rental' as const,
-        date: transaction.Date,
+        date: transaction.date,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }

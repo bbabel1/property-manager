@@ -6,21 +6,26 @@ import { supabase } from './db'
 import { logger } from './logger'
 import {
   mapPropertyToBuildium,
-  mapPropertyFromBuildium,
+  mapPropertyFromBuildiumWithBankAccount,
   mapUnitToBuildium,
   mapUnitFromBuildium,
   mapOwnerToBuildium,
   mapOwnerFromBuildium,
   mapVendorToBuildium,
   mapVendorFromBuildium,
+  mapVendorFromBuildiumWithCategory,
   mapTaskToBuildium,
   mapTaskFromBuildium,
+  mapTaskFromBuildiumWithRelations,
   mapBillToBuildium,
   mapBillFromBuildium,
   mapBankAccountToBuildium,
-  mapBankAccountFromBuildium,
+  mapBankAccountFromBuildiumWithGLAccount,
   mapLeaseToBuildium,
   mapLeaseFromBuildium,
+  mapWorkOrderFromBuildium,
+  mapWorkOrderFromBuildiumWithRelations,
+  mapWorkOrderToBuildium,
   sanitizeForBuildium,
   validateBuildiumResponse,
   extractBuildiumId
@@ -35,6 +40,7 @@ import type {
   BuildiumBill,
   BuildiumBankAccount,
   BuildiumLease,
+  BuildiumWorkOrder,
   BuildiumSyncStatus,
   BuildiumEntityType
 } from '@/types/buildium'
@@ -114,7 +120,7 @@ export class BuildiumSyncService {
     }
 
     try {
-      const localData = mapPropertyFromBuildium(buildiumProperty)
+      const localData = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, supabase)
 
       // Check if property already exists locally
       const { data: existingProperty } = await supabase
@@ -252,7 +258,7 @@ export class BuildiumSyncService {
     }
 
     try {
-      const localData = mapVendorFromBuildium(buildiumVendor)
+      const localData = await mapVendorFromBuildiumWithCategory(buildiumVendor, supabase)
 
       // Check if vendor already exists locally
       const { data: existingVendor } = await supabase
@@ -298,7 +304,7 @@ export class BuildiumSyncService {
     }
 
     try {
-      const localData = mapTaskFromBuildium(buildiumTask)
+      const localData = await mapTaskFromBuildiumWithRelations(buildiumTask, supabase)
 
       // Check if task already exists locally
       const { data: existingTask } = await supabase
@@ -344,41 +350,57 @@ export class BuildiumSyncService {
     }
 
     try {
-      const localData = mapBillFromBuildium(buildiumBill)
+      // Upsert bill into transactions with lines
+      const { upsertBillWithLines } = await import('./buildium-mappers')
+      const { transactionId } = await upsertBillWithLines(buildiumBill as any, supabase)
 
-      // Check if bill already exists locally
-      const { data: existingBill } = await supabase
-        .from('bills')
-        .select('id')
-        .eq('buildium_bill_id', buildiumBill.Id)
-        .single()
-
-      if (existingBill) {
-        // Update existing bill
-        await supabase
-          .from('bills')
-          .update(localData)
-          .eq('id', existingBill.id)
-
-        logger.info({ billId: existingBill.id, buildiumId: buildiumBill.Id }, 'Bill updated from Buildium')
-        return { success: true, localId: existingBill.id }
-      } else {
-        // Create new bill
-        const { data: newBill, error } = await supabase
-          .from('bills')
-          .insert(localData)
-          .select()
-          .single()
-
-        if (error) throw error
-
-        logger.info({ billId: newBill.id, buildiumId: buildiumBill.Id }, 'Bill created from Buildium')
-        return { success: true, localId: newBill.id }
-      }
+      logger.info({ transactionId, buildiumId: buildiumBill.Id }, 'Bill upserted from Buildium into transactions')
+      return { success: true, localId: transactionId }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error({ buildiumId: buildiumBill.Id, error: errorMessage }, 'Failed to sync bill from Buildium')
+      return { success: false, error: errorMessage }
+    }
+  }
+
+  async syncWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): Promise<{ success: boolean; localId?: string; error?: string }> {
+    if (!this.isEnabled) {
+      logger.info('Buildium sync disabled, skipping work order sync from Buildium')
+      return { success: true }
+    }
+
+    try {
+      const localData = await mapWorkOrderFromBuildiumWithRelations(buildiumWO, supabase)
+
+      // Check if work order already exists locally
+      const { data: existing } = await supabase
+        .from('work_orders')
+        .select('id')
+        .eq('buildium_work_order_id', buildiumWO.Id)
+        .single()
+
+      if (existing) {
+        await supabase
+          .from('work_orders')
+          .update(localData)
+          .eq('id', existing.id)
+
+        logger.info({ workOrderId: existing.id, buildiumId: buildiumWO.Id }, 'Work order updated from Buildium')
+        return { success: true, localId: existing.id }
+      } else {
+        const { data: inserted, error } = await supabase
+          .from('work_orders')
+          .insert(localData)
+          .select('id')
+          .single()
+        if (error) throw error
+        logger.info({ workOrderId: inserted.id, buildiumId: buildiumWO.Id }, 'Work order created from Buildium')
+        return { success: true, localId: inserted.id }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error({ buildiumId: buildiumWO.Id, error: errorMessage }, 'Failed to sync work order from Buildium')
       return { success: false, error: errorMessage }
     }
   }
@@ -390,7 +412,7 @@ export class BuildiumSyncService {
     }
 
     try {
-      const localData = mapBankAccountFromBuildium(buildiumBankAccount)
+      const localData = await mapBankAccountFromBuildiumWithGLAccount(buildiumBankAccount, supabase)
 
       // Check if bank account already exists locally
       const { data: existingBankAccount } = await supabase
@@ -711,13 +733,12 @@ export class BuildiumSyncService {
         logger.info({ billId: localBill.id, buildiumId }, 'Bill created in Buildium')
       }
 
-      // Update local record with Buildium ID
+      // Update local transaction record with Buildium ID
       await supabase
-        .from('bills')
+        .from('transactions')
         .update({
           buildium_bill_id: buildiumId,
-          buildium_created_at: new Date().toISOString(),
-          buildium_updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString()
         })
         .eq('id', localBill.id)
 
@@ -837,6 +858,47 @@ export class BuildiumSyncService {
     }
   }
 
+  async syncWorkOrderToBuildium(localWO: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
+    if (!this.isEnabled) {
+      logger.info('Buildium sync disabled, skipping work order sync')
+      return { success: true }
+    }
+
+    try {
+      await this.updateSyncStatus('work_order', localWO.id, null, 'syncing')
+
+      // Map local DB row to Buildium payload using resolvers
+      const buildiumPayload = await mapWorkOrderToBuildium(localWO, supabase)
+
+      let buildiumId: number | null = null
+      if (localWO.buildium_work_order_id) {
+        const updated = await this.client.updateWorkOrder(localWO.buildium_work_order_id, buildiumPayload as any)
+        buildiumId = updated.Id
+        logger.info({ workOrderId: localWO.id, buildiumId }, 'Work order updated in Buildium')
+      } else {
+        const created = await this.client.createWorkOrder(buildiumPayload as any)
+        buildiumId = created.Id
+        logger.info({ workOrderId: localWO.id, buildiumId }, 'Work order created in Buildium')
+      }
+
+      await supabase
+        .from('work_orders')
+        .update({
+          buildium_work_order_id: buildiumId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', localWO.id)
+
+      await this.updateSyncStatus('work_order', localWO.id, buildiumId, 'synced')
+      return { success: true, buildiumId }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.error({ workOrderId: localWO.id, error: errorMessage }, 'Failed to sync work order to Buildium')
+      await this.updateSyncStatus('work_order', localWO.id, null, 'failed', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  }
+
   // ============================================================================
   // UTILITY METHODS
   // ============================================================================
@@ -945,6 +1007,9 @@ export class BuildiumSyncService {
           case 'lease':
             result = await this.syncLeaseToBuildium(entity)
             break
+          case 'work_order':
+            result = await this.syncWorkOrderToBuildium(entity)
+            break
           default:
             errors.push(`Unknown entity type: ${sync.entityType}`)
             continue
@@ -993,6 +1058,8 @@ export async function syncToBuildium(entityType: BuildiumEntityType, entityData:
       return buildiumSync.syncBankAccountToBuildium(entityData)
     case 'lease':
       return buildiumSync.syncLeaseToBuildium(entityData)
+    case 'work_order':
+      return buildiumSync.syncWorkOrderToBuildium(entityData)
     default:
       return { success: false, error: `Unknown entity type: ${entityType}` }
   }

@@ -17,7 +17,24 @@ const eslintConfig = [
       "supabase/functions/**"
     ],
     rules: {
-      // Custom rule to warn about deprecated basic mappers
+      // Prevent usage of deprecated basic mappers
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/buildium-mappers"],
+              importNames: [
+                "mapPropertyFromBuildium", 
+                "mapBankAccountFromBuildium", 
+                "mapGLAccountFromBuildium"
+              ],
+              message: "⚠️ Use enhanced mappers (mapPropertyFromBuildiumWithBankAccount, mapBankAccountFromBuildiumWithGLAccount, mapGLAccountFromBuildiumWithSubAccounts) to ensure proper relationship handling"
+            }
+          ]
+        }
+      ],
+      // Custom rule to warn about deprecated basic mappers (fallback for non-import usage)
       "no-restricted-globals": [
         "error",
         {

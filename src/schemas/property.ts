@@ -1,16 +1,12 @@
 import { z } from "zod";
 
 export const PropertyCreateSchema = z.object({
-  rentalSubType: z.enum([
-    'CondoTownhome',
-    'MultiFamily', 
-    'SingleFamily',
-    'Industrial',
-    'Office',
-    'Retail',
-    'ShoppingCenter',
-    'Storage',
-    'ParkingSpace'
+  propertyType: z.enum([
+    'Condo',
+    'Co-op',
+    'Condop',
+    'Mult-Family',
+    'Townhouse'
   ]),
   name: z.string().min(1, "Property name is required").max(127),
   addressLine1: z.string().min(1, "Address is required").max(100),
@@ -29,7 +25,25 @@ export const PropertyCreateSchema = z.object({
   })).optional(),
   operatingBankAccountId: z.string().optional(),
   reserve: z.number().min(0).optional(),
-  propertyManagerId: z.string().optional()
+  propertyManagerId: z.string().optional(),
+  // Management/Service/Fee fields
+  management_scope: z.enum(['Building','Unit']).optional(),
+  service_assignment: z.enum(['Property Level','Unit Level']).optional(),
+  service_plan: z.enum(['Full','Basic','A-la-carte']).optional(),
+  active_services: z.array(z.enum([
+    'Rent Collection',
+    'Maintenance',
+    'Turnovers',
+    'Compliance',
+    'Bill Pay',
+    'Condition Reports',
+    'Renewals'
+  ])).optional(),
+  fee_assignment: z.enum(['Building','Unit']).optional(),
+  fee_type: z.enum(['Percentage','Flat Rate']).optional(),
+  fee_percentage: z.number().min(0).max(100).optional(),
+  management_fee: z.number().min(0).optional(),
+  billing_frequency: z.enum(['Annual','Monthly']).optional()
 });
 
 export const PropertyUpdateSchema = PropertyCreateSchema.partial();

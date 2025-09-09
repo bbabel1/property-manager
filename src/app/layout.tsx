@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { Providers } from '@/components/providers'
-import { Sidebar } from '@/components/layout/sidebar'
+import { ClientProviders } from '@/components/client-providers'
+import Script from 'next/script'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -19,14 +19,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Providers>
-          <div className="flex h-screen bg-white">
-            <Sidebar />
-            <main className="flex-1 overflow-auto">
-              {children}
-            </main>
-          </div>
-        </Providers>
+        {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+          <Script
+            id="google-maps-places"
+            src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
+            strategy="afterInteractive"
+          />
+        ) : null}
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   )

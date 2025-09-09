@@ -43,7 +43,6 @@ export interface UnitDB {
   active_services?: string;
   fee_notes?: string;
   unit_type?: string;
-  square_footage?: number;
   is_active?: boolean;
   buildium_created_at?: string;
   buildium_updated_at?: string;
@@ -81,7 +80,6 @@ export interface Unit {
   activeServices?: string;
   feeNotes?: string;
   unitType?: string;
-  squareFootage?: number;
   isActive?: boolean;
   buildiumCreatedAt?: string;
   buildiumUpdatedAt?: string;
@@ -120,7 +118,6 @@ export function mapUnitFromDB(dbUnit: UnitDB): Unit {
     activeServices: dbUnit.active_services,
     feeNotes: dbUnit.fee_notes,
     unitType: dbUnit.unit_type,
-    squareFootage: dbUnit.square_footage,
     isActive: dbUnit.is_active,
     buildiumCreatedAt: dbUnit.buildium_created_at,
     buildiumUpdatedAt: dbUnit.buildium_updated_at,
@@ -160,7 +157,7 @@ export function mapUnitToDB(unit: Partial<Unit>): Partial<UnitDB> {
   if (unit.activeServices !== undefined) dbUnit.active_services = unit.activeServices;
   if (unit.feeNotes !== undefined) dbUnit.fee_notes = unit.feeNotes;
   if (unit.unitType !== undefined) dbUnit.unit_type = unit.unitType;
-  if (unit.squareFootage !== undefined) dbUnit.square_footage = unit.squareFootage;
+  
   if (unit.isActive !== undefined) dbUnit.is_active = unit.isActive;
   if (unit.buildiumCreatedAt !== undefined) dbUnit.buildium_created_at = unit.buildiumCreatedAt;
   if (unit.buildiumUpdatedAt !== undefined) dbUnit.buildium_updated_at = unit.buildiumUpdatedAt;
