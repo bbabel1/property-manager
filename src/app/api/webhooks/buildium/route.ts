@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/db'
-import { logger } from '@/lib/logger'
+import { createRequestLogger } from '@/lib/logging'
 
 export async function POST(request: NextRequest) {
+  const reqLogger = createRequestLogger(request, 'buildium-webhook')
   try {
     // Verify webhook signature (if provided)
     const signature = request.headers.get('x-buildium-signature')
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (webhookSecret && signature) {
       // TODO: Implement signature verification
       // For now, we'll log the signature for debugging
-      logger.info({ signature }, 'Webhook signature received');
+      reqLogger.info({ signature }, 'Webhook signature received')
     }
 
     // Parse webhook payload
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     try {
       payload = await request.json()
     } catch (parseError) {
-      logger.error({ error: parseError }, 'Failed to parse webhook payload');
+      reqLogger.error({ error: parseError }, 'Failed to parse webhook payload')
       return NextResponse.json(
         { error: 'Invalid JSON payload' },
         { status: 400 }
@@ -37,39 +38,47 @@ export async function POST(request: NextRequest) {
       })
 
     if (storeError) {
-      logger.error({ error: storeError }, 'Failed to store webhook event');
+      reqLogger.error({ error: storeError }, 'Failed to store webhook event')
       // Don't fail the webhook - just log the error
     }
 
     // Forward to Edge Function for processing
     try {
       const edgeFunctionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/buildium-webhook`
-      
+
+      // Propagate W3C trace context for distributed tracing
+      const traceparent = request.headers.get('traceparent')
+      const tracestate = request.headers.get('tracestate')
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY || ''}`,
+      }
+      if (signature) headers['x-buildium-signature'] = signature
+      if (traceparent) headers['traceparent'] = traceparent
+      if (tracestate) headers['tracestate'] = tracestate
+
       const response = await fetch(edgeFunctionUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'x-buildium-signature': signature || ''
-        },
+        headers,
         body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        logger.error({ 
+        reqLogger.error({ 
           status: response.status, 
           error: errorText 
-        }, 'Edge function webhook processing failed');
+        }, 'Edge function webhook processing failed')
       } else {
         const result = await response.json()
-        logger.info({ result }, 'Webhook processed successfully by Edge Function');
+        reqLogger.info({ result }, 'Webhook processed successfully by Edge Function')
       }
 
     } catch (edgeFunctionError) {
-      logger.error({ 
+      reqLogger.error({ 
         error: edgeFunctionError 
-      }, 'Failed to forward webhook to Edge Function');
+      }, 'Failed to forward webhook to Edge Function')
     }
 
     // Always return success to Buildium
@@ -79,7 +88,7 @@ export async function POST(request: NextRequest) {
     )
 
   } catch (error) {
-    logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Error processing webhook');
+    reqLogger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Error processing webhook')
     
     // Still return success to avoid Buildium retries
     return NextResponse.json(

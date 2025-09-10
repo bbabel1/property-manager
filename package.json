@@ -17,7 +17,10 @@
     "db:schema": "npx supabase@latest db dump --local --file docs/database/current_schema.sql",
     "db:types": "npx supabase@latest gen types typescript --local > src/types/database.ts",
     "db:docs": "npm run db:schema && npm run db:types && npm run docs:update",
-    "sync:bank-accounts": "node scripts/sync-bank-accounts.js"
+    "sync:bank-accounts": "node scripts/sync-bank-accounts.js",
+    "audit": "npm audit --audit-level=high",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "audit:fix": "npm audit fix"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -76,7 +79,16 @@
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
     "zod": "^4.1.1",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.8",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+    "@opentelemetry/instrumentation-fetch": "^0.55.0",
+    "@opentelemetry/instrumentation-http": "^0.55.0",
+    "@opentelemetry/instrumentation-pg": "^0.55.0",
+    "@opentelemetry/instrumentation-pino": "^0.55.0",
+    "@opentelemetry/instrumentation-undici": "^0.55.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
