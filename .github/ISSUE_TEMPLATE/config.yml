@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions / Help
+    url: https://github.com/bbabel1/property-manager/discussions
+    about: Ask questions and get help in Discussions
+
