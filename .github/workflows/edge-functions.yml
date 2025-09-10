@@ -1,0 +1,72 @@
+name: Edge Functions Deploy
+
+on:
+  # Manual trigger with target environment
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+  # Optional: auto-deploy after migrations workflow succeeds on main
+  workflow_run:
+    workflows: ["Database Migrations"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-functions:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'staging' }}
+    concurrency:
+      group: edge-func-${{ github.ref }}-${{ inputs.environment || 'staging' }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Select project ref (staging/production)
+        id: select
+        shell: bash
+        run: |
+          if [ "${{ inputs.environment || 'staging' }}" = "production" ]; then
+            echo "ref=${{ secrets.SUPABASE_PROJECT_REF_PRODUCTION }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${{ secrets.SUPABASE_PROJECT_REF_STAGING }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase link --project-ref "${{ steps.select.outputs.ref }}"
+
+      - name: Deploy all Edge Functions that exist
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dir in supabase/functions/*; do
+            if [ -d "$dir" ]; then
+              name=$(basename "$dir")
+              echo "Deploying function: $name"
+              supabase functions deploy "$name" --project-ref "${{ steps.select.outputs.ref }}"
+            fi
+          done
+          echo "Edge Functions deploy completed."
+
