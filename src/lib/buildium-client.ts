@@ -83,14 +83,16 @@ import {
 
 export class BuildiumClient {
   private baseUrl: string
-  private apiKey: string
+  private clientId: string
+  private clientSecret: string
   private timeout: number
   private retryAttempts: number
   private retryDelay: number
 
   constructor(config: BuildiumApiConfig) {
     this.baseUrl = config.baseUrl
-    this.apiKey = config.apiKey
+    this.clientId = config.clientId
+    this.clientSecret = config.clientSecret
     this.timeout = config.timeout || 30000
     this.retryAttempts = config.retryAttempts || 3
     this.retryDelay = config.retryDelay || 1000
@@ -642,10 +644,11 @@ export class BuildiumClient {
     data?: any
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
-    const headers = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'x-buildium-client-id': this.clientId,
+      'x-buildium-client-secret': this.clientSecret,
     }
 
     const config: RequestInit = {
@@ -780,7 +783,8 @@ export function createBuildiumClient(config: BuildiumApiConfig): BuildiumClient 
 
 export const defaultBuildiumConfig: BuildiumApiConfig = {
   baseUrl: process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1',
-  apiKey: process.env.BUILDIUM_CLIENT_SECRET || process.env.BUILDIUM_API_KEY || '',
+  clientId: process.env.BUILDIUM_CLIENT_ID || '',
+  clientSecret: process.env.BUILDIUM_CLIENT_SECRET || '',
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000

@@ -13,7 +13,8 @@ export type WorkOrderUpdate = Database['public']['Tables']['work_orders']['Updat
 function ensureClient() {
   return createBuildiumClient({
     ...defaultBuildiumConfig,
-    apiKey: process.env.BUILDIUM_CLIENT_SECRET || process.env.BUILDIUM_API_KEY || ''
+    clientId: process.env.BUILDIUM_CLIENT_ID || '',
+    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || ''
   })
 }
 

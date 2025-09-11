@@ -139,7 +139,8 @@ import { supabase } from '@/lib/db'
 // Create Buildium client
 const buildiumClient = createBuildiumClient({
   baseUrl: process.env.BUILDIUM_BASE_URL!,
-  apiKey: process.env.BUILDIUM_API_KEY!
+  clientId: process.env.BUILDIUM_CLIENT_ID!,
+  clientSecret: process.env.BUILDIUM_CLIENT_SECRET!
 })
 
 // Create property locally
@@ -216,7 +217,8 @@ import { supabase } from '@/lib/db'
 export async function processBuildiumWebhook(payload: any) {
   const buildiumClient = new BuildiumClient({
     baseUrl: process.env.BUILDIUM_BASE_URL!,
-    apiKey: process.env.BUILDIUM_API_KEY!
+    clientId: process.env.BUILDIUM_CLIENT_ID!,
+    clientSecret: process.env.BUILDIUM_CLIENT_SECRET!
   })
 
   // Log webhook event
@@ -244,7 +246,8 @@ import { BuildiumClient } from '@/lib/buildium-client'
 
 const buildiumClient = new BuildiumClient({
   baseUrl: process.env.BUILDIUM_BASE_URL!,
-  apiKey: process.env.BUILDIUM_API_KEY!
+  clientId: process.env.BUILDIUM_CLIENT_ID!,
+  clientSecret: process.env.BUILDIUM_CLIENT_SECRET!
 })
 
 // Batch create properties
@@ -311,7 +314,8 @@ Add these to your `.env` file:
 
 ```bash
 
-BUILDIUM_API_KEY=your_buildium_api_key
+BUILDIUM_CLIENT_ID=your_client_id
+BUILDIUM_CLIENT_SECRET=your_client_secret
 BUILDIUM_BASE_URL=https://api.buildium.com/v1
 BUILDIUM_WEBHOOK_SECRET=your_webhook_secret
 

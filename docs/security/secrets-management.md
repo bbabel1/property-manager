@@ -14,7 +14,7 @@ Environments & Stores
 Secret Inventory (by scope)
 - App (server/runtime):
   - `SUPABASE_SERVICE_ROLE_KEY` (server only)
-  - `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_API_KEY`, `BUILDIUM_WEBHOOK_SECRET`
+  - `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_WEBHOOK_SECRET`
   - `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`
   - `EMAIL_SERVER_*` (if used)
 - Public runtime (safe to expose to browser):
@@ -38,7 +38,6 @@ Supabase Edge Function Secrets
   supabase secrets set \
     BUILDIUM_CLIENT_ID=... \
     BUILDIUM_CLIENT_SECRET=... \
-    BUILDIUM_API_KEY=... \
     BUILDIUM_WEBHOOK_SECRET=... \
     SUPABASE_SERVICE_ROLE_KEY=... \
     SUPABASE_URL=https://<PROJECT_REF>.supabase.co
@@ -68,4 +67,3 @@ Hardening & Hygiene
 - Remove committed secrets: ensure `.env` files are not tracked. If any were committed, rotate immediately and purge from history (e.g., `git filter-repo` or BFG).
 - Add environment protections (required reviewers) for production migrations/deploys.
 - Audit: run dependency scans and secret scans in CI.
-

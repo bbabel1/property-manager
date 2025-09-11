@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/db'
 import { createRequestLogger } from '@/lib/logging'
+import { verifyWebhookSignature } from '@/lib/webhooks'
 
 export async function POST(request: NextRequest) {
   const reqLogger = createRequestLogger(request, 'buildium-webhook')
   try {
-    // Verify webhook signature (if provided)
+    // Read raw body for signature verification
     const signature = request.headers.get('x-buildium-signature')
-    const webhookSecret = process.env.BUILDIUM_WEBHOOK_SECRET
-    
-    if (webhookSecret && signature) {
-      // TODO: Implement signature verification
-      // For now, we'll log the signature for debugging
-      reqLogger.info({ signature }, 'Webhook signature received')
+    const rawBody = await request.text()
+    const isValid = verifyWebhookSignature(rawBody, signature)
+    if (!isValid) {
+      reqLogger.warn({ signaturePresent: !!signature }, 'Invalid or missing webhook signature')
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
     // Parse webhook payload
-    let payload;
+    let payload
     try {
-      payload = await request.json()
+      payload = JSON.parse(rawBody)
     } catch (parseError) {
       reqLogger.error({ error: parseError }, 'Failed to parse webhook payload')
       return NextResponse.json(

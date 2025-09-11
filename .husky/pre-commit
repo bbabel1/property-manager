@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run lint-staged on staged files (ESLint + Prettier)
+npx --no-install lint-staged
+
+# Prevent accidental commits of environment files
+if git diff --cached --name-only | grep -E '(^|/)\.env(\..*)?$' >/dev/null; then
+  echo "\n⛔  Refusing to commit .env files. Use hosting provider env vars."
+  echo "   If you really need to commit a non-secret example, use env.example."
+  exit 1
+fi

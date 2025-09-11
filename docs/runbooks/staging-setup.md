@@ -37,7 +37,8 @@ Goal
   supabase secrets set \
     BUILDIUM_CLIENT_ID=... \
     BUILDIUM_CLIENT_SECRET=... \
-    BUILDIUM_API_KEY=... \
+    BUILDIUM_CLIENT_ID=... \
+    BUILDIUM_CLIENT_SECRET=... \
     BUILDIUM_WEBHOOK_SECRET=... \
     SUPABASE_SERVICE_ROLE_KEY=... \
     SUPABASE_URL=https://<staging-ref>.supabase.co
@@ -58,4 +59,3 @@ Goal
 Notes
 - Keep production secrets separate; add `SUPABASE_PROJECT_REF_PRODUCTION` later and use the same workflows with environment=production.
 - Use the rollback runbook if a migration causes issues.
-
