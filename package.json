@@ -95,7 +95,6 @@
     "@opentelemetry/instrumentation-fetch": "^0.55.0",
     "@opentelemetry/instrumentation-http": "^0.55.0",
     "@opentelemetry/instrumentation-pg": "^0.55.0",
-    "@opentelemetry/instrumentation-pino": "^0.54.0",
     "@opentelemetry/instrumentation-undici": "^0.55.0",
     "@opentelemetry/resources": "^1.28.0",
     "@opentelemetry/sdk-node": "^0.55.0",
