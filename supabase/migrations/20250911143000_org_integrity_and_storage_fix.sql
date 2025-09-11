@@ -94,30 +94,29 @@ begin
     where table_schema = 'storage' and table_name = 'objects'
   ) then
     begin
-      execute $$ drop policy if exists "storage_write_org" on storage.objects $$;
-      execute $$ create policy "storage_write_org" on storage.objects
-      for insert with check (
-        bucket_id = 'app' and exists (
-          select 1 from public.org_memberships m
-          where m.user_id = auth.uid()
-            and m.org_id::text = split_part(name, '/', 2)
-            and m.role in ('org_admin','org_manager','platform_admin')
-        )
-      ) $$;
+      execute 'drop policy if exists "storage_write_org" on storage.objects';
+      execute 'create policy "storage_write_org" on storage.objects
+        for insert with check (
+          bucket_id = ''app'' and exists (
+            select 1 from public.org_memberships m
+            where m.user_id = auth.uid()
+              and m.org_id::text = split_part(name, ''/'', 2)
+              and m.role in (''org_admin'',''org_manager'',''platform_admin'')
+          )
+        )';
     exception when others then null; end;
 
     begin
-      execute $$ drop policy if exists "storage_update_org" on storage.objects $$;
-      execute $$ create policy "storage_update_org" on storage.objects
-      for update using (
-        bucket_id = 'app' and exists (
-          select 1 from public.org_memberships m
-          where m.user_id = auth.uid()
-            and m.org_id::text = split_part(name, '/', 2)
-            and m.role in ('org_admin','org_manager','platform_admin')
-        )
-      ) $$;
+      execute 'drop policy if exists "storage_update_org" on storage.objects';
+      execute 'create policy "storage_update_org" on storage.objects
+        for update using (
+          bucket_id = ''app'' and exists (
+            select 1 from public.org_memberships m
+            where m.user_id = auth.uid()
+              and m.org_id::text = split_part(name, ''/'', 2)
+              and m.role in (''org_admin'',''org_manager'',''platform_admin'')
+          )
+        )';
     exception when others then null; end;
   end if;
 end $$;
-
