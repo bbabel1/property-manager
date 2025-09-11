@@ -277,31 +277,29 @@ begin
     select 1 from information_schema.tables
     where table_schema = 'storage' and table_name = 'objects'
   ) then
-    -- Read within org prefix or via membership
     begin
-      execute $$ drop policy if exists "storage_read_org" on storage.objects $$;
-      execute $$ create policy "storage_read_org" on storage.objects
-      for select using (
-        bucket_id = 'app' and exists (
-          select 1 from public.org_memberships m
-          where m.user_id = auth.uid()
-            and m.org_id::text = split_part(storage.objects.name, '/', 2)
-        )
-      ) $$;
+      execute 'drop policy if exists "storage_read_org" on storage.objects';
+      execute 'create policy "storage_read_org" on storage.objects
+        for select using (
+          bucket_id = ''app'' and exists (
+            select 1 from public.org_memberships m
+            where m.user_id = auth.uid()
+              and m.org_id::text = split_part(storage.objects.name, ''/'', 2)
+          )
+        )';
     exception when others then null; end;
 
-    -- Write within org prefix and admin roles
     begin
-      execute $$ drop policy if exists "storage_write_org" on storage.objects $$;
-      execute $$ create policy "storage_write_org" on storage.objects
-      for insert with check (
-        bucket_id = 'app' and exists (
-          select 1 from public.org_memberships m
-          where m.user_id = auth.uid()
-            and m.org_id::text = split_part(new.name, '/', 2)
-            and m.role in ('org_admin','org_manager','platform_admin')
-        )
-      ) $$;
+      execute 'drop policy if exists "storage_write_org" on storage.objects';
+      execute 'create policy "storage_write_org" on storage.objects
+        for insert with check (
+          bucket_id = ''app'' and exists (
+            select 1 from public.org_memberships m
+            where m.user_id = auth.uid()
+              and m.org_id::text = split_part(name, ''/'', 2)
+              and m.role in (''org_admin'',''org_manager'',''platform_admin'')
+          )
+        )';
     exception when others then null; end;
   end if;
 end $$;
@@ -315,4 +313,3 @@ end $$;
 -- alter table public.work_orders    alter column org_id set not null;
 -- alter table public.tenants        alter column org_id set not null;
 -- alter table public.lease_contacts alter column org_id set not null;
-
