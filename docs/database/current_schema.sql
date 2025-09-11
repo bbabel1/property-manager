@@ -126,6 +126,32 @@ CREATE TYPE "public"."appliance_type_enum" AS ENUM (
 ALTER TYPE "public"."appliance_type_enum" OWNER TO "postgres";
 
 
+CREATE TYPE "public"."assignment_level" AS ENUM (
+    'Property Level',
+    'Unit Level'
+);
+
+
+ALTER TYPE "public"."assignment_level" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."assignment_level" IS 'Assignment level labels for UI: Property Level, Unit Level.';
+
+
+
+CREATE TYPE "public"."assignment_level_enum" AS ENUM (
+    'Building',
+    'Unit'
+);
+
+
+ALTER TYPE "public"."assignment_level_enum" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."assignment_level_enum" IS 'Assignment level (Building or Unit) for management scope, service and fee assignment.';
+
+
+
 CREATE TYPE "public"."bank_account_type_enum" AS ENUM (
     'checking',
     'savings',
@@ -176,6 +202,19 @@ ALTER TYPE "public"."bedroom_enum" OWNER TO "postgres";
 
 
 COMMENT ON TYPE "public"."bedroom_enum" IS 'Enumeration of bedroom counts for rental units (Studio, 1-8, 9+)';
+
+
+
+CREATE TYPE "public"."billing_frequency_enum" AS ENUM (
+    'Annual',
+    'Monthly'
+);
+
+
+ALTER TYPE "public"."billing_frequency_enum" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."billing_frequency_enum" IS 'Billing frequency for management fees (Annual or Monthly).';
 
 
 
@@ -609,6 +648,19 @@ CREATE TYPE "public"."etf_account_type_enum" AS ENUM (
 ALTER TYPE "public"."etf_account_type_enum" OWNER TO "postgres";
 
 
+CREATE TYPE "public"."fee_type_enum" AS ENUM (
+    'Percentage',
+    'Flat Rate'
+);
+
+
+ALTER TYPE "public"."fee_type_enum" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."fee_type_enum" IS 'Fee type for management fees (Percentage or Flat Rate).';
+
+
+
 CREATE TYPE "public"."inspection_status_enum" AS ENUM (
     'Scheduled',
     'Completed'
@@ -645,6 +697,24 @@ CREATE TYPE "public"."lease_contact_status_enum" AS ENUM (
 
 
 ALTER TYPE "public"."lease_contact_status_enum" OWNER TO "postgres";
+
+
+CREATE TYPE "public"."management_services_enum" AS ENUM (
+    'Rent Collection',
+    'Maintenance',
+    'Turnovers',
+    'Compliance',
+    'Bill Pay',
+    'Condition Reports',
+    'Renewals'
+);
+
+
+ALTER TYPE "public"."management_services_enum" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."management_services_enum" IS 'Menu of management services included for a property.';
+
 
 
 CREATE TYPE "public"."payment_method_enum" AS ENUM (
@@ -704,6 +774,33 @@ CREATE TYPE "public"."rent_cycle_enum" AS ENUM (
 
 
 ALTER TYPE "public"."rent_cycle_enum" OWNER TO "postgres";
+
+
+CREATE TYPE "public"."service_plan_enum" AS ENUM (
+    'Full',
+    'Basic',
+    'A-la-carte'
+);
+
+
+ALTER TYPE "public"."service_plan_enum" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."service_plan_enum" IS 'Service plan options for a property (Full, Basic, A-la-carte).';
+
+
+
+CREATE TYPE "public"."staff_roles" AS ENUM (
+    'Property Manager',
+    'Bookkeeper'
+);
+
+
+ALTER TYPE "public"."staff_roles" OWNER TO "postgres";
+
+
+COMMENT ON TYPE "public"."staff_roles" IS 'Roles for internal staff accounts.';
+
 
 
 CREATE TYPE "public"."sync_source_enum" AS ENUM (
@@ -1617,6 +1714,29 @@ END$$;
 ALTER FUNCTION "public"."trg_ownerships_to_cache"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."trg_validate_ownership_totals"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.validate_ownership_totals(NEW.property_id);
+  ELSIF TG_OP = 'UPDATE' THEN
+    -- Validate both old and new property when property_id changes
+    IF NEW.property_id IS DISTINCT FROM OLD.property_id THEN
+      PERFORM public.validate_ownership_totals(OLD.property_id);
+    END IF;
+    PERFORM public.validate_ownership_totals(NEW.property_id);
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM public.validate_ownership_totals(OLD.property_id);
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END
+$$;
+
+
+ALTER FUNCTION "public"."trg_validate_ownership_totals"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."trigger_update_owner_total_fields"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -1938,6 +2058,39 @@ $$;
 
 ALTER FUNCTION "public"."upsert_property_ownerships_cache"("p_ownership_id" "uuid") OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_count int;
+  v_own_total numeric(7,2);
+  v_disb_total numeric(7,2);
+BEGIN
+  SELECT COUNT(*)::int,
+         COALESCE(ROUND(SUM(ownership_percentage), 2), 0),
+         COALESCE(ROUND(SUM(disbursement_percentage), 2), 0)
+    INTO v_count, v_own_total, v_disb_total
+    FROM public.ownerships
+   WHERE property_id = p_property_id;
+
+  -- Require exact totals only when ownership rows exist for the property
+  IF v_count > 0 THEN
+    IF v_own_total <> 100.00 THEN
+      RAISE EXCEPTION 'Ownership percentages for property % must sum to 100.00 (current: %)', p_property_id, v_own_total
+        USING ERRCODE = '23514';
+    END IF;
+    IF v_disb_total <> 100.00 THEN
+      RAISE EXCEPTION 'Disbursement percentages for property % must sum to 100.00 (current: %)', p_property_id, v_disb_total
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+END
+$$;
+
+
+ALTER FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -2055,11 +2208,11 @@ ALTER SEQUENCE "public"."Lease_id_seq" OWNED BY "public"."lease"."id";
 
 CREATE TABLE IF NOT EXISTS "public"."staff" (
     "id" bigint NOT NULL,
-    "role" character varying(50) DEFAULT 'PROPERTY_MANAGER'::character varying NOT NULL,
     "is_active" boolean DEFAULT true NOT NULL,
     "created_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
-    "buildium_user_id" integer
+    "buildium_user_id" integer,
+    "role" "public"."staff_roles" DEFAULT 'Property Manager'::"public"."staff_roles" NOT NULL
 );
 
 
@@ -2075,6 +2228,10 @@ COMMENT ON COLUMN "public"."staff"."updated_at" IS 'Local update timestamp';
 
 
 COMMENT ON COLUMN "public"."staff"."buildium_user_id" IS 'Stores the user ID from Buildium system';
+
+
+
+COMMENT ON COLUMN "public"."staff"."role" IS 'Staff role (enum)';
 
 
 
@@ -2661,6 +2818,15 @@ END) STORED,
     "latitude" numeric(11,8),
     "location_verified" boolean DEFAULT false,
     "property_type" "public"."property_type_enum",
+    "management_scope" "public"."assignment_level_enum",
+    "service_plan" "public"."service_plan_enum",
+    "active_services" "public"."management_services_enum"[],
+    "fee_assignment" "public"."assignment_level_enum",
+    "fee_type" "public"."fee_type_enum",
+    "fee_percentage" numeric(5,2),
+    "management_fee" numeric(12,2),
+    "billing_frequency" "public"."billing_frequency_enum",
+    "service_assignment" "public"."assignment_level",
     CONSTRAINT "check_total_active_units_non_negative" CHECK (("total_active_units" >= 0)),
     CONSTRAINT "check_total_active_units_not_exceed_total" CHECK (("total_active_units" <= "total_units")),
     CONSTRAINT "check_total_inactive_units_non_negative" CHECK (("total_inactive_units" >= 0)),
@@ -2668,7 +2834,9 @@ END) STORED,
     CONSTRAINT "check_total_occupied_units_non_negative" CHECK (("total_occupied_units" >= 0)),
     CONSTRAINT "check_total_occupied_units_not_exceed_total" CHECK (("total_occupied_units" <= "total_units")),
     CONSTRAINT "check_total_vacant_units_non_negative" CHECK (("total_vacant_units" >= 0)),
-    CONSTRAINT "check_total_vacant_units_not_exceed_total" CHECK (("total_vacant_units" <= "total_units"))
+    CONSTRAINT "check_total_vacant_units_not_exceed_total" CHECK (("total_vacant_units" <= "total_units")),
+    CONSTRAINT "properties_fee_percentage_check" CHECK ((("fee_percentage" >= (0)::numeric) AND ("fee_percentage" <= (100)::numeric))),
+    CONSTRAINT "properties_management_fee_check" CHECK (("management_fee" >= (0)::numeric))
 );
 
 
@@ -2752,6 +2920,42 @@ COMMENT ON COLUMN "public"."properties"."location_verified" IS 'Whether the loca
 
 
 COMMENT ON COLUMN "public"."properties"."property_type" IS 'UI property type (enum). NULL represents None.';
+
+
+
+COMMENT ON COLUMN "public"."properties"."management_scope" IS 'Scope at which management applies (Building or Unit).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."service_plan" IS 'Selected service plan for the property.';
+
+
+
+COMMENT ON COLUMN "public"."properties"."active_services" IS 'List of active management services (enum array).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."fee_assignment" IS 'Scope at which fees are assigned (Building or Unit).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."fee_type" IS 'Type of management fee (Percentage or Flat Rate).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."fee_percentage" IS 'Management fee percentage (0-100).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."management_fee" IS 'Management fee dollar amount.';
+
+
+
+COMMENT ON COLUMN "public"."properties"."billing_frequency" IS 'Billing frequency for fees (Annual or Monthly).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."service_assignment" IS 'Scope at which services are assigned (Property Level or Unit Level).';
 
 
 
@@ -3676,7 +3880,8 @@ CREATE TABLE IF NOT EXISTS "public"."transactions" (
     "status" character varying(20) DEFAULT 'pending'::character varying,
     "is_recurring" boolean DEFAULT false,
     "recurring_schedule" "jsonb",
-    "buildium_lease_id" integer
+    "buildium_lease_id" integer,
+    "bank_account_id" "uuid"
 );
 
 
@@ -3825,6 +4030,23 @@ COMMENT ON COLUMN "public"."vendor_categories"."is_active" IS 'Whether the categ
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."work_order_files" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "work_order_id" "uuid" NOT NULL,
+    "buildium_file_id" integer,
+    "file_name" "text" NOT NULL,
+    "file_type" "text",
+    "file_size" integer,
+    "file_url" "text" NOT NULL,
+    "description" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."work_order_files" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."work_orders" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "buildium_work_order_id" integer,
@@ -3842,7 +4064,8 @@ CREATE TABLE IF NOT EXISTS "public"."work_orders" (
     "category" character varying(100),
     "notes" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "vendor_id" "uuid"
 );
 
 
@@ -4236,6 +4459,11 @@ ALTER TABLE ONLY "public"."vendors"
 
 ALTER TABLE "public"."vendors"
     ADD CONSTRAINT "vendors_tax_address_country_is_valid" CHECK ("public"."is_valid_country"(("tax_address_country")::"text")) NOT VALID;
+
+
+
+ALTER TABLE ONLY "public"."work_order_files"
+    ADD CONSTRAINT "work_order_files_pkey" PRIMARY KEY ("id");
 
 
 
@@ -4745,6 +4973,10 @@ CREATE INDEX "idx_transaction_lines_unit_id" ON "public"."transaction_lines" USI
 
 
 
+CREATE INDEX "idx_transactions_bank_account_id" ON "public"."transactions" USING "btree" ("bank_account_id");
+
+
+
 CREATE INDEX "idx_transactions_buildium_lease_id" ON "public"."transactions" USING "btree" ("buildium_lease_id");
 
 
@@ -4845,6 +5077,10 @@ CREATE INDEX "idx_webhook_events_type" ON "public"."buildium_webhook_events" USI
 
 
 
+CREATE INDEX "idx_work_order_files_work_order_id" ON "public"."work_order_files" USING "btree" ("work_order_id");
+
+
+
 CREATE INDEX "idx_work_orders_assigned" ON "public"."work_orders" USING "btree" ("assigned_to");
 
 
@@ -4874,6 +5110,10 @@ CREATE INDEX "idx_work_orders_status" ON "public"."work_orders" USING "btree" ("
 
 
 CREATE INDEX "idx_work_orders_unit" ON "public"."work_orders" USING "btree" ("unit_id");
+
+
+
+CREATE INDEX "idx_work_orders_vendor_id" ON "public"."work_orders" USING "btree" ("vendor_id");
 
 
 
@@ -4909,6 +5149,14 @@ CREATE INDEX "rent_schedules_lease_id_idx" ON "public"."rent_schedules" USING "b
 
 
 
+CREATE UNIQUE INDEX "uniq_active_lease_per_unit" ON "public"."lease" USING "btree" ("unit_id") WHERE (("status")::"text" = 'ACTIVE'::"text");
+
+
+
+CREATE UNIQUE INDEX "uniq_gl_accounts_account_number_not_null" ON "public"."gl_accounts" USING "btree" ("account_number") WHERE ("account_number" IS NOT NULL);
+
+
+
 CREATE INDEX "unit_images_unit_id_idx" ON "public"."unit_images" USING "btree" ("unit_id");
 
 
@@ -4933,6 +5181,10 @@ CREATE UNIQUE INDEX "uq_owners_contact_id" ON "public"."owners" USING "btree" ("
 
 
 
+CREATE UNIQUE INDEX "work_order_files_buildium_file_id_uniq" ON "public"."work_order_files" USING "btree" ("buildium_file_id") WHERE ("buildium_file_id" IS NOT NULL);
+
+
+
 CREATE OR REPLACE TRIGGER "contacts_to_olc" AFTER UPDATE OF "first_name", "last_name", "company_name", "primary_email", "primary_phone" ON "public"."contacts" FOR EACH ROW EXECUTE FUNCTION "public"."trg_contacts_to_olc"();
 
 
@@ -4946,6 +5198,10 @@ CREATE OR REPLACE TRIGGER "owners_to_cache" AFTER INSERT OR UPDATE ON "public"."
 
 
 CREATE OR REPLACE TRIGGER "ownerships_to_cache" AFTER INSERT OR UPDATE ON "public"."ownerships" FOR EACH ROW EXECUTE FUNCTION "public"."trg_ownerships_to_cache"();
+
+
+
+CREATE CONSTRAINT TRIGGER "ownerships_validate_totals_ct" AFTER INSERT OR DELETE OR UPDATE ON "public"."ownerships" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."trg_validate_ownership_totals"();
 
 
 
@@ -5320,6 +5576,11 @@ ALTER TABLE ONLY "public"."tenants"
 
 
 ALTER TABLE ONLY "public"."transactions"
+    ADD CONSTRAINT "transactions_bank_account_id_fkey" FOREIGN KEY ("bank_account_id") REFERENCES "public"."bank_accounts"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."transactions"
     ADD CONSTRAINT "transactions_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "public"."bill_categories"("id");
 
 
@@ -5364,6 +5625,11 @@ ALTER TABLE ONLY "public"."vendors"
 
 
 
+ALTER TABLE ONLY "public"."work_order_files"
+    ADD CONSTRAINT "work_order_files_work_order_id_fkey" FOREIGN KEY ("work_order_id") REFERENCES "public"."work_orders"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."work_orders"
     ADD CONSTRAINT "work_orders_property_id_fkey" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id");
 
@@ -5371,6 +5637,11 @@ ALTER TABLE ONLY "public"."work_orders"
 
 ALTER TABLE ONLY "public"."work_orders"
     ADD CONSTRAINT "work_orders_unit_id_fkey" FOREIGN KEY ("unit_id") REFERENCES "public"."units"("id");
+
+
+
+ALTER TABLE ONLY "public"."work_orders"
+    ADD CONSTRAINT "work_orders_vendor_id_fkey" FOREIGN KEY ("vendor_id") REFERENCES "public"."vendors"("id") ON DELETE SET NULL;
 
 
 
@@ -6455,6 +6726,12 @@ GRANT ALL ON FUNCTION "public"."trg_ownerships_to_cache"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."trg_validate_ownership_totals"() TO "anon";
+GRANT ALL ON FUNCTION "public"."trg_validate_ownership_totals"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."trg_validate_ownership_totals"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."trigger_update_owner_total_fields"() TO "anon";
 GRANT ALL ON FUNCTION "public"."trigger_update_owner_total_fields"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."trigger_update_owner_total_fields"() TO "service_role";
@@ -6530,6 +6807,12 @@ GRANT ALL ON FUNCTION "public"."upsert_owners_list_cache"("p_owner_id" "uuid") T
 GRANT ALL ON FUNCTION "public"."upsert_property_ownerships_cache"("p_ownership_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."upsert_property_ownerships_cache"("p_ownership_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."upsert_property_ownerships_cache"("p_ownership_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") TO "service_role";
 
 
 
@@ -6815,6 +7098,12 @@ GRANT ALL ON TABLE "public"."v_gl_trial_balance" TO "service_role";
 GRANT ALL ON TABLE "public"."vendor_categories" TO "anon";
 GRANT ALL ON TABLE "public"."vendor_categories" TO "authenticated";
 GRANT ALL ON TABLE "public"."vendor_categories" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."work_order_files" TO "anon";
+GRANT ALL ON TABLE "public"."work_order_files" TO "authenticated";
+GRANT ALL ON TABLE "public"."work_order_files" TO "service_role";
 
 
 

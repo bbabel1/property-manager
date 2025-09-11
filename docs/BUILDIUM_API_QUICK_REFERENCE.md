@@ -2,7 +2,9 @@
 
 ## Authentication
 
-- **Base URL**: `https://api.buildium.com/v1`
+- **Base URL**:
+  - Production: `https://api.buildium.com/v1`
+  - Sandbox: `https://apisandbox.buildium.com/v1`
 - **Headers Required**:
   - `x-buildium-client-id`: Your Buildium client ID
   - `x-buildium-client-secret`: Your Buildium client secret
@@ -31,9 +33,9 @@
 
 ### Tenants
 
-- **GET** `/leases/tenants` - List all tenants
-- **GET** `/leases/tenants/{tenantId}` - Get specific tenant
-- **PUT** `/leases/tenants/{tenantId}` - Update tenant
+- **GET** `/rentals/tenants` - List all tenants
+- **GET** `/rentals/tenants/{tenantId}` - Get specific tenant
+- **PUT** `/rentals/tenants/{tenantId}` - Update tenant
 
 ### Bank Accounts
 
@@ -42,8 +44,7 @@
 
 ### General Ledger
 
-- **GET** `/generalLedger/accounts` - List GL accounts
-- **GET** `/generalLedger/entries` - List journal entries
+- **GET** `/glaccounts` - List GL accounts
 
 ## Script Templates
 
@@ -77,9 +78,19 @@ async function fetchFromBuildium(endpoint: string) {
 
 ```bash
 # Required environment variables in .env.local
-BUILDIUM_BASE_URL=https://api.buildium.com/v1
+BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1    # or https://api.buildium.com/v1
 BUILDIUM_CLIENT_ID=your_client_id
 BUILDIUM_CLIENT_SECRET=your_client_secret
+```
+
+### cURL example
+
+```bash
+curl -i \
+  -H "Accept: application/json" \
+  -H "x-buildium-client-id: $BUILDIUM_CLIENT_ID" \
+  -H "x-buildium-client-secret: $BUILDIUM_CLIENT_SECRET" \
+  "$BUILDIUM_BASE_URL/vendors"
 ```
 
 ## Common Patterns

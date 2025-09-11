@@ -42,7 +42,6 @@ async function bfetch(path, params) {
       Accept: 'application/json',
       'x-buildium-client-id': BUILDIUM_CLIENT_ID,
       'x-buildium-client-secret': BUILDIUM_CLIENT_SECRET,
-      ...(env('BUILDIUM_API_KEY') ? { 'x-buildium-api-key': env('BUILDIUM_API_KEY') } : {})
     }
   })
   const text = await res.text()

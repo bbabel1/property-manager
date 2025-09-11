@@ -10,7 +10,8 @@ Add the following environment variables to your `.env.local` file:
 
 # Buildium API Configuration
 
-BUILDIUM_API_KEY="your-buildium-api-key-here"
+BUILDIUM_CLIENT_ID="your-client-id"
+BUILDIUM_CLIENT_SECRET="your-client-secret"
 BUILDIUM_BASE_URL="https://apisandbox.buildium.com/v1"
 BUILDIUM_SYNC_ENABLED="true"
 BUILDIUM_RETRY_ATTEMPTS="3"
@@ -128,7 +129,8 @@ curl -X GET "http://localhost:3000/api/buildium/sync" \
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BUILDIUM_API_KEY` | Yes | - | Your Buildium API key |
+| `BUILDIUM_CLIENT_ID` | Yes | - | Your Buildium client ID |
+| `BUILDIUM_CLIENT_SECRET` | Yes | - | Your Buildium client secret |
 | `BUILDIUM_BASE_URL` | Yes | `https://apisandbox.buildium.com/v1` | Buildium API base URL |
 | `BUILDIUM_SYNC_ENABLED` | No | `true` | Enable/disable Buildium sync |
 | `BUILDIUM_RETRY_ATTEMPTS` | No | `3` | Number of retry attempts for failed API calls |
@@ -179,7 +181,8 @@ echo $BUILDIUM_SYNC_ENABLED
 
 # Test Buildium API connectivity
 
-curl -H "Authorization: Bearer $BUILDIUM_API_KEY" \
+curl -H "x-buildium-client-id: $BUILDIUM_CLIENT_ID" \
+     -H "x-buildium-client-secret: $BUILDIUM_CLIENT_SECRET" \
   "$BUILDIUM_BASE_URL/properties"
 
 # Check webhook endpoint

@@ -403,7 +403,8 @@ Add these to your `.env` file:
 
 # Buildium API Configuration
 
-BUILDIUM_API_KEY=your_buildium_api_key
+BUILDIUM_CLIENT_ID=your_client_id
+BUILDIUM_CLIENT_SECRET=your_client_secret
 BUILDIUM_BASE_URL=https://api.buildium.com/v1
 BUILDIUM_WEBHOOK_SECRET=your_webhook_secret
 

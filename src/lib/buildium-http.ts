@@ -1,4 +1,5 @@
 // Minimal Buildium HTTP helper used by API routes to standardize headers and URLs
+import { env } from '@/env/server'
 
 export type BuildiumMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
@@ -8,7 +9,7 @@ export async function buildiumFetch(
   params?: Record<string, any>,
   payload?: any
 ): Promise<{ ok: boolean; status: number; json?: any; errorText?: string }> {
-  const base = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'
+  const base = env.BUILDIUM_BASE_URL
   const q = new URLSearchParams()
   if (params) {
     for (const [k, v] of Object.entries(params)) {
@@ -22,9 +23,8 @@ export async function buildiumFetch(
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-        ...(process.env.BUILDIUM_API_KEY ? { 'x-buildium-api-key': process.env.BUILDIUM_API_KEY } : {})
+        'x-buildium-client-id': env.BUILDIUM_CLIENT_ID,
+        'x-buildium-client-secret': env.BUILDIUM_CLIENT_SECRET,
       },
       body: payload && method !== 'GET' ? JSON.stringify(payload) : undefined
     })
@@ -38,4 +38,3 @@ export async function buildiumFetch(
     return { ok: false, status: 0, errorText: (e as Error).message }
   }
 }
-

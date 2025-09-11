@@ -17,7 +17,8 @@ export type TransactionRow = Database['public']['Tables']['transactions']['Row']
 function ensureClient() {
   return createBuildiumClient({
     ...defaultBuildiumConfig,
-    apiKey: process.env.BUILDIUM_CLIENT_SECRET || process.env.BUILDIUM_API_KEY || ''
+    clientId: process.env.BUILDIUM_CLIENT_ID || '',
+    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || ''
   })
 }
 

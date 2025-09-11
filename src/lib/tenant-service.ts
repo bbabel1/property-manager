@@ -6,7 +6,8 @@ import { findOrCreateContact, findOrCreateTenant } from './buildium-mappers'
 function client() {
   return createBuildiumClient({
     ...defaultBuildiumConfig,
-    apiKey: process.env.BUILDIUM_CLIENT_SECRET || process.env.BUILDIUM_API_KEY || ''
+    clientId: process.env.BUILDIUM_CLIENT_ID || '',
+    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || ''
   })
 }
 
@@ -80,4 +81,3 @@ export class TenantService {
     return { buildium, localId }
   }
 }
-

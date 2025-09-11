@@ -22,7 +22,7 @@ class BuildiumClient {
 
   constructor() {
     this.baseUrl = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1'
-    this.apiKey = Deno.env.get('BUILDIUM_CLIENT_SECRET') || Deno.env.get('BUILDIUM_API_KEY') || ''
+    this.apiKey = Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {

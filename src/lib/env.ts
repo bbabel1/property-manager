@@ -10,7 +10,6 @@ const envSchema = z.object({
   BUILDIUM_BASE_URL: z.string().url().optional(),
   BUILDIUM_CLIENT_ID: z.string().optional(),
   BUILDIUM_CLIENT_SECRET: z.string().optional(),
-  BUILDIUM_API_KEY: z.string().optional(),
   BUILDIUM_WEBHOOK_SECRET: z.string().optional(),
   
   // App Configuration (Required)

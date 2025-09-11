@@ -50,11 +50,12 @@ export class BuildiumSyncService {
   private isEnabled: boolean
 
   constructor() {
-    this.isEnabled = !!(process.env.BUILDIUM_CLIENT_SECRET || process.env.BUILDIUM_API_KEY)
+    this.isEnabled = !!(process.env.BUILDIUM_CLIENT_ID && process.env.BUILDIUM_CLIENT_SECRET)
     if (this.isEnabled) {
       this.client = createBuildiumClient({
         ...defaultBuildiumConfig,
-        apiKey: process.env.BUILDIUM_CLIENT_SECRET || process.env.BUILDIUM_API_KEY!
+        clientId: process.env.BUILDIUM_CLIENT_ID || '',
+        clientSecret: process.env.BUILDIUM_CLIENT_SECRET || ''
       })
     }
   }

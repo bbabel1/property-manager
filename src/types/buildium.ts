@@ -949,7 +949,8 @@ export type BuildiumEntityType = 'property' | 'unit' | 'owner' | 'lease' | 'vend
 
 export interface BuildiumApiConfig {
   baseUrl: string;
-  apiKey: string;
+  clientId: string;
+  clientSecret: string;
   timeout?: number;
   retryAttempts?: number;
   retryDelay?: number;
