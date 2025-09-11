@@ -39,10 +39,18 @@ export async function register() {
     const { PgInstrumentation } = await import(
       "@opentelemetry/instrumentation-pg"
     );
-    // @ts-ignore
-    const { PinoInstrumentation } = await import(
-      "@opentelemetry/instrumentation-pino"
-    );
+    // Optional: Pino instrumentation. Not all environments publish this pkg.
+    // Load it separately and ignore if unavailable, so other instrumentations still run.
+    let pinoInstr: any | null = null;
+    try {
+      // @ts-ignore
+      const mod = await import("@opentelemetry/instrumentation-pino");
+      // @ts-ignore
+      pinoInstr = new mod.PinoInstrumentation();
+    } catch (_) {
+      // eslint-disable-next-line no-console
+      console.warn("Pino instrumentation not installed; continuing without it");
+    }
 
     const serviceName = process.env.OTEL_SERVICE_NAME || "property-manager";
     const serviceVersion =
@@ -67,7 +75,8 @@ export async function register() {
         new UndiciInstrumentation(),
         new FetchInstrumentation(),
         new PgInstrumentation(),
-        new PinoInstrumentation(),
+        // Only include Pino if it successfully loaded
+        ...(pinoInstr ? [pinoInstr] : []),
       ],
     });
 
@@ -102,4 +111,3 @@ function parseHeaderPairs(input?: string) {
   }
   return out;
 }
-
