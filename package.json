@@ -36,8 +36,7 @@
     "typecheck": "tsc --noEmit",
     "ci:env-check": "tsx src/env/server.ts && tsx src/env/client.ts",
     "test:buildium:smoke": "tsx scripts/smoke-buildium.ts",
-    "test:buildium:webhook": "tsx scripts/smoke-buildium-webhook.ts",
-    "prepare": "husky"
+    "test:buildium:webhook": "tsx scripts/smoke-buildium-webhook.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -98,10 +97,9 @@
     "zod": "^4.1.1",
     "zustand": "^5.0.8",
     "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
-    "@opentelemetry/instrumentation-fetch": "^0.55.0",
-    "@opentelemetry/instrumentation-http": "^0.55.0",
-    "@opentelemetry/instrumentation-pg": "^0.55.0",
-    "@opentelemetry/instrumentation-undici": "^0.55.0",
+    "@opentelemetry/instrumentation-fetch": "^0.54.0",
+    "@opentelemetry/instrumentation-http": "^0.54.0",
+    "@opentelemetry/instrumentation-pg": "^0.54.0",
     "@opentelemetry/resources": "^1.28.0",
     "@opentelemetry/sdk-node": "^0.55.0",
     "@opentelemetry/semantic-conventions": "^1.28.0"

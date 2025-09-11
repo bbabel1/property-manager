@@ -27,10 +27,17 @@ export async function register() {
     const { HttpInstrumentation } = await import(
       "@opentelemetry/instrumentation-http"
     );
-    // @ts-ignore
-    const { UndiciInstrumentation } = await import(
-      "@opentelemetry/instrumentation-undici"
-    );
+    // Optional: Undici instrumentation
+    let undiciInstr: any | null = null;
+    try {
+      // @ts-ignore
+      const mod = await import("@opentelemetry/instrumentation-undici");
+      // @ts-ignore
+      undiciInstr = new mod.UndiciInstrumentation();
+    } catch (_) {
+      // eslint-disable-next-line no-console
+      console.warn("Undici instrumentation not installed; continuing without it");
+    }
     // @ts-ignore
     const { FetchInstrumentation } = await import(
       "@opentelemetry/instrumentation-fetch"
@@ -72,7 +79,7 @@ export async function register() {
       }),
       instrumentations: [
         new HttpInstrumentation(),
-        new UndiciInstrumentation(),
+        ...(undiciInstr ? [undiciInstr] : []),
         new FetchInstrumentation(),
         new PgInstrumentation(),
         // Only include Pino if it successfully loaded
