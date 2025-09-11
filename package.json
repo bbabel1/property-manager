@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "eslint . --fix",
     "test": "playwright test",
     "docs:check": "npx tsx scripts/doc-monitoring-system.ts check",
     "docs:update": "npx tsx scripts/doc-monitoring-system.ts update",
@@ -23,7 +24,14 @@
     "audit:fix": "npm audit fix",
     "db:seed": "npx tsx scripts/seed.ts",
     "db:reset": "RESET_CONFIRM=YES npx tsx scripts/reset-db.ts",
-    "dev:all": "concurrently -n next,docs -c green,cyan \"npm run dev\" \"npm run docs:watch\""
+    "dev:all": "concurrently -n next,docs -c green,cyan \"npm run dev\" \"npm run docs:watch\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "ci:env-check": "tsx src/env/server.ts && tsx src/env/client.ts",
+    "test:buildium:smoke": "tsx scripts/smoke-buildium.ts",
+    "test:buildium:webhook": "tsx scripts/smoke-buildium-webhook.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -87,7 +95,7 @@
     "@opentelemetry/instrumentation-fetch": "^0.55.0",
     "@opentelemetry/instrumentation-http": "^0.55.0",
     "@opentelemetry/instrumentation-pg": "^0.55.0",
-    "@opentelemetry/instrumentation-pino": "^0.55.0",
+    "@opentelemetry/instrumentation-pino": "^0.54.0",
     "@opentelemetry/instrumentation-undici": "^0.55.0",
     "@opentelemetry/resources": "^1.28.0",
     "@opentelemetry/sdk-node": "^0.55.0",
@@ -109,6 +117,16 @@
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
     "typescript": "^5",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "husky": "^9",
+    "lint-staged": "^15"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix --max-warnings=0"
+    ],
+    "*.{js,jsx,ts,tsx,css,scss,md,mdx,json,yaml,yml}": [
+      "prettier --write"
+    ]
   }
 }
