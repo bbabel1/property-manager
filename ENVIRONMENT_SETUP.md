@@ -33,7 +33,6 @@ SUPABASE_SERVICE_ROLE_KEY="your-local-service-role-key-here"
 BUILDIUM_BASE_URL="https://apisandbox.buildium.com/v1"
 BUILDIUM_CLIENT_ID="your-sandbox-client-id"
 BUILDIUM_CLIENT_SECRET="your-sandbox-client-secret"
-BUILDIUM_API_KEY="your-sandbox-api-key"
 BUILDIUM_WEBHOOK_SECRET="your-sandbox-webhook-secret"
 
 # App Configuration (Local Development)
@@ -75,8 +74,9 @@ Next.js loads environment files in this order (later files override earlier ones
 
 1. `.env.local` (highest priority - local development)
 2. `.env.development` (development environment)
-3. `.env.production` (production environment)
-4. `.env` (lowest priority - fallback)
+3. `.env` (lowest priority - fallback)
+
+Note: Do not create or commit `.env.production`. Use your hosting provider’s environment variables UI for production/staging/preview.
 
 ## 🧪 Testing Your Setup
 
@@ -102,12 +102,11 @@ npm run dev
 - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - [ ] `SUPABASE_SERVICE_ROLE_KEY`
 
-### Buildium (Optional):
+### Buildium (Required for Buildium integration):
 
 - [ ] `BUILDIUM_BASE_URL`
 - [ ] `BUILDIUM_CLIENT_ID`
 - [ ] `BUILDIUM_CLIENT_SECRET`
-- [ ] `BUILDIUM_API_KEY`
 - [ ] `BUILDIUM_WEBHOOK_SECRET`
 
 ### App (Required):
@@ -141,3 +140,36 @@ npm run dev
 - [Supabase Setup Guide](docs/database/SUPABASE_SETUP.md)
 - [Buildium Integration Guide](docs/buildium-integration-guide.md)
 - [Environment Variables Documentation](https://nextjs.org/docs/basic-features/environment-variables)
+
+## 🔄 Regenerating TypeScript Types (Local vs Remote)
+
+Local types remain the default and are generated from your local database:
+
+```
+npm run types:local
+# writes to src/types/database.ts (used by @types/db path alias)
+```
+
+Before generating remote types, ensure the remote schema matches your migrations:
+
+```
+npm run db:diff:linked          # shows drift against linked project
+# if needed, push local migrations to the linked remote
+npm run db:push:linked
+```
+
+Generate types from the linked remote (or by explicit project ref):
+
+```
+npm run types:remote            # writes to src/types/database.remote.ts
+# or
+npm run types:prod              # uses $SUPABASE_PROJECT_REF_PRODUCTION
+```
+
+Compare local vs remote types without overwriting:
+
+```
+npm run types:diff
+```
+
+The codebase imports types through the `@types/db` alias (tsconfig.json). By default it targets `src/types/database.ts` (local). If you want to temporarily use the remote definitions, point the alias to `src/types/database.remote.ts`, then flip back after validation.
