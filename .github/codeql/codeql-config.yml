@@ -8,3 +8,5 @@ paths-ignore:
   - supabase/**/generated/**
   # Ignore large fixture or example content if present
   - docs/**/examples/**
+  # Ignore legacy top-level TSX demo files (real app code lives under src/components and app/)
+  - src/*.tsx
