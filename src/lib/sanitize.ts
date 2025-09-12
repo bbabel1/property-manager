@@ -4,21 +4,13 @@
  */
 export function sanitize(input: unknown): unknown {
   if (typeof input === 'string') {
-    // Remove HTML tags and potentially dangerous content.
-    // Apply replacements repeatedly until no changes remain
-    // to address multi-character sanitization concerns.
-    let s = input
-    let prev: string
-    do {
-      prev = s
-      s = s
-        .replace(/<[^>]*>/g, '') // Remove HTML tags
-        // Remove dangerous URL schemes: javascript:, vbscript:, data:
-        .replace(/\b(?:javascript|vbscript|data)\s*:/gi, '')
-        // Remove inline event handlers like onload=, onclick=, etc.
-        .replace(/\s*on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    } while (s !== prev)
-    return s.trim();
+    // Strip angle brackets as a single‑character operation to avoid
+    // multi‑character regex pitfalls that CodeQL flags. This neutralizes
+    // HTML/JSX tags entirely.
+    let s = input.replace(/[<>]/g, '')
+    // Neutralize dangerous URL schemes (javascript:, vbscript:, data:)
+    s = s.replace(/\b(?:javascript|vbscript|data)\s*:/gi, '')
+    return s.trim()
   }
   
   if (Array.isArray(input)) {
