@@ -123,7 +123,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
 
   // Fetch owners when modal opens and user is authenticated
   useEffect(() => {
-    console.log('EditPropertyModal: isOpen =', isOpen, 'status =', status)
+    console.log('EditPropertyModal: isOpen =', isOpen)
     if (isOpen && !loading && user) {
       console.log('EditPropertyModal: Fetching owners...')
       fetchOwners()
@@ -133,7 +133,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
       console.log('EditPropertyModal: User not authenticated')
       setError('Please log in to edit properties')
     }
-  }, [isOpen, status])
+  }, [isOpen, loading, user])
 
   // Initialize form data when modal opens
   useEffect(() => {
