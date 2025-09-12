@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-export default function PropertyIndex({ params }: { params: { id: string } }) {
-  redirect(`/properties/${params.id}/summary`)
+export default async function PropertyIndex({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  redirect(`/properties/${id}/summary`)
 }
-
