@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { supabaseAdmin } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
@@ -86,6 +87,23 @@ export async function PUT(
     }
 
     const updatedBalance = await response.json();
+
+    // Upsert balance fields into reconciliation_log
+    try {
+      const admin = supabaseAdmin
+      if (admin) {
+        const recId = Number(reconciliationId)
+        const payload: any = {
+          buildium_reconciliation_id: recId,
+          ending_balance: updatedBalance?.EndingBalance ?? updatedBalance?.endingBalance ?? null,
+          total_checks_withdrawals: updatedBalance?.TotalChecksAndWithdrawals ?? updatedBalance?.totalChecksAndWithdrawals ?? null,
+          total_deposits_additions: updatedBalance?.TotalDepositsAndAdditions ?? updatedBalance?.totalDepositsAndAdditions ?? null,
+        }
+        await admin.from('reconciliation_log').upsert(payload, { onConflict: 'buildium_reconciliation_id' })
+      }
+    } catch (e) {
+      logger.warn({ e, reconciliationId }, 'Reconciliation log upsert (balance) failed; continuing')
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { supabaseAdmin } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,6 +66,58 @@ export async function POST(request: NextRequest) {
     }
 
     const newReconciliation = await response.json();
+
+    // Upsert reconciliation_log (pending)
+    try {
+      const admin = supabaseAdmin
+      if (admin) {
+        const buildiumReconciliationId = newReconciliation?.Id ?? newReconciliation?.id
+        const buildiumBankAccountId = (body?.BankAccountId ?? body?.bankAccountId ?? newReconciliation?.BankAccountId ?? newReconciliation?.bankAccountId) as number | undefined
+        const statementEndingDate = (body?.StatementEndingDate ?? body?.statementEndingDate ?? newReconciliation?.StatementEndingDate ?? newReconciliation?.statementEndingDate) as string | undefined
+
+        // Resolve local bank/gl/property
+        let bank_account_id: string | null = null
+        let gl_account_id: string | null = null
+        let property_id: string | null = null
+        if (buildiumBankAccountId != null) {
+          const { data: bank } = await admin
+            .from('bank_accounts')
+            .select('id, gl_account')
+            .eq('buildium_bank_id', buildiumBankAccountId)
+            .maybeSingle()
+          if (bank) {
+            bank_account_id = bank.id
+            gl_account_id = bank.gl_account
+            // Map to property via operating/deposit account linkage
+            const { data: prop } = await admin
+              .from('properties')
+              .select('id')
+              .or(`operating_bank_account_id.eq.${bank_account_id},deposit_trust_account_id.eq.${bank_account_id}`)
+              .limit(1)
+              .maybeSingle()
+            if (prop) property_id = prop.id
+          }
+        }
+
+        const payload: any = {
+          buildium_reconciliation_id: buildiumReconciliationId,
+          buildium_bank_account_id: buildiumBankAccountId ?? null,
+          statement_ending_date: statementEndingDate ?? null,
+          is_finished: Boolean(newReconciliation?.IsFinished ?? newReconciliation?.isFinished ?? false),
+          ending_balance: null,
+          total_checks_withdrawals: null,
+          total_deposits_additions: null,
+          bank_account_id,
+          gl_account_id,
+          property_id,
+        }
+
+        await admin.from('reconciliation_log')
+          .upsert(payload, { onConflict: 'buildium_reconciliation_id' })
+      }
+    } catch (e) {
+      logger.warn({ e }, 'Reconciliation log upsert (create) failed; continuing')
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
+import { supabaseAdmin } from '@/lib/db'
 
 export async function POST(
   request: NextRequest,
@@ -39,6 +40,22 @@ export async function POST(
     }
 
     const result = await response.json();
+
+    // Mark finished in reconciliation_log (and sync date if present)
+    try {
+      const admin = supabaseAdmin
+      if (admin) {
+        const recId = Number(reconciliationId)
+        const statementEndingDate = (result?.StatementEndingDate ?? result?.statementEndingDate) as string | undefined
+        await admin.from('reconciliation_log').upsert({
+          buildium_reconciliation_id: recId,
+          is_finished: true,
+          statement_ending_date: statementEndingDate ?? null,
+        }, { onConflict: 'buildium_reconciliation_id' })
+      }
+    } catch (e) {
+      logger.warn({ e, reconciliationId }, 'Reconciliation log upsert (finalize) failed; continuing')
+    }
 
     return NextResponse.json({
       success: true,

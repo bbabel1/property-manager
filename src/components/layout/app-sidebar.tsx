@@ -23,6 +23,7 @@ import {
   ClipboardList,
   Users,
   Settings,
+  CreditCard,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { Guard } from '@/components/Guard'
@@ -37,6 +38,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: Home },
   { id: "properties", label: "Properties", href: "/properties", icon: Building },
+  { id: "bank-accounts", label: "Bank Accounts", href: "/bank-accounts", icon: CreditCard },
   { id: "units", label: "Units", href: "/units", icon: Building2 },
   { id: "leases", label: "Leases", href: "/leases", icon: ClipboardList },
   { id: "owners", label: "Owners", href: "/owners", icon: Users },
