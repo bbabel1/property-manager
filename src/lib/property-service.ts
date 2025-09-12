@@ -122,6 +122,20 @@ export class PropertyService {
 
       console.log('✅ Supabase client available, fetching from database...')
 
+      // Short-circuit if env not configured (local dev), and avoid noisy logs
+      const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      if (!hasEnv) {
+        try {
+          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+          if (res.ok) {
+            const data = await res.json()
+            const occ = typeof data.occupancy_rate === 'number' ? data.occupancy_rate : Number(data.occupancy_rate || 0)
+            return { ...data, occupancy_rate: occ }
+          }
+        } catch {}
+        return null
+      }
+
       // Test the Supabase connection first; if it fails, fall back to API
       try {
         const { error: testError } = await supabase
@@ -129,7 +143,9 @@ export class PropertyService {
           .select('count', { count: 'exact', head: true })
         if (testError) throw testError
       } catch (e) {
-        console.error('❌ Supabase connection test failed:', e || {})
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Supabase connection test failed; falling back to API.')
+        }
         // Fallback to API route even on the server (RSC). Next.js allows internal fetch.
         try {
           const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
