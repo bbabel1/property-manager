@@ -11,10 +11,11 @@ export default async function PropertyLayout({ children, params }: { children: R
   let headerAssign: string | undefined | null
   let headerPlan: string | undefined | null
   try {
-    const hdrs = nextHeaders()
+    const hdrs = await nextHeaders()
     const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host')
     const proto = hdrs.get('x-forwarded-proto') ?? 'http'
-    const cookieHeader = nextCookies().getAll().map(c => `${c.name}=${encodeURIComponent(c.value)}`).join('; ')
+    const cookieStore = await nextCookies()
+    const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${encodeURIComponent(c.value)}`).join('; ')
     const url = `${proto}://${host}/api/properties/${id}/details`
     const res = await fetch(url, { headers: { cookie: cookieHeader }, cache: 'no-store' })
     if (res.ok) {
