@@ -3,14 +3,23 @@
 import { useState, useEffect, use } from 'react'
 import { ArrowLeft, Building2, DollarSign, Home, FileText, Users, TrendingUp, Edit, Building, Bed, Bath } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { PropertyService, type PropertyWithDetails } from '@/lib/property-service'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Guard } from '@/components/Guard'
+import { track } from '@/lib/analytics'
+import PropertyNotes from '@/property/PropertyNotes'
 
 export default function PropertyDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
-  const [activeTab, setActiveTab] = useState("summary")
+  const search = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const initialTab = (search?.get('tab') || (typeof window !== 'undefined' ? (window.location.hash?.replace('#','') || '') : '') || 'summary')
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [property, setProperty] = useState<PropertyWithDetails | null>(null)
@@ -19,6 +28,19 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
     if (resolvedParams.id) {
       fetchPropertyDetails()
     }
+  }, [resolvedParams.id])
+
+  // Sync tab to URL (query + hash) and fire telemetry
+  useEffect(() => {
+    const sp = new URLSearchParams(search?.toString())
+    if (activeTab) sp.set('tab', activeTab)
+    router.replace(`${pathname}?${sp.toString()}#${activeTab}`)
+    if (resolvedParams.id && activeTab) track('property_tab', { id: resolvedParams.id, tab: activeTab })
+  }, [activeTab])
+
+  // Telemetry: page view
+  useEffect(() => {
+    if (resolvedParams.id) track('property_view', { id: resolvedParams.id })
   }, [resolvedParams.id])
 
   const fetchPropertyDetails = async () => {
@@ -44,11 +66,25 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
   if (loading) {
     return (
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading property details...</p>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2">
+            <CardHeader className="py-3 px-4"><Skeleton className="h-6 w-40" /></CardHeader>
+            <CardContent className="px-4 pb-4 space-y-4">
+              <Skeleton className="h-56 w-full" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="py-3 px-4"><Skeleton className="h-6 w-40" /></CardHeader>
+            <CardContent className="px-4 pb-4 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-4 w-1/3" />
+            </CardContent>
+          </Card>
         </div>
       </div>
     )
@@ -91,12 +127,12 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <Link href="/properties">
-            <Button variant="ghost" size="sm" className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="flex items-center gap-2" aria-label="Back to Properties">
               <ArrowLeft className="h-4 w-4" />
               Back to Properties
             </Button>
           </Link>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded ${String(property.status).toLowerCase() === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded ${String(property.status).toLowerCase() === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
             {property.status || '—'}
           </span>
         </div>
@@ -113,9 +149,12 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
 
       {/* Navigation Tabs */}
       <div className="border-b border-border">
-        <nav className="flex space-x-8">
+        <nav className="flex space-x-8" role="tablist" aria-label="Property sections">
           <button
             onClick={() => setActiveTab("summary")}
+            role="tab"
+            aria-selected={activeTab === 'summary'}
+            aria-controls="panel-summary"
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "summary"
                 ? "border-primary text-primary"
@@ -127,6 +166,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           </button>
           <button
             onClick={() => setActiveTab("financials")}
+            role="tab"
+            aria-selected={activeTab === 'financials'}
+            aria-controls="panel-financials"
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "financials"
                 ? "border-primary text-primary"
@@ -138,6 +180,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           </button>
           <button
             onClick={() => setActiveTab("units")}
+            role="tab"
+            aria-selected={activeTab === 'units'}
+            aria-controls="panel-units"
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "units"
                 ? "border-primary text-primary"
@@ -149,6 +194,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           </button>
           <button
             onClick={() => setActiveTab("files")}
+            role="tab"
+            aria-selected={activeTab === 'files'}
+            aria-controls="panel-files"
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "files"
                 ? "border-primary text-primary"
@@ -160,6 +208,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           </button>
           <button
             onClick={() => setActiveTab("contacts")}
+            role="tab"
+            aria-selected={activeTab === 'contacts'}
+            aria-controls="panel-contacts"
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "contacts"
                 ? "border-primary text-primary"
@@ -171,6 +222,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
           </button>
           <button
             onClick={() => setActiveTab("tasks")}
+            role="tab"
+            aria-selected={activeTab === 'tasks'}
+            aria-controls="panel-tasks"
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "tasks"
                 ? "border-primary text-primary"
@@ -185,16 +239,18 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
 
       {/* Tab Content */}
       {activeTab === "summary" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div id="panel-summary" role="tabpanel" aria-labelledby="summary" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Property Details (2/3 width) */}
           <Card className="lg:col-span-2">
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle>Property Details</CardTitle>
-                <Button variant="outline" size="sm">
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
+                <Guard require={['org_manager','org_admin','platform_admin'] as any}>
+                  <Button variant="outline" size="sm" aria-label="Edit property details">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </Guard>
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-4">
@@ -232,6 +288,10 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                   <div>
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">PROPERTY TYPE</label>
                     <p className="text-sm text-foreground mt-1 leading-tight">{(property as any).property_type || 'None'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">STATUS</label>
+                    <p className={`text-sm font-semibold mt-1 leading-tight ${String(property.status).toLowerCase() === 'active' ? 'text-emerald-600' : 'text-red-600'}`}>{property.status || 'Unknown'}</p>
                   </div>
 
                   <div>
@@ -319,10 +379,11 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-                  <span className="text-sm font-medium text-foreground">Available:</span>
+                  <span className="text-sm font-medium text-foreground">Available balance</span>
                   <span className="text-sm font-bold text-foreground">{formatCurrency(2576.80)}</span>
                 </div>
-                <Button variant="link" size="sm" className="p-0 h-auto text-primary mt-2">
+                <p className="text-xs text-muted-foreground mt-1">as of {new Date().toLocaleDateString()}</p>
+                <Button variant="ghost" size="sm" className="p-0 h-auto text-primary mt-2" aria-label="View income statement">
                   View income statement
                 </Button>
               </CardContent>
@@ -333,10 +394,12 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Banking details</CardTitle>
-                  <Button variant="outline" size="sm">
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
+                  <Guard require={['org_manager','org_admin','platform_admin'] as any}>
+                    <Button variant="outline" size="sm" aria-label="Edit banking details">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  </Guard>
                 </div>
               </CardHeader>
               <CardContent>
@@ -372,6 +435,9 @@ export default function PropertyDetailsPage({ params }: { params: Promise<{ id: 
                 </div>
               </CardContent>
             </Card>
+
+            {/* Notes */}
+            <PropertyNotes propertyId={property.id} />
 
             {/* Management Services */}
             <Card className="bg-primary/5">
