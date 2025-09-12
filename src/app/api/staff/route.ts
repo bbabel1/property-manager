@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
         is_active,
         created_at,
         updated_at,
-        buildium_user_id
+        buildium_user_id,
+        first_name,
+        last_name
       `)
       .eq('is_active', true)
       .not('buildium_user_id', 'is', null)
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
     // Transform data to include display name
     const transformedStaff = staff?.map(member => ({
       ...member,
-      displayName: `Staff ${member.id}` // Since we don't have name fields, use ID
+      displayName: [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || `Staff ${member.id}`
     })) || []
 
     return NextResponse.json(transformedStaff)
