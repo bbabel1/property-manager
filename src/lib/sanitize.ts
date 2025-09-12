@@ -4,14 +4,21 @@
  */
 export function sanitize(input: unknown): unknown {
   if (typeof input === 'string') {
-    // Remove HTML tags and potentially dangerous content
-    return input
-      .replace(/<[^>]*>/g, '') // Remove HTML tags
-      // Remove dangerous URL schemes: javascript:, vbscript:, data:
-      // CodeQL(js/incomplete-url-scheme-check) expects all three
-      .replace(/\b(?:javascript|vbscript|data)\s*:/gi, '')
-      .replace(/on\w+=/gi, '') // Remove event handlers
-      .trim();
+    // Remove HTML tags and potentially dangerous content.
+    // Apply replacements repeatedly until no changes remain
+    // to address multi-character sanitization concerns.
+    let s = input
+    let prev: string
+    do {
+      prev = s
+      s = s
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        // Remove dangerous URL schemes: javascript:, vbscript:, data:
+        .replace(/\b(?:javascript|vbscript|data)\s*:/gi, '')
+        // Remove inline event handlers like onload=, onclick=, etc.
+        .replace(/\s*on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    } while (s !== prev)
+    return s.trim();
   }
   
   if (Array.isArray(input)) {
