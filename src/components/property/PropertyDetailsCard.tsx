@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState, Fragment } from 'react'
 import { Button } from '@/components/ui/button'
-import { Edit, Trash2, Plus, X, Save } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Edit, Trash2, Plus } from 'lucide-react'
+import InlineEditCard from '@/components/form/InlineEditCard'
+import RepeaterField from '@/components/form/fields/RepeaterField'
 
 type OwnerOption = { id: string; name: string }
 type OwnerRow = { id: string; ownerId: string; name: string; ownershipPercentage: number; disbursementPercentage: number; primary?: boolean }
@@ -21,10 +24,23 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     disbursementPercentage: Number(o.disbursement_percentage ?? 0),
     primary: Boolean(o.primary)
   })))
+  const [managerId, setManagerId] = useState<string>('')
+  const [managerOptions, setManagerOptions] = useState<{ id: string; name: string; role?: string }[]>([])
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
   const [loadingOwners, setLoadingOwners] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Inline create-new-owner state (mirrors New Property form approach)
+  const [showCreateInline, setShowCreateInline] = useState(false)
+  const [createForRowId, setCreateForRowId] = useState<string | null>(null)
+  const [createFirst, setCreateFirst] = useState('')
+  const [createLast, setCreateLast] = useState('')
+  const [createEmail, setCreateEmail] = useState('')
+  const [createPhone, setCreatePhone] = useState('')
+  const [createOwnershipPct, setCreateOwnershipPct] = useState<number>(100)
+  const [createDisbursementPct, setCreateDisbursementPct] = useState<number>(100)
+  const [createPrimary, setCreatePrimary] = useState<boolean>(false)
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     if (!editing) return
@@ -52,6 +68,27 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     return () => { cancelled = true }
   }, [editing])
 
+  // Load staff and filter for roles containing "Property Manager"
+  useEffect(() => {
+    if (!editing) return
+    let cancelled = false
+    const loadStaff = async () => {
+      try {
+        const res = await fetch('/api/staff')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) {
+          const options = (Array.isArray(data) ? data : [])
+            .filter((s: any) => String(s.role || '').toLowerCase().includes('property manager'))
+            .map((s: any) => ({ id: String(s.id), name: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}`, role: s.role }))
+          setManagerOptions(options)
+        }
+      } catch {}
+    }
+    loadStaff()
+    return () => { cancelled = true }
+  }, [editing])
+
   function addOwnerRow() {
     setOwners(prev => [...prev, { id: crypto.randomUUID(), ownerId: '', name: '', ownershipPercentage: 0, disbursementPercentage: 0 }])
   }
@@ -65,6 +102,14 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   }
 
   function onOwnerSelect(rowId: string, ownerId: string) {
+    if (ownerId === 'create-new-owner') {
+      setShowCreateInline(true)
+      setCreateForRowId(rowId)
+      setCreateOwnershipPct(owners.length ? 0 : 100)
+      setCreateDisbursementPct(owners.length ? 0 : 100)
+      setCreatePrimary(owners.every(o => !o.primary))
+      return
+    }
     const opt = ownerOptions.find(o => o.id === ownerId)
     setOwners(prev => prev.map(o => o.id === rowId ? { ...o, ownerId, name: opt?.name || '' } : o))
   }
@@ -75,6 +120,49 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     if (typeof document === 'undefined') return null
     const m = document.cookie.match(/(?:^|; )csrf-token=([^;]+)/)
     return m ? decodeURIComponent(m[1]) : null
+  }
+
+  async function createOwnerInline() {
+    try {
+      setCreating(true)
+      setError(null)
+      if (!createFirst || !createLast || !createEmail) {
+        setError('First name, last name, and email are required')
+        return
+      }
+      const csrf = getCSRFCookie()
+      const res = await fetch('/api/owners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) },
+        body: JSON.stringify({ isCompany: false, firstName: createFirst, lastName: createLast, primaryEmail: createEmail, primaryPhone: createPhone || undefined })
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({} as any))
+        throw new Error(j?.error || 'Failed to create owner')
+      }
+      const j = await res.json()
+      const newOwner = j?.owner
+      if (newOwner?.id) {
+        const name = newOwner.displayName || `${newOwner.firstName ?? ''} ${newOwner.lastName ?? ''}`.trim() || 'Owner'
+        setOwnerOptions(prev => [{ id: String(newOwner.id), name }, ...prev])
+        if (createForRowId) {
+          setOwners(prev => prev.map(o => o.id === createForRowId
+            ? { ...o, ownerId: String(newOwner.id), name, ownershipPercentage: createOwnershipPct, disbursementPercentage: createDisbursementPct, primary: createPrimary || o.primary }
+            : o
+          ))
+        } else {
+          setOwners(prev => [...prev, { id: crypto.randomUUID(), ownerId: String(newOwner.id), name, ownershipPercentage: createOwnershipPct, disbursementPercentage: createDisbursementPct, primary: createPrimary }])
+        }
+      }
+      // reset and hide
+      setShowCreateInline(false)
+      setCreateForRowId(null)
+      setCreateFirst(''); setCreateLast(''); setCreateEmail(''); setCreatePhone('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create owner')
+    } finally {
+      setCreating(false)
+    }
   }
 
   async function save() {
@@ -91,7 +179,15 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
           ownershipPercentage: Number(o.ownershipPercentage) || 0,
           disbursementPercentage: Number(o.disbursementPercentage) || 0,
           primary: Boolean(o.primary)
-        }))
+        })),
+        // Include required fields expected by the API using existing values
+        name: property.name,
+        country: property.country || 'United States',
+        status: property.status || 'Active',
+        property_type: (property as any).property_type ?? null,
+        reserve: property.reserve ?? 0,
+        year_built: property.year_built ?? null,
+        property_manager_id: managerId || null
       }
       const csrf = getCSRFCookie()
       const res = await fetch(`/api/properties/${property.id}`, {
@@ -113,23 +209,16 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   }
 
   return (
-    <div className="rounded-lg shadow-sm border border-border bg-card">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h2 className="text-base font-semibold text-foreground">Property Details</h2>
-        {!editing ? (
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)} aria-label="Edit property">
-            <Edit className="h-4 w-4 mr-2"/>Edit
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditing(false)} aria-label="Cancel"><X className="h-4 w-4 mr-2"/>Cancel</Button>
-            <Button size="sm" onClick={save} disabled={saving || ownershipTotal !== 100} aria-label="Save"><Save className="h-4 w-4 mr-2"/>{saving ? 'Saving…' : 'Save'}</Button>
-          </div>
-        )}
-      </div>
-
-      {!editing ? (
-        <div className="p-4 grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
+    <InlineEditCard
+      title="Property Details"
+      editing={editing}
+      onEdit={()=> setEditing(true)}
+      onCancel={()=> setEditing(false)}
+      onSave={save}
+      isSaving={saving}
+      canSave={ownershipTotal === 100}
+      view={
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="relative md:col-span-2">
             <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
               {/* Placeholder image area */}
@@ -150,21 +239,51 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rental Owners</p>
               <div className="mt-2 space-y-1.5">
-                {(property.owners || []).map((o: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between py-1 text-sm">
-                    <span className="text-foreground truncate mr-3">{o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Unnamed Owner'}</span>
-                    <span className="text-muted-foreground whitespace-nowrap">{o.ownership_percentage ?? 0}% • {o.disbursement_percentage ?? 0}%</span>
-                  </div>
-                ))}
-                {(!property.owners || property.owners.length === 0) && (
-                  <p className="text-sm text-muted-foreground">—</p>
+                {property.owners && property.owners.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pb-1.5 border-b border-border">
+                      <span className="sr-only md:not-sr-only">Name</span>
+                      <div className="grid grid-cols-2 gap-8 min-w-[140px] text-right">
+                        <span>Ownership</span>
+                        <span>Disbursement</span>
+                      </div>
+                    </div>
+                    {property.owners.map((o: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between py-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-sm text-foreground truncate leading-tight">{o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Unnamed Owner'}</p>
+                          {o.primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
+                        </div>
+                        <div className="grid grid-cols-2 gap-8 text-sm text-foreground whitespace-nowrap text-right min-w-[140px]">
+                          <span className="font-medium">{o.ownership_percentage != null ? `${o.ownership_percentage}%` : '—'}</span>
+                          <span className="font-medium">{o.disbursement_percentage != null ? `${o.disbursement_percentage}%` : '—'}</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-2 mt-1 border-t border-border">
+                      <span className="text-sm font-medium text-foreground">Total</span>
+                      <div className="grid grid-cols-2 gap-8 text-sm text-right min-w-[140px]">
+                        <span className="font-bold">{(() => {
+                          const t = property.owners.reduce((a: number, o: any) => a + (o.ownership_percentage || 0), 0)
+                          return `${t}%`
+                        })()}</span>
+                        <span className="font-bold">{(() => {
+                          const t = property.owners.reduce((a: number, o: any) => a + (o.disbursement_percentage || 0), 0)
+                          return `${t}%`
+                        })()}</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No owners assigned</p>
                 )}
               </div>
             </div>
           </div>
         </div>
-      ) : (
-        <div className="p-4 grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
+      }
+      edit={
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="relative md:col-span-2">
             <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
               <button type="button" className="text-primary text-sm underline">Replace photo</button>
@@ -194,18 +313,24 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
               </div>
             </div>
 
-            {/* Property Management (placeholder select) */}
+            {/* Property Management */}
             <div>
               <h4 className="text-sm font-medium text-foreground mb-2">Property Management</h4>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Property Manager</label>
-              <select className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" disabled>
-                <option>{property.property_manager_name || 'No manager assigned'}</option>
+              <select
+                className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm"
+                value={managerId}
+                onChange={(e)=> setManagerId(e.target.value)}
+              >
+                <option value="">No manager assigned</option>
+                {managerOptions.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
               </select>
             </div>
 
             {/* Rental Owners */}
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-2">Rental Owner</h4>
+            <RepeaterField title="Rental Owner" onAdd={addOwnerRow} addLabel="Add another owner">
               <div className="space-y-2">
                 {owners.map((row) => (
                   <div key={row.id} className="grid grid-cols-12 items-center gap-2">
@@ -217,6 +342,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                         className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm"
                       >
                         <option value="">Select owner…</option>
+                        <option value="create-new-owner">+ Create new owner…</option>
                         {ownerOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                       </select>
                     </div>
@@ -243,20 +369,56 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                     </div>
                   </div>
                 ))}
-                <div className="pt-1">
-                  <button type="button" onClick={addOwnerRow} className="text-primary text-sm underline flex items-center"><Plus className="h-4 w-4 mr-1"/> Add another owner</button>
-                </div>
                 {ownershipTotal !== 100 && (
                   <p className="text-xs text-destructive">Ownership total is {ownershipTotal}%. It must equal 100% to save.</p>
                 )}
+
+                {showCreateInline && (
+                  <div className="mt-4 rounded-md border p-3 space-y-3">
+                    <h5 className="text-sm font-medium text-foreground">New Owner</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">First name</label>
+                        <input value={createFirst} onChange={e=>setCreateFirst(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">Last name</label>
+                        <input value={createLast} onChange={e=>setCreateLast(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">Email</label>
+                        <input type="email" value={createEmail} onChange={e=>setCreateEmail(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">Phone</label>
+                        <input value={createPhone} onChange={e=>setCreatePhone(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
+                        <input type="number" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value)||0)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
+                        <input type="number" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value)||0)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input id="new-owner-primary" type="checkbox" checked={createPrimary} onChange={e=>setCreatePrimary(e.target.checked)} />
+                        <label htmlFor="new-owner-primary" className="text-xs text-muted-foreground">Primary owner</label>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" onClick={createOwnerInline} disabled={creating}> {creating ? 'Creating…' : 'Create owner'} </Button>
+                      <Button variant="outline" size="sm" onClick={()=>{ setShowCreateInline(false); setCreateForRowId(null) }}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            </RepeaterField>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         </div>
-      )}
-    </div>
+      }
+    />
   )
 }
-

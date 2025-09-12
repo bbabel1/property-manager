@@ -122,6 +122,22 @@ export async function PUT(
       console.log('🔍 API: No owners data provided in request body')
     }
 
+    // Handle property manager assignment (optional)
+    if (Object.prototype.hasOwnProperty.call(body, 'property_manager_id')) {
+      const staffId = body.property_manager_id
+      // Remove existing link for PROPERTY_MANAGER
+      await adminClient.from('property_staff').delete().eq('property_id', propertyId).eq('role', 'PROPERTY_MANAGER')
+      if (staffId) {
+        await adminClient.from('property_staff').insert({
+          property_id: propertyId,
+          staff_id: typeof staffId === 'string' ? Number(staffId) : staffId,
+          role: 'PROPERTY_MANAGER',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+      }
+    }
+
     // primary_owner field removed - ownership is now managed through ownerships table
 
     return NextResponse.json({ 
