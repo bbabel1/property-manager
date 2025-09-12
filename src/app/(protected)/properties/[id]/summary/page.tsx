@@ -28,7 +28,16 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
-  if (!property) return null
+  if (loading) {
+    return <div className="text-sm text-muted-foreground p-6">Loading property…</div>
+  }
+  if (!property) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-muted-foreground">Unable to load property details. You may not have access or the property does not exist.</div>
+      </div>
+    )
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -145,4 +154,3 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
     </div>
   )
 }
-
