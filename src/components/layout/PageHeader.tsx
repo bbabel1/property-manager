@@ -1,0 +1,59 @@
+"use client"
+
+import Link from 'next/link'
+import { useSelectedLayoutSegment } from 'next/navigation'
+import { ArrowLeft, Building2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
+type Props = {
+  property: {
+    id: string
+    name: string
+    status?: string | null
+    property_type?: string | null
+  }
+}
+
+export default function PageHeader({ property }: Props) {
+  const seg = useSelectedLayoutSegment() || 'summary'
+  const tabs = [
+    { key: 'summary', label: 'Summary' },
+    { key: 'financials', label: 'Financials' },
+    { key: 'units', label: 'Units' },
+    { key: 'files', label: 'Files' },
+    { key: 'contacts', label: 'Contacts' },
+    { key: 'tasks', label: 'Tasks' },
+  ]
+  const statusActive = String(property.status || '').toLowerCase() === 'active'
+  return (
+    <header className="p-6 pb-2 space-y-3">
+      <div className="flex items-center gap-3">
+        <Link href="/properties">
+          <Button variant="ghost" size="sm" className="flex items-center gap-2" aria-label="Back to Properties">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Properties
+          </Button>
+        </Link>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+          {property.status || '—'}
+        </span>
+      </div>
+      <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+        <Building2 className="h-6 w-6" />
+        {property.name || 'Property'}
+      </h1>
+      <p className="text-muted-foreground text-sm">{property.property_type || '—'}</p>
+
+      <div className="border-b border-border mt-2">
+        <nav className="flex space-x-8" role="tablist" aria-label="Property sections">
+          {tabs.map(t => (
+            <Link key={t.key} href={`/properties/${property.id}/${t.key}`} role="tab" aria-selected={seg === t.key} aria-controls={`panel-${t.key}`} className={`py-4 px-1 border-b-2 text-sm font-medium transition-colors ${seg === t.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}>
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </header>
+  )
+}
+
