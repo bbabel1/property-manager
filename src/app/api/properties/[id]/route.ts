@@ -76,8 +76,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update property' }, { status: 500 })
     }
 
-    // Handle ownership updates
-    if (body.owners && Array.isArray(body.owners)) {
+    // Handle ownership updates (non-destructive when empty)
+    // Only replace ownerships when owners array is provided AND non-empty.
+    // This prevents accidental wipes when a client sends an empty array due to UI hydration timing.
+    if (body.owners && Array.isArray(body.owners) && body.owners.length > 0) {
       console.log('🔍 API: Processing ownership updates for property:', propertyId)
       console.log('🔍 API: Owners data:', body.owners)
       
@@ -119,7 +121,7 @@ export async function PUT(
         }
       }
     } else {
-      console.log('🔍 API: No owners data provided in request body')
+      console.log('🔍 API: Skipping ownership updates (no owners provided or empty)')
     }
 
     // Handle property manager assignment (optional)

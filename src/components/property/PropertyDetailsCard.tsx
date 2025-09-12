@@ -42,6 +42,32 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   const [createPrimary, setCreatePrimary] = useState<boolean>(false)
   const [creating, setCreating] = useState(false)
 
+  // If owners are empty, try to hydrate from the details API (RLS/admin-backed)
+  useEffect(() => {
+    let cancelled = false
+    const hydrate = async () => {
+      try {
+        if ((owners || []).length > 0) return
+        const res = await fetch(`/api/properties/${property.id}/details`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        const list = Array.isArray(data?.owners) ? data.owners : []
+        if (!cancelled && list.length) {
+          setOwners(list.map((o: any) => ({
+            id: String(o.owner_id || o.id || crypto.randomUUID()),
+            ownerId: String(o.owner_id || o.id || ''),
+            name: o.display_name || o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Owner',
+            ownershipPercentage: Number(o.ownership_percentage ?? 0),
+            disbursementPercentage: Number(o.disbursement_percentage ?? 0),
+            primary: Boolean(o.primary)
+          })))
+        }
+      } catch {}
+    }
+    hydrate()
+    return () => { cancelled = true }
+  }, [])
+
   useEffect(() => {
     if (!editing) return
     let cancelled = false
@@ -186,12 +212,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         city,
         state,
         postal_code: postal,
-        owners: owners.filter(o => o.ownerId).map(o => ({
-          id: o.ownerId,
-          ownershipPercentage: Number(o.ownershipPercentage) || 0,
-          disbursementPercentage: Number(o.disbursementPercentage) || 0,
-          primary: Boolean(o.primary)
-        })),
+        // owners added below conditionally
         // Include required fields expected by the API using existing values
         name: property.name,
         country: property.country || 'United States',
@@ -200,6 +221,15 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         reserve: property.reserve ?? 0,
         year_built: property.year_built ?? null,
         property_manager_id: managerId || null
+      }
+      const ownersPayload = owners.filter(o => o.ownerId).map(o => ({
+        id: o.ownerId,
+        ownershipPercentage: Number(o.ownershipPercentage) || 0,
+        disbursementPercentage: Number(o.disbursementPercentage) || 0,
+        primary: Boolean(o.primary)
+      }))
+      if (ownersPayload.length > 0) {
+        body.owners = ownersPayload
       }
       const csrf = csrfToken
       const res = await fetch(`/api/properties/${property.id}`, {
@@ -251,7 +281,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rental Owners</p>
               <div className="mt-2 space-y-1.5">
-                {property.owners && property.owners.length > 0 ? (
+                {(() => { const displayOwners = (property.owners && property.owners.length > 0) ? property.owners : owners; return displayOwners && displayOwners.length > 0 ? (
                   <>
                     <div className="flex items-center justify-between text-xs text-muted-foreground pb-1.5 border-b border-border">
                       <span className="sr-only md:not-sr-only">Name</span>
@@ -260,7 +290,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                         <span>Disbursement</span>
                       </div>
                     </div>
-                    {property.owners.map((o: any, idx: number) => (
+                    {displayOwners.map((o: any, idx: number) => (
                       <div key={idx} className="flex items-center justify-between py-1">
                         <div className="flex items-center gap-2 min-w-0">
                           <p className="text-sm text-foreground truncate leading-tight">{o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Unnamed Owner'}</p>
@@ -276,11 +306,13 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                       <span className="text-sm font-medium text-foreground">Total</span>
                       <div className="grid grid-cols-2 gap-8 text-sm text-right min-w-[140px]">
                         <span className="font-bold">{(() => {
-                          const t = property.owners.reduce((a: number, o: any) => a + (o.ownership_percentage || 0), 0)
+                          const list = displayOwners
+                          const t = list.reduce((a: number, o: any) => a + (o.ownership_percentage || 0), 0)
                           return `${t}%`
                         })()}</span>
                         <span className="font-bold">{(() => {
-                          const t = property.owners.reduce((a: number, o: any) => a + (o.disbursement_percentage || 0), 0)
+                          const list = displayOwners
+                          const t = list.reduce((a: number, o: any) => a + (o.disbursement_percentage || 0), 0)
                           return `${t}%`
                         })()}</span>
                       </div>
@@ -288,7 +320,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">No owners assigned</p>
-                )}
+                )})()}
               </div>
             </div>
           </div>
