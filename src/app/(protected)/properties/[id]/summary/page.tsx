@@ -41,8 +41,9 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Property Details */}
-      <InfoCard title="Property Details" className="lg:col-span-2" action={<Button variant="outline" size="sm" aria-label="Edit property"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+      {/* Left column: details + location */}
+      <div className="space-y-6 lg:col-span-2">
+      <InfoCard title="Property Details" action={<Button variant="outline" size="sm" aria-label="Edit property"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8 items-start">
           <div className="relative md:col-span-2">
             <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
@@ -82,6 +83,20 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
                         </div>
                       </div>
                     ))}
+                    {/* Totals row */}
+                    <div className="flex items-center justify-between pt-2 mt-1 border-t border-border">
+                      <span className="text-sm font-medium text-foreground">Total</span>
+                      <div className="grid grid-cols-2 gap-8 text-sm text-right min-w-[140px]">
+                        <span className="font-bold">{(() => {
+                          const t = property.owners.reduce((a: number, o: any) => a + (o.ownership_percentage || 0), 0)
+                          return `${t}%`
+                        })()}</span>
+                        <span className="font-bold">{(() => {
+                          const t = property.owners.reduce((a: number, o: any) => a + (o.disbursement_percentage || 0), 0)
+                          return `${t}%`
+                        })()}</span>
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <p className="text-sm text-foreground">No ownership information available</p>
@@ -91,6 +106,35 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       </InfoCard>
+
+      {/* Location */}
+      <InfoCard title="Location" action={<Button variant="outline" size="sm" aria-label="Edit location"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Borough</p>
+            <p className="text-sm text-foreground mt-1">{(property as any).borough || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Neighborhood</p>
+            <p className="text-sm text-foreground mt-1">{(property as any).neighborhood || '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Longitude</p>
+            <p className="text-sm text-foreground mt-1">{(property as any).longitude ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Latitude</p>
+            <p className="text-sm text-foreground mt-1">{(property as any).latitude ?? '—'}</p>
+          </div>
+        </div>
+        <div className="mt-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Location Verified</p>
+          <p className={`text-sm mt-1 ${(property as any).location_verified ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+            {(property as any).location_verified ? 'Verified' : 'Not verified'}
+          </p>
+        </div>
+      </InfoCard>
+      </div>
 
       {/* Right rail stacked cards */}
       <div className="space-y-6">
@@ -149,6 +193,35 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
           </div>
         </InfoCard>
 
+        {/* Management Services */}
+        <InfoCard title="Management Services" action={<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ASSIGNMENT LEVEL</p>
+              <p className="text-sm text-foreground mt-1">{((property as any).service_assignment || '—')}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">SERVICE PLAN</p>
+              <p className="text-sm text-foreground mt-1">{((property as any).service_plan || '—')}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ACTIVE SERVICES</p>
+              <p className="text-sm text-foreground mt-1">{Array.isArray((property as any).active_services) ? (property as any).active_services.join(', ') : '—'}</p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MANAGEMENT FEE</p>
+              <p className="text-sm text-foreground mt-1">{(() => {
+                const fee = (property as any).management_fee
+                const type = (property as any).fee_type
+                if (fee == null) return '—'
+                if (type === 'Percentage') return `${fee}%`
+                return formatCurrency(Number(fee) || 0)
+              })()}</p>
+            </div>
+          </div>
+        </InfoCard>
+
+        {/* Notes under management services */}
         <PropertyNotes propertyId={property.id} />
       </div>
     </div>
