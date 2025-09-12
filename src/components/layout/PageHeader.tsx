@@ -11,7 +11,25 @@ type Props = {
     name: string
     status?: string | null
     property_type?: string | null
+    service_assignment?: string | null
+    service_plan?: string | null
   }
+}
+
+function formatPlan(plan?: string | null) {
+  if (!plan) return null
+  const p = String(plan)
+  if (p.toLowerCase() === 'full') return 'Full Service'
+  // Title-case and normalize dashes
+  return p
+    .replace(/[-_]+/g, ' ')
+    .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+}
+
+function formatAssignment(assign?: string | null) {
+  if (!assign) return null
+  const a = String(assign)
+  return a.charAt(0).toUpperCase() + a.slice(1).toLowerCase()
 }
 
 export default function PageHeader({ property }: Props) {
@@ -25,6 +43,11 @@ export default function PageHeader({ property }: Props) {
     { key: 'tasks', label: 'Tasks' },
   ]
   const statusActive = String(property.status || '').toLowerCase() === 'active'
+  const subtitleParts = [
+    property.property_type || undefined,
+    formatAssignment(property.service_assignment),
+    formatPlan(property.service_plan),
+  ].filter(Boolean) as string[]
   return (
     <header className="p-6 pb-2 space-y-3">
       <div className="flex items-center gap-3">
@@ -42,7 +65,7 @@ export default function PageHeader({ property }: Props) {
         <Building2 className="h-6 w-6" />
         {property.name || 'Property'}
       </h1>
-      <p className="text-muted-foreground text-sm">{property.property_type || '—'}</p>
+      <p className="text-muted-foreground text-sm">{subtitleParts.length ? subtitleParts.join(' | ') : '—'}</p>
 
       <div className="border-b border-border mt-2">
         <nav className="flex space-x-8" role="tablist" aria-label="Property sections">
@@ -56,4 +79,3 @@ export default function PageHeader({ property }: Props) {
     </header>
   )
 }
-

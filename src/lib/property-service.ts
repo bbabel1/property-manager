@@ -193,13 +193,17 @@ export class PropertyService {
         .eq('id', id)
         .single()
 
-      if (propertyError) {
-        console.error('❌ Error fetching property:', propertyError)
-        return null
-      }
-
-      if (!property) {
-        console.warn('⚠️ Property not found in database')
+      if (propertyError || !property) {
+        // Fall back to internal API which uses service role or cookie-bound server client to bypass RLS issues
+        try {
+          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+          if (res.ok) {
+            const data = await res.json()
+            const occ = typeof data.occupancy_rate === 'number' ? data.occupancy_rate : Number(data.occupancy_rate || 0)
+            return { ...data, occupancy_rate: occ }
+          }
+        } catch {}
+        console.error('❌ Error fetching property:', propertyError || 'not found')
         return null
       }
 

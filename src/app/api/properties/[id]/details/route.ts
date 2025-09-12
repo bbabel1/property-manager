@@ -27,6 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .select(`
         id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
         property_type, status, reserve, year_built, created_at, updated_at,
+        service_assignment, service_plan,
         total_units, total_active_units, total_occupied_units, total_vacant_units, total_inactive_units,
         occupancy_rate,
         operating_bank_account_id, deposit_trust_account_id,
