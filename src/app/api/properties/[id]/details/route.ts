@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { supabaseAdmin } from '@/lib/db'
+import { createServerClient } from '@supabase/ssr'
 
 // GET /api/properties/:id/details
 // Returns enriched property details with admin privileges to bypass RLS for joins
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolved = await params
     const id = resolved.id
-    const db = supabaseAdmin || supabase
+    // Prefer service role if configured; else bind user session from cookies
+    const db = supabaseAdmin || createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      {
+        cookies: {
+          get: (name: string) => req.cookies.get(name)?.value,
+          set: () => {},
+          remove: () => {},
+        },
+      }
+    )
 
     // Base property with aggregate unit counts and occupancy_rate
     const { data: property, error } = await db
