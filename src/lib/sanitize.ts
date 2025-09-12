@@ -7,7 +7,9 @@ export function sanitize(input: unknown): unknown {
     // Remove HTML tags and potentially dangerous content
     return input
       .replace(/<[^>]*>/g, '') // Remove HTML tags
-      .replace(/javascript:/gi, '') // Remove javascript: protocol
+      // Remove dangerous URL schemes: javascript:, vbscript:, data:
+      // CodeQL(js/incomplete-url-scheme-check) expects all three
+      .replace(/\b(?:javascript|vbscript|data)\s*:/gi, '')
       .replace(/on\w+=/gi, '') // Remove event handlers
       .trim();
   }
