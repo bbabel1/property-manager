@@ -85,6 +85,19 @@ export async function PUT(
       
       // Use admin client for ownership operations to bypass RLS
       const adminClient = supabaseAdmin || supabase
+      // Ensure we have org_id for ownership inserts
+      let orgId: string | null = null
+      try {
+        orgId = (data as any)?.org_id ?? null
+        if (!orgId) {
+          const { data: propRow } = await adminClient
+            .from('properties')
+            .select('org_id')
+            .eq('id', propertyId)
+            .maybeSingle()
+          orgId = (propRow as any)?.org_id ?? null
+        }
+      } catch {}
       
       // First, delete all existing ownership records for this property
       const { error: deleteError } = await adminClient
@@ -109,6 +122,7 @@ export async function PUT(
             ownership_percentage: owner.ownershipPercentage,
             disbursement_percentage: owner.disbursementPercentage,
             primary: owner.primary,
+            org_id: orgId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
