@@ -42,7 +42,7 @@
     "@headlessui/react": "^2.2.7",
     "@hookform/resolvers": "^5.2.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
-    "@opentelemetry/instrumentation-fetch": "^0.54.0",
+    "@opentelemetry/instrumentation-fetch": "^0.205.0",
     "@opentelemetry/instrumentation-http": "^0.54.0",
     "@opentelemetry/instrumentation-pg": "^0.54.0",
     "@opentelemetry/instrumentation-pino": "^0.52.0",
