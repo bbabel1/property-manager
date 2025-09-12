@@ -116,11 +116,23 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
 
   const ownershipTotal = useMemo(() => owners.reduce((s, o) => s + (Number(o.ownershipPercentage) || 0), 0), [owners])
 
-  const getCSRFCookie = (): string | null => {
-    if (typeof document === 'undefined') return null
-    const m = document.cookie.match(/(?:^|; )csrf-token=([^;]+)/)
-    return m ? decodeURIComponent(m[1]) : null
-  }
+  const [csrfToken, setCsrfToken] = useState<string | null>(null)
+  // Fetch CSRF token when entering edit mode (cookie is httpOnly; we use JSON token)
+  useEffect(() => {
+    if (!editing) return
+    let cancelled = false
+    const fetchToken = async () => {
+      try {
+        const res = await fetch('/api/csrf', { credentials: 'include' })
+        const j = await res.json().catch(() => ({} as any))
+        if (!cancelled) setCsrfToken(j?.token || null)
+      } catch {
+        if (!cancelled) setCsrfToken(null)
+      }
+    }
+    fetchToken()
+    return () => { cancelled = true }
+  }, [editing])
 
   async function createOwnerInline() {
     try {
@@ -130,7 +142,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         setError('First name, last name, and email are required')
         return
       }
-      const csrf = getCSRFCookie()
+      const csrf = csrfToken
       const res = await fetch('/api/owners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) },
@@ -189,7 +201,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         year_built: property.year_built ?? null,
         property_manager_id: managerId || null
       }
-      const csrf = getCSRFCookie()
+      const csrf = csrfToken
       const res = await fetch(`/api/properties/${property.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) },
