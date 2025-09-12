@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { X, Building, MapPin, Users, DollarSign, UserCheck, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { Dropdown } from '@/components/ui/Dropdown'
@@ -71,6 +72,41 @@ interface AddPropertyFormData {
   propertyManagerId?: string
 }
 
+// Single source of truth for an empty form
+const INITIAL_FORM_DATA: AddPropertyFormData = {
+  propertyType: '',
+  name: '',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  postalCode: '',
+  country: '',
+  yearBuilt: '',
+  structureDescription: '',
+  status: 'Active',
+  borough: '',
+  neighborhood: '',
+  longitude: undefined,
+  latitude: undefined,
+  locationVerified: false,
+  owners: [],
+  units: [{ unitNumber: '' }],
+  operatingBankAccountId: '',
+  depositTrustAccountId: '',
+  reserve: 0,
+  management_scope: undefined,
+  service_assignment: undefined,
+  service_plan: undefined,
+  active_services: [],
+  fee_assignment: undefined,
+  fee_type: undefined,
+  fee_percentage: undefined,
+  management_fee: undefined,
+  billing_frequency: undefined,
+  propertyManagerId: ''
+}
+
 const STEPS = [
   { id: 1, title: 'Property Type', icon: Building },
   { id: 2, title: 'Property Details', icon: MapPin },
@@ -107,39 +143,7 @@ type StaffOption = { id: string; displayName: string }
 
 export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
   const [currentStep, setCurrentStep] = useState(1)
-  const [formData, setFormData] = useState<AddPropertyFormData>({
-    propertyType: '',
-    name: '',
-    addressLine1: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    postalCode: '',
-    country: '',
-    yearBuilt: '',
-    structureDescription: '',
-    status: 'Active',
-    borough: '',
-    neighborhood: '',
-    longitude: undefined,
-    latitude: undefined,
-    locationVerified: false,
-    owners: [],
-    units: [{ unitNumber: '' }],
-    operatingBankAccountId: '',
-    depositTrustAccountId: '',
-    reserve: 0,
-    management_scope: undefined,
-    service_assignment: undefined,
-    service_plan: undefined,
-    active_services: [],
-    fee_assignment: undefined,
-    fee_type: undefined,
-    fee_percentage: undefined,
-    management_fee: undefined,
-    billing_frequency: undefined,
-    propertyManagerId: ''
-  })
+  const [formData, setFormData] = useState<AddPropertyFormData>(INITIAL_FORM_DATA)
 
   // Options fetched from API
   const [owners, setOwners] = useState<OwnerOption[]>([])
@@ -307,7 +311,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       } as PropertyCreateInput)
 
       if (!parsed.success) {
-        const msg = parsed.error.errors.map(e => e.message).join('\n')
+        const msg = parsed.error.issues.map((e) => e.message).join('\n')
         throw new Error(msg || 'Please correct the form errors')
       }
 
@@ -331,25 +335,8 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       
       onClose()
       if (onSuccess) onSuccess()
-      // Reset form
-      setFormData({
-        propertyType: '',
-        name: '',
-        addressLine1: '',
-        addressLine2: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        country: '',
-        yearBuilt: '',
-        structureDescription: '',
-        status: 'Active',
-        owners: [],
-        operatingBankAccountId: '',
-        depositTrustAccountId: '',
-        reserve: 0,
-        propertyManagerId: ''
-      })
+      // Reset form to initial shape
+      setFormData(INITIAL_FORM_DATA)
       setCurrentStep(1)
       
       // Optionally refresh the page or show success message
@@ -405,21 +392,13 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
     })
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-2xl border border-border/80 shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-[56rem] max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Add New Property</h2>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">Add New Property</DialogTitle>
+        </DialogHeader>
 
         {/* Progress Steps */}
         <div className="px-6 py-4 border-b border-border">
@@ -448,7 +427,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
         </div>
 
         {/* Step Content */}
-        <div className="p-6">
+        <div className="p-5 md:p-6">
           {submitError && (
             <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
               <p className="text-sm text-destructive">{submitError}</p>
@@ -521,8 +500,8 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
             {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -532,17 +511,17 @@ function Step1PropertyType({
   setFormData 
 }: { 
   formData: AddPropertyFormData; 
-  setFormData: (data: AddPropertyFormData) => void 
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>> 
 }) {
   const CurrentIcon = STEPS[0].icon
 
   return (
     <div className="text-center">
-      <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
-      <h3 className="text-xl font-semibold text-foreground mb-2">Property Type</h3>
-      <p className="text-muted-foreground mb-6">What type of property are you adding?</p>
+      <CurrentIcon className="h-12 w-12 text-primary mx-auto mb-2" />
+      <h3 className="text-xl font-semibold text-foreground mb-1">Property Type</h3>
+      <p className="text-muted-foreground mb-4">What type of property are you adding?</p>
       
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl md:max-w-4xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {PROPERTY_TYPES.map((type) => {
             const selected = formData.propertyType === type
@@ -551,7 +530,7 @@ function Step1PropertyType({
                 key={type}
                 type="button"
                 variant={selected ? 'default' : 'outline'}
-                className={`h-16 flex-col gap-1 justify-center ${selected ? 'bg-primary text-primary-foreground' : 'bg-card'} transition-colors`}
+                className={`h-14 md:h-16 flex-col gap-1 justify-center ${selected ? 'bg-primary text-primary-foreground' : 'bg-card'} transition-colors`}
                 onClick={() => setFormData({ ...formData, propertyType: type })}
               >
                 <Building className={`h-5 w-5 ${selected ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
@@ -571,19 +550,19 @@ function Step2PropertyDetails({
   setFormData 
 }: { 
   formData: AddPropertyFormData; 
-  setFormData: (data: AddPropertyFormData) => void 
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>> 
 }) {
   const CurrentIcon = STEPS[1].icon
 
   return (
     <div>
-      <div className="text-center mb-6">
-        <CurrentIcon className="h-16 w-16 text-primary mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-foreground mb-2">Property Details</h3>
+      <div className="text-center mb-4">
+        <CurrentIcon className="h-12 w-12 text-primary mx-auto mb-2" />
+        <h3 className="text-xl font-semibold text-foreground mb-1">Property Details</h3>
         <p className="text-muted-foreground">Enter the property address and basic information</p>
       </div>
 
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="max-w-3xl md:max-w-4xl mx-auto space-y-4">
 
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Street Address *</label>
@@ -720,7 +699,7 @@ function Step3Ownership({
   setPrimaryOwner
 }: { 
   formData: AddPropertyFormData; 
-  setFormData: (data: AddPropertyFormData) => void;
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
   addOwner: (ownerId: string) => void;
   removeOwner: (ownerId: string) => void;
   updateOwnerPercentage: (ownerId: string, field: 'ownershipPercentage' | 'disbursementPercentage', value: number) => void;
@@ -1017,7 +996,7 @@ function Step4BankAccount({
   setFormData 
 }: { 
   formData: AddPropertyFormData; 
-  setFormData: (data: AddPropertyFormData) => void 
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>> 
 }) {
   const CurrentIcon = STEPS[4].icon
   const [accounts, setAccounts] = useState<BankAccountOption[]>([])
@@ -1253,7 +1232,7 @@ function Step5PropertyManager({
   setFormData 
 }: { 
   formData: AddPropertyFormData; 
-  setFormData: (data: AddPropertyFormData) => void 
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>> 
 }) {
   const CurrentIcon = STEPS[5].icon
   const [staff, setStaff] = useState<StaffOption[]>([])
@@ -1374,7 +1353,7 @@ function Step4UnitDetails({
   setFormData
 }: {
   formData: AddPropertyFormData
-  setFormData: (data: AddPropertyFormData) => void
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>>
 }) {
   const CurrentIcon = STEPS[3].icon
   const addUnit = () => {
