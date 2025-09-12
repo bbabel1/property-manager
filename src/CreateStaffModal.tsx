@@ -15,7 +15,7 @@ interface CreateStaffFormData {
 interface CreateStaffModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (newStaff: any) => void
+  onSuccess: (newStaff: unknown) => void
 }
 
 const STAFF_ROLES = [

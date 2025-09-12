@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { X, User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog'
+import { Button } from './components/ui/button'
 import AddressAutocomplete from './HybridAddressAutocomplete'
+import { DatePicker } from './components/ui/date-picker'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 
 const COUNTRIES = ['United States', 'Canada', 'Mexico', 'United Kingdom', 'Germany', 'France', 'Spain', 'Italy', 'Australia', 'Japan', 'China', 'India', 'Brazil', 'Argentina', 'South Africa']
@@ -200,7 +203,7 @@ export default function EditOwnerModal({
     setShowAlternateAddress(value === 'alternative')
   }
 
-  if (!isOpen) return null
+  // Use Radix Dialog for focus management and accessibility
 
   const tabs = [
     { id: 'basic', name: 'Basic Info', icon: User },
@@ -211,18 +214,12 @@ export default function EditOwnerModal({
   ]
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-      <div className="bg-card rounded-lg border shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Edit Owner</h2>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">Edit Owner</DialogTitle>
+        </DialogHeader>
 
         {/* Error Message */}
         {error && (
@@ -348,11 +345,9 @@ export default function EditOwnerModal({
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Date of Birth
                 </label>
-                <input
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                  className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                <DatePicker
+                  value={formData.dateOfBirth || ''}
+                  onChange={(v) => setFormData(prev => ({ ...prev, dateOfBirth: v ?? '' }))}
                 />
               </div>
 
@@ -362,22 +357,18 @@ export default function EditOwnerModal({
                   <label className="block text-sm font-medium text-foreground mb-1">
                     Management Agreement Start Date
                   </label>
-                  <input
-                    type="date"
-                    value={formData.managementAgreementStartDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, managementAgreementStartDate: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                  <DatePicker
+                    value={formData.managementAgreementStartDate || ''}
+                    onChange={(v) => setFormData(prev => ({ ...prev, managementAgreementStartDate: v ?? '' }))}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1">
                     Management Agreement End Date
                   </label>
-                  <input
-                    type="date"
-                    value={formData.managementAgreementEndDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, managementAgreementEndDate: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                  <DatePicker
+                    value={formData.managementAgreementEndDate || ''}
+                    onChange={(v) => setFormData(prev => ({ ...prev, managementAgreementEndDate: v ?? '' }))}
                   />
                 </div>
               </div>
@@ -923,7 +914,7 @@ export default function EditOwnerModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

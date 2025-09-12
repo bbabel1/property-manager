@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Save, Users, Plus } from 'lucide-react'
 import { Button } from './ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 
 interface CreateStaffFormData {
   firstName: string
@@ -15,7 +16,7 @@ interface CreateStaffFormData {
 interface CreateStaffModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (newStaff: any) => void
+  onSuccess: (newStaff: unknown) => void
 }
 
 const STAFF_ROLES = [
@@ -98,21 +99,13 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Create New Staff Member</h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">Create New Staff Member</DialogTitle>
+        </DialogHeader>
 
         {/* Error Message */}
         {error && (
@@ -234,7 +227,7 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
             {isLoading ? 'Creating...' : 'Create Staff Member'}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

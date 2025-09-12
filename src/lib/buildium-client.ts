@@ -60,7 +60,6 @@ import {
 
 import {
   mapPropertyToBuildium,
-  mapPropertyFromBuildium,
   mapUnitToBuildium,
   mapUnitFromBuildium,
   mapOwnerToBuildium,
@@ -72,7 +71,6 @@ import {
   mapBillToBuildium,
   mapBillFromBuildium,
   mapBankAccountToBuildium,
-  mapBankAccountFromBuildium,
   mapLeaseToBuildium,
   mapLeaseFromBuildium,
   mapGLAccountToBuildium,
