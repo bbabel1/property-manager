@@ -43,7 +43,7 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left column: details + location */}
       <div className="space-y-6 lg:col-span-2">
-      <InfoCard title="Property Details" action={<Button variant="outline" size="sm" aria-label="Edit property"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+      <InfoCard title="Property Details" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm" aria-label="Edit property"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8 items-start">
           <div className="relative md:col-span-2">
             <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
@@ -108,7 +108,7 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
       </InfoCard>
 
       {/* Location */}
-      <InfoCard title="Location" action={<Button variant="outline" size="sm" aria-label="Edit location"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+      <InfoCard title="Location" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm" aria-label="Edit location"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Borough</p>
@@ -138,7 +138,7 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
 
       {/* Right rail stacked cards */}
       <div className="space-y-6">
-        <InfoCard title="Cash balance">
+        <InfoCard title="Cash balance" className="rounded-lg shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-foreground">Cash balance:</span>
             <span className="text-lg font-bold text-foreground">{formatCurrency(3061.80)}</span>
@@ -160,7 +160,7 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
           <p className="text-xs text-muted-foreground mt-1">as of {new Date().toLocaleDateString()}</p>
         </InfoCard>
 
-        <InfoCard title="Banking details" action={<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+        <InfoCard title="Banking details" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-foreground">Operating Account</span>
@@ -194,7 +194,7 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
         </InfoCard>
 
         {/* Management Services */}
-        <InfoCard title="Management Services" action={<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
+        <InfoCard title="Management Services" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ASSIGNMENT LEVEL</p>
