@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Save, DollarSign, Building2, Plus } from 'lucide-react'
 import { Button } from './ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { type PropertyWithDetails } from '@/lib/property-service'
 import CreateBankAccountModal from './CreateBankAccountModal'
 import { Dropdown } from './ui/Dropdown';
@@ -147,21 +148,13 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     setSelectedAccountType(null)
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Edit Banking Details</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">Edit Banking Details</DialogTitle>
+        </DialogHeader>
 
         {/* Error Message */}
         {error && (
@@ -256,8 +249,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
             {isLoading ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
-      </div>
-
+      </DialogContent>
       {/* Create Bank Account Modal */}
       <CreateBankAccountModal
         isOpen={showCreateBankAccountModal}
@@ -267,6 +259,6 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
         }}
         onSuccess={handleCreateBankAccountSuccess}
       />
-    </div>
+    </Dialog>
   )
 }
