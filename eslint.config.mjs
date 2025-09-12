@@ -14,7 +14,9 @@ const eslintConfig = [
   {
     ignores: [
       "scripts/**",
-      "supabase/functions/**"
+      "supabase/functions/**",
+      "backups/**",
+      "docs/**/examples/**"
     ],
     rules: {
       // Prevent usage of deprecated basic mappers
@@ -51,6 +53,11 @@ const eslintConfig = [
         }
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      // Treat unused vars as warnings in CI; allow underscore prefix
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true }
+      ],
       "@typescript-eslint/no-empty-object-type": "warn",
       "react/no-unescaped-entities": "off"
     }
