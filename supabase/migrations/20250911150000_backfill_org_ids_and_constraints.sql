@@ -28,14 +28,14 @@ where ow.owner_id = o.id
   and o.org_id is null
   and p.org_id is not null;
 
--- Work orders <- Properties/Units
 update public.work_orders w
-set org_id = coalesce(p.org_id, u.org_id)
+set org_id = coalesce(p.org_id, (
+  select u.org_id from public.units u where u.id = w.unit_id
+))
 from public.properties p
-left join public.units u on u.id = w.unit_id
 where w.property_id = p.id
   and w.org_id is null
-  and (p.org_id is not null or u.org_id is not null);
+  and (p.org_id is not null or exists (select 1 from public.units u2 where u2.id = w.unit_id and u2.org_id is not null));
 
 -- Lease contacts <- Tenants
 update public.lease_contacts lc
@@ -52,4 +52,3 @@ alter table public.ownerships  alter column org_id set not null;
 
 -- Scoped uniqueness example: property name unique per org
 create unique index if not exists uq_properties_org_name on public.properties(org_id, name);
-

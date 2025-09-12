@@ -3,16 +3,17 @@
 
 import { useState, useEffect } from 'react'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/providers'
-import { auth } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 export default function SignInPage() {
   const router = useRouter()
-  const { user, loading } = useAuth()
+  const { user, loading, signIn, signInWithMagicLink } = useAuth()
+  const search = useSearchParams()
+  const nextPath = search?.get('next') || undefined
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -23,9 +24,9 @@ export default function SignInPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!loading && user) {
-      router.push('/dashboard')
+      router.replace(nextPath || '/dashboard')
     }
-  }, [user, loading, router])
+  }, [user, loading, router, nextPath])
 
   const handleMagicLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,15 +34,16 @@ export default function SignInPage() {
     setMessage('')
 
     try {
-      const { error } = await auth.signInWithMagicLink(email)
+      const { error } = await signInWithMagicLink(email)
 
       if (error) {
-        setMessage('Failed to send sign-in link. Please try again.')
+        setMessage(error.message || 'Failed to send sign-in link. Please try again.')
       } else {
         setMessage('Check your email for a sign-in link!')
       }
-    } catch {
-      setMessage('An error occurred. Please try again.')
+    } catch (err: any) {
+      console.error('Magic link sign-in failed', err)
+      setMessage(err?.message || 'An error occurred. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -53,16 +55,17 @@ export default function SignInPage() {
     setMessage('')
 
     try {
-      const { error } = await auth.signIn(email, password)
+      const { error } = await signIn(email, password)
 
       if (error) {
-        setMessage('Invalid email or password. Please try again.')
+        setMessage(error.message || 'Invalid email or password. Please try again.')
       } else {
         setMessage('Login successful! Redirecting...')
         // Auth context will handle the redirect automatically
       }
-    } catch {
-      setMessage('An error occurred. Please try again.')
+    } catch (err: any) {
+      console.error('Password sign-in failed', err)
+      setMessage(err?.message || 'An error occurred. Please try again.')
     } finally {
       setIsLoading(false)
     }

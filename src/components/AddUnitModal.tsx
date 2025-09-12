@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Home, DollarSign } from 'lucide-react'
 import { Button } from './ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Dropdown } from './ui/Dropdown';
 
 import { type BedroomEnum, type BathroomEnum, BEDROOM_OPTIONS, BATHROOM_OPTIONS } from '@/types/units'
@@ -147,21 +148,13 @@ export default function AddUnitModal({
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-lg border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-md md:max-w-lg max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Add New Unit</h2>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">Add New Unit</DialogTitle>
+        </DialogHeader>
 
         {/* Error/Success Messages */}
         {error && (
@@ -298,7 +291,7 @@ export default function AddUnitModal({
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

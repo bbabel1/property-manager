@@ -5,6 +5,7 @@ import { Building2, MapPin, Camera, Edit, CheckCircle, XCircle, Home, Users, Dol
 import { Button } from '../ui/button'
 
 import { type PropertyWithDetails } from '@/lib/property-service'
+import PropertyNotes from '@/property/PropertyNotes'
 import EditPropertyModal from '../EditPropertyModal'
 import BankingDetailsModal from '../BankingDetailsModal'
 
@@ -154,6 +155,12 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">PROPERTY TYPE</p>
                     <p className="text-foreground font-semibold">{(property as any).property_type || 'None'}</p>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">STATUS</p>
+                    <p className={`font-semibold ${property.status === 'Active' ? 'text-emerald-600' : 'text-red-600'}`}>{property.status || 'Unknown'}</p>
                   </div>
 
                   {/* Rental Owners */}
@@ -315,6 +322,8 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
               </div>
             </div>
           </div>
+          {/* Notes */}
+          <PropertyNotes propertyId={property.id} />
         </div>
       </div>
 

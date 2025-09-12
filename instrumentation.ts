@@ -2,6 +2,11 @@
 // Starts the OTel Node SDK with OTLP HTTP exporter if configured.
 
 export async function register() {
+  // Skip in Edge Runtime - OpenTelemetry Node SDK is not compatible
+  if (typeof EdgeRuntime !== 'undefined' || typeof process === 'undefined') {
+    return;
+  }
+
   try {
     // Skip if no endpoint configured
     const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
@@ -27,17 +32,6 @@ export async function register() {
     const { HttpInstrumentation } = await import(
       "@opentelemetry/instrumentation-http"
     );
-    // Optional: Undici instrumentation
-    let undiciInstr: any | null = null;
-    try {
-      // @ts-ignore
-      const mod = await import("@opentelemetry/instrumentation-undici");
-      // @ts-ignore
-      undiciInstr = new mod.UndiciInstrumentation();
-    } catch (_) {
-      // eslint-disable-next-line no-console
-      console.warn("Undici instrumentation not installed; continuing without it");
-    }
     // @ts-ignore
     const { FetchInstrumentation } = await import(
       "@opentelemetry/instrumentation-fetch"
@@ -46,8 +40,18 @@ export async function register() {
     const { PgInstrumentation } = await import(
       "@opentelemetry/instrumentation-pg"
     );
-    // Optional: Pino instrumentation. Not all environments publish this pkg.
-    // Load it separately and ignore if unavailable, so other instrumentations still run.
+
+    // Optional instrumentations - load separately and ignore if unavailable
+    let undiciInstr: any | null = null;
+    try {
+      // @ts-ignore
+      const mod = await import("@opentelemetry/instrumentation-undici");
+      // @ts-ignore
+      undiciInstr = new mod.UndiciInstrumentation();
+    } catch (_) {
+      // Undici instrumentation not available
+    }
+
     let pinoInstr: any | null = null;
     try {
       // @ts-ignore
@@ -55,8 +59,7 @@ export async function register() {
       // @ts-ignore
       pinoInstr = new mod.PinoInstrumentation();
     } catch (_) {
-      // eslint-disable-next-line no-console
-      console.warn("Pino instrumentation not installed; continuing without it");
+      // Pino instrumentation not available
     }
 
     const serviceName = process.env.OTEL_SERVICE_NAME || "property-manager";
@@ -79,10 +82,10 @@ export async function register() {
       }),
       instrumentations: [
         new HttpInstrumentation(),
-        ...(undiciInstr ? [undiciInstr] : []),
         new FetchInstrumentation(),
         new PgInstrumentation(),
-        // Only include Pino if it successfully loaded
+        // Only include optional instrumentations if they loaded successfully
+        ...(undiciInstr ? [undiciInstr] : []),
         ...(pinoInstr ? [pinoInstr] : []),
       ],
     });
@@ -97,9 +100,13 @@ export async function register() {
         // ignore
       }
     };
-    process.once("beforeExit", shutdown);
-    process.once("SIGTERM", shutdown);
-    process.once("SIGINT", shutdown);
+    // Avoid direct `process.*` access to keep Edge compile happy
+    const proc: any = (globalThis as any).process;
+    if (proc?.once) {
+      proc.once("beforeExit", shutdown);
+      proc.once("SIGTERM", shutdown);
+      proc.once("SIGINT", shutdown);
+    }
   } catch (err) {
     // Swallow to avoid breaking app startup if OTel packages are missing
     // eslint-disable-next-line no-console

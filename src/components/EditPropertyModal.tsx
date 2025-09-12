@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/providers'
 import { X, Save, Building2, MapPin, Home, Users, DollarSign, Plus } from 'lucide-react'
 import { Button } from './ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { type PropertyWithDetails } from '@/lib/property-service'
 import { type StatusEnum, type CountryEnum } from '@/types/properties'
 import CreateOwnerModal from './CreateOwnerModal'
@@ -439,21 +440,13 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
     })
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-lg border shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Edit Property Details</h2>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">Edit Property Details</DialogTitle>
+        </DialogHeader>
 
         {/* Error Message */}
         {error && (
@@ -785,7 +778,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
             )}
           </Button>
         </div>
-      </div>
+      </DialogContent>
 
       {/* Create Owner Modal */}
       <CreateOwnerModal
@@ -795,6 +788,6 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
         isLoading={isCreatingOwner}
         error={createOwnerError}
       />
-    </div>
+    </Dialog>
   )
 }

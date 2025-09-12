@@ -10,10 +10,7 @@ const nextConfig: NextConfig = {
     // This avoids blocking builds due to route handler type annotation mismatches.
     ignoreBuildErrors: true
   },
-  experimental: {
-    // Enable Next.js instrumentation hook (instrumentation.ts)
-    instrumentationHook: true,
-  },
+  // Next.js automatically detects `instrumentation.ts`; no config needed.
 };
 
 export default nextConfig;

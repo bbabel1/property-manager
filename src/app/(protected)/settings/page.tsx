@@ -1,4 +1,6 @@
-import { Settings } from 'lucide-react'
+import Link from 'next/link'
+import { Settings, Users, ShieldCheck } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function SettingsPage() {
   return (
@@ -6,10 +8,31 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Settings</h1>
       </div>
-      
-      <div className="bg-card rounded-lg border p-6">
-        <h2 className="text-lg font-medium text-foreground mb-4">Application Settings</h2>
-        <p className="text-muted-foreground">This page will contain the application settings and configuration interface.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center">
+              <Users className="h-5 w-5 text-primary mr-2" />
+              <CardTitle>Users & Roles</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">Manage users, organizations, and role assignments.</p>
+            <Link href="/settings/users" className="text-primary underline">Open Users & Roles</Link>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center">
+              <ShieldCheck className="h-5 w-5 text-primary mr-2" />
+              <CardTitle>Memberships (Quick Assign)</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">Assign a single user to an organization with a role.</p>
+            <Link href="/settings/memberships" className="text-primary underline">Open Memberships</Link>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

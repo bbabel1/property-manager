@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
+  signInWithMagicLink: (email: string) => Promise<{ error: any }>
   signUp: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<{ error: any }>
 }
@@ -51,6 +52,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return { error }
   }
 
+  const signInWithMagicLink = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ email })
+    return { error }
+  }
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut()
     return { error }
@@ -60,6 +66,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signIn,
+    signInWithMagicLink,
     signUp,
     signOut
   }
@@ -72,16 +79,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 
 // Lightweight auth hook backed by Supabase auth
-export function useAuth(): { user: User | null; loading: boolean } {
+export function useAuth(): AuthContextType {
   const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error('useAuth must be used within a Providers')
   }
-  
-  return {
-    user: context.user,
-    loading: context.loading
-  }
+  return context
 }
 
 // Export the context for direct access if needed
