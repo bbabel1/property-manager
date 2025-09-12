@@ -2,8 +2,9 @@ import PageHeader from '@/components/layout/PageHeader'
 import { PropertyService } from '@/lib/property-service'
 import { notFound } from 'next/navigation'
 
-export default async function PropertyLayout({ children, params }: { children: React.ReactNode; params: { id: string } }) {
-  const property = await PropertyService.getPropertyById(params.id)
+export default async function PropertyLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const property = await PropertyService.getPropertyById(id)
   if (!property) return notFound()
   return (
     <div className="space-y-2">
@@ -14,4 +15,3 @@ export default async function PropertyLayout({ children, params }: { children: R
     </div>
   )
 }
-
