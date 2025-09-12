@@ -1,9 +1,16 @@
+"use client"
+import { useEffect } from 'react'
 import { Plus, Building, TrendingUp, DollarSign, AlertTriangle, Users, Calendar, Wrench, FileText, UserCheck, Clock, CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useDashboardMetrics } from '@/hooks/useDashboardMetrics'
+import { supabase } from '@/lib/db'
 
 export default function DashboardPage() {
+  const { data, error, isLoading, refresh, orgId } = useDashboardMetrics()
+  const k = data?.kpis
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -13,8 +20,40 @@ export default function DashboardPage() {
     }).format(amount);
   };
 
+  // Optional realtime refresh: subscribe to base tables for this org
+  useEffect(() => {
+    if (!orgId) return
+    const channel = supabase
+      .channel(`dashboard:${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'work_orders', filter: `org_id=eq.${orgId}` },
+        () => refresh()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'transactions', filter: `org_id=eq.${orgId}` },
+        () => refresh()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leases', filter: `org_id=eq.${orgId}` },
+        () => refresh()
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [orgId, refresh])
+
   return (
     <div className="p-6 space-y-6">
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 text-red-700 p-3 flex items-center justify-between">
+          <span>Couldn’t load dashboard.</span>
+          <Button variant="outline" size="sm" onClick={refresh}>Retry</Button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
@@ -32,10 +71,12 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">Total Properties</p>
-                <p className="text-2xl font-bold text-foreground">4</p>
+                <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : (k?.total_properties ?? 0)}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">80 units</Badge>
-                  <span className="text-xs text-muted-foreground">+2 this month</span>
+                  <Badge variant="secondary" className="text-xs">{isLoading ? '—' : `${k?.total_units ?? 0} units`}</Badge>
+                  {typeof k?.growth_rate_pct === 'number' && (
+                    <span className="text-xs text-muted-foreground">{k.growth_rate_pct >= 0 ? '+' : ''}{k.growth_rate_pct}%</span>
+                  )}
                 </div>
               </div>
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -50,10 +91,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">Occupancy Rate</p>
-                <p className="text-2xl font-bold text-foreground">93%</p>
+                <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : `${k?.occupancy_rate_pct ?? 0}%`}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant="default" className="text-xs bg-success text-white">74 occupied</Badge>
-                  <span className="text-xs text-muted-foreground">6 available</span>
+                  <Badge variant="default" className="text-xs bg-success text-white">{isLoading ? '—' : `${k?.occupied_units ?? 0} occupied`}</Badge>
+                  <span className="text-xs text-muted-foreground">{isLoading ? '—' : `${k?.available_units ?? 0} available`}</span>
                 </div>
               </div>
               <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center">
@@ -68,10 +109,12 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">Monthly Rent Roll</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(17000)}</p>
+                <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : formatCurrency(k?.monthly_rent_roll ?? 0)}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">74 active leases</Badge>
-                  <span className="text-xs text-success">+5.2%</span>
+                  <Badge variant="secondary" className="text-xs">{isLoading ? '—' : `${k?.active_leases ?? 0} active leases`}</Badge>
+                  {typeof k?.growth_rate_pct === 'number' && (
+                    <span className="text-xs text-success">{k.growth_rate_pct >= 0 ? '+' : ''}{k.growth_rate_pct}%</span>
+                  )}
                 </div>
               </div>
               <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -86,10 +129,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-muted-foreground">Open Work Orders</p>
-                <p className="text-2xl font-bold text-foreground">4</p>
+                <p className="text-2xl font-bold text-foreground">{isLoading ? '—' : (k?.open_work_orders ?? 0)}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant="destructive" className="text-xs">3 urgent</Badge>
-                  <span className="text-xs text-muted-foreground">1 low priority</span>
+                  <Badge variant="destructive" className="text-xs">{isLoading ? '—' : `${k?.urgent_work_orders ?? 0} urgent`}</Badge>
+                  <span className="text-xs text-muted-foreground">&nbsp;</span>
                 </div>
               </div>
               <div className="h-12 w-12 rounded-lg bg-warning/10 flex items-center justify-center">
@@ -112,7 +155,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-                <span className="text-lg font-bold text-destructive">0</span>
+                <span className="text-lg font-bold text-destructive">{isLoading ? '—' : (data?.renewals?.critical_30 ?? 0)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">Critical</p>
@@ -121,7 +164,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-warning/10 flex items-center justify-center mx-auto">
-                <span className="text-lg font-bold text-warning">0</span>
+                <span className="text-lg font-bold text-warning">{isLoading ? '—' : (data?.renewals?.upcoming_60 ?? 0)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">Upcoming</p>
@@ -130,7 +173,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                <span className="text-lg font-bold text-primary">0</span>
+                <span className="text-lg font-bold text-primary">{isLoading ? '—' : (data?.renewals?.future_90 ?? 0)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">Future</p>
@@ -152,7 +195,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                <span className="text-lg font-bold text-primary">2</span>
+                <span className="text-lg font-bold text-primary">{isLoading ? '—' : (data?.onboarding?.in_progress ?? 0)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">In Progress</p>
@@ -161,7 +204,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-warning/10 flex items-center justify-center mx-auto">
-                <span className="text-lg font-bold text-warning">1</span>
+                <span className="text-lg font-bold text-warning">{isLoading ? '—' : (data?.onboarding?.pending_approval ?? 0)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">Pending</p>
@@ -170,49 +213,11 @@ export default function DashboardPage() {
             </div>
             <div className="text-center space-y-2">
               <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-                <span className="text-lg font-bold text-destructive">3</span>
+                <span className="text-lg font-bold text-destructive">{isLoading ? '—' : (data?.onboarding?.overdue ?? 0)}</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">Overdue</p>
                 <p className="text-xs text-muted-foreground">Needs attention</p>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Maple Heights Complex</p>
-                <p className="text-xs text-muted-foreground">Documentation • Sarah Johnson</p>
-              </div>
-              <div className="flex items-center">
-                <div className="w-20 bg-muted rounded-full h-2 mr-2">
-                  <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{ width: '60%' }}></div>
-                </div>
-                <Badge variant="secondary" className="text-xs">60%</Badge>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Riverside Apartments</p>
-                <p className="text-xs text-muted-foreground">Inspection • Michael Brown</p>
-              </div>
-              <div className="flex items-center">
-                <div className="w-16 bg-muted rounded-full h-2 mr-2">
-                  <div className="bg-primary h-2 rounded-full" style={{ width: '30%' }}></div>
-                </div>
-                <span className="text-xs text-muted-foreground">30%</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Downtown Lofts</p>
-                <p className="text-xs text-muted-foreground">Legal Review • Lisa Wilson</p>
-              </div>
-              <div className="flex items-center">
-                <div className="w-20 bg-muted rounded-full h-2 mr-2">
-                  <div className="bg-warning h-2 rounded-full transition-all duration-300" style={{ width: '85%' }}></div>
-                </div>
-                <Badge variant="secondary" className="text-xs">85%</Badge>
               </div>
             </div>
           </div>
@@ -230,54 +235,27 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <DollarSign className="h-4 w-4 text-destructive" />
+            {(data?.transactions ?? []).map((t) => {
+              const isDebit = t.amount < 0
+              const abs = Math.abs(t.amount)
+              return (
+                <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-8 w-8 rounded-full ${isDebit ? 'bg-destructive/10' : 'bg-success/10'} flex items-center justify-center`}>
+                      <DollarSign className={`h-4 w-4 ${isDebit ? 'text-destructive' : 'text-success'}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{t.memo ?? 'Transaction'}</p>
+                      <p className="text-xs text-muted-foreground">{t.property_name ?? '—'} • {new Date(t.date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <Badge variant={isDebit ? 'destructive' : 'default'} className={`text-xs ${isDebit ? '' : 'bg-success text-white'}`}>{isDebit ? '-' : '+'}{formatCurrency(abs)}</Badge>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Electric Bill - Oak Grove Townhomes</p>
-                  <p className="text-xs text-muted-foreground">Oak Grove Townhomes • 8/4/2024</p>
-                </div>
-              </div>
-              <Badge variant="destructive" className="text-xs">-$180</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <Wrench className="h-4 w-4 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Plumbing Repair - Kitchen Sink</p>
-                  <p className="text-xs text-muted-foreground">Sunset Apartments • 8/2/2024</p>
-                </div>
-              </div>
-              <Badge variant="destructive" className="text-xs">-$125</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-success/10 flex items-center justify-center">
-                  <DollarSign className="h-4 w-4 text-success" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Rent Payment - Unit 101</p>
-                  <p className="text-xs text-muted-foreground">Sunset Apartments • 7/31/2024</p>
-                </div>
-              </div>
-              <Badge variant="default" className="text-xs bg-success text-white">+$2,200</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-success/10 flex items-center justify-center">
-                  <DollarSign className="h-4 w-4 text-success" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Rent Payment - Unit 102</p>
-                  <p className="text-xs text-muted-foreground">Sunset Apartments • 7/31/2024</p>
-                </div>
-              </div>
-              <Badge variant="default" className="text-xs bg-success text-white">+$2,200</Badge>
-            </div>
+              )
+            })}
+            {(!isLoading && (data?.transactions?.length ?? 0) === 0) && (
+              <div className="text-sm text-muted-foreground">No recent transactions.</div>
+            )}
           </div>
           </CardContent>
         </Card>
@@ -291,42 +269,30 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
+            {(data?.workOrders ?? []).map((w) => {
+              const urgent = (w.priority || '').toLowerCase() === 'urgent' || (w.priority || '').toLowerCase() === 'high'
+              return (
+                <div key={w.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-8 w-8 rounded-full ${urgent ? 'bg-destructive/10' : 'bg-warning/10'} flex items-center justify-center`}>
+                      {urgent ? (
+                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <Wrench className="h-4 w-4 text-warning" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{w.title}</p>
+                      <p className="text-xs text-muted-foreground">{(w.priority || '').toLowerCase()} • {new Date(w.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <Button variant="link" size="sm">open</Button>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">AC unit not cooling properly</p>
-                  <p className="text-xs text-muted-foreground">urgent • 8/9/2024</p>
-                </div>
-              </div>
-              <Button variant="link" size="sm">open</Button>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-warning/10 flex items-center justify-center">
-                  <Wrench className="h-4 w-4 text-warning" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Bathroom door handle loose</p>
-                  <p className="text-xs text-muted-foreground">low • 8/7/2024</p>
-                </div>
-              </div>
-              <Button variant="link" size="sm">open</Button>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-warning/10 flex items-center justify-center">
-                  <Wrench className="h-4 w-4 text-warning" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Paint touch-up in master bedroom</p>
-                  <p className="text-xs text-muted-foreground">low • 8/6/2024</p>
-                </div>
-              </div>
-              <Button variant="link" size="sm">open</Button>
-            </div>
+              )
+            })}
+            {(!isLoading && (data?.workOrders?.length ?? 0) === 0) && (
+              <div className="text-sm text-muted-foreground">No active work orders.</div>
+            )}
           </div>
           </CardContent>
         </Card>

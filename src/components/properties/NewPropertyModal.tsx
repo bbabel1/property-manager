@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { BuildingIcon, HomeIcon, XIcon } from 'lucide-react'
+import { BuildingIcon, HomeIcon } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface NewPropertyModalProps {
   isOpen: boolean
@@ -46,28 +47,13 @@ const Stepper = () => {
 const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) => {
   const [selected, setSelected] = useState<string | null>(null)
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-
-      {/* Modal */}
-      <div className="relative z-10 w-[680px] max-w-[92vw] rounded-xl bg-white shadow-2xl">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold">Add New Property</h2>
-          <button
-            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-            onClick={onClose}
-            aria-label="Close"
-            type="button"
-          >
-            {/* Fallback to X if icon mapping differs */}
-            <span className="block leading-none text-xl">×</span>
-          </button>
-        </div>
+        <DialogHeader className="px-6 py-4 border-b border-border">
+          <DialogTitle className="text-lg font-semibold">Add New Property</DialogTitle>
+        </DialogHeader>
 
         {/* Body */}
         <div className="px-8 py-6">
@@ -106,11 +92,11 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-4">
           <button
             type="button"
             disabled
-            className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm text-gray-400"
+            className="flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm text-muted-foreground"
           >
             Previous
           </button>
@@ -118,17 +104,16 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
             <button
               type="button"
               onClick={() => onNext?.(selected)}
-              className="rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
               disabled={!selected}
             >
               Next
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
 export default NewPropertyModal
-

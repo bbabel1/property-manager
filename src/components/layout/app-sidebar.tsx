@@ -25,6 +25,7 @@ import {
   Settings,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
+import { Guard } from '@/components/Guard'
 
 type NavItem = {
   id: string;
@@ -66,17 +67,32 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
               <SidebarGroup>
                 <SidebarGroupLabel>Navigation</SidebarGroupLabel>
                 <SidebarMenu>
-                  {NAV_ITEMS.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        isActive={item.id === activeId}
-                        onClick={() => router.push(item.href)}
-                      >
-                        <item.icon className="mr-2 h-4 w-4" />
-                        <span>{item.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  {NAV_ITEMS.map((item) => {
+                    // Restrict Settings to org_admin+ via Guard
+                    const btn = (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={item.id === activeId}
+                          onClick={() => router.push(item.href)}
+                        >
+                          <item.icon className="mr-2 h-4 w-4" />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                    if (item.id === 'settings') {
+                      const isProd = process.env.NODE_ENV === 'production'
+                      // In production, enforce role; in dev, always show to aid bootstrap
+                      return isProd ? (
+                        <Guard key={item.id} require={'org_admin'}>
+                          {btn}
+                        </Guard>
+                      ) : (
+                        btn
+                      )
+                    }
+                    return btn
+                  })}
                 </SidebarMenu>
               </SidebarGroup>
             </SidebarContent>
@@ -101,4 +117,3 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
     </SidebarProvider>
   );
 }
-

@@ -7,6 +7,7 @@ import { Button } from '../ui/button'
 import { type PropertyWithDetails } from '@/lib/property-service'
 import EditPropertyModal from '../EditPropertyModal'
 import BankingDetailsModal from '../BankingDetailsModal'
+import PropertyNotes from './PropertyNotes'
 
 interface BankAccount {
   id: string
@@ -315,6 +316,9 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
               </div>
             </div>
           </div>
+
+          {/* Notes */}
+          <PropertyNotes propertyId={property.id} />
         </div>
       </div>
 

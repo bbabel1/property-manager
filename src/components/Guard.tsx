@@ -1,6 +1,6 @@
 "use client"
 import { ReactNode } from 'react'
-import { useAuth } from '@/providers'
+import { useAuth } from '@/components/providers'
 import type { AppRole } from '@/lib/auth/roles'
 import { hasRole } from '@/lib/auth/roles'
 
@@ -10,4 +10,3 @@ export function Guard({ require, children }: { require: AppRole | AppRole[]; chi
   if (!hasRole(roles, require)) return null
   return <>{children}</>
 }
-
