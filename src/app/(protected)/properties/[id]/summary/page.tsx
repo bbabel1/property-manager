@@ -8,6 +8,7 @@ import PropertyNotes from '@/property/PropertyNotes'
 import Link from 'next/link'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { cookies as nextCookies, headers as nextHeaders } from 'next/headers'
+import PropertyDetailsCard from '@/components/property/PropertyDetailsCard'
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -52,71 +53,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left column: details + location */}
       <div className="space-y-6 lg:col-span-2">
-        <InfoCard title="Property Details" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm" aria-label="Edit property"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8 items-start">
-            <div className="relative md:col-span-2">
-              <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                <Building2 className="h-14 w-14 text-muted-foreground" />
-              </div>
-            </div>
-            <div className="space-y-5 md:col-span-3">
-              <MetaStat label="Address" value={
-                <>
-                  <p className="text-sm font-medium text-foreground leading-tight">{property.address_line1}</p>
-                  {property.address_line2 ? <p className="text-sm font-medium text-foreground leading-tight">{property.address_line2}</p> : null}
-                  <p className="text-sm text-muted-foreground leading-tight">{property.city}, {property.state} {property.postal_code}</p>
-                </>
-              } />
-              <MetaStat label="Property Manager" value={property.property_manager_name || 'No manager assigned'} />
-              <MetaStat label="Property Type" value={(property as any).property_type || 'None'} />
-
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rental Owners</p>
-                <div className="mt-2 space-y-1.5">
-                  {property.owners && property.owners.length > 0 ? (
-                    <>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground pb-1.5 border-b border-border">
-                        <span className="sr-only md:not-sr-only">Name</span>
-                        <div className="grid grid-cols-2 gap-8 min-w-[140px] text-right">
-                          <span>Ownership</span>
-                          <span>Disbursement</span>
-                        </div>
-                      </div>
-                      {property.owners.map((o: any, idx: number) => (
-                        <div key={idx} className="flex items-center justify-between py-1">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <p className="text-sm text-foreground truncate leading-tight">{o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Unnamed Owner'}</p>
-                            {o.primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-                          </div>
-                          <div className="grid grid-cols-2 gap-8 text-sm text-foreground whitespace-nowrap text-right min-w-[140px]">
-                            <span className="font-medium">{o.ownership_percentage != null ? `${o.ownership_percentage}%` : '—'}</span>
-                            <span className="font-medium">{o.disbursement_percentage != null ? `${o.disbursement_percentage}%` : '—'}</span>
-                          </div>
-                        </div>
-                      ))}
-                      {/* Totals row */}
-                      <div className="flex items-center justify-between pt-2 mt-1 border-t border-border">
-                        <span className="text-sm font-medium text-foreground">Total</span>
-                        <div className="grid grid-cols-2 gap-8 text-sm text-right min-w-[140px]">
-                          <span className="font-bold">{(() => {
-                            const t = property.owners.reduce((a: number, o: any) => a + (o.ownership_percentage || 0), 0)
-                            return `${t}%`
-                          })()}</span>
-                          <span className="font-bold">{(() => {
-                            const t = property.owners.reduce((a: number, o: any) => a + (o.disbursement_percentage || 0), 0)
-                            return `${t}%`
-                          })()}</span>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-foreground">No ownership information available</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </InfoCard>
+        <PropertyDetailsCard property={property} />
 
         {/* Location */}
         <InfoCard title="Location" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm" aria-label="Edit location"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
