@@ -97,6 +97,32 @@ export interface PropertyWithDetails extends Property {
 }
 
 export class PropertyService {
+  // Lightweight shell: just enough for header/tabs without heavy joins
+  static async getPropertyShell(id: string): Promise<Pick<Property, 'id'|'name'|'status'|'property_type'> | null> {
+    try {
+      const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      if (!hasEnv) {
+        // Fallback to API details; extract minimal fields
+        try {
+          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+          if (res.ok) {
+            const data = await res.json()
+            return { id: data.id, name: data.name, status: data.status, property_type: (data as any)?.property_type }
+          }
+        } catch {}
+        return null
+      }
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id,name,status,property_type')
+        .eq('id', id)
+        .maybeSingle()
+      if (error || !data) return null
+      return data as any
+    } catch {
+      return null
+    }
+  }
   static async getPropertyById(id: string): Promise<PropertyWithDetails | null> {
     try {
       console.log('🔍 Fetching property with ID:', id)
@@ -424,3 +450,15 @@ export class PropertyService {
     }
   }
 }
+
+// Server-side cache helpers (noop on client). Use in RSC layouts to avoid refetch on tab switches.
+export const getPropertyShellCached = ((): ((id: string) => Promise<Pick<Property, 'id'|'name'|'status'|'property_type'> | null>) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { cache } = require('react') as { cache: <T extends (...args: any[]) => any>(fn: T) => T }
+    return cache((id: string) => PropertyService.getPropertyShell(id))
+  } catch {
+    // Fallback (client): just call through
+    return (id: string) => PropertyService.getPropertyShell(id)
+  }
+})()
