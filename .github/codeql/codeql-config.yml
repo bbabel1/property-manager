@@ -1,0 +1,10 @@
+name: Repository CodeQL configuration
+disable-default-queries: false
+paths-ignore:
+  # Ignore backup snapshots and legacy files that are not part of the build
+  - backups/**
+  # Ignore generated SQL dumps and migration backups
+  - supabase/migrations/**/backup/**
+  - supabase/**/generated/**
+  # Ignore large fixture or example content if present
+  - docs/**/examples/**
