@@ -16,7 +16,9 @@ const eslintConfig = [
       "scripts/**",
       "supabase/functions/**",
       "backups/**",
-      "docs/**/examples/**"
+      "docs/**/examples/**",
+      // Ignore generated or vendor type definitions
+      "src/types/**"
     ],
     rules: {
       // Prevent usage of deprecated basic mappers
