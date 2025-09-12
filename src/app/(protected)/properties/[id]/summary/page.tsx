@@ -9,19 +9,29 @@ import { Badge } from '@/components/ui/badge'
 import { Building2, Bed, Bath, Edit, Banknote } from 'lucide-react'
 import { PropertyService, type PropertyWithDetails } from '@/lib/property-service'
 import PropertyNotes from '@/property/PropertyNotes'
+import { supabase } from '@/lib/db'
 import Link from 'next/link'
 
 export default function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [property, setProperty] = useState<PropertyWithDetails | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fin, setFin] = useState<{ cash_balance: number; security_deposits: number; reserve: number; available_balance: number; as_of: string } | null>(null)
 
   useEffect(() => {
     let mounted = true
     ;(async () => {
       setLoading(true)
       const p = await PropertyService.getPropertyById(id)
-      if (mounted) { setProperty(p); setLoading(false) }
+      if (mounted) {
+        setProperty(p)
+        try {
+          const today = new Date().toISOString().slice(0,10)
+          const { data } = await (supabase as any).rpc('get_property_financials', { p_property_id: id, p_as_of: today })
+          if (data) setFin(data)
+        } catch {}
+        setLoading(false)
+      }
     })()
     return () => { mounted = false }
   }, [id])
@@ -141,23 +151,23 @@ export default function SummaryTab({ params }: { params: Promise<{ id: string }>
         <InfoCard title="Cash balance" className="rounded-lg shadow-sm">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-foreground">Cash balance:</span>
-            <span className="text-lg font-bold text-foreground">{formatCurrency(3061.80)}</span>
+            <span className="text-lg font-bold text-foreground">{formatCurrency(fin?.cash_balance ?? 0)}</span>
           </div>
           <div className="space-y-1 text-sm text-muted-foreground">
             <div className="flex justify-between">
               <span>- Security deposits and early payments:</span>
-              <span>{formatCurrency(875.00)}</span>
+              <span>{formatCurrency(fin?.security_deposits ?? 0)}</span>
             </div>
             <div className="flex justify-between">
               <span>- Property reserve:</span>
-              <span>{formatCurrency(property.reserve || 200.00)}</span>
+              <span>{formatCurrency(fin?.reserve ?? (property.reserve || 0))}</span>
             </div>
           </div>
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
             <span className="text-sm text-foreground">Available balance</span>
-            <span className="text-sm font-bold text-foreground">{formatCurrency(2576.80)}</span>
+            <span className="text-sm font-bold text-foreground">{formatCurrency(fin?.available_balance ?? 0)}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">as of {new Date().toLocaleDateString()}</p>
+          <p className="text-xs text-muted-foreground mt-1">as of {new Date(fin?.as_of || new Date()).toLocaleDateString()}</p>
         </InfoCard>
 
         <InfoCard title="Banking details" className="rounded-lg shadow-sm" action={<Button variant="outline" size="sm"><Edit className="h-4 w-4 mr-2"/>Edit</Button>}>
