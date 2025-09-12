@@ -240,7 +240,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
           accountsJson.map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number }))
         )
         setManagers(
-          (staffJson || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() }))
+          (staffJson || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}` }))
         )
       } catch (e) {
         if (!cancelled) setOptionsError(e instanceof Error ? e.message : 'Failed to load options')
@@ -1251,7 +1251,7 @@ function Step5PropertyManager({
           return
         }
         const data = await res.json()
-        if (!cancelled) setStaff((data || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() })))
+        if (!cancelled) setStaff((data || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}` })))
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load staff')
       } finally {
