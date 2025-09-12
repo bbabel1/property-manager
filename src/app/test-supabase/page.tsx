@@ -1,18 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/db'
 
 export default function TestSupabasePage() {
   const [connectionStatus, setConnectionStatus] = useState<string>('Testing...')
-  const [testData, setTestData] = useState<any>(null)
+  const [testData, setTestData] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    testConnection()
-  }, [])
-
-  const testConnection = async () => {
+  const testConnection = useCallback(async () => {
     try {
       setConnectionStatus('Testing connection...')
       
@@ -33,13 +29,17 @@ export default function TestSupabasePage() {
         }
       } else {
         setConnectionStatus('✅ Connected to Supabase!')
-        setTestData(data)
+        setTestData(data as unknown)
       }
     } catch (err) {
       setConnectionStatus('❌ Connection failed')
       setError(err instanceof Error ? err.message : 'Unknown error')
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void testConnection()
+  }, [testConnection])
 
   const createTestTable = async () => {
     try {
