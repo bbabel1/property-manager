@@ -29,6 +29,15 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
   if (!property) {
     property = await PropertyService.getPropertyById(id)
   }
+  // If owners are missing due to RLS or join limitations in the details API, fall back to service
+  if (property && (!Array.isArray(property.owners) || property.owners.length === 0)) {
+    const svc = await PropertyService.getPropertyById(id)
+    if (svc && Array.isArray(svc.owners) && svc.owners.length > 0) {
+      property.owners = svc.owners
+      property.total_owners = svc.total_owners
+      if (!property.primary_owner_name && svc.primary_owner_name) property.primary_owner_name = svc.primary_owner_name
+    }
+  }
   const supabase = getSupabaseServerClient()
   const today = new Date().toISOString().slice(0, 10)
   let fin: any = null
