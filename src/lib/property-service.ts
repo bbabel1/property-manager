@@ -322,14 +322,8 @@ export class PropertyService {
         .eq('role', 'PROPERTY_MANAGER')
         .maybeSingle()
       if (staffLink?.staff_id) {
-        const { data: staff } = await adminClient
-          .from('staff')
-          .select('first_name, last_name')
-          .eq('id', staffLink.staff_id)
-          .maybeSingle()
-        if (staff) {
-          property_manager_name = [staff.first_name, staff.last_name].filter(Boolean).join(' ').trim() || undefined
-        }
+        // Staff table lacks direct name fields here; fallback to an identifier
+        property_manager_name = `Staff ${staffLink.staff_id}`
       }
 
       // Compute primary owner name for display
