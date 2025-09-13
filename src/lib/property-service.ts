@@ -260,7 +260,7 @@ export class PropertyService {
       const activeFromUnits = (units || []).filter(u => (u as any).status !== 'Inactive').length
 
       const units_summary = {
-        total: property.total_active_units ?? aggTotal || activeFromUnits,
+        total: property.total_active_units ?? (aggTotal || activeFromUnits),
         occupied: (aggOccupied ?? occupiedFromUnits) || 0,
         available: (aggVacant ?? vacantFromUnits) || Math.max((aggTotal || activeFromUnits) - (aggOccupied ?? occupiedFromUnits), 0)
       }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, User, Building, Mail, MapPin, FileText, DollarSign, Plus } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
+import { Button } from './ui/button'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { DatePicker } from './ui/date-picker'
 import { mapGoogleCountryToEnum } from '@/lib/utils'

@@ -184,8 +184,8 @@ export const BuildiumGeneralLedgerEntryCreateSchema = z.object({
   Memo: z.string().optional(),
   Lines: z.array(z.object({
     GLAccountId: z.number().int().positive("GLAccountId must be a positive integer"),
-    Amount: z.number({ required_error: "Amount is required" }),
-    PostingType: z.enum(['Credit', 'Debit'], { required_error: 'PostingType is required' }),
+    Amount: z.number({ message: "Amount is required" }),
+    PostingType: z.enum(['Credit', 'Debit'], { message: 'PostingType is required' }),
     Memo: z.string().optional(),
     AccountingEntity: z.object({
       Id: z.number().int().positive().optional(),
@@ -204,7 +204,7 @@ export const BuildiumGeneralLedgerEntryUpdateSchema = z.object({
   Lines: z.array(z.object({
     Id: z.number().int().positive().optional(),
     GLAccountId: z.number().int().positive("GLAccountId must be a positive integer"),
-    Amount: z.number({ required_error: "Amount is required" }),
+    Amount: z.number({ message: "Amount is required" }),
     PostingType: z.enum(['Credit', 'Debit']).optional(),
     Memo: z.string().optional(),
     AccountingEntity: z.object({
