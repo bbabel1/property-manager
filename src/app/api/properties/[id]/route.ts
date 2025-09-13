@@ -88,7 +88,14 @@ export async function PUT(
       // Ensure we have org_id for ownership inserts
       let orgId: string | null = null
       try {
-        orgId = (data as any)?.org_id ?? null
+        // 0) Prefer explicit org id from header if provided
+        const hdrOrg = request.headers.get('x-org-id')
+        if (hdrOrg) orgId = hdrOrg
+
+        // 1) Try from the updated property row
+        if (!orgId) orgId = (data as any)?.org_id ?? null
+
+        // 2) Try reloading the property
         if (!orgId) {
           const { data: propRow } = await adminClient
             .from('properties')
@@ -97,7 +104,52 @@ export async function PUT(
             .maybeSingle()
           orgId = (propRow as any)?.org_id ?? null
         }
+
+        // 3) Try user's org membership (first org)
+        if (!orgId) {
+          const { data: mem } = await adminClient
+            .from('org_memberships')
+            .select('org_id')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle()
+          orgId = (mem as any)?.org_id ?? null
+        }
+
+        // 4) Try deriving from first owner in payload
+        if (!orgId) {
+          const firstOwner = body.owners?.[0]
+          if (firstOwner?.id) {
+            const { data: own } = await adminClient
+              .from('owners')
+              .select('org_id')
+              .eq('id', firstOwner.id)
+              .maybeSingle()
+            orgId = (own as any)?.org_id ?? null
+          }
+        }
+
+        // 5) Single-tenant convenience: if exactly one org exists, use it
+        if (!orgId) {
+          const { data: orgs } = await adminClient
+            .from('organizations')
+            .select('id')
+          if (Array.isArray(orgs) && orgs.length === 1) orgId = orgs[0].id
+        }
+
+        // If we resolved orgId and property has none, persist it for consistency
+        if (orgId) {
+          await adminClient
+            .from('properties')
+            .update({ org_id: orgId, updated_at: new Date().toISOString() })
+            .eq('id', propertyId)
+        }
       } catch {}
+
+      if (!orgId) {
+        console.error('🔍 API: Cannot upsert ownerships — missing org_id for property and user:', propertyId)
+        return NextResponse.json({ error: 'Missing org context; cannot upsert ownerships' }, { status: 400 })
+      }
       
       // First, delete all existing ownership records for this property
       const { error: deleteError } = await adminClient
@@ -112,6 +164,7 @@ export async function PUT(
       }
 
       // Then insert new ownership records
+      const insertErrors: any[] = []
       for (const owner of body.owners) {
         console.log('🔍 API: Inserting ownership record for owner:', owner.id)
         const { data: ownershipData, error: insertError } = await adminClient
@@ -130,9 +183,13 @@ export async function PUT(
 
         if (insertError) {
           console.error('🔍 API: Error inserting ownership record:', insertError)
+          insertErrors.push(insertError)
         } else {
           console.log('🔍 API: Successfully inserted ownership record:', ownershipData)
         }
+      }
+      if (insertErrors.length) {
+        return NextResponse.json({ error: 'Failed to upsert one or more ownerships', details: insertErrors.map(e => e.message || String(e)) }, { status: 400 })
       }
     } else {
       console.log('🔍 API: Skipping ownership updates (no owners provided or empty)')
