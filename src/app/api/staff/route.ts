@@ -4,6 +4,7 @@ import { supabase } from '@/lib/db'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { StaffQuerySchema } from '@/schemas/staff'
 import { StaffCreateSchema } from '@/schemas/staff'
+import { supabaseAdmin } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,8 +15,10 @@ export async function GET(request: NextRequest) {
     const query = sanitizeAndValidate(Object.fromEntries(searchParams), StaffQuerySchema);
     console.log('Staff API: Validated query parameters:', query);
 
-    // Fetch staff from database
-    const { data: staff, error } = await supabase
+    // Fetch staff from database with optional filters
+    const isActive = (query as any)?.isActive
+    const role = (query as any)?.role
+    let q = supabase
       .from('staff')
       .select(`
         id,
@@ -23,10 +26,23 @@ export async function GET(request: NextRequest) {
         is_active,
         created_at,
         updated_at,
-        buildium_user_id
+        buildium_user_id,
+        buildium_staff_id,
+        first_name,
+        last_name,
+        email,
+        phone
       `)
-      .eq('is_active', true)
       .order('id', { ascending: true })
+
+    if (typeof isActive === 'boolean') {
+      q = q.eq('is_active', isActive)
+    } else {
+      q = q.eq('is_active', true)
+    }
+    if (role) q = q.eq('role', role)
+
+    const { data: staff, error } = await q
 
     if (error) {
       console.error('Error fetching staff:', error)
@@ -68,25 +84,79 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request)
+    const reqUser = await requireUser(request)
     const body = await request.json().catch(() => ({}))
     const parsed = StaffCreateSchema.safeParse(body)
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map(i=>i.message).join(', ') }, { status: 400 })
     }
-    const { role, isActive, buildiumUserId } = {
+    const { firstName, lastName, email, phone, role, isActive, buildiumUserId } = {
+      firstName: parsed.data.firstName,
+      lastName: parsed.data.lastName,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
       role: parsed.data.role,
       isActive: parsed.data.isActive ?? true,
       buildiumUserId: parsed.data.buildiumUserId ?? null
     }
-    // Minimal insert to match columns used by GET
-    const { data, error } = await supabase
+    const orgIdOverride = (body?.orgId as string | undefined) || null
+    const sendInvite = body?.sendInvite !== false
+
+    // Determine default org: caller's first org membership when not provided
+    let targetOrgId: string | null = orgIdOverride
+    if (!targetOrgId && supabaseAdmin) {
+      const { data: mem } = await supabaseAdmin.from('org_memberships').select('org_id').eq('user_id', reqUser.id).limit(1).maybeSingle()
+      targetOrgId = (mem as any)?.org_id ?? null
+    }
+
+    // Create or invite auth user when email provided
+    let staffUserId: string | null = null
+    if (email && supabaseAdmin) {
+      try {
+        if (sendInvite) {
+          const invite = await supabaseAdmin.auth.admin.inviteUserByEmail(email)
+          staffUserId = invite?.data?.user?.id ?? null
+        } else {
+          const created = await supabaseAdmin.auth.admin.createUser({ email, email_confirm: false })
+          staffUserId = created?.data?.user?.id ?? null
+        }
+      } catch {}
+      // Insert/update profile
+      try {
+        const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || null
+        await (supabaseAdmin || supabase)
+          .from('profiles')
+          .upsert({ user_id: staffUserId, full_name: fullName, email }, { onConflict: 'user_id' })
+      } catch {}
+    }
+
+    // Insert staff
+    const { data: staffRow, error } = await (supabaseAdmin || supabase)
       .from('staff')
-      .insert({ role, is_active: isActive, buildium_user_id: buildiumUserId })
-      .select('id, role, is_active, buildium_user_id')
+      .insert({
+        user_id: staffUserId,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        email: email || null,
+        phone: phone || null,
+        title: body?.title || null,
+        role,
+        is_active: isActive,
+        buildium_staff_id: buildiumUserId
+      })
+      .select('*')
       .single()
     if (error) return NextResponse.json({ error: 'Failed to create staff', details: error.message }, { status: 500 })
-    return NextResponse.json({ staff: data })
+
+    // Add org membership for the staff's user when we have an org context and user
+    if (targetOrgId && staffUserId && (supabaseAdmin || supabase)) {
+      const orgRole = role === 'PROPERTY_MANAGER' ? 'org_manager' : 'org_staff'
+      await (supabaseAdmin || supabase)
+        .from('org_memberships')
+        .upsert({ user_id: staffUserId, org_id: targetOrgId, role: orgRole as any }, { onConflict: 'user_id,org_id' })
+    }
+
+    return NextResponse.json({ staff: staffRow })
   } catch (e: any) {
     if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

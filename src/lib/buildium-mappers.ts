@@ -1372,6 +1372,59 @@ export function mapPropertyToBuildium(localProperty: any): BuildiumPropertyCreat
   }
 }
 
+// ============================================================================
+// STAFF MAPPERS (Phase 2 helpers)
+// ============================================================================
+
+export type BuildiumStaffInput = {
+  FirstName?: string
+  LastName?: string
+  Email?: string
+  PhoneNumber?: string
+  Title?: string
+  Role?: string // Buildium specific role label
+}
+
+export function mapStaffToBuildium(local: any): BuildiumStaffInput {
+  return {
+    FirstName: local.first_name || undefined,
+    LastName: local.last_name || undefined,
+    Email: local.email || undefined,
+    PhoneNumber: local.phone || undefined,
+    Title: local.title || undefined,
+    Role: ((): string | undefined => {
+      const r = String(local.role || '').toUpperCase()
+      switch (r) {
+        case 'PROPERTY_MANAGER': return 'Property Manager'
+        case 'ASSISTANT_PROPERTY_MANAGER': return 'Assistant Manager'
+        case 'MAINTENANCE_COORDINATOR': return 'Maintenance Coordinator'
+        case 'ACCOUNTANT': return 'Accountant'
+        case 'ADMINISTRATOR': return 'Administrator'
+        default: return undefined
+      }
+    })()
+  }
+}
+
+export function mapStaffFromBuildium(buildium: any): any {
+  const role = String(buildium?.Role || '').toLowerCase()
+  let localRole: string | null = null
+  if (role.includes('assistant')) localRole = 'ASSISTANT_PROPERTY_MANAGER'
+  else if (role.includes('maintenance')) localRole = 'MAINTENANCE_COORDINATOR'
+  else if (role.includes('accountant')) localRole = 'ACCOUNTANT'
+  else if (role.includes('admin')) localRole = 'ADMINISTRATOR'
+  else if (role.includes('manager')) localRole = 'PROPERTY_MANAGER'
+  return {
+    first_name: buildium?.FirstName || null,
+    last_name: buildium?.LastName || null,
+    email: buildium?.Email || null,
+    phone: buildium?.PhoneNumber || null,
+    title: buildium?.Title || null,
+    role: localRole,
+    buildium_staff_id: buildium?.Id ?? null,
+  }
+}
+
 // Map UI property type to Buildium RentalSubType
 // UI options: 'Condo', 'Co-op', 'Condop', 'Rental Building', 'Townhouse'
 // Buildium expects: 'CondoTownhome' or 'MultiFamily'

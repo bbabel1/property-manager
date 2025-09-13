@@ -1,0 +1,32 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth'
+import { supabase } from '@/lib/db'
+
+export async function POST(request: NextRequest) {
+  try {
+    await requireUser(request)
+    const { data, error } = await supabase.functions.invoke('buildium-staff-sync', { body: { mode: 'manual' } })
+    if (error) return NextResponse.json({ error: error.message || 'Invoke failed' }, { status: 500 })
+    return NextResponse.json({ success: true, data })
+  } catch (e:any) {
+    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  // Latest run status helper
+  try {
+    const { data, error } = await supabase
+      .from('buildium_sync_runs')
+      .select('*')
+      .eq('job_type', 'staff_sync')
+      .order('started_at', { ascending: false })
+      .limit(1)
+    if (error) return NextResponse.json({ error: 'Failed to fetch status' }, { status: 500 })
+    return NextResponse.json({ last: Array.isArray(data) ? data[0] : null })
+  } catch {
+    return NextResponse.json({ last: null })
+  }
+}
+

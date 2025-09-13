@@ -285,6 +285,8 @@ export class PropertyService {
 
       // Enrich: property manager name (if any)
       let property_manager_name: string | undefined
+      let property_manager_email: string | undefined
+      let property_manager_phone: string | undefined
       const { data: staffLink } = await dbClient
         .from('property_staff')
         .select('staff_id, role')
@@ -292,8 +294,23 @@ export class PropertyService {
         .eq('role', 'PROPERTY_MANAGER')
         .maybeSingle()
       if (staffLink?.staff_id) {
-        // Staff table lacks direct name fields here; fallback to an identifier
-        property_manager_name = `Staff ${staffLink.staff_id}`
+        try {
+          const { data: st } = await dbClient
+            .from('staff')
+            .select('id, first_name, last_name, email, phone, user_id')
+            .eq('id', staffLink.staff_id)
+            .maybeSingle()
+          if (st) {
+            const full = [ (st as any).first_name, (st as any).last_name ].filter(Boolean).join(' ').trim()
+            property_manager_name = full || `Staff ${st.id}`
+            property_manager_email = (st as any).email || undefined
+            property_manager_phone = (st as any).phone || undefined
+          } else {
+            property_manager_name = `Staff ${staffLink.staff_id}`
+          }
+        } catch {
+          property_manager_name = `Staff ${staffLink.staff_id}`
+        }
       }
 
       // Compute primary owner name for display
@@ -318,6 +335,8 @@ export class PropertyService {
         operating_account,
         deposit_trust_account,
         property_manager_name,
+        property_manager_email,
+        property_manager_phone,
       }
 
       console.log('✅ Returning property with real data:', {
