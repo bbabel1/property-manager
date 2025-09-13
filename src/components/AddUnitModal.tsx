@@ -99,7 +99,7 @@ export default function AddUnitModal({
       } as UnitCreateInput)
 
       if (!parsed.success) {
-        const msg = parsed.error.errors.map(e => e.message).join('\n')
+        const msg = parsed.error.issues.map((e: any) => e.message).join('\n')
         throw new Error(msg || 'Please correct the form errors')
       }
 
