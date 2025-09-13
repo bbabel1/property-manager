@@ -30,10 +30,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Buildium not configured' }, { status: 501 })
     }
 
-    // Attempt to create/update staff in Buildium. Endpoint may vary by tenant; use a generic path with graceful handling.
-    // For sandbox testing, this may 404; we return the error details to the client.
-    const res = await fetch(`${base}/staff`, {
-      method: 'POST',
+    // Use Buildium Users endpoint: POST /v1/users (create) or PUT /v1/users/{id} (update)
+    const localBuildiumId: number | null = (st as any)?.buildium_staff_id ?? (st as any)?.buildium_user_id ?? null
+    const isUpdate = typeof localBuildiumId === 'number' && Number.isFinite(localBuildiumId)
+    const url = isUpdate ? `${base.replace(/\/$/, '')}/users/${localBuildiumId}` : `${base.replace(/\/$/, '')}/users`
+    const method = isUpdate ? 'PUT' : 'POST'
+
+    const res = await fetch(url, {
+      method,
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest) {
     if (!res.ok) {
       let details: any = null
       try { details = await res.json() } catch {}
-      return NextResponse.json({ error: 'Buildium staff sync failed', status: res.status, details }, { status: 502 })
+      return NextResponse.json({ error: 'Buildium staff sync failed', status: res.status, endpoint: url, method, details }, { status: 502 })
     }
 
     const data = await res.json().catch(() => ({} as any))
@@ -66,4 +70,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
