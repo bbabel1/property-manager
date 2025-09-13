@@ -10,7 +10,7 @@ export default async function FinancialsTab({ params, searchParams }: { params: 
 
   const to = sp?.to ? new Date(sp.to) : new Date()
   const from = sp?.from ? new Date(sp.from) : startOfMonth(to)
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
 
   // Snapshot as of 'to'
   let snapshot: any = null

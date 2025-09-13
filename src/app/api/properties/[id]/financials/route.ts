@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
   const { searchParams } = new URL(req.url)
   const asOf = (searchParams.get("asOf") || new Date().toISOString().slice(0,10))
 
@@ -12,6 +12,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json(data)
+  return new NextResponse(JSON.stringify(data), {
+    headers: {
+      'Content-Type': 'application/json',
+      // short-lived private cache to avoid hammering expensive function
+      'Cache-Control': 'private, max-age=30',
+    }
+  })
 }
-

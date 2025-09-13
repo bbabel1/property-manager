@@ -6,7 +6,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export async function requireAuth() {
-  const jar = cookies()
+  const jar = await cookies()
   const supabase = createServerClient(url, anon, {
     cookies: {
       get(name: string) {
@@ -34,4 +34,3 @@ export async function requireOrg(orgId: string) {
   if (!orgs.includes(orgId)) throw new Error('ORG_FORBIDDEN')
   return { supabase, user, orgId }
 }
-

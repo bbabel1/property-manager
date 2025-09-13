@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Last Updated**: 2025-09-07T02:46:22.789Z (Auto-generated)
+> **Last Updated**: 2025-09-13T04:22:14.362Z (Auto-generated)
 
 ## Overview
 
@@ -179,10 +179,85 @@ This document provides a comprehensive overview of the Supabase database schema 
 ### 20250906003000_drop_rental_sub_type.sql
 **Description**: No description available
 
+### 20250907091500_add_management_and_fee_fields_to_properties.sql
+**Description**: No description available
+
+### 20250907093000_convert_service_assignment_enum.sql
+**Description**: No description available
+
+### 20250907095500_rename_included_services_to_active_services.sql
+**Description**: No description available
+
+### 20250907113000_staff_roles_enum_and_convert.sql
+**Description**: No description available
+
+### 20250911090000_integrity_enforcements.sql
+**Description**: No description available
+
+### 20250911133000_rbac_and_tenancy.sql
+**Description**: No description available
+
+### 20250911140900_jwt_custom_claims.sql
+**Description**: No description available
+
+### 20250911141000_extend_rls_and_portals.sql
+**Description**: No description available
+
+### 20250911143000_org_integrity_and_storage_fix.sql
+**Description**: No description available
+
+### 20250911150000_backfill_org_ids_and_constraints.sql
+**Description**: No description available
+
+### 20250912120000_dashboard_kpis.sql
+**Description**: No description available
+
+### 20250912163000_property_financials.sql
+**Description**: No description available
+
+### 20250912180010_users_profiles_contacts_views.sql
+**Description**: No description available
+
+### 20250912_add_security_deposit_flag.sql
+**Description**: No description available
+
+### 20250912_get_property_financials_use_finished.sql
+**Description**: No description available
+
+### 20250912_gl_account_activity.sql
+**Description**: No description available
+
+### 20250912_latest_reconciliation_view.sql
+**Description**: No description available
+
+### 20250912_reconciliation_alerts.sql
+**Description**: No description available
+
+### 20250912_reconciliation_log_buildium.sql
+**Description**: No description available
+
+### 20250912_reconciliation_unique_idx.sql
+**Description**: No description available
+
+### 20250912_reconciliation_variance.sql
+**Description**: No description available
+
+### 20250912_replace_get_property_financials.sql
+**Description**: No description available
+
+### 20250913_additional_perf_indexes.sql
+**Description**: No description available
+
+### 20250913_performance_indexes.sql
+**Description**: No description available
+
+### 20250914000000_property_staff_role_index.sql
+**Description**: No description available
+
 
 ## Current Schema Status
 
-- **Total Migrations**: 57
+- **Total Migrations**: 82
 - **Database Provider**: PostgreSQL via Supabase
 - **ORM**: Direct Supabase client operations
 - **Security**: Row Level Security (RLS) enabled on all tables

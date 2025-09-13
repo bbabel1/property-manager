@@ -7,7 +7,7 @@ import FinalizeBar from '@/components/reconciliations/FinalizeBar'
 
 export default async function ReconciliationPage({ params }: { params: Promise<{ id: string; reconciliationId: string }> }) {
   const { id: propertyId, reconciliationId } = await params
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
 
   // Load reconciliation record from our log
   const { data: rl } = await (supabase as any)

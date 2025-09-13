@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { supabase } from '@/lib/db'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { StaffQuerySchema } from '@/schemas/staff'
+import { StaffCreateSchema } from '@/schemas/staff'
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +26,6 @@ export async function GET(request: NextRequest) {
         buildium_user_id
       `)
       .eq('is_active', true)
-      .not('buildium_user_id', 'is', null)
       .order('id', { ascending: true })
 
     if (error) {
@@ -63,5 +63,66 @@ export async function GET(request: NextRequest) {
       { error: 'Failed to fetch staff' },
       { status: 500 }
     )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await requireUser(request)
+    const body = await request.json().catch(() => ({}))
+    const parsed = StaffCreateSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues.map(i=>i.message).join(', ') }, { status: 400 })
+    }
+    const { role, isActive, buildiumUserId } = {
+      role: parsed.data.role,
+      isActive: parsed.data.isActive ?? true,
+      buildiumUserId: parsed.data.buildiumUserId ?? null
+    }
+    // Minimal insert to match columns used by GET
+    const { data, error } = await supabase
+      .from('staff')
+      .insert({ role, is_active: isActive, buildium_user_id: buildiumUserId })
+      .select('id, role, is_active, buildium_user_id')
+      .single()
+    if (error) return NextResponse.json({ error: 'Failed to create staff', details: error.message }, { status: 500 })
+    return NextResponse.json({ staff: data })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    await requireUser(request)
+    const body = await request.json().catch(() => ({})) as { id?: number; role?: string; isActive?: boolean }
+    const id = body.id
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    const patch: any = {}
+    if (body.role) patch.role = body.role
+    if (typeof body.isActive === 'boolean') patch.is_active = body.isActive
+    if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+    const { error } = await supabase.from('staff').update(patch).eq('id', id)
+    if (error) return NextResponse.json({ error: 'Failed to update staff', details: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await requireUser(request)
+    const { searchParams } = new URL(request.url)
+    const id = Number(searchParams.get('id'))
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    const { error } = await supabase.from('staff').delete().eq('id', id)
+    if (error) return NextResponse.json({ error: 'Failed to delete staff', details: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -43,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "leases", label: "Leases", href: "/leases", icon: ClipboardList },
   { id: "owners", label: "Owners", href: "/owners", icon: Users },
   { id: "tenants", label: "Tenants", href: "/tenants", icon: Users },
+  { id: "staff", label: "Staff", href: "/staff", icon: Users },
   { id: "settings", label: "Settings", href: "/settings", icon: Settings },
 ];
 

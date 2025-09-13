@@ -14,6 +14,7 @@ export default function InlineEditCard({
   canSave = true,
   view,
   edit,
+  className,
 }: {
   title: string
   editing: boolean
@@ -24,9 +25,11 @@ export default function InlineEditCard({
   canSave?: boolean
   view: ReactNode
   edit: ReactNode
+  className?: string
 }) {
+  const hasBgOverride = Boolean(className && /\bbg-\[/i.test(className))
   return (
-    <div className="rounded-lg shadow-sm border border-border bg-card">
+    <div className={`rounded-lg shadow-sm border border-border ${hasBgOverride ? '' : 'bg-card'} ${className ?? ''}`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {!editing ? (
@@ -48,4 +51,3 @@ export default function InlineEditCard({
     </div>
   )
 }
-

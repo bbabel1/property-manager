@@ -4,7 +4,7 @@ import InfoCard from '@/components/layout/InfoCard'
 
 export default async function ReconciliationFallback({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
   const { data } = await (supabase as any)
     .from('reconciliation_log')
     .select('property_id')
@@ -21,4 +21,3 @@ export default async function ReconciliationFallback({ params }: { params: Promi
     </InfoCard>
   )
 }
-

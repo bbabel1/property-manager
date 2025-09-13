@@ -14,6 +14,7 @@
     "docs:validate": "npx tsx scripts/doc-monitoring-system.ts validate",
     "sync:owners": "npx tsx scripts/sync-owners-incremental.ts --hours 24",
     "db:push-indexes": "npx tsx scripts/push-migration.ts supabase/migrations/20250829190000_owner_indexes.sql",
+    "db:push-perf": "npx tsx scripts/push-migration.ts supabase/migrations/20250913_performance_indexes.sql",
     "docs:watch": "nodemon --watch src --watch supabase --ext ts,tsx,sql --exec \"npm run docs:check\"",
     "db:schema": "npx supabase@latest db dump --local --file docs/database/current_schema.sql",
     "db:types": "npx supabase@latest gen types typescript --local > src/types/database.ts",

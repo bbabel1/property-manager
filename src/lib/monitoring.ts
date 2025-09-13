@@ -29,5 +29,11 @@ export function reportMessage(
   if (sentry) {
     sentry.captureMessage(message, { level: level as any, extra: context as Record<string, unknown> | undefined })
   }
-  logger[level]({ msg: message, ...context })
+  const logFn = (logger as any)[level] || (logger as any).info
+  if (typeof logFn === 'function') {
+    logFn({ msg: message, ...context })
+  } else {
+    // Fallback to info if the resolved level is not a function
+    logger.info({ msg: message, ...context })
+  }
 }

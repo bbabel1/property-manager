@@ -10,16 +10,20 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  // Global ignores (Flat config replacement for .eslintignore)
   {
     ignores: [
-      "scripts/**",
-      "supabase/functions/**",
       "backups/**",
-      "docs/**/examples/**",
+      "docs/**",
+      "scripts/**",
+      "stories/**",
+      "supabase/**",
       // Ignore generated or vendor type definitions
       "src/types/**"
-    ],
+    ]
+  },
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
     rules: {
       // Prevent usage of deprecated basic mappers
       "no-restricted-imports": [
@@ -62,6 +66,21 @@ const eslintConfig = [
       ],
       "@typescript-eslint/no-empty-object-type": "warn",
       "react/no-unescaped-entities": "off"
+    }
+  },
+  // TypeScript-specific overrides
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/explicit-function-return-type": "off"
+    }
+  },
+  // Loosen rules for type declaration files if they slip past ignores
+  {
+    files: ["**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-empty-object-type": "off"
     }
   }
 ];

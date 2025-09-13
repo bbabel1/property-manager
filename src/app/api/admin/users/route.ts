@@ -35,12 +35,33 @@ export async function GET() {
       byUser.set(m.user_id, arr)
     }
 
+    // Fetch contacts mapped by user_id (uses new contacts.user_id)
+    const userIds = users.map((u: any) => u.id)
+    let contactsByUser = new Map<string, any>()
+    if (userIds.length > 0) {
+      const { data: contacts, error: cErr } = await supabaseAdmin
+        .from('contacts')
+        .select('id, user_id, first_name, last_name, primary_phone:primary_phone, primary_email:primary_email')
+        .in('user_id', userIds)
+
+      if (!cErr) {
+        contactsByUser = new Map((contacts || []).filter(Boolean).map((c: any) => [c.user_id, {
+          id: c.id,
+          first_name: c.first_name || null,
+          last_name: c.last_name || null,
+          phone: c.primary_phone || null,
+          email: c.primary_email || null,
+        }]))
+      }
+    }
+
     const out = users.map((u: any) => ({
       id: u.id,
       email: u.email,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at,
       memberships: byUser.get(u.id) || [],
+      contact: contactsByUser.get(u.id) || null,
     }))
 
     return NextResponse.json({ users: out })
@@ -50,4 +71,3 @@ export async function GET() {
     return NextResponse.json({ error: msg }, { status })
   }
 }
-

@@ -36,7 +36,8 @@ export async function POST(request: NextRequest) {
     await requireUser();
 
     const body = await request.json().catch(() => ({}));
-    let { dateFrom, dateTo, glAccountId, limit = 100, offset = 0, overlapDays = 7 } = body || {};
+    let { dateFrom, dateTo } = body || {};
+    const { glAccountId, limit = 100, offset = 0, overlapDays = 7 } = body || {};
 
     // Idempotent windowing: if no dateFrom/dateTo passed, derive from cursor
     if (!dateFrom || !dateTo) {

@@ -75,6 +75,7 @@ export async function middleware(req: NextRequest) {
     "/settings",
     "/rent",
     "/accounting",
+    "/bank-accounts",
   ]
 
   const requiresAuth = protectedPrefixes.some((p) => pathname.startsWith(p))
@@ -110,6 +111,7 @@ export const config = {
     "/settings/:path*",
     "/rent/:path*",
     "/accounting/:path*",
+    "/bank-accounts/:path*",
     "/auth/:path*",
   ],
 }

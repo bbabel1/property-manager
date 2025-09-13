@@ -266,6 +266,26 @@ export interface BuildiumFileDownloadMessage {
 }
 
 // ============================================================================
+// PROPERTY IMAGE TYPES
+// ============================================================================
+
+// Buildium's property image payload mirrors unit image payload structure.
+// We keep it separate for clarity/forward-compatibility.
+export interface BuildiumPropertyImage {
+  Id: number
+  Name?: string
+  Description?: string
+  FileType?: string
+  FileSize?: number
+  IsPrivate?: boolean
+  CreatedDateTime?: string
+  Href?: string
+}
+
+export type BuildiumPropertyImageList = BuildiumPropertyImage[]
+
+
+// ============================================================================
 // OWNER TYPES
 // ============================================================================
 
