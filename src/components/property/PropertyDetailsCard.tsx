@@ -406,7 +406,23 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Property Manager</p>
-              <p className="text-sm text-foreground">{property.property_manager_name || 'No manager assigned'}</p>
+              <div className="text-sm text-foreground">
+                {property.property_manager_name || 'No manager assigned'}
+              </div>
+              {(property.property_manager_email || property.property_manager_phone) && (
+                <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                  {property.property_manager_email && (
+                    <div>
+                      <span className="font-medium text-foreground/80">Email:</span> {property.property_manager_email}
+                    </div>
+                  )}
+                  {property.property_manager_phone && (
+                    <div>
+                      <span className="font-medium text-foreground/80">Phone:</span> {property.property_manager_phone}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rental Owners</p>

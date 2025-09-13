@@ -216,6 +216,20 @@ export async function PUT(
           updated_at: new Date().toISOString()
         })
       }
+      // Phase 2: surface Buildium RentalManager id to callers for sync
+      try {
+        const sid = typeof staffId === 'string' ? Number(staffId) : staffId
+        if (sid) {
+          const { data: st } = await adminClient
+            .from('staff')
+            .select('buildium_staff_id')
+            .eq('id', sid)
+            .maybeSingle()
+          if (st?.buildium_staff_id) {
+            ;(data as any).rental_manager = Number(st.buildium_staff_id)
+          }
+        }
+      } catch {}
     }
 
     // primary_owner field removed - ownership is now managed through ownerships table
