@@ -3,7 +3,7 @@ import { getSupabaseServerClient } from '@/lib/supabase/server'
 import InfoCard from '@/components/layout/InfoCard'
 
 export default async function BankAccountsIndex() {
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
   // Prefer API for masking, but server-side select is fine and fast
   const { data, error } = await (supabase as any)
     .from('bank_accounts')
@@ -40,4 +40,3 @@ export default async function BankAccountsIndex() {
     </div>
   )
 }
-

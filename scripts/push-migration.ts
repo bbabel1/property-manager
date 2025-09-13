@@ -26,7 +26,24 @@ async function runSql(dbUrl: string, sql: string, label: string) {
   const client = new Client({ connectionString: dbUrl, ssl: dbUrl.includes('.supabase.co') ? { rejectUnauthorized: false } : undefined })
   await client.connect()
   try {
-    await client.query(sql)
+    // If the migration includes CREATE INDEX CONCURRENTLY, run statements individually
+    // so they are not executed inside a transaction block.
+    if (/\bCREATE\s+INDEX\s+CONCURRENTLY\b/i.test(sql)) {
+      // Strip single-line comments and split on semicolons
+      const statements = sql
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('--'))
+        .join('\n')
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+
+      for (const stmt of statements) {
+        await client.query(stmt)
+      }
+    } else {
+      await client.query(sql)
+    }
     console.log(`Migration applied to ${label}`)
   } finally {
     await client.end()
@@ -37,10 +54,12 @@ async function main() {
   const sqlPath = process.argv[2] || 'supabase/migrations/2025-08-29_owner_indexes.sql'
   const sql = readFileSync(resolve(sqlPath), 'utf8')
 
-  const remote = buildRemoteDatabaseUrl()
+  // Only attempt remote when explicitly enabled
+  const remoteEnabled = (process.env.PUSH_REMOTE || '').toLowerCase() === '1' || (process.env.PUSH_REMOTE || '').toLowerCase() === 'true'
+  const remote = remoteEnabled ? buildRemoteDatabaseUrl() : null
   const local = process.env.LOCAL_DB_URL || 'postgres://postgres:postgres@localhost:54322/postgres'
 
-  if (!remote) {
+  if (remoteEnabled && !remote) {
     console.warn('Remote DB URL could not be constructed. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_DB_PASSWORD are set.')
   }
 
@@ -62,4 +81,3 @@ async function main() {
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })
-

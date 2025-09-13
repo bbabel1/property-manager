@@ -8,6 +8,7 @@ import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { SelectWithDescription } from '@/components/ui/SelectWithDescription'
+import CreateBankAccountModal from '@/CreateBankAccountModal'
 import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property'
 
 interface AddPropertyFormData {
@@ -349,14 +350,16 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
     }
   }
 
-  const addOwner = (ownerId: string) => {
-    const owner = owners.find(o => o.id === ownerId)
-    if (owner && !formData.owners.find(o => o.id === ownerId)) {
+  const addOwner = (ownerId: string, ownerName?: string) => {
+    // Prefer name passed from the Step 3 list; fall back to parent-fetched owners
+    const fallback = owners.find(o => o.id === ownerId)
+    const name = ownerName || fallback?.name
+    if (name && !formData.owners.find(o => o.id === ownerId)) {
       setFormData(prev => ({
         ...prev,
         owners: [...prev.owners, {
-          id: owner.id,
-          name: owner.name,
+          id: ownerId,
+          name,
           ownershipPercentage: 100,
           disbursementPercentage: 100,
           primary: prev.owners.length === 0 // First owner is primary
@@ -394,7 +397,16 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-[56rem] max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent
+        onInteractOutside={(e: any) => {
+          const orig = e?.detail?.originalEvent as Event | undefined
+          const target = (orig?.target as HTMLElement) || (e.target as HTMLElement)
+          if (target && (target.closest?.('.pac-container') || target.classList?.contains('pac-item'))) {
+            e.preventDefault()
+          }
+        }}
+        className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-[56rem] max-h-[90vh] overflow-y-auto p-0"
+      >
         {/* Header */}
         <DialogHeader className="p-6 border-b border-border">
           <DialogTitle className="text-xl font-semibold text-foreground">Add New Property</DialogTitle>
@@ -700,7 +712,7 @@ function Step3Ownership({
 }: { 
   formData: AddPropertyFormData; 
   setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
-  addOwner: (ownerId: string) => void;
+  addOwner: (ownerId: string, ownerName?: string) => void;
   removeOwner: (ownerId: string) => void;
   updateOwnerPercentage: (ownerId: string, field: 'ownershipPercentage' | 'disbursementPercentage', value: number) => void;
   setPrimaryOwner: (ownerId: string) => void;
@@ -718,6 +730,25 @@ function Step3Ownership({
   const [createDisbursementPct, setCreateDisbursementPct] = useState<number>(100)
   const [createPrimary, setCreatePrimary] = useState<boolean>(false)
   const [creating, setCreating] = useState(false)
+  // CSRF token for POSTs to secured API routes
+  const [csrfToken, setCsrfToken] = useState<string | null>(null)
+
+  // Fetch CSRF token on mount so we can include it in headers (cookie is httpOnly)
+  useEffect(() => {
+    let cancelled = false
+    const fetchCsrf = async () => {
+      try {
+        const res = await fetch('/api/csrf', { credentials: 'include' })
+        if (!res.ok) return
+        const j = await res.json().catch(() => ({}))
+        if (!cancelled && j?.token) setCsrfToken(j.token as string)
+      } catch (_) {
+        // ignore; API will reject without token and surface an error, but we try early
+      }
+    }
+    fetchCsrf()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -763,14 +794,12 @@ function Step3Ownership({
       setCreatePrimary((formData.owners?.length || 0) === 0)
       return
     }
-    addOwner(value)
+    const selected = ownerList.find(o => o.id === value)
+    addOwner(value, selected?.name)
   }
 
-  const getCSRFCookie = (): string | null => {
-    if (typeof document === 'undefined') return null
-    const m = document.cookie.match(/(?:^|; )csrf-token=([^;]+)/)
-    return m ? decodeURIComponent(m[1]) : null
-  }
+  // Legacy helper no longer used (cookie is httpOnly). Kept to avoid regressions.
+  const getCSRFCookie = (): string | null => null
 
   const handleCreateOwner = async () => {
     try {
@@ -781,7 +810,7 @@ function Step3Ownership({
         setErr('First name, last name, and email are required')
         return
       }
-      const csrf = getCSRFCookie()
+      const csrf = csrfToken
       const res = await fetch('/api/owners', {
         method: 'POST',
         headers: {
@@ -1002,6 +1031,8 @@ function Step4BankAccount({
   const [accounts, setAccounts] = useState<BankAccountOption[]>([])
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [createTarget, setCreateTarget] = useState<'operating' | 'trust' | null>(null)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
@@ -1011,7 +1042,7 @@ function Step4BankAccount({
         const res = await fetch('/api/bank-accounts?revealNumbers=false')
         if (!res.ok) throw new Error('Failed to load bank accounts')
         const data = await res.json()
-        if (!cancelled) setAccounts(data.map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number })))
+        if (!cancelled) setAccounts((data || []).map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number })))
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load bank accounts')
       } finally {
@@ -1037,8 +1068,14 @@ function Step4BankAccount({
           <label className="block text-sm font-medium text-foreground mb-1">Operating Bank Account *</label>
           <SelectWithDescription
             value={formData.operatingBankAccountId || ''}
-            onChange={(value: string) => setFormData({ ...formData, operatingBankAccountId: value })}
-            options={accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))}
+            onChange={(value: string) => {
+              if (value === 'create-new') { setCreateTarget('operating'); setShowCreate(true); return }
+              setFormData({ ...formData, operatingBankAccountId: value })
+            }}
+            options={[
+              { value: 'create-new', label: '+ Create new account…', description: 'Add a bank account' },
+              ...accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))
+            ]}
             placeholder="Select account..."
           />
         </div>
@@ -1047,8 +1084,14 @@ function Step4BankAccount({
           <label className="block text-sm font-medium text-foreground mb-1">Deposit Trust Account</label>
           <SelectWithDescription
             value={formData.depositTrustAccountId || ''}
-            onChange={(value: string) => setFormData({ ...formData, depositTrustAccountId: value })}
-            options={accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))}
+            onChange={(value: string) => {
+              if (value === 'create-new') { setCreateTarget('trust'); setShowCreate(true); return }
+              setFormData({ ...formData, depositTrustAccountId: value })
+            }}
+            options={[
+              { value: 'create-new', label: '+ Create new account…', description: 'Add a bank account' },
+              ...accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))
+            ]}
             placeholder="Select account..."
           />
         </div>
@@ -1222,6 +1265,27 @@ function Step4BankAccount({
           </div>
         </div>
       </div>
+
+      {showCreate && (
+        <CreateBankAccountModal
+          isOpen={showCreate}
+          onClose={() => { setShowCreate(false); setCreateTarget(null) }}
+          onSuccess={(newAccount: any) => {
+            // Accept both raw object or wrapped { id, name }
+            const id = String(newAccount?.id ?? newAccount?.bankAccount?.id ?? '')
+            const name = newAccount?.name ?? newAccount?.bankAccount?.name ?? 'New Bank Account'
+            const account_number = newAccount?.account_number ?? newAccount?.bankAccount?.account_number ?? null
+            const created: BankAccountOption = { id, name, account_number, routing_number: newAccount?.routing_number ?? null }
+            setAccounts(prev => [{ ...created }, ...prev.filter(a => a.id !== id)])
+            if (createTarget === 'operating') {
+              setFormData(prev => ({ ...prev, operatingBankAccountId: id }))
+            } else if (createTarget === 'trust') {
+              setFormData(prev => ({ ...prev, depositTrustAccountId: id }))
+            }
+            setCreateTarget(null)
+          }}
+        />
+      )}
     </div>
   )
 }

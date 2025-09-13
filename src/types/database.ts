@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       appliance_service_history: {
@@ -179,6 +154,7 @@ export type Database = {
           last_source: Database["public"]["Enums"]["sync_source_enum"] | null
           last_source_ts: string | null
           name: string
+          org_id: string | null
           routing_number: string | null
           updated_at: string
         }
@@ -201,6 +177,7 @@ export type Database = {
           last_source?: Database["public"]["Enums"]["sync_source_enum"] | null
           last_source_ts?: string | null
           name: string
+          org_id?: string | null
           routing_number?: string | null
           updated_at: string
         }
@@ -223,6 +200,7 @@ export type Database = {
           last_source?: Database["public"]["Enums"]["sync_source_enum"] | null
           last_source_ts?: string | null
           name?: string
+          org_id?: string | null
           routing_number?: string | null
           updated_at?: string
         }
@@ -240,6 +218,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_gl_trial_balance"
             referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -448,6 +433,7 @@ export type Database = {
           primary_postal_code: string | null
           primary_state: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           alt_address_line_1?: string | null
@@ -479,6 +465,7 @@ export type Database = {
           primary_postal_code?: string | null
           primary_state?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           alt_address_line_1?: string | null
@@ -510,8 +497,17 @@ export type Database = {
           primary_postal_code?: string | null
           primary_state?: string | null
           updated_at?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "contacts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       gl_accounts: {
         Row: {
@@ -529,7 +525,9 @@ export type Database = {
           is_contra_account: boolean | null
           is_credit_card_account: boolean | null
           is_default_gl_account: boolean | null
+          is_security_deposit_liability: boolean
           name: string
+          org_id: string | null
           sub_accounts: string[] | null
           sub_type: string | null
           type: string
@@ -550,7 +548,9 @@ export type Database = {
           is_contra_account?: boolean | null
           is_credit_card_account?: boolean | null
           is_default_gl_account?: boolean | null
+          is_security_deposit_liability?: boolean
           name: string
+          org_id?: string | null
           sub_accounts?: string[] | null
           sub_type?: string | null
           type: string
@@ -571,13 +571,23 @@ export type Database = {
           is_contra_account?: boolean | null
           is_credit_card_account?: boolean | null
           is_default_gl_account?: boolean | null
+          is_security_deposit_liability?: boolean
           name?: string
+          org_id?: string | null
           sub_accounts?: string[] | null
           sub_type?: string | null
           type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "gl_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       gl_import_cursors: {
         Row: {
@@ -686,6 +696,13 @@ export type Database = {
             referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey1"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
         ]
       }
       lease: {
@@ -704,6 +721,7 @@ export type Database = {
           lease_from_date: string
           lease_to_date: string | null
           lease_type: string | null
+          org_id: string | null
           payment_due_day: number | null
           property_id: string
           renewal_offer_status: string | null
@@ -730,6 +748,7 @@ export type Database = {
           lease_from_date: string
           lease_to_date?: string | null
           lease_type?: string | null
+          org_id?: string | null
           payment_due_day?: number | null
           property_id: string
           renewal_offer_status?: string | null
@@ -756,6 +775,7 @@ export type Database = {
           lease_from_date?: string
           lease_to_date?: string | null
           lease_type?: string | null
+          org_id?: string | null
           payment_due_day?: number | null
           property_id?: string
           renewal_offer_status?: string | null
@@ -768,6 +788,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lease_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "Lease_propertyId_fkey"
             columns: ["property_id"]
@@ -793,6 +820,7 @@ export type Database = {
           move_in_date: string | null
           move_out_date: string | null
           notice_given_date: string | null
+          org_id: string | null
           role: string
           status: string
           tenant_id: string
@@ -806,6 +834,7 @@ export type Database = {
           move_in_date?: string | null
           move_out_date?: string | null
           notice_given_date?: string | null
+          org_id?: string | null
           role?: string
           status?: string
           tenant_id: string
@@ -819,6 +848,7 @@ export type Database = {
           move_in_date?: string | null
           move_out_date?: string | null
           notice_given_date?: string | null
+          org_id?: string | null
           role?: string
           status?: string
           tenant_id?: string
@@ -830,6 +860,13 @@ export type Database = {
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lease_contacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -935,6 +972,60 @@ export type Database = {
           },
         ]
       }
+      org_memberships: {
+        Row: {
+          id: string
+          org_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_memberships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       owners: {
         Row: {
           buildium_created_at: string | null
@@ -953,6 +1044,7 @@ export type Database = {
           last_contacted: string | null
           management_agreement_end_date: string | null
           management_agreement_start_date: string | null
+          org_id: string | null
           tax_address_line1: string | null
           tax_address_line2: string | null
           tax_address_line3: string | null
@@ -966,6 +1058,7 @@ export type Database = {
           tax_postal_code: string | null
           tax_state: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           buildium_created_at?: string | null
@@ -984,6 +1077,7 @@ export type Database = {
           last_contacted?: string | null
           management_agreement_end_date?: string | null
           management_agreement_start_date?: string | null
+          org_id?: string | null
           tax_address_line1?: string | null
           tax_address_line2?: string | null
           tax_address_line3?: string | null
@@ -997,6 +1091,7 @@ export type Database = {
           tax_postal_code?: string | null
           tax_state?: string | null
           updated_at: string
+          user_id?: string | null
         }
         Update: {
           buildium_created_at?: string | null
@@ -1015,6 +1110,7 @@ export type Database = {
           last_contacted?: string | null
           management_agreement_end_date?: string | null
           management_agreement_start_date?: string | null
+          org_id?: string | null
           tax_address_line1?: string | null
           tax_address_line2?: string | null
           tax_address_line3?: string | null
@@ -1028,6 +1124,7 @@ export type Database = {
           tax_postal_code?: string | null
           tax_state?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1036,6 +1133,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owners_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owners_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1077,6 +1188,7 @@ export type Database = {
           created_at: string
           disbursement_percentage: number
           id: string
+          org_id: string
           owner_id: string
           ownership_percentage: number
           primary: boolean
@@ -1089,6 +1201,7 @@ export type Database = {
           created_at?: string
           disbursement_percentage: number
           id?: string
+          org_id: string
           owner_id: string
           ownership_percentage: number
           primary?: boolean
@@ -1101,6 +1214,7 @@ export type Database = {
           created_at?: string
           disbursement_percentage?: number
           id?: string
+          org_id?: string
           owner_id?: string
           ownership_percentage?: number
           primary?: boolean
@@ -1110,6 +1224,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ownerships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ownerships_owner_id_fkey"
             columns: ["owner_id"]
@@ -1123,6 +1244,35 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1163,6 +1313,7 @@ export type Database = {
           neighborhood: string | null
           occupancy_rate: number | null
           operating_bank_account_id: string | null
+          org_id: string
           postal_code: string
           primary_owner: string | null
           property_type:
@@ -1222,6 +1373,7 @@ export type Database = {
           neighborhood?: string | null
           occupancy_rate?: number | null
           operating_bank_account_id?: string | null
+          org_id: string
           postal_code: string
           primary_owner?: string | null
           property_type?:
@@ -1281,6 +1433,7 @@ export type Database = {
           neighborhood?: string | null
           occupancy_rate?: number | null
           operating_bank_account_id?: string | null
+          org_id?: string
           postal_code?: string
           primary_owner?: string | null
           property_type?:
@@ -1317,6 +1470,135 @@ export type Database = {
             columns: ["operating_bank_account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_onboarding: {
+        Row: {
+          assigned_staff_id: number | null
+          created_at: string
+          current_stage: string | null
+          due_date: string | null
+          id: string
+          org_id: string | null
+          progress: number
+          property_id: string
+          status: Database["public"]["Enums"]["onboarding_status_enum"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_staff_id?: number | null
+          created_at?: string
+          current_stage?: string | null
+          due_date?: string | null
+          id?: string
+          org_id?: string | null
+          progress?: number
+          property_id: string
+          status?: Database["public"]["Enums"]["onboarding_status_enum"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_staff_id?: number | null
+          created_at?: string
+          current_stage?: string | null
+          due_date?: string | null
+          id?: string
+          org_id?: string | null
+          progress?: number
+          property_id?: string
+          status?: Database["public"]["Enums"]["onboarding_status_enum"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_onboarding_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_onboarding_tasks: {
+        Row: {
+          assigned_staff_id: number | null
+          completed_at: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          name: string
+          onboarding_id: string
+          org_id: string | null
+          status: Database["public"]["Enums"]["onboarding_task_status_enum"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_staff_id?: number | null
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          name: string
+          onboarding_id: string
+          org_id?: string | null
+          status?: Database["public"]["Enums"]["onboarding_task_status_enum"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_staff_id?: number | null
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          name?: string
+          onboarding_id?: string
+          org_id?: string | null
+          status?: Database["public"]["Enums"]["onboarding_task_status_enum"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_onboarding_tasks_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_tasks_onboarding_id_fkey"
+            columns: ["onboarding_id"]
+            isOneToOne: false
+            referencedRelation: "property_onboarding"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1395,6 +1677,96 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reconciliation_log: {
+        Row: {
+          as_of: string | null
+          bank_account_id: string | null
+          buildium_bank_account_id: number | null
+          buildium_reconciliation_id: number | null
+          created_at: string
+          ending_balance: number | null
+          gl_account_id: string | null
+          id: string
+          is_finished: boolean
+          notes: string | null
+          performed_by: string | null
+          property_id: string | null
+          statement_ending_date: string | null
+          total_checks_withdrawals: number | null
+          total_deposits_additions: number | null
+        }
+        Insert: {
+          as_of?: string | null
+          bank_account_id?: string | null
+          buildium_bank_account_id?: number | null
+          buildium_reconciliation_id?: number | null
+          created_at?: string
+          ending_balance?: number | null
+          gl_account_id?: string | null
+          id?: string
+          is_finished?: boolean
+          notes?: string | null
+          performed_by?: string | null
+          property_id?: string | null
+          statement_ending_date?: string | null
+          total_checks_withdrawals?: number | null
+          total_deposits_additions?: number | null
+        }
+        Update: {
+          as_of?: string | null
+          bank_account_id?: string | null
+          buildium_bank_account_id?: number | null
+          buildium_reconciliation_id?: number | null
+          created_at?: string
+          ending_balance?: number | null
+          gl_account_id?: string | null
+          id?: string
+          is_finished?: boolean
+          notes?: string | null
+          performed_by?: string | null
+          property_id?: string | null
+          statement_ending_date?: string | null
+          total_checks_withdrawals?: number | null
+          total_deposits_additions?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliation_log_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
             referencedColumns: ["id"]
           },
         ]
@@ -1879,9 +2251,11 @@ export type Database = {
           emergency_contact_phone: string | null
           emergency_contact_relationship: string | null
           id: string
+          org_id: string | null
           sms_opt_in_status: boolean | null
           tax_id: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           buildium_tenant_id?: number | null
@@ -1893,9 +2267,11 @@ export type Database = {
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           id?: string
+          org_id?: string | null
           sms_opt_in_status?: boolean | null
           tax_id?: string | null
           updated_at: string
+          user_id?: string | null
         }
         Update: {
           buildium_tenant_id?: number | null
@@ -1907,9 +2283,11 @@ export type Database = {
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           id?: string
+          org_id?: string | null
           sms_opt_in_status?: boolean | null
           tax_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1918,6 +2296,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2016,6 +2408,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "journal_entries_unit_id_fkey"
             columns: ["unit_id"]
             isOneToOne: false
@@ -2039,6 +2438,7 @@ export type Database = {
           is_recurring: boolean | null
           lease_id: number | null
           memo: string | null
+          org_id: string | null
           payee_tenant_id: number | null
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
@@ -2065,6 +2465,7 @@ export type Database = {
           is_recurring?: boolean | null
           lease_id?: number | null
           memo?: string | null
+          org_id?: string | null
           payee_tenant_id?: number | null
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
@@ -2091,6 +2492,7 @@ export type Database = {
           is_recurring?: boolean | null
           lease_id?: number | null
           memo?: string | null
+          org_id?: string | null
           payee_tenant_id?: number | null
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
@@ -2123,6 +2525,13 @@ export type Database = {
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -2253,6 +2662,7 @@ export type Database = {
           management_fee: number | null
           market_rent: number | null
           next_inspection_date: string | null
+          org_id: string
           postal_code: string
           property_id: string
           service_end: string | null
@@ -2291,6 +2701,7 @@ export type Database = {
           management_fee?: number | null
           market_rent?: number | null
           next_inspection_date?: string | null
+          org_id: string
           postal_code: string
           property_id: string
           service_end?: string | null
@@ -2329,6 +2740,7 @@ export type Database = {
           management_fee?: number | null
           market_rent?: number | null
           next_inspection_date?: string | null
+          org_id?: string
           postal_code?: string
           property_id?: string
           service_end?: string | null
@@ -2344,6 +2756,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "units_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "units_property_id_fkey"
             columns: ["property_id"]
@@ -2550,6 +2969,13 @@ export type Database = {
             foreignKeyName: "work_order_files_work_order_id_fkey"
             columns: ["work_order_id"]
             isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_files_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
@@ -2567,6 +2993,7 @@ export type Database = {
           estimated_cost: number | null
           id: string
           notes: string | null
+          org_id: string | null
           priority: string | null
           property_id: string | null
           scheduled_date: string | null
@@ -2587,6 +3014,7 @@ export type Database = {
           estimated_cost?: number | null
           id?: string
           notes?: string | null
+          org_id?: string | null
           priority?: string | null
           property_id?: string | null
           scheduled_date?: string | null
@@ -2607,6 +3035,7 @@ export type Database = {
           estimated_cost?: number | null
           id?: string
           notes?: string | null
+          org_id?: string | null
           priority?: string | null
           property_id?: string | null
           scheduled_date?: string | null
@@ -2617,6 +3046,13 @@ export type Database = {
           vendor_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "work_orders_property_id_fkey"
             columns: ["property_id"]
@@ -2651,6 +3087,97 @@ export type Database = {
         }
         Relationships: []
       }
+      users_with_auth: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          last_sign_in_at: string | null
+          memberships: Json | null
+          phone: string | null
+          providers: Json | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      v_active_work_orders_ranked: {
+        Row: {
+          actual_cost: number | null
+          assigned_to: string | null
+          buildium_work_order_id: number | null
+          category: string | null
+          completed_date: string | null
+          created_at: string | null
+          description: string | null
+          estimated_cost: number | null
+          id: string | null
+          notes: string | null
+          org_id: string | null
+          priority: string | null
+          property_id: string | null
+          rn: number | null
+          scheduled_date: string | null
+          status: string | null
+          subject: string | null
+          unit_id: string | null
+          updated_at: string | null
+          vendor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_dashboard_kpis: {
+        Row: {
+          active_leases: number | null
+          available_units: number | null
+          growth_rate: number | null
+          monthly_rent_roll: number | null
+          occupancy_rate: number | null
+          occupied_units: number | null
+          open_work_orders: number | null
+          org_id: string | null
+          total_properties: number | null
+          total_units: number | null
+          urgent_work_orders: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "properties_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_gl_trial_balance: {
         Row: {
           account_number: string | null
@@ -2664,6 +3191,340 @@ export type Database = {
           type: string | null
         }
         Relationships: []
+      }
+      v_latest_reconciliation_by_account: {
+        Row: {
+          gl_account_id: string | null
+          last_reconciled_at: string | null
+          property_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_lease_renewals_summary: {
+        Row: {
+          critical: number | null
+          future: number | null
+          org_id: string | null
+          upcoming: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_property_onboarding_summary: {
+        Row: {
+          in_progress: number | null
+          org_id: string | null
+          overdue: number | null
+          pending_approval: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_onboarding_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_recent_transactions_ranked: {
+        Row: {
+          bank_account_id: string | null
+          buildium_bill_id: number | null
+          buildium_lease_id: number | null
+          buildium_transaction_id: number | null
+          category_id: string | null
+          check_number: string | null
+          created_at: string | null
+          date: string | null
+          due_date: string | null
+          id: string | null
+          is_recurring: boolean | null
+          lease_id: number | null
+          memo: string | null
+          org_id: string | null
+          payee_tenant_id: number | null
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          recurring_schedule: Json | null
+          reference_number: string | null
+          rn: number | null
+          status: string | null
+          total_amount: number | null
+          transaction_type:
+            | Database["public"]["Enums"]["transaction_type_enum"]
+            | null
+          updated_at: string | null
+          vendor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "bill_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_reconciliation_alerts: {
+        Row: {
+          alert_type: string | null
+          gl_account_id: string | null
+          metric: number | null
+          property_id: string | null
+          ref_date: string | null
+        }
+        Relationships: []
+      }
+      v_reconciliation_stale_alerts: {
+        Row: {
+          days_since: number | null
+          gl_account_id: string | null
+          last_reconciled_at: string | null
+          property_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_reconciliation_variance_alerts: {
+        Row: {
+          as_of: string | null
+          gl_account_id: string | null
+          over_24h: boolean | null
+          property_id: string | null
+          variance: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_reconciliation_variances: {
+        Row: {
+          as_of: string | null
+          buildium_ending_balance: number | null
+          gl_account_id: string | null
+          ledger_balance: number | null
+          property_id: string | null
+          variance: number | null
+        }
+        Insert: {
+          as_of?: string | null
+          buildium_ending_balance?: number | null
+          gl_account_id?: string | null
+          ledger_balance?: never
+          property_id?: string | null
+          variance?: never
+        }
+        Update: {
+          as_of?: string | null
+          buildium_ending_balance?: number | null
+          gl_account_id?: string | null
+          ledger_balance?: never
+          property_id?: string | null
+          variance?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_rent_roll_current_month: {
+        Row: {
+          org_id: string | null
+          rent_roll_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_rent_roll_previous_month: {
+        Row: {
+          org_id: string | null
+          rent_roll_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lease_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_user_orgs: {
+        Row: {
+          org_id: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          user_id: string | null
+        }
+        Insert: {
+          org_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          user_id?: string | null
+        }
+        Update: {
+          org_id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_memberships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      v_work_order_summary: {
+        Row: {
+          open_count: number | null
+          org_id: string | null
+          urgent_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -2682,6 +3543,10 @@ export type Database = {
       count_active_units_for_property: {
         Args: { property_uuid: string }
         Returns: number
+      }
+      enforce_same_org: {
+        Args: { child_name: string; child_org: string; parent_org: string }
+        Returns: undefined
       }
       find_duplicate_buildium_ids: {
         Args: { buildium_field: string; table_name: string }
@@ -2714,8 +3579,23 @@ export type Database = {
         Args: { p_endpoint: string; p_parameters?: Json }
         Returns: Json
       }
+      get_my_claims: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_property_financials: {
+        Args: { p_as_of?: string; p_property_id: string }
+        Returns: Json
+      }
       gl_account_activity: {
-        Args: { p_from: string; p_to: string }
+        Args:
+          | {
+              p_from: string
+              p_gl_account_ids?: string[]
+              p_property_id: string
+              p_to: string
+            }
+          | { p_from: string; p_to: string }
         Returns: {
           account_number: string
           credits: number
@@ -2724,6 +3604,14 @@ export type Database = {
           name: string
           net_change: number
         }[]
+      }
+      gl_ledger_balance_as_of: {
+        Args: {
+          p_as_of: string
+          p_gl_account_id: string
+          p_property_id: string
+        }
+        Returns: number
       }
       gl_trial_balance_as_of: {
         Args: { p_as_of_date: string }
@@ -2759,11 +3647,19 @@ export type Database = {
         Args: { event_data: Json }
         Returns: undefined
       }
+      is_platform_admin: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
       is_valid_country: {
         Args:
           | { val: Database["public"]["Enums"]["countries"] }
           | { val: string }
         Returns: boolean
+      }
+      jwt_custom_claims: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       map_bill_to_buildium: {
         Args: { p_bill_id: string }
@@ -2862,6 +3758,13 @@ export type Database = {
       }
     }
     Enums: {
+      app_role:
+        | "platform_admin"
+        | "org_admin"
+        | "org_manager"
+        | "org_staff"
+        | "owner_portal"
+        | "tenant_portal"
       appliance_service_type_enum:
         | "Maintenance"
         | "Repair"
@@ -3191,6 +4094,16 @@ export type Database = {
         | "Bill Pay"
         | "Condition Reports"
         | "Renewals"
+      onboarding_status_enum:
+        | "IN_PROGRESS"
+        | "PENDING_APPROVAL"
+        | "OVERDUE"
+        | "COMPLETED"
+      onboarding_task_status_enum:
+        | "PENDING"
+        | "IN_PROGRESS"
+        | "BLOCKED"
+        | "DONE"
       payment_method_enum:
         | "Check"
         | "Cash"
@@ -3353,11 +4266,16 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
+      app_role: [
+        "platform_admin",
+        "org_admin",
+        "org_manager",
+        "org_staff",
+        "owner_portal",
+        "tenant_portal",
+      ],
       appliance_service_type_enum: [
         "Maintenance",
         "Repair",
@@ -3690,6 +4608,18 @@ export const Constants = {
         "Bill Pay",
         "Condition Reports",
         "Renewals",
+      ],
+      onboarding_status_enum: [
+        "IN_PROGRESS",
+        "PENDING_APPROVAL",
+        "OVERDUE",
+        "COMPLETED",
+      ],
+      onboarding_task_status_enum: [
+        "PENDING",
+        "IN_PROGRESS",
+        "BLOCKED",
+        "DONE",
       ],
       payment_method_enum: [
         "Check",

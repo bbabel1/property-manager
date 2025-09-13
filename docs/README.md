@@ -1,6 +1,6 @@
 # Documentation Index
 
-> **Last Updated**: 2025-09-07T02:46:22.840Z (Auto-generated)
+> **Last Updated**: 2025-09-13T04:22:14.406Z (Auto-generated)
 
 ## Architecture Documentation
 
@@ -21,13 +21,13 @@
 ## Migration Guides
 
 - [Prisma to Supabase Migration](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Step-by-step migration guide
-- [Supabase Auth Implementation](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication implementation
+- [NextAuth to Supabase Auth](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication migration
 
 ## Monitoring
 
 This documentation is automatically updated by the documentation monitoring system. 
 
-**Last automated check**: 2025-09-07T02:46:22.840Z
+**Last automated check**: 2025-09-13T04:22:14.406Z
 
 **Monitoring patterns**:
 - API routes (`src/app/api/**/*.ts`)

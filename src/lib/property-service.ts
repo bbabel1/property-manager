@@ -148,7 +148,7 @@ export class PropertyService {
 
       console.log('✅ Supabase client available, fetching from database...')
 
-      // Short-circuit if env not configured (local dev), and avoid noisy logs
+      // If env missing, or connection errors occur, fall back to API quickly
       const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
       if (!hasEnv) {
         try {
@@ -162,32 +162,13 @@ export class PropertyService {
         return null
       }
 
-      // Test the Supabase connection first; if it fails, fall back to API
-      try {
-        const { error: testError } = await supabase
-          .from('properties')
-          .select('count', { count: 'exact', head: true })
-        if (testError) throw testError
-      } catch (e) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('Supabase connection test failed; falling back to API.')
-        }
-        // Fallback to API route even on the server (RSC). Next.js allows internal fetch.
-        try {
-          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
-          if (res.ok) {
-            const data = await res.json()
-            const occ = typeof data.occupancy_rate === 'number' ? data.occupancy_rate : Number(data.occupancy_rate || 0)
-            return { ...data, occupancy_rate: occ }
-          }
-        } catch {}
-        return null
-      }
-
       console.log('✅ Supabase connection test successful')
 
-      // Fetch property details
-      const { data: property, error: propertyError } = await supabase
+      // Prefer admin client on the server to bypass RLS
+      const dbClient = supabaseAdmin || supabase
+
+      // Fetch property details first
+      const { data: property, error: propertyError } = await dbClient
         .from('properties')
         .select('*')
         .eq('id', id)
@@ -213,41 +194,30 @@ export class PropertyService {
         address: property.address_line1
       })
 
-      // Fetch units for this property
-      console.log('🔍 Fetching units for property ID:', id)
-      const { data: units, error: unitsError } = await supabase
-        .from('units')
-        .select('*')
-        .eq('property_id', id)
-        .order('unit_number')
-
-      if (unitsError) {
-        console.error('❌ Error fetching units:', unitsError)
-      } else {
-        console.log('✅ Units found:', units?.length || 0, 'units')
-        if (units && units.length > 0) {
-          console.log('📋 Units details:', units.map(u => ({ id: u.id, unit_number: u.unit_number })))
-        }
-      }
-
-      // Fetch owners for this property using admin client to bypass RLS
-      const adminClient = supabaseAdmin || supabase
-      const { data: ownership, error: ownershipError } = await adminClient
-        .from('ownerships')
-        .select(`
-          *,
-          owners!inner (
+      // Fetch units and ownerships in parallel for speed
+      console.log('🔍 Fetching units and ownerships for property ID:', id)
+      const [unitsRes, ownershipRes] = await Promise.all([
+        dbClient.from('units').select('*').eq('property_id', id).order('unit_number'),
+        dbClient
+          .from('ownerships')
+          .select(`
             *,
-            contacts (*)
-          )
-        `)
-        .eq('property_id', id)
+            owners!inner (
+              *,
+              contacts (*)
+            )
+          `)
+          .eq('property_id', id)
+      ])
 
-      if (ownershipError) {
-        console.error('❌ Error fetching ownership:', ownershipError)
-      } else {
-        console.log('✅ Ownership found:', ownership?.length || 0, 'ownership records')
-      }
+      const units = (unitsRes as any).data as Unit[] | null
+      const unitsError = (unitsRes as any).error
+      const ownership = (ownershipRes as any).data as any[] | null
+      const ownershipError = (ownershipRes as any).error
+
+      if (unitsError) console.error('❌ Error fetching units:', unitsError)
+      if (ownershipError) console.error('❌ Error fetching ownership:', ownershipError)
+      if (units?.length) console.log('✅ Units found:', units.length, 'units')
 
       // Calculate summary data preferring DB-maintained aggregates, then fallback to units list
       const aggTotal = (property.total_active_units ?? property.total_units) || 0
@@ -260,7 +230,7 @@ export class PropertyService {
       const activeFromUnits = (units || []).filter(u => (u as any).status !== 'Inactive').length
 
       const units_summary = {
-        total: property.total_active_units ?? aggTotal || activeFromUnits,
+        total: property.total_active_units ?? (aggTotal || activeFromUnits),
         occupied: (aggOccupied ?? occupiedFromUnits) || 0,
         available: (aggVacant ?? vacantFromUnits) || Math.max((aggTotal || activeFromUnits) - (aggOccupied ?? occupiedFromUnits), 0)
       }
@@ -297,7 +267,7 @@ export class PropertyService {
       let operating_account: PropertyWithDetails['operating_account'] | undefined
       let deposit_trust_account: PropertyWithDetails['deposit_trust_account'] | undefined
       if (property.operating_bank_account_id) {
-        const { data: op } = await supabase
+        const { data: op } = await dbClient
           .from('bank_accounts')
           .select('id, name, account_number')
           .eq('id', property.operating_bank_account_id)
@@ -305,7 +275,7 @@ export class PropertyService {
         if (op) operating_account = { id: op.id, name: op.name, last4: op.account_number ? String(op.account_number).slice(-4) : null }
       }
       if (property.deposit_trust_account_id) {
-        const { data: tr } = await supabase
+        const { data: tr } = await dbClient
           .from('bank_accounts')
           .select('id, name, account_number')
           .eq('id', property.deposit_trust_account_id)
@@ -315,7 +285,7 @@ export class PropertyService {
 
       // Enrich: property manager name (if any)
       let property_manager_name: string | undefined
-      const { data: staffLink } = await adminClient
+      const { data: staffLink } = await dbClient
         .from('property_staff')
         .select('staff_id, role')
         .eq('property_id', id)
@@ -373,7 +343,7 @@ export class PropertyService {
 
       const { data, error } = await supabase
         .from('properties')
-        .select('*')
+        .select('id,name,status,property_type,created_at')
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -425,10 +395,12 @@ export class PropertyService {
       const { data, error } = await adminClient
         .from('ownerships')
         .select(`
-          *,
           owners!inner (
-            *,
-            contacts (*)
+            id, contact_id, management_agreement_start_date, management_agreement_end_date, comment,
+            etf_account_type, etf_account_number, etf_routing_number, created_at, updated_at,
+            contacts (
+              first_name, last_name, is_company, company_name, primary_email, primary_phone
+            )
           )
         `)
         .eq('property_id', propertyId)
@@ -452,7 +424,7 @@ export class PropertyService {
 // Server-side cache helpers (noop on client). Use in RSC layouts to avoid refetch on tab switches.
 export const getPropertyShellCached = ((): ((id: string) => Promise<Pick<Property, 'id'|'name'|'status'|'property_type'> | null>) => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { cache } = require('react') as { cache: <T extends (...args: any[]) => any>(fn: T) => T }
     return cache((id: string) => PropertyService.getPropertyShell(id))
   } catch {

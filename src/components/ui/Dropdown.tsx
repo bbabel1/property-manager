@@ -1,4 +1,5 @@
 import React from 'react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 type Option = { value: string; label: string }
 
@@ -9,22 +10,18 @@ interface DropdownProps {
   placeholder?: string
 }
 
-// Simple, dependency-free dropdown using native select
+// Default dropdown styled via Radix Select (applies app-wide default style)
 export function Dropdown({ value, onChange, options, placeholder }: DropdownProps) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full h-9 px-3 py-2 bg-white border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-    >
-      {(!value && placeholder) ? (
-        <option value="" disabled hidden>{placeholder}</option>
-      ) : null}
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger>
+        <SelectValue placeholder={placeholder || 'Select...'} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

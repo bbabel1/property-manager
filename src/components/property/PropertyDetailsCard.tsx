@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, Fragment } from 'react'
+import { useEffect, useMemo, useState, Fragment, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Edit, Trash2, Plus } from 'lucide-react'
@@ -41,6 +41,45 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   const [createDisbursementPct, setCreateDisbursementPct] = useState<number>(100)
   const [createPrimary, setCreatePrimary] = useState<boolean>(false)
   const [creating, setCreating] = useState(false)
+  // Image upload state
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  // Load current property image (Buildium or local fallback)
+  useEffect(() => {
+    let cancelled = false
+    const loadImage = async () => {
+      try {
+        const res = await fetch(`/api/buildium/properties/${property.id}/images`, { credentials: 'include' })
+        if (!res.ok) return
+        const j = await res.json().catch(() => null as any)
+        const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || null
+        if (!cancelled) setPreviewUrl(url || null)
+      } catch {}
+    }
+    loadImage()
+    return () => { cancelled = true }
+  }, [property.id])
+
+  // Also re-load when toggling out of edit mode (after save/cancel)
+  useEffect(() => {
+    if (editing) return
+    let cancelled = false
+    const loadAfterEdit = async () => {
+      try {
+        const res = await fetch(`/api/buildium/properties/${property.id}/images`, { credentials: 'include', cache: 'no-store' })
+        if (!res.ok) return
+        const j = await res.json().catch(() => null as any)
+        const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || null
+        if (!cancelled) setPreviewUrl(url || null)
+      } catch {}
+    }
+    loadAfterEdit()
+    return () => { cancelled = true }
+  }, [editing, property.id])
 
   // If owners are empty, try to hydrate from the details API (RLS/admin-backed)
   useEffect(() => {
@@ -71,18 +110,33 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   useEffect(() => {
     if (!editing) return
     let cancelled = false
+    const uniqById = (arr: { id: string; name: string }[]) => {
+      const seen = new Set<string>()
+      const out: { id: string; name: string }[] = []
+      for (const it of arr) { if (!seen.has(it.id)) { seen.add(it.id); out.push(it) } }
+      return out
+    }
     const load = async () => {
       try {
         setLoadingOwners(true)
         setError(null)
+        // Seed with already-linked owners so selects show current values immediately
+        const seeded = owners
+          .filter(o => o.ownerId)
+          .map(o => ({ id: String(o.ownerId), name: o.name || 'Owner' }))
+        if (!cancelled && seeded.length) {
+          setOwnerOptions(prev => uniqById([ ...seeded, ...prev ]))
+        }
+        // Fetch full list and merge
         const res = await fetch('/api/owners')
         if (!res.ok) throw new Error('Failed to load owners')
         const data = await res.json()
         if (!cancelled) {
-          setOwnerOptions((Array.isArray(data) ? data : []).map((o: any) => ({
+          const fetched = (Array.isArray(data) ? data : []).map((o: any) => ({
             id: String(o.id),
             name: o.displayName || o.name || `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || o.companyName || 'Owner'
-          })))
+          }))
+          setOwnerOptions(prev => uniqById([ ...prev, ...fetched ]))
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load owners')
@@ -233,7 +287,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       }
       const csrf = csrfToken
       // include org context header if present in cookie
-      let orgHeader: Record<string,string> = {}
+      const orgHeader: Record<string,string> = {}
       if (typeof document !== 'undefined') {
         const m = document.cookie.match(/(?:^|; )x-org-id=([^;]+)/)
         if (m) orgHeader['x-org-id'] = decodeURIComponent(m[1])
@@ -268,9 +322,79 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       view={
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="relative md:col-span-2">
-            <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-              {/* Placeholder image area */}
-              <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
+            <div className="w-full bg-muted rounded-lg overflow-hidden">
+              {/* Fixed aspect ratio ~ 429x322 (≈ 75%) */}
+              <div className="relative w-full pb-[75%]">
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="Property" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Dedicated image action below image (independent of edit state) */}
+            <div className="mt-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  try {
+                    setUploading(true)
+                    setUploadError(null)
+                    setUploadSuccess(null)
+                    // Local preview while uploading
+                    const obj = URL.createObjectURL(file)
+                    setPreviewUrl(obj)
+                    const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
+                      const reader = new FileReader()
+                      reader.onload = () => resolve(String(reader.result || ''))
+                      reader.onerror = () => reject(new Error('Failed to read file'))
+                      reader.readAsDataURL(f)
+                    })
+                    const dataUrl = await toBase64(file)
+                    const base64 = dataUrl.split(',')[1] || ''
+                    if (!base64) throw new Error('Invalid image data')
+                    const res = await fetch(`/api/buildium/properties/${property.id}/images`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ FileName: file.name, FileData: base64 }),
+                    })
+                    if (!res.ok) {
+                      const j = await res.json().catch(() => ({} as any))
+                      throw new Error(j?.error || 'Upload failed')
+                    }
+                    // Re-fetch canonical URL (Buildium or storage)
+                    const check = await fetch(`/api/buildium/properties/${property.id}/images?cb=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
+                    const jj = await check.json().catch(() => null as any)
+                    const url = jj?.data?.[0]?.Href || jj?.data?.[0]?.Url || jj?.data?.url || null
+                    setPreviewUrl(url || obj)
+                    setUploadSuccess('Image uploaded')
+                  } catch (err) {
+                    setUploadError(err instanceof Error ? err.message : 'Failed to upload')
+                  } finally {
+                    setUploading(false)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-primary text-sm underline disabled:opacity-50"
+                disabled={uploading}
+              >
+                {previewUrl ? (uploading ? 'Uploading…' : 'Replace Image') : (uploading ? 'Uploading…' : 'Add Image')}
+              </button>
+              {uploadError ? <p className="mt-1 text-xs text-destructive">{uploadError}</p> : null}
+              {uploadSuccess ? <p className="mt-1 text-xs text-emerald-600">{uploadSuccess}</p> : null}
             </div>
           </div>
           <div className="space-y-5 md:col-span-3">
@@ -335,8 +459,17 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       edit={
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="relative md:col-span-2">
-            <div className="w-full h-56 bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-              <button type="button" className="text-primary text-sm underline">Replace photo</button>
+            <div className="w-full bg-muted rounded-lg overflow-hidden">
+              <div className="relative w-full pb-[75%]">
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="Property" className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="space-y-6 md:col-span-3">

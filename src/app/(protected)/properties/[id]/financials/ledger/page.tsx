@@ -7,7 +7,7 @@ export default async function LedgerPage({ params, searchParams }: { params: Pro
   const sp = (await (searchParams || Promise.resolve({}))) as any
   const gl = sp?.gl as string | undefined
   const asOf = sp?.as_of as string | undefined
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
 
   let rows: any[] = []
   if (gl && asOf) {
@@ -63,4 +63,3 @@ export default async function LedgerPage({ params, searchParams }: { params: Pro
     </div>
   )
 }
-

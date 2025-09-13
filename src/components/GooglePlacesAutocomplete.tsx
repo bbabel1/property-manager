@@ -64,8 +64,22 @@ export default function GooglePlacesAutocomplete({
       if (autocompleteRef.current && window.google) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current)
       }
+      // Remove global capture handlers
+      document.removeEventListener('mousedown', handlePacClicks, true)
+      document.removeEventListener('touchstart', handlePacClicks, true)
+      document.removeEventListener('click', handlePacClicks, true)
     }
   }, [])
+
+  // Capture handler that prevents modal (Radix) outside-click from closing
+  const handlePacClicks = (e: Event) => {
+    const tgt = e.target as HTMLElement | null
+    if (!tgt) return
+    if (tgt.closest('.pac-container')) {
+      // Stop the outside click from propagating to the overlay
+      e.stopPropagation()
+    }
+  }
 
   const initializeAutocomplete = () => {
     if (!inputRef.current) {
@@ -80,6 +94,14 @@ export default function GooglePlacesAutocomplete({
         types: ['address'],
         fields: ['address_components', 'formatted_address', 'geometry']
       })
+
+      // Install capture listeners after Google injects the dropdown
+      // This prevents outside-click from closing surrounding dialogs.
+      setTimeout(() => {
+        document.addEventListener('mousedown', handlePacClicks, true)
+        document.addEventListener('touchstart', handlePacClicks, true)
+        document.addEventListener('click', handlePacClicks, true)
+      }, 0)
       autocompleteRef.current.addListener('place_changed', () => {
         const place = autocompleteRef.current.getPlace()
         if (place.address_components) {

@@ -63,6 +63,13 @@ export async function PUT(
     if (Object.prototype.hasOwnProperty.call(body, 'fee_percentage')) updatePatch.fee_percentage = (body.fee_percentage ?? null) !== null ? Number(body.fee_percentage) : null
     if (Object.prototype.hasOwnProperty.call(body, 'management_fee')) updatePatch.management_fee = (body.management_fee ?? null) !== null ? Number(body.management_fee) : null
     if (Object.prototype.hasOwnProperty.call(body, 'billing_frequency')) updatePatch.billing_frequency = body.billing_frequency || null
+    // Optional location fields (partial updates)
+    if (Object.prototype.hasOwnProperty.call(body, 'borough')) updatePatch.borough = typeof body.borough === 'string' ? body.borough : null
+    if (Object.prototype.hasOwnProperty.call(body, 'neighborhood')) updatePatch.neighborhood = typeof body.neighborhood === 'string' ? body.neighborhood : null
+    if (Object.prototype.hasOwnProperty.call(body, 'longitude')) updatePatch.longitude = body.longitude != null ? Number(body.longitude) : null
+    if (Object.prototype.hasOwnProperty.call(body, 'latitude')) updatePatch.latitude = body.latitude != null ? Number(body.latitude) : null
+    if (Object.prototype.hasOwnProperty.call(body, 'location_verified')) updatePatch.location_verified = !!body.location_verified
+    else if (Object.prototype.hasOwnProperty.call(body, 'locationVerified')) updatePatch.location_verified = !!body.locationVerified
 
     const { data, error } = await adminClient
       .from('properties')

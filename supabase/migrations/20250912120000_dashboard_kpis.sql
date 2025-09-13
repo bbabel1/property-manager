@@ -86,6 +86,18 @@ CREATE INDEX IF NOT EXISTS idx_property_onboarding_tasks_status ON public.proper
 
 -- 2) Helpful indexes for KPI queries ----------------------------------------
 -- Lease renewals windows
+-- Ensure lease has org_id to support org-scoped KPIs (safe if missing)
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'lease'
+  ) THEN
+    BEGIN
+      EXECUTE 'ALTER TABLE public.lease ADD COLUMN IF NOT EXISTS org_id uuid REFERENCES public.organizations(id) ON DELETE RESTRICT';
+    EXCEPTION WHEN others THEN NULL; END;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_lease_to_date_status_org ON public.lease(lease_to_date, status, org_id);
 -- Work orders widgets
 CREATE INDEX IF NOT EXISTS idx_work_orders_status_priority_org ON public.work_orders(status, priority, org_id);
@@ -239,4 +251,3 @@ LEFT JOIN public.v_work_order_summary w ON w.org_id = p.org_id;
 COMMENT ON VIEW public.v_dashboard_kpis IS 'Single-row summary per org to drive top KPI cards.';
 
 COMMIT;
-

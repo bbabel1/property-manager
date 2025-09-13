@@ -4,7 +4,7 @@ import { getSupabaseServerClient } from '@/lib/supabase/server'
 
 export default async function BankAccountShow({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = getSupabaseServerClient()
+  const supabase = await getSupabaseServerClient()
   const { data: a, error } = await (supabase as any)
     .from('bank_accounts')
     .select('id, name, description, bank_account_type, account_number, routing_number, gl_account, buildium_bank_id, is_active')
@@ -52,4 +52,3 @@ export default async function BankAccountShow({ params }: { params: Promise<{ id
     </div>
   )
 }
-

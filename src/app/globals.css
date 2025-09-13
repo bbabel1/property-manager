@@ -286,3 +286,12 @@ html {
   .content-grid { @apply grid grid-cols-1 lg:grid-cols-3 gap-8; }
   .content-grid-wide { @apply grid grid-cols-1 lg:grid-cols-4 gap-8; }
 }
+
+/* Ensure Google Places Autocomplete dropdown works inside modals (Radix/Portal)
+   - Put dropdown above overlays and keep it clickable */
+.pac-container {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+.pac-item { cursor: pointer; }
+.pac-item:hover { background: #f3f4f6; }

@@ -8,7 +8,7 @@ import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request)
+    const user = await requireUser(request)
     const body = await request.json()
     const {
       propertyType,
@@ -49,6 +49,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Resolve organization context (required by NOT NULL constraint and RLS policies)
+    const db = supabaseAdmin || supabase
+    let orgId: string | null = request.headers.get('x-org-id') || null
+    if (!orgId) {
+      // Fallback: pick the user's first org membership (handle 0, 1, or many rows)
+      try {
+        const { data: rows } = await db
+          .from('org_memberships')
+          .select('org_id')
+          .eq('user_id', user.id)
+          .limit(1)
+        const first = Array.isArray(rows) && rows.length > 0 ? rows[0] : null
+        orgId = (first as any)?.org_id || null
+      } catch {}
+    }
+
+    if (!orgId) {
+      return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
+    }
+
     // Create property data object matching database schema (snake_case)
     const normalizedCountry = mapGoogleCountryToEnum(country)
     const propertyData = {
@@ -86,10 +106,10 @@ export async function POST(request: NextRequest) {
       longitude: body?.longitude != null ? Number(body.longitude) : null,
       latitude: body?.latitude != null ? Number(body.latitude) : null,
       location_verified: !!body?.locationVerified,
+      org_id: orgId,
     }
 
     // Create the property
-    const db = supabaseAdmin || supabase
     const { data: property, error: propertyError } = await db
       .from('properties')
       .insert(propertyData)
@@ -97,9 +117,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (propertyError) {
-      logger.error({ error: propertyError }, 'Error creating property (DB)')
+      logger.error({ error: propertyError, propertyData }, 'Error creating property (DB)')
       return NextResponse.json(
-        { error: 'Failed to create property' },
+        { error: 'Failed to create property', details: propertyError.message },
         { status: 500 }
       )
     }
@@ -109,6 +129,18 @@ export async function POST(request: NextRequest) {
 
     // Create ownership records if owners are provided
     if (owners && owners.length > 0) {
+      // Ensure owners belong to the same org. If owner.org_id is null, backfill it.
+      try {
+        const ownerIds = owners.map((o: any) => o.id)
+        if (ownerIds.length) {
+          await db
+            .from('owners')
+            .update({ org_id: orgId })
+            .in('id', ownerIds)
+            .is('org_id', null as any)
+        }
+      } catch {}
+
       const ownershipRecords = owners.map((owner: any) => ({
         owner_id: owner.id,
         property_id: property.id,
@@ -116,7 +148,8 @@ export async function POST(request: NextRequest) {
         disbursement_percentage: owner.disbursementPercentage ? parseFloat(owner.disbursementPercentage.toString()) : null,
         primary: !!owner.primary,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        org_id: orgId,
       }))
 
       // Use correct table name 'ownerships'
@@ -158,7 +191,8 @@ export async function POST(request: NextRequest) {
           postal_code: property.postal_code || null,
           country: property.country || null,
           created_at: now,
-          updated_at: now
+          updated_at: now,
+          org_id: orgId,
         }))
       if (unitRows.length) {
         const { data: insertedUnits, error: unitsErr } = await db.from('units').insert(unitRows).select('*')
