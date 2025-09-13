@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
     // Fetch staff from database with optional filters
     const isActive = (query as any)?.isActive
     const role = (query as any)?.role
-    let q = supabase
+    const client = supabaseAdmin || supabase
+    let q = client
       .from('staff')
       .select(`
         id,
