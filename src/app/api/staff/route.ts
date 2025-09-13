@@ -142,7 +142,9 @@ export async function POST(request: NextRequest) {
         title: body?.title || null,
         role,
         is_active: isActive,
-        buildium_staff_id: buildiumUserId
+        buildium_staff_id: buildiumUserId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select('*')
       .single()
@@ -172,6 +174,7 @@ export async function PUT(request: NextRequest) {
     const patch: any = {}
     if (body.role) patch.role = body.role
     if (typeof body.isActive === 'boolean') patch.is_active = body.isActive
+    patch.updated_at = new Date().toISOString()
     if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     const { error } = await supabase.from('staff').update(patch).eq('id', id)
     if (error) return NextResponse.json({ error: 'Failed to update staff', details: error.message }, { status: 500 })
