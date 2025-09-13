@@ -20,6 +20,10 @@ export default function UsersRolesPage() {
   const [selectedOrg, setSelectedOrg] = useState<string>('')
   const [role, setRole] = useState<string>('org_staff')
   const [busy, setBusy] = useState(false)
+  const [showCreateOrg, setShowCreateOrg] = useState(false)
+  const [newOrgName, setNewOrgName] = useState('')
+  const [creatingOrg, setCreatingOrg] = useState(false)
+  const [createOrgErr, setCreateOrgErr] = useState<string | null>(null)
 
   useEffect(() => {
     const run = async () => {
@@ -68,9 +72,60 @@ export default function UsersRolesPage() {
     }
   }
 
+  const createOrg = async () => {
+    if (!newOrgName.trim()) return
+    setCreatingOrg(true)
+    setCreateOrgErr(null)
+    try {
+      const res = await fetch('/api/admin/orgs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newOrgName.trim() }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed to create organization')
+      const o = await fetch('/api/admin/orgs').then(r => r.json())
+      setOrgs(o.organizations || [])
+      setSelectedOrg(data.organization?.id || '')
+      setShowCreateOrg(false)
+      setNewOrgName('')
+    } catch (e: any) {
+      setCreateOrgErr(e?.message || 'Failed to create organization')
+    } finally {
+      setCreatingOrg(false)
+    }
+  }
+
+  const setCurrentOrg = (id: string) => {
+    if (!id) return
+    // client cookie for org context (used by API via x-org-id header if forwarded)
+    document.cookie = `x-org-id=${encodeURIComponent(id)}; path=/; max-age=${60 * 60 * 24 * 30}`
+    setOrgMsg('Current org set for this browser session')
+  }
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold text-foreground">Users & Roles</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Organizations</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="min-w-[280px]">
+              <label className="block text-sm mb-1">Organization name</label>
+              <Input value={orgName} onChange={e=> setOrgName(e.target.value)} placeholder="Acme Property Co" />
+            </div>
+            <Button onClick={createOrg} disabled={orgBusy || !orgName.trim()}>{orgBusy ? 'Creating...' : 'Create organization'}</Button>
+            {orgMsg && <span className="text-sm text-muted-foreground">{orgMsg}</span>}
+          </div>
+          <div className="text-sm text-muted-foreground">Existing: {orgs.length || 0}</div>
+          <div className="flex flex-wrap gap-2">
+            {orgs.map(o => (
+              <button key={o.id} onClick={()=> setCurrentOrg(o.id)} className="inline-flex items-center px-2 py-0.5 rounded border text-xs hover:bg-muted" title="Set current org">
+                {o.name}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -91,9 +146,10 @@ export default function UsersRolesPage() {
             </div>
             <div>
               <label className="block text-sm mb-1">Organization</label>
-              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+              <Select value={selectedOrg} onValueChange={(v)=> v==="__create__" ? setShowCreateOrg(true) : setSelectedOrg(v)}>
                 <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__create__">+ Create new organization...</SelectItem>
                   {orgs.map(o => (
                     <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
                   ))}
@@ -169,7 +225,25 @@ export default function UsersRolesPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    
+      <Dialog open={showCreateOrg} onOpenChange={setShowCreateOrg}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create organization</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm mb-1">Name</label>
+              <Input value={newOrgName} onChange={(e)=> setNewOrgName(e.target.value)} placeholder="Acme Property Co" />
+            </div>
+            {createOrgErr && <div className="text-sm text-destructive">{createOrgErr}</div>}
+            <div className="flex items-center gap-2">
+              <Button onClick={createOrg} disabled={creatingOrg || !newOrgName.trim()}>{creatingOrg ? "Creating..." : "Create"}</Button>
+              <Button variant="outline" onClick={()=> setShowCreateOrg(false)}>Cancel</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+</div>
   )
 }
-

@@ -232,9 +232,15 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         body.owners = ownersPayload
       }
       const csrf = csrfToken
+      // include org context header if present in cookie
+      let orgHeader: Record<string,string> = {}
+      if (typeof document !== 'undefined') {
+        const m = document.cookie.match(/(?:^|; )x-org-id=([^;]+)/)
+        if (m) orgHeader['x-org-id'] = decodeURIComponent(m[1])
+      }
       const res = await fetch(`/api/properties/${property.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) },
+        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}), ...orgHeader },
         body: JSON.stringify(body)
       })
       if (!res.ok) {
