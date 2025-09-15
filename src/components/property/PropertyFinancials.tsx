@@ -11,7 +11,7 @@ export function PropertyFinancials({ propertyId }: PropertyFinancialsProps) {
   return (
     <div className="space-y-6">
       {/* Cash Balance Section */}
-      <div className="bg-card rounded-lg border border-border shadow-sm p-6">
+      <div className="bg-card rounded-lg border border-border p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Cash Balance</h2>
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -39,7 +39,7 @@ export function PropertyFinancials({ propertyId }: PropertyFinancialsProps) {
       {hasFinancialData && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Income Statement */}
-          <div className="bg-card rounded-lg border border-border shadow-sm">
+          <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">Income Statement</h2>
               <p className="text-sm text-muted-foreground">Last 30 days</p>
@@ -79,7 +79,7 @@ export function PropertyFinancials({ propertyId }: PropertyFinancialsProps) {
           </div>
 
           {/* Expense Breakdown */}
-          <div className="bg-card rounded-lg border border-border shadow-sm">
+          <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
               <h2 className="text-lg font-semibold text-foreground">Expense Breakdown</h2>
               <p className="text-sm text-muted-foreground">Monthly expenses</p>

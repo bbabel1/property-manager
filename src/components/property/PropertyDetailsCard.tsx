@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment, useRef } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Edit, Trash2, Plus } from 'lucide-react'
@@ -12,6 +13,8 @@ type OwnerRow = { id: string; ownerId: string; name: string; ownershipPercentage
 
 export default function PropertyDetailsCard({ property }: { property: any }) {
   const [editing, setEditing] = useState(false)
+  // Use server-provided image first; client fetch only if missing
+  const initialUrl = (property as any)?.primary_image_url || null
   const [address1, setAddress1] = useState(property.address_line1 || '')
   const [city, setCity] = useState(property.city || '')
   const [state, setState] = useState(property.state || '')
@@ -46,10 +49,11 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl)
 
   // Load current property image (Buildium or local fallback)
   useEffect(() => {
+    if (initialUrl) return
     let cancelled = false
     const loadImage = async () => {
       try {
@@ -62,7 +66,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     }
     loadImage()
     return () => { cancelled = true }
-  }, [property.id])
+  }, [property.id, initialUrl])
 
   // Also re-load when toggling out of edit mode (after save/cancel)
   useEffect(() => {
@@ -148,7 +152,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     return () => { cancelled = true }
   }, [editing])
 
-  // Load staff and filter for roles containing "Property Manager"
+  // Load staff and filter for role = PROPERTY_MANAGER (space/underscore tolerant)
   useEffect(() => {
     if (!editing) return
     let cancelled = false
@@ -159,9 +163,13 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         const data = await res.json()
         if (!cancelled) {
           const options = (Array.isArray(data) ? data : [])
-            .filter((s: any) => String(s.role || '').toLowerCase().includes('property manager'))
+            .filter((s: any) => String(s.role || '').toUpperCase().replace(/\s+/g,'_') === 'PROPERTY_MANAGER')
             .map((s: any) => ({ id: String(s.id), name: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}`, role: s.role }))
           setManagerOptions(options)
+          // Initialize selection from current property if available
+          if (!managerId && property?.property_manager_id) {
+            setManagerId(String(property.property_manager_id))
+          }
         }
       } catch {}
     }
@@ -319,6 +327,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       onSave={save}
       isSaving={saving}
       canSave={ownershipTotal === 100}
+      variant="plain"
       view={
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="relative md:col-span-2">
@@ -326,8 +335,14 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
               {/* Fixed aspect ratio ~ 429x322 (≈ 75%) */}
               <div className="relative w-full pb-[75%]">
                 {previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrl} alt="Property" className="absolute inset-0 w-full h-full object-cover" />
+                  <Image
+                    src={previewUrl}
+                    alt="Property"
+                    fill
+                    priority
+                    sizes="(min-width:1024px) 429px, 100vw"
+                    className="absolute inset-0 object-cover"
+                  />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
@@ -409,20 +424,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
               <div className="text-sm text-foreground">
                 {property.property_manager_name || 'No manager assigned'}
               </div>
-              {(property.property_manager_email || property.property_manager_phone) && (
-                <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
-                  {property.property_manager_email && (
-                    <div>
-                      <span className="font-medium text-foreground/80">Email:</span> {property.property_manager_email}
-                    </div>
-                  )}
-                  {property.property_manager_phone && (
-                    <div>
-                      <span className="font-medium text-foreground/80">Phone:</span> {property.property_manager_phone}
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Intentionally omit email/phone — name only */}
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Rental Owners</p>

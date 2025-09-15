@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use Buildium Users endpoint: POST /v1/users (create) or PUT /v1/users/{id} (update)
-    const localBuildiumId: number | null = (st as any)?.buildium_staff_id ?? (st as any)?.buildium_user_id ?? null
+    const localBuildiumId: number | null = (st as any)?.buildium_user_id ?? null
     const isUpdate = typeof localBuildiumId === 'number' && Number.isFinite(localBuildiumId)
     const url = isUpdate ? `${base.replace(/\/$/, '')}/users/${localBuildiumId}` : `${base.replace(/\/$/, '')}/users`
     const method = isUpdate ? 'PUT' : 'POST'
@@ -55,13 +55,8 @@ export async function POST(request: NextRequest) {
 
     const data = await res.json().catch(() => ({} as any))
     const buildiumId: number | null = typeof data?.Id === 'number' ? data.Id : null
-
     if (buildiumId) {
-      // Update local record with returned ID; mirror into buildium_user_id for compatibility if present.
-      await db
-        .from('staff')
-        .update({ buildium_staff_id: buildiumId, buildium_user_id: buildiumId } as any)
-        .eq('id', staffId)
+      await db.from('staff').update({ buildium_user_id: buildiumId } as any).eq('id', staffId)
     }
 
     return NextResponse.json({ success: true, buildiumId, data })

@@ -21,7 +21,11 @@ export function useManagersOptions(editing: boolean) {
         const data = await res.json()
         if (!cancelled) {
           const list = (Array.isArray(data) ? data : [])
-            .filter((s: any) => String(s.role || '').toLowerCase().includes('property manager'))
+            .filter((s: any) => {
+              const r = String(s.role || '')
+              const norm = r.toUpperCase().replace(/\s+/g, '_')
+              return norm === 'PROPERTY_MANAGER'
+            })
             .map((s: any) => ({ value: String(s.id), label: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}` }))
           setOptions(list)
         }
@@ -37,4 +41,3 @@ export function useManagersOptions(editing: boolean) {
 
   return { options, loading, error }
 }
-

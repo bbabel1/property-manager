@@ -633,7 +633,7 @@ export default function OwnerDetailsPage() {
               {/* Left Column - Main Content */}
               <div className="lg:col-span-3 space-y-6">
                 {/* Rental owner information */}
-                <div className="bg-card rounded-lg border shadow-sm p-6">
+                <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-medium text-foreground">Rental owner information</h2>
                     <button className="text-primary hover:underline transition-colors">
@@ -739,7 +739,7 @@ export default function OwnerDetailsPage() {
                 </div>
 
                 {/* Management Agreement */}
-                <div className="bg-card rounded-lg border shadow-sm p-6">
+                <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-medium text-foreground">Management Agreement</h2>
                     <button className="text-primary hover:underline transition-colors">
@@ -778,7 +778,7 @@ export default function OwnerDetailsPage() {
                 </div>
 
                 {/* Banking Information */}
-                <div className="bg-card rounded-lg border shadow-sm p-6">
+                <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-medium text-foreground">Banking Information</h2>
                     <div className="flex items-center gap-2">
@@ -819,7 +819,7 @@ export default function OwnerDetailsPage() {
                 </div>
 
                 {/* Tax Profile */}
-                <div className="bg-card rounded-lg border shadow-sm p-6">
+                <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-medium text-foreground">Tax Profile</h2>
                     <div className="flex items-center gap-2">

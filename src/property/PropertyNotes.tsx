@@ -67,7 +67,7 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border shadow-sm">
+    <div className="bg-card rounded-lg border border-border">
       <div className="p-6 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <StickyNote className="h-5 w-5 text-primary" />
@@ -139,4 +139,3 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
 }
 
 export default PropertyNotes
-

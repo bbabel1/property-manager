@@ -7,8 +7,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import StaffWizardModal from './StaffWizardModal'
 import { Guard } from '@/components/Guard'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
-type Staff = { id: number; role: string; is_active: boolean }
+type Staff = {
+  id: number
+  role: string
+  is_active: boolean
+  first_name?: string | null
+  last_name?: string | null
+  email?: string | null
+  phone?: string | null
+  title?: string | null
+  buildium_staff_id?: number | null
+}
 
 const ROLE_OPTIONS = [
   { value: 'PROPERTY_MANAGER', label: 'Property Manager' },
@@ -23,16 +34,10 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [newRole, setNewRole] = useState('PROPERTY_MANAGER')
-  const [creating, setCreating] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [filterRole, setFilterRole] = useState<string>('')
   const [filterActive, setFilterActive] = useState<boolean>(true)
   const [filterSynced, setFilterSynced] = useState<boolean>(false)
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
 
   const load = async () => {
     try {
@@ -55,32 +60,6 @@ export default function StaffPage() {
   }
 
   useEffect(() => { load() }, [filterRole, filterActive, filterSynced])
-
-  const addStaff = async () => {
-    try {
-      setCreating(true)
-      setError(null)
-      // Create contact (optional)
-      if (firstName || lastName || email || phone) {
-        await fetch('/api/admin/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ first_name: firstName, last_name: lastName, email, phone })
-        })
-      }
-      // Create staff
-      const res = await fetch('/api/staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: newRole, isActive: true }) })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Failed to create staff')
-      await load()
-      setShowModal(false)
-      setFirstName(''); setLastName(''); setEmail(''); setPhone('')
-    } catch (e:any) {
-      setError(e.message || 'Failed to create staff')
-    } finally {
-      setCreating(false)
-    }
-  }
 
   const updateRole = async (id: number, role: string) => {
     await fetch('/api/staff', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, role }) })
@@ -115,6 +94,8 @@ export default function StaffPage() {
   }
 
   const [syncAllBusy, setSyncAllBusy] = useState(false)
+  const [editing, setEditing] = useState<Staff | null>(null)
+  const openEdit = (s: Staff) => setEditing(s)
   const syncAll = async () => {
     try {
       setSyncAllBusy(true)
@@ -138,26 +119,17 @@ export default function StaffPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Staff</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Add Staff Member</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center gap-3">
-          <div className="w-64">
-            <Dropdown value={newRole} onChange={setNewRole} options={ROLE_OPTIONS} placeholder="Select role" />
-          </div>
-          <Button onClick={()=> setShowModal(true)} disabled={creating}>Add</Button>
-          {error && <span className="text-sm text-destructive">{error}</span>}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Team</CardTitle>
-            <Guard require={'org_manager'}>
-              <Button size="sm" variant="outline" onClick={syncAll} disabled={syncAllBusy}>{syncAllBusy ? 'Syncing…' : 'Sync All'}</Button>
-            </Guard>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={()=> setShowModal(true)}>Add Staff</Button>
+              <Guard require={'org_manager'}>
+                <Button size="sm" variant="outline" onClick={syncAll} disabled={syncAllBusy}>{syncAllBusy ? 'Syncing…' : 'Sync All'}</Button>
+              </Guard>
+            </div>
           </div>
           {lastSync && (<div className="text-xs text-muted-foreground mt-1">Last staff sync: {lastSync}</div>)}
         </CardHeader>
@@ -176,32 +148,52 @@ export default function StaffPage() {
           {loading ? (
             <div className="text-muted-foreground">Loading…</div>
           ) : (
-            <div className="space-y-2">
-              {staff.map(s => (
-                <div key={s.id} className="flex items-center justify-between rounded-md border border-border bg-card p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-56">
-                      <Dropdown value={s.role} onChange={(v)=>updateRole(s.id, v)} options={ROLE_OPTIONS} />
-                    </div>
-                    <label className="text-sm flex items-center gap-2">
-                      <input type="checkbox" checked={s.is_active} onChange={(e)=>toggleActive(s.id, e.target.checked)} /> Active
-                    </label>
-                    { (s as any).buildium_staff_id != null && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Synced</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Guard require={'org_manager'}>
-                      <Button variant="outline" onClick={()=>syncToBuildium(s.id)} disabled={syncingId === s.id}>
-                        {syncingId === s.id ? 'Syncing…' : 'Sync to Buildium'}
-                      </Button>
-                    </Guard>
-                    <Button variant="outline" onClick={()=>remove(s.id)}>Remove</Button>
-                  </div>
-                </div>
-              ))}
-              {staff.length === 0 && <div className="text-sm text-muted-foreground">No staff yet.</div>}
-            </div>
+            <Table className="min-w-full divide-y divide-border">
+              <TableHeader className="bg-muted">
+                <TableRow>
+                  <TableHead>First Name</TableHead>
+                  <TableHead>Last Name</TableHead>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="bg-card divide-y divide-border">
+                {staff.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="truncate">{s.first_name || '-'}</TableCell>
+                    <TableCell className="truncate">{s.last_name || '-'}</TableCell>
+                    <TableCell className="truncate">{s.title || '-'}</TableCell>
+                    <TableCell className="truncate">{s.email || '-'}</TableCell>
+                    <TableCell className="truncate">{s.phone || '-'}</TableCell>
+                    <TableCell>{ROLE_OPTIONS.find(r=>r.value===s.role)?.label || s.role}</TableCell>
+                    <TableCell>{s.is_active ? 'Active' : 'Inactive'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {(s.buildium_staff_id != null) && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Synced</span>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => openEdit(s)}>Edit</Button>
+                        <Guard require={'org_manager'}>
+                          <Button variant="outline" size="sm" onClick={()=>syncToBuildium(s.id)} disabled={syncingId === s.id}>
+                            {syncingId === s.id ? 'Syncing…' : 'Sync'}
+                          </Button>
+                        </Guard>
+                        <Button variant="outline" size="sm" onClick={()=>remove(s.id)}>Remove</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {staff.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-sm text-muted-foreground">No staff yet.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -209,6 +201,58 @@ export default function StaffPage() {
 
       {/* Staff Wizard */}
       <StaffWizardModal open={showModal} onOpenChange={setShowModal} onSaved={load} />
+      {/* Edit Staff Modal */}
+      <EditStaffModal staff={editing} onClose={()=>setEditing(null)} onSaved={load} />
     </div>
+  )
+}
+
+function EditStaffModal({ staff, onClose, onSaved }:{ staff: Staff | null, onClose: ()=>void, onSaved: ()=>void }){
+  const [firstName, setFirst] = useState(staff?.first_name || '')
+  const [lastName, setLast] = useState(staff?.last_name || '')
+  const [email, setEmail] = useState(staff?.email || '')
+  const [phone, setPhone] = useState(staff?.phone || '')
+  const [title, setTitle] = useState(staff?.title || '')
+  const [role, setRole] = useState(staff?.role || 'PROPERTY_MANAGER')
+  const [active, setActive] = useState(!!staff?.is_active)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(()=>{
+    setFirst(staff?.first_name || ''); setLast(staff?.last_name || ''); setEmail(staff?.email || ''); setPhone(staff?.phone || ''); setTitle(staff?.title || ''); setRole(staff?.role || 'PROPERTY_MANAGER'); setActive(!!staff?.is_active); setErr(null)
+  }, [staff])
+  const open = !!staff
+  const save = async () => {
+    if (!staff) return
+    try {
+      setBusy(true); setErr(null)
+      const res = await fetch('/api/staff', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: staff.id, firstName, lastName, email, phone, title, role, isActive: active }) })
+      const j = await res.json().catch(()=>({}))
+      if (!res.ok) throw new Error(j?.error || 'Save failed')
+      onSaved(); onClose()
+    } catch (e:any) { setErr(e.message || 'Save failed') } finally { setBusy(false) }
+  }
+  return (
+    <Dialog open={open} onOpenChange={(o)=>{ if(!o) onClose() }}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader><DialogTitle>Edit Staff</DialogTitle></DialogHeader>
+        {staff && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><label className="block text-sm mb-1">First Name</label><Input value={firstName} onChange={(e)=>setFirst(e.target.value)} /></div>
+              <div><label className="block text-sm mb-1">Last Name</label><Input value={lastName} onChange={(e)=>setLast(e.target.value)} /></div>
+              <div><label className="block text-sm mb-1">Email</label><Input value={email} onChange={(e)=>setEmail(e.target.value)} /></div>
+              <div><label className="block text-sm mb-1">Phone</label><Input value={phone} onChange={(e)=>setPhone(e.target.value)} /></div>
+              <div className="md:col-span-2"><label className="block text-sm mb-1">Title</label><Input value={title} onChange={(e)=>setTitle(e.target.value)} /></div>
+              <div className="md:col-span-1"><label className="block text-sm mb-1">Role</label><Dropdown value={role} onChange={setRole} options={ROLE_OPTIONS} /></div>
+              <label className="text-sm flex items-center gap-2 md:col-span-1 self-end">
+                <input type="checkbox" checked={active} onChange={(e)=>setActive(e.target.checked)} /> Active
+              </label>
+            </div>
+            {err && <div className="text-sm text-destructive">{err}</div>}
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

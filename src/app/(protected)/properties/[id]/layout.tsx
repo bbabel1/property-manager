@@ -29,7 +29,7 @@ export default async function PropertyLayout({ children, params }: { children: R
       const cookieStore = await nextCookies()
       const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${encodeURIComponent(c.value)}`).join('; ')
       const url = `${proto}://${host}/api/properties/${id}/details`
-      const res = await fetch(url, { headers: { cookie: cookieHeader }, cache: 'no-store' })
+      const res = await fetch(url, { headers: { cookie: cookieHeader }, next: { revalidate: 120, tags: [`property-details:${id}`] } })
       if (res.ok) {
         const data = await res.json()
         headerName = data?.name

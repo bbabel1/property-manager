@@ -89,7 +89,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
         {/* Left Column */}
         <div className="space-y-6">
           {/* Property Details */}
-          <div className="bg-card rounded-lg border border-border shadow-sm">
+          <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Property Details</h2>
@@ -111,7 +111,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
                   <div className="relative">
                     <div className="w-full h-64 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center overflow-hidden">
                       <div className="text-center">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
+                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-3">
                           <Home className="h-10 w-10 text-blue-600" />
                         </div>
                         <p className="text-sm text-muted-foreground">Property Image</p>
@@ -197,7 +197,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           </div>
 
           {/* Location Card */}
-          <div className="bg-card rounded-lg border border-border shadow-sm">
+          <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Location</h2>
@@ -223,7 +223,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
         {/* Right Column */}
         <div className="space-y-6">
           {/* Financial Summary */}
-          <div className="bg-card rounded-lg border border-border shadow-sm p-6">
+          <div className="bg-card rounded-lg border border-border p-6">
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-foreground">Cash balance:</span>
@@ -250,7 +250,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           </div>
 
           {/* Banking Details */}
-          <div className="bg-card rounded-lg border border-border shadow-sm">
+          <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Banking details</h2>

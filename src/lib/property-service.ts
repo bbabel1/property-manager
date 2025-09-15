@@ -104,7 +104,7 @@ export class PropertyService {
       if (!hasEnv) {
         // Fallback to API details; extract minimal fields
         try {
-          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+          const res = await fetch(`/api/properties/${id}/details`, { next: { revalidate: 60, tags: [`property-details:${id}`] } })
           if (res.ok) {
             const data = await res.json()
             return { id: data.id, name: data.name, status: data.status, property_type: (data as any)?.property_type }
@@ -136,7 +136,7 @@ export class PropertyService {
       // If running on the client (no admin key), use server API to bypass RLS and get enriched data
       const isBrowser = typeof window !== 'undefined'
       if (isBrowser && !supabaseAdmin) {
-        const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+        const res = await fetch(`/api/properties/${id}/details`, { next: { revalidate: 60, tags: [`property-details:${id}`] } })
         if (res.ok) {
           const data = await res.json()
           // Coerce occupancy_rate to number if needed
@@ -152,7 +152,7 @@ export class PropertyService {
       const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
       if (!hasEnv) {
         try {
-          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+          const res = await fetch(`/api/properties/${id}/details`, { next: { revalidate: 60, tags: [`property-details:${id}`] } })
           if (res.ok) {
             const data = await res.json()
             const occ = typeof data.occupancy_rate === 'number' ? data.occupancy_rate : Number(data.occupancy_rate || 0)
@@ -177,7 +177,7 @@ export class PropertyService {
       if (propertyError || !property) {
         // Fall back to internal API which uses service role or cookie-bound server client to bypass RLS issues
         try {
-          const res = await fetch(`/api/properties/${id}/details`, { cache: 'no-store' })
+          const res = await fetch(`/api/properties/${id}/details`, { next: { revalidate: 60, tags: [`property-details:${id}`] } })
           if (res.ok) {
             const data = await res.json()
             const occ = typeof data.occupancy_rate === 'number' ? data.occupancy_rate : Number(data.occupancy_rate || 0)
@@ -313,6 +313,18 @@ export class PropertyService {
         }
       }
 
+      // Enrich: primary image URL (if persisted)
+      let primary_image_url: string | undefined
+      try {
+        const { data: img } = await dbClient
+          .from('property_images')
+          .select('href')
+          .eq('property_id', id)
+          .order('updated_at', { ascending: false })
+          .maybeSingle()
+        if (img?.href) primary_image_url = img.href as any
+      } catch {}
+
       // Compute primary owner name for display
       let primary_owner_name: string | undefined
       if (owners.length) {
@@ -337,6 +349,7 @@ export class PropertyService {
         property_manager_name,
         property_manager_email,
         property_manager_phone,
+        ...(primary_image_url ? { primary_image_url } : {}),
       }
 
       console.log('✅ Returning property with real data:', {
