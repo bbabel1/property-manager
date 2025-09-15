@@ -15,6 +15,7 @@ export default function InlineEditCard({
   view,
   edit,
   className,
+  variant = 'card',
 }: {
   title: string
   editing: boolean
@@ -26,11 +27,18 @@ export default function InlineEditCard({
   view: ReactNode
   edit: ReactNode
   className?: string
+  variant?: 'card' | 'plain'
 }) {
   const hasBgOverride = Boolean(className && /\bbg-\[/i.test(className))
+  const containerBase = variant === 'plain'
+    ? `rounded-lg border border-transparent shadow-none ${hasBgOverride ? '' : 'bg-transparent'}`
+    : `rounded-lg border border-border ${hasBgOverride ? '' : 'bg-card'}`
+  const headerBase = variant === 'plain'
+    ? 'flex items-center justify-between px-4 py-3'
+    : 'flex items-center justify-between px-4 py-3 border-b border-border'
   return (
-    <div className={`rounded-lg shadow-sm border border-border ${hasBgOverride ? '' : 'bg-card'} ${className ?? ''}`}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+    <div className={`${containerBase} ${className ?? ''}`}>
+      <div className={headerBase}>
         <h2 className="text-base font-semibold text-foreground">{title}</h2>
         {!editing ? (
           <Button variant="outline" size="sm" onClick={onEdit} aria-label="Edit">

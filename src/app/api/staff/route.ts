@@ -60,11 +60,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Transform data to include display name
-    const transformedStaff = staff?.map(member => ({
-      ...member,
-      displayName: `Staff ${member.id}`
-    })) || []
+    // Transform data to include friendly display name
+    const transformedStaff = (staff || []).map((member: any) => {
+      const name = [member.first_name, member.last_name].filter(Boolean).join(' ').trim()
+      const displayName = name || member.email || `Staff ${member.id}`
+      return { ...member, displayName }
+    })
 
     return NextResponse.json(transformedStaff)
   } catch (error) {
@@ -112,20 +113,46 @@ export async function POST(request: NextRequest) {
 
     // Create or invite auth user when email provided
     let staffUserId: string | null = null
-    if (email && supabaseAdmin) {
+    if (email) {
+      if (!supabaseAdmin) {
+        return NextResponse.json({ error: 'Server not configured for user invites (service role missing)' }, { status: 501 })
+      }
+      // Try to locate existing auth user by email via users_with_auth view
       try {
-        if (sendInvite) {
-          const invite = await supabaseAdmin.auth.admin.inviteUserByEmail(email)
-          staffUserId = invite?.data?.user?.id ?? null
-        } else {
-          const created = await supabaseAdmin.auth.admin.createUser({ email, email_confirm: false })
-          staffUserId = created?.data?.user?.id ?? null
-        }
+        const { data: existing } = await supabaseAdmin
+          .from('users_with_auth')
+          .select('user_id')
+          .eq('email', email)
+          .maybeSingle()
+        staffUserId = (existing as any)?.user_id ?? null
       } catch {}
-      // Insert/update profile
+      // If not found, invite or create
+      if (!staffUserId) {
+        try {
+          if (sendInvite) {
+            const invite = await supabaseAdmin.auth.admin.inviteUserByEmail(email)
+            staffUserId = invite?.data?.user?.id ?? null
+          } else {
+            const created = await supabaseAdmin.auth.admin.createUser({ email, email_confirm: false })
+            staffUserId = created?.data?.user?.id ?? null
+          }
+        } catch (e: any) {
+          // Re-check users_with_auth in case user now exists
+          try {
+            const { data: existing2 } = await supabaseAdmin
+              .from('users_with_auth')
+              .select('user_id')
+              .eq('email', email)
+              .maybeSingle()
+            staffUserId = (existing2 as any)?.user_id ?? null
+          } catch {}
+          if (!staffUserId) return NextResponse.json({ error: 'Failed to create or invite user', details: e?.message || String(e) }, { status: 500 })
+        }
+      }
+      // Upsert profile
       try {
         const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || null
-        await (supabaseAdmin || supabase)
+        await supabaseAdmin
           .from('profiles')
           .upsert({ user_id: staffUserId, full_name: fullName, email }, { onConflict: 'user_id' })
       } catch {}
@@ -169,12 +196,26 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     await requireUser(request)
-    const body = await request.json().catch(() => ({})) as { id?: number; role?: string; isActive?: boolean }
+    const body = await request.json().catch(() => ({})) as {
+      id?: number
+      role?: string
+      isActive?: boolean
+      firstName?: string
+      lastName?: string
+      email?: string
+      phone?: string
+      title?: string
+    }
     const id = body.id
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
     const patch: any = {}
     if (body.role) patch.role = body.role
     if (typeof body.isActive === 'boolean') patch.is_active = body.isActive
+    if (typeof body.firstName === 'string') patch.first_name = body.firstName || null
+    if (typeof body.lastName === 'string') patch.last_name = body.lastName || null
+    if (typeof body.email === 'string') patch.email = body.email || null
+    if (typeof body.phone === 'string') patch.phone = body.phone || null
+    if (typeof body.title === 'string') patch.title = body.title || null
     patch.updated_at = new Date().toISOString()
     if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     const { error } = await supabase.from('staff').update(patch).eq('id', id)

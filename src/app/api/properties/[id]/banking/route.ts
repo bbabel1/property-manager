@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { supabase } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
@@ -60,6 +61,11 @@ export async function PUT(
     }
 
     logger.info({ userId: user.id, propertyId }, 'Property banking details updated successfully');
+    // Reserve or account changes affect summary/financials; invalidate tags
+    try {
+      revalidateTag(`property-details:${propertyId}`)
+      revalidateTag(`property-financials:${propertyId}`)
+    } catch {}
     return NextResponse.json(data);
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {

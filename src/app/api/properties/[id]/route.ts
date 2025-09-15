@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { requireUser } from '@/lib/auth'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { validateCSRFToken } from '@/lib/csrf'
@@ -222,17 +223,23 @@ export async function PUT(
         if (sid) {
           const { data: st } = await adminClient
             .from('staff')
-            .select('buildium_staff_id')
+            .select('buildium_user_id')
             .eq('id', sid)
             .maybeSingle()
-          if (st?.buildium_staff_id) {
-            ;(data as any).rental_manager = Number(st.buildium_staff_id)
+          if (st?.buildium_user_id) {
+            ;(data as any).rental_manager = Number(st.buildium_user_id)
           }
         }
       } catch {}
     }
 
     // primary_owner field removed - ownership is now managed through ownerships table
+
+    // Invalidate cached property detail and financials fetches
+    try {
+      revalidateTag(`property-details:${propertyId}`)
+      revalidateTag(`property-financials:${propertyId}`)
+    } catch {}
 
     return NextResponse.json({ 
       success: true, 

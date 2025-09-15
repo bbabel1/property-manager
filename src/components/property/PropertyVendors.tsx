@@ -69,7 +69,7 @@ export function PropertyVendors({ propertyId }: PropertyVendorsProps) {
       {vendors.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {vendors.map((vendor) => (
-            <div key={vendor.id} className="bg-card rounded-lg border border-border p-6 hover:shadow-md transition-shadow">
+            <div key={vendor.id} className="bg-card rounded-lg border border-border p-6 transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2">
                   {getCategoryIcon(vendor.category)}

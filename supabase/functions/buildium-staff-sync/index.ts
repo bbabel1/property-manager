@@ -127,7 +127,7 @@ serve(async (req) => {
           const { data: propRow } = await sb.from('properties').select('id').eq('buildium_property_id', buildiumPropertyId).maybeSingle()
           if (!propRow?.id) continue
           // Resolve local staff by buildium_staff_id (preferred) or buildium_user_id (legacy)
-          const { data: st } = await sb.from('staff').select('id').or(`buildium_staff_id.eq.${managerId},buildium_user_id.eq.${managerId}` as any).maybeSingle()
+          const { data: st } = await sb.from('staff').select('id').eq('buildium_user_id', managerId).maybeSingle()
           if (!st?.id) continue
           // Enforce single manager
           await sb.from('property_staff').delete().eq('property_id', propRow.id).eq('role','PROPERTY_MANAGER')

@@ -14,23 +14,28 @@ import BankingDetailsCard from '@/components/property/BankingDetailsCard'
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  // Try internal API first to bypass any RLS and ensure data presence.
-  // Falls back to service if API not available.
-  let property: any = null
-  try {
-    const hdrs = await nextHeaders()
-    const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host')
-    const proto = hdrs.get('x-forwarded-proto') ?? 'http'
-    const cookieStore = await nextCookies()
-    const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${encodeURIComponent(c.value)}`).join('; ')
-    const url = `${proto}://${host}/api/properties/${id}/details`
-    const res = await fetch(url, { headers: { cookie: cookieHeader }, cache: 'no-store' })
-    if (res.ok) {
-      property = await res.json()
-    }
-  } catch {}
+  // Prefer direct service call in RSC to avoid internal HTTP hop.
+  // Fetch property details and financials in parallel for faster TTFB.
+  const today = new Date().toISOString().slice(0, 10)
+  const propertyPromise = PropertyService.getPropertyById(id)
+  const finPromise = fetch(`/api/properties/${id}/financials?asOf=${today}`, { next: { revalidate: 60, tags: [`property-financials:${id}`] } })
+    .then(r => (r.ok ? r.json() : null))
+    .catch(() => null)
+
+  let [property, fin] = await Promise.all([propertyPromise, finPromise])
+
+  // Fallback: if property still unavailable (e.g., env misconfig), try internal API with revalidation
   if (!property) {
-    property = await PropertyService.getPropertyById(id)
+    try {
+      const hdrs = await nextHeaders()
+      const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host')
+      const proto = hdrs.get('x-forwarded-proto') ?? 'http'
+      const cookieStore = await nextCookies()
+      const cookieHeader = cookieStore.getAll().map(c => `${c.name}=${encodeURIComponent(c.value)}`).join('; ')
+      const url = `${proto}://${host}/api/properties/${id}/details`
+      const res = await fetch(url, { headers: { cookie: cookieHeader }, next: { revalidate: 60, tags: [`property-details:${id}`] } })
+      if (res.ok) property = await res.json()
+    } catch {}
   }
   
   // If owners are missing due to RLS or join limitations in the details API, fall back to service
@@ -42,13 +47,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
       if (!property.primary_owner_name && svc.primary_owner_name) property.primary_owner_name = svc.primary_owner_name
     }
   }
-  // Financials via API route to leverage HTTP caching
-  const today = new Date().toISOString().slice(0, 10)
-  let fin: any = null
-  try {
-    const res = await fetch(`/api/properties/${id}/financials?asOf=${today}`, { cache: 'no-store' })
-    if (res.ok) fin = await res.json()
-  } catch {}
+  // If financials missing, tolerate and continue (renders with 0s)
 
   // Banking reconciliation details intentionally omitted here; reconciliation lives on bank accounts.
 

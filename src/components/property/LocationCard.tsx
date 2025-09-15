@@ -164,9 +164,9 @@ export default function LocationCard({ property }: { property: any }) {
       onSave={onSave}
       isSaving={saving}
       canSave={true}
+      variant="plain"
       view={view}
       edit={edit}
     />
   )
 }
-

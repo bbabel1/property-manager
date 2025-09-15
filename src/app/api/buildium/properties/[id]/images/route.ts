@@ -166,13 +166,38 @@ export async function GET(
       }
     }
 
+    // Persist first image URL for faster server-side reads next time
+    try {
+      const first = Array.isArray(images) && images.length ? (images[0] as any) : null
+      const href = first?.Href || first?.Url || null
+      if (href) {
+        const db = supabaseAdmin || supabase
+        if (db) {
+          await db.from('property_images').delete().eq('property_id', id)
+          await db.from('property_images').insert({
+            property_id: id,
+            buildium_image_id: first?.Id ?? null,
+            name: first?.Name ?? null,
+            description: null,
+            file_type: null,
+            file_size: null,
+            is_private: false,
+            href,
+            sort_index: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as any)
+        }
+      }
+    } catch {}
+
     logger.info(`Buildium property images fetched successfully`);
 
-    return NextResponse.json({
+    return new NextResponse(JSON.stringify({
       success: true,
       data: images,
       count: images.length,
-    });
+    }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' } });
 
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

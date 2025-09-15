@@ -1,9 +1,10 @@
+-- Archived: superseded by later migrations; kept for history only.
 -- Add direct property reference on appliances
 ALTER TABLE public.appliances
   ADD COLUMN IF NOT EXISTS property_id uuid;
 
 ALTER TABLE public.appliances
-  ADD CONSTRAINT appliances_property_id_fkey
+  ADD CONSTRAINT IF NOT EXISTS appliances_property_id_fkey
   FOREIGN KEY (property_id) REFERENCES public.properties(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS appliances_property_id_idx

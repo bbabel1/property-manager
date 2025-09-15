@@ -75,7 +75,7 @@ export default async function FinancialsTab({ params, searchParams }: { params: 
         </InfoCard>
       </div>
       <div className="space-y-6">
-        <InfoCard title="Cash balance" className="rounded-lg shadow-sm">
+        <InfoCard title="Cash balance" className="rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-foreground">Cash balance:</span>
             <span className="text-lg font-bold text-foreground">{fmt(cash)}</span>

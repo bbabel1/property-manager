@@ -116,7 +116,7 @@ export function PropertyUnits({ propertyId, property, onUnitsChange }: PropertyU
       {!isLoading && units.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUnits.map((unit) => (
-            <div key={unit.id} className="bg-card rounded-lg border border-border p-6 hover:shadow-md transition-shadow">
+            <div key={unit.id} className="bg-card rounded-lg border border-border p-6 transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <h3 className="font-semibold text-lg">Unit {unit.unitNumber}</h3>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(getUnitStatus(unit))}`}>
