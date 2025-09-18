@@ -26,7 +26,13 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [rent, setRent] = useState('')
+  const [rentCycle, setRentCycle] = useState<'Monthly'|'Weekly'|'Biweekly'|'Quarterly'|'Annually'>('Monthly')
+  const [rentAccount, setRentAccount] = useState<string>('Rent Income')
+  const [nextDueDate, setNextDueDate] = useState<string>('')
+  const [rentMemo, setRentMemo] = useState<string>('')
   const [depositDate, setDepositDate] = useState('')
+  const [depositAccount, setDepositAccount] = useState<string>('Deposit Liability')
+  const [depositMemo, setDepositMemo] = useState<string>('')
   const [leaseType, setLeaseType] = useState<string>('Fixed')
   const [depositAmt, setDepositAmt] = useState('')
   // Proration controls
@@ -573,7 +579,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 />
               </div>
               <div className="border rounded-md overflow-hidden">
-                <div className="border-l-4 border-l-emerald-500 px-4 py-3">
+                <div className="border-l-4 border-l-blue-500 px-4 py-3">
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs mb-1">Amount</label>
@@ -648,14 +654,26 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             {/* Security deposit */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Security deposit <span className="text-muted-foreground">(optional)</span></h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs mb-1">Due date</label>
-                  <Input type="date" value={depositDate} onChange={e=>setDepositDate(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs mb-1">Amount</label>
-                  <Input inputMode="decimal" placeholder="$0.00" value={depositAmt} onChange={e=>setDepositAmt(e.target.value)} />
+              <div className="border rounded-md overflow-hidden">
+                <div className="border-l-4 border-l-blue-500 px-4 py-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs mb-1">Amount</label>
+                      <Input inputMode="decimal" placeholder="$0.00" value={depositAmt} onChange={e=>setDepositAmt(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1">Account *</label>
+                      <Dropdown value={depositAccount} onChange={(v)=>setDepositAccount(String(v))} options={[{ value: 'Deposit Liability', label: 'Deposit Liability' }]} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1">Next due date *</label>
+                      <Input type="date" value={depositDate} onChange={(e)=>setDepositDate(e.target.value)} placeholder="m/d/yyyy" />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1">Memo</label>
+                      <Input placeholder="Optional memo" value={depositMemo} onChange={(e)=>setDepositMemo(e.target.value)} />
+                    </div>
+                  </div>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Don't forget to record the payment once you have collected the deposit.</p>
