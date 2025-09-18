@@ -48,6 +48,11 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [altPhone, setAltPhone] = useState('')
   const [showAltEmail, setShowAltEmail] = useState(false)
   const [altEmail, setAltEmail] = useState('')
+  // New tenant form fields
+  const [tenantFirstName, setTenantFirstName] = useState('')
+  const [tenantLastName, setTenantLastName] = useState('')
+  const [tenantPhone, setTenantPhone] = useState('')
+  const [tenantEmail, setTenantEmail] = useState('')
   // Primary address (blank by default)
   const [addr1, setAddr1] = useState<string>('')
   const [addr2, setAddr2] = useState<string>('')
@@ -63,6 +68,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [altState, setAltState] = useState<string>('')
   const [altPostal, setAltPostal] = useState<string>('')
   const [altCountry, setAltCountry] = useState<string>('')
+  const [pendingTenants, setPendingTenants] = useState<any[]>([])
 
   // Cosigner: replicate Contact Information + Address sections
   const [coShowAltPhone, setCoShowAltPhone] = useState(false)
@@ -201,6 +207,42 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         }
         if (cosignerTenantIds.length) {
           body.contacts = [...(body.contacts || []), ...cosignerTenantIds.map((id) => ({ tenant_id: id, role: 'Cosigner', is_rent_responsible: false }))]
+        }
+      }
+      // Create any pending tenants (contact -> tenant), collect tenant_ids
+      if (pendingTenants.length) {
+        const supa = getSupabaseBrowserClient()
+        const tenantIds: string[] = []
+        for (const t of pendingTenants) {
+          const cPayload: any = {
+            is_company: false,
+            first_name: t.first_name,
+            last_name: t.last_name,
+            primary_email: t.email || null,
+            primary_phone: t.phone || null,
+            alt_phone: t.alt_phone || null,
+            alt_email: t.alt_email || null,
+            primary_address_line_1: t.addr1 || null,
+            primary_address_line_2: t.addr2 || null,
+            primary_city: t.city || null,
+            primary_state: t.state || null,
+            primary_postal_code: t.postal || null,
+            primary_country: t.country || null,
+            alt_address_line_1: t.alt_addr1 || null,
+            alt_address_line_2: t.alt_addr2 || null,
+            alt_city: t.alt_city || null,
+            alt_state: t.alt_state || null,
+            alt_postal_code: t.alt_postal || null,
+            alt_country: t.alt_country || null,
+          }
+          const { data: contact, error: cErr } = await supa.from('contacts').insert(cPayload as any).select('id').single()
+          if (cErr) throw new Error(`Failed to create tenant contact: ${cErr.message}`)
+          const { data: ten, error: tErr } = await supa.from('tenants').insert({ contact_id: contact!.id } as any).select('id').single()
+          if (tErr) throw new Error(`Failed to create tenant: ${tErr.message}`)
+          tenantIds.push(String(ten!.id))
+        }
+        if (tenantIds.length) {
+          body.contacts = [...(body.contacts || []), ...tenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))]
         }
       }
       if (selectedExistingTenantIds.length) {
@@ -448,6 +490,58 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 <Plus className="h-4 w-4 text-muted-foreground" />
                 Add approved applicant, tenant or cosigner
               </button>
+              {(pendingTenants.length > 0 || pendingCosigners.length > 0) && (
+                <div className="mt-3 space-y-2">
+                  {pendingTenants.map((t, idx) => (
+                    <div key={`pt-${idx}`} className="border rounded-md px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-6">
+                        <div className="h-8 w-8 rounded-full border flex items-center justify-center text-xs font-semibold text-primary bg-muted">
+                          {(t.first_name?.[0] || '').toUpperCase()}{(t.last_name?.[0] || '').toUpperCase()}
+                        </div>
+                        <div className="grid grid-cols-3 gap-6 text-sm">
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Tenant</div>
+                            <div className="text-foreground">{t.first_name} {t.last_name}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Email address</div>
+                            <div className="text-foreground">{t.email || '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Mobile phone</div>
+                            <div className="text-foreground">{t.phone || '—'}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <button className="text-muted-foreground" onClick={()=> setPendingTenants(prev => prev.filter((_,i)=>i!==idx))}>✕</button>
+                    </div>
+                  ))}
+                  {pendingCosigners.map((t, idx) => (
+                    <div key={`pc-${idx}`} className="border rounded-md px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-6">
+                        <div className="h-8 w-8 rounded-full border flex items-center justify-center text-xs font-semibold text-primary bg-muted">
+                          {(t.first_name?.[0] || '').toUpperCase()}{(t.last_name?.[0] || '').toUpperCase()}
+                        </div>
+                        <div className="grid grid-cols-3 gap-6 text-sm">
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Cosigner</div>
+                            <div className="text-foreground">{t.first_name} {t.last_name}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Email address</div>
+                            <div className="text-foreground">{t.email || '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs uppercase text-muted-foreground">Mobile phone</div>
+                            <div className="text-foreground">{t.phone || '—'}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <button className="text-muted-foreground" onClick={()=> setPendingCosigners(prev => prev.filter((_,i)=>i!==idx))}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Rent */}
@@ -622,17 +716,17 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs mb-1">First name *</label>
-                        <Input placeholder="First name" />
+                        <Input placeholder="First name" value={tenantFirstName} onChange={(e)=>setTenantFirstName(e.target.value)} />
                       </div>
                       <div>
                         <label className="block text-xs mb-1">Last name *</label>
-                        <Input placeholder="Last name" />
+                        <Input placeholder="Last name" value={tenantLastName} onChange={(e)=>setTenantLastName(e.target.value)} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs mb-1">Mobile phone number</label>
-                        <Input placeholder="(555) 555-5555" />
+                        <Input placeholder="(555) 555-5555" value={tenantPhone} onChange={(e)=>setTenantPhone(e.target.value)} />
                       </div>
                       <div className="flex items-end">
                         {!showAltPhone ? (
@@ -651,7 +745,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs mb-1">Email</label>
-                        <Input type="email" placeholder="name@email.com" />
+                        <Input type="email" placeholder="name@email.com" value={tenantEmail} onChange={(e)=>setTenantEmail(e.target.value)} />
                       </div>
                       <div className="flex items-end">
                         {!showAltEmail ? (
@@ -825,7 +919,32 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 )}
                 {!chooseExisting && (
                   <div className="flex items-center gap-2 justify-start">
-                    <Button size="sm">Add tenant</Button>
+                    <Button size="sm" onClick={() => {
+                      if (!tenantFirstName || !tenantLastName) { alert('First and last name are required'); return }
+                      setPendingTenants(prev => [...prev, {
+                        first_name: tenantFirstName,
+                        last_name: tenantLastName,
+                        phone: tenantPhone,
+                        email: tenantEmail,
+                        alt_phone: altPhone,
+                        alt_email: altEmail,
+                        addr1: sameAsUnitAddress ? null : addr1,
+                        addr2: sameAsUnitAddress ? null : addr2,
+                        city: sameAsUnitAddress ? null : cityField,
+                        state: sameAsUnitAddress ? null : stateField,
+                        postal: sameAsUnitAddress ? null : postalField,
+                        country: sameAsUnitAddress ? null : countryField,
+                        alt_addr1: altAddr1,
+                        alt_addr2: altAddr2,
+                        alt_city: altCity,
+                        alt_state: altState,
+                        alt_postal: altPostal,
+                        alt_country: altCountry,
+                      }])
+                      // Reset minimal fields and close
+                      setTenantFirstName(''); setTenantLastName(''); setTenantPhone(''); setTenantEmail('');
+                      setShowAddTenant(false)
+                    }}>Add tenant</Button>
                     <Button variant="outline" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
                   </div>
                 )}
