@@ -30,6 +30,12 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [leaseType, setLeaseType] = useState<string>('Fixed')
   const [depositAmt, setDepositAmt] = useState('')
   const [showAddTenant, setShowAddTenant] = useState(false)
+  // Existing-tenant selection UI state
+  const [chooseExisting, setChooseExisting] = useState(false)
+  const [search, setSearch] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [results, setResults] = useState<{ id: string; name: string; email?: string | null }[]>([])
+  const [selectedExistingTenantIds, setSelectedExistingTenantIds] = useState<string[]>([])
   const [sameAsUnitAddress, setSameAsUnitAddress] = useState(true)
   const [showAltPhone, setShowAltPhone] = useState(false)
   const [altPhone, setAltPhone] = useState('')
@@ -116,6 +122,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
       }
+      if (selectedExistingTenantIds.length) {
+        body.contacts = selectedExistingTenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))
+      }
       const res = await fetch('/api/leases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) {
         const j = await res.json().catch(()=>({} as any))
@@ -129,6 +138,43 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       setSaving(false)
     }
   }
+
+  // Search existing tenants/applicants by contact first/last/email
+  useEffect(() => {
+    if (!showAddTenant || !chooseExisting) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        setSearching(true)
+        const supa = getSupabaseBrowserClient()
+        let query = supa
+          .from('tenants')
+          .select('id, contact_id, contacts:contact_id ( first_name, last_name, primary_email )')
+          .limit(10)
+        const term = search.trim()
+        if (term) {
+          const like = `%${term}%`
+          // Filter on related contacts table fields
+          // @ts-ignore supabase-js supports foreignTable option
+          query = query.or(`first_name.ilike.${like},last_name.ilike.${like},primary_email.ilike.${like}`, { foreignTable: 'contacts' })
+        }
+        const { data } = await query
+        if (!cancelled) {
+          const mapped = (data || []).map((r: any) => ({
+            id: String(r.id),
+            name: [r?.contacts?.first_name, r?.contacts?.last_name].filter(Boolean).join(' ') || 'Unnamed',
+            email: r?.contacts?.primary_email || null,
+          }))
+          setResults(mapped)
+        }
+      } catch {
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) setSearching(false)
+      }
+    }, 250)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [showAddTenant, chooseExisting, search])
 
   return (
     <section>
@@ -301,10 +347,61 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 <TabsTrigger value="cosigner" className="flex-1">Cosigner</TabsTrigger>
               </TabsList>
               <TabsContent value="tenant" className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox id="existing" />
-                  <label htmlFor="existing" className="text-sm text-foreground">Choose existing tenant or applicant</label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="existing" checked={chooseExisting} onCheckedChange={(v)=>setChooseExisting(Boolean(v))} />
+                    <label htmlFor="existing" className="text-sm text-foreground">Choose existing tenant or applicant</label>
+                  </div>
+                  <div className="text-xs text-muted-foreground">{selectedExistingTenantIds.length} selected</div>
                 </div>
+
+                {chooseExisting && (
+                  <div className="space-y-2">
+                    <Input placeholder="Search by name or email…" value={search} onChange={(e)=>setSearch(e.target.value)} />
+                    <div className="border rounded-md overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-muted">
+                          <TableRow>
+                            <TableHead className="w-10"></TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Type</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {!results.length && (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-sm text-muted-foreground">{searching ? 'Searching…' : 'No results'}</TableCell>
+                            </TableRow>
+                          )}
+                          {results.map((r) => {
+                            const checked = selectedExistingTenantIds.includes(r.id)
+                            return (
+                              <TableRow key={r.id} className="cursor-pointer" onClick={() => {
+                                setSelectedExistingTenantIds(prev => checked ? prev.filter(x => x !== r.id) : [...prev, r.id])
+                              }}>
+                                <TableCell onClick={(e)=>e.stopPropagation()}>
+                                  <Checkbox checked={checked} onCheckedChange={(v)=>{
+                                    setSelectedExistingTenantIds(prev => Boolean(v) ? Array.from(new Set([...prev, r.id])) : prev.filter(x => x !== r.id))
+                                  }} />
+                                </TableCell>
+                                <TableCell className="text-sm text-primary underline">{r.name}</TableCell>
+                                <TableCell className="text-sm">{r.email || '—'}</TableCell>
+                                <TableCell className="text-sm">Tenant</TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="flex items-center gap-2 justify-start">
+                      <Button size="sm" onClick={()=> setShowAddTenant(false)} disabled={!selectedExistingTenantIds.length}>Add tenant</Button>
+                      <Button variant="outline" size="sm" onClick={()=> setShowAddTenant(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+
+                {!chooseExisting && (
                 <div className="border rounded-md overflow-hidden">
                   <div className="bg-muted px-4 py-2 text-sm font-medium">Contact information</div>
                   <div className="p-4 space-y-3">
@@ -358,7 +455,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     </div>
                   </div>
                 </div>
+                )}
 
+                {!chooseExisting && (
                 <div className="border rounded-md overflow-hidden">
                   <div className="bg-muted px-4 py-2 text-sm font-medium">Address *</div>
                   <div className="p-4 space-y-3">
@@ -455,8 +554,10 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     )}
                   </div>
                 </div>
+                )}
 
                 {/* Collapsible sections (default collapsed) */}
+                {!chooseExisting && (
                 <Accordion type="multiple" defaultValue={[]} className="space-y-2">
                   <AccordionItem value="personal">
                     <AccordionTrigger className="bg-muted px-4 rounded-md">Personal information</AccordionTrigger>
@@ -507,10 +608,13 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
-                <div className="flex items-center gap-2 justify-start">
-                  <Button size="sm">Add tenant</Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
-                </div>
+                )}
+                {!chooseExisting && (
+                  <div className="flex items-center gap-2 justify-start">
+                    <Button size="sm">Add tenant</Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="cosigner" className="space-y-4">
                 <div className="border rounded-md overflow-hidden">
