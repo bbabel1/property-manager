@@ -430,7 +430,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
             </div>
           </div>
-          <CardContent className="space-y-8">
+          <CardContent className="space-y-8 pt-6">
             {/* Lease details (Property, Unit, Type, Dates) */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Lease details</h3>
