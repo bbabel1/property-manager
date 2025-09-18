@@ -29,6 +29,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [depositDate, setDepositDate] = useState('')
   const [leaseType, setLeaseType] = useState<string>('Fixed')
   const [depositAmt, setDepositAmt] = useState('')
+  // Proration controls
+  const [prorateFirstMonth, setProrateFirstMonth] = useState(false)
+  const [prorateLastMonth, setProrateLastMonth] = useState(false)
   const [showAddTenant, setShowAddTenant] = useState(false)
   // Existing-tenant selection UI state
   const [chooseExisting, setChooseExisting] = useState(false)
@@ -334,7 +337,22 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs mb-1">Start date *</label>
-                  <Input type="date" value={from} onChange={e=>setFrom(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={from}
+                    onChange={(e)=>{
+                      const v = e.target.value
+                      setFrom(v)
+                      // Auto-set end date to 365 days past start minus 1 day
+                      if (v) {
+                        const d = new Date(v + 'T00:00:00')
+                        const d2 = new Date(d.getTime() + 365 * 24 * 3600 * 1000)
+                        d2.setDate(d2.getDate() - 1)
+                        const iso = d2.toISOString().slice(0,10)
+                        setTo(iso)
+                      }
+                    }}
+                  />
                 </div>
                 <div className="sm:col-span-1">
                   <label className="block text-xs mb-1">End date</label>
@@ -364,6 +382,38 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 <Input inputMode="decimal" placeholder="$0.00" value={rent} onChange={e=>setRent(e.target.value)} />
               </div>
             </div>
+
+            {/* Rent proration */}
+            {(function(){
+              const start = from ? new Date(from + 'T00:00:00') : null
+              const end = to ? new Date(to + 'T00:00:00') : null
+              const showFirst = !!start && start.getDate() > 1
+              let showLast = false
+              if (end) {
+                const lastDay = new Date(end.getFullYear(), end.getMonth()+1, 0).getDate()
+                showLast = end.getDate() < lastDay
+              }
+              if (!showFirst && !showLast) return null
+              return (
+                <div>
+                  <h3 className="text-sm font-medium text-foreground mb-2">Rent proration</h3>
+                  <div className="flex items-center gap-10">
+                    {showFirst && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={prorateFirstMonth} onCheckedChange={(v)=>setProrateFirstMonth(Boolean(v))} />
+                        Prorate first month's rent
+                      </label>
+                    )}
+                    {showLast && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={prorateLastMonth} onCheckedChange={(v)=>setProrateLastMonth(Boolean(v))} />
+                        Prorate last month's rent
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Security deposit */}
             <div>
