@@ -190,97 +190,20 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       if (prorateLastMonth && lastProrationAmount != null && lastProrationAmount > 0) {
         body.prorated_last_month_rent = lastProrationAmount
       }
-      // Create any pending cosigners (contact -> tenant), collect tenant_ids
-      if (pendingCosigners.length) {
-        const supa = getSupabaseBrowserClient()
-        const cosignerTenantIds: string[] = []
-        for (const co of pendingCosigners) {
-          const cPayload: any = {
-            is_company: false,
-            first_name: co.first_name,
-            last_name: co.last_name,
-            primary_email: co.email || null,
-            primary_phone: co.phone || null,
-            alt_phone: co.alt_phone || null,
-            alt_email: co.alt_email || null,
-            primary_address_line_1: co.addr1 || null,
-            primary_address_line_2: co.addr2 || null,
-            primary_city: co.city || null,
-            primary_state: co.state || null,
-            primary_postal_code: co.postal || null,
-            primary_country: co.country || null,
-            alt_address_line_1: co.alt_addr1 || null,
-            alt_address_line_2: co.alt_addr2 || null,
-            alt_city: co.alt_city || null,
-            alt_state: co.alt_state || null,
-            alt_postal_code: co.alt_postal || null,
-            alt_country: co.alt_country || null,
-          }
-          const { data: contact, error: cErr } = await supa.from('contacts').insert(cPayload as any).select('id').single()
-          if (cErr) throw new Error(`Failed to create cosigner contact: ${cErr.message}`)
-          const { data: ten, error: tErr } = await supa.from('tenants').insert({ contact_id: contact!.id } as any).select('id').single()
-          if (tErr) throw new Error(`Failed to create cosigner tenant: ${tErr.message}`)
-          cosignerTenantIds.push(String(ten!.id))
-        }
-        if (cosignerTenantIds.length) {
-          body.contacts = [...(body.contacts || []), ...cosignerTenantIds.map((id) => ({ tenant_id: id, role: 'Cosigner', is_rent_responsible: false }))]
-        }
-      }
-      // Create any pending tenants (contact -> tenant), collect tenant_ids
-      if (pendingTenants.length) {
-        const supa = getSupabaseBrowserClient()
-        const tenantIds: string[] = []
-        for (const t of pendingTenants) {
-          // Resolve address mapping: if same_as_unit flagged or no address provided, map from unit/property
-          let addr1Val = t.addr1, addr2Val = t.addr2, cityVal = t.city, stateVal = t.state, postalVal = t.postal, countryVal = t.country
-          const wantsUnitAddress = t.same_as_unit === true || (!addr1Val && !cityVal && !stateVal && !postalVal && !countryVal)
-          if (wantsUnitAddress) {
-            addr1Val = property?.address_line1 || addr1Val || null
-            // Prefer property line2; if none, place unit number in line2
-            const unitLine = unit?.unit_number ? `Unit ${unit.unit_number}` : null
-            addr2Val = property?.address_line2 || unitLine || addr2Val || null
-            cityVal = property?.city || cityVal || null
-            stateVal = property?.state || stateVal || null
-            postalVal = property?.postal_code || postalVal || null
-            countryVal = property?.country || countryVal || null
-          }
-          const cPayload: any = {
-            is_company: false,
-            first_name: t.first_name,
-            last_name: t.last_name,
-            primary_email: t.email || null,
-            primary_phone: t.phone || null,
-            alt_phone: t.alt_phone || null,
-            alt_email: t.alt_email || null,
-            primary_address_line_1: addr1Val || null,
-            primary_address_line_2: addr2Val || null,
-            primary_city: cityVal || null,
-            primary_state: stateVal || null,
-            primary_postal_code: postalVal || null,
-            primary_country: countryVal || null,
-            alt_address_line_1: t.alt_addr1 || null,
-            alt_address_line_2: t.alt_addr2 || null,
-            alt_city: t.alt_city || null,
-            alt_state: t.alt_state || null,
-            alt_postal_code: t.alt_postal || null,
-            alt_country: t.alt_country || null,
-          }
-          const { data: contact, error: cErr } = await supa.from('contacts').insert(cPayload as any).select('id').single()
-          if (cErr) throw new Error(`Failed to create tenant contact: ${cErr.message}`)
-          const { data: ten, error: tErr } = await supa.from('tenants').insert({ contact_id: contact!.id } as any).select('id').single()
-          if (tErr) throw new Error(`Failed to create tenant: ${tErr.message}`)
-          tenantIds.push(String(ten!.id))
-        }
-        if (tenantIds.length) {
-          body.contacts = [...(body.contacts || []), ...tenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))]
-        }
+      // Pass staged new people to the server for creation to avoid client-side RLS issues
+      if (pendingCosigners.length || pendingTenants.length) {
+        body.new_people = [
+          ...pendingTenants.map((t)=>({ ...t, role: 'Tenant' })),
+          ...pendingCosigners.map((c)=>({ ...c, role: 'Cosigner' })),
+        ]
       }
       if (selectedExistingTenantIds.length) {
-        body.contacts = selectedExistingTenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))
+        body.contacts = [...(body.contacts || []), ...selectedExistingTenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))]
       }
       const res = await fetch('/api/leases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) {
         const j = await res.json().catch(()=>({} as any))
+        console.error('Lease create failed:', j)
         throw new Error(j?.error || 'Failed to create lease')
       }
       setOpen(false)
