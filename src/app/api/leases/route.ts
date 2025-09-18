@@ -74,6 +74,48 @@ export async function POST(request: NextRequest) {
       recurring_transactions: Array.isArray(body.recurring_transactions) ? body.recurring_transactions : [],
       documents: Array.isArray(body.documents) ? body.documents : [],
     }
+    // Create any new people requested by client (contact + tenant), append to contacts list
+    if (Array.isArray(body.new_people) && body.new_people.length) {
+      const createdTenantIds: { id: string; role: string }[] = []
+      // Fetch property/unit addresses once
+      const { data: prop } = await admin.from('properties').select('address_line1,address_line2,city,state,postal_code,country').eq('id', property_id).maybeSingle()
+      const { data: uni } = await admin.from('units').select('unit_number').eq('id', unit_id).maybeSingle()
+      for (const p of body.new_people as any[]) {
+        const useUnitAddr = p.same_as_unit === true || (!p.addr1 && !p.city && !p.state && !p.postal && !p.country)
+        const cPayload: any = {
+          is_company: false,
+          first_name: p.first_name,
+          last_name: p.last_name,
+          primary_email: p.email || null,
+          primary_phone: p.phone || null,
+          alt_phone: p.alt_phone || null,
+          alt_email: p.alt_email || null,
+          primary_address_line_1: useUnitAddr ? (prop?.address_line1 ?? null) : (p.addr1 ?? null),
+          primary_address_line_2: useUnitAddr ? (prop?.address_line2 ?? (uni?.unit_number ? `Unit ${uni.unit_number}` : null)) : (p.addr2 ?? null),
+          primary_city: useUnitAddr ? (prop?.city ?? null) : (p.city ?? null),
+          primary_state: useUnitAddr ? (prop?.state ?? null) : (p.state ?? null),
+          primary_postal_code: useUnitAddr ? (prop?.postal_code ?? null) : (p.postal ?? null),
+          primary_country: useUnitAddr ? (prop?.country ?? null) : (p.country ?? null),
+          alt_address_line_1: p.alt_addr1 ?? null,
+          alt_address_line_2: p.alt_addr2 ?? null,
+          alt_city: p.alt_city ?? null,
+          alt_state: p.alt_state ?? null,
+          alt_postal_code: p.alt_postal ?? null,
+          alt_country: p.alt_country ?? null,
+        }
+        const { data: contact, error: cErr } = await admin.from('contacts').insert(cPayload).select('id').single()
+        if (cErr) return NextResponse.json({ error: 'Failed creating contact', details: cErr.message }, { status: 400 })
+        const { data: tenant, error: tErr } = await admin.from('tenants').insert({ contact_id: contact!.id }).select('id').single()
+        if (tErr) return NextResponse.json({ error: 'Failed creating tenant', details: tErr.message }, { status: 400 })
+        createdTenantIds.push({ id: tenant!.id, role: p.role || 'Tenant' })
+      }
+      if (createdTenantIds.length) {
+        payload.contacts = [
+          ...payload.contacts,
+          ...createdTenantIds.map(t => ({ tenant_id: t.id, role: t.role, is_rent_responsible: t.role === 'Tenant' }))
+        ]
+      }
+    }
     const { data: fnRes, error: fnErr } = await admin.rpc('fn_create_lease_aggregate', { payload })
     if (fnErr) return NextResponse.json({ error: 'Failed creating lease', details: fnErr.message }, { status: 500 })
     const lease_id = fnRes?.lease_id
