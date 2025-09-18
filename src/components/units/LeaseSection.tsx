@@ -589,7 +589,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Memo</label>
-                      <Input placeholder="If left blank, will show \"Rent\"" value={rentMemo} onChange={(e)=>setRentMemo(e.target.value)} />
+                      <Input placeholder={'If left blank, will show "Rent"'} value={rentMemo} onChange={(e)=>setRentMemo(e.target.value)} />
                     </div>
                   </div>
                 </div>
