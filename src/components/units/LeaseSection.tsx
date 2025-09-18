@@ -62,6 +62,10 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [coAltPhone, setCoAltPhone] = useState('')
   const [coShowAltEmail, setCoShowAltEmail] = useState(false)
   const [coAltEmail, setCoAltEmail] = useState('')
+  const [coFirstName, setCoFirstName] = useState('')
+  const [coLastName, setCoLastName] = useState('')
+  const [coEmail, setCoEmail] = useState('')
+  const [coPhone, setCoPhone] = useState('')
   const [coSameAsUnitAddress, setCoSameAsUnitAddress] = useState(true)
   const [coAddr1, setCoAddr1] = useState<string>('')
   const [coAddr2, setCoAddr2] = useState<string>('')
@@ -76,6 +80,14 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [coAltState, setCoAltState] = useState<string>('')
   const [coAltPostal, setCoAltPostal] = useState<string>('')
   const [coAltCountry, setCoAltCountry] = useState<string>('')
+  const [pendingCosigners, setPendingCosigners] = useState<any[]>([])
+
+  function resetCosignerForm() {
+    setCoFirstName(''); setCoLastName(''); setCoEmail(''); setCoPhone('');
+    setCoShowAltPhone(false); setCoAltPhone(''); setCoShowAltEmail(false); setCoAltEmail('');
+    setCoSameAsUnitAddress(true); setCoAddr1(''); setCoAddr2(''); setCoCity(''); setCoState(''); setCoPostal(''); setCoCountry('');
+    setCoShowAltAddress(false); setCoAltAddr1(''); setCoAltAddr2(''); setCoAltCity(''); setCoAltState(''); setCoAltPostal(''); setCoAltCountry('');
+  }
 
   const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—')
   const fmtUsd = (n?: number | null) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0)
@@ -141,6 +153,42 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         payment_due_day: depositDate ? new Date(depositDate).getDate() : null,
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
+      }
+      // Create any pending cosigners (contact -> tenant), collect tenant_ids
+      if (pendingCosigners.length) {
+        const supa = getSupabaseBrowserClient()
+        const cosignerTenantIds: string[] = []
+        for (const co of pendingCosigners) {
+          const cPayload: any = {
+            is_company: false,
+            first_name: co.first_name,
+            last_name: co.last_name,
+            primary_email: co.email || null,
+            primary_phone: co.phone || null,
+            alt_phone: co.alt_phone || null,
+            alt_email: co.alt_email || null,
+            primary_address_line_1: co.addr1 || null,
+            primary_address_line_2: co.addr2 || null,
+            primary_city: co.city || null,
+            primary_state: co.state || null,
+            primary_postal_code: co.postal || null,
+            primary_country: co.country || null,
+            alt_address_line_1: co.alt_addr1 || null,
+            alt_address_line_2: co.alt_addr2 || null,
+            alt_city: co.alt_city || null,
+            alt_state: co.alt_state || null,
+            alt_postal_code: co.alt_postal || null,
+            alt_country: co.alt_country || null,
+          }
+          const { data: contact, error: cErr } = await supa.from('contacts').insert(cPayload as any).select('id').single()
+          if (cErr) throw new Error(`Failed to create cosigner contact: ${cErr.message}`)
+          const { data: ten, error: tErr } = await supa.from('tenants').insert({ contact_id: contact!.id } as any).select('id').single()
+          if (tErr) throw new Error(`Failed to create cosigner tenant: ${tErr.message}`)
+          cosignerTenantIds.push(String(ten!.id))
+        }
+        if (cosignerTenantIds.length) {
+          body.contacts = [...(body.contacts || []), ...cosignerTenantIds.map((id) => ({ tenant_id: id, role: 'Cosigner', is_rent_responsible: false }))]
+        }
       }
       if (selectedExistingTenantIds.length) {
         body.contacts = selectedExistingTenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))
@@ -236,6 +284,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         <div className="rounded-lg border border-border bg-card shadow-sm">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h2 className="text-base font-semibold text-foreground">Add Lease</h2>
+            {pendingCosigners.length > 0 && (
+              <div className="text-xs text-muted-foreground">{pendingCosigners.length} cosigner{pendingCosigners.length>1?'s':''} added</div>
+            )}
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
               <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
@@ -643,17 +694,17 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs mb-1">First name *</label>
-                        <Input placeholder="First name" />
+                        <Input placeholder="First name" value={coFirstName} onChange={(e)=>setCoFirstName(e.target.value)} />
                       </div>
                       <div>
                         <label className="block text-xs mb-1">Last name *</label>
-                        <Input placeholder="Last name" />
+                        <Input placeholder="Last name" value={coLastName} onChange={(e)=>setCoLastName(e.target.value)} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs mb-1">Mobile phone number</label>
-                        <Input placeholder="(555) 555-5555" />
+                        <Input placeholder="(555) 555-5555" value={coPhone} onChange={(e)=>setCoPhone(e.target.value)} />
                       </div>
                       <div className="flex items-end">
                         {!coShowAltPhone ? (
@@ -672,7 +723,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs mb-1">Email</label>
-                        <Input type="email" placeholder="name@email.com" />
+                        <Input type="email" placeholder="name@email.com" value={coEmail} onChange={(e)=>setCoEmail(e.target.value)} />
                       </div>
                       <div className="flex items-end">
                         {!coShowAltEmail ? (
@@ -788,7 +839,31 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button size="sm">Add cosigner</Button>
+                  <Button size="sm" onClick={() => {
+                    if (!coFirstName || !coLastName) { alert('First and last name are required'); return }
+                    setPendingCosigners(prev => [...prev, {
+                      first_name: coFirstName,
+                      last_name: coLastName,
+                      email: coEmail,
+                      phone: coPhone,
+                      alt_phone: coAltPhone,
+                      alt_email: coAltEmail,
+                      addr1: coSameAsUnitAddress ? null : coAddr1,
+                      addr2: coSameAsUnitAddress ? null : coAddr2,
+                      city: coSameAsUnitAddress ? null : coCity,
+                      state: coSameAsUnitAddress ? null : coState,
+                      postal: coSameAsUnitAddress ? null : coPostal,
+                      country: coSameAsUnitAddress ? null : coCountry,
+                      alt_addr1: coAltAddr1,
+                      alt_addr2: coAltAddr2,
+                      alt_city: coAltCity,
+                      alt_state: coAltState,
+                      alt_postal: coAltPostal,
+                      alt_country: coAltCountry,
+                    }])
+                    resetCosignerForm()
+                    setShowAddTenant(false)
+                  }}>Add cosigner</Button>
                   <Button variant="outline" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
                 </div>
               </TabsContent>
