@@ -301,6 +301,24 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     setLastProrationAmount(Number(amount.toFixed(2)))
   }, [prorateLastMonth, to, rent])
 
+  // Reset proration toggles if section should be hidden
+  useEffect(() => {
+    const rentNum = Number(rent || '0') || 0
+    const start = from ? new Date(from + 'T00:00:00') : null
+    const end = to ? new Date(to + 'T00:00:00') : null
+    const showFirst = !!start && start.getDate() > 1
+    let showLast = false
+    if (end) {
+      const lastDay = new Date(end.getFullYear(), end.getMonth()+1, 0).getDate()
+      showLast = end.getDate() < lastDay
+    }
+    const shouldShow = rentNum > 0 && (showFirst || showLast)
+    if (!shouldShow) {
+      if (prorateFirstMonth) setProrateFirstMonth(false)
+      if (prorateLastMonth) setProrateLastMonth(false)
+    }
+  }, [rent, from, to])
+
   return (
     <section>
       <div className="flex items-center justify-between mb-2">
@@ -447,7 +465,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 const lastDay = new Date(end.getFullYear(), end.getMonth()+1, 0).getDate()
                 showLast = end.getDate() < lastDay
               }
-              if (!showFirst && !showLast) return null
+              const rentNum = Number(rent || '0') || 0
+              if (!(rentNum > 0) || (!showFirst && !showLast)) return null
               return (
                 <div>
                   <h3 className="text-sm font-medium text-foreground mb-2">Rent proration</h3>
