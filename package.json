@@ -30,6 +30,7 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "audit:fix": "npm audit fix",
     "db:seed": "npx tsx scripts/seed.ts",
+    "db:seed-gl": "npx tsx scripts/seed_gl_settings.ts",
     "db:reset": "RESET_CONFIRM=YES npx tsx scripts/reset-db.ts",
     "dev:all": "concurrently -n next,docs -c green,cyan \"npm run dev\" \"npm run docs:watch\"",
     "format": "prettier --write .",
@@ -37,7 +38,9 @@
     "typecheck": "tsc --noEmit",
     "ci:env-check": "tsx src/env/server.ts && tsx src/env/client.ts",
     "test:buildium:smoke": "tsx scripts/smoke-buildium.ts",
-    "test:buildium:webhook": "tsx scripts/smoke-buildium-webhook.ts"
+    "test:buildium:webhook": "tsx scripts/smoke-buildium-webhook.ts",
+    "cron:recurring": "tsx scripts/cron/recurring.ts",
+    "cron:late-fees": "tsx scripts/cron/late-fees.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",

@@ -3099,7 +3099,7 @@ export function mapLeaseFromBuildium(buildiumLease: BuildiumLease): any {
     lease_type: buildiumLease.LeaseType,
     status: buildiumLease.LeaseStatus,
     is_eviction_pending: buildiumLease.IsEvictionPending,
-    term_type: buildiumLease.TermType,
+    // term_type removed in favor of lease_type enum
     renewal_offer_status: buildiumLease.RenewalOfferStatus,
     current_number_of_occupants: buildiumLease.CurrentNumberOfOccupants,
     security_deposit: buildiumLease.AccountDetails.SecurityDeposit,
