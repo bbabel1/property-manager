@@ -34,6 +34,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [prorateLastMonth, setProrateLastMonth] = useState(false)
   const [firstProrationDays, setFirstProrationDays] = useState<number>(0)
   const [firstProrationAmount, setFirstProrationAmount] = useState<number>(0)
+  const [lastProrationDays, setLastProrationDays] = useState<number>(0)
+  const [lastProrationAmount, setLastProrationAmount] = useState<number>(0)
   const [showAddTenant, setShowAddTenant] = useState(false)
   // Existing-tenant selection UI state
   const [chooseExisting, setChooseExisting] = useState(false)
@@ -162,6 +164,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       if (prorateFirstMonth && firstProrationAmount > 0) {
         body.prorated_first_month_rent = firstProrationAmount
       }
+      if (prorateLastMonth && lastProrationAmount > 0) {
+        body.prorated_last_month_rent = lastProrationAmount
+      }
       // Create any pending cosigners (contact -> tenant), collect tenant_ids
       if (pendingCosigners.length) {
         const supa = getSupabaseBrowserClient()
@@ -273,6 +278,28 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     setFirstProrationDays(days)
     setFirstProrationAmount(Number(amount.toFixed(2)))
   }, [prorateFirstMonth, from, rent])
+
+  // Compute last-month proration when toggled or dependencies change
+  useEffect(() => {
+    if (!prorateLastMonth || !to || !rent) {
+      setLastProrationDays(0)
+      setLastProrationAmount(0)
+      return
+    }
+    const end = new Date(to + 'T00:00:00')
+    const endDay = end.getDate()
+    const daysInMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate()
+    if (endDay >= daysInMonth) {
+      setLastProrationDays(0)
+      setLastProrationAmount(0)
+      return
+    }
+    const days = endDay // inclusive days occupied in last month
+    const monthly = Number(rent || '0') || 0
+    const amount = monthly * (days / daysInMonth)
+    setLastProrationDays(days)
+    setLastProrationAmount(Number(amount.toFixed(2)))
+  }, [prorateLastMonth, to, rent])
 
   return (
     <section>
@@ -440,10 +467,18 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                       </div>
                     )}
                     {showLast && (
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={prorateLastMonth} onCheckedChange={(v)=>setProrateLastMonth(Boolean(v))} />
-                        Prorate last month's rent
-                      </label>
+                      <div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Checkbox checked={prorateLastMonth} onCheckedChange={(v)=>setProrateLastMonth(Boolean(v))} />
+                          Prorate last month's rent
+                        </label>
+                        {prorateLastMonth && (
+                          <div className="mt-3 sm:w-64">
+                            <label className="block text-xs mb-1">Last month's rent ({lastProrationDays} days)</label>
+                            <Input readOnly value={fmtUsd(lastProrationAmount)} />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
