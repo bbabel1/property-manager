@@ -32,6 +32,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   // Proration controls
   const [prorateFirstMonth, setProrateFirstMonth] = useState(false)
   const [prorateLastMonth, setProrateLastMonth] = useState(false)
+  const [firstProrationDays, setFirstProrationDays] = useState<number>(0)
+  const [firstProrationAmount, setFirstProrationAmount] = useState<number>(0)
   const [showAddTenant, setShowAddTenant] = useState(false)
   // Existing-tenant selection UI state
   const [chooseExisting, setChooseExisting] = useState(false)
@@ -157,6 +159,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
       }
+      if (prorateFirstMonth && firstProrationAmount > 0) {
+        body.prorated_first_month_rent = firstProrationAmount
+      }
       // Create any pending cosigners (contact -> tenant), collect tenant_ids
       if (pendingCosigners.length) {
         const supa = getSupabaseBrowserClient()
@@ -246,6 +251,28 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [showAddTenant, chooseExisting, search])
+
+  // Compute first-month proration when toggled or dependencies change
+  useEffect(() => {
+    if (!prorateFirstMonth || !from || !rent) {
+      setFirstProrationDays(0)
+      setFirstProrationAmount(0)
+      return
+    }
+    const start = new Date(from + 'T00:00:00')
+    const startDay = start.getDate()
+    const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
+    if (startDay <= 1) {
+      setFirstProrationDays(0)
+      setFirstProrationAmount(0)
+      return
+    }
+    const days = daysInMonth - startDay + 1
+    const monthly = Number(rent || '0') || 0
+    const amount = monthly * (days / daysInMonth)
+    setFirstProrationDays(days)
+    setFirstProrationAmount(Number(amount.toFixed(2)))
+  }, [prorateFirstMonth, from, rent])
 
   return (
     <section>
@@ -397,12 +424,20 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               return (
                 <div>
                   <h3 className="text-sm font-medium text-foreground mb-2">Rent proration</h3>
-                  <div className="flex items-center gap-10">
+                  <div className="flex items-start gap-10">
                     {showFirst && (
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={prorateFirstMonth} onCheckedChange={(v)=>setProrateFirstMonth(Boolean(v))} />
-                        Prorate first month's rent
-                      </label>
+                      <div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Checkbox checked={prorateFirstMonth} onCheckedChange={(v)=>setProrateFirstMonth(Boolean(v))} />
+                          Prorate first month's rent
+                        </label>
+                        {prorateFirstMonth && (
+                          <div className="mt-3 sm:w-64">
+                            <label className="block text-xs mb-1">First month's rent ({firstProrationDays} days)</label>
+                            <Input readOnly value={fmtUsd(firstProrationAmount)} />
+                          </div>
+                        )}
+                      </div>
                     )}
                     {showLast && (
                       <label className="flex items-center gap-2 text-sm">
