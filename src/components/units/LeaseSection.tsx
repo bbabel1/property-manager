@@ -33,9 +33,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [prorateFirstMonth, setProrateFirstMonth] = useState(false)
   const [prorateLastMonth, setProrateLastMonth] = useState(false)
   const [firstProrationDays, setFirstProrationDays] = useState<number>(0)
-  const [firstProrationAmount, setFirstProrationAmount] = useState<number>(0)
+  const [firstProrationAmount, setFirstProrationAmount] = useState<number | null>(null)
   const [lastProrationDays, setLastProrationDays] = useState<number>(0)
-  const [lastProrationAmount, setLastProrationAmount] = useState<number>(0)
+  const [lastProrationAmount, setLastProrationAmount] = useState<number | null>(null)
   const [showAddTenant, setShowAddTenant] = useState(false)
   // Existing-tenant selection UI state
   const [chooseExisting, setChooseExisting] = useState(false)
@@ -161,10 +161,10 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
       }
-      if (prorateFirstMonth && firstProrationAmount > 0) {
+      if (prorateFirstMonth && firstProrationAmount != null && firstProrationAmount > 0) {
         body.prorated_first_month_rent = firstProrationAmount
       }
-      if (prorateLastMonth && lastProrationAmount > 0) {
+      if (prorateLastMonth && lastProrationAmount != null && lastProrationAmount > 0) {
         body.prorated_last_month_rent = lastProrationAmount
       }
       // Create any pending cosigners (contact -> tenant), collect tenant_ids
@@ -261,7 +261,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   useEffect(() => {
     if (!prorateFirstMonth || !from || !rent) {
       setFirstProrationDays(0)
-      setFirstProrationAmount(0)
+      setFirstProrationAmount(null)
       return
     }
     const start = new Date(from + 'T00:00:00')
@@ -269,7 +269,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
     if (startDay <= 1) {
       setFirstProrationDays(0)
-      setFirstProrationAmount(0)
+      setFirstProrationAmount(null)
       return
     }
     const days = daysInMonth - startDay + 1
@@ -283,7 +283,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   useEffect(() => {
     if (!prorateLastMonth || !to || !rent) {
       setLastProrationDays(0)
-      setLastProrationAmount(0)
+      setLastProrationAmount(null)
       return
     }
     const end = new Date(to + 'T00:00:00')
@@ -291,7 +291,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     const daysInMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate()
     if (endDay >= daysInMonth) {
       setLastProrationDays(0)
-      setLastProrationAmount(0)
+      setLastProrationAmount(null)
       return
     }
     const days = endDay // inclusive days occupied in last month
@@ -316,6 +316,10 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     if (!shouldShow) {
       if (prorateFirstMonth) setProrateFirstMonth(false)
       if (prorateLastMonth) setProrateLastMonth(false)
+      setFirstProrationDays(0)
+      setFirstProrationAmount(null)
+      setLastProrationDays(0)
+      setLastProrationAmount(null)
     }
   }, [rent, from, to])
 
@@ -480,7 +484,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                         {prorateFirstMonth && (
                           <div className="mt-3 sm:w-64">
                             <label className="block text-xs mb-1">First month's rent ({firstProrationDays} days)</label>
-                            <Input readOnly value={fmtUsd(firstProrationAmount)} />
+                            <Input readOnly value={firstProrationAmount != null ? fmtUsd(firstProrationAmount) : ''} />
                           </div>
                         )}
                       </div>
@@ -494,7 +498,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                         {prorateLastMonth && (
                           <div className="mt-3 sm:w-64">
                             <label className="block text-xs mb-1">Last month's rent ({lastProrationDays} days)</label>
-                            <Input readOnly value={fmtUsd(lastProrationAmount)} />
+                            <Input readOnly value={lastProrationAmount != null ? fmtUsd(lastProrationAmount) : ''} />
                           </div>
                         )}
                       </div>
