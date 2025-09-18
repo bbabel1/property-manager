@@ -561,6 +561,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               )}
             </div>
 
+            <div className="border-t border-border my-6" />
+
             {/* Rent */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Rent <span className="text-muted-foreground">(optional)</span></h3>
@@ -601,6 +603,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 </div>
               </div>
             </div>
+
+            <div className="border-t border-border my-6" />
 
             {/* Rent proration */}
             {(function(){
@@ -651,6 +655,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               )
             })()}
 
+            <div className="border-t border-border my-6" />
+
             {/* Security deposit */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Security deposit <span className="text-muted-foreground">(optional)</span></h3>
@@ -679,6 +685,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               <p className="text-xs text-muted-foreground mt-2">Don't forget to record the payment once you have collected the deposit.</p>
             </div>
 
+            <div className="border-t border-border my-6" />
+
             {/* Charges placeholder */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Charges <span className="text-muted-foreground">(optional)</span></h3>
@@ -689,11 +697,15 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               </div>
             </div>
 
+            <div className="border-t border-border my-6" />
+
             {/* Upload files placeholder */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Upload files <span className="text-muted-foreground">(Maximum of 10)</span></h3>
               <div className="h-28 border border-dashed border-border rounded-md flex items-center justify-center text-sm text-muted-foreground">Drag & drop files here or <span className="text-primary underline ml-1">browse</span></div>
             </div>
+
+            <div className="border-t border-border my-6" />
 
             {/* Welcome email toggle placeholder */}
             <div>
