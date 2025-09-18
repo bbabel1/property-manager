@@ -497,7 +497,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             </div>
 
             {/* Approved Applicants, Tenants and cosigners */}
-            <div>
+            <div className="rounded-md border border-border p-4">
               <h3 className="text-sm font-medium text-foreground mb-2">Approved Applicants, Tenants and cosigners</h3>
               <button
                 type="button"
@@ -561,7 +561,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               )}
             </div>
 
-            <div className="border-t border-border my-6" />
+            {/* Section separator removed – using bordered cards instead */}
 
             {/* Rent */}
             <div>
@@ -604,7 +604,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               </div>
             </div>
 
-            <div className="border-t border-border my-6" />
+            {/* Section separator removed – using bordered cards instead */}
 
             {/* Rent proration */}
             {(function(){
@@ -619,7 +619,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               const rentNum = Number(rent || '0') || 0
               if (!(rentNum > 0) || (!showFirst && !showLast)) return null
               return (
-                <div>
+                <div className="rounded-md border border-border p-4">
                   <h3 className="text-sm font-medium text-foreground mb-2">Rent proration</h3>
                   <div className="flex items-start gap-10">
                     {showFirst && (
@@ -655,7 +655,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               )
             })()}
 
-            <div className="border-t border-border my-6" />
+            {/* Section separator removed – using bordered cards instead */}
 
             {/* Security deposit */}
             <div>
@@ -685,10 +685,10 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               <p className="text-xs text-muted-foreground mt-2">Don't forget to record the payment once you have collected the deposit.</p>
             </div>
 
-            <div className="border-t border-border my-6" />
+            {/* Section separator removed – using bordered cards instead */}
 
             {/* Charges placeholder */}
-            <div>
+            <div className="rounded-md border border-border p-4">
               <h3 className="text-sm font-medium text-foreground mb-2">Charges <span className="text-muted-foreground">(optional)</span></h3>
               <div className="flex items-center gap-4 text-primary text-sm">
                 <button type="button" className="underline">+ Add recurring charge</button>
@@ -697,18 +697,18 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               </div>
             </div>
 
-            <div className="border-t border-border my-6" />
+            {/* Section separator removed – using bordered cards instead */}
 
             {/* Upload files placeholder */}
-            <div>
+            <div className="rounded-md border border-border p-4">
               <h3 className="text-sm font-medium text-foreground mb-2">Upload files <span className="text-muted-foreground">(Maximum of 10)</span></h3>
               <div className="h-28 border border-dashed border-border rounded-md flex items-center justify-center text-sm text-muted-foreground">Drag & drop files here or <span className="text-primary underline ml-1">browse</span></div>
             </div>
 
-            <div className="border-t border-border my-6" />
+            {/* Section separator removed – using bordered cards instead */}
 
             {/* Welcome email toggle placeholder */}
-            <div>
+            <div className="rounded-md border border-border p-4">
               <h3 className="text-sm font-medium text-foreground mb-1">Resident Center Welcome Email <span className="align-middle ml-2 text-xs rounded bg-muted px-2 py-0.5">OFF</span></h3>
               <p className="text-sm text-muted-foreground">We'll send a welcome email to anyone without Resident Center access. Once they sign in, they can make online payments, view important documents, submit requests, and more!</p>
             </div>
