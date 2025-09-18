@@ -129,7 +129,7 @@ export default function UnitsTable({ propertyId, property, initialUnits }: { pro
           {units.map(u => (
             <TableRow key={u.id}>
               <TableCell>
-                <Link href={`/units/${u.id}`} className="text-primary hover:underline">
+                <Link href={`/properties/${propertyId}/units/${u.id}`} className="text-primary hover:underline">
                   {u.unit_number || '—'}
                 </Link>
               </TableCell>

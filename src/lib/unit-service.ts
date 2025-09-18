@@ -114,7 +114,7 @@ export default class UnitService {
   static async persistBuildiumUnit(buildiumUnit: BuildiumUnit): Promise<string | null> {
     // Resolve local property by Buildium PropertyId
     const supabase = supabaseAdmin
-    const property = await supabase
+    const propertyRow = await supabase
       .from('properties')
       .select('id')
       .eq('buildium_property_id', buildiumUnit.PropertyId)
@@ -122,7 +122,9 @@ export default class UnitService {
       .then(r => r.data)
       .catch(() => null)
 
-    if (!property?.id) {
+    let propertyId: string | null = propertyRow?.id ?? null
+
+    if (!propertyId) {
       // Auto-create local property by fetching from Buildium
       const pres = await fetch(`${BASE}/rentals/${buildiumUnit.PropertyId}`, { headers: HEADERS() })
       if (!pres.ok) {
@@ -136,11 +138,11 @@ export default class UnitService {
         .select('id')
         .single()
       if (propErr) throw propErr
-      property = { id: newProp.id }
+      propertyId = newProp.id
     }
 
     const mapped = UnitService.mapForDB(buildiumUnit)
-    mapped.property_id = property.id
+    mapped.property_id = propertyId || (propertyRow as any)?.id
     mapped.updated_at = new Date().toISOString()
     if (!mapped.created_at) mapped.created_at = new Date().toISOString()
 

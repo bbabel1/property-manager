@@ -126,8 +126,9 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
-  --color-input: var(--input);
-  --color-input-background: var(--input-background);
+  /* Inputs: match Property Details card — card background with standard border */
+  --color-input: var(--color-border);
+  --color-input-background: var(--color-card);
   --color-switch-background: var(--switch-background);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);

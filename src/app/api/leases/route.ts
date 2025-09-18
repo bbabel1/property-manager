@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/db'
+import { supabase, supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 
@@ -27,8 +27,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const url = new URL(request.url)
-    const syncBuildium = url.searchParams.get('syncBuildium') === 'true'
+    const strict = url.searchParams.get('strict') === 'true'
     const body = await request.json()
+    const syncBuildium = (url.searchParams.get('syncBuildium') === 'true') || Boolean(body?.syncBuildium)
 
     // Resolve local property/unit UUIDs if Buildium IDs provided
     let { property_id, unit_id } = body
@@ -45,32 +46,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'property_id and unit_id (or corresponding Buildium IDs) are required' }, { status: 400 })
     }
 
-    const now = new Date().toISOString()
-    const insert = {
-      property_id,
-      unit_id,
-      lease_from_date: body.lease_from_date,
-      lease_to_date: body.lease_to_date ?? null,
-      lease_type: body.lease_type ?? null,
-      status: body.status || 'active',
-      term_type: body.term_type ?? null,
-      renewal_offer_status: body.renewal_offer_status ?? null,
-      current_number_of_occupants: body.current_number_of_occupants ?? null,
-      security_deposit: body.security_deposit ?? null,
-      rent_amount: body.rent_amount ?? null,
-      automatically_move_out_tenants: body.automatically_move_out_tenants ?? null,
-      payment_due_day: body.payment_due_day ?? null,
-      unit_number: body.unit_number ?? null,
-      buildium_property_id: body.buildium_property_id ?? null,
-      buildium_unit_id: body.buildium_unit_id ?? null,
-      created_at: now,
-      updated_at: now,
-    }
+    // Idempotency handling
+    const admin = supabaseAdmin || supabase
+    const idemKey = request.headers.get('Idempotency-Key') || `lease:${property_id}:${unit_id}:${body.lease_from_date}:${body.lease_to_date || ''}`
+    try {
+      const { data: idem } = await admin.from('idempotency_keys').select('response').eq('key', idemKey).maybeSingle()
+      if (idem?.response) return NextResponse.json(idem.response, { status: 201 })
+    } catch {}
 
-    const { data: created, error } = await supabase.from('lease').insert(insert).select().single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // Atomic create via SQL function
+    const payload = {
+      lease: {
+        property_id, unit_id,
+        lease_from_date: body.lease_from_date,
+        lease_to_date: body.lease_to_date ?? null,
+        lease_type: body.lease_type ?? 'Fixed',
+        payment_due_day: body.payment_due_day ?? null,
+        security_deposit: body.security_deposit ?? null,
+        rent_amount: body.rent_amount ?? null,
+        prorated_first_month_rent: body.prorated_first_month_rent ?? null,
+        prorated_last_month_rent: body.prorated_last_month_rent ?? null,
+        renewal_offer_status: body.renewal_offer_status ?? null,
+        status: body.status || 'active'
+      },
+      contacts: Array.isArray(body.contacts) ? body.contacts : [],
+      rent_schedules: Array.isArray(body.rent_schedules) ? body.rent_schedules : [],
+      recurring_transactions: Array.isArray(body.recurring_transactions) ? body.recurring_transactions : [],
+      documents: Array.isArray(body.documents) ? body.documents : [],
+    }
+    const { data: fnRes, error: fnErr } = await admin.rpc('fn_create_lease_aggregate', { payload })
+    if (fnErr) return NextResponse.json({ error: 'Failed creating lease', details: fnErr.message }, { status: 500 })
+    const lease_id = fnRes?.lease_id
+    const { data: lease } = await admin.from('lease').select('*').eq('id', lease_id).single()
+    const { data: contacts } = await admin.from('lease_contacts').select('*').eq('lease_id', lease_id)
+    const { data: schedules } = await admin.from('rent_schedules').select('*').eq('lease_id', lease_id)
+    const { data: recurs } = await admin.from('recurring_transactions').select('*').eq('lease_id', lease_id)
+    const { data: docs } = await admin.from('lease_documents').select('*').eq('lease_id', lease_id)
 
     let buildium: any = null
+    let buildiumWarning: any = null
     if (syncBuildium) {
       // Build a minimal Buildium payload; users can POST full payload to /api/buildium/leases for complete control
       // Resolve Buildium IDs
@@ -89,8 +103,7 @@ export async function POST(request: NextRequest) {
         UnitId,
         LeaseFromDate: body.lease_from_date,
         LeaseToDate: body.lease_to_date || undefined,
-        LeaseType: body.lease_type || 'Standard',
-        TermType: body.term_type || 'Fixed',
+        LeaseType: body.lease_type || 'Fixed',
         RenewalOfferStatus: body.renewal_offer_status || 'NotOffered',
         CurrentNumberOfOccupants: body.current_number_of_occupants ?? undefined,
         IsEvictionPending: body.is_eviction_pending ?? undefined,
@@ -103,15 +116,20 @@ export async function POST(request: NextRequest) {
       }
       const res = await buildiumEdgeClient.createLeaseInBuildium(payload)
       if (res.success && res.data?.Id) {
-        await supabase.from('lease').update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString(), buildium_created_at: new Date().toISOString() }).eq('id', created.id)
+        await admin.from('lease').update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString(), buildium_created_at: new Date().toISOString(), sync_status: 'ok' }).eq('id', lease_id)
         buildium = res.data
+      } else {
+        buildiumWarning = { warning: res?.error || 'Buildium create failed' }
+        await admin.from('lease').update({ sync_status: 'error', last_sync_error: buildiumWarning.warning, last_sync_attempt_at: new Date().toISOString() }).eq('id', lease_id)
+        await admin.from('lease_sync_queue').insert({ lease_id, idempotency_key: idemKey, last_error: buildiumWarning.warning })
+        if (strict) return NextResponse.json({ error: 'Buildium sync failed', details: buildiumWarning.warning }, { status: 502 })
       }
     }
-
-    return NextResponse.json({ lease: created, buildium }, { status: 201 })
+    const response = { lease, contacts, rent_schedules: schedules, recurring_transactions: recurs, documents: docs, ...(buildium ? { buildium } : {}), ...(buildiumWarning ? { buildiumSync: buildiumWarning } : {}) }
+    try { await admin.from('idempotency_keys').insert({ key: idemKey, response }) } catch {}
+    return NextResponse.json(response, { status: 201 })
   } catch (e) {
     logger.error({ error: e }, 'Error creating lease')
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-

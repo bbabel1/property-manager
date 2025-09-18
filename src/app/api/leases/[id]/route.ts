@@ -38,8 +38,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         UnitId,
         LeaseFromDate: updated.lease_from_date,
         LeaseToDate: updated.lease_to_date || undefined,
-        LeaseType: updated.lease_type || 'Standard',
-        TermType: updated.term_type || 'Fixed',
+        LeaseType: updated.lease_type || 'Fixed',
         RenewalOfferStatus: updated.renewal_offer_status || 'NotOffered',
         CurrentNumberOfOccupants: updated.current_number_of_occupants ?? undefined,
         IsEvictionPending: updated.is_eviction_pending ?? undefined,
@@ -63,4 +62,3 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-
