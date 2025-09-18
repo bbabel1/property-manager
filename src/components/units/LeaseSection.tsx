@@ -231,6 +231,19 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         const supa = getSupabaseBrowserClient()
         const tenantIds: string[] = []
         for (const t of pendingTenants) {
+          // Resolve address mapping: if same_as_unit flagged or no address provided, map from unit/property
+          let addr1Val = t.addr1, addr2Val = t.addr2, cityVal = t.city, stateVal = t.state, postalVal = t.postal, countryVal = t.country
+          const wantsUnitAddress = t.same_as_unit === true || (!addr1Val && !cityVal && !stateVal && !postalVal && !countryVal)
+          if (wantsUnitAddress) {
+            addr1Val = property?.address_line1 || addr1Val || null
+            // Prefer property line2; if none, place unit number in line2
+            const unitLine = unit?.unit_number ? `Unit ${unit.unit_number}` : null
+            addr2Val = property?.address_line2 || unitLine || addr2Val || null
+            cityVal = property?.city || cityVal || null
+            stateVal = property?.state || stateVal || null
+            postalVal = property?.postal_code || postalVal || null
+            countryVal = property?.country || countryVal || null
+          }
           const cPayload: any = {
             is_company: false,
             first_name: t.first_name,
@@ -239,12 +252,12 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             primary_phone: t.phone || null,
             alt_phone: t.alt_phone || null,
             alt_email: t.alt_email || null,
-            primary_address_line_1: t.addr1 || null,
-            primary_address_line_2: t.addr2 || null,
-            primary_city: t.city || null,
-            primary_state: t.state || null,
-            primary_postal_code: t.postal || null,
-            primary_country: t.country || null,
+            primary_address_line_1: addr1Val || null,
+            primary_address_line_2: addr2Val || null,
+            primary_city: cityVal || null,
+            primary_state: stateVal || null,
+            primary_postal_code: postalVal || null,
+            primary_country: countryVal || null,
             alt_address_line_1: t.alt_addr1 || null,
             alt_address_line_2: t.alt_addr2 || null,
             alt_city: t.alt_city || null,
@@ -434,6 +447,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             {/* Lease details (Property, Unit, Type, Dates) */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Lease details</h3>
+              <div className="max-w-4xl w-full">
               {/* Row 1: Property + Unit */}
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-3">
                 <div className="sm:col-span-3">
@@ -455,9 +469,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                   />
                 </div>
               </div>
-              {/* Row 2: Lease Type + Dates */}
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                <div className="sm:col-span-2">
+              {/* Row 2: Lease Type + Dates (equal widths) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
                   <label className="block text-xs mb-1">Lease Type *</label>
                   <Dropdown
                     value={leaseType as any}
@@ -470,7 +484,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     placeholder="Select"
                   />
                 </div>
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-xs mb-1">Start date *</label>
                   <Input
                     type="date"
@@ -489,10 +503,11 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     }}
                   />
                 </div>
-                <div className="sm:col-span-1">
+                <div>
                   <label className="block text-xs mb-1">End date</label>
                   <Input type="date" value={to} onChange={e=>setTo(e.target.value)} />
                 </div>
+              </div>
               </div>
             </div>
 
@@ -1001,6 +1016,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                         email: tenantEmail,
                         alt_phone: altPhone,
                         alt_email: altEmail,
+                        same_as_unit: sameAsUnitAddress,
                         addr1: sameAsUnitAddress ? null : addr1,
                         addr2: sameAsUnitAddress ? null : addr2,
                         city: sameAsUnitAddress ? null : cityField,
