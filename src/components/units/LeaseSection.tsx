@@ -163,9 +163,20 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         lease_to_date: to || null,
         rent_amount: rent ? Number(rent) : null,
         security_deposit: depositAmt ? Number(depositAmt) : null,
-        payment_due_day: depositDate ? new Date(depositDate).getDate() : null,
+        payment_due_day: nextDueDate ? new Date(nextDueDate).getDate() : null,
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
+      }
+      // Add a base recurring rent template if entered
+      if (rent && Number(rent) > 0 && nextDueDate) {
+        body.recurring_transactions = [
+          {
+            amount: Number(rent),
+            memo: rentMemo || 'Rent',
+            frequency: rentCycle,
+            start_date: nextDueDate,
+          }
+        ]
       }
       if (prorateFirstMonth && firstProrationAmount != null && firstProrationAmount > 0) {
         body.prorated_first_month_rent = firstProrationAmount
@@ -546,10 +557,42 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
 
             {/* Rent */}
             <div>
-              <h3 className="text-sm font-medium text-foreground mb-2">Rent</h3>
-              <div className="sm:w-64">
-                <label className="block text-xs mb-1">Monthly rent</label>
-                <Input inputMode="decimal" placeholder="$0.00" value={rent} onChange={e=>setRent(e.target.value)} />
+              <h3 className="text-sm font-medium text-foreground mb-2">Rent <span className="text-muted-foreground">(optional)</span></h3>
+              <div className="sm:w-64 mb-2">
+                <label className="block text-xs mb-1">Rent cycle</label>
+                <Dropdown
+                  value={rentCycle as any}
+                  onChange={(v)=>setRentCycle(v as any)}
+                  options={[
+                    { value: 'Monthly', label: 'Monthly' },
+                    { value: 'Weekly', label: 'Weekly' },
+                    { value: 'Biweekly', label: 'Biweekly' },
+                    { value: 'Quarterly', label: 'Quarterly' },
+                    { value: 'Annually', label: 'Annually' },
+                  ]}
+                />
+              </div>
+              <div className="border rounded-md overflow-hidden">
+                <div className="border-l-4 border-l-emerald-500 px-4 py-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs mb-1">Amount</label>
+                      <Input inputMode="decimal" placeholder="$0.00" value={rent} onChange={e=>setRent(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1">Account *</label>
+                      <Dropdown value={rentAccount} onChange={(v)=>setRentAccount(String(v))} options={[{ value: 'Rent Income', label: 'Rent Income' }]} />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1">Next due date *</label>
+                      <Input type="date" value={nextDueDate} onChange={(e)=>setNextDueDate(e.target.value)} placeholder="m/d/yyyy" />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1">Memo</label>
+                      <Input placeholder="If left blank, will show \"Rent\"" value={rentMemo} onChange={(e)=>setRentMemo(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
