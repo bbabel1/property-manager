@@ -57,6 +57,26 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [altPostal, setAltPostal] = useState<string>('')
   const [altCountry, setAltCountry] = useState<string>('')
 
+  // Cosigner: replicate Contact Information + Address sections
+  const [coShowAltPhone, setCoShowAltPhone] = useState(false)
+  const [coAltPhone, setCoAltPhone] = useState('')
+  const [coShowAltEmail, setCoShowAltEmail] = useState(false)
+  const [coAltEmail, setCoAltEmail] = useState('')
+  const [coSameAsUnitAddress, setCoSameAsUnitAddress] = useState(true)
+  const [coAddr1, setCoAddr1] = useState<string>('')
+  const [coAddr2, setCoAddr2] = useState<string>('')
+  const [coCity, setCoCity] = useState<string>('')
+  const [coState, setCoState] = useState<string>('')
+  const [coPostal, setCoPostal] = useState<string>('')
+  const [coCountry, setCoCountry] = useState<string>('')
+  const [coShowAltAddress, setCoShowAltAddress] = useState(false)
+  const [coAltAddr1, setCoAltAddr1] = useState<string>('')
+  const [coAltAddr2, setCoAltAddr2] = useState<string>('')
+  const [coAltCity, setCoAltCity] = useState<string>('')
+  const [coAltState, setCoAltState] = useState<string>('')
+  const [coAltPostal, setCoAltPostal] = useState<string>('')
+  const [coAltCountry, setCoAltCountry] = useState<string>('')
+
   const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—')
   const fmtUsd = (n?: number | null) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0)
 
@@ -630,10 +650,141 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                         <Input placeholder="Last name" />
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-xs mb-1">Email</label>
-                      <Input type="email" placeholder="name@email.com" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs mb-1">Mobile phone number</label>
+                        <Input placeholder="(555) 555-5555" />
+                      </div>
+                      <div className="flex items-end">
+                        {!coShowAltPhone ? (
+                          <button type="button" onClick={()=>setCoShowAltPhone(true)} className="text-primary text-sm underline">+ Add alternate phone</button>
+                        ) : (
+                          <div className="w-full">
+                            <label className="block text-xs mb-1">Alternate phone</label>
+                            <div className="flex items-center gap-2">
+                              <Input placeholder="(555) 555-1234" value={coAltPhone} onChange={(e)=>setCoAltPhone(e.target.value)} />
+                              <button type="button" className="text-primary text-sm underline whitespace-nowrap" onClick={()=>{ setCoShowAltPhone(false); setCoAltPhone('') }}>× Remove</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs mb-1">Email</label>
+                        <Input type="email" placeholder="name@email.com" />
+                      </div>
+                      <div className="flex items-end">
+                        {!coShowAltEmail ? (
+                          <button type="button" onClick={()=>setCoShowAltEmail(true)} className="text-primary text-sm underline">+ Add alternate email</button>
+                        ) : (
+                          <div className="w-full">
+                            <label className="block text-xs mb-1">Alternate email</label>
+                            <div className="flex items-center gap-2">
+                              <Input type="email" placeholder="alt@email.com" value={coAltEmail} onChange={(e)=>setCoAltEmail(e.target.value)} />
+                              <button type="button" className="text-primary text-sm underline whitespace-nowrap" onClick={()=>{ setCoShowAltEmail(false); setCoAltEmail('') }}>× Remove</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-md overflow-hidden">
+                  <div className="bg-muted px-4 py-2 text-sm font-medium">Address *</div>
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="cosameaddr" checked={coSameAsUnitAddress} onCheckedChange={(v)=>setCoSameAsUnitAddress(Boolean(v))} />
+                      <label htmlFor="cosameaddr" className="text-sm">Same as unit address</label>
+                    </div>
+                    {!coSameAsUnitAddress && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs mb-1">Street Address *</label>
+                          <Input value={coAddr1} onChange={(e)=>setCoAddr1(e.target.value)} placeholder="e.g., 123 Main Street" />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Address Line 2 (Optional)</label>
+                          <Input value={coAddr2} onChange={(e)=>setCoAddr2(e.target.value)} placeholder="Apartment, suite, unit, building, floor, etc." />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs mb-1">City *</label>
+                            <Input value={coCity} onChange={(e)=>setCoCity(e.target.value)} placeholder="Enter city" />
+                          </div>
+                          <div>
+                            <label className="block text-xs mb-1">State *</label>
+                            <Input value={coState} onChange={(e)=>setCoState(e.target.value)} placeholder="Enter state" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs mb-1">ZIP Code *</label>
+                            <Input value={coPostal} onChange={(e)=>setCoPostal(e.target.value)} placeholder="Enter ZIP code" />
+                          </div>
+                          <div>
+                            <label className="block text-xs mb-1">Country *</label>
+                            <Dropdown value={coCountry as any} onChange={setCoCountry as any} options={[
+                              { value: 'United States', label: 'United States' },
+                              { value: 'Canada', label: 'Canada' },
+                              { value: 'Mexico', label: 'Mexico' },
+                            ]} placeholder="Select country" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {!coShowAltAddress && (
+                      <button className="text-primary text-sm underline" type="button" onClick={()=>setCoShowAltAddress(true)}>+ Add alternate address</button>
+                    )}
+
+                    {coShowAltAddress && (
+                      <div className="mt-3 border-t pt-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium text-foreground">Alternate address</div>
+                          <button
+                            type="button"
+                            className="text-primary text-sm underline inline-flex items-center gap-1"
+                            onClick={() => { setCoShowAltAddress(false); setCoAltAddr1(''); setCoAltAddr2(''); setCoAltCity(''); setCoAltState(''); setCoAltPostal(''); setCoAltCountry(''); }}
+                          >
+                            <span className="text-muted-foreground">×</span>
+                            Remove alternate address
+                          </button>
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Street Address</label>
+                          <Input value={coAltAddr1} onChange={(e)=>setCoAltAddr1(e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Address Line 2 (Optional)</label>
+                          <Input value={coAltAddr2} onChange={(e)=>setCoAltAddr2(e.target.value)} />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs mb-1">City</label>
+                            <Input value={coAltCity} onChange={(e)=>setCoAltCity(e.target.value)} />
+                          </div>
+                          <div>
+                            <label className="block text-xs mb-1">State</label>
+                            <Input value={coAltState} onChange={(e)=>setCoAltState(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs mb-1">ZIP Code</label>
+                            <Input value={coAltPostal} onChange={(e)=>setCoAltPostal(e.target.value)} />
+                          </div>
+                          <div>
+                            <label className="block text-xs mb-1">Country</label>
+                            <Dropdown value={coAltCountry as any} onChange={setCoAltCountry as any} options={[
+                              { value: 'United States', label: 'United States' },
+                              { value: 'Canada', label: 'Canada' },
+                              { value: 'Mexico', label: 'Mexico' },
+                            ]} placeholder="Select country" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
