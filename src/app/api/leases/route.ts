@@ -74,46 +74,23 @@ export async function POST(request: NextRequest) {
       recurring_transactions: Array.isArray(body.recurring_transactions) ? body.recurring_transactions : [],
       documents: Array.isArray(body.documents) ? body.documents : [],
     }
-    // Create any new people requested by client (contact + tenant), append to contacts list
+    // Use transactional wrapper function if available
     if (Array.isArray(body.new_people) && body.new_people.length) {
-      const createdTenantIds: { id: string; role: string }[] = []
-      // Fetch property/unit addresses once
-      const { data: prop } = await admin.from('properties').select('address_line1,address_line2,city,state,postal_code,country').eq('id', property_id).maybeSingle()
-      const { data: uni } = await admin.from('units').select('unit_number').eq('id', unit_id).maybeSingle()
-      for (const p of body.new_people as any[]) {
-        const useUnitAddr = p.same_as_unit === true || (!p.addr1 && !p.city && !p.state && !p.postal && !p.country)
-        const cPayload: any = {
-          is_company: false,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          primary_email: p.email || null,
-          primary_phone: p.phone || null,
-          alt_phone: p.alt_phone || null,
-          alt_email: p.alt_email || null,
-          primary_address_line_1: useUnitAddr ? (prop?.address_line1 ?? null) : (p.addr1 ?? null),
-          primary_address_line_2: useUnitAddr ? (prop?.address_line2 ?? (uni?.unit_number ? `Unit ${uni.unit_number}` : null)) : (p.addr2 ?? null),
-          primary_city: useUnitAddr ? (prop?.city ?? null) : (p.city ?? null),
-          primary_state: useUnitAddr ? (prop?.state ?? null) : (p.state ?? null),
-          primary_postal_code: useUnitAddr ? (prop?.postal_code ?? null) : (p.postal ?? null),
-          primary_country: useUnitAddr ? (prop?.country ?? null) : (p.country ?? null),
-          alt_address_line_1: p.alt_addr1 ?? null,
-          alt_address_line_2: p.alt_addr2 ?? null,
-          alt_city: p.alt_city ?? null,
-          alt_state: p.alt_state ?? null,
-          alt_postal_code: p.alt_postal ?? null,
-          alt_country: p.alt_country ?? null,
-        }
-        const { data: contact, error: cErr } = await admin.from('contacts').insert(cPayload).select('id').single()
-        if (cErr) return NextResponse.json({ error: 'Failed creating contact', details: cErr.message }, { status: 400 })
-        const { data: tenant, error: tErr } = await admin.from('tenants').insert({ contact_id: contact!.id }).select('id').single()
-        if (tErr) return NextResponse.json({ error: 'Failed creating tenant', details: tErr.message }, { status: 400 })
-        createdTenantIds.push({ id: tenant!.id, role: p.role || 'Tenant' })
-      }
-      if (createdTenantIds.length) {
-        payload.contacts = [
-          ...payload.contacts,
-          ...createdTenantIds.map(t => ({ tenant_id: t.id, role: t.role, is_rent_responsible: t.role === 'Tenant' }))
-        ]
+      try {
+        const { data: fullRes, error: fullErr } = await admin.rpc('fn_create_lease_full', { payload, new_people: body.new_people })
+        if (fullErr) throw fullErr
+        const lease_id_full = fullRes?.lease_id
+        const { data: lease } = await admin.from('lease').select('*').eq('id', lease_id_full).single()
+        const { data: contacts } = await admin.from('lease_contacts').select('*').eq('lease_id', lease_id_full)
+        const { data: schedules } = await admin.from('rent_schedules').select('*').eq('lease_id', lease_id_full)
+        const { data: recurs } = await admin.from('recurring_transactions').select('*').eq('lease_id', lease_id_full)
+        const { data: docs } = await admin.from('lease_documents').select('*').eq('lease_id', lease_id_full)
+        const response = { lease, contacts, rent_schedules: schedules, recurring_transactions: recurs, documents: docs }
+        try { await admin.from('idempotency_keys').insert({ key: idemKey, response }) } catch {}
+        return NextResponse.json(response, { status: 201 })
+      } catch (wrapErr) {
+        // Fallback to legacy aggregate if wrapper not available
+        logger.warn({ err: String((wrapErr as any)?.message || wrapErr) }, 'fn_create_lease_full not available, falling back')
       }
     }
     const { data: fnRes, error: fnErr } = await admin.rpc('fn_create_lease_aggregate', { payload })
