@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Complete the migration sequence numbering
+set -e
+
+cd "$(dirname "$0")/../.."
+
+echo "🔧 Completing migration sequence numbering..."
+
+# Continue from where we left off (084 onwards)
+git mv supabase/migrations/20250917000000_fix_auth_rls_initialization_plan.sql supabase/migrations/20250917000000_087_fix_auth_rls_initialization_plan.sql
+git mv supabase/migrations/20250917010000_comprehensive_auth_rls_fix.sql supabase/migrations/20250917010000_088_comprehensive_auth_rls_fix.sql
+git mv supabase/migrations/20250917020000_fix_permissive_policies_and_duplicate_indexes.sql supabase/migrations/20250917020000_089_fix_permissive_policies_and_duplicate_indexes.sql
+git mv supabase/migrations/20250917030000_cleanup_remaining_duplicate_indexes.sql supabase/migrations/20250917030000_090_cleanup_remaining_duplicate_indexes.sql
+git mv supabase/migrations/20250917040000_fix_remaining_auth_rls_initialization_plan.sql supabase/migrations/20250917040000_091_fix_remaining_auth_rls_initialization_plan.sql
+git mv supabase/migrations/20250917050000_fix_all_permissive_policies.sql supabase/migrations/20250917050000_092_fix_all_permissive_policies.sql
+git mv supabase/migrations/20250917060000_consolidate_overlapping_permissive_policies.sql supabase/migrations/20250917060000_093_consolidate_overlapping_permissive_policies.sql
+git mv supabase/migrations/20250917070000_add_missing_foreign_key_indexes.sql supabase/migrations/20250917070000_094_add_missing_foreign_key_indexes.sql
+git mv supabase/migrations/20250917080000_remove_unused_indexes.sql supabase/migrations/20250917080000_095_remove_unused_indexes.sql
+git mv supabase/migrations/20250917090000_restore_necessary_foreign_key_indexes.sql supabase/migrations/20250917090000_096_restore_necessary_foreign_key_indexes.sql
+git mv supabase/migrations/20250917100000_remove_additional_unused_indexes.sql supabase/migrations/20250917100000_097_remove_additional_unused_indexes.sql
+git mv supabase/migrations/20250917110000_add_missing_inspections_unit_id_index.sql supabase/migrations/20250917110000_098_add_missing_inspections_unit_id_index.sql
+git mv supabase/migrations/20250917120000_optimize_query_performance.sql supabase/migrations/20250917120000_099_optimize_query_performance.sql
+git mv supabase/migrations/20250917130000_additional_query_optimizations.sql supabase/migrations/20250917130000_100_additional_query_optimizations.sql
+
+echo "✅ Completed migration sequence numbering!"
+echo "📋 All migrations now have proper sequence numbers."
