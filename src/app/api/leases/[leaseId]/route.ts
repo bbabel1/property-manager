@@ -20,7 +20,7 @@ export async function PUT(request: NextRequest, { params }: { params: { leaseId:
     const { data: updated, error } = await supabase.from('lease').update(patch).eq('id', id).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-    let buildium: any = null
+    let buildium: Record<string, unknown> | null = null
     if (syncBuildium) {
       // Prepare Buildium payload; prefer direct fields if provided
       let PropertyId = updated.buildium_property_id
@@ -33,7 +33,21 @@ export async function PUT(request: NextRequest, { params }: { params: { leaseId:
         const { data: u } = await supabase.from('units').select('buildium_unit_id').eq('id', updated.unit_id).single()
         UnitId = u?.buildium_unit_id
       }
-      const payload: any = {
+      type BuildiumLeasePayload = {
+        PropertyId?: number | null
+        UnitId?: number | null
+        LeaseFromDate: string | null
+        LeaseToDate?: string | null
+        LeaseType: string
+        RenewalOfferStatus: string
+        CurrentNumberOfOccupants?: number | null
+        IsEvictionPending?: boolean | null
+        AutomaticallyMoveOutTenants?: boolean | null
+        PaymentDueDay?: number | null
+        AccountDetails: { Rent: number; SecurityDeposit: number }
+      }
+
+      const payload: BuildiumLeasePayload = {
         PropertyId,
         UnitId,
         LeaseFromDate: updated.lease_from_date,

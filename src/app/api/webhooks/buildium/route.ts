@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
 
 function verifySignature(req: NextRequest, raw: string): boolean {
@@ -7,10 +8,19 @@ function verifySignature(req: NextRequest, raw: string): boolean {
   if (!secret) return false
   // Simple HMAC placeholder (you can replace with actual Buildium signing algorithm when documented)
   try {
-    const crypto = require('crypto')
     const h = crypto.createHmac('sha256', secret).update(raw).digest('hex')
     return sig === h
-  } catch { return false }
+  } catch {
+    return false
+  }
+}
+
+type BuildiumWebhookPayload = {
+  eventId?: string | number
+  id?: string | number
+  type?: string
+  eventType?: string
+  [key: string]: unknown
 }
 
 export async function POST(req: NextRequest) {
@@ -18,9 +28,9 @@ export async function POST(req: NextRequest) {
   const raw = await req.text()
   const ok = verifySignature(req, raw)
   if (!ok) return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-  const body = JSON.parse(raw || '{}')
-  const eventId = body?.eventId || body?.id || null
-  const type = body?.type || body?.eventType || 'unknown'
+  const body = JSON.parse(raw || '{}') as BuildiumWebhookPayload
+  const eventId = (body.eventId ?? body.id) ?? null
+  const type = (body.type ?? body.eventType) ?? 'unknown'
   try {
     // Idempotent ingest
     const { data: existing } = await admin.from('buildium_webhook_events').select('id').eq('event_id', eventId).maybeSingle()
@@ -32,8 +42,12 @@ export async function POST(req: NextRequest) {
 
     await admin.from('buildium_webhook_events').update({ status: 'processed', processed_at: new Date().toISOString() }).eq('event_id', eventId)
     return NextResponse.json({ ok: true })
-  } catch (e:any) {
-    await admin.from('buildium_webhook_events').update({ status: 'error', error: e?.message || 'error', processed_at: new Date().toISOString() }).eq('event_id', eventId)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'error'
+    await admin
+      .from('buildium_webhook_events')
+      .update({ status: 'error', error: message, processed_at: new Date().toISOString() })
+      .eq('event_id', eventId)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
