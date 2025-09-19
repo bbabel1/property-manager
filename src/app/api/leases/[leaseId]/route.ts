@@ -3,16 +3,16 @@ import { supabase } from '@/lib/db'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const id = Number(params.id)
+export async function GET(_req: NextRequest, { params }: { params: { leaseId: string } }) {
+  const id = Number(params.leaseId)
   const { data, error } = await supabase.from('lease').select('*').eq('id', id).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
   return NextResponse.json(data)
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: { leaseId: string } }) {
   try {
-    const id = Number(params.id)
+    const id = Number(params.leaseId)
     const url = new URL(request.url)
     const syncBuildium = url.searchParams.get('syncBuildium') === 'true'
     const body = await request.json()
