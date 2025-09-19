@@ -30,9 +30,10 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   const isAuthRoute = pathname.startsWith("/auth")
   const isDebugApi = pathname.startsWith('/api/debug')
+  const isCsrfApi = pathname === '/api/csrf'
 
-  // Allow diagnostic endpoints and CORS preflight without auth
-  if (req.method === 'OPTIONS' || isDebugApi) {
+  // Allow diagnostic endpoints, CSRF endpoint, and CORS preflight without auth
+  if (req.method === 'OPTIONS' || isDebugApi || isCsrfApi) {
     return NextResponse.next()
   }
 
