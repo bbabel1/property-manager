@@ -6,7 +6,7 @@ import { createHash } from 'crypto'
 type Recurring = {
   id: string
   lease_id: number
-  frequency: 'Monthly' | 'Weekly' | 'Biweekly' | 'Quarterly' | 'Annually'
+  frequency: 'Monthly' | 'Weekly' | 'Biweekly' | 'Quarterly' | 'Annually' | 'OneTime'
   amount: number
   memo?: string | null
   start_date?: string | null
@@ -106,6 +106,10 @@ function computeOccurrences(r: Recurring, l: LeaseMini, from: Date, to: Date): s
     if (cur >= from) dates.push(fmtDate(cur))
     // increment by frequency
     switch (r.frequency) {
+      case 'OneTime':
+        // Single occurrence only; move beyond horizon to stop loop
+        cur = addDays(to, 1)
+        break
       case 'Weekly': cur = addDays(cur, 7); break
       case 'Biweekly': cur = addDays(cur, 14); break
       case 'Quarterly': cur = addMonthsClamp(cur, 3, cur.getUTCDate()); break
@@ -172,4 +176,3 @@ export async function postLateFees() {
 
   return { created }
 }
-

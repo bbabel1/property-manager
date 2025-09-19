@@ -9,17 +9,29 @@ function getAdmin() {
   return createClient(url, key)
 }
 
-async function findGlIdByName(supabase: any, nameLike: string) {
-  const { data } = await supabase.from('gl_accounts').select('id, name').ilike('name', `%${nameLike}%`).limit(1)
-  return data?.[0]?.id as string | undefined
+async function findGlIdByName(
+  supabase: any,
+  opts: { exact?: string; like?: string }
+) {
+  if (opts.exact) {
+    const { data } = await supabase.from('gl_accounts').select('id, name').eq('name', opts.exact).limit(1)
+    if (data && data[0]?.id) return data[0].id as string
+  }
+  if (opts.like) {
+    const { data } = await supabase.from('gl_accounts').select('id, name').ilike('name', `%${opts.like}%`).limit(1)
+    if (data && data[0]?.id) return data[0].id as string
+  }
+  return undefined
 }
 
 async function upsertForOrg(supabase: any, orgId: string) {
   const required: Record<string, string | undefined> = {}
-  required.ar_lease = await findGlIdByName(supabase, 'receivable')
-  required.rent_income = await findGlIdByName(supabase, 'rent')
-  required.cash_operating = await findGlIdByName(supabase, 'operat')
-  required.tenant_deposit_liability = await findGlIdByName(supabase, 'deposit')
+  const RENT_NAME = process.env.RENT_INCOME_NAME || 'Rent Income'
+  const DEPOSIT_LIAB_NAME = process.env.DEPOSIT_LIABILITY_NAME || 'Security Deposit Liability'
+  required.ar_lease = await findGlIdByName(supabase, { like: 'receivable' })
+  required.rent_income = await findGlIdByName(supabase, { exact: RENT_NAME, like: 'rent' })
+  required.cash_operating = await findGlIdByName(supabase, { like: 'operat' })
+  required.tenant_deposit_liability = await findGlIdByName(supabase, { exact: DEPOSIT_LIAB_NAME, like: 'deposit' })
   // Optional/best-effort
   const late_fee_income = await findGlIdByName(supabase, 'late fee')
   const write_off = await findGlIdByName(supabase, 'bad debt')
@@ -58,10 +70,10 @@ async function upsertForOrg(supabase: any, orgId: string) {
 
 async function main() {
   const supabase = getAdmin()
-  const { data: orgs, error } = await supabase.from('organizations').select('id')
-  if (error) throw error
+  const targetOrg = process.env.ORG_ID
+  const orgsList = targetOrg ? [{ id: targetOrg }] : ((await supabase.from('organizations').select('id')).data || [])
   let ok = 0
-  for (const o of orgs || []) {
+  for (const o of orgsList) {
     try {
       const res = await upsertForOrg(supabase, o.id)
       if (res) ok += 1
@@ -69,11 +81,10 @@ async function main() {
       console.warn(`Failed seeding GL settings for ${o.id}:`, e?.message || e)
     }
   }
-  console.log(`GL settings: processed ${orgs?.length || 0}, upserted ${ok}`)
+  console.log(`GL settings: processed ${orgsList.length}, upserted ${ok}`)
 }
 
 main().catch((e) => {
   console.error(e)
   process.exit(1)
 })
-

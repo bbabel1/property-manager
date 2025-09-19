@@ -100,6 +100,8 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [coAltPostal, setCoAltPostal] = useState<string>('')
   const [coAltCountry, setCoAltCountry] = useState<string>('')
   const [pendingCosigners, setPendingCosigners] = useState<any[]>([])
+  const [rentAccountName, setRentAccountName] = useState<string>('Rent Income')
+  const [depositAccountName, setDepositAccountName] = useState<string>('Security Deposit Liability')
 
   function resetCosignerForm() {
     setCoFirstName(''); setCoLastName(''); setCoEmail(''); setCoPhone('');
@@ -158,10 +160,38 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     return () => { cancelled = true }
   }, [open, propertyId])
 
+  // Load GL account names from settings_gl_accounts for the property's org
+  useEffect(() => {
+    const loadGlNames = async () => {
+      try {
+        const supa = getSupabaseBrowserClient()
+        let orgId = (property as any)?.org_id as string | undefined
+        if (!orgId && propertyId) {
+          const { data: p } = await supa.from('properties').select('org_id').eq('id', propertyId).maybeSingle()
+          orgId = p?.org_id
+        }
+        if (!orgId) return
+        const { data: settings } = await supa.from('settings_gl_accounts').select('rent_income, tenant_deposit_liability').eq('org_id', orgId).maybeSingle()
+        if (!settings) return
+        const ids: string[] = [settings.rent_income, settings.tenant_deposit_liability].filter(Boolean)
+        if (!ids.length) return
+        const { data: gls } = await supa.from('gl_accounts').select('id,name').in('id', ids as any)
+        const nameById = new Map((gls || []).map((g:any)=>[g.id, g.name]))
+        if (settings.rent_income && nameById.get(settings.rent_income)) setRentAccountName(nameById.get(settings.rent_income)!)
+        if (settings.tenant_deposit_liability && nameById.get(settings.tenant_deposit_liability)) setDepositAccountName(nameById.get(settings.tenant_deposit_liability)!)
+      } catch {}
+    }
+    loadGlNames()
+  }, [propertyId])
+
   async function save() {
     try {
       setSaving(true); setError(null)
       if (!from) throw new Error('Start date is required')
+      const totalTenants = selectedExistingTenantIds.length + pendingTenants.length + pendingCosigners.length
+      if (totalTenants === 0) throw new Error('Add at least one tenant or cosigner')
+      if (rent && Number(rent) > 0 && !nextDueDate) throw new Error('Rent next due date is required when amount is set')
+      if (depositAmt && Number(depositAmt) > 0 && !depositDate) throw new Error('Deposit due date is required when amount is set')
       const body: any = {
         property_id: propertyId || property?.id,
         unit_id: unitId || unit?.id,
@@ -181,6 +211,19 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             memo: rentMemo || 'Rent',
             frequency: rentCycle,
             start_date: nextDueDate,
+          }
+        ]
+      }
+      // Add a one-time deposit template if provided (store only, no posting on save)
+      if (depositAmt && Number(depositAmt) > 0 && depositDate) {
+        body.recurring_transactions = [
+          ...(body.recurring_transactions || []),
+          {
+            amount: Number(depositAmt),
+            memo: depositMemo || 'Security Deposit',
+            frequency: 'OneTime',
+            start_date: depositDate,
+            end_date: depositDate,
           }
         ]
       }
@@ -527,7 +570,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Account *</label>
-                      <Dropdown value={rentAccount} onChange={(v)=>setRentAccount(String(v))} options={[{ value: 'Rent Income', label: 'Rent Income' }]} />
+                      <Input readOnly value={rentAccountName} />
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Next due date *</label>
@@ -607,7 +650,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Account *</label>
-                      <Dropdown value={depositAccount} onChange={(v)=>setDepositAccount(String(v))} options={[{ value: 'Deposit Liability', label: 'Deposit Liability' }]} />
+                      <Input readOnly value={depositAccountName} />
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Next due date *</label>
