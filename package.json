@@ -51,7 +51,7 @@
     "@opentelemetry/instrumentation-pg": "^0.54.0",
     "@opentelemetry/instrumentation-pino": "^0.52.0",
     "@opentelemetry/resources": "^1.28.0",
-    "@opentelemetry/sdk-node": "^0.55.0",
+    "@opentelemetry/sdk-node": "^0.205.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
