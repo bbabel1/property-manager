@@ -24,7 +24,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
   const [notes, setNotes] = useState<string>(unit?.description || '')
   const [unitStatus, setUnitStatus] = useState<string>(unit?.status || 'Vacant')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewImageId, setPreviewImageId] = useState<number | null>(null)
+  const [previewImageId, setPreviewImageId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -35,15 +35,14 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
     let cancelled = false
     const load = async () => {
       try {
-        const bId = (unit as any)?.buildium_unit_id
-        if (!bId) return
-        const res = await fetch(`/api/buildium/units/${bId}/images`, { credentials: 'include' })
+        if (!unit?.id) return
+        const res = await fetch(`/api/units/${unit.id}/images`, { credentials: 'include' })
         if (!res.ok) return
         const j = await res.json().catch(() => null as any)
         const first = Array.isArray(j?.data) && j.data.length ? j.data[0] : null
-        const url = first?.Href || first?.Url || null
-        const id = typeof first?.Id === 'number' ? first.Id : null
-        if (!cancelled) { setPreviewUrl(url || null); setPreviewImageId(id) }
+        const url = first?.href || first?.Href || first?.Url || null
+        const imageRowId = first?.id ? String(first.id) : null
+        if (!cancelled) { setPreviewUrl(url || null); setPreviewImageId(imageRowId) }
       } catch {}
     }
     load()
@@ -76,8 +75,6 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return
-              const bId = (unit as any)?.buildium_unit_id
-              if (!bId) { setUploadError('Cannot upload image — missing Buildium unit mapping'); return }
               try {
                 setUploading(true)
                 setUploadError(null)
@@ -94,20 +91,21 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
                 const dataUrl = await toBase64(file)
                 const base64 = dataUrl.split(',')[1] || ''
                 if (!base64) throw new Error('Invalid image data')
-                const res = await fetch(`/api/buildium/units/${bId}/images`, {
+                const res = await fetch(`/api/units/${unit.id}/images`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',
-                  body: JSON.stringify({ FileName: file.name, FileData: base64 })
+                  body: JSON.stringify({ FileName: file.name, FileData: base64, FileType: file.type })
                 })
                 if (!res.ok) {
                   const j = await res.json().catch(() => ({} as any))
                   throw new Error(j?.error || 'Upload failed')
                 }
                 // refresh canonical
-                const check = await fetch(`/api/buildium/units/${bId}/images?cb=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
+                const check = await fetch(`/api/units/${unit.id}/images?cb=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
                 const jj = await check.json().catch(() => null as any)
-                const url = jj?.data?.[0]?.Href || jj?.data?.[0]?.Url || null
+                const first = Array.isArray(jj?.data) && jj.data.length ? jj.data[0] : null
+                const url = first?.href || first?.Href || first?.Url || null
                 setPreviewUrl(url || obj)
                 setUploadSuccess('Image uploaded')
               } catch (err) {
@@ -122,9 +120,8 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="text-primary text-sm underline disabled:opacity-50"
-            disabled={uploading || !(unit as any)?.buildium_unit_id}
-            title={(unit as any)?.buildium_unit_id ? '' : 'Buildium unit ID is required to upload images'}
-          >
+            disabled={uploading}
+            >
             {previewUrl ? (uploading ? 'Uploading…' : 'Replace Image') : (uploading ? 'Uploading…' : 'Add Image')}
           </button>
           {uploadError ? <p className="mt-1 text-xs text-destructive">{uploadError}</p> : null}
@@ -133,7 +130,14 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
       </div>
       <div className="space-y-5 md:col-span-3">
         <div className="space-y-1">
-          {status ? <Badge className={statusCls}>{unit?.status}</Badge> : null}
+          <div className="flex items-center gap-2">
+            {status ? <Badge className={statusCls}>{unit?.status}</Badge> : null}
+            {unit?.buildium_unit_id ? (
+              <Badge variant="secondary">Buildium ID: {unit.buildium_unit_id}</Badge>
+            ) : (
+              <Badge variant="outline">Not in Buildium</Badge>
+            )}
+          </div>
           <h2 className="text-xl font-semibold text-foreground">
             {(property?.address_line1 || property?.name || 'Property')}{unit?.unit_number ? ` - ${unit.unit_number}` : ''}
           </h2>
@@ -190,40 +194,42 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return
-              const bId = (unit as any)?.buildium_unit_id
-              if (!bId) { setUploadError('Cannot upload image — missing Buildium unit mapping'); return }
               try {
                 setUploading(true); setUploadError(null); setUploadSuccess(null)
                 const obj = URL.createObjectURL(file); setPreviewUrl(obj)
                 const toBase64 = (f: File) => new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result||'')); r.onerror = () => reject(new Error('Failed to read')); r.readAsDataURL(f) })
                 const dataUrl = await toBase64(file)
                 const base64 = dataUrl.split(',')[1] || ''
-                const res = await fetch(`/api/buildium/units/${bId}/images`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ FileName: file.name, FileData: base64 }) })
+                const res = await fetch(`/api/units/${unit.id}/images`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ FileName: file.name, FileData: base64, FileType: file.type })
+                })
                 if (!res.ok) { const j = await res.json().catch(()=>({} as any)); throw new Error(j?.error || 'Upload failed') }
-                const check = await fetch(`/api/buildium/units/${bId}/images?cb=${Date.now()}`, { credentials:'include', cache:'no-store' })
+                const check = await fetch(`/api/units/${unit.id}/images?cb=${Date.now()}`, { credentials:'include', cache:'no-store' })
                 const jj = await check.json().catch(()=>null as any)
                 const first = Array.isArray(jj?.data) && jj.data.length ? jj.data[0] : null
-                const url = first?.Href || first?.Url || null
-                const id = typeof first?.Id === 'number' ? first.Id : null
+                const url = first?.href || first?.Href || first?.Url || null
+                const imageRowId = first?.id ? String(first.id) : null
                 setPreviewUrl(url || obj)
-                setPreviewImageId(id)
+                setPreviewImageId(imageRowId)
                 setUploadSuccess('Image uploaded')
               } catch (err) { setUploadError(err instanceof Error ? err.message : 'Failed to upload') } finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = '' }
             }}
           />
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="text-primary text-sm underline disabled:opacity-50" disabled={uploading || !(unit as any)?.buildium_unit_id}>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="text-primary text-sm underline disabled:opacity-50" disabled={uploading}>
             {previewUrl ? (uploading ? 'Uploading…' : 'Replace Image') : (uploading ? 'Uploading…' : 'Add Image')}
           </button>
-          {previewUrl && previewImageId != null ? (
+          {previewUrl && previewImageId ? (
             <button
               type="button"
               className="text-destructive text-sm underline disabled:opacity-50"
               onClick={async () => {
-                const bId = (unit as any)?.buildium_unit_id
-                if (!bId || previewImageId == null) return
+                if (!previewImageId) return
                 try {
                   setUploading(true); setUploadError(null); setUploadSuccess(null)
-                  const res = await fetch(`/api/buildium/units/${bId}/images/${previewImageId}`, { method: 'DELETE', credentials: 'include' })
+                  const res = await fetch(`/api/units/${unit.id}/images/${previewImageId}`, { method: 'DELETE', credentials: 'include' })
                   if (!res.ok) { const j = await res.json().catch(()=>({} as any)); throw new Error(j?.error || 'Failed to delete image') }
                   setPreviewUrl(null); setPreviewImageId(null); setUploadSuccess('Image removed')
                 } catch (e) { setUploadError(e instanceof Error ? e.message : 'Failed to delete') } finally { setUploading(false) }

@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import type { Database } from '@/types/database'
+
+type Country = Database['public']['Enums']['countries']
 
 interface Owner {
   id: string
@@ -24,13 +27,14 @@ interface Owner {
   primary_city?: string
   primary_state?: string
   primary_postal_code?: string
-  primary_country?: string
+  primary_country?: Country | null
   management_agreement_start_date?: string
   management_agreement_end_date?: string
   created_at: string
   updated_at: string
   // Total units calculated from properties
   total_units?: number
+  etf_account_type?: 'Checking' | 'Saving' | null
 }
 
 export default function OwnersPage() {

@@ -1,18 +1,66 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "daily"
-    open-pull-requests-limit: 10
-    versioning-strategy: increase
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'brandonbabel'
+    assignees:
+      - 'brandonbabel'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: 'scope'
+    groups:
+      nextjs:
+        patterns:
+          - 'next*'
+          - '@next/*'
+      supabase:
+        patterns:
+          - '@supabase/*'
+      typescript:
+        patterns:
+          - 'typescript'
+          - '@types/*'
+      testing:
+        patterns:
+          - 'playwright*'
+          - '@playwright/*'
+          - 'jest*'
+          - '@testing-library/*'
+      tailwind:
+        patterns:
+          - 'tailwindcss*'
+          - '@tailwindcss/*'
+      monitoring:
+        patterns:
+          - '@sentry/*'
+          - '@opentelemetry/*'
     labels:
       - dependencies
-      - security
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - dependencies
+    ignore:
+      # Ignore major version bumps that need manual review
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
 
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+      day: 'monday'
+      time: '09:00'
+    open-pull-requests-limit: 3
+    reviewers:
+      - 'brandonbabel'
+    assignees:
+      - 'brandonbabel'
+    commit-message:
+      prefix: 'ci'
+      include: 'scope'
+    labels:
+      - dependencies
+      - github-actions

@@ -4,13 +4,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dropdown } from '@/components/ui/Dropdown'
+import { normalizeStaffRole } from '@/lib/staff-role'
 
 const ROLE_OPTIONS = [
-  { value: 'PROPERTY_MANAGER', label: 'Property Manager' },
-  { value: 'ASSISTANT_PROPERTY_MANAGER', label: 'Assistant Property Manager' },
-  { value: 'MAINTENANCE_COORDINATOR', label: 'Maintenance Coordinator' },
-  { value: 'ACCOUNTANT', label: 'Accountant' },
-  { value: 'ADMINISTRATOR', label: 'Administrator' },
+  { value: 'Property Manager', label: 'Property Manager' },
+  { value: 'Bookkeeper', label: 'Bookkeeper' },
 ]
 
 export default function StaffWizardModal({ open, onOpenChange, onSaved }: { open: boolean; onOpenChange: (o:boolean)=>void; onSaved: ()=>void }) {
@@ -20,7 +18,7 @@ export default function StaffWizardModal({ open, onOpenChange, onSaved }: { open
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [title, setTitle] = useState('')
-  const [staffRole, setStaffRole] = useState('PROPERTY_MANAGER')
+  const [staffRole, setStaffRole] = useState('Property Manager')
   const [sendInvite, setSendInvite] = useState(true)
   const [orgId, setOrgId] = useState<string>('')
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([])
@@ -54,7 +52,15 @@ export default function StaffWizardModal({ open, onOpenChange, onSaved }: { open
   const submit = async () => {
     try {
       setBusy(true); setErr(null)
-      const res = await fetch('/api/staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firstName, lastName, email, phone, title, role: staffRole, isActive: true, orgId: orgId || undefined, sendInvite }) })
+      const normalizedRole = normalizeStaffRole(staffRole)
+      if (!normalizedRole) {
+        throw new Error('Invalid role selected')
+      }
+      const res = await fetch('/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName, lastName, email, phone, title, role: normalizedRole, isActive: true, orgId: orgId || undefined, sendInvite })
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to create staff')
       const staffId = data?.staff?.id

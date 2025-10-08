@@ -23,9 +23,33 @@ export async function createCharge(params: { lease_id: number|string; date: stri
     if (existing?.id) return existing
   }
   try { logger.info({ correlation_id: params.correlation_id || params.idempotency_key || null, lease_id: header.lease_id, idempotency_key: header.idempotency_key, total_amount: header.total_amount }, 'Posting charge header') } catch {}
+  // Enrich header with org/buildium via lease (if available)
+  try {
+    const { data: lease } = await db
+      .from('lease')
+      .select('org_id, buildium_lease_id')
+      .eq('id', header.lease_id as any)
+      .maybeSingle()
+    if (lease) {
+      ;(header as any).org_id = (lease as any).org_id ?? null
+      ;(header as any).buildium_lease_id = (lease as any).buildium_lease_id ?? null
+    }
+  } catch {}
+
   const { data: txn, error } = await db.from('transactions').insert(header).select('id').single()
   if (error) throw error
   const txid = txn.id
+  // Load more lease context for lines
+  let leaseRow: any = null
+  try {
+    const { data } = await db
+      .from('lease')
+      .select('property_id, unit_id, buildium_property_id, buildium_unit_id, buildium_lease_id')
+      .eq('id', header.lease_id as any)
+      .maybeSingle()
+    leaseRow = data || null
+  } catch {}
+
   const rows = params.lines.map(l => ({
     transaction_id: txid,
     date: params.date,
@@ -33,6 +57,13 @@ export async function createCharge(params: { lease_id: number|string; date: stri
     amount: Number(l.amount || 0) * (l.dr_cr === 'DR' ? 1 : -1),
     memo: l.memo || null,
     posting_type: l.dr_cr,
+    account_entity_type: 'Rental' as any,
+    account_entity_id: leaseRow?.buildium_property_id ?? null,
+    property_id: leaseRow?.property_id ?? null,
+    unit_id: leaseRow?.unit_id ?? null,
+    
+    buildium_unit_id: leaseRow?.buildium_unit_id ?? null,
+    buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     lease_id: header.lease_id as any

@@ -7,7 +7,6 @@
 ## Overview
 
 This document describes the detailed database schema for the Property Management System with comprehensive Buildium API integration support. It includes all field constraints, default values, and enum definitions that are essential for developers.
-
 ## Core Tables
 
 ### Properties
@@ -170,8 +169,7 @@ CREATE TABLE "public"."units" (
 - Buildium ID fields used for cross-system mapping:
   - `buildium_unit_id` (unique per unit)
   - `buildium_property_id` (the parent property’s Buildium ID)
-- Timestamps (if present): `buildium_created_at`, `buildium_updated_at` capture first seen/last updated from Buildium.
-- Common indexes: `idx_units_buildium_id` on `buildium_unit_id` and triggers to set `buildium_property_id` from related property when available.
+- Timestamps (if present): `buildium_created_at`, `buildium_updated_at` capture first seen/last updated from Buildium.- Common indexes: `idx_units_buildium_id` on `buildium_unit_id` and triggers to set `buildium_property_id` from related property when available.
 
 ### Owners
 

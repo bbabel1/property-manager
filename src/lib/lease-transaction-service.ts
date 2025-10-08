@@ -36,10 +36,9 @@ export class LeaseTransactionService {
     if (typeof params?.offset === 'number') qp.set('offset', String(params.offset))
     if (typeof params?.limit === 'number') qp.set('limit', String(params.limit))
 
-    const items = await (client as any).makeRequest<BuildiumLeaseTransaction[]>(
-      'GET',
-      `/leases/${leaseId}/transactions?${qp.toString()}`
-    )
+    const items = await (client as any)
+      .makeRequest('GET', `/leases/${leaseId}/transactions?${qp.toString()}`)
+      .then((res: BuildiumLeaseTransaction[]) => res)
 
     if (params?.persist) {
       for (const tx of items) {
@@ -68,7 +67,10 @@ export class LeaseTransactionService {
   // Get one Lease Transaction from Buildium (optionally persist full transaction + lines)
   static async getFromBuildium(leaseId: number, transactionId: number, persist = false): Promise<BuildiumLeaseTransaction | null> {
     const client = ensureClient()
-    const tx = await (client as any).makeRequest<BuildiumLeaseTransaction>('GET', `/leases/${leaseId}/transactions/${transactionId}`).catch(() => null)
+    const tx = await (client as any)
+      .makeRequest('GET', `/leases/${leaseId}/transactions/${transactionId}`)
+      .then((res: BuildiumLeaseTransaction) => res)
+      .catch(() => null)
     if (!tx) return null
 
     if (persist) {
@@ -85,7 +87,9 @@ export class LeaseTransactionService {
   // Create in Buildium, then upsert into DB
   static async createInBuildiumAndDB(leaseId: number, payload: BuildiumLeaseTransactionCreate): Promise<{ buildium: BuildiumLeaseTransaction; localId?: string }> {
     const client = ensureClient()
-    const created = await (client as any).makeRequest<BuildiumLeaseTransaction>('POST', `/leases/${leaseId}/transactions`, payload)
+    const created = await (client as any)
+      .makeRequest('POST', `/leases/${leaseId}/transactions`, payload)
+      .then((res: BuildiumLeaseTransaction) => res)
     const { transactionId } = await upsertLeaseTransactionWithLines(created, supabase)
     return { buildium: created, localId: transactionId }
   }
@@ -93,7 +97,9 @@ export class LeaseTransactionService {
   // Update in Buildium, then upsert into DB
   static async updateInBuildiumAndDB(leaseId: number, transactionId: number, payload: BuildiumLeaseTransactionUpdate): Promise<{ buildium: BuildiumLeaseTransaction; localId?: string }> {
     const client = ensureClient()
-    const updated = await (client as any).makeRequest<BuildiumLeaseTransaction>('PUT', `/leases/${leaseId}/transactions/${transactionId}`, payload)
+    const updated = await (client as any)
+      .makeRequest('PUT', `/leases/${leaseId}/transactions/${transactionId}`, payload)
+      .then((res: BuildiumLeaseTransaction) => res)
     const { transactionId: local } = await upsertLeaseTransactionWithLines(updated, supabase)
     return { buildium: updated, localId: local }
   }
@@ -101,27 +107,35 @@ export class LeaseTransactionService {
   // Recurring transactions
   static async listRecurring(leaseId: number): Promise<BuildiumRecurringTransaction[]> {
     const client = ensureClient()
-    return (client as any).makeRequest<BuildiumRecurringTransaction[]>('GET', `/leases/${leaseId}/recurringtransactions`)
+    return (client as any)
+      .makeRequest('GET', `/leases/${leaseId}/recurringtransactions`)
+      .then((res: BuildiumRecurringTransaction[]) => res)
   }
 
   static async getRecurring(leaseId: number, id: number): Promise<BuildiumRecurringTransaction> {
     const client = ensureClient()
-    return (client as any).makeRequest<BuildiumRecurringTransaction>('GET', `/leases/${leaseId}/recurringtransactions/${id}`)
+    return (client as any)
+      .makeRequest('GET', `/leases/${leaseId}/recurringtransactions/${id}`)
+      .then((res: BuildiumRecurringTransaction) => res)
   }
 
   static async createRecurring(leaseId: number, payload: BuildiumRecurringTransactionCreate): Promise<BuildiumRecurringTransaction> {
     const client = ensureClient()
-    return (client as any).makeRequest<BuildiumRecurringTransaction>('POST', `/leases/${leaseId}/recurringtransactions`, payload)
+    return (client as any)
+      .makeRequest('POST', `/leases/${leaseId}/recurringtransactions`, payload)
+      .then((res: BuildiumRecurringTransaction) => res)
   }
 
   static async updateRecurring(leaseId: number, id: number, payload: BuildiumRecurringTransactionUpdate): Promise<BuildiumRecurringTransaction> {
     const client = ensureClient()
-    return (client as any).makeRequest<BuildiumRecurringTransaction>('PUT', `/leases/${leaseId}/recurringtransactions/${id}`, payload)
+    return (client as any)
+      .makeRequest('PUT', `/leases/${leaseId}/recurringtransactions/${id}`, payload)
+      .then((res: BuildiumRecurringTransaction) => res)
   }
 
   static async deleteRecurring(leaseId: number, id: number): Promise<void> {
     const client = ensureClient()
-    await (client as any).makeRequest<void>('DELETE', `/leases/${leaseId}/recurringtransactions/${id}`)
+    await (client as any).makeRequest('DELETE', `/leases/${leaseId}/recurringtransactions/${id}`)
   }
 }
 

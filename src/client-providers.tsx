@@ -1,7 +1,14 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Providers } from './providers'
 
-export function ClientProviders({ children }: { children: React.ReactNode }) {
+type ClientProvidersProps = {
+  children: ReactNode
+}
+
+export function ClientProviders({ children }: ClientProvidersProps) {
   return <Providers>{children}</Providers>
 }
+
+export default ClientProviders

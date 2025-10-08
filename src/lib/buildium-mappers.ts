@@ -17,6 +17,9 @@ import type {
   BuildiumBankAccountCreate,
   BuildiumLease,
   BuildiumLeaseCreate,
+  BuildiumLeaseType,
+  BuildiumLeaseTermType,
+  BuildiumLeaseRenewalStatus,
   BuildiumSyncStatus
 } from '../types/buildium'
 import type {
@@ -3076,16 +3079,101 @@ function mapBankAccountTypeFromBuildium(buildiumType: 'Checking' | 'Savings' | '
 // LEASE MAPPERS
 // ============================================================================
 
+type NormalizedBuildiumDate = { iso: string; dateOnly: string }
+
 export function mapLeaseToBuildium(localLease: any): BuildiumLeaseCreate {
-  return {
-    PropertyId: localLease.buildium_property_id || localLease.property_id,
-    UnitId: localLease.buildium_unit_id || localLease.unit_id,
-    Status: localLease.status || 'Active',
-    StartDate: localLease.lease_from_date,
-    EndDate: localLease.lease_to_date || undefined,
-    RentAmount: localLease.rent_amount,
-    SecurityDepositAmount: localLease.security_deposit || undefined
+  // If the input already looks like a Buildium-shaped payload (has LeaseFromDate),
+  // pass through only the keys supported by the create-lease schema without re-deriving.
+  if (localLease && typeof localLease.LeaseFromDate === 'string') {
+    const out: any = {
+      LeaseFromDate: String(localLease.LeaseFromDate)
+    }
+    if (localLease.LeaseType) out.LeaseType = localLease.LeaseType
+    if (localLease.LeaseToDate) out.LeaseToDate = String(localLease.LeaseToDate)
+    if (localLease.UnitId != null) out.UnitId = Number(localLease.UnitId)
+    if (localLease.SendWelcomeEmail !== undefined) out.SendWelcomeEmail = Boolean(localLease.SendWelcomeEmail)
+    if (localLease.Tenants) out.Tenants = localLease.Tenants
+    if (localLease.TenantIds) out.TenantIds = localLease.TenantIds
+    if (localLease.ApplicantIds) out.ApplicantIds = localLease.ApplicantIds
+    if (localLease.Cosigners) out.Cosigners = localLease.Cosigners
+    if (localLease.Rent) out.Rent = localLease.Rent
+    if (localLease.SecurityDeposit) out.SecurityDeposit = localLease.SecurityDeposit
+    if (localLease.ProratedFirstMonthRent != null) out.ProratedFirstMonthRent = localLease.ProratedFirstMonthRent
+    if (localLease.ProratedLastMonthRent != null) out.ProratedLastMonthRent = localLease.ProratedLastMonthRent
+    return out as BuildiumLeaseCreate
   }
+  // PropertyId is not required for Buildium lease create; UnitId implies the property.
+  // Keep resolving it for internal logic if needed, but do not include it in payload.
+  const unitId = coerceNumber(localLease.buildium_unit_id ?? localLease.UnitId ?? localLease.unit_id)
+
+  const leaseFrom = normalizeBuildiumDate(localLease.lease_from_date ?? localLease.StartDate)
+  if (!leaseFrom) {
+    throw new Error('Lease start date is required for Buildium payload')
+  }
+  const leaseTo = normalizeBuildiumDate(localLease.lease_to_date ?? localLease.EndDate, { allowNull: true })
+
+  const rentAmount = coerceNumber(localLease.rent_amount ?? localLease.RentAmount)
+  if (rentAmount == null) throw new Error('Cannot map lease to Buildium without rent_amount / RentAmount')
+
+  const securityDeposit = coerceNumber(localLease.security_deposit ?? localLease.SecurityDepositAmount)
+
+  const leaseType = normalizeLeaseTypeForBuildium(localLease.lease_type ?? localLease.LeaseType)
+  const sendWelcomeEmail = Boolean(localLease.send_welcome_email ?? localLease.SendWelcomeEmail ?? false)
+
+  // Strict payload: only use keys present in the sample schema.
+  const payload: BuildiumLeaseCreate = {
+    LeaseFromDate: leaseFrom.dateOnly,
+    LeaseType: leaseType,
+    SendWelcomeEmail: sendWelcomeEmail
+  }
+
+  if (unitId != null) payload.UnitId = unitId
+  if (leaseTo) payload.LeaseToDate = leaseTo.dateOnly
+
+  // Do not include RentAmount/SecurityDepositAmount or any other
+  // non-sample fields here; amounts are carried in Rent and SecurityDeposit blocks.
+
+  const tenantIdsInput =
+    (localLease as any).TenantIds ??
+    (localLease as any).tenantIds ??
+    (localLease as any).tenant_ids
+
+  if (Array.isArray(tenantIdsInput)) {
+    const tenantIds = tenantIdsInput
+      .map((value: unknown) => coerceNumber(value))
+      .filter((value: number | null): value is number => value != null)
+
+    if (tenantIds.length) payload.TenantIds = Array.from(new Set(tenantIds))
+  }
+
+  const applicantIdsInput =
+    (localLease as any).ApplicantIds ??
+    (localLease as any).applicantIds ??
+    (localLease as any).applicant_ids
+
+  if (Array.isArray(applicantIdsInput)) {
+    const applicantIds = applicantIdsInput
+      .map((value: unknown) => coerceNumber(value))
+      .filter((value: number | null): value is number => value != null)
+
+    if (applicantIds.length) payload.ApplicantIds = Array.from(new Set(applicantIds))
+  }
+
+  const tenantDetailsInput =
+    (localLease as any).Tenants ??
+    (localLease as any).tenants ??
+    (localLease as any).tenantDetails ??
+    (localLease as any).tenant_details
+
+  if (Array.isArray(tenantDetailsInput)) {
+    const tenantDetails = tenantDetailsInput
+      .map((tenant: any) => sanitizeForBuildium(tenant))
+      .filter((tenant: Record<string, any>) => tenant && Object.keys(tenant).length > 0)
+
+    if (tenantDetails.length) payload.Tenants = tenantDetails
+  }
+
+  return payload
 }
 
 export function mapLeaseFromBuildium(buildiumLease: BuildiumLease): any {
@@ -3134,6 +3222,87 @@ function mapLeaseStatusFromBuildium(buildiumStatus: 'Future' | 'Active' | 'Past'
       return 'cancelled'
     default:
       return 'active'
+  }
+}
+
+function coerceNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+function normalizeBuildiumDate(value: unknown, options: { allowNull?: boolean } = {}): NormalizedBuildiumDate | undefined {
+  if (value === null || value === undefined) {
+    if (options.allowNull) return undefined
+    throw new Error('Lease start date is required for Buildium payload')
+  }
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) {
+    if (options.allowNull) return undefined
+    throw new Error(`Invalid date provided for Buildium lease payload: ${value}`)
+  }
+  const iso = date.toISOString()
+  return {
+    iso,
+    dateOnly: iso.slice(0, 10)
+  }
+}
+
+function normalizeLeaseTypeForBuildium(value: unknown): BuildiumLeaseType {
+  const normalized = typeof value === 'string' ? value.toLowerCase().replace(/[\s_-]+/g, '') : ''
+  switch (normalized) {
+    case 'fixedwithrollover':
+      return 'FixedWithRollover'
+    case 'atwill':
+      return 'AtWill'
+    case 'monthtomonth':
+      return 'MonthToMonth'
+    case 'other':
+      return 'Other'
+    case 'fixed':
+    case 'fixedterm':
+    default:
+      return 'Fixed'
+  }
+}
+
+function normalizeLeaseTermTypeForBuildium(value: unknown): BuildiumLeaseTermType | undefined {
+  const normalized = typeof value === 'string' ? value.toLowerCase().replace(/[\s_-]+/g, '') : ''
+  switch (normalized) {
+    case 'monthtomonth':
+      return 'MonthToMonth'
+    case 'weektoweek':
+      return 'WeekToWeek'
+    case 'atwill':
+      return 'AtWill'
+    case 'other':
+      return 'Other'
+    case 'fixed':
+    case 'fixedterm':
+    case 'fixedwithrollover':
+    case 'standard':
+      return 'Standard'
+    default:
+      return undefined
+  }
+}
+
+function normalizeLeaseRenewalStatusForBuildium(value: unknown): BuildiumLeaseRenewalStatus | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.toLowerCase().replace(/[\s_-]+/g, '')
+  switch (normalized) {
+    case 'offered':
+      return 'Offered'
+    case 'accepted':
+      return 'Accepted'
+    case 'declined':
+      return 'Declined'
+    case 'expired':
+      return 'Expired'
+    case 'notoffered':
+      return 'NotOffered'
+    default:
+      return undefined
   }
 }
 

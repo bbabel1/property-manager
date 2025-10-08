@@ -39,6 +39,8 @@ const knownTables = [
   'task_categories',
   'task_history',
   'task_history_files',
+  'files',
+  'file_links',
   'tasks',
   'tenants',
   'transaction_lines',

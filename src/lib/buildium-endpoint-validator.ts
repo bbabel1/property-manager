@@ -257,12 +257,13 @@ export class BuildiumEndpointValidator {
 
     } catch (error) {
       const responseTime = Date.now() - startTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
       return {
         endpoint: test.endpoint,
         method: test.method,
         status: 'FAIL',
         expectedStatus: test.expectedStatus,
-        error: `Network error: ${error.message}`,
+        error: `Network error: ${errorMessage}`,
         responseTime
       }
     }

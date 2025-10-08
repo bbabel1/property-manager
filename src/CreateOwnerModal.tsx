@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { X, User, Building, Mail, MapPin, FileText, DollarSign, Plus } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog'
 import { Button } from './components/ui/button'
@@ -524,6 +524,7 @@ export default function CreateOwnerModal({
                       value={formData.primaryCountry}
                       onChange={e => setFormData(prev => ({ ...prev, primaryCountry: e.target.value }))}
                       className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                      aria-label="Primary address country"
                     >
                       {COUNTRIES.map(country => (
                         <option key={country} value={country}>{country}</option>
@@ -542,6 +543,7 @@ export default function CreateOwnerModal({
                   value={formData.mailingPreference}
                   onChange={(e) => handleMailingPreferenceChange(e.target.value)}
                   className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                  aria-label="Mailing preference"
                 >
                   {MAILING_PREFERENCES.map(pref => (
                     <option key={pref} value={pref}>
@@ -625,6 +627,7 @@ export default function CreateOwnerModal({
                         value={formData.altCountry}
                         onChange={e => setFormData(prev => ({ ...prev, altCountry: e.target.value }))}
                         className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                        aria-label="Alternate address country"
                       >
                         <option value="">Select country</option>
                         {COUNTRIES.map(country => (
@@ -665,6 +668,7 @@ export default function CreateOwnerModal({
                     value={formData.taxPayerType}
                     onChange={(e) => setFormData(prev => ({ ...prev, taxPayerType: e.target.value }))}
                     className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                    aria-label="Tax payer type"
                   >
                     <option value="">Select type</option>
                     {TAX_PAYER_TYPES.map(type => (
@@ -801,7 +805,8 @@ export default function CreateOwnerModal({
                         <select
                           value={formData.taxCountry}
                           onChange={(e) => setFormData(prev => ({ ...prev, taxCountry: e.target.value }))}
-                        className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                          className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                          aria-label="Tax address country"
                         >
                           <option value="">Select country</option>
                           {COUNTRIES.map(country => (

@@ -3,23 +3,12 @@
 import { useState, useEffect } from 'react'
 import { Building2, MapPin, Camera, Edit, CheckCircle, XCircle, Home, Users, DollarSign, Banknote } from 'lucide-react'
 import { Button } from '../ui/button'
+import type { BankAccountSummary } from '@/components/forms/types'
 
 import { type PropertyWithDetails } from '@/lib/property-service'
 import PropertyNotes from '@/property/PropertyNotes'
 import EditPropertyModal from '../EditPropertyModal'
 import BankingDetailsModal from '../BankingDetailsModal'
-
-interface BankAccount {
-  id: string
-  name: string
-  description?: string
-  bank_account_type?: string
-  account_number?: string
-  routing_number?: string
-  country?: string
-  created_at?: string
-  updated_at?: string
-}
 
 interface PropertySummaryProps {
   property: PropertyWithDetails
@@ -29,7 +18,7 @@ interface PropertySummaryProps {
 export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryProps) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showBankingModal, setShowBankingModal] = useState(false)
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
   const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
 
   const handleEditSuccess = () => {
@@ -59,7 +48,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           throw new Error('Failed to fetch bank accounts')
         }
         
-        const bankAccountsData = await response.json()
+        const bankAccountsData = (await response.json()) as BankAccountSummary[]
         setBankAccounts(bankAccountsData)
       } catch (error) {
         console.error('Error fetching bank accounts:', error)

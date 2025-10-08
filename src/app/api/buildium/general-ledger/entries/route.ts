@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerEntryCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import supabase from '@/lib/db';
+import { supabase } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {

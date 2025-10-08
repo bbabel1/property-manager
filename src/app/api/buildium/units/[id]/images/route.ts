@@ -8,7 +8,7 @@ import UnitService from '@/lib/unit-service';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check rate limiting
@@ -21,9 +21,9 @@ export async function GET(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images`;
@@ -77,7 +77,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check rate limiting
@@ -90,9 +90,9 @@ export async function POST(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -116,7 +116,7 @@ export async function POST(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium unit image upload failed`);
+      logger.error({ status: response.status, errorData, buildiumUrl }, 'Buildium unit image upload failed');
 
       return NextResponse.json(
         { 
@@ -149,7 +149,7 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check rate limiting
@@ -162,9 +162,9 @@ export async function PUT(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     // Parse and validate request body
     const body = await request.json();

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import supabaseAdmin from '@/lib/db';
+import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumLeaseTransactionUpdateSchema } from '@/schemas/buildium';
@@ -12,6 +12,7 @@ export async function GET(
   { params }: { params: { id: string; transactionId: string } }
 ) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('lease transaction sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -63,7 +64,7 @@ export async function GET(
         const { transactionId: dbTxId } = await upsertLeaseTransactionWithLines(transaction, supabaseAdmin);
         logger.info(`Persisted lease transaction to DB: ${dbTxId}`);
       } catch (persistError) {
-        logger.error(`Error persisting lease transaction`, persistError);
+        logger.error({ error: persistError }, 'Error persisting lease transaction');
         return NextResponse.json(
           { error: 'Failed to persist lease transaction to database' },
           { status: 500 }
@@ -124,10 +125,10 @@ export async function PUT(
     const updated = await response.json()
 
     try {
-      const { transactionId: dbTxId } = await upsertLeaseTransactionWithLines(updated, supabaseAdmin)
+      const { transactionId: dbTxId } = await upsertLeaseTransactionWithLines(updated, requireSupabaseAdmin('lease transaction sync'))
       logger.info(`Persisted updated lease transaction to DB: ${dbTxId}`)
     } catch (persistError) {
-      logger.error('Error persisting updated lease transaction', persistError)
+      logger.error({ error: persistError }, 'Error persisting updated lease transaction')
     }
 
     return NextResponse.json({ success: true, data: updated })

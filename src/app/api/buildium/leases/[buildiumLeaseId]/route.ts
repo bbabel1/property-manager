@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: { buildiumLea
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: { buildiumLeaseId: string } }) {
   try {
     const id = Number(params.buildiumLeaseId)
     const body = await request.json().catch(() => ({}))

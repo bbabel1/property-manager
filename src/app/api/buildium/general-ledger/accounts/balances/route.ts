@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getServerSupabaseClient } from '@/lib/supabase-client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +34,8 @@ export async function GET(request: NextRequest) {
     if (orderby) queryParams.append('orderby', orderby);
     if (type) queryParams.append('type', type);
     if (isActive) queryParams.append('isActive', isActive);
+    const supabase = getServerSupabaseClient('gl accounts balances');
+
     // Step 1: fetch accounts from edge function
     const { data: listData, error: listErr } = await supabase.functions.invoke('buildium-sync', {
       body: { method: 'GET', entityType: 'glAccounts', params: { limit, offset, type } }

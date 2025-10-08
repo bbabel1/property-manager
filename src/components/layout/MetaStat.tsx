@@ -1,3 +1,5 @@
+import React from 'react'
+
 export default function MetaStat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>

@@ -1,6 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireUser } from '@/lib/auth'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import type { Database } from '@/types/database'
+import { getServerSupabaseClient, hasSupabaseAdmin, requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supabase-client'
+
+type PropertyStaffInsert = Database['public']['Tables']['property_staff']['Insert']
+
+const AssignmentSchema = z.object({
+  property_id: z.string().min(1, 'property_id is required'),
+  staff_id: z
+    .union([z.number(), z.string().regex(/^\d+$/)])
+    .transform((value) => (typeof value === 'number' ? value : Number(value)))
+    .refine((value) => Number.isInteger(value) && value > 0, 'staff_id must be a positive integer'),
+  role: z.string().optional()
+})
+
+const PayloadSchema = z.object({
+  assignments: z.array(AssignmentSchema).nonempty('assignments are required')
+})
+
+const PROPERTY_ROLE_ALIASES: Record<string, PropertyStaffInsert['role']> = {
+  property_manager: 'PROPERTY_MANAGER',
+  propertymanager: 'PROPERTY_MANAGER',
+  assistant_property_manager: 'ASSISTANT_PROPERTY_MANAGER',
+  assistantpropertymanager: 'ASSISTANT_PROPERTY_MANAGER',
+  operations_manager: 'ADMINISTRATOR',
+}
+
+function normalizePropertyRole(value?: string | null): PropertyStaffInsert['role'] {
+  if (!value) return 'PROPERTY_MANAGER'
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  if (PROPERTY_ROLE_ALIASES[normalized]) return PROPERTY_ROLE_ALIASES[normalized]
+
+  const upper = value.trim().toUpperCase()
+  const allowedRoles: PropertyStaffInsert['role'][] = [
+    'PROPERTY_MANAGER',
+    'ASSISTANT_PROPERTY_MANAGER',
+    'MAINTENANCE_COORDINATOR',
+    'ACCOUNTANT',
+    'ADMINISTRATOR',
+  ]
+
+  return allowedRoles.includes(upper as PropertyStaffInsert['role'])
+    ? (upper as PropertyStaffInsert['role'])
+    : 'PROPERTY_MANAGER'
+}
 
 // POST /api/property-staff
 // Body: { assignments: Array<{ property_id: string; staff_id: number | string; role?: string }> }
@@ -9,35 +57,60 @@ import { supabase, supabaseAdmin } from '@/lib/db'
 export async function POST(request: NextRequest) {
   try {
     await requireUser(request)
-    const body = await request.json().catch(() => ({})) as { assignments?: Array<{ property_id?: string; staff_id?: number | string; role?: string }> }
-    const list = Array.isArray(body.assignments) ? body.assignments : []
-    if (!list.length) return NextResponse.json({ error: 'assignments required' }, { status: 400 })
+    const raw = await request.json().catch(() => ({}))
+    const parsed = PayloadSchema.safeParse(raw)
+    if (!parsed.success) {
+      const message = parsed.error.issues.map(issue => issue.message).join('\n') || 'assignments are required'
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
 
-    const db = supabaseAdmin || supabase
-    const errors: any[] = []
-    for (const a of list) {
-      const propertyId = a?.property_id
-      let staffId: number | null = null
-      if (typeof a?.staff_id === 'string') staffId = Number(a.staff_id)
-      else if (typeof a?.staff_id === 'number') staffId = a.staff_id
-      const role = String(a?.role || 'PROPERTY_MANAGER').toUpperCase()
-      if (!propertyId || !staffId || !Number.isFinite(staffId)) { errors.push('invalid assignment'); continue }
+    const client = hasSupabaseAdmin()
+      ? requireSupabaseAdmin('property staff assignments')
+      : getServerSupabaseClient()
 
-      // If role is PROPERTY_MANAGER, ensure there is only one per property
+    const errors: string[] = []
+    for (const assignment of parsed.data.assignments) {
+      const role = normalizePropertyRole(assignment.role)
+      const timestamp = new Date().toISOString()
       if (role === 'PROPERTY_MANAGER') {
-        await db.from('property_staff').delete().eq('property_id', propertyId).eq('role', 'PROPERTY_MANAGER')
+        const { error: deleteError } = await client
+          .from('property_staff')
+          .delete()
+          .eq('property_id', assignment.property_id)
+          .eq('role', role)
+        if (deleteError) {
+          errors.push(deleteError.message)
+          continue
+        }
       }
-      const { error } = await db
+
+      const upsertPayload: PropertyStaffInsert = {
+        property_id: assignment.property_id,
+        staff_id: assignment.staff_id,
+        role,
+        updated_at: timestamp,
+        created_at: timestamp
+      }
+
+      const { error } = await client
         .from('property_staff')
-        .upsert({ property_id: propertyId, staff_id: staffId, role: role as any, updated_at: new Date().toISOString(), created_at: new Date().toISOString() }, { onConflict: 'property_id,staff_id,role' } as any)
+        .upsert(upsertPayload, { onConflict: 'property_id,staff_id,role' })
+
       if (error) errors.push(error.message)
     }
 
-    if (errors.length) return NextResponse.json({ error: 'One or more assignments failed', details: errors }, { status: 400 })
+    if (errors.length) {
+      return NextResponse.json({ error: 'One or more assignments failed', details: errors }, { status: 400 })
+    }
+
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  } catch (error) {
+    if (error instanceof SupabaseAdminUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 501 })
+    }
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

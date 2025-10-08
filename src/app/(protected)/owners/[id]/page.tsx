@@ -81,9 +81,13 @@ import {
   Meh,
   TrendingDown
 } from 'lucide-react'
-import EditOwnerModal from '@/components/EditOwnerModal'
+import EditLink from '@/components/ui/EditLink'
+import EditOwnerModal, { type OwnerModalData } from '@/components/EditOwnerModal'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { Database } from '@/types/database'
+
+type Country = Database['public']['Enums']['countries']
 
 interface Owner {
   id: string
@@ -100,7 +104,7 @@ interface Owner {
   primary_city?: string
   primary_state?: string
   primary_postal_code?: string
-  primary_country?: string
+  primary_country?: Country | null
   management_agreement_start_date?: string
   management_agreement_end_date?: string
   created_at: string
@@ -114,16 +118,16 @@ interface Owner {
   tax_payer_id?: string
   tax_payer_type?: string
   tax_payer_name?: string
-  tax_address_line_1?: string
-  tax_address_line_2?: string
+  tax_address_line1?: string
+  tax_address_line2?: string
   tax_city?: string
   tax_state?: string
   tax_postal_code?: string
-  tax_country?: string
+  tax_country?: Country | null
   // ETF Account Information
-  etf_account_type?: string
-  etf_account_number?: string
-  etf_routing_number?: string
+  etf_account_type?: 'Checking' | 'Saving' | null
+  etf_account_number?: number | null
+  etf_routing_number?: number | null
   // Status and preferences
   status?: 'active' | 'inactive'
   preferred_contact_method?: 'email' | 'phone' | 'text'
@@ -195,6 +199,30 @@ interface FinancialSummary {
   last_1099_issued?: string
   total_properties: number
   total_units: number
+}
+
+const maskLastFour = (value?: string | number | null) => {
+  if (value === null || value === undefined) return null
+  const digits = String(value).replace(/\D+/g, '')
+  if (!digits) return null
+  const lastFour = digits.slice(-4)
+  return `••••${lastFour}`
+}
+
+// Helper function to convert Owner to OwnerModalData
+function ownerToModalData(owner: Owner): OwnerModalData {
+  return {
+    id: owner.id,
+    contact_id: owner.contact_id,
+    management_agreement_start_date: owner.management_agreement_start_date,
+    management_agreement_end_date: owner.management_agreement_end_date,
+    comment: owner.comment,
+    etf_account_type: owner.etf_account_type,
+    etf_account_number: owner.etf_account_number,
+    etf_routing_number: owner.etf_routing_number,
+    created_at: owner.created_at,
+    updated_at: owner.updated_at
+  }
 }
 
 export default function OwnerDetailsPage() {
@@ -564,13 +592,7 @@ export default function OwnerDetailsPage() {
             </div>
 
             {/* Edit Button */}
-            <Button
-              onClick={() => setShowEditModal(true)}
-              className="inline-flex items-center gap-2"
-            >
-              <Edit className="h-4 w-4" />
-              Edit
-            </Button>
+            <EditLink onClick={() => setShowEditModal(true)} />
           </div>
         </div>
       </div>
@@ -801,7 +823,7 @@ export default function OwnerDetailsPage() {
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Account Number</label>
                       <div className="mt-1 text-sm text-foreground">
-                        {owner.etf_account_number ? '••••' + owner.etf_account_number.slice(-4) : (
+                        {maskLastFour(owner.etf_account_number) ?? (
                           <span className="text-muted-foreground">Not set</span>
                         )}
                       </div>
@@ -810,7 +832,7 @@ export default function OwnerDetailsPage() {
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Routing Number</label>
                       <div className="mt-1 text-sm text-foreground">
-                        {owner.etf_routing_number ? '••••' + owner.etf_routing_number.slice(-4) : (
+                        {maskLastFour(owner.etf_routing_number) ?? (
                           <span className="text-muted-foreground">Not set</span>
                         )}
                       </div>
@@ -879,7 +901,7 @@ export default function OwnerDetailsPage() {
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         onUpdateOwner={handleEditOwner}
-        ownerData={owner}
+        ownerData={owner ? ownerToModalData(owner) : null}
         isUpdating={isUpdatingOwner}
       />
     </div>

@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { useSelectedLayoutSegment } from 'next/navigation'
-import { ArrowLeft, Building2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Building2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 type Props = {
   property: {
@@ -13,6 +13,7 @@ type Props = {
     property_type?: string | null
     service_assignment?: string | null
     service_plan?: string | null
+    buildium_property_id?: number | null
   }
 }
 
@@ -50,16 +51,19 @@ export default function PageHeader({ property }: Props) {
   ].filter(Boolean) as string[]
   return (
     <header className="p-6 pb-2 space-y-3">
-      <div className="flex items-center gap-3">
-        <Link href="/properties">
-          <Button variant="ghost" size="sm" className="flex items-center gap-2" aria-label="Back to Properties">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Properties
-          </Button>
-        </Link>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded ${statusActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
           {property.status || '—'}
         </span>
+        {property.buildium_property_id ? (
+          <Badge variant="secondary" className="text-xs font-medium">
+            Buildium ID: {property.buildium_property_id}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-xs font-medium">
+            Not in Buildium
+          </Badge>
+        )}
       </div>
       <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
         <Building2 className="h-6 w-6" />

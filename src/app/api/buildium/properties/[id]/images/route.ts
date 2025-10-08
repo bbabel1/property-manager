@@ -1,212 +1,68 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
-import { logger } from '@/lib/logger';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { BuildiumPropertyImageUploadSchema, BuildiumPropertyImageOrderUpdateSchema } from '@/schemas/buildium';
-import { sanitizeAndValidate } from '@/lib/sanitize';
+import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth'
 import { supabase, supabaseAdmin } from '@/lib/db'
-
-function guessContentType(fileName: string): string {
-  const lower = fileName.toLowerCase()
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
-  if (lower.endsWith('.png')) return 'image/png'
-  if (lower.endsWith('.gif')) return 'image/gif'
-  if (lower.endsWith('.webp')) return 'image/webp'
-  return 'application/octet-stream'
-}
-
-  async function uploadLocalImage(propertyId: string, fileName: string, base64: string) {
-  const db = supabaseAdmin || supabase
-  if (!db) throw new Error('LOCAL_UPLOAD_UNAVAILABLE')
-  const bucket = 'property-images'
-  try { await (db as any).storage.createBucket(bucket, { public: true }) } catch {}
-  const ext = fileName.includes('.') ? fileName.split('.').pop() : 'jpg'
-  const stamp = new Date().toISOString().replace(/[:.]/g, '')
-  const path = `${propertyId}/${stamp}-${Math.random().toString(36).slice(2)}.${ext}`
-  const contentType = guessContentType(fileName)
-  const bytes = Buffer.from(base64, 'base64')
-  const { error: upErr } = await db.storage.from(bucket).upload(path, bytes, { contentType, upsert: true })
-  if (upErr) throw upErr
-  const { data: urlData } = db.storage.from(bucket).getPublicUrl(path)
-  const url = urlData?.publicUrl || null
-  // Persist metadata
-  try {
-    await (db as any)
-      .from('property_images')
-      .insert({
-        property_id: propertyId,
-        buildium_image_id: null,
-        name: fileName,
-        description: null,
-        file_type: contentType,
-        file_size: bytes.length,
-        is_private: false,
-        href: url,
-        sort_index: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-  } catch {}
-  return { storage: 'supabase', path, url }
-}
-
-async function resolveBuildiumPropertyId(idOrUuid: string): Promise<number> {
-  // If it's already a number string, return it
-  if (/^\d+$/.test(idOrUuid)) return Number(idOrUuid)
-  // Otherwise resolve from local UUID via DB
-  const db = supabaseAdmin || supabase
-  const { data } = await db
-    .from('properties')
-    .select('buildium_property_id')
-    .eq('id', idOrUuid)
-    .maybeSingle()
-  const n = (data as any)?.buildium_property_id
-  if (typeof n === 'number' && Number.isFinite(n)) return n
-  throw new Error('BUILDIMUM_PROPERTY_ID_NOT_FOUND')
-}
+import { logger } from '@/lib/logger'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { BuildiumPropertyImageUploadSchema } from '@/schemas/buildium'
+import { sanitizeAndValidate } from '@/lib/sanitize'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Check rate limiting
-    const rateLimitResult = await checkRateLimit(request);
-    if (!rateLimitResult.success) {
+    const resolvedParams = await params;
+    const propertyId = resolvedParams.id;
+
+    // Rate limiting
+    const rateLimit = await checkRateLimit(request);
+    if (!rateLimit.success) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded' },
+        { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
         { status: 429 }
       );
     }
 
-    // Require authentication (cookie-aware)
+    // Authentication
     const user = await requireUser(request);
 
-    const { id } = await params;
-    let buildiumId: number | null = null
-    try { buildiumId = await resolveBuildiumPropertyId(id) } catch (e) {
-      if ((e as Error)?.message !== 'BUILDIMUM_PROPERTY_ID_NOT_FOUND') throw e
+    logger.info({ userId: user.id, propertyId, action: 'get_property_images' }, 'Fetching property images');
+
+    // Get property images from database
+    const { data: images, error } = await supabase
+      .from('property_images')
+      .select('*')
+      .eq('property_id', propertyId)
+      .order('sort_index', { ascending: true });
+
+    if (error) {
+      logger.error({ error, userId: user.id, propertyId }, 'Error fetching property images');
+      return NextResponse.json(
+        { error: 'Failed to fetch property images' },
+        { status: 500 }
+      );
     }
 
-    // Make request to Buildium API
-    if (!buildiumId) {
-      // Fallback to local storage listing
-      const db = supabaseAdmin || supabase
-      if (!db) return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-      const bucket = 'property-images'
-      const { data: files, error: listErr } = await db.storage.from(bucket).list(`${id}`, { sortBy: { column: 'updated_at', order: 'desc' } as any })
-      if (listErr || !Array.isArray(files) || files.length === 0) {
-        return NextResponse.json({ success: true, data: [], count: 0 })
-      }
-      const { data: urlData } = db.storage.from(bucket).getPublicUrl(`${id}/${files[0].name}`)
-      const url = urlData?.publicUrl || null
-      return NextResponse.json({ success: true, data: url ? [{ Href: url, Name: files[0].name }] : [], count: url ? 1 : 0 })
-    }
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${buildiumId}/images`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
-    let images: BuildiumPropertyImage[] = []
-    if (!response.ok) {
-      // Fallback to DB-backed list first
-      const db = supabaseAdmin || supabase
-      if (db) {
-        const { data: rows } = await db
-          .from('property_images')
-          .select('href,name')
-          .eq('property_id', id)
-          .order('updated_at', { ascending: false })
-        if (Array.isArray(rows) && rows.length > 0) {
-          images = rows
-            .filter(r => r.href)
-            .map(r => ({ Id: 0, Href: r.href as string, Name: (r as any).name || 'Image' } as BuildiumPropertyImage))
-        } else {
-          const bucket = 'property-images'
-          const { data: files } = await db.storage.from(bucket).list(`${id}`, { sortBy: { column: 'updated_at', order: 'desc' } as any })
-          if (Array.isArray(files) && files.length > 0) {
-            const { data: urlData } = db.storage.from(bucket).getPublicUrl(`${id}/${files[0].name}`)
-            const url = urlData?.publicUrl || null
-            if (url) images = [{ Id: 0, Href: url, Name: files[0].name } as BuildiumPropertyImage]
-          }
-        }
-      }
-    } else {
-      const parsed = await response.json().catch(() => []) as BuildiumPropertyImage[]
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        images = parsed
-      } else {
-        // Buildium returned 200 but no images; try DB/storage fallback
-      const db = supabaseAdmin || supabase
-      if (db) {
-        const { data: rows } = await db
-            .from('property_images')
-            .select('href,name')
-            .eq('property_id', id)
-            .order('updated_at', { ascending: false })
-        if (Array.isArray(rows) && rows.length > 0) {
-          images = rows
-            .filter(r => r.href)
-            .map(r => ({ Id: 0, Href: r.href as string, Name: (r as any).name || 'Image' } as BuildiumPropertyImage))
-        } else {
-          const bucket = 'property-images'
-          const { data: files } = await db.storage.from(bucket).list(`${id}`, { sortBy: { column: 'updated_at', order: 'desc' } as any })
-          if (Array.isArray(files) && files.length > 0) {
-            const { data: urlData } = db.storage.from(bucket).getPublicUrl(`${id}/${files[0].name}`)
-            const url = urlData?.publicUrl || null
-            if (url) images = [{ Id: 0, Href: url, Name: files[0].name } as BuildiumPropertyImage]
-          }
-        }
-      }
-      }
-    }
+    logger.info({ userId: user.id, propertyId, imageCount: images?.length || 0 }, 'Property images fetched successfully');
 
-    // Persist first image URL for faster server-side reads next time
-    try {
-      const first = Array.isArray(images) && images.length ? (images[0] as any) : null
-      const href = first?.Href || first?.Url || null
-      if (href) {
-        const db = supabaseAdmin || supabase
-        if (db) {
-          await db.from('property_images').delete().eq('property_id', id)
-          await db.from('property_images').insert({
-            property_id: id,
-            buildium_image_id: first?.Id ?? null,
-            name: first?.Name ?? null,
-            description: null,
-            file_type: null,
-            file_size: null,
-            is_private: false,
-            href,
-            sort_index: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as any)
-        }
-      }
-    } catch {}
-
-    logger.info(`Buildium property images fetched successfully`);
-
-    return new NextResponse(JSON.stringify({
+    return NextResponse.json({
       success: true,
-      data: images,
-      count: images.length,
-    }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=300' } });
+      data: images || []
+    });
 
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    const status = msg === 'BUILDIMUM_PROPERTY_ID_NOT_FOUND' ? 400 : 500
-    logger.error({ error: msg }, `Error fetching Buildium property images`);
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
+    logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Error fetching property images');
     return NextResponse.json(
-      { error: status === 400 ? 'Unknown property mapping to Buildium (buildium_property_id missing)' : 'Internal server error' },
-      { status }
+      { error: 'Failed to fetch property images' },
+      { status: 500 }
     );
   }
 }
@@ -216,195 +72,155 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Check rate limiting
-    const rateLimitResult = await checkRateLimit(request);
-    if (!rateLimitResult.success) {
+    const resolvedParams = await params;
+    const propertyId = resolvedParams.id;
+
+    // Rate limiting
+    const rateLimit = await checkRateLimit(request);
+    if (!rateLimit.success) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded' },
+        { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
         { status: 429 }
       );
     }
 
-    // Require authentication (cookie-aware)
+    // Authentication
     const user = await requireUser(request);
 
-    const { id } = await params;
-    let buildiumId: number | null = null
-    try { buildiumId = await resolveBuildiumPropertyId(id) } catch (e) {
-      if ((e as Error)?.message !== 'BUILDIMUM_PROPERTY_ID_NOT_FOUND') throw e
-    }
+    logger.info({ userId: user.id, propertyId, action: 'upload_property_image' }, 'Uploading property image');
 
     // Parse and validate request body
     const body = await request.json();
-    
-    // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyImageUploadSchema);
 
-    // Make request to Buildium API
-    if (!buildiumId) {
-      // Enforce one-image-per-property for local storage fallback
-      try {
-        const db = supabaseAdmin || supabase
-        if (db) {
-          await db.from('property_images').delete().eq('property_id', id)
-          const bucket = 'property-images'
-          const { data: files } = await db.storage.from(bucket).list(`${id}`)
-          if (Array.isArray(files)) {
-            for (const f of files) {
-              await db.storage.from(bucket).remove([`${id}/${f.name}`])
-            }
-          }
-        }
-      } catch {}
-      // Fallback: store image in Supabase Storage
-      const fileName = (validatedData as any).FileName as string
-      const base64 = (validatedData as any).FileData as string
-      const result = await uploadLocalImage(id, fileName, base64)
-      return NextResponse.json({ success: true, data: result }, { status: 201 })
-    }
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${buildiumId}/images`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    // Resolve property + Buildium context
+    const adminClient = supabaseAdmin || supabase
+    const { data: propertyRow, error: propertyError } = await adminClient
+      .from('properties')
+      .select('id, buildium_property_id, org_id')
+      .eq('id', propertyId)
+      .maybeSingle()
 
-    if (!response.ok) {
-      // Fallback: store in Supabase Storage
-      try {
-        const fileName = (validatedData as any).FileName as string
-        const base64 = (validatedData as any).FileData as string
-        const result = await uploadLocalImage(id, fileName, base64)
-        logger.info('Stored property image in local storage fallback')
-        return NextResponse.json({ success: true, data: result }, { status: 201 })
-      } catch (e) {
-        const errorData = await response.json().catch(() => ({}))
-        logger.error(`Buildium property image upload failed`)
+    if (propertyError) {
+      logger.error({ error: propertyError, propertyId, userId: user.id }, 'Error loading property before image upload');
+      return NextResponse.json({ error: 'Failed to load property details' }, { status: 500 });
+    }
+
+    if (!propertyRow) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+    // Determine the next sort index for locally persisted images
+    const { data: existingSort } = await supabase
+      .from('property_images')
+      .select('sort_index')
+      .eq('property_id', propertyId)
+      .order('sort_index', { ascending: false })
+      .limit(1)
+    const nextSortIndex = (existingSort?.[0]?.sort_index ?? 0) + 1
+
+    // Branch: Buildium-connected properties upload to Buildium service, otherwise persist locally only
+    if (propertyRow.buildium_property_id) {
+      const buildiumImage = await buildiumEdgeClient.uploadPropertyImage(String(propertyRow.buildium_property_id), validatedData);
+
+      const { data: image, error } = await supabase
+        .from('property_images')
+        .insert({
+          property_id: propertyId,
+          buildium_image_id: buildiumImage.Id,
+          name: buildiumImage.Name,
+          description: buildiumImage.Description,
+          file_type: buildiumImage.FileType,
+          file_size: buildiumImage.FileSize,
+          is_private: buildiumImage.IsPrivate,
+          href: buildiumImage.Href,
+          sort_index: nextSortIndex,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        logger.error({ error, userId: user.id, propertyId }, 'Error storing property image');
         return NextResponse.json(
-          { error: 'Failed to upload property image to Buildium', details: errorData },
-          { status: response.status }
-        )
+          { error: 'Failed to store property image' },
+          { status: 500 }
+        );
       }
+
+      logger.info({ userId: user.id, propertyId, imageId: image.id }, 'Property image uploaded successfully');
+
+      return NextResponse.json({
+        success: true,
+        data: image
+      });
     }
 
-    const image = await response.json();
-
-    // Persist to property_images so UI has a single source even when Buildium succeeds
-    try {
-      const db = supabaseAdmin || supabase
-      if (db && image && typeof image === 'object') {
-        // one image per property — remove old rows
-        await db.from('property_images').delete().eq('property_id', id)
-        const row = {
-          property_id: id,
-          buildium_image_id: (image as any).Id ?? null,
-          name: (image as any).Name ?? null,
-          description: (image as any).Description ?? null,
-          file_type: (image as any).FileType ?? null,
-          file_size: (image as any).FileSize ?? null,
-          is_private: (image as any).IsPrivate ?? null,
-          href: (image as any).Href ?? null,
-          sort_index: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-        await db.from('property_images').insert(row)
+    // Local-only fallback: persist base64 payload in the database as a data URL so UI can render immediately.
+    const extension = (() => {
+      const parts = String(validatedData.FileName || '').split('.');
+      return parts.length > 1 ? parts.pop()?.toLowerCase() ?? '' : '';
+    })();
+    const mimeType = (() => {
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          return 'image/jpeg';
+        case 'png':
+          return 'image/png';
+        case 'gif':
+          return 'image/gif';
+        case 'webp':
+          return 'image/webp';
+        case 'svg':
+          return 'image/svg+xml';
+        default:
+          return 'application/octet-stream';
       }
-    } catch {}
+    })();
 
-    logger.info(`Buildium property image uploaded successfully`);
+    const base64 = String(validatedData.FileData || '');
+    const fileSizeBytes = base64 ? Buffer.from(base64, 'base64').byteLength : null;
+    const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    return NextResponse.json({ success: true, data: image }, { status: 201 });
+    const { data: localImage, error: localError } = await supabase
+      .from('property_images')
+      .insert({
+        property_id: propertyId,
+        buildium_image_id: null,
+        name: validatedData.FileName,
+        description: validatedData.Description ?? null,
+        file_type: mimeType,
+        file_size: fileSizeBytes,
+        is_private: false,
+        href: dataUrl,
+        sort_index: nextSortIndex,
+      })
+      .select()
+      .single();
 
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    const status = msg === 'UNAUTHENTICATED' ? 401 : (msg === 'BUILDIMUM_PROPERTY_ID_NOT_FOUND' ? 400 : 500)
-    logger.error({ error: msg }, `Error uploading Buildium property image`);
-
-    return NextResponse.json(
-      { error: status === 401 ? 'Authentication required' : (status === 400 ? 'Unknown property mapping to Buildium (buildium_property_id missing)' : 'Internal server error') },
-      { status }
-    );
-  }
-}
-
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    // Check rate limiting
-    const rateLimitResult = await checkRateLimit(request);
-    if (!rateLimitResult.success) {
+    if (localError) {
+      logger.error({ error: localError, userId: user.id, propertyId }, 'Error storing local property image');
       return NextResponse.json(
-        { error: 'Rate limit exceeded' },
-        { status: 429 }
+        { error: 'Failed to store property image' },
+        { status: 500 }
       );
     }
 
-    // Require authentication (cookie-aware)
-    const user = await requireUser(request);
+    logger.info({ userId: user.id, propertyId, imageId: localImage.id }, 'Local property image stored without Buildium link');
 
-    const { id } = await params;
-    const buildiumId = await resolveBuildiumPropertyId(id)
+    return NextResponse.json({ success: true, data: localImage });
 
-    // Parse and validate request body
-    const body = await request.json();
-    
-    // Validate request body against schema
-    const validatedData = sanitizeAndValidate(body, BuildiumPropertyImageOrderUpdateSchema);
-
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${buildiumId}/images/order`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium property image order update failed`);
-
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json(
-        { 
-          error: 'Failed to update property image order in Buildium',
-          details: errorData
-        },
-        { status: response.status }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
 
-    const images = await response.json();
-
-    logger.info(`Buildium property image order updated successfully`);
-
-    return NextResponse.json({
-      success: true,
-      data: images,
-      count: images.length,
-    });
-
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    const status = msg === 'BUILDIMUM_PROPERTY_ID_NOT_FOUND' ? 400 : 500
-    logger.error({ error: msg }, `Error updating Buildium property image order`);
-
+    logger.error({ error: error instanceof Error ? error.message : 'Unknown error' }, 'Error uploading property image');
     return NextResponse.json(
-      { error: status === 400 ? 'Unknown property mapping to Buildium (buildium_property_id missing)' : 'Internal server error' },
-      { status }
+      { error: 'Failed to upload property image' },
+      { status: 500 }
     );
   }
 }

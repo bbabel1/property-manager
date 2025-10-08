@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
@@ -11,30 +12,162 @@ import { Plus } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import type { Database } from '@/types/database'
 
-export default function LeaseSection({ leases, unit, property }: { leases: any[]; unit: any; property: any }) {
+type LeaseRow = Database['public']['Tables']['lease']['Row']
+type UnitRow = Database['public']['Tables']['units']['Row']
+type PropertyRow = Database['public']['Tables']['properties']['Row']
+
+type LeaseListItem = LeaseRow & {
+  tenant_name?: string | null
+  last_sync_error?: string | null
+}
+
+type UnitSummary = Pick<UnitRow, 'id' | 'unit_number' | 'status'>
+type PropertySummary = Pick<PropertyRow, 'id' | 'name' | 'org_id' | 'status'> & {
+  units?: UnitSummary[] | null
+}
+
+type UnitOption = { id: string; unit_number: string }
+type PropertyOption = { id: string; name: string }
+
+type TenantOption = { id: string; name: string; email?: string | null }
+
+type GlAccountOption = {
+  id: string
+  name: string
+  account_number?: string | null
+  type?: string | null
+  is_security_deposit_liability?: boolean | null
+}
+
+type TenantSearchRow = {
+  id: string | number
+  contacts?: {
+    first_name?: string | null
+    last_name?: string | null
+    primary_email?: string | null
+  } | null
+}
+
+type StagedPerson = {
+  first_name: string
+  last_name: string
+  phone?: string | null
+  email?: string | null
+  alt_phone?: string | null
+  alt_email?: string | null
+  same_as_unit?: boolean | null
+  same_as_unit_address?: boolean | null
+  addr1?: string | null
+  addr2?: string | null
+  address_line1?: string | null
+  address_line2?: string | null
+  city?: string | null
+  state?: string | null
+  postal?: string | null
+  country?: string | null
+  alt_addr1?: string | null
+  alt_addr2?: string | null
+  alt_city?: string | null
+  alt_state?: string | null
+  alt_postal?: string | null
+  alt_country?: string | null
+  postal_code?: string | null
+  country_name?: string | null
+  city_name?: string | null
+  state_name?: string | null
+  alt_postal_code?: string | null
+  alt_address_line1?: string | null
+  alt_address_line2?: string | null
+}
+
+type LeaseContactPayload = { tenant_id: string; role: string; is_rent_responsible: boolean }
+
+type RecurringTransactionPayload = {
+  amount: number
+  memo: string
+  frequency: string
+  start_date: string
+  end_date?: string
+  gl_account_id?: string | null
+}
+
+type LeaseCreatePayload = {
+  property_id: string | undefined
+  unit_id: string | undefined
+  lease_from_date: string
+  lease_to_date: string | null
+  rent_amount: number | null
+  security_deposit: number | null
+  payment_due_day: number | null
+  unit_number: string | null
+  lease_type: string
+  rent_schedules?: Array<{
+    start_date: string | null
+    end_date?: string | null
+    total_amount?: number | null
+    rent_cycle?: string
+    status?: string
+    backdate_charges?: boolean
+  }>
+  prorated_first_month_rent?: number
+  prorated_last_month_rent?: number
+  recurring_transactions?: RecurringTransactionPayload[]
+  contacts?: LeaseContactPayload[]
+  new_people?: Array<StagedPerson & { role: string }>
+  // Control Buildium sync on create
+  syncBuildium?: boolean
+  // Buildium: send Resident Center welcome email
+  send_welcome_email?: boolean
+}
+
+type LeaseSectionProps = {
+  leases: LeaseListItem[]
+  unit: (Pick<UnitRow, 'id' | 'unit_number'> & { status?: string | null }) | null
+  property: PropertySummary | null
+}
+
+type RentFrequency = 'Monthly' | 'Weekly' | 'Biweekly' | 'Quarterly' | 'Annually'
+
+function isLeaseList(value: unknown): value is LeaseListItem[] {
+  return Array.isArray(value)
+}
+
+function isPropertyApiList(value: unknown): value is Array<{ id: string | number; name?: string | null; status?: string | null }> {
+  return Array.isArray(value)
+}
+
+// UI component
+
+export default function LeaseSection({ leases: initialLeases, unit, property }: LeaseSectionProps) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [syncToBuildium, setSyncToBuildium] = useState(true)
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true)
+  const [syncingLeaseId, setSyncingLeaseId] = useState<string | null>(null)
+  const [leaseSyncError, setLeaseSyncError] = useState<{ id: string; message: string } | null>(null)
+  const [leases, setLeases] = useState<LeaseListItem[]>(initialLeases || [])
 
   // Form fields
-  const [propertyId, setPropertyId] = useState<string>(property?.id || '')
-  const [unitId, setUnitId] = useState<string>(unit?.id || '')
-  const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
-  const [units, setUnits] = useState<{ id: string; unit_number: string }[]>([])
+  const [propertyId, setPropertyId] = useState<string>(property?.id ? String(property.id) : '')
+  const [unitId, setUnitId] = useState<string>(unit?.id ? String(unit.id) : '')
+  const [properties, setProperties] = useState<PropertyOption[]>([])
+  const [units, setUnits] = useState<UnitOption[]>([])
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [rent, setRent] = useState('')
-  const [rentCycle, setRentCycle] = useState<'Monthly'|'Weekly'|'Biweekly'|'Quarterly'|'Annually'>('Monthly')
-  const [rentAccount, setRentAccount] = useState<string>('Rent Income')
+  const [rentCycle, setRentCycle] = useState<RentFrequency>('Monthly')
   const [nextDueDate, setNextDueDate] = useState<string>('')
+  const [depositDate, setDepositDate] = useState<string>('')
   const [rentMemo, setRentMemo] = useState<string>('')
-  const [depositDate, setDepositDate] = useState('')
-  const [depositAccount, setDepositAccount] = useState<string>('Deposit Liability')
   const [depositMemo, setDepositMemo] = useState<string>('')
   const [leaseType, setLeaseType] = useState<string>('Fixed')
   const [depositAmt, setDepositAmt] = useState('')
+  const [depositTouched, setDepositTouched] = useState(false)
   // Proration controls
   const [prorateFirstMonth, setProrateFirstMonth] = useState(false)
   const [prorateLastMonth, setProrateLastMonth] = useState(false)
@@ -47,13 +180,14 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [chooseExisting, setChooseExisting] = useState(false)
   const [search, setSearch] = useState('')
   const [searching, setSearching] = useState(false)
-  const [results, setResults] = useState<{ id: string; name: string; email?: string | null }[]>([])
+  const [results, setResults] = useState<TenantOption[]>([])
   const [selectedExistingTenantIds, setSelectedExistingTenantIds] = useState<string[]>([])
   const [sameAsUnitAddress, setSameAsUnitAddress] = useState(true)
   const [showAltPhone, setShowAltPhone] = useState(false)
   const [altPhone, setAltPhone] = useState('')
   const [showAltEmail, setShowAltEmail] = useState(false)
   const [altEmail, setAltEmail] = useState('')
+  const prevStartDateRef = useRef<string>('')
   // New tenant form fields
   const [tenantFirstName, setTenantFirstName] = useState('')
   const [tenantLastName, setTenantLastName] = useState('')
@@ -74,7 +208,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [altState, setAltState] = useState<string>('')
   const [altPostal, setAltPostal] = useState<string>('')
   const [altCountry, setAltCountry] = useState<string>('')
-  const [pendingTenants, setPendingTenants] = useState<any[]>([])
+  const [pendingTenants, setPendingTenants] = useState<StagedPerson[]>([])
 
   // Cosigner: replicate Contact Information + Address sections
   const [coShowAltPhone, setCoShowAltPhone] = useState(false)
@@ -99,9 +233,39 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
   const [coAltState, setCoAltState] = useState<string>('')
   const [coAltPostal, setCoAltPostal] = useState<string>('')
   const [coAltCountry, setCoAltCountry] = useState<string>('')
-  const [pendingCosigners, setPendingCosigners] = useState<any[]>([])
-  const [rentAccountName, setRentAccountName] = useState<string>('Rent Income')
-  const [depositAccountName, setDepositAccountName] = useState<string>('Security Deposit Liability')
+  const [pendingCosigners, setPendingCosigners] = useState<StagedPerson[]>([])
+  const [glAccounts, setGlAccounts] = useState<GlAccountOption[]>([])
+  const [glAccountsLoading, setGlAccountsLoading] = useState(false)
+  const [glAccountsError, setGlAccountsError] = useState<string | null>(null)
+  const [rentGlAccountId, setRentGlAccountId] = useState<string>('')
+  const [depositGlAccountId, setDepositGlAccountId] = useState<string>('')
+  // Additional recurring charges (user-added)
+  type RecurringFormRow = {
+    gl_account_id: string
+    frequency: RentFrequency
+    start_date: string
+    amount: string
+    memo: string
+  }
+  const [extraRecurring, setExtraRecurring] = useState<RecurringFormRow[]>([])
+  type OneTimeFormRow = {
+    gl_account_id: string
+    date: string
+    amount: string
+    memo: string
+  }
+  const [extraOneTime, setExtraOneTime] = useState<OneTimeFormRow[]>([])
+
+  const parseCurrencyValue = (value: string | number | null | undefined): number | null => {
+    if (value === null || value === undefined) return null
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const normalized = trimmed.replace(/[^0-9.-]/g, '')
+    if (!normalized || normalized === '.' || normalized === '-' || normalized === '-.') return null
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
 
   function resetCosignerForm() {
     setCoFirstName(''); setCoLastName(''); setCoEmail(''); setCoPhone('');
@@ -120,9 +284,11 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     const loadProps = async () => {
       try {
         const res = await fetch('/api/properties')
-        const j = await res.json().catch(() => [])
-        const active = (Array.isArray(j) ? j : []).filter((p: any) => String(p.status || '').toLowerCase() === 'active')
-          .map((p: any) => ({ id: String(p.id), name: p.name || 'Property' }))
+        const json: unknown = await res.json().catch(() => [])
+        const list = isPropertyApiList(json) ? json : []
+        const active = list
+          .filter((p) => String(p?.status ?? '').toLowerCase() === 'active')
+          .map<PropertyOption>((p) => ({ id: String(p.id), name: p?.name ?? 'Property' }))
         if (!cancelled) setProperties(active)
       } catch {}
     }
@@ -130,16 +296,107 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
     return () => { cancelled = true }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    const controller = new AbortController()
+    const resolveOrgId = () => {
+      if (property?.org_id) return String(property.org_id)
+      if (typeof document !== 'undefined') {
+        const match = document.cookie.match(/(?:^|; )x-org-id=([^;]+)/)
+        if (match) return decodeURIComponent(match[1])
+      }
+      return null
+    }
+    const ensureAccounts = async () => {
+      const orgId = resolveOrgId()
+      if (!orgId) {
+        setGlAccounts([])
+        setGlAccountsError('Missing organization context to load GL accounts')
+        return
+      }
+      try {
+        setGlAccountsLoading(true)
+        setGlAccountsError(null)
+        const params = new URLSearchParams({ orgId })
+        const res = await fetch(`/api/gl-accounts?${params.toString()}`, {
+          signal: controller.signal,
+          credentials: 'include',
+          headers: { 'x-org-id': orgId }
+        })
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => null)
+          const msg = (errBody && typeof errBody === 'object' && 'error' in errBody && typeof (errBody as any).error === 'string')
+            ? (errBody as any).error
+            : 'Failed to load GL accounts'
+          throw new Error(msg)
+        }
+        const json: unknown = await res.json()
+        const rows = (json && typeof json === 'object' && 'data' in json && Array.isArray((json as any).data))
+          ? (json as { data: Array<Record<string, unknown>> }).data
+          : []
+        const list = rows
+          .filter((row): row is { id: unknown; name: unknown; account_number?: unknown; type?: unknown; is_active?: unknown; is_security_deposit_liability?: unknown } => {
+            if (!row) return false
+            if (row.is_active === false) return false
+            const hasId = typeof row.id === 'string' || typeof row.id === 'number'
+            return hasId && typeof row.name === 'string'
+          })
+          .map<GlAccountOption>((row) => ({
+            id: String(row.id),
+            name: String(row.name),
+            account_number: row.account_number ? String(row.account_number) : null,
+            type: row.type ? String(row.type) : null,
+            is_security_deposit_liability: typeof row.is_security_deposit_liability === 'boolean' ? row.is_security_deposit_liability : null,
+          }))
+        if (!cancelled) {
+          setGlAccounts(list)
+          if (!list.length) {
+            setRentGlAccountId('')
+            setDepositGlAccountId('')
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setGlAccountsError(err instanceof Error ? err.message : 'Failed to load GL accounts')
+      } finally {
+        if (!cancelled) setGlAccountsLoading(false)
+      }
+    }
+    ensureAccounts()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [open, property?.org_id])
+
+  useEffect(() => {
+    if (!glAccounts.length) return
+    if (!rentGlAccountId) {
+      const rentDefault = glAccounts.find((acc) => acc.name?.toLowerCase() === 'rent income')
+        || glAccounts.find((acc) => acc.type?.toLowerCase() === 'income')
+        || glAccounts[0]
+      if (rentDefault) setRentGlAccountId(rentDefault.id)
+    }
+    if (!depositGlAccountId) {
+      const depositCandidates = glAccounts.filter((acc) => acc.is_security_deposit_liability)
+      const depositDefault = depositCandidates[0]
+        || glAccounts.find((acc) => acc.name?.toLowerCase().includes('deposit'))
+        || glAccounts[0]
+      if (depositDefault) setDepositGlAccountId(depositDefault.id)
+    }
+  }, [glAccounts, rentGlAccountId, depositGlAccountId])
+
   // Load Units for selected property (status != Inactive)
   useEffect(() => {
     if (!open || !propertyId) return
     let cancelled = false
     const primeFromProp = () => {
-      if (String(property?.id) === String(propertyId) && Array.isArray(property?.units)) {
-        const list = (property.units as any[]).filter(u => String((u as any).status || '').toLowerCase() !== 'inactive')
-          .map(u => ({ id: String((u as any).id), unit_number: (u as any).unit_number || 'Unit' }))
-        if (list.length) { setUnits(list); return true }
-      }
+      if (!property || String(property.id) !== String(propertyId)) return false
+      const propertyUnits = Array.isArray(property.units) ? property.units : []
+      const list = propertyUnits
+        .filter((unitItem) => String(unitItem?.status ?? '').toLowerCase() !== 'inactive')
+        .map<UnitOption>((unitItem) => ({ id: String(unitItem.id), unit_number: unitItem.unit_number ?? 'Unit' }))
+      if (list.length) { setUnits(list); return true }
       return false
     }
     const loadUnits = async () => {
@@ -152,37 +409,53 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
           .eq('property_id', propertyId)
           .not('status', 'eq', 'Inactive')
           .order('unit_number')
-        const list = (data || []).map(u => ({ id: String(u.id), unit_number: u.unit_number || 'Unit' }))
+        const list = (data || []).map<UnitOption>((u) => ({ id: String(u.id), unit_number: u.unit_number || 'Unit' }))
         if (!cancelled) setUnits(list)
       } catch {}
     }
     loadUnits()
     return () => { cancelled = true }
-  }, [open, propertyId])
+  }, [open, propertyId, property])
 
-  // Load GL account names from settings_gl_accounts for the property's org
   useEffect(() => {
-    const loadGlNames = async () => {
+    setLeases(initialLeases || [])
+  }, [initialLeases])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
       try {
-        const supa = getSupabaseBrowserClient()
-        let orgId = (property as any)?.org_id as string | undefined
-        if (!orgId && propertyId) {
-          const { data: p } = await supa.from('properties').select('org_id').eq('id', propertyId).maybeSingle()
-          orgId = p?.org_id
-        }
-        if (!orgId) return
-        const { data: settings } = await supa.from('settings_gl_accounts').select('rent_income, tenant_deposit_liability').eq('org_id', orgId).maybeSingle()
-        if (!settings) return
-        const ids: string[] = [settings.rent_income, settings.tenant_deposit_liability].filter(Boolean)
-        if (!ids.length) return
-        const { data: gls } = await supa.from('gl_accounts').select('id,name').in('id', ids as any)
-        const nameById = new Map((gls || []).map((g:any)=>[g.id, g.name]))
-        if (settings.rent_income && nameById.get(settings.rent_income)) setRentAccountName(nameById.get(settings.rent_income)!)
-        if (settings.tenant_deposit_liability && nameById.get(settings.tenant_deposit_liability)) setDepositAccountName(nameById.get(settings.tenant_deposit_liability)!)
+        const params = new URLSearchParams({ unitId: String(unit?.id || '') })
+        const res = await fetch(`/api/leases?${params.toString()}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data: unknown = await res.json().catch(() => null)
+        if (!cancelled && isLeaseList(data)) setLeases(data)
       } catch {}
     }
-    loadGlNames()
-  }, [propertyId])
+    load()
+    return () => { cancelled = true }
+  }, [unit?.id])
+
+  async function syncLease(leaseId: string) {
+    try {
+      setSyncingLeaseId(leaseId)
+      setLeaseSyncError(null)
+      const res = await fetch(`/api/leases/${leaseId}/sync`, { method: 'POST' })
+      if (!res.ok) {
+        const json: unknown = await res.json().catch(() => null)
+        const errorMessage = typeof json === 'object' && json && 'error' in json && typeof (json as { error?: unknown }).error === 'string'
+          ? (json as { error: string }).error
+          : 'Failed to sync lease to Buildium'
+        throw new Error(errorMessage)
+      }
+      window.location.reload()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to sync lease to Buildium'
+      setLeaseSyncError({ id: leaseId, message })
+    } finally {
+      setSyncingLeaseId(null)
+    }
+  }
 
   async function save() {
     try {
@@ -190,64 +463,179 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       if (!from) throw new Error('Start date is required')
       const totalTenants = selectedExistingTenantIds.length + pendingTenants.length + pendingCosigners.length
       if (totalTenants === 0) throw new Error('Add at least one tenant or cosigner')
-      if (rent && Number(rent) > 0 && !nextDueDate) throw new Error('Rent next due date is required when amount is set')
-      if (depositAmt && Number(depositAmt) > 0 && !depositDate) throw new Error('Deposit due date is required when amount is set')
-      const body: any = {
-        property_id: propertyId || property?.id,
-        unit_id: unitId || unit?.id,
+      const tenantOnlyCount = selectedExistingTenantIds.length + pendingTenants.length
+      if (syncToBuildium && tenantOnlyCount === 0) {
+        throw new Error('Add at least one tenant to sync to Buildium')
+      }
+      const rentAmount = parseCurrencyValue(rent)
+      const depositAmount = parseCurrencyValue(depositAmt)
+      const rentHasAmount = rentAmount != null && rentAmount > 0
+      const depositHasAmount = depositAmount != null && depositAmount > 0
+
+      if (rentHasAmount && !nextDueDate) throw new Error('Rent next due date is required when amount is set')
+      if (depositHasAmount && !depositDate) throw new Error('Deposit due date is required when amount is set')
+      const propertyIdValue = propertyId || (property?.id ? String(property.id) : undefined)
+      const unitIdValue = unitId || (unit?.id ? String(unit.id) : undefined)
+      const paymentDueDay = nextDueDate ? new Date(nextDueDate).getDate() : null
+
+      if (rentHasAmount && glAccounts.length > 0 && !rentGlAccountId) {
+        throw new Error('Select a GL account for rent charges')
+      }
+      if (depositHasAmount && glAccounts.length > 0 && !depositGlAccountId) {
+        throw new Error('Select a GL account for security deposits')
+      }
+
+      const payload: LeaseCreatePayload = {
+        property_id: propertyIdValue,
+        unit_id: unitIdValue,
         lease_from_date: from,
         lease_to_date: to || null,
-        rent_amount: rent ? Number(rent) : null,
-        security_deposit: depositAmt ? Number(depositAmt) : null,
-        payment_due_day: nextDueDate ? new Date(nextDueDate).getDate() : null,
+        rent_amount: Number.isFinite(rentAmount) ? rentAmount : null,
+        security_deposit: Number.isFinite(depositAmount) ? depositAmount : null,
+        payment_due_day: paymentDueDay,
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
+        send_welcome_email: sendWelcomeEmail
       }
-      // Add a base recurring rent template if entered
-      if (rent && Number(rent) > 0 && nextDueDate) {
-        body.recurring_transactions = [
-          {
-            amount: Number(rent),
-            memo: rentMemo || 'Rent',
-            frequency: rentCycle,
-            start_date: nextDueDate,
-          }
-        ]
+
+      const recurringTransactions: RecurringTransactionPayload[] = []
+      if (rentHasAmount && nextDueDate && rentAmount != null) {
+        recurringTransactions.push({
+          amount: rentAmount,
+          memo: rentMemo || 'Rent',
+          frequency: rentCycle,
+          start_date: nextDueDate,
+          gl_account_id: rentGlAccountId || null
+        })
       }
-      // Add a one-time deposit template if provided (store only, no posting on save)
-      if (depositAmt && Number(depositAmt) > 0 && depositDate) {
-        body.recurring_transactions = [
-          ...(body.recurring_transactions || []),
-          {
-            amount: Number(depositAmt),
-            memo: depositMemo || 'Security Deposit',
+      if (depositHasAmount && depositDate && depositAmount != null) {
+        recurringTransactions.push({
+          amount: depositAmount,
+          memo: depositMemo || 'Security Deposit',
+          frequency: 'OneTime',
+          start_date: depositDate,
+          end_date: depositDate,
+          gl_account_id: depositGlAccountId || null
+        })
+      }
+      // Append any user-added recurring charges
+      if (extraRecurring.length) {
+        for (const row of extraRecurring) {
+          const amt = parseCurrencyValue(row.amount)
+          if (!row.start_date || amt == null || !row.gl_account_id) continue
+          recurringTransactions.push({
+            amount: amt,
+            memo: row.memo || 'Recurring charge',
+            frequency: row.frequency,
+            start_date: row.start_date,
+            gl_account_id: row.gl_account_id
+          })
+        }
+      }
+      if (extraOneTime.length) {
+        for (const row of extraOneTime) {
+          const amt = parseCurrencyValue(row.amount)
+          if (!row.date || amt == null || !row.gl_account_id) continue
+          recurringTransactions.push({
+            amount: amt,
+            memo: row.memo || 'One-time charge',
             frequency: 'OneTime',
-            start_date: depositDate,
-            end_date: depositDate,
+            start_date: row.date,
+            end_date: row.date,
+            gl_account_id: row.gl_account_id
+          })
+        }
+      }
+      if (recurringTransactions.length) {
+        payload.recurring_transactions = recurringTransactions
+      }
+      // Also include a rent schedule row for reporting if rent is present
+      if (rentHasAmount && rentAmount != null) {
+        const mapRentCycleToDb = (v: string): string => {
+          switch ((v || '').toLowerCase()) {
+            case 'weekly': return 'Weekly'
+            case 'biweekly': return 'Every2Weeks'
+            case 'quarterly': return 'Quarterly'
+            case 'annually':
+            case 'annual': return 'Yearly'
+            case 'every2months': return 'Every2Months'
+            case 'daily': return 'Daily'
+            case 'every6months': return 'Every6Months'
+            default: return 'Monthly'
           }
+        }
+        const scheduleStart = nextDueDate || from || null
+        const scheduleEnd = to || null
+        payload.rent_schedules = [
+          {
+            start_date: scheduleStart,
+            end_date: scheduleEnd,
+            total_amount: rentAmount,
+            rent_cycle: mapRentCycleToDb(rentCycle),
+            status: 'Current',
+            backdate_charges: false,
+          },
         ]
       }
       if (prorateFirstMonth && firstProrationAmount != null && firstProrationAmount > 0) {
-        body.prorated_first_month_rent = firstProrationAmount
+        payload.prorated_first_month_rent = firstProrationAmount
       }
       if (prorateLastMonth && lastProrationAmount != null && lastProrationAmount > 0) {
-        body.prorated_last_month_rent = lastProrationAmount
+        payload.prorated_last_month_rent = lastProrationAmount
       }
-      // Pass staged new people to the server for creation to avoid client-side RLS issues
+
       if (pendingCosigners.length || pendingTenants.length) {
-        body.new_people = [
-          ...pendingTenants.map((t)=>({ ...t, role: 'Tenant' })),
-          ...pendingCosigners.map((c)=>({ ...c, role: 'Cosigner' })),
-        ]
+      const staged: Array<StagedPerson & { role: string }> = [
+        ...pendingTenants.map((tenant) => ({ ...tenant, role: 'Tenant' })),
+        ...pendingCosigners.map((cosigner) => ({ ...cosigner, role: 'Cosigner' }))
+      ]
+     payload.new_people = staged.map((person) => ({
+        first_name: person.first_name,
+        last_name: person.last_name,
+        role: person.role,
+        email: person.email ?? null,
+        phone: person.phone ?? null,
+        alt_email: person.alt_email ?? null,
+        alt_phone: person.alt_phone ?? null,
+        same_as_unit: person.same_as_unit ?? person.same_as_unit_address ?? true,
+        same_as_unit_address: person.same_as_unit ?? person.same_as_unit_address ?? true,
+        addr1: person.address_line1 ?? (person as any).addr1 ?? null,
+        addr2: person.address_line2 ?? (person as any).addr2 ?? null,
+        city: person.city ?? (person as any).city ?? null,
+        state: person.state ?? (person as any).state ?? null,
+        postal: person.postal_code ?? (person as any).postal ?? null,
+        country: person.country ?? (person as any).country ?? null,
+        alt_addr1: person.alt_address_line1 ?? (person as any).alt_addr1 ?? null,
+        alt_addr2: person.alt_address_line2 ?? (person as any).alt_addr2 ?? null,
+        alt_city: person.alt_city ?? null,
+        alt_state: person.alt_state ?? null,
+        alt_postal: person.alt_postal_code ?? (person as any).alt_postal ?? null,
+        alt_country: person.alt_country ?? null
+      }))
       }
+
       if (selectedExistingTenantIds.length) {
-        body.contacts = [...(body.contacts || []), ...selectedExistingTenantIds.map((id) => ({ tenant_id: id, role: 'Tenant', is_rent_responsible: true }))]
+        const contacts: LeaseContactPayload[] = selectedExistingTenantIds.map((id) => ({
+          tenant_id: id,
+          role: 'Tenant',
+          is_rent_responsible: true
+        }))
+        payload.contacts = contacts
       }
-      const res = await fetch('/api/leases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
+      const endpoint = syncToBuildium ? '/api/leases?syncBuildium=true' : '/api/leases'
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, syncBuildium: syncToBuildium, send_welcome_email: sendWelcomeEmail })
+      })
       if (!res.ok) {
-        const j = await res.json().catch(()=>({} as any))
-        console.error('Lease create failed:', j)
-        throw new Error(j?.error || 'Failed to create lease')
+        const json: unknown = await res.json().catch(() => null)
+        console.error('Lease create failed:', json)
+        const errorMessage = typeof json === 'object' && json && 'error' in json && typeof (json as { error?: unknown }).error === 'string'
+          ? (json as { error: string }).error
+          : 'Failed to create lease'
+        throw new Error(errorMessage)
       }
       setOpen(false)
       window.location.reload()
@@ -274,16 +662,19 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
         if (term) {
           const like = `%${term}%`
           // Filter on related contacts table fields
-          // @ts-ignore supabase-js supports foreignTable option
           query = query.or(`first_name.ilike.${like},last_name.ilike.${like},primary_email.ilike.${like}`, { foreignTable: 'contacts' })
         }
-        const { data } = await query
+        const { data } = await query.returns<TenantSearchRow[]>()
         if (!cancelled) {
-          const mapped = (data || []).map((r: any) => ({
-            id: String(r.id),
-            name: [r?.contacts?.first_name, r?.contacts?.last_name].filter(Boolean).join(' ') || 'Unnamed',
-            email: r?.contacts?.primary_email || null,
-          }))
+          const mapped = (data || []).map<TenantOption>((row) => {
+            const nameParts = [row.contacts?.first_name, row.contacts?.last_name].filter((part): part is string => Boolean(part))
+            const fullName = nameParts.join(' ') || 'Unnamed'
+            return {
+              id: String(row.id),
+              name: fullName,
+              email: row.contacts?.primary_email ?? null
+            }
+          })
           setResults(mapped)
         }
       } catch {
@@ -311,7 +702,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       return
     }
     const days = daysInMonth - startDay + 1
-    const monthly = Number(rent || '0') || 0
+    const monthly = parseCurrencyValue(rent) ?? 0
     const amount = monthly * (days / daysInMonth)
     setFirstProrationDays(days)
     setFirstProrationAmount(Number(amount.toFixed(2)))
@@ -333,7 +724,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       return
     }
     const days = endDay // inclusive days occupied in last month
-    const monthly = Number(rent || '0') || 0
+    const monthly = parseCurrencyValue(rent) ?? 0
     const amount = monthly * (days / daysInMonth)
     setLastProrationDays(days)
     setLastProrationAmount(Number(amount.toFixed(2)))
@@ -341,7 +732,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
 
   // Reset proration toggles if section should be hidden
   useEffect(() => {
-    const rentNum = Number(rent || '0') || 0
+    const rentNum = parseCurrencyValue(rent) ?? 0
     const start = from ? new Date(from + 'T00:00:00') : null
     const end = to ? new Date(to + 'T00:00:00') : null
     const showFirst = !!start && start.getDate() > 1
@@ -359,12 +750,37 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
       setLastProrationDays(0)
       setLastProrationAmount(null)
     }
-  }, [rent, from, to])
+  }, [rent, from, to, prorateFirstMonth, prorateLastMonth])
+
+  useEffect(() => {
+    const prev = prevStartDateRef.current
+    if (from) {
+      if (!nextDueDate || nextDueDate === prev) setNextDueDate(from)
+      if (!depositDate || depositDate === prev) setDepositDate(from)
+    }
+    prevStartDateRef.current = from
+  }, [from, nextDueDate, depositDate])
+
+  const describeGlAccount = (account: GlAccountOption) => {
+    const parts = [account.name]
+    const meta: string[] = []
+    if (account.account_number) meta.push(`#${account.account_number}`)
+    if (account.type) meta.push(account.type)
+    if (account.is_security_deposit_liability) meta.push('Security deposit')
+    if (meta.length) parts.push(meta.join(' • '))
+    return parts.join(' • ')
+  }
+
+  const rentAccountOptions = glAccounts.map((acc) => ({ value: acc.id, label: describeGlAccount(acc) }))
+  const depositSource = glAccounts.filter((acc) => acc.is_security_deposit_liability)
+  const depositAccountOptions = (depositSource.length ? depositSource : glAccounts).map((acc) => ({ value: acc.id, label: describeGlAccount(acc) }))
+  const rentAccountPlaceholder = glAccountsLoading ? 'Loading accounts…' : (rentAccountOptions.length ? 'Select account' : 'No GL accounts found')
+  const depositAccountPlaceholder = glAccountsLoading ? 'Loading accounts…' : (depositAccountOptions.length ? 'Select account' : 'No GL accounts found')
 
   return (
-    <section>
+    <section className="relative">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-base font-semibold text-foreground">Lease Information</h3>
+        <h3 className="text-base font-semibold text-foreground">Leases</h3>
         {!open && <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Add</Button>}
       </div>
 
@@ -377,19 +793,57 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 <TableHead>Start - End</TableHead>
                 <TableHead>Tenant</TableHead>
                 <TableHead>Rent</TableHead>
+                <TableHead>Buildium</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(!leases || leases.length === 0) ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-sm text-muted-foreground">You don't have any leases for this unit right now.</TableCell>
+                  <TableCell colSpan={5} className="text-sm text-muted-foreground">You don't have any leases for this unit right now.</TableCell>
                 </TableRow>
-              ) : leases.map((l: any) => (
-                <TableRow key={l.id}>
-                  <TableCell className="text-sm text-foreground">{l.status || '—'}</TableCell>
-                  <TableCell className="text-sm text-foreground">{fmt(l.lease_from_date)} – {fmt(l.lease_to_date)}</TableCell>
-                  <TableCell className="text-sm text-foreground">{l.tenant_name || '—'}</TableCell>
-                  <TableCell className="text-sm text-foreground">{fmtUsd(l.rent_amount)}</TableCell>
+              ) : leases.map((lease) => (
+                <TableRow
+                  key={lease.id}
+                  className="hover:bg-muted cursor-pointer"
+                  onClick={() => { if (lease?.id != null) window.location.href = `/leases/${lease.id}` }}
+                >
+                  <TableCell className="text-sm text-foreground">{lease.status || '—'}</TableCell>
+                  <TableCell className="text-sm text-foreground">
+                    <span>
+                      {fmt(lease.lease_from_date)} – {fmt(lease.lease_to_date)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-foreground">
+                    {lease.tenant_name ? (
+                      <span className="text-foreground">{lease.tenant_name}</span>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell className="text-sm text-foreground">{fmtUsd(lease.rent_amount)}</TableCell>
+                  <TableCell className="text-sm text-foreground">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {lease.buildium_lease_id ? (
+                        <Badge variant="secondary">Buildium ID: {lease.buildium_lease_id}</Badge>
+                      ) : (
+                        <Badge variant="outline">Not in Buildium</Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); syncLease(String(lease.id)) }}
+                        disabled={syncingLeaseId === String(lease.id)}
+                      >
+                        {syncingLeaseId === String(lease.id)
+                          ? 'Syncing…'
+                          : lease.buildium_lease_id ? 'Re-sync' : 'Sync to Buildium'}
+                      </Button>
+                    </div>
+                    {leaseSyncError?.id === String(lease.id) ? (
+                      <p className="text-xs text-destructive mt-1">{leaseSyncError.message}</p>
+                    ) : null}
+                    {lease.last_sync_error ? (
+                      <p className="text-xs text-destructive mt-1">Last error: {lease.last_sync_error}</p>
+                    ) : null}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -405,7 +859,11 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               <div className="text-xs text-muted-foreground">{pendingCosigners.length} cosigner{pendingCosigners.length>1?'s':''} added</div>
             )}
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+              <label className="flex items-center gap-2 text-xs text-foreground select-none mr-2">
+                <Checkbox id="syncBuildiumOnSave" checked={syncToBuildium} onCheckedChange={(v)=>setSyncToBuildium(Boolean(v))} />
+                <span>Sync to Buildium on save</span>
+              </label>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
               <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
             </div>
           </div>
@@ -413,35 +871,39 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             {/* Lease details (Property, Unit, Type, Dates) */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Lease details</h3>
-              <div className="max-w-4xl w-full">
-              {/* Row 1: Property + Unit */}
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-3">
-                <div className="sm:col-span-3">
+              <div className="w-full">
+              {/* Row 1: Property + Unit (compact widths) */}
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(20rem,40rem)_max-content] gap-3 mb-3">
+                <div className="w-full sm:justify-self-start">
                   <label className="block text-xs mb-1">Property *</label>
                   <Dropdown
                     value={propertyId}
                     onChange={(v) => { setPropertyId(v); /* reset unit selection when property changes */ setUnitId('') }}
-                    options={(properties.length ? properties : [{ id: property?.id, name: property?.name || 'Property' }]).map(p => ({ value: String(p.id), label: p.name }))}
+                    options={(properties.length ? properties : (property ? [{ id: String(property.id), name: property.name || 'Property' }] : []))
+                      .map((p) => ({ value: String(p.id), label: p.name }))}
                     placeholder="Select property"
+                    className="sm:w-[40rem] max-w-full"
                   />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="w-full sm:w-auto sm:justify-self-start">
                   <label className="block text-xs mb-1">Unit</label>
                   <Dropdown
                     value={unitId}
                     onChange={setUnitId}
-                    options={(units.length ? units : [{ id: unit?.id, unit_number: unit?.unit_number }]).map((u:any)=>({ value: String(u.id), label: u.unit_number || 'Unit' }))}
+                    options={(units.length ? units : (unit ? [{ id: String(unit.id), unit_number: unit.unit_number ?? 'Unit' }] : []))
+                      .map((u) => ({ value: String(u.id), label: u.unit_number || 'Unit' }))}
                     placeholder="Select unit"
+                    className="sm:w-32"
                   />
                 </div>
               </div>
-              {/* Row 2: Lease Type + Dates (equal widths) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
+              {/* Row 2: Lease Type + Dates (compact date inputs) */}
+              <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content_max-content] gap-3">
+                <div className="w-full sm:w-64">
                   <label className="block text-xs mb-1">Lease Type *</label>
                   <Dropdown
-                    value={leaseType as any}
-                    onChange={(v)=>setLeaseType(String(v))}
+                    value={leaseType}
+                    onChange={setLeaseType}
                     options={[
                       { value: 'Fixed', label: 'Fixed' },
                       { value: 'FixedWithRollover', label: 'Fixed w/rollover' },
@@ -450,7 +912,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     placeholder="Select"
                   />
                 </div>
-                <div>
+                <div className="w-full sm:w-fit sm:justify-self-start">
                   <label className="block text-xs mb-1">Start date *</label>
                   <Input
                     type="date"
@@ -467,11 +929,17 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                         setTo(iso)
                       }
                     }}
+                    className="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]"
                   />
                 </div>
-                <div>
+                <div className="w-full sm:w-fit sm:justify-self-start">
                   <label className="block text-xs mb-1">End date</label>
-                  <Input type="date" value={to} onChange={e=>setTo(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={to}
+                    onChange={e=>setTo(e.target.value)}
+                    className="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]"
+                  />
                 </div>
               </div>
               </div>
@@ -547,11 +1015,14 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
             {/* Rent */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-2">Rent <span className="text-muted-foreground">(optional)</span></h3>
+              {glAccountsError ? (
+                <p className="text-xs text-destructive mb-2">Failed to load GL accounts: {glAccountsError}</p>
+              ) : null}
               <div className="sm:w-64 mb-2">
                 <label className="block text-xs mb-1">Rent cycle</label>
                 <Dropdown
-                  value={rentCycle as any}
-                  onChange={(v)=>setRentCycle(v as any)}
+                  value={rentCycle}
+                  onChange={(value) => setRentCycle(value as RentFrequency)}
                   options={[
                     { value: 'Monthly', label: 'Monthly' },
                     { value: 'Weekly', label: 'Weekly' },
@@ -563,18 +1034,40 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               </div>
               <div className="border rounded-md overflow-hidden">
                 <div className="border-l-4 border-l-blue-500 px-4 py-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_max-content_minmax(0,16rem)] gap-3">
                     <div>
                       <label className="block text-xs mb-1">Amount</label>
-                      <Input inputMode="decimal" placeholder="$0.00" value={rent} onChange={e=>setRent(e.target.value)} />
+                      <Input
+                        inputMode="decimal"
+                        placeholder="$0.00"
+                        value={rent}
+                        onChange={e=>{
+                          const value = e.target.value
+                          setRent(value)
+                          if (!depositTouched) {
+                            setDepositAmt(value)
+                          }
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Account *</label>
-                      <Input readOnly value={rentAccountName} />
+                      <Dropdown
+                        value={rentGlAccountId}
+                        onChange={setRentGlAccountId}
+                        options={rentAccountOptions}
+                        placeholder={rentAccountPlaceholder}
+                      />
                     </div>
-                    <div>
+                    <div className="w-full sm:w-fit sm:justify-self-start">
                       <label className="block text-xs mb-1">Next due date *</label>
-                      <Input type="date" value={nextDueDate} onChange={(e)=>setNextDueDate(e.target.value)} placeholder="m/d/yyyy" />
+                      <Input
+                        type="date"
+                        value={nextDueDate}
+                        onChange={(e)=>setNextDueDate(e.target.value)}
+                        placeholder="m/d/yyyy"
+                        className="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]"
+                      />
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Memo</label>
@@ -597,7 +1090,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                 const lastDay = new Date(end.getFullYear(), end.getMonth()+1, 0).getDate()
                 showLast = end.getDate() < lastDay
               }
-              const rentNum = Number(rent || '0') || 0
+              const rentNum = parseCurrencyValue(rent) ?? 0
               if (!(rentNum > 0) || (!showFirst && !showLast)) return null
               return (
                 <div className="rounded-md border border-border p-4">
@@ -643,18 +1136,37 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
               <h3 className="text-sm font-medium text-foreground mb-2">Security deposit <span className="text-muted-foreground">(optional)</span></h3>
               <div className="border rounded-md overflow-hidden">
                 <div className="border-l-4 border-l-blue-500 px-4 py-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_max-content_minmax(0,16rem)] gap-3">
                     <div>
                       <label className="block text-xs mb-1">Amount</label>
-                      <Input inputMode="decimal" placeholder="$0.00" value={depositAmt} onChange={e=>setDepositAmt(e.target.value)} />
+                      <Input
+                        inputMode="decimal"
+                        placeholder="$0.00"
+                        value={depositAmt}
+                        onChange={e=>{
+                          setDepositTouched(true)
+                          setDepositAmt(e.target.value)
+                        }}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Account *</label>
-                      <Input readOnly value={depositAccountName} />
+                      <Dropdown
+                        value={depositGlAccountId}
+                        onChange={setDepositGlAccountId}
+                        options={depositAccountOptions}
+                        placeholder={depositAccountPlaceholder}
+                      />
                     </div>
-                    <div>
+                    <div className="w-full sm:w-fit sm:justify-self-start">
                       <label className="block text-xs mb-1">Next due date *</label>
-                      <Input type="date" value={depositDate} onChange={(e)=>setDepositDate(e.target.value)} placeholder="m/d/yyyy" />
+                      <Input
+                        type="date"
+                        value={depositDate}
+                        onChange={(e)=>setDepositDate(e.target.value)}
+                        placeholder="m/d/yyyy"
+                        className="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]"
+                      />
                     </div>
                     <div>
                       <label className="block text-xs mb-1">Memo</label>
@@ -668,13 +1180,165 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
 
             {/* Section separator removed – using bordered cards instead */}
 
-            {/* Charges placeholder */}
+            {/* Charges */}
             <div className="rounded-md border border-border p-4">
-              <h3 className="text-sm font-medium text-foreground mb-2">Charges <span className="text-muted-foreground">(optional)</span></h3>
-              <div className="flex items-center gap-4 text-primary text-sm">
-                <button type="button" className="underline">+ Add recurring charge</button>
+              <h3 className="text-sm font-medium text-foreground mb-1">Charges <span className="text-muted-foreground">(optional)</span></h3>
+              <p className="text-sm text-muted-foreground mb-3">Create charges for tenants that are part of this lease</p>
+
+              <div className="space-y-3">
+                {extraRecurring.map((row, idx) => (
+                  <div key={`rc-${idx}`} className="border rounded-md overflow-hidden">
+                    <div className="border-l-4 border-l-blue-500 px-4 py-3">
+                      <div className="flex items-start justify-between">
+                        <div className="text-sm font-medium text-foreground mb-2">Recurring</div>
+                        <button
+                          type="button"
+                          aria-label="Remove recurring charge"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => setExtraRecurring(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,16rem)_minmax(0,12rem)_minmax(0,9rem)_minmax(0,16rem)] gap-3">
+                        <div>
+                          <label className="block text-xs mb-1">Account *</label>
+                          <Dropdown
+                            value={row.gl_account_id}
+                            onChange={(v)=> setExtraRecurring(prev => prev.map((r,i)=> i===idx ? { ...r, gl_account_id: String(v) } : r))}
+                            options={glAccounts.map((acc) => ({ value: acc.id, label: describeGlAccount(acc) }))}
+                            placeholder={glAccountsLoading ? 'Loading accounts…' : (glAccounts.length ? 'Select' : 'No GL accounts found')}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Next due date *</label>
+                          <Input
+                            type="date"
+                            value={row.start_date}
+                            onChange={(e)=> setExtraRecurring(prev => prev.map((r,i)=> i===idx ? { ...r, start_date: e.target.value } : r))}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Amount</label>
+                          <Input
+                            placeholder="$0.00"
+                            value={row.amount}
+                            onChange={(e)=> setExtraRecurring(prev => prev.map((r,i)=> i===idx ? { ...r, amount: e.target.value } : r))}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Memo</label>
+                          <Input
+                            placeholder="Optional memo"
+                            value={row.memo}
+                            onChange={(e)=> setExtraRecurring(prev => prev.map((r,i)=> i===idx ? { ...r, memo: e.target.value } : r))}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,16rem)] gap-3 mt-3">
+                        <div>
+                          <label className="block text-xs mb-1">Frequency *</label>
+                          <Dropdown
+                            value={row.frequency}
+                            onChange={(v)=> setExtraRecurring(prev => prev.map((r,i)=> i===idx ? { ...r, frequency: v as RentFrequency } : r))}
+                            options={[
+                              { value: 'Monthly', label: 'Monthly' },
+                              { value: 'Weekly', label: 'Weekly' },
+                              { value: 'Biweekly', label: 'Biweekly' },
+                              { value: 'Quarterly', label: 'Quarterly' },
+                              { value: 'Annually', label: 'Annually' },
+                            ]}
+                            placeholder="Select"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="space-y-3 mt-3">
+                {extraOneTime.map((row, idx) => (
+                  <div key={`ot-${idx}`} className="border rounded-md overflow-hidden">
+                    <div className="border-l-4 border-l-blue-500 px-4 py-3">
+                      <div className="flex items-start justify-between">
+                        <div className="text-sm font-medium text-foreground mb-2">One-time</div>
+                        <button
+                          type="button"
+                          aria-label="Remove one-time charge"
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => setExtraOneTime(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,16rem)_minmax(0,12rem)_minmax(0,9rem)_minmax(0,1fr)] gap-3">
+                        <div>
+                          <label className="block text-xs mb-1">Account *</label>
+                          <Dropdown
+                            value={row.gl_account_id}
+                            onChange={(v)=> setExtraOneTime(prev => prev.map((r,i)=> i===idx ? { ...r, gl_account_id: String(v) } : r))}
+                            options={glAccounts.map((acc) => ({ value: acc.id, label: describeGlAccount(acc) }))}
+                            placeholder={glAccountsLoading ? 'Loading accounts…' : (glAccounts.length ? 'Select' : 'No GL accounts found')}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Due date *</label>
+                          <Input
+                            type="date"
+                            value={row.date}
+                            onChange={(e)=> setExtraOneTime(prev => prev.map((r,i)=> i===idx ? { ...r, date: e.target.value } : r))}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Amount</label>
+                          <Input
+                            placeholder="$0.00"
+                            value={row.amount}
+                            onChange={(e)=> setExtraOneTime(prev => prev.map((r,i)=> i===idx ? { ...r, amount: e.target.value } : r))}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs mb-1">Memo</label>
+                          <Input
+                            placeholder="Optional memo"
+                            value={row.memo}
+                            onChange={(e)=> setExtraOneTime(prev => prev.map((r,i)=> i===idx ? { ...r, memo: e.target.value } : r))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-4 text-primary text-sm mt-3">
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setExtraRecurring(prev => ([...prev, {
+                    gl_account_id: glAccounts[0]?.id || '',
+                    frequency: 'Monthly',
+                    start_date: from || '',
+                    amount: '',
+                    memo: ''
+                  }]))}
+                >
+                  + Add recurring charge
+                </button>
                 <span className="text-muted-foreground">|</span>
-                <button type="button" className="underline">+ Add one-time charge</button>
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setExtraOneTime(prev => ([...prev, {
+                    gl_account_id: glAccounts[0]?.id || '',
+                    date: from || '',
+                    amount: '',
+                    memo: ''
+                  }]))}
+                >
+                  + Add one-time charge
+                </button>
               </div>
             </div>
 
@@ -688,9 +1352,15 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
 
             {/* Section separator removed – using bordered cards instead */}
 
-            {/* Welcome email toggle placeholder */}
+            {/* Welcome email toggle */}
             <div className="rounded-md border border-border p-4">
-              <h3 className="text-sm font-medium text-foreground mb-1">Resident Center Welcome Email <span className="align-middle ml-2 text-xs rounded bg-muted px-2 py-0.5">OFF</span></h3>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-medium text-foreground">Resident Center Welcome Email</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground select-none">{sendWelcomeEmail ? 'ON' : 'OFF'}</span>
+                  <Switch checked={sendWelcomeEmail} onCheckedChange={(v)=>setSendWelcomeEmail(Boolean(v))} />
+                </div>
+              </div>
               <p className="text-sm text-muted-foreground">We'll send a welcome email to anyone without Resident Center access. Once they sign in, they can make online payments, view important documents, submit requests, and more!</p>
             </div>
             {error ? <div className="text-sm text-destructive">{error}</div> : null}
@@ -758,7 +1428,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     </div>
                     <div className="flex items-center gap-2 justify-start">
                       <Button size="sm" onClick={()=> setShowAddTenant(false)} disabled={!selectedExistingTenantIds.length}>Add tenant</Button>
-                      <Button variant="outline" size="sm" onClick={()=> setShowAddTenant(false)}>Cancel</Button>
+                      <Button variant="ghost" size="sm" onClick={()=> setShowAddTenant(false)}>Cancel</Button>
                     </div>
                   </div>
                 )}
@@ -854,11 +1524,16 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                           </div>
                           <div>
                             <label className="block text-xs mb-1">Country *</label>
-                            <Dropdown value={countryField as any} onChange={setCountryField as any} options={[
-                              { value: 'United States', label: 'United States' },
-                              { value: 'Canada', label: 'Canada' },
-                              { value: 'Mexico', label: 'Mexico' },
-                            ]} placeholder="Select country" />
+                            <Dropdown
+                              value={countryField}
+                              onChange={setCountryField}
+                              options={[
+                                { value: 'United States', label: 'United States' },
+                                { value: 'Canada', label: 'Canada' },
+                                { value: 'Mexico', label: 'Mexico' },
+                              ]}
+                              placeholder="Select country"
+                            />
                           </div>
                         </div>
                       </div>
@@ -905,11 +1580,16 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                           </div>
                           <div>
                             <label className="block text-xs mb-1">Country</label>
-                            <Dropdown value={altCountry as any} onChange={setAltCountry as any} options={[
-                              { value: 'United States', label: 'United States' },
-                              { value: 'Canada', label: 'Canada' },
-                              { value: 'Mexico', label: 'Mexico' },
-                            ]} placeholder="Select country" />
+                            <Dropdown
+                              value={altCountry}
+                              onChange={setAltCountry}
+                              options={[
+                                { value: 'United States', label: 'United States' },
+                                { value: 'Canada', label: 'Canada' },
+                                { value: 'Mexico', label: 'Mexico' },
+                              ]}
+                              placeholder="Select country"
+                            />
                           </div>
                         </div>
                       </div>
@@ -926,9 +1606,9 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     <AccordionContent>
                       <div className="p-2 space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
+                          <div className="w-full sm:w-fit sm:justify-self-start">
                             <label className="block text-xs mb-1">Date of birth</label>
-                            <Input type="date" />
+                            <Input type="date" className="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]" />
                           </div>
                           <div>
                             <label className="block text-xs mb-1">Taxpayer ID</label>
@@ -937,7 +1617,11 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                         </div>
                         <div>
                           <label className="block text-xs mb-1">Comments</label>
-                          <textarea className="w-full min-h-[96px] p-3 border border-border rounded-md bg-background text-sm text-foreground" />
+                          <textarea 
+                            className="w-full min-h-[96px] p-3 border border-border rounded-md bg-background text-sm text-foreground" 
+                            placeholder="Enter comments..."
+                            aria-label="Comments"
+                          />
                         </div>
                       </div>
                     </AccordionContent>
@@ -975,32 +1659,37 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                   <div className="flex items-center gap-2 justify-start">
                     <Button size="sm" onClick={() => {
                       if (!tenantFirstName || !tenantLastName) { alert('First and last name are required'); return }
-                      setPendingTenants(prev => [...prev, {
-                        first_name: tenantFirstName,
-                        last_name: tenantLastName,
-                        phone: tenantPhone,
-                        email: tenantEmail,
-                        alt_phone: altPhone,
-                        alt_email: altEmail,
-                        same_as_unit: sameAsUnitAddress,
-                        addr1: sameAsUnitAddress ? null : addr1,
-                        addr2: sameAsUnitAddress ? null : addr2,
-                        city: sameAsUnitAddress ? null : cityField,
-                        state: sameAsUnitAddress ? null : stateField,
-                        postal: sameAsUnitAddress ? null : postalField,
-                        country: sameAsUnitAddress ? null : countryField,
-                        alt_addr1: altAddr1,
-                        alt_addr2: altAddr2,
-                        alt_city: altCity,
-                        alt_state: altState,
-                        alt_postal: altPostal,
-                        alt_country: altCountry,
-                      }])
+                    setPendingTenants(prev => [...prev, {
+                      first_name: tenantFirstName,
+                      last_name: tenantLastName,
+                      phone: tenantPhone,
+                      email: tenantEmail,
+                      alt_phone: altPhone,
+                      alt_email: altEmail,
+                      same_as_unit: sameAsUnitAddress,
+                      same_as_unit_address: sameAsUnitAddress,
+                      addr1: sameAsUnitAddress ? null : addr1,
+                      addr2: sameAsUnitAddress ? null : addr2,
+                      address_line1: sameAsUnitAddress ? null : addr1,
+                      address_line2: sameAsUnitAddress ? null : addr2,
+                      city: sameAsUnitAddress ? null : cityField,
+                      state: sameAsUnitAddress ? null : stateField,
+                      postal: sameAsUnitAddress ? null : postalField,
+                      country: sameAsUnitAddress ? null : countryField,
+                      alt_addr1: altAddr1,
+                      alt_addr2: altAddr2,
+                      alt_address_line1: altAddr1,
+                      alt_address_line2: altAddr2,
+                      alt_city: altCity,
+                      alt_state: altState,
+                      alt_postal: altPostal,
+                      alt_country: altCountry,
+                    }])
                       // Reset minimal fields and close
                       setTenantFirstName(''); setTenantLastName(''); setTenantPhone(''); setTenantEmail('');
                       setShowAddTenant(false)
                     }}>Add tenant</Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
                   </div>
                 )}
               </TabsContent>
@@ -1093,11 +1782,16 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                           </div>
                           <div>
                             <label className="block text-xs mb-1">Country *</label>
-                            <Dropdown value={coCountry as any} onChange={setCoCountry as any} options={[
-                              { value: 'United States', label: 'United States' },
-                              { value: 'Canada', label: 'Canada' },
-                              { value: 'Mexico', label: 'Mexico' },
-                            ]} placeholder="Select country" />
+                            <Dropdown
+                              value={coCountry}
+                              onChange={setCoCountry}
+                              options={[
+                                { value: 'United States', label: 'United States' },
+                                { value: 'Canada', label: 'Canada' },
+                                { value: 'Mexico', label: 'Mexico' },
+                              ]}
+                              placeholder="Select country"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1144,11 +1838,16 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                           </div>
                           <div>
                             <label className="block text-xs mb-1">Country</label>
-                            <Dropdown value={coAltCountry as any} onChange={setCoAltCountry as any} options={[
-                              { value: 'United States', label: 'United States' },
-                              { value: 'Canada', label: 'Canada' },
-                              { value: 'Mexico', label: 'Mexico' },
-                            ]} placeholder="Select country" />
+                            <Dropdown
+                              value={coAltCountry}
+                              onChange={setCoAltCountry}
+                              options={[
+                                { value: 'United States', label: 'United States' },
+                                { value: 'Canada', label: 'Canada' },
+                                { value: 'Mexico', label: 'Mexico' },
+                              ]}
+                              placeholder="Select country"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1165,14 +1864,20 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                       phone: coPhone,
                       alt_phone: coAltPhone,
                       alt_email: coAltEmail,
+                      same_as_unit: coSameAsUnitAddress,
+                      same_as_unit_address: coSameAsUnitAddress,
                       addr1: coSameAsUnitAddress ? null : coAddr1,
                       addr2: coSameAsUnitAddress ? null : coAddr2,
+                      address_line1: coSameAsUnitAddress ? null : coAddr1,
+                      address_line2: coSameAsUnitAddress ? null : coAddr2,
                       city: coSameAsUnitAddress ? null : coCity,
                       state: coSameAsUnitAddress ? null : coState,
                       postal: coSameAsUnitAddress ? null : coPostal,
                       country: coSameAsUnitAddress ? null : coCountry,
                       alt_addr1: coAltAddr1,
                       alt_addr2: coAltAddr2,
+                      alt_address_line1: coAltAddr1,
+                      alt_address_line2: coAltAddr2,
                       alt_city: coAltCity,
                       alt_state: coAltState,
                       alt_postal: coAltPostal,
@@ -1181,7 +1886,7 @@ export default function LeaseSection({ leases, unit, property }: { leases: any[]
                     resetCosignerForm()
                     setShowAddTenant(false)
                   }}>Add cosigner</Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
                 </div>
               </TabsContent>
             </Tabs>

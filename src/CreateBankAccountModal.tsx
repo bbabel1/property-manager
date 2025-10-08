@@ -1,22 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Save, Building2, Plus } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, Save, Building2 } from 'lucide-react'
 import { Button } from './ui/button'
+import type { BankAccountSummary, CreateBankAccountFormValues } from '@/components/forms/types'
 
-interface CreateBankAccountFormData {
-  name: string
-  description: string
-  bank_account_type: string
-  account_number: string
-  routing_number: string
-  country: string
-}
-
-interface CreateBankAccountModalProps {
+type CreateBankAccountModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (newAccount: any) => void
+  onSuccess: (newAccount: BankAccountSummary) => void
 }
 
 const BANK_ACCOUNT_TYPES = [
@@ -41,19 +33,22 @@ const COUNTRIES = [
   'India'
 ]
 
+const INITIAL_FORM: CreateBankAccountFormValues = {
+  name: '',
+  description: '',
+  bank_account_type: '',
+  account_number: '',
+  routing_number: '',
+  country: 'United States'
+}
+
 export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: CreateBankAccountModalProps) {
-  const [formData, setFormData] = useState<CreateBankAccountFormData>({
-    name: '',
-    description: '',
-    bank_account_type: '',
-    account_number: '',
-    routing_number: '',
-    country: 'United States'
-  })
+  const [formData, setFormData] = useState<CreateBankAccountFormValues>(() => ({ ...INITIAL_FORM }))
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [syncToBuildium, setSyncToBuildium] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
@@ -61,7 +56,8 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
     try {
       console.log('🔍 CreateBankAccountModal: Submitting form data:', formData)
       
-      const response = await fetch('/api/bank-accounts', {
+      const url = syncToBuildium ? '/api/bank-accounts?syncToBuildium=true' : '/api/bank-accounts'
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,6 +66,30 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
       })
 
       if (!response.ok) {
+        if (response.status === 409) {
+          // Duplicate — try to reuse the existing account
+          try {
+            const conflict = await response.json().catch(() => ({}))
+            const existingId: string | undefined = conflict?.existing?.id
+            if (existingId) {
+              // Fetch the list and find the existing account to pass to onSuccess
+              const listRes = await fetch('/api/bank-accounts')
+              if (listRes.ok) {
+                const list = (await listRes.json()) as BankAccountSummary[]
+                const existing = list.find(a => a.id === existingId)
+                if (existing) {
+                  onSuccess(existing)
+                  onClose()
+                  return
+                }
+              }
+              throw new Error(conflict?.error || 'Bank account already exists')
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Bank account already exists'
+            throw new Error(msg)
+          }
+        }
         let errorMessage = 'Failed to create bank account'
         try {
           const errorData = await response.json()
@@ -81,7 +101,8 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
         throw new Error(errorMessage)
       }
 
-      const newAccount = await response.json()
+      const raw = await response.json()
+      const newAccount = (raw && raw.success && raw.data) ? (raw.data as BankAccountSummary) : (raw as BankAccountSummary)
       console.log('Bank account created successfully:', newAccount)
       
       onSuccess(newAccount)
@@ -94,7 +115,7 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
     }
   }
 
-  const handleInputChange = (field: keyof CreateBankAccountFormData, value: string) => {
+  const handleInputChange = <K extends keyof CreateBankAccountFormValues>(field: K, value: CreateBankAccountFormValues[K]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -102,14 +123,8 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
   }
 
   const handleClose = () => {
-    setFormData({
-      name: '',
-      description: '',
-      bank_account_type: '',
-      account_number: '',
-      routing_number: '',
-      country: 'United States'
-    })
+    setFormData(() => ({ ...INITIAL_FORM }))
+    setSyncToBuildium(false)
     setError(null)
     onClose()
   }
@@ -123,10 +138,14 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Create New Bank Account</h2>
           <button
+            type="button"
             onClick={handleClose}
+            aria-label="Close"
+            title="Close"
             className="text-gray-400 hover:text-gray-600"
           >
             <X className="h-6 w-6" />
+            <span className="sr-only">Close</span>
           </button>
         </div>
 
@@ -138,7 +157,7 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
         )}
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form id="create-bank-account-form" onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Account Information */}
           <div className="space-y-4">
             <h4 className="font-medium text-gray-900 flex items-center gap-2">
@@ -175,20 +194,14 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="bankAccountType" className="block text-sm font-medium text-gray-700 mb-1">
                   Account Type *
                 </label>
                 <select
+                  id="bankAccountType"
                   value={formData.bank_account_type}
                   onChange={(e) => handleInputChange('bank_account_type', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem'
-                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none custom-select-arrow"
                   required
                 >
                   <option value="" className="text-gray-500 bg-white">Select account type...</option>
@@ -229,20 +242,14 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="bankCountry" className="block text-sm font-medium text-gray-700 mb-1">
                   Country *
                 </label>
                 <select
+                  id="bankCountry"
                   value={formData.country}
                   onChange={(e) => handleInputChange('country', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem'
-                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none custom-select-arrow"
                   required
                 >
                   {COUNTRIES.map((country) => (
@@ -250,6 +257,19 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="syncToBuildium"
+                type="checkbox"
+                checked={syncToBuildium}
+                onChange={(e) => setSyncToBuildium(e.target.checked)}
+                className="h-4 w-4 border-gray-300 rounded"
+              />
+              <label htmlFor="syncToBuildium" className="text-sm text-gray-700 select-none">
+                Create this bank account in Buildium
+              </label>
             </div>
           </div>
         </form>
@@ -265,7 +285,8 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
           </Button>
           
           <Button
-            onClick={handleSubmit}
+            type="submit"
+            form="create-bank-account-form"
             disabled={isLoading}
             className="flex items-center gap-2"
           >

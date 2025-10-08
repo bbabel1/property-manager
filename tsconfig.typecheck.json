@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next/**",
+    "scripts",
+    "backups",
+    "supabase/functions",
+    "src/lib/webhooks.ts",
+    "src/lib/relationship-resolver.ts",
+    "src/lib/hooks/useSupabase.ts",
+    "src/lib/data-integrity-validator.ts",
+    "src/lib/sync-error-recovery.ts"
+  ]
+}
+

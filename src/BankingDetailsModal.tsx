@@ -1,31 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Save, DollarSign, Building2, Plus } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { X, Save, DollarSign } from 'lucide-react'
 import { Button } from './ui/button'
 import { type PropertyWithDetails } from '@/lib/property-service'
 import CreateBankAccountModal from './CreateBankAccountModal'
-import { Dropdown } from './ui/Dropdown';
+import { Dropdown } from './ui/Dropdown'
+import type { BankAccountSummary, BankingDetailsFormValues } from '@/components/forms/types'
 
-interface BankAccount {
-  id: string
-  name: string
-  description?: string
-  bank_account_type?: string
-  account_number?: string
-  routing_number?: string
-  country?: string
-  created_at?: string
-  updated_at?: string
-}
-
-interface BankingDetailsFormData {
-  reserve: number
-  operating_bank_account_id: string
-  deposit_trust_account_id: string
-}
-
-interface BankingDetailsModalProps {
+type BankingDetailsModalProps = {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
@@ -33,14 +16,14 @@ interface BankingDetailsModalProps {
 }
 
 export default function BankingDetailsModal({ isOpen, onClose, onSuccess, property }: BankingDetailsModalProps) {
-  const [formData, setFormData] = useState<BankingDetailsFormData>({
+  const [formData, setFormData] = useState<BankingDetailsFormValues>({
     reserve: 0,
     operating_bank_account_id: '',
     deposit_trust_account_id: ''
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
   const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
   const [showCreateBankAccountModal, setShowCreateBankAccountModal] = useState(false)
   const [selectedAccountType, setSelectedAccountType] = useState<'operating' | 'trust' | null>(null)
@@ -73,7 +56,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
         throw new Error('Failed to fetch bank accounts')
       }
       
-      const bankAccountsData = await response.json()
+      const bankAccountsData = (await response.json()) as BankAccountSummary[]
       setBankAccounts(bankAccountsData)
     } catch (error) {
       console.error('Error fetching bank accounts:', error)
@@ -83,7 +66,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
@@ -117,7 +100,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     }
   }
 
-  const handleInputChange = (field: keyof BankingDetailsFormData, value: string | number) => {
+  const handleInputChange = <K extends keyof BankingDetailsFormValues>(field: K, value: BankingDetailsFormValues[K]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -133,7 +116,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     }
   }
 
-  const handleCreateBankAccountSuccess = (newAccount: BankAccount) => {
+  const handleCreateBankAccountSuccess = (newAccount: BankAccountSummary) => {
     // Add the new account to the list
     setBankAccounts(prev => [...prev, newAccount])
     
@@ -156,8 +139,10 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Edit Banking Details</h2>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
+            aria-label="Close banking details modal"
           >
             <X className="h-6 w-6" />
           </button>
@@ -171,7 +156,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
         )}
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form id="banking-details-form" onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Banking Information */}
           <div className="space-y-4">
             <h4 className="font-medium text-gray-900 flex items-center gap-2">
@@ -248,7 +233,8 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
           </Button>
           
           <Button
-            onClick={handleSubmit}
+            type="submit"
+            form="banking-details-form"
             disabled={isLoading}
             className="flex items-center gap-2"
           >

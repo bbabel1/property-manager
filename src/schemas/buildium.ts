@@ -422,6 +422,7 @@ export const BuildiumUnitAmenitiesUpdateSchema = z.object({
 export const BuildiumUnitImageUploadSchema = z.object({
   FileName: z.string().min(1, "File name is required"),
   FileData: z.string().min(1, "File data is required"),
+  FileType: z.string().optional(),
   Description: z.string().optional()
 })
 
@@ -659,8 +660,8 @@ export const BuildiumLeaseCreateSchema = z.object({
   EndDate: z.string().datetime("End date is required").optional(),
   RentAmount: z.number().positive("Rent amount must be positive"),
   SecurityDepositAmount: z.number().positive("Security deposit amount must be positive").optional(),
-  LeaseType: z.enum(['Standard','MonthToMonth','WeekToWeek','Other']),
-  TermType: z.enum(['Fixed','MonthToMonth','WeekToWeek','Other']).optional(),
+  LeaseType: z.enum(['Fixed','FixedWithRollover','MonthToMonth','AtWill','Other']),
+  TermType: z.enum(['Standard','MonthToMonth','WeekToWeek','AtWill','Other']).optional(),
   RenewalOfferStatus: z.enum(['NotOffered','Offered','Accepted','Declined','Expired']).optional(),
   Notes: z.string().optional()
 })
@@ -673,8 +674,8 @@ export const BuildiumLeaseUpdateSchema = z.object({
   EndDate: z.string().datetime("End date is required").optional(),
   RentAmount: z.number().positive("Rent amount must be positive").optional(),
   SecurityDepositAmount: z.number().positive("Security deposit amount must be positive").optional(),
-  LeaseType: z.enum(['Standard','MonthToMonth','WeekToWeek','Other']).optional(),
-  TermType: z.enum(['Fixed','MonthToMonth','WeekToWeek','Other']).optional(),
+  LeaseType: z.enum(['Fixed','FixedWithRollover','MonthToMonth','AtWill','Other']).optional(),
+  TermType: z.enum(['Standard','MonthToMonth','WeekToWeek','AtWill','Other']).optional(),
   RenewalOfferStatus: z.enum(['NotOffered','Offered','Accepted','Declined','Expired']).optional(),
   Notes: z.string().optional()
 })

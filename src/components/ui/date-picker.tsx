@@ -7,7 +7,6 @@ import { Calendar as CalendarIcon, X } from "lucide-react";
 import { cn } from "./utils";
 import { Input } from "./input";
 import { Button } from "./button";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./popover";
 import { Calendar } from "./calendar";
 
 type Props = {
@@ -30,7 +29,6 @@ function toISO(d: Date) {
 function parseInput(text: string): Date | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
-  // Try ISO first, then common US format
   const a = parseDate(trimmed, "yyyy-MM-dd", new Date());
   if (isValid(a)) return a;
   const b = parseDate(trimmed, "MM/dd/yyyy", new Date());
@@ -53,6 +51,28 @@ export function DatePicker({
 }: Props) {
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState<string>(value || "");
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
 
   React.useEffect(() => {
     setText(value || "");
@@ -77,73 +97,104 @@ export function DatePicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <div className={cn("relative", className)}>
-        <PopoverAnchor asChild>
-          <Input
-            id={id}
-            name={name}
-            placeholder={placeholder}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={(e) => commitText(e.target.value)}
+    <div ref={containerRef} className={cn("relative w-full", className)}>
+      <Input
+        id={id}
+        name={name}
+        placeholder={placeholder}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={(e) => commitText(e.target.value)}
+        disabled={disabled}
+        className="pr-20"
+        inputMode="numeric"
+        autoComplete="off"
+      />
+      <div className="absolute inset-y-0 right-1 flex items-center gap-1">
+        {clearable && (value ?? text) ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground"
+            onClick={() => {
+              setText("");
+              onChange(null);
+            }}
             disabled={disabled}
-            className={cn("pr-20")}
-            inputMode="numeric"
-            autoComplete="off"
-          />
-        </PopoverAnchor>
-        <div className="absolute inset-y-0 right-1 flex items-center gap-1">
-          {clearable && (value ?? text) && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground"
-              onClick={() => {
-                setText("");
-                onChange(null);
-              }}
-              disabled={disabled}
-              aria-label="Clear date"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground"
-              disabled={disabled}
-              aria-label="Open calendar"
-            >
-              <CalendarIcon className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-        </div>
-      </div>
-      <PopoverContent className="w-auto p-0" align="end">
-        <Calendar
-          mode="single"
-          selected={selected}
-          onSelect={onSelect}
-          initialFocus
-          disabled={(date) => {
-            if (minDate) {
-              const min = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
-              if (date < min) return true;
-            }
-            if (maxDate) {
-              const max = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate(), 23, 59, 59, 999);
-              if (date > max) return true;
-            }
-            return false;
+            aria-label="Clear date"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground"
+          disabled={disabled}
+          aria-label="Open calendar"
+          onClick={() => {
+            if (!disabled) setOpen((prev) => !prev);
           }}
-        />
-      </PopoverContent>
-    </Popover>
+        >
+          <CalendarIcon className="h-4 w-4" />
+        </Button>
+      </div>
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-2">
+          <Calendar
+            mode="single"
+            selected={selected || undefined}
+            onSelect={onSelect}
+            initialFocus
+            disabled={(date) => {
+              if (minDate) {
+                const min = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+                if (date < min) return true;
+              }
+              if (maxDate) {
+                const max = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate(), 23, 59, 59, 999);
+                if (date > max) return true;
+              }
+              return false;
+            }}
+            footer={
+              <div className="flex items-center justify-between text-sm">
+                {clearable ? (
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => {
+                      setText("");
+                      onChange(null);
+                      setOpen(false);
+                    }}
+                  >
+                    Clear
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => {
+                    const now = new Date();
+                    const iso = toISO(now);
+                    setText(iso);
+                    onChange(iso);
+                    setOpen(false);
+                  }}
+                >
+                  Today
+                </button>
+              </div>
+            }
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

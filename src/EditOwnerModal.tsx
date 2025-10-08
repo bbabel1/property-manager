@@ -1,24 +1,68 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog'
 import { Button } from './components/ui/button'
-import AddressAutocomplete from './HybridAddressAutocomplete'
 import { DatePicker } from './components/ui/date-picker'
+import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 
 const COUNTRIES = ['United States', 'Canada', 'Mexico', 'United Kingdom', 'Germany', 'France', 'Spain', 'Italy', 'Australia', 'Japan', 'China', 'India', 'Brazil', 'Argentina', 'South Africa']
 
 const MAILING_PREFERENCES = ['primary', 'alternative']
 const TAX_PAYER_TYPES = ['SSN', 'EIN']
-const ETF_ACCOUNT_TYPES = ['Checking', 'Saving']
+// Types for owner data to avoid explicit any
+interface OwnerData {
+  id: string
+  contact_id?: string
+  is_company?: boolean
+  first_name?: string
+  last_name?: string
+  company_name?: string
+  date_of_birth?: string
+  primary_email?: string
+  alt_email?: string
+  primary_phone?: string
+  alt_phone?: string
+  mailing_preference?: string
+  primary_address_line_1?: string
+  primary_address_line_2?: string
+  primary_city?: string
+  primary_state?: string
+  primary_postal_code?: string
+  primary_country?: string
+  alt_address_line_1?: string
+  alt_address_line_2?: string
+  alt_city?: string
+  alt_state?: string
+  alt_postal_code?: string
+  alt_country?: string
+  tax_address_line1?: string
+  tax_address_line2?: string
+  tax_address_line3?: string
+  tax_city?: string
+  tax_state?: string
+  tax_postal_code?: string
+  tax_country?: string
+  tax_payer_id?: string
+  tax_payer_type?: string
+  tax_payer_name?: string
+  management_agreement_start_date?: string
+  management_agreement_end_date?: string
+  comment?: string
+  etf_account_type?: 'Checking' | 'Saving' | null
+  etf_account_number?: string
+  etf_routing_number?: string
+}
+
+type OwnerUpdatePayload = Partial<OwnerData> & { id: string; contact_id?: string }
 
 interface EditOwnerModalProps {
   isOpen: boolean
   onClose: () => void
-  onUpdateOwner: (ownerData: any) => void
-  ownerData: any
+  onUpdateOwner: (ownerData: OwnerUpdatePayload) => void
+  ownerData: OwnerData
   isUpdating?: boolean
 }
 
@@ -46,7 +90,6 @@ export default function EditOwnerModal({
     altEmail: '',
     primaryPhone: '',
     altPhone: '',
-    mailingPreference: 'primary',
     
     // Primary Address
     primaryAddressLine1: '',
@@ -106,7 +149,6 @@ export default function EditOwnerModal({
         altEmail: ownerData.alt_email || '',
         primaryPhone: ownerData.primary_phone || '',
         altPhone: ownerData.alt_phone || '',
-        mailingPreference: ownerData.mailing_preference || 'primary',
         
         // Primary Address
         primaryAddressLine1: ownerData.primary_address_line_1 || '',
@@ -126,15 +168,15 @@ export default function EditOwnerModal({
         
         // Address Checkboxes - Determine if addresses are same as primary
 
-        taxSameAsPrimary: !ownerData.tax_address_line_1 && !ownerData.tax_city,
+        taxSameAsPrimary: !ownerData.tax_address_line1 && !ownerData.tax_city,
         
         // Tax Information
         taxPayerId: ownerData.tax_payer_id || '',
         taxPayerType: ownerData.tax_payer_type || '',
         taxPayerName: ownerData.tax_payer_name || '',
-        taxAddressLine1: ownerData.tax_address_line_1 || '',
-        taxAddressLine2: ownerData.tax_address_line_2 || '',
-        taxAddressLine3: ownerData.tax_address_line_3 || '',
+        taxAddressLine1: ownerData.tax_address_line1 || '',
+        taxAddressLine2: ownerData.tax_address_line2 || '',
+        taxAddressLine3: ownerData.tax_address_line3 || '',
         taxCity: ownerData.tax_city || '',
         taxState: ownerData.tax_state || '',
         taxPostalCode: ownerData.tax_postal_code || '',
@@ -152,7 +194,7 @@ export default function EditOwnerModal({
       })
       setActiveTab('basic')
       setError(null)
-      setShowAlternateAddress(ownerData.mailing_preference === 'alternative')
+      setShowAlternateAddress(Boolean(ownerData.alt_address_line_1 || ownerData.alt_city))
     }
   }, [isOpen, ownerData])
 
@@ -195,13 +237,6 @@ export default function EditOwnerModal({
     onUpdateOwner(updateData)
   }
 
-  const handleMailingPreferenceChange = (value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      mailingPreference: value
-    }))
-    setShowAlternateAddress(value === 'alternative')
-  }
 
   // Use Radix Dialog for focus management and accessibility
 
@@ -265,6 +300,7 @@ export default function EditOwnerModal({
                   <label className="flex items-center">
                     <input
                       type="radio"
+                      name="ownerType"
                       checked={!formData.isCompany}
                       onChange={() => setFormData(prev => ({ 
                         ...prev, 
@@ -279,6 +315,7 @@ export default function EditOwnerModal({
                   <label className="flex items-center">
                     <input
                       type="radio"
+                      name="ownerType"
                       checked={formData.isCompany}
                       onChange={() => setFormData(prev => ({ 
                         ...prev, 
@@ -347,7 +384,7 @@ export default function EditOwnerModal({
                 </label>
                 <DatePicker
                   value={formData.dateOfBirth || ''}
-                  onChange={(v) => setFormData(prev => ({ ...prev, dateOfBirth: v ?? '' }))}
+                  onChange={(v: string | null) => setFormData(prev => ({ ...prev, dateOfBirth: v ?? '' }))}
                 />
               </div>
 
@@ -359,7 +396,7 @@ export default function EditOwnerModal({
                   </label>
                   <DatePicker
                     value={formData.managementAgreementStartDate || ''}
-                    onChange={(v) => setFormData(prev => ({ ...prev, managementAgreementStartDate: v ?? '' }))}
+                    onChange={(v: string | null) => setFormData(prev => ({ ...prev, managementAgreementStartDate: v ?? '' }))}
                   />
                 </div>
                 <div>
@@ -368,7 +405,7 @@ export default function EditOwnerModal({
                   </label>
                   <DatePicker
                     value={formData.managementAgreementEndDate || ''}
-                    onChange={(v) => setFormData(prev => ({ ...prev, managementAgreementEndDate: v ?? '' }))}
+                    onChange={(v: string | null) => setFormData(prev => ({ ...prev, managementAgreementEndDate: v ?? '' }))}
                   />
                 </div>
               </div>
@@ -530,8 +567,9 @@ export default function EditOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                    <label htmlFor="primaryCountry" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                     <select
+                      id="primaryCountry"
                       value={formData.primaryCountry}
                       onChange={e => setFormData(prev => ({ ...prev, primaryCountry: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -544,23 +582,6 @@ export default function EditOwnerModal({
                 </div>
               </div>
 
-              {/* Mailing Preference */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mailing Preference
-                </label>
-                <select
-                  value={formData.mailingPreference}
-                  onChange={(e) => handleMailingPreferenceChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {MAILING_PREFERENCES.map(pref => (
-                    <option key={pref} value={pref}>
-                      {pref.charAt(0).toUpperCase() + pref.slice(1)} Address
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               {/* Alternate Address */}
               {showAlternateAddress && (
@@ -631,8 +652,9 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                      <label htmlFor="altCountry" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                       <select
+                        id="altCountry"
                         value={formData.altCountry}
                         onChange={e => setFormData(prev => ({ ...prev, altCountry: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -676,6 +698,7 @@ export default function EditOwnerModal({
                     value={formData.taxPayerType}
                     onChange={(e) => setFormData(prev => ({ ...prev, taxPayerType: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    aria-label="Tax payer type"
                   >
                     <option value="">Select type</option>
                     {TAX_PAYER_TYPES.map(type => (
@@ -808,8 +831,9 @@ export default function EditOwnerModal({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                        <label htmlFor="taxCountry" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                         <select
+                          id="taxCountry"
                           value={formData.taxCountry}
                           onChange={(e) => setFormData(prev => ({ ...prev, taxCountry: e.target.value }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

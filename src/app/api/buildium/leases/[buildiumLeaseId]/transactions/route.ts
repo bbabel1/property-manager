@@ -5,13 +5,14 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumLeaseTransactionCreateSchema } from '@/schemas/buildium'
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
-import supabaseAdmin from '@/lib/db'
+import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('lease transactions sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -126,10 +127,10 @@ export async function POST(
 
     // Persist to DB with lines
     try {
-      const { transactionId } = await upsertLeaseTransactionWithLines(created, supabaseAdmin)
+      const { transactionId } = await upsertLeaseTransactionWithLines(created, requireSupabaseAdmin('lease transaction sync'))
       logger.info(`Persisted lease transaction to DB: ${transactionId}`)
     } catch (persistError) {
-      logger.error('Error persisting created lease transaction', persistError)
+      logger.error({ error: persistError }, 'Error persisting created lease transaction')
       // Non-fatal for API response
     }
 

@@ -55,7 +55,7 @@ interface OwnerData {
   tax_payer_id: string
   tax_payer_type: string
   tax_payer_name1: string
-  tax_address_line1: string
+  tax_address_line_1: string
   tax_city: string
   tax_state: string
   tax_postal_code: string
@@ -167,7 +167,7 @@ async function addNewPropertyWorkflow() {
       tax_payer_id: "123-45-6789",
       tax_payer_type: "SSN",
       tax_payer_name1: "John Doe",
-      tax_address_line1: "456 Owner Street",
+      tax_address_line_1: "456 Owner Street",
       tax_city: "Owner City",
       tax_state: "CA",
       tax_postal_code: "54321",

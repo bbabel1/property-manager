@@ -13,13 +13,13 @@ export async function POST(request: NextRequest) {
 
     await requireUser()
 
-    const body = await request.json().catch(() => ({}))
+    const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const localId = body?.localId as string
     if (!localId) {
       return NextResponse.json({ error: 'localId is required' }, { status: 400 })
     }
 
-    const { data, error } = await supabaseAdmin.functions.invoke('buildium-sync', {
+    const { data, error } = await (supabaseAdmin.functions as any).invoke('buildium-sync', {
       body: { entityType: 'workOrder', operation: 'syncLocalById', entityData: { localId } }
     })
     if (error || !data?.success) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ success: true, buildiumId: data?.data?.Id })
   } catch (error) {
-    logger.error('Error syncing local work order to Buildium', error)
+    logger.error({ error }, 'Error syncing local work order to Buildium')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

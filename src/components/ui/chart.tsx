@@ -82,20 +82,44 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+          .map(([theme, prefix]) => {
+            const declarations: string[] = [];
+            const indicatorRules: string[] = [];
+            const legendRules: string[] = [];
+
+            colorConfig.forEach(([key, itemConfig]) => {
+              const color =
+                itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+                itemConfig.color;
+
+              if (!color) {
+                return;
+              }
+
+              declarations.push(`  --color-${key}: ${color};`);
+              indicatorRules.push(
+                `${prefix} [data-chart=${id}] [data-series="${key}"].chart-indicator { background-color: var(--color-${key}); border-color: var(--color-${key}); }`,
+              );
+              indicatorRules.push(
+                `${prefix} [data-chart=${id}] [data-series="${key}"].chart-indicator[data-variant="line"], ${prefix} [data-chart=${id}] [data-series="${key}"].chart-indicator[data-variant="dashed"] { background-color: transparent; }`,
+              );
+              legendRules.push(
+                `${prefix} [data-chart=${id}] [data-series="${key}"].chart-legend-swatch { background-color: var(--color-${key}); }`,
+              );
+            });
+
+            if (!declarations.length) {
+              return "";
+            }
+
+            return `
 ${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
-  })
-  .join("\n")}
+${declarations.join("\n")}
 }
-`,
-          )
+${indicatorRules.join("\n")}
+${legendRules.join("\n")}
+`;
+          })
           .join("\n"),
       }}
     />
@@ -115,7 +139,6 @@ function ChartTooltipContent({
   labelFormatter,
   labelClassName,
   formatter,
-  color,
   nameKey,
   labelKey,
 }: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
@@ -182,8 +205,11 @@ function ChartTooltipContent({
         {payload.map((item, index) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
-          const indicatorColor = color || item.payload.fill || item.color;
-
+          const hasDefinedColor = Boolean(
+            itemConfig &&
+              (("theme" in itemConfig && itemConfig.theme) ||
+                ("color" in itemConfig && itemConfig.color)),
+          );
           return (
             <div
               key={item.dataKey}
@@ -201,8 +227,10 @@ function ChartTooltipContent({
                   ) : (
                     !hideIndicator && (
                       <div
+                        data-series={key}
+                        data-variant={indicator}
                         className={cn(
-                          "shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
+                          "chart-indicator shrink-0 rounded-[2px] border",
                           {
                             "h-2.5 w-2.5": indicator === "dot",
                             "w-1": indicator === "line",
@@ -210,13 +238,10 @@ function ChartTooltipContent({
                               indicator === "dashed",
                             "my-0.5": nestLabel && indicator === "dashed",
                           },
+                          hasDefinedColor
+                            ? ""
+                            : "border-muted-foreground bg-muted",
                         )}
-                        style={
-                          {
-                            "--color-bg": indicatorColor,
-                            "--color-border": indicatorColor,
-                          } as React.CSSProperties
-                        }
                       />
                     )
                   )}
@@ -278,6 +303,11 @@ function ChartLegendContent({
       {payload.map((item) => {
         const key = `${nameKey || item.dataKey || "value"}`;
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
+        const hasDefinedColor = Boolean(
+          itemConfig &&
+            (("theme" in itemConfig && itemConfig.theme) ||
+              ("color" in itemConfig && itemConfig.color)),
+        );
 
         return (
           <div
@@ -290,10 +320,11 @@ function ChartLegendContent({
               <itemConfig.icon />
             ) : (
               <div
-                className="h-2 w-2 shrink-0 rounded-[2px]"
-                style={{
-                  backgroundColor: item.color,
-                }}
+                data-series={key}
+                className={cn(
+                  "chart-legend-swatch h-2 w-2 shrink-0 rounded-[2px]",
+                  hasDefinedColor ? "" : "bg-muted-foreground/40",
+                )}
               />
             )}
             {itemConfig?.label}

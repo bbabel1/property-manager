@@ -1,58 +1,52 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Save, Users, Plus } from 'lucide-react'
+import React, { useState } from 'react'
+import { Save, Users } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
+import type { CreateStaffFormValues, StaffSummary } from '@/components/forms/types'
+import { normalizeStaffRole } from '@/lib/staff-role'
 
-interface CreateStaffFormData {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  role: string
-}
-
-interface CreateStaffModalProps {
+type CreateStaffModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (newStaff: unknown) => void
+  onSuccess: (newStaff: StaffSummary) => void
 }
 
-const STAFF_ROLES = [
-  'PROPERTY_MANAGER',
-  'ASSISTANT_MANAGER',
-  'MAINTENANCE',
-  'LEASING_AGENT',
-  'ACCOUNTANT',
-  'ADMINISTRATOR'
-]
+const STAFF_ROLES = ['Property Manager', 'Bookkeeper']
+
+const INITIAL_FORM: CreateStaffFormValues = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  role: 'Property Manager'
+}
 
 export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateStaffModalProps) {
-  const [formData, setFormData] = useState<CreateStaffFormData>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    role: 'PROPERTY_MANAGER'
-  })
+  const [formData, setFormData] = useState<CreateStaffFormValues>(() => ({ ...INITIAL_FORM }))
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
 
     try {
-      console.log('🔍 CreateStaffModal: Submitting form data:', formData)
-      
+      const normalizedRole = normalizeStaffRole(formData.role)
+      if (!normalizedRole) {
+        throw new Error('Please select a valid staff role')
+      }
+
+      const payload = { ...formData, role: normalizedRole }
+
       const response = await fetch('/api/staff', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -60,27 +54,26 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
-        } catch (parseError) {
+        } catch {
           // If response is not JSON, use status text
           errorMessage = response.statusText || errorMessage
         }
         throw new Error(errorMessage)
       }
 
-      const newStaff = await response.json()
-      console.log('Staff member created successfully:', newStaff)
+      const newStaff = (await response.json()) as StaffSummary
       
       onSuccess(newStaff)
       onClose()
-    } catch (error) {
-      console.error('Error creating staff member:', error)
-      setError(error instanceof Error ? error.message : 'Failed to create staff member. Please try again.')
+    } catch (caughtError: unknown) {
+      console.error('Error creating staff member:', caughtError)
+      setError(caughtError instanceof Error ? caughtError.message : 'Failed to create staff member. Please try again.')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleInputChange = (field: keyof CreateStaffFormData, value: string) => {
+  const handleInputChange = <K extends keyof CreateStaffFormValues>(field: K, value: CreateStaffFormValues[K]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -88,13 +81,7 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
   }
 
   const handleClose = () => {
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      role: 'PROPERTY_MANAGER'
-    })
+    setFormData(() => ({ ...INITIAL_FORM }))
     setError(null)
     onClose()
   }
@@ -126,10 +113,11 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="staff-first-name" className="block text-sm font-medium text-gray-700 mb-1">
                     First Name *
                   </label>
                   <input
+                    id="staff-first-name"
                     type="text"
                     value={formData.firstName}
                     onChange={(e) => handleInputChange('firstName', e.target.value)}
@@ -140,10 +128,11 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="staff-last-name" className="block text-sm font-medium text-gray-700 mb-1">
                     Last Name *
                   </label>
                   <input
+                    id="staff-last-name"
                     type="text"
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
@@ -155,10 +144,11 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="staff-email" className="block text-sm font-medium text-gray-700 mb-1">
                   Email
                 </label>
                 <input
+                  id="staff-email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
@@ -168,10 +158,11 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="staff-phone" className="block text-sm font-medium text-gray-700 mb-1">
                   Phone
                 </label>
                 <input
+                  id="staff-phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
@@ -181,52 +172,45 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="staff-role" className="block text-sm font-medium text-gray-700 mb-1">
                   Role *
                 </label>
                 <select
+                  id="staff-role"
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem'
-                  }}
                   required
                 >
                   {STAFF_ROLES.map((role) => (
                     <option key={role} value={role} className="text-gray-900 bg-white">
-                      {role.replace(/_/g, ' ')}
+                      {role}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
           </div>
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={handleClose}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {isLoading ? 'Creating...' : 'Create Staff Member'}
+            </Button>
+          </div>
         </form>
-
-        {/* Actions */}
-        <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 px-6 pb-6">
-          <Button
-            variant="outline"
-            onClick={handleClose}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          
-          <Button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            <Save className="h-4 w-4" />
-            {isLoading ? 'Creating...' : 'Create Staff Member'}
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   )

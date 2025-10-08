@@ -72,7 +72,6 @@ export type Database = {
           model_number: string | null
           name: string
           notes: string | null
-          property_id: string | null
           serial_number: string | null
           type: string
           unit_id: string
@@ -91,7 +90,6 @@ export type Database = {
           model_number?: string | null
           name: string
           notes?: string | null
-          property_id?: string | null
           serial_number?: string | null
           type: string
           unit_id: string
@@ -110,7 +108,6 @@ export type Database = {
           model_number?: string | null
           name?: string
           notes?: string | null
-          property_id?: string | null
           serial_number?: string | null
           type?: string
           unit_id?: string
@@ -118,13 +115,6 @@ export type Database = {
           warranty_expiration_date?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "appliances_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "appliances_unit_id_fkey"
             columns: ["unit_id"]
@@ -324,6 +314,62 @@ export type Database = {
         }
         Relationships: []
       }
+      buildium_sync_runs: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_count: number | null
+          errors: Json | null
+          finished_at: string | null
+          id: string
+          job_type: string
+          linked_count: number | null
+          org_id: string | null
+          scanned_count: number | null
+          started_at: string
+          status: string
+          upserted_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_count?: number | null
+          errors?: Json | null
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          linked_count?: number | null
+          org_id?: string | null
+          scanned_count?: number | null
+          started_at?: string
+          status?: string
+          upserted_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_count?: number | null
+          errors?: Json | null
+          finished_at?: string | null
+          id?: string
+          job_type?: string
+          linked_count?: number | null
+          org_id?: string | null
+          scanned_count?: number | null
+          started_at?: string
+          status?: string
+          upserted_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buildium_sync_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buildium_sync_status: {
         Row: {
           buildium_id: number | null
@@ -333,6 +379,7 @@ export type Database = {
           error_message: string | null
           id: string
           last_synced_at: string | null
+          org_id: string | null
           sync_status: string | null
           updated_at: string | null
         }
@@ -344,6 +391,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           last_synced_at?: string | null
+          org_id?: string | null
           sync_status?: string | null
           updated_at?: string | null
         }
@@ -355,10 +403,19 @@ export type Database = {
           error_message?: string | null
           id?: string
           last_synced_at?: string | null
+          org_id?: string | null
           sync_status?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "buildium_sync_status_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       buildium_webhook_events: {
         Row: {
@@ -369,6 +426,7 @@ export type Database = {
           event_type: string
           id: string
           max_retries: number | null
+          org_id: string | null
           processed: boolean | null
           processed_at: string | null
           retry_count: number | null
@@ -382,6 +440,7 @@ export type Database = {
           event_type: string
           id?: string
           max_retries?: number | null
+          org_id?: string | null
           processed?: boolean | null
           processed_at?: string | null
           retry_count?: number | null
@@ -395,12 +454,21 @@ export type Database = {
           event_type?: string
           id?: string
           max_retries?: number | null
+          org_id?: string | null
           processed?: boolean | null
           processed_at?: string | null
           retry_count?: number | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "buildium_webhook_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contacts: {
         Row: {
@@ -508,6 +576,149 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      file_links: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          category: string | null
+          entity_int: number | null
+          entity_type: string
+          entity_uuid: string | null
+          file_id: string
+          id: string
+          org_id: string
+          role: string | null
+          sort_index: number | null
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          category?: string | null
+          entity_int?: number | null
+          entity_type: string
+          entity_uuid?: string | null
+          file_id: string
+          id?: string
+          org_id: string
+          role?: string | null
+          sort_index?: number | null
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          category?: string | null
+          entity_int?: number | null
+          entity_type?: string
+          entity_uuid?: string | null
+          file_id?: string
+          id?: string
+          org_id?: string
+          role?: string | null
+          sort_index?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_links_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_links_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "lease_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_links_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "task_history_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_links_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      files: {
+        Row: {
+          bucket: string | null
+          buildium_entity_id: number | null
+          buildium_entity_type: string | null
+          buildium_file_id: number | null
+          buildium_href: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          external_url: string | null
+          file_name: string
+          id: string
+          is_private: boolean
+          mime_type: string | null
+          org_id: string
+          sha256: string | null
+          size_bytes: number | null
+          source: string | null
+          storage_key: string | null
+          storage_provider: string | null
+          updated_at: string
+        }
+        Insert: {
+          bucket?: string | null
+          buildium_entity_id?: number | null
+          buildium_entity_type?: string | null
+          buildium_file_id?: number | null
+          buildium_href?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          external_url?: string | null
+          file_name: string
+          id?: string
+          is_private?: boolean
+          mime_type?: string | null
+          org_id: string
+          sha256?: string | null
+          size_bytes?: number | null
+          source?: string | null
+          storage_key?: string | null
+          storage_provider?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bucket?: string | null
+          buildium_entity_id?: number | null
+          buildium_entity_type?: string | null
+          buildium_file_id?: number | null
+          buildium_href?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          external_url?: string | null
+          file_name?: string
+          id?: string
+          is_private?: boolean
+          mime_type?: string | null
+          org_id?: string
+          sha256?: string | null
+          size_bytes?: number | null
+          source?: string | null
+          storage_key?: string | null
+          storage_provider?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       gl_accounts: {
         Row: {
@@ -789,6 +1000,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_lease_property_id"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_lease_unit_id"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "lease_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -974,21 +1199,27 @@ export type Database = {
       }
       org_memberships: {
         Row: {
+          created_at: string
           id: string
           org_id: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
+          updated_at: string
           user_id: string
         }
         Insert: {
+          created_at?: string
           id?: string
           org_id: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
+          created_at?: string
           id?: string
           org_id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -1013,16 +1244,22 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          slug: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          slug: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1481,6 +1718,59 @@ export type Database = {
           },
         ]
       }
+      property_images: {
+        Row: {
+          buildium_image_id: number | null
+          created_at: string
+          description: string | null
+          file_size: number | null
+          file_type: string | null
+          href: string | null
+          id: string
+          is_private: boolean | null
+          name: string | null
+          property_id: string
+          sort_index: number | null
+          updated_at: string
+        }
+        Insert: {
+          buildium_image_id?: number | null
+          created_at?: string
+          description?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          href?: string | null
+          id?: string
+          is_private?: boolean | null
+          name?: string | null
+          property_id: string
+          sort_index?: number | null
+          updated_at?: string
+        }
+        Update: {
+          buildium_image_id?: number | null
+          created_at?: string
+          description?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          href?: string | null
+          id?: string
+          is_private?: boolean | null
+          name?: string | null
+          property_id?: string
+          sort_index?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_images_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_onboarding: {
         Row: {
           assigned_staff_id: number | null
@@ -1646,21 +1936,21 @@ export type Database = {
         Row: {
           created_at: string
           property_id: string
-          role: string
+          role: Database["public"]["Enums"]["staff_role"]
           staff_id: number
           updated_at: string
         }
         Insert: {
           created_at?: string
           property_id: string
-          role?: string
+          role?: Database["public"]["Enums"]["staff_role"]
           staff_id: number
           updated_at?: string
         }
         Update: {
           created_at?: string
           property_id?: string
-          role?: string
+          role?: Database["public"]["Enums"]["staff_role"]
           staff_id?: number
           updated_at?: string
         }
@@ -1820,30 +2110,59 @@ export type Database = {
       }
       staff: {
         Row: {
+          buildium_staff_id: number | null
           buildium_user_id: number | null
           created_at: string
+          email: string | null
+          first_name: string | null
           id: number
           is_active: boolean
-          role: Database["public"]["Enums"]["staff_roles"]
+          last_name: string | null
+          phone: string | null
+          role: Database["public"]["Enums"]["staff_role"]
+          title: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
+          buildium_staff_id?: number | null
           buildium_user_id?: number | null
           created_at?: string
+          email?: string | null
+          first_name?: string | null
           id?: number
           is_active?: boolean
-          role?: Database["public"]["Enums"]["staff_roles"]
+          last_name?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["staff_role"]
+          title?: string | null
           updated_at: string
+          user_id?: string | null
         }
         Update: {
+          buildium_staff_id?: number | null
           buildium_user_id?: number | null
           created_at?: string
+          email?: string | null
+          first_name?: string | null
           id?: number
           is_active?: boolean
-          role?: Database["public"]["Enums"]["staff_roles"]
+          last_name?: string | null
+          phone?: string | null
+          role?: Database["public"]["Enums"]["staff_role"]
+          title?: string | null
           updated_at?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "staff_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       sync_operations: {
         Row: {
@@ -1857,6 +2176,7 @@ export type Database = {
           id: string
           last_attempt: string | null
           local_id: string | null
+          org_id: string | null
           status: string
           type: string
           updated_at: string | null
@@ -1872,6 +2192,7 @@ export type Database = {
           id?: string
           last_attempt?: string | null
           local_id?: string | null
+          org_id?: string | null
           status?: string
           type: string
           updated_at?: string | null
@@ -1887,11 +2208,20 @@ export type Database = {
           id?: string
           last_attempt?: string | null
           local_id?: string | null
+          org_id?: string | null
           status?: string
           type?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sync_operations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_categories: {
         Row: {
@@ -1980,53 +2310,6 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      task_history_files: {
-        Row: {
-          buildium_file_id: number | null
-          created_at: string | null
-          description: string | null
-          file_name: string
-          file_size: number | null
-          file_type: string | null
-          file_url: string | null
-          id: string
-          task_history_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          buildium_file_id?: number | null
-          created_at?: string | null
-          description?: string | null
-          file_name: string
-          file_size?: number | null
-          file_type?: string | null
-          file_url?: string | null
-          id?: string
-          task_history_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          buildium_file_id?: number | null
-          created_at?: string | null
-          description?: string | null
-          file_name?: string
-          file_size?: number | null
-          file_type?: string | null
-          file_url?: string | null
-          id?: string
-          task_history_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "task_history_files_task_history_id_fkey"
-            columns: ["task_history_id"]
-            isOneToOne: false
-            referencedRelation: "task_history"
             referencedColumns: ["id"]
           },
         ]
@@ -2434,6 +2717,7 @@ export type Database = {
           created_at: string
           date: string
           due_date: string | null
+          email_receipt: boolean
           id: string
           is_recurring: boolean | null
           lease_id: number | null
@@ -2443,6 +2727,7 @@ export type Database = {
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          print_receipt: boolean
           recurring_schedule: Json | null
           reference_number: string | null
           status: string | null
@@ -2461,6 +2746,7 @@ export type Database = {
           created_at?: string
           date: string
           due_date?: string | null
+          email_receipt?: boolean
           id?: string
           is_recurring?: boolean | null
           lease_id?: number | null
@@ -2470,6 +2756,7 @@ export type Database = {
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          print_receipt?: boolean
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
@@ -2488,6 +2775,7 @@ export type Database = {
           created_at?: string
           date?: string
           due_date?: string | null
+          email_receipt?: boolean
           id?: string
           is_recurring?: boolean | null
           lease_id?: number | null
@@ -2497,6 +2785,7 @@ export type Database = {
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          print_receipt?: boolean
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
@@ -2673,6 +2962,7 @@ export type Database = {
           unit_bathrooms: Database["public"]["Enums"]["bathroom_enum"] | null
           unit_bedrooms: Database["public"]["Enums"]["bedroom_enum"] | null
           unit_number: string
+          unit_name: string
           unit_size: number | null
           unit_type: string | null
           updated_at: string
@@ -2712,6 +3002,7 @@ export type Database = {
           unit_bathrooms?: Database["public"]["Enums"]["bathroom_enum"] | null
           unit_bedrooms?: Database["public"]["Enums"]["bedroom_enum"] | null
           unit_number: string
+          /** unit_name is generated; do not supply on insert */
           unit_size?: number | null
           unit_type?: string | null
           updated_at: string
@@ -2751,6 +3042,7 @@ export type Database = {
           unit_bathrooms?: Database["public"]["Enums"]["bathroom_enum"] | null
           unit_bedrooms?: Database["public"]["Enums"]["bedroom_enum"] | null
           unit_number?: string
+          /** unit_name is generated; do not supply on update */
           unit_size?: number | null
           unit_type?: string | null
           updated_at?: string
@@ -2927,60 +3219,6 @@ export type Database = {
           },
         ]
       }
-      work_order_files: {
-        Row: {
-          buildium_file_id: number | null
-          created_at: string
-          description: string | null
-          file_name: string
-          file_size: number | null
-          file_type: string | null
-          file_url: string
-          id: string
-          updated_at: string
-          work_order_id: string
-        }
-        Insert: {
-          buildium_file_id?: number | null
-          created_at?: string
-          description?: string | null
-          file_name: string
-          file_size?: number | null
-          file_type?: string | null
-          file_url: string
-          id?: string
-          updated_at?: string
-          work_order_id: string
-        }
-        Update: {
-          buildium_file_id?: number | null
-          created_at?: string
-          description?: string | null
-          file_name?: string
-          file_size?: number | null
-          file_type?: string | null
-          file_url?: string
-          id?: string
-          updated_at?: string
-          work_order_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "work_order_files_work_order_id_fkey"
-            columns: ["work_order_id"]
-            isOneToOne: false
-            referencedRelation: "v_active_work_orders_ranked"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_order_files_work_order_id_fkey"
-            columns: ["work_order_id"]
-            isOneToOne: false
-            referencedRelation: "work_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       work_orders: {
         Row: {
           actual_cost: number | null
@@ -3078,12 +3316,129 @@ export type Database = {
       }
     }
     Views: {
+      column_info_cache: {
+        Row: {
+          comment: string | null
+          data_type: string | null
+          default_value: string | null
+          format: unknown | null
+          id: string | null
+          is_identity: boolean | null
+          is_nullable: boolean | null
+          name: unknown | null
+          ordinal_position: number | null
+          schema: unknown | null
+          table_id: number | null
+          table_name: unknown | null
+        }
+        Relationships: []
+      }
+      foreign_key_relationships: {
+        Row: {
+          constraint_name: unknown | null
+          id: number | null
+          source_column_name: unknown | null
+          source_schema: unknown | null
+          source_table_name: unknown | null
+          target_column_name: unknown | null
+          target_table_name: unknown | null
+          target_table_schema: unknown | null
+        }
+        Relationships: []
+      }
+      index_usage: {
+        Row: {
+          idx_scan: number | null
+          idx_tup_fetch: number | null
+          idx_tup_read: number | null
+          indexname: unknown | null
+          schemaname: unknown | null
+          tablename: unknown | null
+          usage_status: string | null
+        }
+        Relationships: []
+      }
       invalid_country_values: {
         Row: {
           column_name: string | null
           id: string | null
           table_name: string | null
           value: string | null
+        }
+        Relationships: []
+      }
+      lease_documents: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          id: string | null
+          is_private: boolean | null
+          lease_id: number | null
+          mime_type: string | null
+          name: string | null
+          sha256: string | null
+          size_bytes: number | null
+          storage_path: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
+      primary_keys: {
+        Row: {
+          column_name: unknown | null
+          schema: unknown | null
+          table_id: number | null
+          table_name: unknown | null
+        }
+        Relationships: []
+      }
+      slow_queries: {
+        Row: {
+          calls: number | null
+          hit_percent: number | null
+          mean_exec_time_ms: number | null
+          query_preview: string | null
+          total_exec_time_ms: number | null
+        }
+        Relationships: []
+      }
+      table_info_cache: {
+        Row: {
+          bytes: number | null
+          comment: string | null
+          dead_rows_estimate: number | null
+          id: number | null
+          live_rows_estimate: number | null
+          name: unknown | null
+          rls_enabled: boolean | null
+          rls_forced: boolean | null
+          schema: unknown | null
+          size: string | null
+        }
+        Relationships: []
+      }
+      table_sizes: {
+        Row: {
+          index_size: string | null
+          schemaname: unknown | null
+          table_size: string | null
+          tablename: unknown | null
+          total_size: string | null
+        }
+        Relationships: []
+      }
+      task_history_files: {
+        Row: {
+          buildium_file_id: number | null
+          created_at: string | null
+          description: string | null
+          file_name: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string | null
+          id: string | null
+          task_history_id: string | null
+          updated_at: string | null
         }
         Relationships: []
       }
@@ -3477,39 +3832,6 @@ export type Database = {
           },
         ]
       }
-      v_user_orgs: {
-        Row: {
-          org_id: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          user_id: string | null
-        }
-        Insert: {
-          org_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
-          user_id?: string | null
-        }
-        Update: {
-          org_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_memberships_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_memberships_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       v_work_order_summary: {
         Row: {
           open_count: number | null
@@ -3525,6 +3847,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      work_order_files: {
+        Row: {
+          buildium_file_id: number | null
+          created_at: string | null
+          description: string | null
+          file_name: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string | null
+          id: string | null
+          updated_at: string | null
+          work_order_id: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -3571,6 +3908,14 @@ export type Database = {
           unit_number: string
         }[]
       }
+      fn_create_lease_aggregate: {
+        Args: { payload: Json }
+        Returns: Json
+      }
+      fn_create_lease_full: {
+        Args: { new_people?: Json; payload: Json }
+        Returns: Json
+      }
       generate_display_name: {
         Args: { company_name: string; first_name: string; last_name: string }
         Returns: string
@@ -3579,6 +3924,16 @@ export type Database = {
         Args: { p_endpoint: string; p_parameters?: Json }
         Returns: Json
       }
+      get_foreign_keys: {
+        Args: { p_schema?: string }
+        Returns: {
+          constraint_name: string
+          source_column: string
+          source_table: string
+          target_column: string
+          target_table: string
+        }[]
+      }
       get_my_claims: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -3586,6 +3941,26 @@ export type Database = {
       get_property_financials: {
         Args: { p_as_of?: string; p_property_id: string }
         Returns: Json
+      }
+      get_table_columns: {
+        Args: { p_schema?: string; p_table_name: string }
+        Returns: {
+          column_default: string
+          column_name: string
+          data_type: string
+          is_identity: boolean
+          is_nullable: boolean
+        }[]
+      }
+      get_table_stats: {
+        Args: { p_schema?: string }
+        Returns: {
+          index_size: string
+          row_count: number
+          table_name: string
+          table_size: string
+          total_size: string
+        }[]
       }
       gl_account_activity: {
         Args:
@@ -3697,6 +4072,10 @@ export type Database = {
         Args: { p_event_data: Json; p_event_id: string; p_event_type: string }
         Returns: boolean
       }
+      refresh_schema_cache: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       set_buildium_api_cache: {
         Args: {
           p_cache_duration_minutes?: number
@@ -3758,13 +4137,6 @@ export type Database = {
       }
     }
     Enums: {
-      app_role:
-        | "platform_admin"
-        | "org_admin"
-        | "org_manager"
-        | "org_staff"
-        | "owner_portal"
-        | "tenant_portal"
       appliance_service_type_enum:
         | "Maintenance"
         | "Repair"
@@ -4129,9 +4501,22 @@ export type Database = {
         | "Every2Months"
         | "Daily"
         | "Every6Months"
+        | "OneTime"
       service_plan_enum: "Full" | "Basic" | "A-la-carte"
       ServicePlan: "Full" | "Basic" | "A-la-carte"
-      staff_roles: "Property Manager" | "Bookkeeper"
+      staff_role:
+        | "PROPERTY_MANAGER"
+        | "ASSISTANT_PROPERTY_MANAGER"
+        | "MAINTENANCE_COORDINATOR"
+        | "ACCOUNTANT"
+        | "ADMINISTRATOR"
+      staff_roles:
+        | "Property Manager"
+        | "Bookkeeper"
+        | "Assistant Property Manager"
+        | "Maintenance Coordinator"
+        | "Accountant"
+        | "Administrator"
       sync_source_enum: "local" | "buildium"
       task_kind_enum: "owner" | "resident" | "contact" | "todo" | "other"
       transaction_type_enum:
@@ -4268,14 +4653,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: [
-        "platform_admin",
-        "org_admin",
-        "org_manager",
-        "org_staff",
-        "owner_portal",
-        "tenant_portal",
-      ],
       appliance_service_type_enum: [
         "Maintenance",
         "Repair",
@@ -4648,10 +5025,25 @@ export const Constants = {
         "Every2Months",
         "Daily",
         "Every6Months",
+        "OneTime",
       ],
       service_plan_enum: ["Full", "Basic", "A-la-carte"],
       ServicePlan: ["Full", "Basic", "A-la-carte"],
-      staff_roles: ["Property Manager", "Bookkeeper"],
+      staff_role: [
+        "PROPERTY_MANAGER",
+        "ASSISTANT_PROPERTY_MANAGER",
+        "MAINTENANCE_COORDINATOR",
+        "ACCOUNTANT",
+        "ADMINISTRATOR",
+      ],
+      staff_roles: [
+        "Property Manager",
+        "Bookkeeper",
+        "Assistant Property Manager",
+        "Maintenance Coordinator",
+        "Accountant",
+        "Administrator",
+      ],
       sync_source_enum: ["local", "buildium"],
       task_kind_enum: ["owner", "resident", "contact", "todo", "other"],
       transaction_type_enum: [
@@ -4665,4 +5057,3 @@ export const Constants = {
     },
   },
 } as const
-

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { supabaseAdmin } from '@/lib/db'
+import { requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supabase-client'
 
 import { upsertBillWithLines } from '@/lib/buildium-mappers'
 
@@ -54,6 +54,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch bills from Buildium', details }, { status: response.status })
     }
 
+    const admin = requireSupabaseAdmin('buildium bills sync GET')
+
     const bills = await response.json()
     if (!Array.isArray(bills)) {
       return NextResponse.json({ error: 'Unexpected bills response shape' }, { status: 502 })
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest) {
     const failures: Array<{ id?: number; error: string }> = []
     for (const bill of bills) {
       try {
-        await upsertBillWithLines(bill, supabaseAdmin)
+        await upsertBillWithLines(bill, admin)
         success += 1
       } catch (e) {
         failures.push({ id: bill?.Id, error: e instanceof Error ? e.message : 'Unknown error' })
@@ -73,6 +75,9 @@ export async function GET(request: NextRequest) {
     logger.info({ imported: success, failed: failures.length }, 'Buildium bills synced to DB')
     return NextResponse.json({ success: true, imported: success, failed: failures.length, failures })
   } catch (error) {
+    if (error instanceof SupabaseAdminUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 501 })
+    }
     logger.error('Error syncing Buildium bills to DB')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -90,10 +95,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Accept a single Buildium bill payload and upsert it
+    const admin = requireSupabaseAdmin('buildium bills sync POST')
     const payload = await request.json()
-    const { transactionId } = await upsertBillWithLines(payload, supabaseAdmin)
+    const { transactionId } = await upsertBillWithLines(payload, admin)
     return NextResponse.json({ success: true, transactionId }, { status: 201 })
   } catch (error) {
+    if (error instanceof SupabaseAdminUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 501 })
+    }
     return NextResponse.json({ error: 'Failed to upsert bill' }, { status: 400 })
   }
 }

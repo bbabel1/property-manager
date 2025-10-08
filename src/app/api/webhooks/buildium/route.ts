@@ -1,4 +1,6 @@
+import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
+import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
 
 function verifySignature(req: NextRequest, raw: string): boolean {
@@ -7,8 +9,7 @@ function verifySignature(req: NextRequest, raw: string): boolean {
   if (!secret) return false
   // Simple HMAC placeholder (you can replace with actual Buildium signing algorithm when documented)
   try {
-    const crypto = require('crypto')
-    const h = crypto.createHmac('sha256', secret).update(raw).digest('hex')
+    const h = createHmac('sha256', secret).update(raw).digest('hex')
     return sig === h
   } catch { return false }
 }
@@ -32,9 +33,9 @@ export async function POST(req: NextRequest) {
 
     await admin.from('buildium_webhook_events').update({ status: 'processed', processed_at: new Date().toISOString() }).eq('event_id', eventId)
     return NextResponse.json({ ok: true })
-  } catch (e:any) {
-    await admin.from('buildium_webhook_events').update({ status: 'error', error: e?.message || 'error', processed_at: new Date().toISOString() }).eq('event_id', eventId)
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error'
+    await admin.from('buildium_webhook_events').update({ status: 'error', error: errorMessage, processed_at: new Date().toISOString() }).eq('event_id', eventId)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-

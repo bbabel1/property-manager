@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { BuildiumOwnerRequestCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
-import supabaseAdmin from '@/lib/db'
+import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 
 // NOTE: Endpoint path based on Buildium docs conventions (align with your account)
@@ -12,6 +12,7 @@ const OWNER_REQUESTS_ENDPOINT = `${process.env.BUILDIUM_BASE_URL}/rentals/ownerr
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('owner requests sync')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
@@ -108,6 +109,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('owner requests sync')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })

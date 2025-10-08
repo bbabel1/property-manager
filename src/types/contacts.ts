@@ -1,84 +1,36 @@
-// TypeScript interfaces for the Contacts table
-// These match the database schema defined in the migration
+import type { Database as DatabaseSchema } from '@/types/database'
 
-// Database schema (snake_case) - Based on live database
-export interface ContactDB {
-  id: number;
-  is_company: boolean;
-  first_name?: string;
-  last_name?: string;
-  company_name?: string;
-  primary_email?: string;
-  alt_email?: string;
-  primary_phone?: string;
-  alt_phone?: string;
-  date_of_birth?: string;
-  primary_address_line_1?: string;
-  primary_address_line_2?: string;
-  primary_address_line_3?: string;
-  primary_city?: string;
-  primary_state?: string;
-  primary_postal_code?: string;
-  primary_country?: Database["public"]["Enums"]["countries"];
-  alt_address_line_1?: string;
-  alt_address_line_2?: string;
-  alt_address_line_3?: string;
-  alt_city?: string;
-  alt_state?: string;
-  alt_postal_code?: string;
-  alt_country?: Database["public"]["Enums"]["countries"];
-  mailing_preference?: string;
-  tax_payer_id?: string;
-  tax_payer_type?: string;
-  tax_payer_name?: string;
-  tax_address_line_1?: string;
-  tax_address_line_2?: string;
-  tax_address_line_3?: string;
-  tax_city?: string;
-  tax_state?: string;
-  tax_postal_code?: string;
-  tax_country?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type ContactDB = DatabaseSchema['public']['Tables']['contacts']['Row']
+export type ContactUpdateDB = DatabaseSchema['public']['Tables']['contacts']['Update']
+export type CountryEnum = DatabaseSchema['public']['Enums']['countries']
 
 // Application interface (camelCase)
 export interface Contact {
   id: number;
   isCompany: boolean;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
-  primaryEmail?: string;
-  altEmail?: string;
-  primaryPhone?: string;
-  altPhone?: string;
-  dateOfBirth?: string;
-  primaryAddressLine1?: string;
-  primaryAddressLine2?: string;
-  primaryAddressLine3?: string;
-  primaryCity?: string;
-  primaryState?: string;
-  primaryPostalCode?: string;
-  primaryCountry?: string;
-  altAddressLine1?: string;
-  altAddressLine2?: string;
-  altAddressLine3?: string;
-  altCity?: string;
-  altState?: string;
-  altPostalCode?: string;
-  altCountry?: string;
-  mailingPreference?: string;
-  taxPayerId?: string;
-  taxPayerType?: string;
-  taxPayerName?: string;
-  taxAddressLine1?: string;
-  taxAddressLine2?: string;
-  taxAddressLine3?: string;
-  taxCity?: string;
-  taxState?: string;
-  taxPostalCode?: string;
-  taxCountry?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  companyName?: string | null;
+  primaryEmail?: string | null;
+  altEmail?: string | null;
+  primaryPhone?: string | null;
+  altPhone?: string | null;
+  dateOfBirth?: string | null;
+  primaryAddressLine1?: string | null;
+  primaryAddressLine2?: string | null;
+  primaryAddressLine3?: string | null;
+  primaryCity?: string | null;
+  primaryState?: string | null;
+  primaryPostalCode?: string | null;
+  primaryCountry?: CountryEnum | null;
+  altAddressLine1?: string | null;
+  altAddressLine2?: string | null;
+  altAddressLine3?: string | null;
+  altCity?: string | null;
+  altState?: string | null;
+  altPostalCode?: string | null;
+  altCountry?: CountryEnum | null;
+  mailingPreference?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,24 +63,14 @@ export function mapContactFromDB(dbContact: ContactDB): Contact {
     altPostalCode: dbContact.alt_postal_code,
     altCountry: dbContact.alt_country,
     mailingPreference: dbContact.mailing_preference,
-    taxPayerId: dbContact.tax_payer_id,
-    taxPayerType: dbContact.tax_payer_type,
-    taxPayerName: dbContact.tax_payer_name,
-    taxAddressLine1: dbContact.tax_address_line_1,
-    taxAddressLine2: dbContact.tax_address_line_2,
-    taxAddressLine3: dbContact.tax_address_line_3,
-    taxCity: dbContact.tax_city,
-    taxState: dbContact.tax_state,
-    taxPostalCode: dbContact.tax_postal_code,
-    taxCountry: dbContact.tax_country,
     createdAt: dbContact.created_at,
     updatedAt: dbContact.updated_at,
   };
 }
 
 // Application to Database mapping
-export function mapContactToDB(contact: Partial<Contact>): Partial<ContactDB> {
-  const dbContact: Partial<ContactDB> = {};
+export function mapContactToDB(contact: Partial<Contact>): ContactUpdateDB {
+  const dbContact: ContactUpdateDB = {};
   
   if (contact.isCompany !== undefined) dbContact.is_company = contact.isCompany;
   if (contact.firstName !== undefined) dbContact.first_name = contact.firstName;
@@ -145,25 +87,15 @@ export function mapContactToDB(contact: Partial<Contact>): Partial<ContactDB> {
   if (contact.primaryCity !== undefined) dbContact.primary_city = contact.primaryCity;
   if (contact.primaryState !== undefined) dbContact.primary_state = contact.primaryState;
   if (contact.primaryPostalCode !== undefined) dbContact.primary_postal_code = contact.primaryPostalCode;
-  if (contact.primaryCountry !== undefined) dbContact.primary_country = contact.primaryCountry;
+  if (contact.primaryCountry !== undefined) dbContact.primary_country = contact.primaryCountry ?? null;
   if (contact.altAddressLine1 !== undefined) dbContact.alt_address_line_1 = contact.altAddressLine1;
   if (contact.altAddressLine2 !== undefined) dbContact.alt_address_line_2 = contact.altAddressLine2;
   if (contact.altAddressLine3 !== undefined) dbContact.alt_address_line_3 = contact.altAddressLine3;
   if (contact.altCity !== undefined) dbContact.alt_city = contact.altCity;
   if (contact.altState !== undefined) dbContact.alt_state = contact.altState;
   if (contact.altPostalCode !== undefined) dbContact.alt_postal_code = contact.altPostalCode;
-  if (contact.altCountry !== undefined) dbContact.alt_country = contact.altCountry;
+  if (contact.altCountry !== undefined) dbContact.alt_country = contact.altCountry ?? null;
   if (contact.mailingPreference !== undefined) dbContact.mailing_preference = contact.mailingPreference;
-  if (contact.taxPayerId !== undefined) dbContact.tax_payer_id = contact.taxPayerId;
-  if (contact.taxPayerType !== undefined) dbContact.tax_payer_type = contact.taxPayerType;
-  if (contact.taxPayerName !== undefined) dbContact.tax_payer_name = contact.taxPayerName;
-  if (contact.taxAddressLine1 !== undefined) dbContact.tax_address_line_1 = contact.taxAddressLine1;
-  if (contact.taxAddressLine2 !== undefined) dbContact.tax_address_line_2 = contact.taxAddressLine2;
-  if (contact.taxAddressLine3 !== undefined) dbContact.tax_address_line_3 = contact.taxAddressLine3;
-  if (contact.taxCity !== undefined) dbContact.tax_city = contact.taxCity;
-  if (contact.taxState !== undefined) dbContact.tax_state = contact.taxState;
-  if (contact.taxPostalCode !== undefined) dbContact.tax_postal_code = contact.taxPostalCode;
-  if (contact.taxCountry !== undefined) dbContact.tax_country = contact.taxCountry;
   
   return dbContact;
 }
@@ -193,16 +125,6 @@ export interface CreateContactRequest {
   altPostalCode?: string;
   altCountry?: string;
   mailingPreference?: string;
-  taxPayerId?: string;
-  taxPayerType?: string;
-  taxPayerName?: string;
-  taxAddressLine1?: string;
-  taxAddressLine2?: string;
-  taxAddressLine3?: string;
-  taxCity?: string;
-  taxState?: string;
-  taxPostalCode?: string;
-  taxCountry?: string;
 }
 
 export interface UpdateContactRequest extends Partial<CreateContactRequest> {
@@ -235,16 +157,6 @@ export interface ContactFormData {
   altPostalCode: string;
   altCountry: string;
   mailingPreference: string;
-  taxPayerId: string;
-  taxPayerType: string;
-  taxPayerName: string;
-  taxAddressLine1: string;
-  taxAddressLine2: string;
-  taxAddressLine3: string;
-  taxCity: string;
-  taxState: string;
-  taxPostalCode: string;
-  taxCountry: string;
 }
 
 // Constants for form validation
@@ -271,4 +183,3 @@ export const CONTACT_CONSTRAINTS = {
     maxLength: 20
   }
 } as const;
-import type { Database } from './database'

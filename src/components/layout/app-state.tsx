@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import { useAppStore } from "@/lib/state/app-store";
 
 type AppState = {
@@ -44,3 +44,5 @@ export function useAppState() {
   if (!ctx) throw new Error("useAppState must be used within AppStateProvider");
   return ctx;
 }
+
+export default AppStateProvider;

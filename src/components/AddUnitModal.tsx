@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Home, DollarSign } from 'lucide-react'
+import { useState } from 'react'
+import { Home } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Dropdown } from './ui/Dropdown';
@@ -99,7 +99,7 @@ export default function AddUnitModal({
       } as UnitCreateInput)
 
       if (!parsed.success) {
-        const msg = parsed.error.errors.map(e => e.message).join('\n')
+        const msg = parsed.error.issues.map((e: { message: string }) => e.message).join('\n')
         throw new Error(msg || 'Please correct the form errors')
       }
 

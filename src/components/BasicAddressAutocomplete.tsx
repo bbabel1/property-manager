@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import React, { useRef } from 'react'
 
 interface BasicAddressAutocompleteProps {
   value: string
   onChange: (value: string) => void
-  onPlaceSelect?: (place: {
+  _onPlaceSelect?: (place: {
     address: string
     city: string
     state: string
@@ -20,7 +20,7 @@ interface BasicAddressAutocompleteProps {
 export default function BasicAddressAutocomplete({
   value,
   onChange,
-  onPlaceSelect,
+  _onPlaceSelect,
   placeholder = "Enter address...",
   className = "",
   required = false

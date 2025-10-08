@@ -154,32 +154,38 @@ export class BuildiumClient {
     if (params?.pageNumber) queryParams.append('pageNumber', params.pageNumber.toString())
     if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString())
 
-    return this.makeRequest<BuildiumApiResponse<BuildiumUnit>>(
-      `GET`,
-      `/properties/${propertyId}/units?${queryParams.toString()}`
-    )
+    if (queryParams.toString()) {
+      return this.makeRequest<BuildiumApiResponse<BuildiumUnit>>(
+        `GET`,
+        `/rentals/units?${queryParams.toString()}`
+      )
+    }
+
+    return this.makeRequest<BuildiumApiResponse<BuildiumUnit>>(`GET`, `/rentals/units`)
   }
 
   async getUnit(propertyId: number, unitId: number): Promise<BuildiumUnit> {
-    return this.makeRequest<BuildiumUnit>(`GET`, `/properties/${propertyId}/units/${unitId}`)
+    void propertyId
+    return this.makeRequest<BuildiumUnit>(`GET`, `/rentals/units/${unitId}`)
   }
 
   async createUnit(propertyId: number, data: BuildiumUnitCreateEnhancedInput): Promise<BuildiumUnit> {
     const buildiumData = mapUnitToBuildium(data)
     const sanitizedData = sanitizeForBuildium(buildiumData)
-    
-    return this.makeRequest<BuildiumUnit>(`POST`, `/properties/${propertyId}/units`, sanitizedData)
+    void propertyId
+    return this.makeRequest<BuildiumUnit>(`POST`, `/rentals/units`, sanitizedData)
   }
 
   async updateUnit(propertyId: number, unitId: number, data: Partial<BuildiumUnitCreateEnhancedInput>): Promise<BuildiumUnit> {
     const buildiumData = mapUnitToBuildium(data as any)
     const sanitizedData = sanitizeForBuildium(buildiumData)
-    
-    return this.makeRequest<BuildiumUnit>(`PUT`, `/properties/${propertyId}/units/${unitId}`, sanitizedData)
+    void propertyId
+    return this.makeRequest<BuildiumUnit>(`PUT`, `/rentals/units/${unitId}`, sanitizedData)
   }
 
   async deleteUnit(propertyId: number, unitId: number): Promise<void> {
-    return this.makeRequest<void>(`DELETE`, `/properties/${propertyId}/units/${unitId}`)
+    void propertyId
+    return this.makeRequest<void>(`DELETE`, `/rentals/units/${unitId}`)
   }
 
   // ============================================================================
@@ -509,6 +515,10 @@ export class BuildiumClient {
     return this.makeRequest<void>(`DELETE`, `/leases/${id}`)
   }
 
+  async getLeaseRent(id: number): Promise<import('@/types/buildium').BuildiumLeaseRent> {
+    return this.makeRequest<import('@/types/buildium').BuildiumLeaseRent>(`GET`, `/leases/${id}/rent`)
+  }
+
   // ============================================================================
   // WORK ORDER METHODS
   // ============================================================================
@@ -667,7 +677,23 @@ export class BuildiumClient {
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${errorData.Message || 'Unknown error'}`)
+          let extra = ''
+          const errors = (errorData as any)?.Errors || (errorData as any)?.errors || (errorData as any)?.Data
+          if (Array.isArray(errors) && errors.length) {
+            extra = errors
+              .map((entry: any) => {
+                const key = entry?.Key || entry?.Field || entry?.Code || 'Field'
+                const value = entry?.Value || entry?.Message || entry?.Description || JSON.stringify(entry)
+                return `${key}: ${value}`
+              })
+              .join('; ')
+          } else if (errorData && typeof errorData === 'object' && Object.keys(errorData).length) {
+            extra = JSON.stringify(errorData)
+          }
+          const message = extra
+            ? `Buildium API error: ${response.status} ${response.statusText} - ${extra}`
+            : `Buildium API error: ${response.status} ${response.statusText} - Unknown error`
+          throw new Error(message)
         }
 
         const result = await response.json()

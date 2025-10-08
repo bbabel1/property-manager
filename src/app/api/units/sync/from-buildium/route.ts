@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     await requireUser()
 
-    const body = await request.json().catch(() => ({}))
+    const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const params = {
       propertyIds: body.propertyIds ?? body.propertyids ?? body.propertyId,
       lastUpdatedFrom: body.lastUpdatedFrom ?? body.lastupdatedfrom,
@@ -28,8 +28,7 @@ export async function POST(request: NextRequest) {
     logger.info(`Synced ${items.length} units from Buildium to DB`)
     return NextResponse.json({ success: true, synced: items.length })
   } catch (error) {
-    logger.error('Error syncing units from Buildium', error)
+    logger.error({ error }, 'Error syncing units from Buildium')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

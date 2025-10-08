@@ -14,6 +14,9 @@ export type BuildiumPaymentMethod = 'Check' | 'Cash' | 'CreditCard' | 'BankTrans
 export type BuildiumVendorCategory = 'Contractor' | 'Maintenance' | 'Utilities' | 'Insurance' | 'Legal' | 'Accounting' | 'Marketing' | 'Other';
 export type BuildiumBankAccountType = 'Checking' | 'Savings' | 'MoneyMarket' | 'CertificateOfDeposit';
 export type BuildiumLeaseStatus = 'Future' | 'Active' | 'Past' | 'Cancelled';
+export type BuildiumLeaseType = 'Fixed' | 'FixedWithRollover' | 'MonthToMonth' | 'AtWill' | 'Other';
+export type BuildiumLeaseTermType = 'Standard' | 'MonthToMonth' | 'WeekToWeek' | 'AtWill' | 'Other';
+export type BuildiumLeaseRenewalStatus = 'NotOffered' | 'Offered' | 'Accepted' | 'Declined' | 'Expired';
 export type BuildiumLeaseContactRole = 'Tenant' | 'Cosigner' | 'Guarantor';
 // Work Order enums (per Buildium docs)
 export type BuildiumWorkOrderStatus = 'New' | 'InProgress' | 'Completed' | 'Cancelled';
@@ -352,6 +355,52 @@ export interface BuildiumOwnerUpdate extends Partial<BuildiumOwnerCreate> {}
 // LEASE TYPES
 // ============================================================================
 
+export interface BuildiumLeasePhoneEntry {
+  Number: string;
+  Type?: string;
+}
+
+export interface BuildiumLeaseAddress {
+  AddressLine1: string;
+  AddressLine2?: string;
+  AddressLine3?: string;
+  City: string;
+  State: string;
+  PostalCode: string;
+  Country: string;
+}
+
+export interface BuildiumLeasePersonCreate {
+  FirstName: string;
+  LastName: string;
+  Email?: string;
+  PhoneNumbers?: BuildiumLeasePhoneEntry[];
+  Address?: BuildiumLeaseAddress;
+  AlternateAddress?: BuildiumLeaseAddress;
+  MoveInDate?: string;
+  IsCompany?: boolean;
+}
+
+export interface BuildiumLeaseRentCharge {
+  Amount: number;
+  GLAccountId?: number;
+  NextDueDate?: string;
+  Memo?: string;
+}
+
+export interface BuildiumLeaseRent {
+  Id?: number;
+  Cycle: string;
+  Charges?: BuildiumLeaseRentCharge[];
+}
+
+export interface BuildiumLeaseSecurityDeposit {
+  Amount: number;
+  DueDate?: string;
+  GLAccountId?: number;
+  Memo?: string;
+}
+
 export interface BuildiumLease {
   Id: number;
   PropertyId: number;
@@ -359,11 +408,11 @@ export interface BuildiumLease {
   UnitNumber: string;
   LeaseFromDate: string; // ISO 8601
   LeaseToDate: string; // ISO 8601
-  LeaseType: string;
-  LeaseStatus: string;
+  LeaseType: BuildiumLeaseType;
+  LeaseStatus: BuildiumLeaseStatus;
   IsEvictionPending: boolean;
-  TermType: string;
-  RenewalOfferStatus: string;
+  TermType: BuildiumLeaseTermType;
+  RenewalOfferStatus: BuildiumLeaseRenewalStatus;
   CurrentNumberOfOccupants: number;
   AccountDetails: {
     SecurityDeposit: number;
@@ -388,7 +437,26 @@ export interface BuildiumLeaseCreate {
   PropertyId: number;
   UnitId?: number;
   Status: BuildiumLeaseStatus;
-  StartDate: string; // ISO 8601
+  LeaseFromDate: string; // ISO 8601
+  LeaseToDate?: string; // ISO 8601
+  LeaseType?: BuildiumLeaseType;
+  TermType?: BuildiumLeaseTermType;
+  RenewalOfferStatus?: BuildiumLeaseRenewalStatus;
+  SendWelcomeEmail?: boolean;
+  AutomaticallyMoveOutTenants?: boolean;
+  CurrentNumberOfOccupants?: number;
+  PaymentDueDay?: number | null;
+  TenantIds?: number[];
+  Tenants?: BuildiumLeasePersonCreate[];
+  ApplicantIds?: number[];
+  AccountDetails?: {
+    Rent?: number;
+    SecurityDeposit?: number;
+  };
+  Rent?: BuildiumLeaseRent;
+  SecurityDeposit?: BuildiumLeaseSecurityDeposit;
+  // Backwards compatibility fields for older payload shapes
+  StartDate?: string; // ISO 8601
   EndDate?: string; // ISO 8601
   RentAmount: number;
   SecurityDepositAmount?: number;

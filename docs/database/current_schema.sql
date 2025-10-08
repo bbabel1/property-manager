@@ -19,7 +19,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_net" WITH SCHEMA "extensions";
 
 
 
-COMMENT ON SCHEMA "public" IS 'standard public schema';
+COMMENT ON SCHEMA "public" IS 'Added additional query performance optimizations including efficient functions and monitoring views';
 
 
 
@@ -717,6 +717,28 @@ COMMENT ON TYPE "public"."management_services_enum" IS 'Menu of management servi
 
 
 
+CREATE TYPE "public"."onboarding_status_enum" AS ENUM (
+    'IN_PROGRESS',
+    'PENDING_APPROVAL',
+    'OVERDUE',
+    'COMPLETED'
+);
+
+
+ALTER TYPE "public"."onboarding_status_enum" OWNER TO "postgres";
+
+
+CREATE TYPE "public"."onboarding_task_status_enum" AS ENUM (
+    'PENDING',
+    'IN_PROGRESS',
+    'BLOCKED',
+    'DONE'
+);
+
+
+ALTER TYPE "public"."onboarding_task_status_enum" OWNER TO "postgres";
+
+
 CREATE TYPE "public"."payment_method_enum" AS ENUM (
     'Check',
     'Cash',
@@ -769,7 +791,8 @@ CREATE TYPE "public"."rent_cycle_enum" AS ENUM (
     'Yearly',
     'Every2Months',
     'Daily',
-    'Every6Months'
+    'Every6Months',
+    'OneTime'
 );
 
 
@@ -790,9 +813,25 @@ COMMENT ON TYPE "public"."service_plan_enum" IS 'Service plan options for a prop
 
 
 
+CREATE TYPE "public"."staff_role" AS ENUM (
+    'PROPERTY_MANAGER',
+    'ASSISTANT_PROPERTY_MANAGER',
+    'MAINTENANCE_COORDINATOR',
+    'ACCOUNTANT',
+    'ADMINISTRATOR'
+);
+
+
+ALTER TYPE "public"."staff_role" OWNER TO "postgres";
+
+
 CREATE TYPE "public"."staff_roles" AS ENUM (
     'Property Manager',
-    'Bookkeeper'
+    'Bookkeeper',
+    'Assistant Property Manager',
+    'Maintenance Coordinator',
+    'Accountant',
+    'Administrator'
 );
 
 
@@ -918,6 +957,23 @@ END$$;
 ALTER FUNCTION "public"."count_active_units_for_property"("property_uuid" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."enforce_same_org"("child_org" "uuid", "parent_org" "uuid", "child_name" "text") RETURNS "void"
+    LANGUAGE "plpgsql"
+    AS $$
+begin
+  if child_org is null or parent_org is null then
+    raise exception '%: org_id cannot be null once backfilled', child_name;
+  end if;
+  if child_org <> parent_org then
+    raise exception '%: org_id must match referenced record', child_name;
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."enforce_same_org"("child_org" "uuid", "parent_org" "uuid", "child_name" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") RETURNS TABLE("buildium_id" integer, "count" bigint)
     LANGUAGE "plpgsql"
     AS $$
@@ -966,6 +1022,284 @@ $$;
 
 
 ALTER FUNCTION "public"."find_duplicate_units"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."fn_create_lease_aggregate"("payload" "jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_lease_id integer;
+  v_now timestamptz := now();
+  v_org uuid;
+BEGIN
+  -- Insert lease with org context
+  INSERT INTO public.lease (
+    property_id, unit_id, lease_from_date, lease_to_date, lease_type,
+    payment_due_day, security_deposit, rent_amount,
+    prorated_first_month_rent, prorated_last_month_rent,
+    renewal_offer_status, status, org_id, created_at, updated_at
+  ) VALUES (
+    (payload->'lease'->>'property_id')::uuid,
+    (payload->'lease'->>'unit_id')::uuid,
+    (payload->'lease'->>'lease_from_date')::date,
+    NULLIF(payload->'lease'->>'lease_to_date','')::date,
+    NULLIF(payload->'lease'->>'lease_type',''),
+    NULLIF(payload->'lease'->>'payment_due_day','')::int,
+    NULLIF(payload->'lease'->>'security_deposit','')::numeric,
+    NULLIF(payload->'lease'->>'rent_amount','')::numeric,
+    NULLIF(payload->'lease'->>'prorated_first_month_rent','')::numeric,
+    NULLIF(payload->'lease'->>'prorated_last_month_rent','')::numeric,
+    NULLIF(payload->'lease'->>'renewal_offer_status',''),
+    COALESCE(NULLIF(payload->'lease'->>'status',''), 'active'),
+    NULLIF(payload->'lease'->>'org_id','')::uuid,
+    v_now, v_now
+  ) RETURNING id INTO v_lease_id;
+
+  SELECT org_id INTO v_org FROM public.lease WHERE id = v_lease_id;
+
+  -- Contacts
+  INSERT INTO public.lease_contacts (
+    lease_id, tenant_id, role, status, move_in_date, move_out_date, notice_given_date, is_rent_responsible, created_at, updated_at
+  )
+  SELECT v_lease_id,
+         (c->>'tenant_id')::uuid,
+         COALESCE(NULLIF(c->>'role',''),'Tenant')::public.lease_contact_role_enum,
+         COALESCE(NULLIF(c->>'status',''),'Active')::public.lease_contact_status_enum,
+         NULLIF(c->>'move_in_date','')::date,
+         NULLIF(c->>'move_out_date','')::date,
+         NULLIF(c->>'notice_given_date','')::date,
+         COALESCE((c->>'is_rent_responsible')::boolean, false),
+         v_now, v_now
+  FROM jsonb_array_elements(COALESCE(payload->'contacts','[]'::jsonb)) AS c;
+
+  -- Rent schedules
+  INSERT INTO public.rent_schedules (
+    lease_id, start_date, end_date, total_amount, rent_cycle, backdate_charges, created_at, updated_at
+  )
+  SELECT v_lease_id,
+         (s->>'start_date')::date,
+         NULLIF(s->>'end_date','')::date,
+         NULLIF(s->>'total_amount','')::numeric,
+         COALESCE(NULLIF(s->>'rent_cycle',''),'Monthly')::public.rent_cycle_enum,
+         COALESCE((s->>'backdate_charges')::boolean, false),
+         v_now, v_now
+  FROM jsonb_array_elements(COALESCE(payload->'rent_schedules','[]'::jsonb)) AS s;
+
+  -- Recurring templates
+  INSERT INTO public.recurring_transactions (
+    lease_id, frequency, amount, memo, start_date, end_date, created_at, updated_at
+  )
+  SELECT v_lease_id,
+         COALESCE(NULLIF(r->>'frequency',''),'Monthly')::public.rent_cycle_enum,
+         NULLIF(r->>'amount','')::numeric,
+         NULLIF(r->>'memo',''),
+         NULLIF(r->>'start_date','')::date,
+         NULLIF(r->>'end_date','')::date,
+         v_now, v_now
+  FROM jsonb_array_elements(COALESCE(payload->'recurring_transactions','[]'::jsonb)) AS r;
+
+  -- Documents metadata → unified files
+  WITH docs AS (
+    SELECT d, row_number() OVER () AS rn
+    FROM jsonb_array_elements(COALESCE(payload->'documents','[]'::jsonb)) AS d
+  ), inserted AS (
+    INSERT INTO public.files (
+      org_id, source, storage_provider, bucket, storage_key,
+      file_name, mime_type, size_bytes, sha256, is_private,
+      description, created_at, updated_at
+    )
+    SELECT v_org,
+           'local',
+           'supabase',
+           'lease-documents',
+           (d.d->>'storage_path'),
+           (d.d->>'name'),
+           NULLIF(d.d->>'mime_type',''),
+           NULLIF(d.d->>'size_bytes','')::int,
+           NULLIF(d.d->>'sha256',''),
+           COALESCE((d.d->>'is_private')::boolean, true),
+           NULL,
+           v_now, v_now
+    FROM docs d
+    RETURNING id, storage_key
+  )
+  INSERT INTO public.file_links (file_id, entity_type, entity_int, org_id, role, category, added_at)
+  SELECT i.id, 'lease', v_lease_id, v_org, 'document', NULLIF(d.d->>'category',''), v_now
+  FROM inserted i
+  JOIN docs d ON i.storage_key = (d.d->>'storage_path');
+
+  RETURN jsonb_build_object('lease_id', v_lease_id);
+EXCEPTION WHEN others THEN
+  RAISE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."fn_create_lease_aggregate"("payload" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."fn_create_lease_full"("payload" "jsonb", "new_people" "jsonb" DEFAULT '[]'::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_contacts jsonb := coalesce(payload->'contacts','[]'::jsonb);
+  v_person jsonb;
+  v_contact_id bigint;
+  v_tenant_id uuid;
+  v_now timestamptz := now();
+  v_property_id uuid := nullif(payload->'lease'->>'property_id','')::uuid;
+  v_unit_id uuid := nullif(payload->'lease'->>'unit_id','')::uuid;
+  v_org_id uuid := nullif(payload->'lease'->>'org_id','')::uuid;
+  v_addr1 text; v_addr2 text; v_city text; v_state text; v_postal text; v_country text; v_unit_num text;
+BEGIN
+  -- Preload property/unit address + org context
+  IF v_property_id IS NOT NULL THEN
+    SELECT address_line1, address_line2, city, state, postal_code, country, org_id
+      INTO v_addr1, v_addr2, v_city, v_state, v_postal, v_country, v_org_id
+    FROM public.properties
+    WHERE id = v_property_id;
+  END IF;
+  IF v_unit_id IS NOT NULL THEN
+    SELECT unit_number, property_id INTO v_unit_num, v_property_id
+    FROM public.units
+    WHERE id = v_unit_id;
+    IF v_property_id IS NOT NULL AND v_org_id IS NULL THEN
+      SELECT org_id
+        INTO v_org_id
+      FROM public.properties
+      WHERE id = v_property_id;
+    END IF;
+  END IF;
+
+  -- Create contacts/tenants for staged people
+  FOR v_person IN SELECT value FROM jsonb_array_elements(coalesce(new_people,'[]'::jsonb))
+  LOOP
+    INSERT INTO public.contacts (
+      is_company, first_name, last_name,
+      primary_email, primary_phone, alt_phone, alt_email,
+      primary_address_line_1, primary_address_line_2, primary_city, primary_state, primary_postal_code, primary_country,
+      alt_address_line_1, alt_address_line_2, alt_city, alt_state, alt_postal_code, alt_country
+    ) VALUES (
+      false,
+      nullif(v_person->>'first_name',''),
+      nullif(v_person->>'last_name',''),
+      nullif(v_person->>'email',''),
+      nullif(v_person->>'phone',''),
+      nullif(v_person->>'alt_phone',''),
+      nullif(v_person->>'alt_email',''),
+      CASE WHEN coalesce(v_person->>'same_as_unit','false') = 'true'
+             OR (coalesce(v_person->>'addr1','') = '' AND coalesce(v_person->>'city','')='' AND coalesce(v_person->>'state','')='' AND coalesce(v_person->>'postal','')='' AND coalesce(v_person->>'country','')='')
+           THEN v_addr1 ELSE nullif(v_person->>'addr1','') END,
+      CASE WHEN coalesce(v_person->>'same_as_unit','false') = 'true'
+             OR (coalesce(v_person->>'addr1','') = '' AND coalesce(v_person->>'city','')='' AND coalesce(v_person->>'state','')='' AND coalesce(v_person->>'postal','')='' AND coalesce(v_person->>'country','')='')
+           THEN coalesce(v_addr2, CASE WHEN v_unit_num IS NOT NULL THEN 'Unit ' || v_unit_num ELSE NULL END)
+           ELSE nullif(v_person->>'addr2','') END,
+      CASE WHEN coalesce(v_person->>'same_as_unit','false') = 'true'
+             OR (coalesce(v_person->>'addr1','') = '' AND coalesce(v_person->>'city','')='' AND coalesce(v_person->>'state','')='' AND coalesce(v_person->>'postal','')='' AND coalesce(v_person->>'country','')='')
+           THEN v_city ELSE nullif(v_person->>'city','') END,
+      CASE WHEN coalesce(v_person->>'same_as_unit','false') = 'true'
+             OR (coalesce(v_person->>'addr1','') = '' AND coalesce(v_person->>'city','')='' AND coalesce(v_person->>'state','')='' AND coalesce(v_person->>'postal','')='' AND coalesce(v_person->>'country','')='')
+           THEN v_state ELSE nullif(v_person->>'state','') END,
+      CASE WHEN coalesce(v_person->>'same_as_unit','false') = 'true'
+             OR (coalesce(v_person->>'addr1','') = '' AND coalesce(v_person->>'city','')='' AND coalesce(v_person->>'state','')='' AND coalesce(v_person->>'postal','')='' AND coalesce(v_person->>'country','')='')
+           THEN v_postal ELSE nullif(v_person->>'postal','') END,
+      CASE WHEN coalesce(v_person->>'same_as_unit','false') = 'true'
+             OR (coalesce(v_person->>'addr1','') = '' AND coalesce(v_person->>'city','')='' AND coalesce(v_person->>'state','')='' AND coalesce(v_person->>'postal','')='' AND coalesce(v_person->>'country','')='')
+           THEN (
+             SELECT enumlabel::public.countries
+             FROM pg_enum e
+             JOIN pg_type t ON e.enumtypid = t.oid
+             WHERE t.typname = 'countries'
+               AND lower(enumlabel) = lower(v_country)
+             LIMIT 1
+           )
+           ELSE (
+             SELECT enumlabel::public.countries
+             FROM pg_enum e
+             JOIN pg_type t ON e.enumtypid = t.oid
+             WHERE t.typname = 'countries'
+               AND lower(enumlabel) = lower(nullif(v_person->>'country',''))
+             LIMIT 1
+           ) END,
+      nullif(v_person->>'alt_addr1',''),
+      nullif(v_person->>'alt_addr2',''),
+      nullif(v_person->>'alt_city',''),
+      nullif(v_person->>'alt_state',''),
+      nullif(v_person->>'alt_postal',''),
+      (
+        SELECT enumlabel::public.countries
+        FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'countries'
+          AND lower(enumlabel) = lower(nullif(v_person->>'alt_country',''))
+        LIMIT 1
+      )
+    ) RETURNING id INTO v_contact_id;
+
+    INSERT INTO public.tenants (contact_id, org_id, created_at, updated_at)
+    VALUES (v_contact_id, v_org_id, v_now, v_now)
+    RETURNING id INTO v_tenant_id;
+
+    v_contacts := v_contacts || jsonb_build_array(jsonb_build_object(
+      'tenant_id', v_tenant_id,
+      'role', coalesce(v_person->>'role','Tenant'),
+      'is_rent_responsible', (coalesce(v_person->>'role','Tenant') = 'Tenant')
+    ));
+  END LOOP;
+
+  payload := jsonb_set(payload, '{contacts}', v_contacts, true);
+
+  RETURN public.fn_create_lease_aggregate(payload);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."fn_create_lease_full"("payload" "jsonb", "new_people" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."fn_sync_lease_document_to_files"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  v_org uuid;
+  v_file_id uuid;
+BEGIN
+  SELECT p.org_id INTO v_org
+  FROM public.lease l
+  JOIN public.properties p ON p.id = l.property_id
+  WHERE l.id = NEW.lease_id;
+
+  -- Upsert file row
+  INSERT INTO public.files (
+    org_id, source, storage_provider, bucket, storage_key,
+    file_name, mime_type, size_bytes, sha256, is_private,
+    description, created_at, updated_at
+  ) VALUES (
+    v_org, 'local', 'supabase', 'lease-documents', NEW.storage_path,
+    NEW.name, NEW.mime_type, NEW.size_bytes, NEW.sha256, COALESCE(NEW.is_private, true),
+    NULL, COALESCE(NEW.created_at, now()), COALESCE(NEW.updated_at, now())
+  ) ON CONFLICT DO NOTHING
+  RETURNING id INTO v_file_id;
+
+  IF v_file_id IS NULL THEN
+    SELECT f.id INTO v_file_id FROM public.files f
+    WHERE f.org_id = v_org AND f.storage_provider = 'supabase' AND f.bucket = 'lease-documents' AND f.storage_key = NEW.storage_path
+    LIMIT 1;
+  END IF;
+
+  -- Link to lease
+  IF v_file_id IS NOT NULL THEN
+    INSERT INTO public.file_links (file_id, entity_type, entity_int, org_id, role, category, added_at)
+    VALUES (v_file_id, 'lease', NEW.lease_id, v_org, 'document', NEW.category, COALESCE(NEW.created_at, now()))
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."fn_sync_lease_document_to_files"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."generate_display_name"() RETURNS "trigger"
@@ -1019,6 +1353,144 @@ COMMENT ON FUNCTION "public"."get_buildium_api_cache"("p_endpoint" character var
 
 
 
+CREATE OR REPLACE FUNCTION "public"."get_foreign_keys"("p_schema" "text" DEFAULT 'public'::"text") RETURNS TABLE("constraint_name" "text", "source_table" "text", "source_column" "text", "target_table" "text", "target_column" "text")
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        c.conname::text as constraint_name,
+        csa.relname::text as source_table,
+        sa.attname::text as source_column,
+        cta.relname::text as target_table,
+        ta.attname::text as target_column
+    FROM pg_constraint c
+    JOIN pg_class csa ON c.conrelid = csa.oid
+    JOIN pg_namespace nsa ON csa.relnamespace = nsa.oid
+    JOIN pg_attribute sa ON sa.attrelid = c.conrelid AND sa.attnum = ANY(c.conkey)
+    JOIN pg_class cta ON c.confrelid = cta.oid
+    JOIN pg_namespace nta ON cta.relnamespace = nta.oid
+    JOIN pg_attribute ta ON ta.attrelid = c.confrelid AND ta.attnum = ANY(c.confkey)
+    WHERE c.contype = 'f'
+    AND nsa.nspname = p_schema
+    AND nta.nspname = p_schema
+    ORDER BY csa.relname, sa.attname;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_foreign_keys"("p_schema" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_claims"() RETURNS "jsonb"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    AS $$
+  select public.jwt_custom_claims();
+$$;
+
+
+ALTER FUNCTION "public"."get_my_claims"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_property_financials"("p_property_id" "uuid", "p_as_of" "date" DEFAULT CURRENT_DATE) RETURNS "jsonb"
+    LANGUAGE "plpgsql" STABLE
+    AS $$
+DECLARE
+  v_cash numeric := 0;
+  v_reserve numeric := 0;
+  v_secdep numeric := 0; -- placeholder; wire to a specific GL category if modeled
+  v_available numeric := 0;
+  v_last_reconciled timestamptz := NULL; -- optional: populate when reconciliation log exists
+BEGIN
+  -- Cash balance by summing bank accounts lines for the property
+  SELECT COALESCE(SUM(
+           CASE WHEN tl.posting_type = 'Debit' THEN tl.amount ELSE 0 END
+         ) - SUM(
+           CASE WHEN tl.posting_type = 'Credit' THEN tl.amount ELSE 0 END
+         ), 0)
+    INTO v_cash
+  FROM public.transaction_lines tl
+  JOIN public.gl_accounts ga ON ga.id = tl.gl_account_id
+  WHERE tl.property_id = p_property_id
+    AND tl.date <= p_as_of
+    AND ga.is_bank_account = true
+    AND COALESCE(ga.exclude_from_cash_balances, false) = false;
+
+  -- Reserve from properties table
+  SELECT COALESCE(reserve, 0) INTO v_reserve FROM public.properties WHERE id = p_property_id;
+
+  v_available := COALESCE(v_cash,0) - COALESCE(v_reserve,0) - COALESCE(v_secdep,0);
+
+  RETURN jsonb_build_object(
+    'as_of', p_as_of,
+    'cash_balance', COALESCE(v_cash,0),
+    'security_deposits', COALESCE(v_secdep,0),
+    'reserve', COALESCE(v_reserve,0),
+    'available_balance', COALESCE(v_available,0),
+    'last_reconciled_at', v_last_reconciled
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_property_financials"("p_property_id" "uuid", "p_as_of" "date") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_property_financials"("p_property_id" "uuid", "p_as_of" "date") IS 'Financial snapshot for a property as of date, for UI consumption';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."get_table_columns"("p_table_name" "text", "p_schema" "text" DEFAULT 'public'::"text") RETURNS TABLE("column_name" "text", "data_type" "text", "is_nullable" boolean, "column_default" "text", "is_identity" boolean)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        a.attname::text as column_name,
+        format_type(a.atttypid, NULL) as data_type,
+        NOT (a.attnotnull OR t.typtype = 'd' AND t.typnotnull) as is_nullable,
+        CASE WHEN a.atthasdef THEN pg_get_expr(ad.adbin, ad.adrelid) ELSE NULL END as column_default,
+        a.attidentity IN ('a', 'd') as is_identity
+    FROM pg_attribute a
+    LEFT JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
+    JOIN pg_class c ON a.attrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    JOIN pg_type t ON a.atttypid = t.oid
+    WHERE n.nspname = p_schema
+    AND c.relname = p_table_name
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+    ORDER BY a.attnum;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_table_columns"("p_table_name" "text", "p_schema" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_table_stats"("p_schema" "text" DEFAULT 'public'::"text") RETURNS TABLE("table_name" "text", "row_count" bigint, "total_size" "text", "index_size" "text", "table_size" "text")
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        c.relname::text as table_name,
+        pg_stat_get_live_tuples(c.oid) as row_count,
+        pg_size_pretty(pg_total_relation_size(c.oid)) as total_size,
+        pg_size_pretty(pg_indexes_size(c.oid)) as index_size,
+        pg_size_pretty(pg_relation_size(c.oid)) as table_size
+    FROM pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = p_schema
+    AND c.relkind = 'r'
+    ORDER BY pg_total_relation_size(c.oid) DESC;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_table_stats"("p_schema" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."gl_account_activity"("p_from" "date", "p_to" "date") RETURNS TABLE("gl_account_id" "uuid", "account_number" "text", "name" "text", "debits" numeric, "credits" numeric, "net_change" numeric)
     LANGUAGE "sql" STABLE
     AS $$
@@ -1039,6 +1511,46 @@ $$;
 
 
 ALTER FUNCTION "public"."gl_account_activity"("p_from" "date", "p_to" "date") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."gl_account_activity"("p_property_id" "uuid", "p_from" "date", "p_to" "date", "p_gl_account_ids" "uuid"[] DEFAULT NULL::"uuid"[]) RETURNS TABLE("gl_account_id" "uuid", "gl_account_name" "text", "debits" numeric, "credits" numeric, "net" numeric)
+    LANGUAGE "sql" STABLE
+    AS $$
+  select
+    ga.id,
+    ga.name,
+    coalesce(sum(case when tl.posting_type = 'Debit' then tl.amount else 0 end), 0)::numeric(14,2)  as debits,
+    coalesce(sum(case when tl.posting_type = 'Credit' then tl.amount else 0 end), 0)::numeric(14,2) as credits,
+    coalesce(sum(case when tl.posting_type = 'Debit' then tl.amount else 0 end)
+           - sum(case when tl.posting_type = 'Credit' then tl.amount else 0 end), 0)::numeric(14,2) as net
+  from public.transaction_lines tl
+  join public.gl_accounts ga on ga.id = tl.gl_account_id
+  where tl.property_id = p_property_id
+    and tl.date >= p_from
+    and tl.date <  (p_to + 1)
+    and (p_gl_account_ids is null or tl.gl_account_id = any(p_gl_account_ids))
+  group by ga.id, ga.name
+  order by ga.name;
+$$;
+
+
+ALTER FUNCTION "public"."gl_account_activity"("p_property_id" "uuid", "p_from" "date", "p_to" "date", "p_gl_account_ids" "uuid"[]) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."gl_ledger_balance_as_of"("p_property_id" "uuid", "p_gl_account_id" "uuid", "p_as_of" "date") RETURNS numeric
+    LANGUAGE "sql" STABLE
+    AS $$
+  select coalesce(sum(case when tl.posting_type='Debit' then tl.amount
+                           when tl.posting_type='Credit' then -tl.amount
+                           else 0 end),0)::numeric(14,2)
+  from public.transaction_lines tl
+  where tl.property_id = p_property_id
+    and tl.gl_account_id = p_gl_account_id
+    and tl.date <= p_as_of;
+$$;
+
+
+ALTER FUNCTION "public"."gl_ledger_balance_as_of"("p_property_id" "uuid", "p_gl_account_id" "uuid", "p_as_of" "date") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."gl_trial_balance_as_of"("p_as_of_date" "date") RETURNS TABLE("gl_account_id" "uuid", "buildium_gl_account_id" integer, "account_number" "text", "name" "text", "type" "text", "sub_type" "text", "debits" numeric, "credits" numeric, "balance" numeric)
@@ -1077,6 +1589,21 @@ $$;
 
 
 ALTER FUNCTION "public"."handle_lease_payment_webhook"("event_data" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$ begin
+insert into public.profiles(user_id, email)
+values (new.id, new.email) on conflict (user_id) do
+update
+set email = excluded.email;
+return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."handle_owner_webhook_update"("event_data" "jsonb") RETURNS "void"
@@ -1131,6 +1658,26 @@ $$;
 ALTER FUNCTION "public"."handle_unit_webhook_update"("event_data" "jsonb") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."is_platform_admin"("p_user_id" "uuid" DEFAULT NULL::"uuid") RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    AS $$
+SELECT EXISTS (
+    SELECT 1
+    FROM public.org_memberships m
+    WHERE m.user_id = COALESCE(
+        p_user_id,
+        (
+          select auth.uid()
+        )
+      )
+      AND m.role = 'platform_admin'
+  );
+$$;
+
+
+ALTER FUNCTION "public"."is_platform_admin"("p_user_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."is_valid_country"("val" "text") RETURNS boolean
     LANGUAGE "plpgsql"
     AS $$
@@ -1159,6 +1706,45 @@ CREATE OR REPLACE FUNCTION "public"."is_valid_country"("val" "public"."countries
 
 
 ALTER FUNCTION "public"."is_valid_country"("val" "public"."countries") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."jwt_custom_claims"() RETURNS "jsonb"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    AS $$
+        SELECT jsonb_build_object(
+          'org_ids', (
+            SELECT coalesce(jsonb_agg(m.org_id), '[]'::jsonb)
+            FROM public.org_memberships m
+            WHERE m.user_id = (select auth.uid())
+          ),
+          'roles', (
+            SELECT coalesce(jsonb_agg(m.role), '[]'::jsonb)
+            FROM public.org_memberships m
+            WHERE m.user_id = (select auth.uid())
+          )
+        );
+      $$;
+
+
+ALTER FUNCTION "public"."jwt_custom_claims"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."lease_contacts_org_guard"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+declare t_org uuid; -- l_org uuid;
+begin
+  select org_id into t_org from public.tenants where id = new.tenant_id;
+  perform public.enforce_same_org(new.org_id, t_org, 'lease_contacts');
+  -- If a leases table exists with org_id, also enforce it
+  -- select org_id into l_org from public.leases where id = new.lease_id;
+  -- perform public.enforce_same_org(new.org_id, l_org, 'lease_contacts');
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."lease_contacts_org_guard"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."map_bill_to_buildium"("p_bill_id" "uuid") RETURNS "jsonb"
@@ -1502,6 +2088,23 @@ $$;
 ALTER FUNCTION "public"."normalize_country"("val" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."ownerships_org_guard"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+declare p_org uuid; o_org uuid;
+begin
+  select org_id into p_org from public.properties where id = new.property_id;
+  select org_id into o_org from public.owners where id = new.owner_id;
+  perform public.enforce_same_org(new.org_id, p_org, 'ownerships');
+  perform public.enforce_same_org(new.org_id, o_org, 'ownerships');
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."ownerships_org_guard"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character varying, "p_event_type" character varying, "p_event_data" "jsonb") RETURNS boolean
     LANGUAGE "plpgsql"
     AS $$
@@ -1568,6 +2171,33 @@ ALTER FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character 
 
 COMMENT ON FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character varying, "p_event_type" character varying, "p_event_data" "jsonb") IS 'Processes a Buildium webhook event and updates local data accordingly';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."reconciliation_log_sync_as_of"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+begin
+  if NEW.statement_ending_date is not null then
+    NEW.as_of := NEW.statement_ending_date;
+  end if;
+  return NEW;
+end $$;
+
+
+ALTER FUNCTION "public"."reconciliation_log_sync_as_of"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."refresh_schema_cache"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW public.table_info_cache;
+    REFRESH MATERIALIZED VIEW public.column_info_cache;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."refresh_schema_cache"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_buildium_api_cache"("p_endpoint" character varying, "p_parameters" "jsonb", "p_response_data" "jsonb", "p_cache_duration_minutes" integer DEFAULT 60) RETURNS "void"
@@ -1638,6 +2268,32 @@ $$;
 
 
 ALTER FUNCTION "public"."set_buildium_property_id"("p_entity_type" character varying, "p_entity_id" "uuid", "p_buildium_property_id" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_org_memberships_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_org_memberships_updated_at"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_organizations_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."set_organizations_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
@@ -1838,6 +2494,21 @@ ALTER FUNCTION "public"."trigger_update_property_unit_counts"() OWNER TO "postgr
 
 COMMENT ON FUNCTION "public"."trigger_update_property_unit_counts"() IS 'Trigger function to automatically update property unit counts when units are modified';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."units_org_guard"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+declare p_org uuid;
+begin
+  select org_id into p_org from public.properties where id = new.property_id;
+  perform public.enforce_same_org(new.org_id, p_org, 'units');
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."units_org_guard"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_all_owners_total_fields"() RETURNS "void"
@@ -2091,6 +2762,27 @@ $$;
 
 ALTER FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."work_orders_org_guard"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+declare p_org uuid; u_org uuid;
+begin
+  if new.property_id is not null then
+    select org_id into p_org from public.properties where id = new.property_id;
+    perform public.enforce_same_org(new.org_id, p_org, 'work_orders');
+  end if;
+  if new.unit_id is not null then
+    select org_id into u_org from public.units where id = new.unit_id;
+    perform public.enforce_same_org(new.org_id, u_org, 'work_orders');
+  end if;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."work_orders_org_guard"() OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -2120,7 +2812,8 @@ CREATE TABLE IF NOT EXISTS "public"."lease" (
     "buildium_updated_at" timestamp with time zone,
     "rent_amount" numeric,
     "buildium_property_id" integer,
-    "buildium_unit_id" integer
+    "buildium_unit_id" integer,
+    "org_id" "uuid"
 );
 
 
@@ -2212,7 +2905,14 @@ CREATE TABLE IF NOT EXISTS "public"."staff" (
     "created_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
     "buildium_user_id" integer,
-    "role" "public"."staff_roles" DEFAULT 'Property Manager'::"public"."staff_roles" NOT NULL
+    "role" "public"."staff_role" DEFAULT 'PROPERTY_MANAGER'::"public"."staff_role" NOT NULL,
+    "user_id" "uuid",
+    "first_name" "text",
+    "last_name" "text",
+    "email" "text",
+    "phone" "text",
+    "title" "text",
+    "buildium_staff_id" integer
 );
 
 
@@ -2292,8 +2992,7 @@ CREATE TABLE IF NOT EXISTS "public"."appliances" (
     "buildium_appliance_id" integer,
     "installation_date" "date",
     "is_active" boolean DEFAULT true,
-    "description" "text",
-    "property_id" "uuid"
+    "description" "text"
 );
 
 
@@ -2309,10 +3008,6 @@ COMMENT ON COLUMN "public"."appliances"."installation_date" IS 'Date the applian
 
 
 COMMENT ON COLUMN "public"."appliances"."is_active" IS 'Whether the appliance is currently active';
-
-
-
-COMMENT ON COLUMN "public"."appliances"."property_id" IS 'Local property UUID (convenience link)';
 
 
 
@@ -2334,7 +3029,8 @@ CREATE TABLE IF NOT EXISTS "public"."bank_accounts" (
     "electronic_payments" "jsonb",
     "last_source" "public"."sync_source_enum",
     "last_source_ts" timestamp with time zone,
-    "bank_account_type" "public"."bank_account_type_enum"
+    "bank_account_type" "public"."bank_account_type_enum",
+    "org_id" "uuid"
 );
 
 
@@ -2477,6 +3173,26 @@ COMMENT ON COLUMN "public"."buildium_api_log"."duration_ms" IS 'Request duration
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."buildium_sync_runs" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "job_type" "text" DEFAULT 'staff_sync'::"text" NOT NULL,
+    "started_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "finished_at" timestamp with time zone,
+    "duration_ms" integer,
+    "scanned_count" integer DEFAULT 0,
+    "upserted_count" integer DEFAULT 0,
+    "linked_count" integer DEFAULT 0,
+    "error_count" integer DEFAULT 0,
+    "status" "text" DEFAULT 'running'::"text" NOT NULL,
+    "errors" "jsonb",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "org_id" "uuid"
+);
+
+
+ALTER TABLE "public"."buildium_sync_runs" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."buildium_sync_status" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "entity_type" character varying(50) NOT NULL,
@@ -2486,7 +3202,8 @@ CREATE TABLE IF NOT EXISTS "public"."buildium_sync_status" (
     "sync_status" character varying(20) DEFAULT 'pending'::character varying,
     "error_message" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "org_id" "uuid"
 );
 
 
@@ -2524,7 +3241,8 @@ CREATE TABLE IF NOT EXISTS "public"."buildium_webhook_events" (
     "retry_count" integer DEFAULT 0,
     "max_retries" integer DEFAULT 3,
     "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "org_id" "uuid"
 );
 
 
@@ -2567,6 +3285,34 @@ COMMENT ON COLUMN "public"."buildium_webhook_events"."max_retries" IS 'Maximum n
 
 
 
+CREATE MATERIALIZED VIEW "public"."column_info_cache" AS
+ SELECT ("c"."oid")::bigint AS "table_id",
+    "nc"."nspname" AS "schema",
+    "c"."relname" AS "table_name",
+    (("c"."oid" || '.'::"text") || "a"."attnum") AS "id",
+    "a"."attnum" AS "ordinal_position",
+    "a"."attname" AS "name",
+        CASE
+            WHEN "a"."atthasdef" THEN "pg_get_expr"("ad"."adbin", "ad"."adrelid")
+            ELSE NULL::"text"
+        END AS "default_value",
+    "format_type"("a"."atttypid", NULL::integer) AS "data_type",
+    "t"."typname" AS "format",
+    ("a"."attidentity" = ANY (ARRAY['a'::"char", 'd'::"char"])) AS "is_identity",
+    (NOT ("a"."attnotnull" OR (("t"."typtype" = 'd'::"char") AND "t"."typnotnull"))) AS "is_nullable",
+    "col_description"("c"."oid", ("a"."attnum")::integer) AS "comment"
+   FROM ((("pg_attribute" "a"
+     LEFT JOIN "pg_attrdef" "ad" ON ((("a"."attrelid" = "ad"."adrelid") AND ("a"."attnum" = "ad"."adnum"))))
+     JOIN ("pg_class" "c"
+     JOIN "pg_namespace" "nc" ON (("c"."relnamespace" = "nc"."oid"))) ON (("a"."attrelid" = "c"."oid")))
+     JOIN "pg_type" "t" ON (("a"."atttypid" = "t"."oid")))
+  WHERE ((NOT "pg_is_other_temp_schema"("nc"."oid")) AND ("a"."attnum" > 0) AND (NOT "a"."attisdropped") AND ("c"."relkind" = ANY (ARRAY['r'::"char", 'v'::"char", 'm'::"char", 'f'::"char", 'p'::"char"])) AND ("nc"."nspname" = 'public'::"name"))
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW "public"."column_info_cache" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."contacts" (
     "id" bigint NOT NULL,
     "is_company" boolean DEFAULT false NOT NULL,
@@ -2596,7 +3342,8 @@ CREATE TABLE IF NOT EXISTS "public"."contacts" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "display_name" "text",
-    "buildium_contact_id" integer
+    "buildium_contact_id" integer,
+    "user_id" "uuid"
 );
 
 
@@ -2634,6 +3381,77 @@ ALTER SEQUENCE "public"."contacts_id_seq" OWNED BY "public"."contacts"."id";
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."file_links" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "file_id" "uuid" NOT NULL,
+    "entity_type" "text" NOT NULL,
+    "entity_uuid" "uuid",
+    "entity_int" integer,
+    "org_id" "uuid" NOT NULL,
+    "role" "text",
+    "category" "text",
+    "sort_index" integer,
+    "added_by" "uuid",
+    "added_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "file_links_one_entity_ck" CHECK (((("entity_uuid" IS NOT NULL) AND ("entity_int" IS NULL)) OR (("entity_uuid" IS NULL) AND ("entity_int" IS NOT NULL))))
+);
+
+
+ALTER TABLE "public"."file_links" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."files" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "org_id" "uuid" NOT NULL,
+    "source" "text" DEFAULT 'local'::"text",
+    "storage_provider" "text" DEFAULT 'supabase'::"text",
+    "bucket" "text",
+    "storage_key" "text",
+    "external_url" "text",
+    "file_name" "text" NOT NULL,
+    "mime_type" "text",
+    "size_bytes" integer,
+    "sha256" "text",
+    "is_private" boolean DEFAULT true NOT NULL,
+    "buildium_file_id" integer,
+    "buildium_entity_type" "text",
+    "buildium_entity_id" integer,
+    "buildium_href" "text",
+    "description" "text",
+    "created_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "deleted_at" timestamp with time zone,
+    CONSTRAINT "files_source_check" CHECK (("source" = ANY (ARRAY['local'::"text", 'buildium'::"text", 'external'::"text", 'generated'::"text"]))),
+    CONSTRAINT "files_storage_provider_check" CHECK (("storage_provider" = ANY (ARRAY['supabase'::"text", 's3'::"text", 'gcs'::"text", 'buildium'::"text", 'external'::"text"])))
+);
+
+
+ALTER TABLE "public"."files" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."foreign_key_relationships" AS
+ SELECT ("c"."oid")::bigint AS "id",
+    "c"."conname" AS "constraint_name",
+    "nsa"."nspname" AS "source_schema",
+    "csa"."relname" AS "source_table_name",
+    "sa"."attname" AS "source_column_name",
+    "nta"."nspname" AS "target_table_schema",
+    "cta"."relname" AS "target_table_name",
+    "ta"."attname" AS "target_column_name"
+   FROM (("pg_constraint" "c"
+     JOIN (("pg_attribute" "sa"
+     JOIN "pg_class" "csa" ON (("sa"."attrelid" = "csa"."oid")))
+     JOIN "pg_namespace" "nsa" ON (("csa"."relnamespace" = "nsa"."oid"))) ON ((("sa"."attrelid" = "c"."conrelid") AND ("sa"."attnum" = ANY ("c"."conkey")))))
+     JOIN (("pg_attribute" "ta"
+     JOIN "pg_class" "cta" ON (("ta"."attrelid" = "cta"."oid")))
+     JOIN "pg_namespace" "nta" ON (("cta"."relnamespace" = "nta"."oid"))) ON ((("ta"."attrelid" = "c"."confrelid") AND ("ta"."attnum" = ANY ("c"."confkey")))))
+  WHERE (("c"."contype" = 'f'::"char") AND ("nsa"."nspname" = 'public'::"name") AND ("nta"."nspname" = 'public'::"name"));
+
+
+ALTER VIEW "public"."foreign_key_relationships" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."gl_accounts" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "buildium_gl_account_id" integer NOT NULL,
@@ -2653,7 +3471,9 @@ CREATE TABLE IF NOT EXISTS "public"."gl_accounts" (
     "is_credit_card_account" boolean DEFAULT false,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
-    "sub_accounts" "uuid"[] DEFAULT '{}'::"uuid"[]
+    "sub_accounts" "uuid"[] DEFAULT '{}'::"uuid"[],
+    "org_id" "uuid",
+    "is_security_deposit_liability" boolean DEFAULT false NOT NULL
 );
 
 
@@ -2693,6 +3513,26 @@ CREATE TABLE IF NOT EXISTS "public"."gl_import_cursors" (
 
 
 ALTER TABLE "public"."gl_import_cursors" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."index_usage" AS
+ SELECT "schemaname",
+    "relname" AS "tablename",
+    "indexrelname" AS "indexname",
+    "idx_tup_read",
+    "idx_tup_fetch",
+    "idx_scan",
+        CASE
+            WHEN ("idx_scan" = 0) THEN 'UNUSED'::"text"
+            WHEN ("idx_scan" < 10) THEN 'LOW_USAGE'::"text"
+            ELSE 'ACTIVE'::"text"
+        END AS "usage_status"
+   FROM "pg_stat_user_indexes"
+  WHERE ("schemaname" = 'public'::"name")
+  ORDER BY "idx_scan" DESC;
+
+
+ALTER VIEW "public"."index_usage" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."inspections" (
@@ -2738,7 +3578,9 @@ CREATE TABLE IF NOT EXISTS "public"."owners" (
     "is_active" boolean DEFAULT true,
     "buildium_created_at" timestamp with time zone,
     "buildium_updated_at" timestamp with time zone,
-    "tax_include1099" boolean DEFAULT false
+    "tax_include1099" boolean DEFAULT false,
+    "org_id" "uuid",
+    "user_id" "uuid"
 );
 
 
@@ -2803,10 +3645,10 @@ CREATE TABLE IF NOT EXISTS "public"."properties" (
     "buildium_created_at" timestamp with time zone,
     "buildium_updated_at" timestamp with time zone,
     "rental_type" character varying(50),
+    "total_vacant_units" integer DEFAULT 0 NOT NULL,
     "total_inactive_units" integer DEFAULT 0 NOT NULL,
     "total_occupied_units" integer DEFAULT 0 NOT NULL,
     "total_active_units" integer DEFAULT 0 NOT NULL,
-    "total_vacant_units" integer DEFAULT 0 NOT NULL,
     "occupancy_rate" numeric(5,2) GENERATED ALWAYS AS (
 CASE
     WHEN ("total_active_units" > 0) THEN "round"((((("total_active_units" - "total_vacant_units"))::numeric / ("total_active_units")::numeric) * (100)::numeric), 2)
@@ -2827,6 +3669,7 @@ END) STORED,
     "management_fee" numeric(12,2),
     "billing_frequency" "public"."billing_frequency_enum",
     "service_assignment" "public"."assignment_level",
+    "org_id" "uuid" NOT NULL,
     CONSTRAINT "check_total_active_units_non_negative" CHECK (("total_active_units" >= 0)),
     CONSTRAINT "check_total_active_units_not_exceed_total" CHECK (("total_active_units" <= "total_units")),
     CONSTRAINT "check_total_inactive_units_non_negative" CHECK (("total_inactive_units" >= 0)),
@@ -2879,6 +3722,10 @@ COMMENT ON COLUMN "public"."properties"."rental_type" IS 'The main rental type f
 
 
 
+COMMENT ON COLUMN "public"."properties"."total_vacant_units" IS 'Count of related units with status = Vacant. Maintained by triggers.';
+
+
+
 COMMENT ON COLUMN "public"."properties"."total_inactive_units" IS 'Count of related units with status = Inactive';
 
 
@@ -2888,10 +3735,6 @@ COMMENT ON COLUMN "public"."properties"."total_occupied_units" IS 'Count of rela
 
 
 COMMENT ON COLUMN "public"."properties"."total_active_units" IS 'Count of related units with status IN (Occupied, Vacant)';
-
-
-
-COMMENT ON COLUMN "public"."properties"."total_vacant_units" IS 'Count of related units with status = Vacant. Maintained by triggers.';
 
 
 
@@ -2995,7 +3838,8 @@ CREATE TABLE IF NOT EXISTS "public"."units" (
     "is_active" boolean DEFAULT true,
     "buildium_created_at" timestamp with time zone,
     "buildium_updated_at" timestamp with time zone,
-    "building_name" "text"
+    "building_name" "text",
+    "org_id" "uuid" NOT NULL
 );
 
 
@@ -3252,7 +4096,8 @@ CREATE TABLE IF NOT EXISTS "public"."lease_contacts" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
     "move_out_date" "date",
-    "notice_given_date" "date"
+    "notice_given_date" "date",
+    "org_id" "uuid"
 );
 
 
@@ -3276,6 +4121,30 @@ COMMENT ON COLUMN "public"."lease_contacts"."move_out_date" IS 'Date when the te
 
 
 COMMENT ON COLUMN "public"."lease_contacts"."notice_given_date" IS 'Date when the tenant gave notice of intent to move out';
+
+
+
+CREATE OR REPLACE VIEW "public"."lease_documents" AS
+ SELECT "f"."id",
+    "fl"."entity_int" AS "lease_id",
+    "f"."file_name" AS "name",
+    "fl"."category",
+    "f"."storage_key" AS "storage_path",
+    "f"."mime_type",
+    "f"."size_bytes",
+    "f"."sha256",
+    "f"."is_private",
+    "f"."created_at",
+    "f"."updated_at"
+   FROM ("public"."file_links" "fl"
+     JOIN "public"."files" "f" ON (("f"."id" = "fl"."file_id")))
+  WHERE ("fl"."entity_type" = 'lease'::"text");
+
+
+ALTER VIEW "public"."lease_documents" OWNER TO "postgres";
+
+
+COMMENT ON VIEW "public"."lease_documents" IS 'Compatibility view mapping unified files/file_links to legacy lease_documents shape';
 
 
 
@@ -3313,6 +4182,31 @@ CREATE TABLE IF NOT EXISTS "public"."lease_recurring_transactions" (
 ALTER TABLE "public"."lease_recurring_transactions" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."org_memberships" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "org_id" "uuid" NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "role" "text" DEFAULT 'member'::"text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."org_memberships" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."organizations" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL,
+    "slug" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."organizations" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."owners_list_cache" (
     "owner_id" "uuid" NOT NULL,
     "contact_id" bigint NOT NULL,
@@ -3343,6 +4237,7 @@ CREATE TABLE IF NOT EXISTS "public"."ownerships" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "total_units" integer DEFAULT 0 NOT NULL,
     "total_properties" integer DEFAULT 0 NOT NULL,
+    "org_id" "uuid" NOT NULL,
     CONSTRAINT "ownerships_disbursement_percentage_check" CHECK ((("disbursement_percentage" >= (0)::numeric) AND ("disbursement_percentage" <= (100)::numeric))),
     CONSTRAINT "ownerships_ownership_percentage_check" CHECK ((("ownership_percentage" >= (0)::numeric) AND ("ownership_percentage" <= (100)::numeric)))
 );
@@ -3361,6 +4256,86 @@ COMMENT ON COLUMN "public"."ownerships"."total_units" IS 'Sum of total_units fro
 
 COMMENT ON COLUMN "public"."ownerships"."total_properties" IS 'Count of active properties (status != Inactive) owned by this owner';
 
+
+
+CREATE OR REPLACE VIEW "public"."primary_keys" AS
+ SELECT "n"."nspname" AS "schema",
+    "c"."relname" AS "table_name",
+    "a"."attname" AS "column_name",
+    ("c"."oid")::bigint AS "table_id"
+   FROM ((("pg_index" "i"
+     JOIN "pg_class" "c" ON (("i"."indrelid" = "c"."oid")))
+     JOIN "pg_attribute" "a" ON ((("a"."attrelid" = "c"."oid") AND ("a"."attnum" = ANY (("i"."indkey")::smallint[])))))
+     JOIN "pg_namespace" "n" ON (("c"."relnamespace" = "n"."oid")))
+  WHERE ("i"."indisprimary" AND ("n"."nspname" = 'public'::"name"));
+
+
+ALTER VIEW "public"."primary_keys" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."profiles" (
+    "user_id" "uuid" NOT NULL,
+    "full_name" "text",
+    "email" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."profiles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."property_images" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "property_id" "uuid" NOT NULL,
+    "buildium_image_id" integer,
+    "name" "text",
+    "description" "text",
+    "file_type" "text",
+    "file_size" integer,
+    "is_private" boolean,
+    "href" "text",
+    "sort_index" integer,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."property_images" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."property_onboarding" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "org_id" "uuid",
+    "property_id" "uuid" NOT NULL,
+    "status" "public"."onboarding_status_enum" DEFAULT 'IN_PROGRESS'::"public"."onboarding_status_enum" NOT NULL,
+    "progress" smallint DEFAULT 0 NOT NULL,
+    "current_stage" "text",
+    "assigned_staff_id" integer,
+    "due_date" "date",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "property_onboarding_progress_check" CHECK ((("progress" >= 0) AND ("progress" <= 100)))
+);
+
+
+ALTER TABLE "public"."property_onboarding" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."property_onboarding_tasks" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "org_id" "uuid",
+    "onboarding_id" "uuid" NOT NULL,
+    "name" "text" NOT NULL,
+    "status" "public"."onboarding_task_status_enum" DEFAULT 'PENDING'::"public"."onboarding_task_status_enum" NOT NULL,
+    "assigned_staff_id" integer,
+    "due_date" "date",
+    "completed_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."property_onboarding_tasks" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."property_ownerships_cache" (
@@ -3387,13 +4362,35 @@ COMMENT ON TABLE "public"."property_ownerships_cache" IS 'Property ownerships ca
 CREATE TABLE IF NOT EXISTS "public"."property_staff" (
     "property_id" "uuid" NOT NULL,
     "staff_id" bigint NOT NULL,
-    "role" "text" DEFAULT 'PROPERTY_MANAGER'::"text" NOT NULL,
+    "role" "public"."staff_role" DEFAULT 'PROPERTY_MANAGER'::"public"."staff_role" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
 ALTER TABLE "public"."property_staff" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."reconciliation_log" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "property_id" "uuid",
+    "bank_account_id" "uuid",
+    "gl_account_id" "uuid",
+    "as_of" "date",
+    "performed_by" "uuid",
+    "notes" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "buildium_reconciliation_id" integer,
+    "buildium_bank_account_id" integer,
+    "statement_ending_date" "date",
+    "is_finished" boolean DEFAULT false NOT NULL,
+    "ending_balance" numeric(14,2),
+    "total_checks_withdrawals" numeric(14,2),
+    "total_deposits_additions" numeric(14,2)
+);
+
+
+ALTER TABLE "public"."reconciliation_log" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."rent_schedules" (
@@ -3433,6 +4430,20 @@ COMMENT ON COLUMN "public"."rent_schedules"."backdate_charges" IS 'Whether charg
 
 
 
+CREATE OR REPLACE VIEW "public"."slow_queries" AS
+ SELECT "left"("query", 100) AS "query_preview",
+    "calls",
+    "round"(("total_exec_time")::numeric, 2) AS "total_exec_time_ms",
+    "round"(("mean_exec_time")::numeric, 2) AS "mean_exec_time_ms",
+    "round"(((100.0 * ("shared_blks_hit")::numeric) / (NULLIF(("shared_blks_hit" + "shared_blks_read"), 0))::numeric), 2) AS "hit_percent"
+   FROM "extensions"."pg_stat_statements"
+  WHERE ("total_exec_time" > (1000)::double precision)
+  ORDER BY "total_exec_time" DESC;
+
+
+ALTER VIEW "public"."slow_queries" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."sync_operations" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "type" character varying(10) NOT NULL,
@@ -3447,6 +4458,7 @@ CREATE TABLE IF NOT EXISTS "public"."sync_operations" (
     "last_attempt" timestamp with time zone DEFAULT "now"(),
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "org_id" "uuid",
     CONSTRAINT "sync_operations_entity_check" CHECK ((("entity")::"text" = ANY ((ARRAY['property'::character varying, 'unit'::character varying, 'lease'::character varying, 'tenant'::character varying, 'contact'::character varying, 'owner'::character varying])::"text"[]))),
     CONSTRAINT "sync_operations_status_check" CHECK ((("status")::"text" = ANY ((ARRAY['PENDING'::character varying, 'IN_PROGRESS'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying, 'ROLLED_BACK'::character varying])::"text"[]))),
     CONSTRAINT "sync_operations_type_check" CHECK ((("type")::"text" = ANY ((ARRAY['CREATE'::character varying, 'UPDATE'::character varying, 'DELETE'::character varying])::"text"[])))
@@ -3494,6 +4506,40 @@ COMMENT ON COLUMN "public"."sync_operations"."error" IS 'Error message if operat
 
 COMMENT ON COLUMN "public"."sync_operations"."attempts" IS 'Number of retry attempts made';
 
+
+
+CREATE MATERIALIZED VIEW "public"."table_info_cache" AS
+ SELECT ("c"."oid")::bigint AS "id",
+    "nc"."nspname" AS "schema",
+    "c"."relname" AS "name",
+    "c"."relrowsecurity" AS "rls_enabled",
+    "c"."relforcerowsecurity" AS "rls_forced",
+    "pg_total_relation_size"(("format"('%I.%I'::"text", "nc"."nspname", "c"."relname"))::"regclass") AS "bytes",
+    "pg_size_pretty"("pg_total_relation_size"(("format"('%I.%I'::"text", "nc"."nspname", "c"."relname"))::"regclass")) AS "size",
+    "pg_stat_get_live_tuples"("c"."oid") AS "live_rows_estimate",
+    "pg_stat_get_dead_tuples"("c"."oid") AS "dead_rows_estimate",
+    "obj_description"("c"."oid") AS "comment"
+   FROM ("pg_namespace" "nc"
+     JOIN "pg_class" "c" ON (("nc"."oid" = "c"."relnamespace")))
+  WHERE (("c"."relkind" = ANY (ARRAY['r'::"char", 'v'::"char"])) AND (NOT "pg_is_other_temp_schema"("nc"."oid")) AND ("nc"."nspname" = 'public'::"name"))
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW "public"."table_info_cache" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."table_sizes" AS
+ SELECT "schemaname",
+    "tablename",
+    "pg_size_pretty"("pg_total_relation_size"((((("schemaname")::"text" || '.'::"text") || ("tablename")::"text"))::"regclass")) AS "total_size",
+    "pg_size_pretty"("pg_relation_size"((((("schemaname")::"text" || '.'::"text") || ("tablename")::"text"))::"regclass")) AS "table_size",
+    "pg_size_pretty"("pg_indexes_size"((((("schemaname")::"text" || '.'::"text") || ("tablename")::"text"))::"regclass")) AS "index_size"
+   FROM "pg_tables"
+  WHERE ("schemaname" = 'public'::"name")
+  ORDER BY ("pg_total_relation_size"((((("schemaname")::"text" || '.'::"text") || ("tablename")::"text"))::"regclass")) DESC;
+
+
+ALTER VIEW "public"."table_sizes" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."task_categories" (
@@ -3581,52 +4627,26 @@ COMMENT ON COLUMN "public"."task_history"."assigned_to" IS 'Person assigned at t
 
 
 
-CREATE TABLE IF NOT EXISTS "public"."task_history_files" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "buildium_file_id" integer,
-    "task_history_id" "uuid",
-    "file_name" character varying(255) NOT NULL,
-    "file_type" character varying(100),
-    "file_size" integer,
-    "file_url" "text",
-    "description" "text",
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
-);
+CREATE OR REPLACE VIEW "public"."task_history_files" AS
+ SELECT "f"."id",
+    "f"."buildium_file_id",
+    "fl"."entity_uuid" AS "task_history_id",
+    "f"."file_name",
+    ("f"."mime_type")::character varying(100) AS "file_type",
+    "f"."size_bytes" AS "file_size",
+    "f"."external_url" AS "file_url",
+    "f"."description",
+    "f"."created_at",
+    "f"."updated_at"
+   FROM ("public"."file_links" "fl"
+     JOIN "public"."files" "f" ON (("f"."id" = "fl"."file_id")))
+  WHERE ("fl"."entity_type" = 'task_history'::"text");
 
 
-ALTER TABLE "public"."task_history_files" OWNER TO "postgres";
+ALTER VIEW "public"."task_history_files" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."task_history_files" IS 'Files attached to task history entries';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."buildium_file_id" IS 'Buildium API file ID for synchronization';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."task_history_id" IS 'Task history entry this file belongs to';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."file_name" IS 'Name of the file';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."file_type" IS 'MIME type of the file';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."file_size" IS 'Size of the file in bytes';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."file_url" IS 'URL to access the file';
-
-
-
-COMMENT ON COLUMN "public"."task_history_files"."description" IS 'Description of the file';
+COMMENT ON VIEW "public"."task_history_files" IS 'Compatibility view mapping unified files/file_links to legacy task_history_files shape';
 
 
 
@@ -3771,7 +4791,9 @@ CREATE TABLE IF NOT EXISTS "public"."tenants" (
     "tax_id" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone NOT NULL,
-    "sms_opt_in_status" boolean
+    "sms_opt_in_status" boolean,
+    "org_id" "uuid",
+    "user_id" "uuid"
 );
 
 
@@ -3881,7 +4903,10 @@ CREATE TABLE IF NOT EXISTS "public"."transactions" (
     "is_recurring" boolean DEFAULT false,
     "recurring_schedule" "jsonb",
     "buildium_lease_id" integer,
-    "bank_account_id" "uuid"
+    "bank_account_id" "uuid",
+    "org_id" "uuid",
+    "email_receipt" boolean DEFAULT false NOT NULL,
+    "print_receipt" boolean DEFAULT false NOT NULL
 );
 
 
@@ -3962,89 +4987,28 @@ CREATE TABLE IF NOT EXISTS "public"."unit_notes" (
 ALTER TABLE "public"."unit_notes" OWNER TO "postgres";
 
 
-CREATE OR REPLACE VIEW "public"."v_gl_trial_balance" AS
- SELECT "ga"."id" AS "gl_account_id",
-    "ga"."buildium_gl_account_id",
-    "ga"."account_number",
-    "ga"."name",
-    "ga"."type",
-    "ga"."sub_type",
-    COALESCE("sum"(
-        CASE
-            WHEN (("tl"."posting_type")::"text" = 'Debit'::"text") THEN "tl"."amount"
-            ELSE (0)::numeric
-        END), (0)::numeric) AS "debits",
-    COALESCE("sum"(
-        CASE
-            WHEN (("tl"."posting_type")::"text" = 'Credit'::"text") THEN "tl"."amount"
-            ELSE (0)::numeric
-        END), (0)::numeric) AS "credits",
-    (COALESCE("sum"(
-        CASE
-            WHEN (("tl"."posting_type")::"text" = 'Debit'::"text") THEN "tl"."amount"
-            ELSE (0)::numeric
-        END), (0)::numeric) - COALESCE("sum"(
-        CASE
-            WHEN (("tl"."posting_type")::"text" = 'Credit'::"text") THEN "tl"."amount"
-            ELSE (0)::numeric
-        END), (0)::numeric)) AS "balance"
-   FROM ("public"."gl_accounts" "ga"
-     LEFT JOIN "public"."transaction_lines" "tl" ON (("tl"."gl_account_id" = "ga"."id")))
-  GROUP BY "ga"."id", "ga"."buildium_gl_account_id", "ga"."account_number", "ga"."name", "ga"."type", "ga"."sub_type";
+CREATE OR REPLACE VIEW "public"."users_with_auth" AS
+ SELECT "u"."id" AS "user_id",
+    COALESCE("p"."full_name", ("u"."raw_user_meta_data" ->> 'full_name'::"text")) AS "full_name",
+    COALESCE("p"."email", ("u"."email")::"text") AS "email",
+    "u"."phone",
+    "u"."created_at",
+    "u"."last_sign_in_at",
+    ( SELECT COALESCE("jsonb_agg"(DISTINCT "i"."provider"), '[]'::"jsonb") AS "coalesce"
+           FROM "auth"."identities" "i"
+          WHERE ("i"."user_id" = "u"."id")) AS "providers",
+    ( SELECT COALESCE("jsonb_agg"("jsonb_build_object"('org_id', "m"."org_id", 'role', "m"."role")), '[]'::"jsonb") AS "coalesce"
+           FROM "public"."org_memberships" "m"
+          WHERE ("m"."user_id" = "u"."id")) AS "memberships"
+   FROM ("auth"."users" "u"
+     LEFT JOIN "public"."profiles" "p" ON (("p"."user_id" = "u"."id")));
 
 
-ALTER VIEW "public"."v_gl_trial_balance" OWNER TO "postgres";
+ALTER VIEW "public"."users_with_auth" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."vendor_categories" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "buildium_category_id" integer,
-    "name" character varying(255) NOT NULL,
-    "description" "text",
-    "is_active" boolean DEFAULT true,
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
-);
+COMMENT ON VIEW "public"."users_with_auth" IS 'Admin-oriented view that surfaces auth.users with app profile and org memberships';
 
-
-ALTER TABLE "public"."vendor_categories" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."vendor_categories" IS 'Categories for organizing vendors';
-
-
-
-COMMENT ON COLUMN "public"."vendor_categories"."buildium_category_id" IS 'Buildium API category ID for synchronization';
-
-
-
-COMMENT ON COLUMN "public"."vendor_categories"."name" IS 'Category name';
-
-
-
-COMMENT ON COLUMN "public"."vendor_categories"."description" IS 'Category description';
-
-
-
-COMMENT ON COLUMN "public"."vendor_categories"."is_active" IS 'Whether the category is active';
-
-
-
-CREATE TABLE IF NOT EXISTS "public"."work_order_files" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "work_order_id" "uuid" NOT NULL,
-    "buildium_file_id" integer,
-    "file_name" "text" NOT NULL,
-    "file_type" "text",
-    "file_size" integer,
-    "file_url" "text" NOT NULL,
-    "description" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "public"."work_order_files" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."work_orders" (
@@ -4065,7 +5029,8 @@ CREATE TABLE IF NOT EXISTS "public"."work_orders" (
     "notes" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    "vendor_id" "uuid"
+    "vendor_id" "uuid",
+    "org_id" "uuid"
 );
 
 
@@ -4132,6 +5097,397 @@ COMMENT ON COLUMN "public"."work_orders"."notes" IS 'Additional notes about the 
 
 
 
+CREATE OR REPLACE VIEW "public"."v_active_work_orders_ranked" AS
+ SELECT "id",
+    "buildium_work_order_id",
+    "property_id",
+    "unit_id",
+    "subject",
+    "description",
+    "priority",
+    "status",
+    "assigned_to",
+    "estimated_cost",
+    "actual_cost",
+    "scheduled_date",
+    "completed_date",
+    "category",
+    "notes",
+    "created_at",
+    "updated_at",
+    "vendor_id",
+    "org_id",
+    "row_number"() OVER (PARTITION BY "org_id" ORDER BY COALESCE("scheduled_date", "created_at") DESC) AS "rn"
+   FROM "public"."work_orders" "w"
+  WHERE ((COALESCE("status", ''::character varying))::"text" <> ALL ((ARRAY['Completed'::character varying, 'Cancelled'::character varying])::"text"[]));
+
+
+ALTER VIEW "public"."v_active_work_orders_ranked" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_rent_roll_current_month" AS
+ WITH "bounds" AS (
+         SELECT ("date_trunc"('month'::"text", "now"()))::"date" AS "month_start",
+            (("date_trunc"('month'::"text", "now"()) + '1 mon -1 days'::interval))::"date" AS "month_end"
+        ), "active_leases" AS (
+         SELECT "l"."org_id",
+            "l"."id" AS "lease_id"
+           FROM "public"."lease" "l",
+            "bounds" "b_1"
+          WHERE ((("l"."status")::"text" = 'Active'::"text") AND (("l"."lease_from_date")::"date" <= "b_1"."month_end") AND (("l"."lease_to_date" IS NULL) OR (("l"."lease_to_date")::"date" >= "b_1"."month_start")))
+        )
+ SELECT "al"."org_id",
+    COALESCE("sum"("rs"."total_amount"), (0)::numeric) AS "rent_roll_amount"
+   FROM (("active_leases" "al"
+     JOIN "public"."rent_schedules" "rs" ON (("rs"."lease_id" = "al"."lease_id")))
+     JOIN "bounds" "b" ON (true))
+  WHERE (("rs"."rent_cycle" = 'Monthly'::"public"."rent_cycle_enum") AND ("rs"."start_date" <= "b"."month_end") AND (("rs"."end_date" IS NULL) OR ("rs"."end_date" >= "b"."month_start")))
+  GROUP BY "al"."org_id";
+
+
+ALTER VIEW "public"."v_rent_roll_current_month" OWNER TO "postgres";
+
+
+COMMENT ON VIEW "public"."v_rent_roll_current_month" IS 'Aggregated monthly rent roll for current month by org.';
+
+
+
+CREATE OR REPLACE VIEW "public"."v_rent_roll_previous_month" AS
+ WITH "bounds" AS (
+         SELECT (("date_trunc"('month'::"text", "now"()) - '1 mon'::interval))::"date" AS "month_start",
+            (("date_trunc"('month'::"text", "now"()) - '1 day'::interval))::"date" AS "month_end"
+        ), "active_leases" AS (
+         SELECT "l"."org_id",
+            "l"."id" AS "lease_id"
+           FROM "public"."lease" "l",
+            "bounds" "b_1"
+          WHERE ((("l"."status")::"text" = 'Active'::"text") AND (("l"."lease_from_date")::"date" <= "b_1"."month_end") AND (("l"."lease_to_date" IS NULL) OR (("l"."lease_to_date")::"date" >= "b_1"."month_start")))
+        )
+ SELECT "al"."org_id",
+    COALESCE("sum"("rs"."total_amount"), (0)::numeric) AS "rent_roll_amount"
+   FROM (("active_leases" "al"
+     JOIN "public"."rent_schedules" "rs" ON (("rs"."lease_id" = "al"."lease_id")))
+     JOIN "bounds" "b" ON (true))
+  WHERE (("rs"."rent_cycle" = 'Monthly'::"public"."rent_cycle_enum") AND ("rs"."start_date" <= "b"."month_end") AND (("rs"."end_date" IS NULL) OR ("rs"."end_date" >= "b"."month_start")))
+  GROUP BY "al"."org_id";
+
+
+ALTER VIEW "public"."v_rent_roll_previous_month" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_work_order_summary" AS
+ SELECT "org_id",
+    "count"(*) FILTER (WHERE ((COALESCE("status", ''::character varying))::"text" <> ALL ((ARRAY['Completed'::character varying, 'Cancelled'::character varying])::"text"[]))) AS "open_count",
+    "count"(*) FILTER (WHERE (((COALESCE("status", ''::character varying))::"text" <> ALL ((ARRAY['Completed'::character varying, 'Cancelled'::character varying])::"text"[])) AND ("lower"((COALESCE("priority", ''::character varying))::"text") = 'urgent'::"text"))) AS "urgent_count"
+   FROM "public"."work_orders"
+  GROUP BY "org_id";
+
+
+ALTER VIEW "public"."v_work_order_summary" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_dashboard_kpis" AS
+ WITH "p" AS (
+         SELECT "properties"."org_id",
+            "count"(*) AS "total_properties",
+            COALESCE("sum"("properties"."total_active_units"), (0)::bigint) AS "total_units",
+            COALESCE("sum"("properties"."total_occupied_units"), (0)::bigint) AS "occupied_units",
+            COALESCE("sum"(("properties"."total_active_units" - "properties"."total_occupied_units")), (0)::bigint) AS "available_units"
+           FROM "public"."properties"
+          GROUP BY "properties"."org_id"
+        ), "occ" AS (
+         SELECT "properties"."org_id",
+                CASE
+                    WHEN ("sum"("properties"."total_active_units") > 0) THEN "round"(((("sum"("properties"."total_occupied_units"))::numeric / (NULLIF("sum"("properties"."total_active_units"), 0))::numeric) * (100)::numeric), 2)
+                    ELSE (0)::numeric
+                END AS "occupancy_rate"
+           FROM "public"."properties"
+          GROUP BY "properties"."org_id"
+        ), "leases" AS (
+         SELECT "lease"."org_id",
+            "count"(*) FILTER (WHERE (("lease"."status")::"text" = 'Active'::"text")) AS "active_leases"
+           FROM "public"."lease"
+          GROUP BY "lease"."org_id"
+        ), "rr_now" AS (
+         SELECT "v_rent_roll_current_month"."org_id",
+            "v_rent_roll_current_month"."rent_roll_amount"
+           FROM "public"."v_rent_roll_current_month"
+        ), "rr_prev" AS (
+         SELECT "v_rent_roll_previous_month"."org_id",
+            "v_rent_roll_previous_month"."rent_roll_amount"
+           FROM "public"."v_rent_roll_previous_month"
+        )
+ SELECT "p"."org_id",
+    "p"."total_properties",
+    "p"."total_units",
+    "p"."occupied_units",
+    "p"."available_units",
+    "occ"."occupancy_rate",
+    COALESCE("rr_now"."rent_roll_amount", (0)::numeric) AS "monthly_rent_roll",
+    "l"."active_leases",
+        CASE
+            WHEN (COALESCE("rr_prev"."rent_roll_amount", (0)::numeric) = (0)::numeric) THEN NULL::numeric
+            ELSE "round"((((COALESCE("rr_now"."rent_roll_amount", (0)::numeric) - "rr_prev"."rent_roll_amount") / "rr_prev"."rent_roll_amount") * (100)::numeric), 2)
+        END AS "growth_rate",
+    "w"."open_count" AS "open_work_orders",
+    "w"."urgent_count" AS "urgent_work_orders"
+   FROM ((((("p"
+     LEFT JOIN "occ" ON (("occ"."org_id" = "p"."org_id")))
+     LEFT JOIN "leases" "l" ON (("l"."org_id" = "p"."org_id")))
+     LEFT JOIN "rr_now" ON (("rr_now"."org_id" = "p"."org_id")))
+     LEFT JOIN "rr_prev" ON (("rr_prev"."org_id" = "p"."org_id")))
+     LEFT JOIN "public"."v_work_order_summary" "w" ON (("w"."org_id" = "p"."org_id")));
+
+
+ALTER VIEW "public"."v_dashboard_kpis" OWNER TO "postgres";
+
+
+COMMENT ON VIEW "public"."v_dashboard_kpis" IS 'Single-row summary per org to drive top KPI cards.';
+
+
+
+CREATE OR REPLACE VIEW "public"."v_gl_trial_balance" AS
+ SELECT "ga"."id" AS "gl_account_id",
+    "ga"."buildium_gl_account_id",
+    "ga"."account_number",
+    "ga"."name",
+    "ga"."type",
+    "ga"."sub_type",
+    COALESCE("sum"(
+        CASE
+            WHEN (("tl"."posting_type")::"text" = 'Debit'::"text") THEN "tl"."amount"
+            ELSE (0)::numeric
+        END), (0)::numeric) AS "debits",
+    COALESCE("sum"(
+        CASE
+            WHEN (("tl"."posting_type")::"text" = 'Credit'::"text") THEN "tl"."amount"
+            ELSE (0)::numeric
+        END), (0)::numeric) AS "credits",
+    (COALESCE("sum"(
+        CASE
+            WHEN (("tl"."posting_type")::"text" = 'Debit'::"text") THEN "tl"."amount"
+            ELSE (0)::numeric
+        END), (0)::numeric) - COALESCE("sum"(
+        CASE
+            WHEN (("tl"."posting_type")::"text" = 'Credit'::"text") THEN "tl"."amount"
+            ELSE (0)::numeric
+        END), (0)::numeric)) AS "balance"
+   FROM ("public"."gl_accounts" "ga"
+     LEFT JOIN "public"."transaction_lines" "tl" ON (("tl"."gl_account_id" = "ga"."id")))
+  GROUP BY "ga"."id", "ga"."buildium_gl_account_id", "ga"."account_number", "ga"."name", "ga"."type", "ga"."sub_type";
+
+
+ALTER VIEW "public"."v_gl_trial_balance" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_latest_reconciliation_by_account" AS
+ SELECT "property_id",
+    "gl_account_id",
+    "max"("statement_ending_date") AS "last_reconciled_at"
+   FROM "public"."reconciliation_log"
+  WHERE ("is_finished" = true)
+  GROUP BY "property_id", "gl_account_id";
+
+
+ALTER VIEW "public"."v_latest_reconciliation_by_account" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_lease_renewals_summary" AS
+ WITH "base" AS (
+         SELECT "lease"."org_id",
+                CASE
+                    WHEN ("lease"."lease_to_date" IS NULL) THEN NULL::integer
+                    ELSE (("lease"."lease_to_date")::"date" - CURRENT_DATE)
+                END AS "days_until",
+            "lease"."id"
+           FROM "public"."lease"
+          WHERE (("lease"."status")::"text" = 'Active'::"text")
+        )
+ SELECT "org_id",
+    "count"(*) FILTER (WHERE (("days_until" IS NOT NULL) AND ("days_until" <= 30))) AS "critical",
+    "count"(*) FILTER (WHERE (("days_until" > 30) AND ("days_until" <= 60))) AS "upcoming",
+    "count"(*) FILTER (WHERE (("days_until" > 60) AND ("days_until" <= 90))) AS "future"
+   FROM "base"
+  GROUP BY "org_id";
+
+
+ALTER VIEW "public"."v_lease_renewals_summary" OWNER TO "postgres";
+
+
+COMMENT ON VIEW "public"."v_lease_renewals_summary" IS 'Counts of active leases expiring within 0–30/30–60/60–90 days by org.';
+
+
+
+CREATE OR REPLACE VIEW "public"."v_property_onboarding_summary" AS
+ SELECT "org_id",
+    "count"(*) FILTER (WHERE ("status" = 'IN_PROGRESS'::"public"."onboarding_status_enum")) AS "in_progress",
+    "count"(*) FILTER (WHERE ("status" = 'PENDING_APPROVAL'::"public"."onboarding_status_enum")) AS "pending_approval",
+    "count"(*) FILTER (WHERE ("status" = 'OVERDUE'::"public"."onboarding_status_enum")) AS "overdue"
+   FROM "public"."property_onboarding"
+  GROUP BY "org_id";
+
+
+ALTER VIEW "public"."v_property_onboarding_summary" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_recent_transactions_ranked" AS
+ SELECT "id",
+    "buildium_transaction_id",
+    "date",
+    "transaction_type",
+    "total_amount",
+    "check_number",
+    "payee_tenant_id",
+    "payment_method",
+    "memo",
+    "buildium_bill_id",
+    "created_at",
+    "updated_at",
+    "lease_id",
+    "due_date",
+    "vendor_id",
+    "category_id",
+    "reference_number",
+    "status",
+    "is_recurring",
+    "recurring_schedule",
+    "buildium_lease_id",
+    "bank_account_id",
+    "org_id",
+    "row_number"() OVER (PARTITION BY "org_id" ORDER BY "date" DESC, "created_at" DESC) AS "rn"
+   FROM "public"."transactions" "t";
+
+
+ALTER VIEW "public"."v_recent_transactions_ranked" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_reconciliation_stale_alerts" AS
+ SELECT "property_id",
+    "gl_account_id",
+    "last_reconciled_at",
+    (("now"())::"date" - "last_reconciled_at") AS "days_since"
+   FROM "public"."v_latest_reconciliation_by_account" "v"
+  WHERE (("last_reconciled_at" IS NOT NULL) AND (("now"())::"date" > ("last_reconciled_at" + 30)));
+
+
+ALTER VIEW "public"."v_reconciliation_stale_alerts" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_reconciliation_variances" AS
+ SELECT "property_id",
+    "gl_account_id",
+    "statement_ending_date" AS "as_of",
+    "ending_balance" AS "buildium_ending_balance",
+    "public"."gl_ledger_balance_as_of"("property_id", "gl_account_id", "statement_ending_date") AS "ledger_balance",
+    ((COALESCE("ending_balance", (0)::numeric) - "public"."gl_ledger_balance_as_of"("property_id", "gl_account_id", "statement_ending_date")))::numeric(14,2) AS "variance"
+   FROM "public"."reconciliation_log" "rl"
+  WHERE ("statement_ending_date" IS NOT NULL);
+
+
+ALTER VIEW "public"."v_reconciliation_variances" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_reconciliation_variance_alerts" AS
+ WITH "var" AS (
+         SELECT "v"."property_id",
+            "v"."gl_account_id",
+            "v"."as_of",
+            "v"."variance"
+           FROM ("public"."v_reconciliation_variances" "v"
+             JOIN "public"."reconciliation_log" "rl" ON ((("rl"."property_id" = "v"."property_id") AND ("rl"."gl_account_id" = "v"."gl_account_id") AND ("rl"."statement_ending_date" = "v"."as_of"))))
+          WHERE ((COALESCE("rl"."is_finished", false) = true) AND (COALESCE("v"."variance", (0)::numeric) <> (0)::numeric))
+        )
+ SELECT "property_id",
+    "gl_account_id",
+    "as_of",
+    "variance",
+        CASE
+            WHEN (("now"() - ("as_of")::timestamp with time zone) > '24:00:00'::interval) THEN true
+            ELSE false
+        END AS "over_24h"
+   FROM "var";
+
+
+ALTER VIEW "public"."v_reconciliation_variance_alerts" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."v_reconciliation_alerts" AS
+ SELECT 'variance'::"text" AS "alert_type",
+    "v_reconciliation_variance_alerts"."property_id",
+    "v_reconciliation_variance_alerts"."gl_account_id",
+    "v_reconciliation_variance_alerts"."as_of" AS "ref_date",
+    "v_reconciliation_variance_alerts"."variance" AS "metric"
+   FROM "public"."v_reconciliation_variance_alerts"
+  WHERE "v_reconciliation_variance_alerts"."over_24h"
+UNION ALL
+ SELECT 'stale'::"text" AS "alert_type",
+    "v_reconciliation_stale_alerts"."property_id",
+    "v_reconciliation_stale_alerts"."gl_account_id",
+    "v_reconciliation_stale_alerts"."last_reconciled_at" AS "ref_date",
+    ("v_reconciliation_stale_alerts"."days_since")::numeric AS "metric"
+   FROM "public"."v_reconciliation_stale_alerts";
+
+
+ALTER VIEW "public"."v_reconciliation_alerts" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."vendor_categories" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "buildium_category_id" integer,
+    "name" character varying(255) NOT NULL,
+    "description" "text",
+    "is_active" boolean DEFAULT true,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."vendor_categories" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."vendor_categories" IS 'Categories for organizing vendors';
+
+
+
+COMMENT ON COLUMN "public"."vendor_categories"."buildium_category_id" IS 'Buildium API category ID for synchronization';
+
+
+
+COMMENT ON COLUMN "public"."vendor_categories"."name" IS 'Category name';
+
+
+
+COMMENT ON COLUMN "public"."vendor_categories"."description" IS 'Category description';
+
+
+
+COMMENT ON COLUMN "public"."vendor_categories"."is_active" IS 'Whether the category is active';
+
+
+
+CREATE OR REPLACE VIEW "public"."work_order_files" AS
+ SELECT "f"."id",
+    "fl"."entity_uuid" AS "work_order_id",
+    "f"."buildium_file_id",
+    "f"."file_name",
+    "f"."mime_type" AS "file_type",
+    "f"."size_bytes" AS "file_size",
+    COALESCE("f"."external_url", NULL::"text") AS "file_url",
+    "f"."description",
+    "f"."created_at",
+    "f"."updated_at"
+   FROM ("public"."file_links" "fl"
+     JOIN "public"."files" "f" ON (("f"."id" = "fl"."file_id")))
+  WHERE ("fl"."entity_type" = 'work_order'::"text");
+
+
+ALTER VIEW "public"."work_order_files" OWNER TO "postgres";
+
+
+COMMENT ON VIEW "public"."work_order_files" IS 'Compatibility view mapping unified files/file_links to legacy work_order_files shape';
+
+
+
 ALTER TABLE ONLY "public"."contacts" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."contacts_id_seq"'::"regclass");
 
 
@@ -4141,11 +5497,6 @@ ALTER TABLE ONLY "public"."lease" ALTER COLUMN "id" SET DEFAULT "nextval"('"publ
 
 
 ALTER TABLE ONLY "public"."staff" ALTER COLUMN "id" SET DEFAULT "nextval"('"public"."Staff_id_seq"'::"regclass");
-
-
-
-ALTER TABLE ONLY "public"."lease"
-    ADD CONSTRAINT "Lease_buildium_lease_id_key" UNIQUE ("buildium_lease_id");
 
 
 
@@ -4199,6 +5550,11 @@ ALTER TABLE ONLY "public"."lease"
 
 
 
+ALTER TABLE ONLY "public"."buildium_sync_runs"
+    ADD CONSTRAINT "buildium_sync_runs_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."buildium_sync_status"
     ADD CONSTRAINT "buildium_sync_status_pkey" PRIMARY KEY ("id");
 
@@ -4216,6 +5572,16 @@ ALTER TABLE ONLY "public"."buildium_webhook_events"
 
 ALTER TABLE ONLY "public"."contacts"
     ADD CONSTRAINT "contacts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."file_links"
+    ADD CONSTRAINT "file_links_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."files"
+    ADD CONSTRAINT "files_pkey" PRIMARY KEY ("id");
 
 
 
@@ -4254,11 +5620,6 @@ ALTER TABLE ONLY "public"."journal_entries"
 
 
 
-ALTER TABLE ONLY "public"."lease"
-    ADD CONSTRAINT "lease_buildium_lease_id_unique" UNIQUE ("buildium_lease_id");
-
-
-
 ALTER TABLE ONLY "public"."lease_contacts"
     ADD CONSTRAINT "lease_contacts_lease_id_tenant_id_key" UNIQUE ("lease_id", "tenant_id");
 
@@ -4276,6 +5637,26 @@ ALTER TABLE ONLY "public"."lease_notes"
 
 ALTER TABLE ONLY "public"."lease_recurring_transactions"
     ADD CONSTRAINT "lease_recurring_transactions_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."org_memberships"
+    ADD CONSTRAINT "org_memberships_org_id_user_id_key" UNIQUE ("org_id", "user_id");
+
+
+
+ALTER TABLE ONLY "public"."org_memberships"
+    ADD CONSTRAINT "org_memberships_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."organizations"
+    ADD CONSTRAINT "organizations_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."organizations"
+    ADD CONSTRAINT "organizations_slug_key" UNIQUE ("slug");
 
 
 
@@ -4299,6 +5680,16 @@ ALTER TABLE ONLY "public"."ownerships"
 
 
 
+ALTER TABLE ONLY "public"."profiles"
+    ADD CONSTRAINT "profiles_email_key" UNIQUE ("email");
+
+
+
+ALTER TABLE ONLY "public"."profiles"
+    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("user_id");
+
+
+
 ALTER TABLE ONLY "public"."properties"
     ADD CONSTRAINT "properties_buildium_property_id_unique" UNIQUE ("buildium_property_id");
 
@@ -4313,6 +5704,21 @@ ALTER TABLE ONLY "public"."properties"
 
 
 
+ALTER TABLE ONLY "public"."property_images"
+    ADD CONSTRAINT "property_images_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding"
+    ADD CONSTRAINT "property_onboarding_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding_tasks"
+    ADD CONSTRAINT "property_onboarding_tasks_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."property_ownerships_cache"
     ADD CONSTRAINT "property_ownerships_cache_pkey" PRIMARY KEY ("ownership_id");
 
@@ -4320,6 +5726,11 @@ ALTER TABLE ONLY "public"."property_ownerships_cache"
 
 ALTER TABLE ONLY "public"."property_staff"
     ADD CONSTRAINT "property_staff_pkey" PRIMARY KEY ("property_id", "staff_id", "role");
+
+
+
+ALTER TABLE ONLY "public"."reconciliation_log"
+    ADD CONSTRAINT "reconciliation_log_pkey" PRIMARY KEY ("id");
 
 
 
@@ -4345,16 +5756,6 @@ ALTER TABLE ONLY "public"."task_categories"
 
 ALTER TABLE ONLY "public"."task_history"
     ADD CONSTRAINT "task_history_buildium_history_id_key" UNIQUE ("buildium_history_id");
-
-
-
-ALTER TABLE ONLY "public"."task_history_files"
-    ADD CONSTRAINT "task_history_files_buildium_file_id_key" UNIQUE ("buildium_file_id");
-
-
-
-ALTER TABLE ONLY "public"."task_history_files"
-    ADD CONSTRAINT "task_history_files_pkey" PRIMARY KEY ("id");
 
 
 
@@ -4423,17 +5824,17 @@ ALTER TABLE ONLY "public"."unit_notes"
 
 
 ALTER TABLE ONLY "public"."units"
-    ADD CONSTRAINT "units_buildium_unit_id_key" UNIQUE ("buildium_unit_id");
-
-
-
-ALTER TABLE ONLY "public"."units"
     ADD CONSTRAINT "units_buildium_unit_id_unique" UNIQUE ("buildium_unit_id");
 
 
 
 ALTER TABLE ONLY "public"."units"
     ADD CONSTRAINT "units_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."buildium_webhook_events"
+    ADD CONSTRAINT "uq_buildium_webhook_events_event_id" UNIQUE ("event_id");
 
 
 
@@ -4462,11 +5863,6 @@ ALTER TABLE "public"."vendors"
 
 
 
-ALTER TABLE ONLY "public"."work_order_files"
-    ADD CONSTRAINT "work_order_files_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."work_orders"
     ADD CONSTRAINT "work_orders_buildium_work_order_id_key" UNIQUE ("buildium_work_order_id");
 
@@ -4482,10 +5878,6 @@ CREATE INDEX "Lease_propertyId_idx" ON "public"."lease" USING "btree" ("property
 
 
 CREATE INDEX "Lease_unitId_status_idx" ON "public"."lease" USING "btree" ("unit_id", "status");
-
-
-
-CREATE INDEX "Staff_buildium_user_id_idx" ON "public"."staff" USING "btree" ("buildium_user_id");
 
 
 
@@ -4505,10 +5897,6 @@ CREATE INDEX "appliances_name_idx" ON "public"."appliances" USING "btree" ("name
 
 
 
-CREATE INDEX "appliances_property_id_idx" ON "public"."appliances" USING "btree" ("property_id");
-
-
-
 CREATE INDEX "appliances_unit_id_idx" ON "public"."appliances" USING "btree" ("unit_id");
 
 
@@ -4517,15 +5905,23 @@ CREATE INDEX "bank_accounts_name_idx" ON "public"."bank_accounts" USING "btree" 
 
 
 
+CREATE INDEX "buildium_sync_runs_job_started_idx" ON "public"."buildium_sync_runs" USING "btree" ("job_type", "started_at" DESC);
+
+
+
+CREATE UNIQUE INDEX "files_buildium_file_id_uniq" ON "public"."files" USING "btree" ("buildium_file_id") WHERE ("buildium_file_id" IS NOT NULL);
+
+
+
+CREATE INDEX "gl_accounts_is_sdl_idx" ON "public"."gl_accounts" USING "btree" ("is_security_deposit_liability");
+
+
+
 CREATE INDEX "idx_bank_accounts_bank_account_type" ON "public"."bank_accounts" USING "btree" ("bank_account_type");
 
 
 
 CREATE INDEX "idx_bank_accounts_buildium_bank_id" ON "public"."bank_accounts" USING "btree" ("buildium_bank_id");
-
-
-
-CREATE INDEX "idx_bank_accounts_buildium_id" ON "public"."bank_accounts" USING "btree" ("buildium_bank_id");
 
 
 
@@ -4541,35 +5937,7 @@ CREATE INDEX "idx_bank_accounts_last_source_ts" ON "public"."bank_accounts" USIN
 
 
 
-CREATE INDEX "idx_bank_accounts_name" ON "public"."bank_accounts" USING "btree" ("name");
-
-
-
-CREATE INDEX "idx_bill_categories_active" ON "public"."bill_categories" USING "btree" ("is_active");
-
-
-
-CREATE INDEX "idx_bill_categories_buildium_id" ON "public"."bill_categories" USING "btree" ("buildium_category_id");
-
-
-
-CREATE INDEX "idx_bill_categories_name" ON "public"."bill_categories" USING "btree" ("name");
-
-
-
-CREATE INDEX "idx_buildium_api_log_created" ON "public"."buildium_api_log" USING "btree" ("created_at");
-
-
-
-CREATE INDEX "idx_buildium_api_log_endpoint" ON "public"."buildium_api_log" USING "btree" ("endpoint");
-
-
-
-CREATE INDEX "idx_buildium_api_log_method" ON "public"."buildium_api_log" USING "btree" ("method");
-
-
-
-CREATE INDEX "idx_buildium_api_log_status" ON "public"."buildium_api_log" USING "btree" ("response_status");
+CREATE INDEX "idx_bank_accounts_org" ON "public"."bank_accounts" USING "btree" ("org_id");
 
 
 
@@ -4597,7 +5965,31 @@ CREATE INDEX "idx_buildium_sync_last_synced" ON "public"."buildium_sync_status" 
 
 
 
+CREATE INDEX "idx_buildium_sync_runs_org" ON "public"."buildium_sync_runs" USING "btree" ("org_id");
+
+
+
 CREATE INDEX "idx_buildium_sync_status" ON "public"."buildium_sync_status" USING "btree" ("sync_status");
+
+
+
+CREATE INDEX "idx_buildium_sync_status_org" ON "public"."buildium_sync_status" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_buildium_webhook_events_created_at" ON "public"."buildium_webhook_events" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_buildium_webhook_events_org" ON "public"."buildium_webhook_events" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_buildium_webhook_events_processed" ON "public"."buildium_webhook_events" USING "btree" ("processed", "processed_at");
+
+
+
+CREATE INDEX "idx_column_info_cache_table_id" ON "public"."column_info_cache" USING "btree" ("table_id");
 
 
 
@@ -4613,11 +6005,43 @@ CREATE INDEX "idx_contacts_primary_email" ON "public"."contacts" USING "btree" (
 
 
 
+CREATE INDEX "idx_file_links_entity_int" ON "public"."file_links" USING "btree" ("entity_type", "entity_int") WHERE ("entity_int" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_file_links_entity_uuid" ON "public"."file_links" USING "btree" ("entity_type", "entity_uuid") WHERE ("entity_uuid" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_file_links_file" ON "public"."file_links" USING "btree" ("file_id");
+
+
+
+CREATE INDEX "idx_file_links_org" ON "public"."file_links" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_files_org" ON "public"."files" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_files_org_sha" ON "public"."files" USING "btree" ("org_id", "sha256");
+
+
+
+CREATE INDEX "idx_files_storage" ON "public"."files" USING "btree" ("storage_provider", "bucket");
+
+
+
 CREATE INDEX "idx_gl_accounts_active" ON "public"."gl_accounts" USING "btree" ("is_active");
 
 
 
 CREATE INDEX "idx_gl_accounts_buildium_id" ON "public"."gl_accounts" USING "btree" ("buildium_gl_account_id");
+
+
+
+CREATE INDEX "idx_gl_accounts_org" ON "public"."gl_accounts" USING "btree" ("org_id");
 
 
 
@@ -4629,15 +6053,15 @@ CREATE INDEX "idx_gl_accounts_type" ON "public"."gl_accounts" USING "btree" ("ty
 
 
 
+CREATE INDEX "idx_inspections_unit_id" ON "public"."inspections" USING "btree" ("unit_id");
+
+
+
 CREATE INDEX "idx_journal_entries_gl_account_id" ON "public"."transaction_lines" USING "btree" ("gl_account_id");
 
 
 
 CREATE INDEX "idx_journal_entries_transaction_id" ON "public"."transaction_lines" USING "btree" ("transaction_id");
-
-
-
-CREATE INDEX "idx_lease_buildium_id" ON "public"."lease" USING "btree" ("buildium_lease_id");
 
 
 
@@ -4669,7 +6093,15 @@ CREATE INDEX "idx_lease_contacts_notice_given_date" ON "public"."lease_contacts"
 
 
 
+CREATE INDEX "idx_lease_contacts_org" ON "public"."lease_contacts" USING "btree" ("org_id");
+
+
+
 CREATE INDEX "idx_lease_contacts_tenant_id" ON "public"."lease_contacts" USING "btree" ("tenant_id");
+
+
+
+CREATE INDEX "idx_lease_dates" ON "public"."lease" USING "btree" ("lease_from_date", "lease_to_date");
 
 
 
@@ -4681,11 +6113,27 @@ CREATE INDEX "idx_lease_notes_lease_id" ON "public"."lease_notes" USING "btree" 
 
 
 
+CREATE INDEX "idx_lease_property_id" ON "public"."lease" USING "btree" ("property_id");
+
+
+
 CREATE INDEX "idx_lease_recurring_buildium_recurring_id" ON "public"."lease_recurring_transactions" USING "btree" ("buildium_recurring_id");
 
 
 
 CREATE INDEX "idx_lease_recurring_lease_id" ON "public"."lease_recurring_transactions" USING "btree" ("lease_id");
+
+
+
+CREATE INDEX "idx_lease_status" ON "public"."lease" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_lease_to_date_status_org" ON "public"."lease" USING "btree" ("lease_to_date", "status", "org_id");
+
+
+
+CREATE INDEX "idx_lease_unit_id" ON "public"."lease" USING "btree" ("unit_id");
 
 
 
@@ -4697,15 +6145,23 @@ CREATE INDEX "idx_olc_email_lower" ON "public"."owners_list_cache" USING "btree"
 
 
 
+CREATE INDEX "idx_org_memberships_org_id" ON "public"."org_memberships" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_org_memberships_user_id" ON "public"."org_memberships" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "idx_organizations_slug" ON "public"."organizations" USING "btree" ("slug");
+
+
+
 CREATE INDEX "idx_owners_active" ON "public"."owners" USING "btree" ("is_active");
 
 
 
 CREATE INDEX "idx_owners_buildium_id" ON "public"."owners" USING "btree" ("buildium_owner_id");
-
-
-
-CREATE INDEX "idx_owners_buildium_owner_id" ON "public"."owners" USING "btree" ("buildium_owner_id");
 
 
 
@@ -4721,7 +6177,15 @@ CREATE INDEX "idx_owners_last_contacted" ON "public"."owners" USING "btree" ("la
 
 
 
+CREATE INDEX "idx_owners_org" ON "public"."owners" USING "btree" ("org_id");
+
+
+
 CREATE INDEX "idx_owners_tax_include1099" ON "public"."owners" USING "btree" ("tax_include1099");
+
+
+
+CREATE INDEX "idx_ownerships_org" ON "public"."ownerships" USING "btree" ("org_id");
 
 
 
@@ -4730,6 +6194,10 @@ CREATE INDEX "idx_ownerships_owner_id" ON "public"."ownerships" USING "btree" ("
 
 
 CREATE INDEX "idx_ownerships_property_id" ON "public"."ownerships" USING "btree" ("property_id");
+
+
+
+CREATE INDEX "idx_ownerships_property_primary" ON "public"."ownerships" USING "btree" ("property_id", "primary");
 
 
 
@@ -4769,6 +6237,14 @@ CREATE INDEX "idx_properties_neighborhood" ON "public"."properties" USING "btree
 
 
 
+CREATE INDEX "idx_properties_operating_bank_account_id" ON "public"."properties" USING "btree" ("operating_bank_account_id");
+
+
+
+CREATE INDEX "idx_properties_org" ON "public"."properties" USING "btree" ("org_id");
+
+
+
 CREATE INDEX "idx_properties_total_active_units" ON "public"."properties" USING "btree" ("total_active_units");
 
 
@@ -4789,11 +6265,51 @@ CREATE INDEX "idx_properties_type" ON "public"."properties" USING "btree" ("prop
 
 
 
+CREATE INDEX "idx_property_onboarding_org" ON "public"."property_onboarding" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_property_onboarding_property" ON "public"."property_onboarding" USING "btree" ("property_id");
+
+
+
+CREATE INDEX "idx_property_onboarding_status" ON "public"."property_onboarding" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_property_onboarding_tasks_onboarding" ON "public"."property_onboarding_tasks" USING "btree" ("onboarding_id");
+
+
+
+CREATE INDEX "idx_property_onboarding_tasks_org" ON "public"."property_onboarding_tasks" USING "btree" ("org_id");
+
+
+
+CREATE INDEX "idx_property_onboarding_tasks_status" ON "public"."property_onboarding_tasks" USING "btree" ("status");
+
+
+
 CREATE INDEX "idx_property_staff_property_id" ON "public"."property_staff" USING "btree" ("property_id");
 
 
 
+CREATE INDEX "idx_property_staff_property_role" ON "public"."property_staff" USING "btree" ("property_id", "role");
+
+
+
 CREATE INDEX "idx_property_staff_staff_id" ON "public"."property_staff" USING "btree" ("staff_id");
+
+
+
+CREATE INDEX "idx_reconciliation_log_bank_account_id" ON "public"."reconciliation_log" USING "btree" ("bank_account_id");
+
+
+
+CREATE INDEX "idx_reconciliation_log_gl_account_id" ON "public"."reconciliation_log" USING "btree" ("gl_account_id");
+
+
+
+CREATE INDEX "idx_reconciliation_log_property_id" ON "public"."reconciliation_log" USING "btree" ("property_id");
 
 
 
@@ -4802,10 +6318,6 @@ CREATE INDEX "idx_rent_schedules_buildium_id" ON "public"."rent_schedules" USING
 
 
 CREATE INDEX "idx_rent_schedules_end_date" ON "public"."rent_schedules" USING "btree" ("end_date");
-
-
-
-CREATE INDEX "idx_rent_schedules_lease_id" ON "public"."rent_schedules" USING "btree" ("lease_id");
 
 
 
@@ -4821,7 +6333,15 @@ CREATE INDEX "idx_sync_operations_entity_buildium_id" ON "public"."sync_operatio
 
 
 
+CREATE INDEX "idx_sync_operations_org" ON "public"."sync_operations" USING "btree" ("org_id");
+
+
+
 CREATE INDEX "idx_sync_operations_status" ON "public"."sync_operations" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_table_info_cache_schema_name" ON "public"."table_info_cache" USING "btree" ("schema", "name");
 
 
 
@@ -4845,19 +6365,11 @@ CREATE INDEX "idx_task_categories_name" ON "public"."task_categories" USING "btr
 
 
 
+CREATE INDEX "idx_task_categories_parent_id" ON "public"."task_categories" USING "btree" ("parent_id");
+
+
+
 CREATE INDEX "idx_task_history_buildium_id" ON "public"."task_history" USING "btree" ("buildium_history_id");
-
-
-
-CREATE INDEX "idx_task_history_files_buildium_id" ON "public"."task_history_files" USING "btree" ("buildium_file_id");
-
-
-
-CREATE INDEX "idx_task_history_files_history" ON "public"."task_history_files" USING "btree" ("task_history_id");
-
-
-
-CREATE INDEX "idx_task_history_files_type" ON "public"."task_history_files" USING "btree" ("file_type");
 
 
 
@@ -4909,6 +6421,10 @@ CREATE INDEX "idx_tasks_property" ON "public"."tasks" USING "btree" ("property_i
 
 
 
+CREATE INDEX "idx_tasks_requested_by_contact_id" ON "public"."tasks" USING "btree" ("requested_by_contact_id");
+
+
+
 CREATE INDEX "idx_tasks_scheduled" ON "public"."tasks" USING "btree" ("scheduled_date");
 
 
@@ -4942,6 +6458,10 @@ CREATE INDEX "idx_tenants_buildium_id" ON "public"."tenants" USING "btree" ("bui
 
 
 CREATE INDEX "idx_tenants_contact_id" ON "public"."tenants" USING "btree" ("contact_id");
+
+
+
+CREATE INDEX "idx_tenants_org" ON "public"."tenants" USING "btree" ("org_id");
 
 
 
@@ -4989,6 +6509,10 @@ CREATE INDEX "idx_transactions_category_id" ON "public"."transactions" USING "bt
 
 
 
+CREATE INDEX "idx_transactions_date_org" ON "public"."transactions" USING "btree" ("date", "org_id");
+
+
+
 CREATE INDEX "idx_transactions_due_date" ON "public"."transactions" USING "btree" ("due_date");
 
 
@@ -4997,11 +6521,23 @@ CREATE INDEX "idx_transactions_lease_id" ON "public"."transactions" USING "btree
 
 
 
+CREATE INDEX "idx_transactions_org" ON "public"."transactions" USING "btree" ("org_id");
+
+
+
 CREATE INDEX "idx_transactions_status" ON "public"."transactions" USING "btree" ("status");
 
 
 
+CREATE INDEX "idx_transactions_type_org" ON "public"."transactions" USING "btree" ("transaction_type", "org_id");
+
+
+
 CREATE INDEX "idx_transactions_vendor_id" ON "public"."transactions" USING "btree" ("vendor_id");
+
+
+
+CREATE INDEX "idx_tx_lines_property_date" ON "public"."transaction_lines" USING "btree" ("property_id", "date");
 
 
 
@@ -5014,6 +6550,10 @@ CREATE INDEX "idx_units_buildium_id" ON "public"."units" USING "btree" ("buildiu
 
 
 CREATE INDEX "idx_units_buildium_updated" ON "public"."units" USING "btree" ("buildium_updated_at");
+
+
+
+CREATE INDEX "idx_units_org" ON "public"."units" USING "btree" ("org_id");
 
 
 
@@ -5077,10 +6617,6 @@ CREATE INDEX "idx_webhook_events_type" ON "public"."buildium_webhook_events" USI
 
 
 
-CREATE INDEX "idx_work_order_files_work_order_id" ON "public"."work_order_files" USING "btree" ("work_order_id");
-
-
-
 CREATE INDEX "idx_work_orders_assigned" ON "public"."work_orders" USING "btree" ("assigned_to");
 
 
@@ -5090,6 +6626,10 @@ CREATE INDEX "idx_work_orders_buildium_id" ON "public"."work_orders" USING "btre
 
 
 CREATE INDEX "idx_work_orders_category" ON "public"."work_orders" USING "btree" ("category");
+
+
+
+CREATE INDEX "idx_work_orders_org" ON "public"."work_orders" USING "btree" ("org_id");
 
 
 
@@ -5109,6 +6649,10 @@ CREATE INDEX "idx_work_orders_status" ON "public"."work_orders" USING "btree" ("
 
 
 
+CREATE INDEX "idx_work_orders_status_priority_org" ON "public"."work_orders" USING "btree" ("status", "priority", "org_id");
+
+
+
 CREATE INDEX "idx_work_orders_unit" ON "public"."work_orders" USING "btree" ("unit_id");
 
 
@@ -5117,23 +6661,7 @@ CREATE INDEX "idx_work_orders_vendor_id" ON "public"."work_orders" USING "btree"
 
 
 
-CREATE INDEX "inspections_property_idx" ON "public"."inspections" USING "btree" ("property");
-
-
-
-CREATE INDEX "inspections_unit_id_idx" ON "public"."inspections" USING "btree" ("unit_id");
-
-
-
-CREATE INDEX "inspections_unit_idx" ON "public"."inspections" USING "btree" ("unit");
-
-
-
 CREATE INDEX "journal_entries_account_entity_id_idx" ON "public"."transaction_lines" USING "btree" ("account_entity_id");
-
-
-
-CREATE INDEX "journal_entries_buildium_unit_id_idx" ON "public"."transaction_lines" USING "btree" ("buildium_unit_id");
 
 
 
@@ -5145,7 +6673,43 @@ CREATE INDEX "properties_name_idx" ON "public"."properties" USING "btree" ("name
 
 
 
+CREATE UNIQUE INDEX "property_images_buildium_image_id_key" ON "public"."property_images" USING "btree" ("buildium_image_id") WHERE ("buildium_image_id" IS NOT NULL);
+
+
+
+CREATE INDEX "property_images_property_id_idx" ON "public"."property_images" USING "btree" ("property_id");
+
+
+
+CREATE INDEX "property_staff_property_id_staff_id_role_idx" ON "public"."property_staff" USING "btree" ("property_id", "staff_id", "role");
+
+
+
 CREATE INDEX "rent_schedules_lease_id_idx" ON "public"."rent_schedules" USING "btree" ("lease_id");
+
+
+
+CREATE INDEX "rl_buildium_acct_idx" ON "public"."reconciliation_log" USING "btree" ("buildium_bank_account_id", "statement_ending_date");
+
+
+
+CREATE UNIQUE INDEX "staff_buildium_staff_id_key" ON "public"."staff" USING "btree" ("buildium_staff_id") WHERE ("buildium_staff_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "staff_email_key" ON "public"."staff" USING "btree" ("lower"("email")) WHERE ("email" IS NOT NULL);
+
+
+
+CREATE INDEX "staff_user_id_idx" ON "public"."staff" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "tl_prop_date_idx" ON "public"."transaction_lines" USING "btree" ("property_id", "date");
+
+
+
+CREATE INDEX "tl_prop_gl_date_idx" ON "public"."transaction_lines" USING "btree" ("property_id", "gl_account_id", "date");
 
 
 
@@ -5177,11 +6741,15 @@ CREATE UNIQUE INDEX "uq_contacts_primary_email_lower" ON "public"."contacts" USI
 
 
 
+CREATE UNIQUE INDEX "uq_contacts_user_id" ON "public"."contacts" USING "btree" ("user_id") WHERE ("user_id" IS NOT NULL);
+
+
+
 CREATE UNIQUE INDEX "uq_owners_contact_id" ON "public"."owners" USING "btree" ("contact_id");
 
 
 
-CREATE UNIQUE INDEX "work_order_files_buildium_file_id_uniq" ON "public"."work_order_files" USING "btree" ("buildium_file_id") WHERE ("buildium_file_id" IS NOT NULL);
+CREATE UNIQUE INDEX "uq_properties_org_name" ON "public"."properties" USING "btree" ("org_id", "name");
 
 
 
@@ -5210,6 +6778,14 @@ CREATE OR REPLACE TRIGGER "set_gl_import_cursors_updated_at" BEFORE UPDATE ON "p
 
 
 CREATE OR REPLACE TRIGGER "set_journal_entries_updated_at" BEFORE UPDATE ON "public"."journal_entries" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_org_memberships_updated_at" BEFORE UPDATE ON "public"."org_memberships" FOR EACH ROW EXECUTE FUNCTION "public"."set_org_memberships_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "set_organizations_updated_at" BEFORE UPDATE ON "public"."organizations" FOR EACH ROW EXECUTE FUNCTION "public"."set_organizations_updated_at"();
 
 
 
@@ -5245,11 +6821,19 @@ CREATE OR REPLACE TRIGGER "trg_contacts_updated_at" BEFORE UPDATE ON "public"."c
 
 
 
+CREATE OR REPLACE TRIGGER "trg_files_updated_at" BEFORE UPDATE ON "public"."files" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_gl_accounts_updated_at" BEFORE UPDATE ON "public"."gl_accounts" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
 CREATE OR REPLACE TRIGGER "trg_inspections_updated_at" BEFORE UPDATE ON "public"."inspections" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_lease_contacts_org_guard" BEFORE INSERT OR UPDATE ON "public"."lease_contacts" FOR EACH ROW EXECUTE FUNCTION "public"."lease_contacts_org_guard"();
 
 
 
@@ -5273,6 +6857,10 @@ CREATE OR REPLACE TRIGGER "trg_owners_updated_at" BEFORE UPDATE ON "public"."own
 
 
 
+CREATE OR REPLACE TRIGGER "trg_ownerships_org_guard" BEFORE INSERT OR UPDATE ON "public"."ownerships" FOR EACH ROW EXECUTE FUNCTION "public"."ownerships_org_guard"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_ownerships_updated_at" BEFORE UPDATE ON "public"."ownerships" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
@@ -5285,6 +6873,18 @@ CREATE OR REPLACE TRIGGER "trg_properties_updated_at" BEFORE UPDATE ON "public".
 
 
 
+CREATE OR REPLACE TRIGGER "trg_property_images_updated_at" BEFORE UPDATE ON "public"."property_images" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_property_onboarding_tasks_updated_at" BEFORE UPDATE ON "public"."property_onboarding_tasks" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_property_onboarding_updated_at" BEFORE UPDATE ON "public"."property_onboarding" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_property_ownerships_cache_updated_at" BEFORE UPDATE ON "public"."property_ownerships_cache" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
@@ -5294,6 +6894,10 @@ CREATE OR REPLACE TRIGGER "trg_property_staff_updated_at" BEFORE UPDATE ON "publ
 
 
 CREATE OR REPLACE TRIGGER "trg_rent_schedules_updated_at" BEFORE UPDATE ON "public"."rent_schedules" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_rl_sync_as_of" BEFORE INSERT OR UPDATE ON "public"."reconciliation_log" FOR EACH ROW EXECUTE FUNCTION "public"."reconciliation_log_sync_as_of"();
 
 
 
@@ -5310,10 +6914,6 @@ CREATE OR REPLACE TRIGGER "trg_sync_operations_updated_at" BEFORE UPDATE ON "pub
 
 
 CREATE OR REPLACE TRIGGER "trg_task_categories_updated_at" BEFORE UPDATE ON "public"."task_categories" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "trg_task_history_files_updated_at" BEFORE UPDATE ON "public"."task_history_files" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -5345,6 +6945,10 @@ CREATE OR REPLACE TRIGGER "trg_unit_notes_updated_at" BEFORE UPDATE ON "public".
 
 
 
+CREATE OR REPLACE TRIGGER "trg_units_org_guard" BEFORE INSERT OR UPDATE ON "public"."units" FOR EACH ROW EXECUTE FUNCTION "public"."units_org_guard"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_units_updated_at" BEFORE UPDATE ON "public"."units" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
@@ -5354,6 +6958,10 @@ CREATE OR REPLACE TRIGGER "trg_vendor_categories_updated_at" BEFORE UPDATE ON "p
 
 
 CREATE OR REPLACE TRIGGER "trg_vendors_updated_at" BEFORE UPDATE ON "public"."vendors" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_work_orders_org_guard" BEFORE INSERT OR UPDATE ON "public"."work_orders" FOR EACH ROW EXECUTE FUNCTION "public"."work_orders_org_guard"();
 
 
 
@@ -5401,17 +7009,57 @@ ALTER TABLE ONLY "public"."appliance_service_history"
 
 
 ALTER TABLE ONLY "public"."appliances"
-    ADD CONSTRAINT "appliances_property_id_fkey" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."appliances"
     ADD CONSTRAINT "appliances_unit_id_fkey" FOREIGN KEY ("unit_id") REFERENCES "public"."units"("id") ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."bank_accounts"
     ADD CONSTRAINT "bank_accounts_gl_account_fkey" FOREIGN KEY ("gl_account") REFERENCES "public"."gl_accounts"("id");
+
+
+
+ALTER TABLE ONLY "public"."bank_accounts"
+    ADD CONSTRAINT "bank_accounts_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."buildium_sync_runs"
+    ADD CONSTRAINT "buildium_sync_runs_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."buildium_sync_status"
+    ADD CONSTRAINT "buildium_sync_status_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."buildium_webhook_events"
+    ADD CONSTRAINT "buildium_webhook_events_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."contacts"
+    ADD CONSTRAINT "contacts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."file_links"
+    ADD CONSTRAINT "file_links_file_id_fkey" FOREIGN KEY ("file_id") REFERENCES "public"."files"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."lease"
+    ADD CONSTRAINT "fk_lease_property_id" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id");
+
+
+
+ALTER TABLE ONLY "public"."lease"
+    ADD CONSTRAINT "fk_lease_unit_id" FOREIGN KEY ("unit_id") REFERENCES "public"."units"("id");
+
+
+
+ALTER TABLE ONLY "public"."gl_accounts"
+    ADD CONSTRAINT "gl_accounts_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
 
 
 
@@ -5456,6 +7104,11 @@ ALTER TABLE ONLY "public"."lease_contacts"
 
 
 ALTER TABLE ONLY "public"."lease_contacts"
+    ADD CONSTRAINT "lease_contacts_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."lease_contacts"
     ADD CONSTRAINT "lease_contacts_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE CASCADE;
 
 
@@ -5465,13 +7118,43 @@ ALTER TABLE ONLY "public"."lease_notes"
 
 
 
+ALTER TABLE ONLY "public"."lease"
+    ADD CONSTRAINT "lease_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
 ALTER TABLE ONLY "public"."lease_recurring_transactions"
     ADD CONSTRAINT "lease_recurring_transactions_lease_id_fkey" FOREIGN KEY ("lease_id") REFERENCES "public"."lease"("id") ON DELETE CASCADE;
 
 
 
+ALTER TABLE ONLY "public"."org_memberships"
+    ADD CONSTRAINT "org_memberships_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."org_memberships"
+    ADD CONSTRAINT "org_memberships_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."owners"
     ADD CONSTRAINT "owners_contact_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."owners"
+    ADD CONSTRAINT "owners_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."owners"
+    ADD CONSTRAINT "owners_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."ownerships"
+    ADD CONSTRAINT "ownerships_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
 
 
 
@@ -5485,6 +7168,11 @@ ALTER TABLE ONLY "public"."ownerships"
 
 
 
+ALTER TABLE ONLY "public"."profiles"
+    ADD CONSTRAINT "profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."properties"
     ADD CONSTRAINT "properties_deposit_trust_account_id_fkey" FOREIGN KEY ("deposit_trust_account_id") REFERENCES "public"."bank_accounts"("id");
 
@@ -5492,6 +7180,46 @@ ALTER TABLE ONLY "public"."properties"
 
 ALTER TABLE ONLY "public"."properties"
     ADD CONSTRAINT "properties_operating_bank_account_id_fkey" FOREIGN KEY ("operating_bank_account_id") REFERENCES "public"."bank_accounts"("id");
+
+
+
+ALTER TABLE ONLY "public"."properties"
+    ADD CONSTRAINT "properties_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."property_images"
+    ADD CONSTRAINT "property_images_property_id_fkey" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding"
+    ADD CONSTRAINT "property_onboarding_assigned_staff_id_fkey" FOREIGN KEY ("assigned_staff_id") REFERENCES "public"."staff"("id");
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding"
+    ADD CONSTRAINT "property_onboarding_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding"
+    ADD CONSTRAINT "property_onboarding_property_id_fkey" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding_tasks"
+    ADD CONSTRAINT "property_onboarding_tasks_assigned_staff_id_fkey" FOREIGN KEY ("assigned_staff_id") REFERENCES "public"."staff"("id");
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding_tasks"
+    ADD CONSTRAINT "property_onboarding_tasks_onboarding_id_fkey" FOREIGN KEY ("onboarding_id") REFERENCES "public"."property_onboarding"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."property_onboarding_tasks"
+    ADD CONSTRAINT "property_onboarding_tasks_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
 
 
 
@@ -5505,18 +7233,43 @@ ALTER TABLE ONLY "public"."property_staff"
 
 
 
+ALTER TABLE ONLY "public"."reconciliation_log"
+    ADD CONSTRAINT "reconciliation_log_bank_account_id_fkey" FOREIGN KEY ("bank_account_id") REFERENCES "public"."bank_accounts"("id");
+
+
+
+ALTER TABLE ONLY "public"."reconciliation_log"
+    ADD CONSTRAINT "reconciliation_log_gl_account_id_fkey" FOREIGN KEY ("gl_account_id") REFERENCES "public"."gl_accounts"("id");
+
+
+
+ALTER TABLE ONLY "public"."reconciliation_log"
+    ADD CONSTRAINT "reconciliation_log_performed_by_fkey" FOREIGN KEY ("performed_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."reconciliation_log"
+    ADD CONSTRAINT "reconciliation_log_property_id_fkey" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id");
+
+
+
 ALTER TABLE ONLY "public"."rent_schedules"
     ADD CONSTRAINT "rent_schedules_lease_id_fkey" FOREIGN KEY ("lease_id") REFERENCES "public"."lease"("id") ON DELETE CASCADE;
 
 
 
+ALTER TABLE ONLY "public"."staff"
+    ADD CONSTRAINT "staff_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."sync_operations"
+    ADD CONSTRAINT "sync_operations_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
 ALTER TABLE ONLY "public"."task_categories"
     ADD CONSTRAINT "task_categories_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."task_categories"("id") ON DELETE SET NULL;
-
-
-
-ALTER TABLE ONLY "public"."task_history_files"
-    ADD CONSTRAINT "task_history_files_task_history_id_fkey" FOREIGN KEY ("task_history_id") REFERENCES "public"."task_history"("id");
 
 
 
@@ -5575,6 +7328,16 @@ ALTER TABLE ONLY "public"."tenants"
 
 
 
+ALTER TABLE ONLY "public"."tenants"
+    ADD CONSTRAINT "tenants_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."tenants"
+    ADD CONSTRAINT "tenants_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."transactions"
     ADD CONSTRAINT "transactions_bank_account_id_fkey" FOREIGN KEY ("bank_account_id") REFERENCES "public"."bank_accounts"("id") ON DELETE SET NULL;
 
@@ -5591,6 +7354,11 @@ ALTER TABLE ONLY "public"."transactions"
 
 
 ALTER TABLE ONLY "public"."transactions"
+    ADD CONSTRAINT "transactions_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."transactions"
     ADD CONSTRAINT "transactions_vendor_id_fkey" FOREIGN KEY ("vendor_id") REFERENCES "public"."vendors"("id");
 
 
@@ -5602,6 +7370,11 @@ ALTER TABLE ONLY "public"."unit_images"
 
 ALTER TABLE ONLY "public"."unit_notes"
     ADD CONSTRAINT "unit_notes_unit_id_fkey" FOREIGN KEY ("unit_id") REFERENCES "public"."units"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."units"
+    ADD CONSTRAINT "units_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
 
 
 
@@ -5625,8 +7398,8 @@ ALTER TABLE ONLY "public"."vendors"
 
 
 
-ALTER TABLE ONLY "public"."work_order_files"
-    ADD CONSTRAINT "work_order_files_work_order_id_fkey" FOREIGN KEY ("work_order_id") REFERENCES "public"."work_orders"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."work_orders"
+    ADD CONSTRAINT "work_orders_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations"("id") ON DELETE RESTRICT;
 
 
 
@@ -5645,377 +7418,31 @@ ALTER TABLE ONLY "public"."work_orders"
 
 
 
-CREATE POLICY "Allow all operations on appliances" ON "public"."appliances" USING (true);
-
-
-
-CREATE POLICY "Allow all operations on inspections" ON "public"."inspections" USING (true);
-
-
-
-CREATE POLICY "Allow all operations on journal_entries" ON "public"."transaction_lines" USING (true);
-
-
-
-CREATE POLICY "Allow all operations on rent_schedules" ON "public"."rent_schedules" USING (true);
-
-
-
-CREATE POLICY "Allow all operations on transactions" ON "public"."transactions" USING (true);
-
-
-
-CREATE POLICY "Allow authenticated users to delete bank accounts" ON "public"."bank_accounts" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Allow authenticated users to insert bank accounts" ON "public"."bank_accounts" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Allow authenticated users to update bank accounts" ON "public"."bank_accounts" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Allow authenticated users to view bank accounts" ON "public"."bank_accounts" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."bank_accounts" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."buildium_api_cache" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."lease" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."owners" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."properties" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."staff" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable delete access for authenticated users" ON "public"."units" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."bank_accounts" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."bill_categories" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."buildium_api_cache" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."buildium_api_log" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."buildium_sync_status" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."buildium_webhook_events" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."lease" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."owners" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."properties" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."staff" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."task_categories" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."task_history" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."task_history_files" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."tasks" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."units" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."vendor_categories" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."vendors" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable insert access for authenticated users" ON "public"."work_orders" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."bank_accounts" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."bill_categories" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."buildium_api_cache" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."buildium_api_log" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."buildium_sync_status" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."buildium_webhook_events" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."lease" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."owners" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."properties" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."staff" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."task_categories" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."task_history" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."task_history_files" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."tasks" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."units" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."vendor_categories" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."vendors" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable read access for all users" ON "public"."work_orders" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."bank_accounts" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."bill_categories" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."buildium_api_cache" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."buildium_sync_status" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."buildium_webhook_events" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."lease" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."owners" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."properties" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."staff" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."task_categories" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."task_history" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."task_history_files" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."tasks" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."units" FOR UPDATE USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."vendor_categories" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."vendors" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Enable update access for authenticated users" ON "public"."work_orders" FOR UPDATE USING (true);
-
-
-
-CREATE POLICY "Owners delete policy" ON "public"."owners" FOR DELETE TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Owners insert policy" ON "public"."owners" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
-CREATE POLICY "Owners list cache delete policy" ON "public"."owners_list_cache" FOR DELETE TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Owners list cache insert policy" ON "public"."owners_list_cache" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
-CREATE POLICY "Owners list cache read policy" ON "public"."owners_list_cache" FOR SELECT TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Owners list cache update policy" ON "public"."owners_list_cache" FOR UPDATE TO "authenticated" USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Owners read policy" ON "public"."owners" FOR SELECT TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Owners update policy" ON "public"."owners" FOR UPDATE TO "authenticated" USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Ownerships delete policy" ON "public"."ownerships" FOR DELETE TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Ownerships insert policy" ON "public"."ownerships" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
-CREATE POLICY "Ownerships read policy" ON "public"."ownerships" FOR SELECT TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Ownerships update policy" ON "public"."ownerships" FOR UPDATE TO "authenticated" USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Property ownerships cache delete policy" ON "public"."property_ownerships_cache" FOR DELETE TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Property ownerships cache insert policy" ON "public"."property_ownerships_cache" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
-CREATE POLICY "Property ownerships cache read policy" ON "public"."property_ownerships_cache" FOR SELECT TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "Property ownerships cache update policy" ON "public"."property_ownerships_cache" FOR UPDATE TO "authenticated" USING (true) WITH CHECK (true);
-
-
-
-CREATE POLICY "Service role can manage sync operations" ON "public"."sync_operations" USING (("auth"."role"() = 'service_role'::"text"));
-
-
-
-CREATE POLICY "Users can view sync operations for their org" ON "public"."sync_operations" FOR SELECT USING (true);
-
-
-
 ALTER TABLE "public"."appliance_service_history" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "appliance_service_history_delete" ON "public"."appliance_service_history" FOR DELETE TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "appliance_service_history_insert" ON "public"."appliance_service_history" FOR INSERT TO "authenticated" WITH CHECK (true);
-
-
-
-CREATE POLICY "appliance_service_history_read" ON "public"."appliance_service_history" FOR SELECT TO "authenticated" USING (true);
-
-
-
-CREATE POLICY "appliance_service_history_update" ON "public"."appliance_service_history" FOR UPDATE TO "authenticated" USING (true) WITH CHECK (true);
-
 
 
 ALTER TABLE "public"."appliances" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."bank_accounts" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "bank_accounts_org_read" ON "public"."bank_accounts" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "bank_accounts"."org_id")))));
+
+
+
+CREATE POLICY "bank_accounts_org_update" ON "public"."bank_accounts" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "bank_accounts"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "bank_accounts_org_write" ON "public"."bank_accounts" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "bank_accounts"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
 
 
 ALTER TABLE "public"."bill_categories" ENABLE ROW LEVEL SECURITY;
@@ -6027,63 +7454,178 @@ ALTER TABLE "public"."buildium_api_cache" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."buildium_api_log" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."buildium_sync_runs" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "buildium_sync_runs_delete_admins" ON "public"."buildium_sync_runs" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_runs"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "buildium_sync_runs_insert_admins" ON "public"."buildium_sync_runs" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_runs"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "buildium_sync_runs_read_in_org" ON "public"."buildium_sync_runs" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_runs"."org_id")))));
+
+
+
+CREATE POLICY "buildium_sync_runs_service_role_all" ON "public"."buildium_sync_runs" USING ((( SELECT "auth"."role"() AS "role") = 'service_role'::"text"));
+
+
+
+CREATE POLICY "buildium_sync_runs_update_admins" ON "public"."buildium_sync_runs" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_runs"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
 ALTER TABLE "public"."buildium_sync_status" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "buildium_sync_status_delete_admins" ON "public"."buildium_sync_status" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_status"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "buildium_sync_status_insert_admins" ON "public"."buildium_sync_status" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_status"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "buildium_sync_status_read_in_org" ON "public"."buildium_sync_status" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_status"."org_id")))));
+
+
+
+CREATE POLICY "buildium_sync_status_service_role_all" ON "public"."buildium_sync_status" USING ((( SELECT "auth"."role"() AS "role") = 'service_role'::"text"));
+
+
+
+CREATE POLICY "buildium_sync_status_update_admins" ON "public"."buildium_sync_status" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_sync_status"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
 
 
 ALTER TABLE "public"."buildium_webhook_events" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "buildium_webhook_events_delete_admins" ON "public"."buildium_webhook_events" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_webhook_events"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "buildium_webhook_events_insert_admins" ON "public"."buildium_webhook_events" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_webhook_events"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "buildium_webhook_events_read_in_org" ON "public"."buildium_webhook_events" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_webhook_events"."org_id")))));
+
+
+
+CREATE POLICY "buildium_webhook_events_service_role_all" ON "public"."buildium_webhook_events" USING ((( SELECT "auth"."role"() AS "role") = 'service_role'::"text"));
+
+
+
+CREATE POLICY "buildium_webhook_events_update_admins" ON "public"."buildium_webhook_events" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "buildium_webhook_events"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
 ALTER TABLE "public"."contacts" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "contacts_delete_policy" ON "public"."contacts" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "contacts_consolidated_all" ON "public"."contacts" USING ((( SELECT "auth"."role"() AS "role") = 'authenticated'::"text"));
 
 
 
-CREATE POLICY "contacts_insert_policy" ON "public"."contacts" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
+ALTER TABLE "public"."file_links" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "file_links_delete_org" ON "public"."file_links" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "file_links"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "contacts_read_policy" ON "public"."contacts" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "file_links_insert_org" ON "public"."file_links" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "file_links"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "contacts_update_policy" ON "public"."contacts" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "file_links_select_org" ON "public"."file_links" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "file_links"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "file_links_update_org" ON "public"."file_links" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "file_links"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
+
+
+
+ALTER TABLE "public"."files" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "files_delete_org" ON "public"."files" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "files"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "files_insert_org" ON "public"."files" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "files"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "files_select_org" ON "public"."files" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "files"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "files_update_org" ON "public"."files" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."org_id" = "files"."org_id") AND ("m"."user_id" = "auth"."uid"())))));
 
 
 
 ALTER TABLE "public"."gl_accounts" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "gl_accounts_delete_policy" ON "public"."gl_accounts" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "gl_accounts_org_read" ON "public"."gl_accounts" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "gl_accounts"."org_id")))));
 
 
 
-COMMENT ON POLICY "gl_accounts_delete_policy" ON "public"."gl_accounts" IS 'Allows authenticated users to delete GL accounts';
+CREATE POLICY "gl_accounts_org_update" ON "public"."gl_accounts" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "gl_accounts"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "gl_accounts_insert_policy" ON "public"."gl_accounts" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-COMMENT ON POLICY "gl_accounts_insert_policy" ON "public"."gl_accounts" IS 'Allows authenticated users to insert GL accounts';
-
-
-
-CREATE POLICY "gl_accounts_read_policy" ON "public"."gl_accounts" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-COMMENT ON POLICY "gl_accounts_read_policy" ON "public"."gl_accounts" IS 'Allows authenticated users to read GL accounts';
-
-
-
-CREATE POLICY "gl_accounts_update_policy" ON "public"."gl_accounts" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-COMMENT ON POLICY "gl_accounts_update_policy" ON "public"."gl_accounts" IS 'Allows authenticated users to update GL accounts';
+CREATE POLICY "gl_accounts_org_write" ON "public"."gl_accounts" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "gl_accounts"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
@@ -6096,120 +7638,163 @@ ALTER TABLE "public"."lease" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."lease_contacts" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "lease_contacts_delete_policy" ON "public"."lease_contacts" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "lease_contacts_consolidated_read" ON "public"."lease_contacts" FOR SELECT USING (((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease_contacts"."org_id")))) OR (EXISTS ( SELECT 1
+   FROM "public"."tenants" "t"
+  WHERE (("t"."id" = "lease_contacts"."tenant_id") AND ("t"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))));
 
 
 
-COMMENT ON POLICY "lease_contacts_delete_policy" ON "public"."lease_contacts" IS 'Allows authenticated users to delete lease contacts';
+CREATE POLICY "lease_contacts_org_update" ON "public"."lease_contacts" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease_contacts"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "lease_contacts_insert_policy" ON "public"."lease_contacts" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "lease_contacts_org_write" ON "public"."lease_contacts" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease_contacts"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-COMMENT ON POLICY "lease_contacts_insert_policy" ON "public"."lease_contacts" IS 'Allows authenticated users to insert lease contacts';
+CREATE POLICY "lease_org_delete" ON "public"."lease" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "lease_contacts_read_policy" ON "public"."lease_contacts" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "lease_org_read" ON "public"."lease" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease"."org_id")))));
 
 
 
-COMMENT ON POLICY "lease_contacts_read_policy" ON "public"."lease_contacts" IS 'Allows authenticated users to read lease contacts';
+CREATE POLICY "lease_org_update" ON "public"."lease" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "lease_contacts_update_policy" ON "public"."lease_contacts" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "lease_org_write" ON "public"."lease" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "lease"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-COMMENT ON POLICY "lease_contacts_update_policy" ON "public"."lease_contacts" IS 'Allows authenticated users to update lease contacts';
+CREATE POLICY "memberships_admin_update" ON "public"."org_memberships" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "org_memberships"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'platform_admin'::"text"]))))));
 
+
+
+CREATE POLICY "memberships_admin_write" ON "public"."org_memberships" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "org_memberships"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "memberships_consolidated_read" ON "public"."org_memberships" FOR SELECT USING ((("user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "org_memberships"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'platform_admin'::"text"])))))));
+
+
+
+ALTER TABLE "public"."org_memberships" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."organizations" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."owners" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "owners_consolidated_read" ON "public"."owners" FOR SELECT USING ((("user_id" = ( SELECT "auth"."uid"() AS "uid")) OR (EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "owners"."org_id"))))));
+
+
+
 ALTER TABLE "public"."owners_list_cache" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "owners_list_cache_delete_policy" ON "public"."owners_list_cache" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "owners_org_update" ON "public"."owners" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "owners"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "owners_list_cache_insert_policy" ON "public"."owners_list_cache" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "owners_list_cache_read_policy" ON "public"."owners_list_cache" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "owners_list_cache_update_policy" ON "public"."owners_list_cache" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "owners_org_write" ON "public"."owners" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "owners"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
 ALTER TABLE "public"."ownerships" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "ownerships_delete_policy" ON "public"."ownerships" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "ownerships_org_read" ON "public"."ownerships" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "ownerships"."org_id")))));
 
 
 
-CREATE POLICY "ownerships_insert_policy" ON "public"."ownerships" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "ownerships_org_update" ON "public"."ownerships" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "ownerships"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "ownerships_read_policy" ON "public"."ownerships" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "ownerships_org_write" ON "public"."ownerships" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "ownerships"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "ownerships_update_policy" ON "public"."ownerships" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "profiles_consolidated_all" ON "public"."profiles" USING ((( SELECT "auth"."uid"() AS "uid") = "user_id"));
 
 
 
 ALTER TABLE "public"."properties" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "properties_consolidated_read" ON "public"."properties" FOR SELECT USING (((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "properties"."org_id")))) OR (EXISTS ( SELECT 1
+   FROM ("public"."ownerships" "po"
+     JOIN "public"."owners" "o" ON (("o"."id" = "po"."owner_id")))
+  WHERE (("po"."property_id" = "properties"."id") AND ("o"."user_id" = ( SELECT "auth"."uid"() AS "uid")))))));
+
+
+
+CREATE POLICY "properties_consolidated_update" ON "public"."properties" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "properties"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "properties_consolidated_write" ON "public"."properties" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "properties"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
 ALTER TABLE "public"."property_ownerships_cache" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "property_ownerships_cache_delete_policy" ON "public"."property_ownerships_cache" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "property_ownerships_cache_insert_policy" ON "public"."property_ownerships_cache" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "property_ownerships_cache_read_policy" ON "public"."property_ownerships_cache" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "property_ownerships_cache_update_policy" ON "public"."property_ownerships_cache" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
-
 
 
 ALTER TABLE "public"."property_staff" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."reconciliation_log" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."rent_schedules" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "rent_schedules_delete_policy" ON "public"."rent_schedules" FOR DELETE USING (true);
-
-
-
-CREATE POLICY "rent_schedules_insert_policy" ON "public"."rent_schedules" FOR INSERT WITH CHECK (true);
-
-
-
-CREATE POLICY "rent_schedules_read_policy" ON "public"."rent_schedules" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "rent_schedules_update_policy" ON "public"."rent_schedules" FOR UPDATE USING (true);
+CREATE POLICY "rl_org_read" ON "public"."reconciliation_log" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM ("public"."properties" "p"
+     JOIN "public"."org_memberships" "m" ON (("m"."org_id" = "p"."org_id")))
+  WHERE (("p"."id" = "reconciliation_log"."property_id") AND ("m"."user_id" = ( SELECT "auth"."uid"() AS "uid"))))));
 
 
 
@@ -6219,13 +7804,38 @@ ALTER TABLE "public"."staff" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."sync_operations" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "sync_operations_delete_admins" ON "public"."sync_operations" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "sync_operations"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "sync_operations_insert_admins" ON "public"."sync_operations" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "sync_operations"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "sync_operations_read_in_org" ON "public"."sync_operations" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "sync_operations"."org_id")))));
+
+
+
+CREATE POLICY "sync_operations_service_role_all" ON "public"."sync_operations" USING ((( SELECT "auth"."role"() AS "role") = 'service_role'::"text"));
+
+
+
+CREATE POLICY "sync_operations_update_admins" ON "public"."sync_operations" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = "auth"."uid"()) AND ("m"."org_id" = "sync_operations"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
 ALTER TABLE "public"."task_categories" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."task_history" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."task_history_files" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."tasks" ENABLE ROW LEVEL SECURITY;
@@ -6234,54 +7844,28 @@ ALTER TABLE "public"."tasks" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."tenant_notes" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "tenant_notes_delete_policy" ON "public"."tenant_notes" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "tenant_notes_insert_policy" ON "public"."tenant_notes" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "tenant_notes_read_policy" ON "public"."tenant_notes" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "tenant_notes_update_policy" ON "public"."tenant_notes" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "tenant_notes_consolidated_all" ON "public"."tenant_notes" USING ((( SELECT "auth"."role"() AS "role") = 'authenticated'::"text"));
 
 
 
 ALTER TABLE "public"."tenants" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "tenants_delete_policy" ON "public"."tenants" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
+CREATE POLICY "tenants_org_read" ON "public"."tenants" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "tenants"."org_id")))));
 
 
 
-COMMENT ON POLICY "tenants_delete_policy" ON "public"."tenants" IS 'Allows authenticated users to delete tenants';
+CREATE POLICY "tenants_org_update" ON "public"."tenants" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "tenants"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
-CREATE POLICY "tenants_insert_policy" ON "public"."tenants" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-COMMENT ON POLICY "tenants_insert_policy" ON "public"."tenants" IS 'Allows authenticated users to insert tenants';
-
-
-
-CREATE POLICY "tenants_read_policy" ON "public"."tenants" FOR SELECT USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-COMMENT ON POLICY "tenants_read_policy" ON "public"."tenants" IS 'Allows authenticated users to read tenants';
-
-
-
-CREATE POLICY "tenants_update_policy" ON "public"."tenants" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-COMMENT ON POLICY "tenants_update_policy" ON "public"."tenants" IS 'Allows authenticated users to update tenants';
+CREATE POLICY "tenants_org_write" ON "public"."tenants" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "tenants"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
 
 
 
@@ -6291,7 +7875,43 @@ ALTER TABLE "public"."transaction_lines" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."transactions" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "transactions_org_read" ON "public"."transactions" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "transactions"."org_id")))));
+
+
+
+CREATE POLICY "transactions_org_update" ON "public"."transactions" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "transactions"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "transactions_org_write" ON "public"."transactions" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "transactions"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
 ALTER TABLE "public"."units" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "units_consolidated_read" ON "public"."units" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "units"."org_id")))));
+
+
+
+CREATE POLICY "units_consolidated_update" ON "public"."units" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "units"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "units_consolidated_write" ON "public"."units" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "units"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
 
 
 ALTER TABLE "public"."vendor_categories" ENABLE ROW LEVEL SECURITY;
@@ -6301,6 +7921,24 @@ ALTER TABLE "public"."vendors" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."work_orders" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "work_orders_org_read" ON "public"."work_orders" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "work_orders"."org_id")))));
+
+
+
+CREATE POLICY "work_orders_org_update" ON "public"."work_orders" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "work_orders"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
+
+
+CREATE POLICY "work_orders_org_write" ON "public"."work_orders" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."org_memberships" "m"
+  WHERE (("m"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("m"."org_id" = "work_orders"."org_id") AND ("m"."role" = ANY (ARRAY['org_admin'::"text", 'org_manager'::"text", 'platform_admin'::"text"]))))));
+
 
 
 
@@ -6534,6 +8172,12 @@ GRANT ALL ON FUNCTION "public"."count_active_units_for_property"("property_uuid"
 
 
 
+GRANT ALL ON FUNCTION "public"."enforce_same_org"("child_org" "uuid", "parent_org" "uuid", "child_name" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."enforce_same_org"("child_org" "uuid", "parent_org" "uuid", "child_name" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."enforce_same_org"("child_org" "uuid", "parent_org" "uuid", "child_name" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."find_duplicate_buildium_ids"("table_name" "text", "buildium_field" "text") TO "service_role";
@@ -6549,6 +8193,24 @@ GRANT ALL ON FUNCTION "public"."find_duplicate_ownerships"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."find_duplicate_units"() TO "anon";
 GRANT ALL ON FUNCTION "public"."find_duplicate_units"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."find_duplicate_units"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."fn_create_lease_aggregate"("payload" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."fn_create_lease_aggregate"("payload" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."fn_create_lease_aggregate"("payload" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."fn_create_lease_full"("payload" "jsonb", "new_people" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "public"."fn_create_lease_full"("payload" "jsonb", "new_people" "jsonb") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."fn_create_lease_full"("payload" "jsonb", "new_people" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."fn_sync_lease_document_to_files"() TO "anon";
+GRANT ALL ON FUNCTION "public"."fn_sync_lease_document_to_files"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."fn_sync_lease_document_to_files"() TO "service_role";
 
 
 
@@ -6570,9 +8232,51 @@ GRANT ALL ON FUNCTION "public"."get_buildium_api_cache"("p_endpoint" character v
 
 
 
+GRANT ALL ON FUNCTION "public"."get_foreign_keys"("p_schema" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_foreign_keys"("p_schema" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_foreign_keys"("p_schema" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_claims"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_claims"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_claims"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_property_financials"("p_property_id" "uuid", "p_as_of" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_property_financials"("p_property_id" "uuid", "p_as_of" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_property_financials"("p_property_id" "uuid", "p_as_of" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_table_columns"("p_table_name" "text", "p_schema" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_table_columns"("p_table_name" "text", "p_schema" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_table_columns"("p_table_name" "text", "p_schema" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_table_stats"("p_schema" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_table_stats"("p_schema" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_table_stats"("p_schema" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."gl_account_activity"("p_from" "date", "p_to" "date") TO "anon";
 GRANT ALL ON FUNCTION "public"."gl_account_activity"("p_from" "date", "p_to" "date") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."gl_account_activity"("p_from" "date", "p_to" "date") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."gl_account_activity"("p_property_id" "uuid", "p_from" "date", "p_to" "date", "p_gl_account_ids" "uuid"[]) TO "anon";
+GRANT ALL ON FUNCTION "public"."gl_account_activity"("p_property_id" "uuid", "p_from" "date", "p_to" "date", "p_gl_account_ids" "uuid"[]) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."gl_account_activity"("p_property_id" "uuid", "p_from" "date", "p_to" "date", "p_gl_account_ids" "uuid"[]) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."gl_ledger_balance_as_of"("p_property_id" "uuid", "p_gl_account_id" "uuid", "p_as_of" "date") TO "anon";
+GRANT ALL ON FUNCTION "public"."gl_ledger_balance_as_of"("p_property_id" "uuid", "p_gl_account_id" "uuid", "p_as_of" "date") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."gl_ledger_balance_as_of"("p_property_id" "uuid", "p_gl_account_id" "uuid", "p_as_of" "date") TO "service_role";
 
 
 
@@ -6585,6 +8289,12 @@ GRANT ALL ON FUNCTION "public"."gl_trial_balance_as_of"("p_as_of_date" "date") T
 GRANT ALL ON FUNCTION "public"."handle_lease_payment_webhook"("event_data" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."handle_lease_payment_webhook"("event_data" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_lease_payment_webhook"("event_data" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
+GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
 
 
 
@@ -6612,6 +8322,12 @@ GRANT ALL ON FUNCTION "public"."handle_unit_webhook_update"("event_data" "jsonb"
 
 
 
+GRANT ALL ON FUNCTION "public"."is_platform_admin"("p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."is_platform_admin"("p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_platform_admin"("p_user_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "service_role";
@@ -6621,6 +8337,18 @@ GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "text") TO "service_role
 GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "public"."countries") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "public"."countries") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_valid_country"("val" "public"."countries") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."jwt_custom_claims"() TO "anon";
+GRANT ALL ON FUNCTION "public"."jwt_custom_claims"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."jwt_custom_claims"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."lease_contacts_org_guard"() TO "anon";
+GRANT ALL ON FUNCTION "public"."lease_contacts_org_guard"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."lease_contacts_org_guard"() TO "service_role";
 
 
 
@@ -6672,9 +8400,27 @@ GRANT ALL ON FUNCTION "public"."normalize_country"("val" "text") TO "service_rol
 
 
 
+GRANT ALL ON FUNCTION "public"."ownerships_org_guard"() TO "anon";
+GRANT ALL ON FUNCTION "public"."ownerships_org_guard"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."ownerships_org_guard"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character varying, "p_event_type" character varying, "p_event_data" "jsonb") TO "anon";
 GRANT ALL ON FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character varying, "p_event_type" character varying, "p_event_data" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."process_buildium_webhook_event"("p_event_id" character varying, "p_event_type" character varying, "p_event_data" "jsonb") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."reconciliation_log_sync_as_of"() TO "anon";
+GRANT ALL ON FUNCTION "public"."reconciliation_log_sync_as_of"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reconciliation_log_sync_as_of"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."refresh_schema_cache"() TO "anon";
+GRANT ALL ON FUNCTION "public"."refresh_schema_cache"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."refresh_schema_cache"() TO "service_role";
 
 
 
@@ -6693,6 +8439,18 @@ GRANT ALL ON FUNCTION "public"."set_buildium_property_id"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."set_buildium_property_id"("p_entity_type" character varying, "p_entity_id" "uuid", "p_buildium_property_id" integer) TO "anon";
 GRANT ALL ON FUNCTION "public"."set_buildium_property_id"("p_entity_type" character varying, "p_entity_id" "uuid", "p_buildium_property_id" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_buildium_property_id"("p_entity_type" character varying, "p_entity_id" "uuid", "p_buildium_property_id" integer) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_org_memberships_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_org_memberships_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_org_memberships_updated_at"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."set_organizations_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."set_organizations_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."set_organizations_updated_at"() TO "service_role";
 
 
 
@@ -6756,6 +8514,12 @@ GRANT ALL ON FUNCTION "public"."trigger_update_property_unit_counts"() TO "servi
 
 
 
+GRANT ALL ON FUNCTION "public"."units_org_guard"() TO "anon";
+GRANT ALL ON FUNCTION "public"."units_org_guard"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."units_org_guard"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_all_owners_total_fields"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_all_owners_total_fields"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_all_owners_total_fields"() TO "service_role";
@@ -6813,6 +8577,12 @@ GRANT ALL ON FUNCTION "public"."upsert_property_ownerships_cache"("p_ownership_i
 GRANT ALL ON FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."validate_ownership_totals"("p_property_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."work_orders_org_guard"() TO "anon";
+GRANT ALL ON FUNCTION "public"."work_orders_org_guard"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."work_orders_org_guard"() TO "service_role";
 
 
 
@@ -6897,15 +8667,24 @@ GRANT ALL ON TABLE "public"."buildium_api_log" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."buildium_sync_status" TO "anon";
-GRANT ALL ON TABLE "public"."buildium_sync_status" TO "authenticated";
+GRANT ALL ON TABLE "public"."buildium_sync_runs" TO "service_role";
+GRANT SELECT ON TABLE "public"."buildium_sync_runs" TO "authenticated";
+
+
+
 GRANT ALL ON TABLE "public"."buildium_sync_status" TO "service_role";
+GRANT SELECT ON TABLE "public"."buildium_sync_status" TO "authenticated";
 
 
 
-GRANT ALL ON TABLE "public"."buildium_webhook_events" TO "anon";
-GRANT ALL ON TABLE "public"."buildium_webhook_events" TO "authenticated";
 GRANT ALL ON TABLE "public"."buildium_webhook_events" TO "service_role";
+GRANT SELECT ON TABLE "public"."buildium_webhook_events" TO "authenticated";
+
+
+
+GRANT ALL ON TABLE "public"."column_info_cache" TO "anon";
+GRANT ALL ON TABLE "public"."column_info_cache" TO "authenticated";
+GRANT ALL ON TABLE "public"."column_info_cache" TO "service_role";
 
 
 
@@ -6921,6 +8700,24 @@ GRANT ALL ON SEQUENCE "public"."contacts_id_seq" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."file_links" TO "anon";
+GRANT ALL ON TABLE "public"."file_links" TO "authenticated";
+GRANT ALL ON TABLE "public"."file_links" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."files" TO "anon";
+GRANT ALL ON TABLE "public"."files" TO "authenticated";
+GRANT ALL ON TABLE "public"."files" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."foreign_key_relationships" TO "anon";
+GRANT ALL ON TABLE "public"."foreign_key_relationships" TO "authenticated";
+GRANT ALL ON TABLE "public"."foreign_key_relationships" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."gl_accounts" TO "anon";
 GRANT ALL ON TABLE "public"."gl_accounts" TO "authenticated";
 GRANT ALL ON TABLE "public"."gl_accounts" TO "service_role";
@@ -6930,6 +8727,12 @@ GRANT ALL ON TABLE "public"."gl_accounts" TO "service_role";
 GRANT ALL ON TABLE "public"."gl_import_cursors" TO "anon";
 GRANT ALL ON TABLE "public"."gl_import_cursors" TO "authenticated";
 GRANT ALL ON TABLE "public"."gl_import_cursors" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."index_usage" TO "anon";
+GRANT ALL ON TABLE "public"."index_usage" TO "authenticated";
+GRANT ALL ON TABLE "public"."index_usage" TO "service_role";
 
 
 
@@ -6981,6 +8784,12 @@ GRANT ALL ON TABLE "public"."lease_contacts" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."lease_documents" TO "anon";
+GRANT ALL ON TABLE "public"."lease_documents" TO "authenticated";
+GRANT ALL ON TABLE "public"."lease_documents" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."lease_notes" TO "anon";
 GRANT ALL ON TABLE "public"."lease_notes" TO "authenticated";
 GRANT ALL ON TABLE "public"."lease_notes" TO "service_role";
@@ -6990,6 +8799,18 @@ GRANT ALL ON TABLE "public"."lease_notes" TO "service_role";
 GRANT ALL ON TABLE "public"."lease_recurring_transactions" TO "anon";
 GRANT ALL ON TABLE "public"."lease_recurring_transactions" TO "authenticated";
 GRANT ALL ON TABLE "public"."lease_recurring_transactions" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."org_memberships" TO "anon";
+GRANT ALL ON TABLE "public"."org_memberships" TO "authenticated";
+GRANT ALL ON TABLE "public"."org_memberships" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."organizations" TO "anon";
+GRANT ALL ON TABLE "public"."organizations" TO "authenticated";
+GRANT ALL ON TABLE "public"."organizations" TO "service_role";
 
 
 
@@ -7005,6 +8826,36 @@ GRANT ALL ON TABLE "public"."ownerships" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."primary_keys" TO "anon";
+GRANT ALL ON TABLE "public"."primary_keys" TO "authenticated";
+GRANT ALL ON TABLE "public"."primary_keys" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."profiles" TO "anon";
+GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
+GRANT ALL ON TABLE "public"."profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."property_images" TO "anon";
+GRANT ALL ON TABLE "public"."property_images" TO "authenticated";
+GRANT ALL ON TABLE "public"."property_images" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."property_onboarding" TO "anon";
+GRANT ALL ON TABLE "public"."property_onboarding" TO "authenticated";
+GRANT ALL ON TABLE "public"."property_onboarding" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."property_onboarding_tasks" TO "anon";
+GRANT ALL ON TABLE "public"."property_onboarding_tasks" TO "authenticated";
+GRANT ALL ON TABLE "public"."property_onboarding_tasks" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."property_ownerships_cache" TO "anon";
 GRANT ALL ON TABLE "public"."property_ownerships_cache" TO "authenticated";
 GRANT ALL ON TABLE "public"."property_ownerships_cache" TO "service_role";
@@ -7017,15 +8868,38 @@ GRANT ALL ON TABLE "public"."property_staff" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."reconciliation_log" TO "anon";
+GRANT ALL ON TABLE "public"."reconciliation_log" TO "authenticated";
+GRANT ALL ON TABLE "public"."reconciliation_log" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."rent_schedules" TO "anon";
 GRANT ALL ON TABLE "public"."rent_schedules" TO "authenticated";
 GRANT ALL ON TABLE "public"."rent_schedules" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."sync_operations" TO "anon";
-GRANT ALL ON TABLE "public"."sync_operations" TO "authenticated";
+GRANT ALL ON TABLE "public"."slow_queries" TO "anon";
+GRANT ALL ON TABLE "public"."slow_queries" TO "authenticated";
+GRANT ALL ON TABLE "public"."slow_queries" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."sync_operations" TO "service_role";
+GRANT SELECT ON TABLE "public"."sync_operations" TO "authenticated";
+
+
+
+GRANT ALL ON TABLE "public"."table_info_cache" TO "anon";
+GRANT ALL ON TABLE "public"."table_info_cache" TO "authenticated";
+GRANT ALL ON TABLE "public"."table_info_cache" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."table_sizes" TO "anon";
+GRANT ALL ON TABLE "public"."table_sizes" TO "authenticated";
+GRANT ALL ON TABLE "public"."table_sizes" TO "service_role";
 
 
 
@@ -7089,9 +8963,99 @@ GRANT ALL ON TABLE "public"."unit_notes" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."users_with_auth" TO "anon";
+GRANT ALL ON TABLE "public"."users_with_auth" TO "authenticated";
+GRANT ALL ON TABLE "public"."users_with_auth" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."work_orders" TO "anon";
+GRANT ALL ON TABLE "public"."work_orders" TO "authenticated";
+GRANT ALL ON TABLE "public"."work_orders" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_active_work_orders_ranked" TO "anon";
+GRANT ALL ON TABLE "public"."v_active_work_orders_ranked" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_active_work_orders_ranked" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_rent_roll_current_month" TO "anon";
+GRANT ALL ON TABLE "public"."v_rent_roll_current_month" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_rent_roll_current_month" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_rent_roll_previous_month" TO "anon";
+GRANT ALL ON TABLE "public"."v_rent_roll_previous_month" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_rent_roll_previous_month" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_work_order_summary" TO "anon";
+GRANT ALL ON TABLE "public"."v_work_order_summary" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_work_order_summary" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_dashboard_kpis" TO "anon";
+GRANT ALL ON TABLE "public"."v_dashboard_kpis" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_dashboard_kpis" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."v_gl_trial_balance" TO "anon";
 GRANT ALL ON TABLE "public"."v_gl_trial_balance" TO "authenticated";
 GRANT ALL ON TABLE "public"."v_gl_trial_balance" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_latest_reconciliation_by_account" TO "anon";
+GRANT ALL ON TABLE "public"."v_latest_reconciliation_by_account" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_latest_reconciliation_by_account" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_lease_renewals_summary" TO "anon";
+GRANT ALL ON TABLE "public"."v_lease_renewals_summary" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_lease_renewals_summary" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_property_onboarding_summary" TO "anon";
+GRANT ALL ON TABLE "public"."v_property_onboarding_summary" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_property_onboarding_summary" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_recent_transactions_ranked" TO "anon";
+GRANT ALL ON TABLE "public"."v_recent_transactions_ranked" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_recent_transactions_ranked" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_reconciliation_stale_alerts" TO "anon";
+GRANT ALL ON TABLE "public"."v_reconciliation_stale_alerts" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_reconciliation_stale_alerts" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_reconciliation_variances" TO "anon";
+GRANT ALL ON TABLE "public"."v_reconciliation_variances" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_reconciliation_variances" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_reconciliation_variance_alerts" TO "anon";
+GRANT ALL ON TABLE "public"."v_reconciliation_variance_alerts" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_reconciliation_variance_alerts" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."v_reconciliation_alerts" TO "anon";
+GRANT ALL ON TABLE "public"."v_reconciliation_alerts" TO "authenticated";
+GRANT ALL ON TABLE "public"."v_reconciliation_alerts" TO "service_role";
 
 
 
@@ -7104,12 +9068,6 @@ GRANT ALL ON TABLE "public"."vendor_categories" TO "service_role";
 GRANT ALL ON TABLE "public"."work_order_files" TO "anon";
 GRANT ALL ON TABLE "public"."work_order_files" TO "authenticated";
 GRANT ALL ON TABLE "public"."work_order_files" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."work_orders" TO "anon";
-GRANT ALL ON TABLE "public"."work_orders" TO "authenticated";
-GRANT ALL ON TABLE "public"."work_orders" TO "service_role";
 
 
 

@@ -2,12 +2,14 @@
 import { useEffect, useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import EditLink from '@/components/ui/EditLink'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import StaffWizardModal from './StaffWizardModal'
 import { Guard } from '@/components/Guard'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { normalizeStaffRole } from '@/lib/staff-role'
 
 type Staff = {
   id: number
@@ -22,11 +24,8 @@ type Staff = {
 }
 
 const ROLE_OPTIONS = [
-  { value: 'PROPERTY_MANAGER', label: 'Property Manager' },
-  { value: 'ASSISTANT_PROPERTY_MANAGER', label: 'Assistant Property Manager' },
-  { value: 'MAINTENANCE_COORDINATOR', label: 'Maintenance Coordinator' },
-  { value: 'ACCOUNTANT', label: 'Accountant' },
-  { value: 'ADMINISTRATOR', label: 'Administrator' },
+  { value: 'Property Manager', label: 'Property Manager' },
+  { value: 'Bookkeeper', label: 'Bookkeeper' },
 ]
 
 export default function StaffPage() {
@@ -62,7 +61,12 @@ export default function StaffPage() {
   useEffect(() => { load() }, [filterRole, filterActive, filterSynced])
 
   const updateRole = async (id: number, role: string) => {
-    await fetch('/api/staff', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, role }) })
+    const normalizedRole = normalizeStaffRole(role)
+    if (!normalizedRole) {
+      setError('Invalid role selected')
+      return
+    }
+    await fetch('/api/staff', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, role: normalizedRole }) })
     await load()
   }
 
@@ -176,7 +180,7 @@ export default function StaffPage() {
                         {(s.buildium_staff_id != null) && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Synced</span>
                         )}
-                        <Button variant="outline" size="sm" onClick={() => openEdit(s)}>Edit</Button>
+                        <EditLink onClick={() => openEdit(s)} />
                         <Guard require={'org_manager'}>
                           <Button variant="outline" size="sm" onClick={()=>syncToBuildium(s.id)} disabled={syncingId === s.id}>
                             {syncingId === s.id ? 'Syncing…' : 'Sync'}
@@ -213,19 +217,34 @@ function EditStaffModal({ staff, onClose, onSaved }:{ staff: Staff | null, onClo
   const [email, setEmail] = useState(staff?.email || '')
   const [phone, setPhone] = useState(staff?.phone || '')
   const [title, setTitle] = useState(staff?.title || '')
-  const [role, setRole] = useState(staff?.role || 'PROPERTY_MANAGER')
+  const [role, setRole] = useState(staff?.role || 'Property Manager')
   const [active, setActive] = useState(!!staff?.is_active)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   useEffect(()=>{
-    setFirst(staff?.first_name || ''); setLast(staff?.last_name || ''); setEmail(staff?.email || ''); setPhone(staff?.phone || ''); setTitle(staff?.title || ''); setRole(staff?.role || 'PROPERTY_MANAGER'); setActive(!!staff?.is_active); setErr(null)
+    setFirst(staff?.first_name || '');
+    setLast(staff?.last_name || '');
+    setEmail(staff?.email || '');
+    setPhone(staff?.phone || '');
+    setTitle(staff?.title || '');
+    setRole(staff?.role || 'Property Manager');
+    setActive(!!staff?.is_active);
+    setErr(null)
   }, [staff])
   const open = !!staff
   const save = async () => {
     if (!staff) return
     try {
       setBusy(true); setErr(null)
-      const res = await fetch('/api/staff', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: staff.id, firstName, lastName, email, phone, title, role, isActive: active }) })
+      const normalizedRole = normalizeStaffRole(role)
+      if (!normalizedRole) {
+        throw new Error('Invalid role selected')
+      }
+      const res = await fetch('/api/staff', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: staff.id, firstName, lastName, email, phone, title, role: normalizedRole, isActive: active })
+      })
       const j = await res.json().catch(()=>({}))
       if (!res.ok) throw new Error(j?.error || 'Save failed')
       onSaved(); onClose()
@@ -249,7 +268,7 @@ function EditStaffModal({ staff, onClose, onSaved }:{ staff: Staff | null, onClo
               </label>
             </div>
             {err && <div className="text-sm text-destructive">{err}</div>}
-            <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></div>
+            <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></div>
           </div>
         )}
       </DialogContent>

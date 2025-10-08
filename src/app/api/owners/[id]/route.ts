@@ -4,6 +4,11 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { checkRateLimit } from '@/lib/rate-limit'
+import type { Database } from '@/types/database'
+import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType } from '@/lib/normalizers'
+
+type ContactsUpdate = Database['public']['Tables']['contacts']['Update']
+type OwnersUpdate = Database['public']['Tables']['owners']['Update']
 
 export async function GET(
   request: NextRequest,
@@ -46,9 +51,9 @@ export async function GET(
         tax_payer_type,
         tax_payer_name1,
         tax_payer_name2,
-        tax_address_line_1,
-        tax_address_line_2,
-        tax_address_line_3,
+        tax_address_line1,
+        tax_address_line2,
+        tax_address_line3,
         tax_city,
         tax_state,
         tax_postal_code,
@@ -172,9 +177,9 @@ export async function GET(
       tax_payer_id: owner.tax_payer_id,
       tax_payer_type: owner.tax_payer_type,
       tax_payer_name: [owner.tax_payer_name1, owner.tax_payer_name2].filter(Boolean).join(' ').trim() || null,
-      tax_address_line_1: owner.tax_address_line_1,
-      tax_address_line_2: owner.tax_address_line_2,
-      tax_address_line_3: owner.tax_address_line_3,
+      tax_address_line_1: owner.tax_address_line1,
+      tax_address_line_2: owner.tax_address_line2,
+      tax_address_line_3: owner.tax_address_line3,
       tax_city: owner.tax_city,
       tax_state: owner.tax_state,
       tax_postal_code: owner.tax_postal_code,
@@ -302,7 +307,7 @@ export async function PUT(
     const finalPrimaryCity = primaryCity || city;
     const finalPrimaryState = primaryState || state;
     const finalPrimaryPostalCode = primaryPostalCode || postalCode;
-    const finalPrimaryCountry = primaryCountry || country || 'USA';
+    const finalPrimaryCountry = primaryCountry || country || 'United States';
 
     // Validation
     if (isCompany && !companyName) {
@@ -357,8 +362,17 @@ export async function PUT(
       );
     }
 
+    const contactId = existingOwner?.contact_id
+    if (!contactId) {
+      console.error('🔍 Owner Update API: Owner missing contact_id');
+      return NextResponse.json(
+        { error: 'Owner contact not found' },
+        { status: 400 }
+      );
+    }
+
     // Update contact information
-    const contactData = {
+    const contactData: ContactsUpdate = {
       is_company: isCompany,
       first_name: isCompany ? null : firstName,
       last_name: isCompany ? null : lastName,
@@ -375,22 +389,22 @@ export async function PUT(
       primary_city: finalPrimaryCity,
       primary_state: finalPrimaryState,
       primary_postal_code: finalPrimaryPostalCode,
-      primary_country: finalPrimaryCountry,
+      primary_country: normalizeCountryWithDefault(finalPrimaryCountry),
       alt_address_line_1: altAddressLine1,
       alt_address_line_2: altAddressLine2,
       alt_address_line_3: altAddressLine3,
       alt_city: altCity,
       alt_state: altState,
       alt_postal_code: altPostalCode,
-      alt_country: altCountry,
+      alt_country: normalizeCountry(altCountry),
       mailing_preference: mailingPreference,
       updated_at: new Date().toISOString()
     };
 
-          const { error: contactUpdateError } = await supabaseAdmin
+    const { error: contactUpdateError } = await supabaseAdmin
       .from('contacts')
       .update(contactData)
-      .eq('id', existingOwner.contact_id);
+      .eq('id', contactId);
 
     if (contactUpdateError) {
       console.error('🔍 Owner Update API: Error updating contact:', contactUpdateError);
@@ -401,27 +415,26 @@ export async function PUT(
     }
 
     // Update owner record
-    const ownerData = {
-      management_agreement_start_date: managementAgreementStartDate,
-      management_agreement_end_date: managementAgreementEndDate,
-      comment: comment,
-      etf_account_type: etfAccountType,
-      etf_account_number: etfAccountNumber,
-      etf_routing_number: etfRoutingNumber,
-      // Tax information
-      tax_payer_id: taxPayerId,
-      tax_payer_type: taxPayerType,
-      tax_payer_name1: taxPayerName || null,
+    const ownerData: OwnersUpdate = {
+      management_agreement_start_date: managementAgreementStartDate ?? null,
+      management_agreement_end_date: managementAgreementEndDate ?? null,
+      comment: comment ?? null,
+      etf_account_type: normalizeEtfAccountType(etfAccountType),
+      etf_account_number: etfAccountNumber ?? null,
+      etf_routing_number: etfRoutingNumber ?? null,
+      tax_payer_id: taxPayerId ?? null,
+      tax_payer_type: taxPayerType ?? null,
+      tax_payer_name1: taxPayerName ?? null,
       tax_payer_name2: null,
-      tax_address_line_1: taxAddressLine1,
-      tax_address_line_2: taxAddressLine2,
-      tax_address_line_3: taxAddressLine3,
-      tax_city: taxCity,
-      tax_state: taxState,
-      tax_postal_code: taxPostalCode,
-      tax_country: taxCountry,
+      tax_address_line1: taxAddressLine1 ?? null,
+      tax_address_line2: taxAddressLine2 ?? null,
+      tax_address_line3: taxAddressLine3 ?? null,
+      tax_city: taxCity ?? null,
+      tax_state: taxState ?? null,
+      tax_postal_code: taxPostalCode ?? null,
+      tax_country: normalizeCountry(taxCountry),
       updated_at: new Date().toISOString()
-    };
+    }
 
     const { error: ownerUpdateError } = await supabaseAdmin
       .from('owners')
@@ -453,9 +466,9 @@ export async function PUT(
         tax_payer_type,
         tax_payer_name1,
         tax_payer_name2,
-        tax_address_line_1,
-        tax_address_line_2,
-        tax_address_line_3,
+        tax_address_line1,
+        tax_address_line2,
+        tax_address_line3,
         tax_city,
         tax_state,
         tax_postal_code,
@@ -490,7 +503,9 @@ export async function PUT(
 
     // Sync update to Buildium via Edge Function
     try {
-      const contact = Array.isArray(updatedOwner.contacts) ? updatedOwner.contacts[0] : updatedOwner.contacts;
+      const contact = (Array.isArray(updatedOwner.contacts)
+        ? updatedOwner.contacts[0]
+        : updatedOwner.contacts) as Record<string, any> | null; // Supabase typed `any` pending regenerated types
       const buildiumOwnerData = {
         id: updatedOwner.id,
         buildium_owner_id: updatedOwner.buildium_owner_id || undefined,
@@ -521,7 +536,9 @@ export async function PUT(
     }
 
     // Transform response to match expected format
-    const contact = Array.isArray(updatedOwner.contacts) ? updatedOwner.contacts[0] : updatedOwner.contacts;
+    const contact = (Array.isArray(updatedOwner.contacts)
+      ? updatedOwner.contacts[0]
+      : updatedOwner.contacts) as Record<string, any> | null; // Supabase typed `any` pending regenerated types
     const transformedOwner = {
       id: updatedOwner.id,
       contact_id: updatedOwner.contact_id,
@@ -549,9 +566,9 @@ export async function PUT(
       tax_payer_id: updatedOwner.tax_payer_id,
       tax_payer_type: updatedOwner.tax_payer_type,
       tax_payer_name: [updatedOwner.tax_payer_name1, updatedOwner.tax_payer_name2].filter(Boolean).join(' ').trim() || null,
-      tax_address_line_1: updatedOwner.tax_address_line_1,
-      tax_address_line_2: updatedOwner.tax_address_line_2,
-      tax_address_line_3: updatedOwner.tax_address_line_3,
+      tax_address_line_1: updatedOwner.tax_address_line1,
+      tax_address_line_2: updatedOwner.tax_address_line2,
+      tax_address_line_3: updatedOwner.tax_address_line3,
       tax_city: updatedOwner.tax_city,
       tax_state: updatedOwner.tax_state,
       tax_postal_code: updatedOwner.tax_postal_code,

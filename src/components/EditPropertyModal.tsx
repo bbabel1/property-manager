@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/components/providers'
-import { X, Save, Building2, MapPin, Home, Users, DollarSign, Plus } from 'lucide-react'
+import { Save, MapPin, Home, Users } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { type PropertyWithDetails } from '@/lib/property-service'
-import { type StatusEnum, type CountryEnum } from '@/types/properties'
+import { type StatusEnum } from '@/types/properties'
 import CreateOwnerModal from './CreateOwnerModal'
-import CreateStaffModal from './CreateStaffModal'
+// import CreateStaffModal from './CreateStaffModal'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { Listbox } from '@headlessui/react'
@@ -25,15 +25,15 @@ interface Owner {
   primary_phone?: string;
 }
 
-interface Staff {
-  id: string;
-  displayName: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-  phone?: string;
-  role: string;
-}
+// interface Staff {
+//   id: string;
+//   displayName: string;
+//   firstName: string;
+//   lastName: string;
+//   email?: string;
+//   phone?: string;
+//   role: string;
+// }
 
 interface EditPropertyFormData {
   name: string
@@ -226,20 +226,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
     }
   }
 
-  const createNewOwner = async (ownerData: {
-    firstName: string
-    lastName: string
-    isCompany: boolean
-    companyName?: string
-    email?: string
-    phoneHome?: string
-    phoneMobile?: string
-    addressLine1: string
-    city?: string
-    state?: string
-    postalCode: string
-    country: string
-  }) => {
+  const createNewOwner = async (ownerData: any) => {
     try {
       setIsCreatingOwner(true)
       setCreateOwnerError(null)
@@ -708,8 +695,9 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                         
                         <div className="grid grid-cols-3 gap-3">
                           <div>
-                            <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
+                            <label htmlFor={`ownership-${owner.id}`} className="block text-xs text-muted-foreground mb-1">Ownership %</label>
                             <input
+                              id={`ownership-${owner.id}`}
                               type="number"
                               value={owner.ownershipPercentage}
                               onChange={(e) => updateOwnerPercentage(owner.id, 'ownershipPercentage', Number(e.target.value))}
@@ -719,8 +707,9 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
+                            <label htmlFor={`disbursement-${owner.id}`} className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
                             <input
+                              id={`disbursement-${owner.id}`}
                               type="number"
                               value={owner.disbursementPercentage}
                               onChange={(e) => updateOwnerPercentage(owner.id, 'disbursementPercentage', Number(e.target.value))}

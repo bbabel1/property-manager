@@ -1,24 +1,39 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import AddressAutocomplete from './HybridAddressAutocomplete'
-import { DatePicker } from './ui/date-picker'
+import DatePicker from './ui/date-picker'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
+import type { Database } from '@/types/database'
 
 const COUNTRIES = ['United States', 'Canada', 'Mexico', 'United Kingdom', 'Germany', 'France', 'Spain', 'Italy', 'Australia', 'Japan', 'China', 'India', 'Brazil', 'Argentina', 'South Africa']
 
 const MAILING_PREFERENCES = ['primary', 'alternative']
 const TAX_PAYER_TYPES = ['SSN', 'EIN']
-const ETF_ACCOUNT_TYPES = ['Checking', 'Saving']
+// const ETF_ACCOUNT_TYPES = ['Checking', 'Saving']
+
+type OwnerRow = Database['public']['Tables']['owners']['Row']
+type ContactRow = Database['public']['Tables']['contacts']['Row']
+export type OwnerModalData = Partial<OwnerRow> &
+  Partial<Omit<ContactRow, 'id'>> & {
+    contact_id?: number | null
+    etf_account_type?: 'Checking' | 'Saving' | null
+    etf_account_number?: number | null
+    etf_routing_number?: number | null
+    mailing_preference?: string | null
+    alt_address_line_3?: string | null
+    management_agreement_start_date?: string | null
+    management_agreement_end_date?: string | null
+  }
 
 interface EditOwnerModalProps {
   isOpen: boolean
   onClose: () => void
-  onUpdateOwner: (ownerData: any) => void
-  ownerData: any
+  onUpdateOwner: (ownerData: OwnerModalData) => void
+  ownerData?: OwnerModalData | null
   isUpdating?: boolean
 }
 
@@ -26,7 +41,7 @@ export default function EditOwnerModal({
   isOpen, 
   onClose, 
   onUpdateOwner, 
-  ownerData, 
+  ownerData = null, 
   isUpdating = false 
 }: EditOwnerModalProps) {
   const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'address' | 'tax' | 'owner'>('basic')
@@ -95,60 +110,60 @@ export default function EditOwnerModal({
     if (isOpen && ownerData) {
       setFormData({
         // Basic Information
-        isCompany: ownerData.is_company || false,
-        firstName: ownerData.first_name || '',
-        lastName: ownerData.last_name || '',
-        companyName: ownerData.company_name || '',
-        dateOfBirth: ownerData.date_of_birth || '',
+        isCompany: Boolean(ownerData.is_company),
+        firstName: String(ownerData.first_name || ''),
+        lastName: String(ownerData.last_name || ''),
+        companyName: String(ownerData.company_name || ''),
+        dateOfBirth: String(ownerData.date_of_birth || ''),
         
         // Contact Information
-        primaryEmail: ownerData.primary_email || '',
-        altEmail: ownerData.alt_email || '',
-        primaryPhone: ownerData.primary_phone || '',
-        altPhone: ownerData.alt_phone || '',
-        mailingPreference: ownerData.mailing_preference || 'primary',
+        primaryEmail: String(ownerData.primary_email || ''),
+        altEmail: String(ownerData.alt_email || ''),
+        primaryPhone: String(ownerData.primary_phone || ''),
+        altPhone: String(ownerData.alt_phone || ''),
+        mailingPreference: String(ownerData.mailing_preference || 'primary'),
         
         // Primary Address
-        primaryAddressLine1: ownerData.primary_address_line_1 || '',
-        primaryAddressLine2: ownerData.primary_address_line_2 || '',
-        primaryCity: ownerData.primary_city || '',
-        primaryState: ownerData.primary_state || '',
-        primaryPostalCode: ownerData.primary_postal_code || '',
-        primaryCountry: ownerData.primary_country || 'United States',
+        primaryAddressLine1: String(ownerData.primary_address_line_1 || ''),
+        primaryAddressLine2: String(ownerData.primary_address_line_2 || ''),
+        primaryCity: String(ownerData.primary_city || ''),
+        primaryState: String(ownerData.primary_state || ''),
+        primaryPostalCode: String(ownerData.primary_postal_code || ''),
+        primaryCountry: String(ownerData.primary_country || 'United States'),
         
         // Alternative Address
-        altAddressLine1: ownerData.alt_address_line_1 || '',
-        altAddressLine2: ownerData.alt_address_line_2 || '',
-        altCity: ownerData.alt_city || '',
-        altState: ownerData.alt_state || '',
-        altPostalCode: ownerData.alt_postal_code || '',
-        altCountry: ownerData.alt_country || '',
+        altAddressLine1: String(ownerData.alt_address_line_1 || ''),
+        altAddressLine2: String(ownerData.alt_address_line_2 || ''),
+        altCity: String(ownerData.alt_city || ''),
+        altState: String(ownerData.alt_state || ''),
+        altPostalCode: String(ownerData.alt_postal_code || ''),
+        altCountry: String(ownerData.alt_country || ''),
         
         // Address Checkboxes - Determine if addresses are same as primary
 
-        taxSameAsPrimary: !ownerData.tax_address_line_1 && !ownerData.tax_city,
+        taxSameAsPrimary: !ownerData.tax_address_line1 && !ownerData.tax_city,
         
         // Tax Information
-        taxPayerId: ownerData.tax_payer_id || '',
-        taxPayerType: ownerData.tax_payer_type || '',
-        taxPayerName: ownerData.tax_payer_name || '',
-        taxAddressLine1: ownerData.tax_address_line_1 || '',
-        taxAddressLine2: ownerData.tax_address_line_2 || '',
-        taxAddressLine3: ownerData.tax_address_line_3 || '',
-        taxCity: ownerData.tax_city || '',
-        taxState: ownerData.tax_state || '',
-        taxPostalCode: ownerData.tax_postal_code || '',
-        taxCountry: ownerData.tax_country || '',
+        taxPayerId: String(ownerData.tax_payer_id || ''),
+        taxPayerType: String(ownerData.tax_payer_type || ''),
+        taxPayerName: String(ownerData.tax_payer_name1 || ''),
+        taxAddressLine1: String(ownerData.tax_address_line1 || ''),
+        taxAddressLine2: String(ownerData.tax_address_line2 || ''),
+        taxAddressLine3: String(ownerData.tax_address_line3 || ''),
+        taxCity: String(ownerData.tax_city || ''),
+        taxState: String(ownerData.tax_state || ''),
+        taxPostalCode: String(ownerData.tax_postal_code || ''),
+        taxCountry: String(ownerData.tax_country || ''),
         
         // Owner-Specific Information
-        managementAgreementStartDate: ownerData.management_agreement_start_date || '',
-        managementAgreementEndDate: ownerData.management_agreement_end_date || '',
-        comment: ownerData.comment || '',
+        managementAgreementStartDate: String(ownerData.management_agreement_start_date || ''),
+        managementAgreementEndDate: String(ownerData.management_agreement_end_date || ''),
+        comment: String(ownerData.comment || ''),
         // ETF Account Information - Convert from single type to checkboxes
         etfCheckingAccount: ownerData.etf_account_type === 'Checking',
         etfSavingAccount: ownerData.etf_account_type === 'Saving',
-        etfAccountNumber: ownerData.etf_account_number || '',
-        etfRoutingNumber: ownerData.etf_routing_number || ''
+        etfAccountNumber: String(ownerData.etf_account_number || ''),
+        etfRoutingNumber: String(ownerData.etf_routing_number || '')
       })
       setActiveTab('basic')
       setError(null)
@@ -183,13 +198,18 @@ export default function EditOwnerModal({
     // Clean up empty fields
     const cleanedData = Object.fromEntries(
       Object.entries(formData).filter(([_, value]) => value !== '')
-    )
+    ) as OwnerModalData
 
     // Add the owner ID for the update
-    const updateData = {
+    if (!ownerData || !ownerData.id) {
+      onUpdateOwner(cleanedData)
+      return
+    }
+
+    const updateData: OwnerModalData = {
       ...cleanedData,
       id: ownerData.id,
-      contact_id: ownerData.contact_id
+      contact_id: ownerData.contact_id ?? null
     }
 
     onUpdateOwner(updateData)
@@ -530,8 +550,9 @@ export default function EditOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                    <label htmlFor="edit-owner-primary-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                     <select
+                      id="edit-owner-primary-country"
                       value={formData.primaryCountry}
                       onChange={e => setFormData(prev => ({ ...prev, primaryCountry: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -546,10 +567,11 @@ export default function EditOwnerModal({
 
               {/* Mailing Preference */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="edit-owner-mailing-preference" className="block text-sm font-medium text-gray-700 mb-1">
                   Mailing Preference
                 </label>
                 <select
+                  id="edit-owner-mailing-preference"
                   value={formData.mailingPreference}
                   onChange={(e) => handleMailingPreferenceChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -631,8 +653,9 @@ export default function EditOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                      <label htmlFor="edit-owner-alt-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                       <select
+                        id="edit-owner-alt-country"
                         value={formData.altCountry}
                         onChange={e => setFormData(prev => ({ ...prev, altCountry: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -669,10 +692,11 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="edit-owner-taxpayer-type" className="block text-sm font-medium text-gray-700 mb-1">
                     Tax Payer Type
                   </label>
                   <select
+                    id="edit-owner-taxpayer-type"
                     value={formData.taxPayerType}
                     onChange={(e) => setFormData(prev => ({ ...prev, taxPayerType: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -808,8 +832,9 @@ export default function EditOwnerModal({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                        <label htmlFor="edit-owner-tax-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                         <select
+                          id="edit-owner-tax-country"
                           value={formData.taxCountry}
                           onChange={(e) => setFormData(prev => ({ ...prev, taxCountry: e.target.value }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

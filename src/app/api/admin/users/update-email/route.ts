@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
+import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
 
 // Update a user's email address
@@ -14,11 +14,12 @@ export async function POST(request: NextRequest) {
     if (!body || !body.user_id || !body.email) {
       return NextResponse.json({ error: 'user_id and email are required' }, { status: 400 })
     }
-    if (!supabaseAdmin) {
+    if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Server not configured with service role' }, { status: 500 })
     }
 
     const { user_id, email } = body
+    const supabaseAdmin = requireSupabaseAdmin('admin update email')
 
     // Update the user's email in auth.users
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {

@@ -29,6 +29,10 @@ const ALL_SERVICES: ServiceName[] = [
   'Renewals',
 ]
 
+const fieldSurfaceClass = 'border border-blue-200/70 shadow-sm bg-[#f3f7ff]/80 backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/40 transition-colors'
+const inputFieldClass = `w-full h-9 px-3 rounded-md text-sm text-foreground focus-visible:outline-none ${fieldSurfaceClass}`
+const inputFieldWithSuffixClass = `${inputFieldClass} pr-10`
+
 export default function ManagementServicesCard({ property }: { property: any }) {
   const [editing, setEditing] = useState(false)
   const [csrfToken, setCsrfToken] = useState<string | null>(null)
@@ -182,6 +186,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
               { value: 'Unit', label: 'Unit', description: 'Manage specific units' },
             ]}
             placeholder="Select scope..."
+            triggerClassName={fieldSurfaceClass}
           />
         </div>
         <div>
@@ -194,6 +199,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
               { value: 'Unit Level', label: 'Unit Level' },
             ]}
             placeholder="Select level..."
+            triggerClassName={fieldSurfaceClass}
           />
         </div>
         <div>
@@ -207,11 +213,12 @@ export default function ManagementServicesCard({ property }: { property: any }) 
               { value: 'A-la-carte', label: 'A-la-carte' },
             ]}
             placeholder="Select plan..."
+            triggerClassName={fieldSurfaceClass}
           />
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-foreground mb-1">Active Services</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 border border-border rounded-md bg-background">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-md bg-[#e4edff]/80 border border-blue-200/70 shadow-inner">
             {ALL_SERVICES.map((svc) => {
               const checked = (active_services || []).includes(svc)
               return (
@@ -219,6 +226,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
                   <input
                     type="checkbox"
                     checked={checked}
+                    className="h-4 w-4 accent-primary rounded border-blue-300/70"
                     onChange={(e) => {
                       const curr = new Set(active_services || [])
                       if (e.target.checked) curr.add(svc)
@@ -233,8 +241,8 @@ export default function ManagementServicesCard({ property }: { property: any }) 
           </div>
         </div>
       </div>
-      <div className="border-t border-border pt-6">
-        <h4 className="text-sm font-medium text-foreground mb-3">Management Fees</h4>
+      <div className="border-t border-blue-200/70 pt-6">
+        <h4 className="text-sm font-semibold text-blue-900/90 mb-3 tracking-wide">Management Fees</h4>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Fee Assignment *</label>
@@ -246,6 +254,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
                 { value: 'Unit', label: 'Unit' },
               ]}
               placeholder="Select assignment..."
+              triggerClassName={fieldSurfaceClass}
             />
           </div>
           {fee_assignment === 'Building' && (
@@ -260,6 +269,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
                     { value: 'Flat Rate', label: 'Flat Rate' },
                   ]}
                   placeholder="Select type..."
+                  triggerClassName={fieldSurfaceClass}
                 />
               </div>
               {fee_type === 'Percentage' && (
@@ -270,7 +280,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
                       type="number"
                       value={fee_percentage}
                       onChange={(e) => setFeePercentage(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full h-9 px-3 pr-10 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+                      className={`${inputFieldWithSuffixClass} placeholder:text-muted-foreground`}
                       placeholder="e.g., 8"
                       step={0.01}
                       min={0}
@@ -289,7 +299,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
                       type="number"
                       value={management_fee}
                       onChange={(e) => setManagementFee(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+                      className={`${inputFieldClass} pl-8 pr-3 placeholder:text-muted-foreground`}
                       placeholder="e.g., 100.00"
                       step={0.01}
                       min={0}
@@ -307,6 +317,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
                     { value: 'Annual', label: 'Annual' },
                   ]}
                   placeholder="Select frequency..."
+                  triggerClassName={fieldSurfaceClass}
                 />
               </div>
             </>
@@ -325,7 +336,7 @@ export default function ManagementServicesCard({ property }: { property: any }) 
       onSave={onSave}
       isSaving={saving}
       canSave={!validate()}
-      className="bg-[#dbe9ff] border-blue-100"
+      className="bg-[#d9e7ff] border border-blue-200/70 shadow-sm"
       view={view}
       edit={edit}
     />

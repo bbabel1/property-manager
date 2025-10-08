@@ -6,8 +6,13 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { validateCSRFToken } from '@/lib/csrf'
-import { mapOwnerFromDB, mapOwnerToDB, type Owner, type OwnerDB } from '@/types/owners'
+import { mapOwnerFromDB, type Owner, type OwnerDB } from '@/types/owners'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import type { Database } from '@/types/database'
+import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType } from '@/lib/normalizers'
+
+type ContactsInsert = Database['public']['Tables']['contacts']['Insert']
+type OwnersInsert = Database['public']['Tables']['owners']['Insert']
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,22 +74,22 @@ export async function POST(request: NextRequest) {
 
     // First create the contact (map to snake_case DB columns)
     const now = new Date().toISOString();
-    const contactData = {
-      is_company: data.isCompany || false,
-      first_name: data.firstName || null,
-      last_name: data.lastName || null,
-      company_name: data.companyName || null,
-      primary_email: data.primaryEmail || null,
-      primary_phone: data.primaryPhone || null,
-      primary_address_line_1: data.addressLine1 || null,
-      primary_address_line_2: data.addressLine2 || null,
-      primary_city: data.city || null,
-      primary_state: data.state || null,
-      primary_postal_code: data.postalCode || null,
-      primary_country: data.country || 'United States',
+    const contactData: ContactsInsert = {
+      is_company: data.isCompany ?? false,
+      first_name: data.isCompany ? null : data.firstName ?? null,
+      last_name: data.isCompany ? null : data.lastName ?? null,
+      company_name: data.isCompany ? data.companyName ?? null : null,
+      primary_email: data.primaryEmail ?? null,
+      primary_phone: data.primaryPhone ?? null,
+      primary_address_line_1: data.addressLine1 ?? null,
+      primary_address_line_2: data.addressLine2 ?? null,
+      primary_city: data.city ?? null,
+      primary_state: data.state ?? null,
+      primary_postal_code: data.postalCode ?? null,
+      primary_country: normalizeCountryWithDefault(data.country),
       created_at: now,
       updated_at: now
-    } as any;
+    }
 
     const { data: contact, error: contactError } = await db
       .from('contacts')
@@ -102,27 +107,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Then create the owner referencing the contact
-    const dbData = mapOwnerToDB({
-      contactId: contact.id,
-      managementAgreementStartDate: data.managementAgreementStartDate,
-      managementAgreementEndDate: data.managementAgreementEndDate,
-      comment: data.comment,
-      etfAccountType: data.etfAccountType,
-      etfAccountNumber: data.etfAccountNumber,
-      etfRoutingNumber: data.etfRoutingNumber
-    });
+    const ownerInsert: OwnersInsert = {
+      contact_id: contact.id,
+      management_agreement_start_date: data.managementAgreementStartDate ?? null,
+      management_agreement_end_date: data.managementAgreementEndDate ?? null,
+      comment: data.comment ?? null,
+      etf_account_type: normalizeEtfAccountType(data.etfAccountType),
+      etf_account_number: data.etfAccountNumber ? Number(data.etfAccountNumber) : null,
+      etf_routing_number: data.etfRoutingNumber ? Number(data.etfRoutingNumber) : null,
+      tax_address_line1: null,
+      tax_address_line2: null,
+      tax_address_line3: null,
+      tax_city: null,
+      tax_state: null,
+      tax_postal_code: null,
+      tax_country: normalizeCountry(data.taxCountry),
+      tax_payer_id: null,
+      tax_payer_type: data.taxPayerType ?? null,
+      tax_payer_name1: null,
+      tax_payer_name2: null,
+      created_at: now,
+      updated_at: now,
+    }
 
-    // Add required timestamp fields
-    const finalDbData = {
-      ...dbData,
-       created_at: now,
-       updated_at: now
-    };
-
-    // Create the owner
     const { data: owner, error: ownerError } = await db
       .from('owners')
-      .insert(finalDbData)
+      .insert(ownerInsert)
       .select()
       .single()
 
@@ -143,10 +153,15 @@ export async function POST(request: NextRequest) {
 
     try {
       // Get contact data for Buildium sync
+      const ownerContactId = owner.contact_id
+      if (!ownerContactId) {
+        throw new Error('Owner contact_id missing')
+      }
+
       const { data: contact } = await db
         .from('contacts')
         .select('*')
-        .eq('id', owner.contact_id)
+        .eq('id', ownerContactId)
         .single();
 
       if (!contact) {
@@ -167,7 +182,6 @@ export async function POST(request: NextRequest) {
           PostalCode: contact.primary_postal_code || '',
           Country: contact.primary_country || 'US'
         },
-        TaxId: contact.tax_payer_id || undefined,
         IsActive: true
       };
 

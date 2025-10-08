@@ -92,8 +92,8 @@ export class ApplianceService {
   // Create in Buildium, then map and insert in DB
   static async createInBuildiumAndDB(payload: BuildiumApplianceCreate | ApplianceInsert): Promise<{ buildium: BuildiumAppliance; localId?: string }> {
     const client = ensureClient()
-    const toBuildium = await mapApplianceToBuildium(payload, supabase)
-    const buildium = await client.createAppliance(toBuildium)
+    const toBuildium = await mapApplianceToBuildium(payload as Record<string, any>, supabase)
+    const buildium = await client.createAppliance(toBuildium as BuildiumApplianceCreate)
     const local = await mapApplianceFromBuildium(buildium, supabase)
     const { data, error } = await supabase.from('appliances').insert(local).select('id').single()
     if (error) throw error
@@ -103,8 +103,8 @@ export class ApplianceService {
   // Update in Buildium and update local DB row by buildium id
   static async updateInBuildiumAndDB(id: number, payload: BuildiumApplianceUpdate | ApplianceUpdate): Promise<{ buildium: BuildiumAppliance; localId?: string | null }> {
     const client = ensureClient()
-    const toBuildium = await mapApplianceToBuildium({ ...payload, Id: id }, supabase)
-    const buildium = await client.updateAppliance(id, toBuildium)
+    const toBuildium = await mapApplianceToBuildium({ ...(payload as Record<string, any>), Id: id }, supabase)
+    const buildium = await client.updateAppliance(id, toBuildium as BuildiumApplianceUpdate)
     const local = await mapApplianceFromBuildium(buildium, supabase)
 
     const { data: existing } = await supabase

@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerAccountCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import supabase from '@/lib/db';
+import { getServerSupabaseClient } from '@/lib/supabase-client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive');
 
     // Proxy to Edge function list
+    const supabase = getServerSupabaseClient('gl accounts list');
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
       body: {
         method: 'GET',
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
       }
     })
     if (error) {
-      logger.error('Edge function error fetching GL accounts', { error })
+      logger.error({ error }, 'Edge function error fetching GL accounts')
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
     const accounts = data?.data || data
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumGeneralLedgerAccountCreateSchema);
 
     // Proxy to Edge function create
+    const supabase = getServerSupabaseClient('gl accounts create');
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
       body: {
         entityType: 'glAccount',
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       }
     })
     if (error) {
-      logger.error('Edge function error creating GL account', { error })
+      logger.error({ error }, 'Edge function error creating GL account')
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
     const account = data?.data || data

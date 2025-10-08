@@ -1010,11 +1010,97 @@ export class BuildiumEdgeClient {
     }
   }
 
+  // Property image operations
+  async uploadPropertyImage(propertyId: string, imageData: any): Promise<any> {
+    try {
+      const { data, error } = await supabase.functions.invoke('buildium-sync', {
+        body: { 
+          entityType: 'property_image', 
+          operation: 'upload', 
+          propertyId,
+          imageData 
+        }
+      })
+      
+      if (error) {
+        console.error('Property image upload error:', error)
+        throw new Error(error.message)
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Unknown error')
+      }
+
+      return data.data
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Failed to upload property image:', errorMessage)
+      throw new Error(errorMessage)
+    }
+  }
+
+  async updatePropertyImage(propertyId: string, imageId: string, imageData: any): Promise<any> {
+    try {
+      const { data, error } = await supabase.functions.invoke('buildium-sync', {
+        body: { 
+          entityType: 'property_image', 
+          operation: 'update', 
+          propertyId,
+          imageId,
+          imageData 
+        }
+      })
+      
+      if (error) {
+        console.error('Property image update error:', error)
+        throw new Error(error.message)
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Unknown error')
+      }
+
+      return data.data
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Failed to update property image:', errorMessage)
+      throw new Error(errorMessage)
+    }
+  }
+
+  async deletePropertyImage(propertyId: string, imageId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('buildium-sync', {
+        body: { 
+          entityType: 'property_image', 
+          operation: 'delete', 
+          propertyId,
+          imageId
+        }
+      })
+      
+      if (error) {
+        console.error('Property image delete error:', error)
+        return { success: false, error: error.message }
+      }
+
+      if (!data?.success) {
+        return { success: false, error: data?.error || 'Unknown error' }
+      }
+
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Failed to delete property image:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  }
+
   // Generic raw proxy to Edge (keeps secrets at Edge)
   async proxyRaw(method: string, path: string, params?: Record<string, any>, payload?: any): Promise<{ success: boolean; data?: any; error?: string }>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
-        body: { entityType: 'raw', operation: 'fetch', method, path, params: params || {}, payload }
+        body: { entityType: 'raw', operation: 'fetch', method, params: params || {}, payload }
       })
       if (error) return { success: false, error: error.message }
       if (!data?.success) return { success: false, error: data?.error || 'Unknown error' }

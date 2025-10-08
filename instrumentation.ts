@@ -3,7 +3,11 @@
 
 export async function register() {
   try {
-    const enabled = String(process.env.OTEL_ENABLED || '').toLowerCase()
+    const nodeProcess = typeof globalThis === 'object' ? (globalThis.process as NodeJS.Process | undefined) : undefined
+    const isNodeRuntime = Boolean(nodeProcess?.versions?.node)
+    if (!isNodeRuntime) return
+
+    const enabled = String(nodeProcess?.env?.OTEL_ENABLED || '').toLowerCase()
     const isEnabled = enabled === '1' || enabled === 'true'
     if (!isEnabled) return
 
@@ -16,13 +20,13 @@ export async function register() {
     const { PgInstrumentation } = await import('@opentelemetry/instrumentation-pg')
     const { PinoInstrumentation } = await import('@opentelemetry/instrumentation-pino')
 
-    const serviceName = process.env.OTEL_SERVICE_NAME || 'property-manager'
+    const serviceName = nodeProcess?.env?.OTEL_SERVICE_NAME || 'property-manager'
     const resource = new Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
-      [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
+      [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: nodeProcess?.env?.NODE_ENV || 'development',
     })
 
-    const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+    const endpoint = nodeProcess?.env?.OTEL_EXPORTER_OTLP_ENDPOINT
     if (!endpoint) {
       // If no endpoint is configured, skip startup to avoid runtime errors
       // Set OTEL_EXPORTER_OTLP_ENDPOINT to something like http://localhost:4318/v1/traces
@@ -44,15 +48,16 @@ export async function register() {
 
     await sdk.start()
 
-    process.on('SIGTERM', () => {
-      void sdk.shutdown()
-    })
-    process.on('SIGINT', () => {
-      void sdk.shutdown()
-    })
+    if (typeof nodeProcess?.on === 'function') {
+      nodeProcess.on('SIGTERM', () => {
+        void sdk.shutdown()
+      })
+      nodeProcess.on('SIGINT', () => {
+        void sdk.shutdown()
+      })
+    }
   } catch (e) {
     // Never block startup due to telemetry errors
     console.warn('[otel] instrumentation init skipped:', (e as Error)?.message)
   }
 }
-
