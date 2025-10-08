@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { normalizeStaffRole } from '@/lib/staff-role'
 
 export type ManagerOption = { value: string; label: string }
 
@@ -21,11 +22,7 @@ export function useManagersOptions(editing: boolean) {
         const data = await res.json()
         if (!cancelled) {
           const list = (Array.isArray(data) ? data : [])
-            .filter((s: any) => {
-              const r = String(s.role || '')
-              const norm = r.toUpperCase().replace(/\s+/g, '_')
-              return norm === 'PROPERTY_MANAGER'
-            })
+            .filter((s: any) => normalizeStaffRole(s.role) === 'Property Manager')
             .map((s: any) => ({ value: String(s.id), label: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}` }))
           setOptions(list)
         }

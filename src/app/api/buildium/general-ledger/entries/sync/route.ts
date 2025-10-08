@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import supabase from '@/lib/db';
+import { supabase } from '@/lib/db';
 import { upsertGLEntryWithLines } from '@/lib/buildium-mappers';
 
 async function getCursor(key: string) {

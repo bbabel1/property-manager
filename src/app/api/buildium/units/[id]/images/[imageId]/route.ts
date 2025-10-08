@@ -21,7 +21,7 @@ export async function GET(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
     const { id, imageId } = params;
 
@@ -85,7 +85,7 @@ export async function PUT(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
     const { id, imageId } = params;
 
@@ -156,7 +156,7 @@ export async function DELETE(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
     const { id, imageId } = params;
 

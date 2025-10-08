@@ -41,6 +41,9 @@ function assertSafe(force: boolean) {
 
 // Ordered deletes (children → parents). Adjust as schema evolves.
 const DEFAULT_TABLES_ORDER = [
+  // Unified files first (children before parents)
+  'file_links',
+  'files',
   'lease_contacts',
   'leases',
   'ownerships',
@@ -51,7 +54,6 @@ const DEFAULT_TABLES_ORDER = [
   'owners',
   'contacts',
   'tasks',
-  'task_history_files',
   'task_history',
   'task_categories',
   'vendors',
@@ -92,4 +94,3 @@ run().catch((e) => {
   console.error('Reset failed:', e)
   process.exit(1)
 })
-

@@ -1,15 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { X, User, Building, Mail, MapPin, FileText, DollarSign, Plus } from 'lucide-react'
+import React, { useState } from 'react'
+import { User, Building, Mail, MapPin, FileText, DollarSign, Plus } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { DatePicker } from './ui/date-picker'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { OwnerCreateSchema, type OwnerCreateInput } from '@/schemas/owner'
+// import { useForm } from 'react-hook-form'
+// import { zodResolver } from '@hookform/resolvers/zod'
+// import { OwnerCreateSchema, type OwnerCreateInput } from '@/schemas/owner'
 
 const COUNTRIES = [
   'United States',
@@ -37,15 +37,15 @@ const TAX_PAYER_TYPES = [
   'EIN'
 ]
 
-const ETF_ACCOUNT_TYPES = [
-  'Checking',
-  'Saving'
-]
+// const ETF_ACCOUNT_TYPES = [
+//   'Checking',
+//   'Saving'
+// ]
 
 interface CreateOwnerModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateOwner: (ownerData: any) => void
+  onCreateOwner: (ownerData: Record<string, unknown>) => void
   isLoading: boolean
   error: string | null
 }
@@ -517,8 +517,9 @@ export default function CreateOwnerModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">Country</label>
+                    <label htmlFor="owner-primary-country" className="block text-sm font-medium text-foreground mb-1">Country</label>
                     <select
+                      id="owner-primary-country"
                       value={formData.primaryCountry}
                       onChange={e => setFormData(prev => ({ ...prev, primaryCountry: e.target.value }))}
                       className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
@@ -533,10 +534,11 @@ export default function CreateOwnerModal({
 
               {/* Mailing Preference */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
+                <label htmlFor="owner-mailing-preference" className="block text-sm font-medium text-foreground mb-1">
                   Mailing Preference
                 </label>
                 <select
+                  id="owner-mailing-preference"
                   value={formData.mailingPreference}
                   onChange={(e) => handleMailingPreferenceChange(e.target.value)}
                   className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
@@ -618,8 +620,9 @@ export default function CreateOwnerModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Country</label>
+                      <label htmlFor="owner-alt-country" className="block text-sm font-medium text-foreground mb-1">Country</label>
                       <select
+                        id="owner-alt-country"
                         value={formData.altCountry}
                         onChange={e => setFormData(prev => ({ ...prev, altCountry: e.target.value }))}
                         className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
@@ -656,10 +659,11 @@ export default function CreateOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label htmlFor="owner-taxpayer-type" className="block text-sm font-medium text-foreground mb-1">
                     Tax Payer Type
                   </label>
                   <select
+                    id="owner-taxpayer-type"
                     value={formData.taxPayerType}
                     onChange={(e) => setFormData(prev => ({ ...prev, taxPayerType: e.target.value }))}
                     className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
@@ -795,11 +799,12 @@ export default function CreateOwnerModal({
                         />
                       </div>
                       <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Country</label>
+                        <label htmlFor="owner-tax-country" className="block text-sm font-medium text-foreground mb-1">Country</label>
                         <select
+                          id="owner-tax-country"
                           value={formData.taxCountry}
                           onChange={(e) => setFormData(prev => ({ ...prev, taxCountry: e.target.value }))}
-                        className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
+                          className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground"
                         >
                           <option value="">Select country</option>
                           {COUNTRIES.map(country => (

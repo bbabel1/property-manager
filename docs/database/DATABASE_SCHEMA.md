@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-> **Last Updated**: 2025-09-13T04:22:14.362Z (Auto-generated)
+> **Last Updated**: 2025-10-08T02:51:22.245Z (Auto-generated)
 
 ## Overview
 
@@ -8,256 +8,391 @@ This document provides a comprehensive overview of the Supabase database schema 
 
 ## Migration History
 
-### 001_initial_schema.sql
+### 20240101000001_001_initial_schema.sql
 **Description**: No description available
 
-### 002_add_is_active_to_bank_accounts.sql
+### 20240101000002_002_add_is_active_to_bank_accounts.sql
 **Description**: Adds an is_active boolean field to track whether bank accounts are active or inactive
 
-### 003_add_balance_fields_to_bank_accounts.sql
+### 20240101000003_003_add_balance_fields_to_bank_accounts.sql
 **Description**: Adds balance and buildium_balance numeric fields to track account balances
 
-### 004_add_gl_account_relationship_to_bank_accounts.sql
+### 20240101000004_004_add_gl_account_relationship_to_bank_accounts.sql
 **Description**: Adds a foreign key relationship from bank_accounts to gl_accounts table
 
-### 005_cleanup_bank_accounts_table.sql
+### 20240101000005_005_cleanup_bank_accounts_table.sql
 **Description**: Remove check printing and information fields, make key fields non-nullable
 
-### 006_update_gl_accounts_field_mapping.sql
+### 20240101000006_006_update_gl_accounts_field_mapping.sql
 **Description**: No description available
 
-### 007_add_building_name_to_units.sql
+### 20240101000007_007_add_building_name_to_units.sql
 **Description**: No description available
 
-### 008_standardize_timestamp_fields.sql
+### 20240101000008_008_standardize_timestamp_fields.sql
 **Description**: Ensures all tables use consistent snake_case naming for created_at and updated_at fields
 
-### 009_update_units_country_to_text.sql
+### 20240101000009_009_update_units_country_to_text.sql
 **Description**: Change the country field in the units table from character varying(100) to text type
 
-### 010_create_countries_enum.sql
+### 20240101000010_010_create_countries_enum.sql
 **Description**: Create a comprehensive countries enum with all world countries
 
-### 011_apply_countries_enum_to_tables.sql
+### 20240101000011_011_apply_countries_enum_to_tables.sql
 **Description**: Update all country fields to use the standardized countries enum type
 
-### 012_add_buildium_property_id_to_lease.sql
+### 20240101000012_012_add_buildium_property_id_to_lease.sql
 **Description**: Add buildium_property_id field to lease table for direct property reference
 
-### 013_add_buildium_unit_id_to_lease.sql
+### 20240101000013_013_add_buildium_unit_id_to_lease.sql
 **Description**: Add buildium_unit_id field to lease table for direct unit reference
 
-### 044_add_vacant_units_count_to_properties.sql
+### 20240101000044_014_add_vacant_units_count_to_properties.sql
 **Description**: Adds a computed column that tracks the count of units with status 'Vacant' for each property
 
-### 045_fix_properties_updated_at_default.sql
+### 20240101000045_015_fix_properties_updated_at_default.sql
 **Description**: No description available
 
-### 20250103000000_fix_property_unit_counts.sql
+### 20250103000000_016_fix_property_unit_counts.sql
 **Description**: No description available
 
-### 20250103000001_remove_vacant_units_count.sql
+### 20250103000001_017_remove_vacant_units_count.sql
 **Description**: No description available
 
-### 20250826233007_add_sub_accounts_to_gl_accounts.sql
+### 20250301090000_allow_nullable_buildium_image_id_on_unit_images.sql
+**Description**: No description available
+
+### 20250301093000_add_unique_constraint_buildium_sync_status.sql
+**Description**: No description available
+
+### 20250826233007_018_add_sub_accounts_to_gl_accounts.sql
 **Description**: Add sub_accounts field as UUID array to store child GL account references
 
-### 20250828032609_add_data_integrity_functions.sql
+### 20250828032609_019_add_data_integrity_functions.sql
 **Description**: No description available
 
-### 20250828054100_rename_transactions_columns_to_snake_case.sql
+### 20250828054100_020_rename_transactions_columns_to_snake_case.sql
 **Description**: No description available
 
-### 20250828054110_rename_staff_and_lease_columns_to_snake_case.sql
+### 20250828054110_021_rename_staff_and_lease_columns_to_snake_case.sql
 **Description**: No description available
 
-### 20250828060000_non_destructive_remote_alignment.sql
+### 20250828060000_022_non_destructive_remote_alignment.sql
 **Description**: No description available
 
-### 20250828063500_cleanup_timestamp_standardization.sql
+### 20250828063500_023_cleanup_timestamp_standardization.sql
 **Description**: No description available
 
-### 20250828070000_add_missing_updated_at_triggers.sql
+### 20250828070000_024_add_missing_updated_at_triggers.sql
 **Description**: No description available
 
-### 20250828070500_staged_country_enum_constraints_and_report.sql
+### 20250828070500_025_staged_country_enum_constraints_and_report.sql
 **Description**: No description available
 
-### 20250828073000_normalize_countries_and_convert_to_enum.sql
+### 20250828073000_026_normalize_countries_and_convert_to_enum.sql
 **Description**: No description available
 
-### 20250828134000_add_buildium_lease_id_to_transactions.sql
+### 20250828134000_027_add_buildium_lease_id_to_transactions.sql
 **Description**: Adds a nullable integer column `buildium_lease_id` to `public.transactions`
 
-### 20250828143500_add_payment_method_enum_and_alter_transactions.sql
+### 20250828143500_028_add_payment_method_enum_and_alter_transactions.sql
 **Description**: Normalizes payment methods and converts column from text to enum, mapping known values and setting unknowns to NULL
 
-### 20250828143600_drop_buildium_journal_id_from_transaction_lines.sql
+### 20250828143600_029_drop_buildium_journal_id_from_transaction_lines.sql
 **Description**: Field no longer needed per requirements
 
-### 20250829010000_gl_journal_entry_and_sync_cursor.sql
+### 20250829010000_030_gl_journal_entry_and_sync_cursor.sql
 **Description**: No description available
 
-### 20250829013000_gl_reporting_views.sql
+### 20250829013000_031_gl_reporting_views.sql
 **Description**: No description available
 
-### 20250829014500_bank_accounts_country_and_indexes.sql
+### 20250829014500_032_bank_accounts_country_and_indexes.sql
 **Description**: No description available
 
-### 20250829021000_bank_account_type_check_constraint.sql
+### 20250829021000_033_bank_account_type_check_constraint.sql
 **Description**: No description available
 
-### 20250829024550_add_unit_images_and_notes.sql
+### 20250829024550_034_add_unit_images_and_notes.sql
 **Description**: No description available
 
-### 20250829120000_update_vendors_schema_add_fields_remove_legacy.sql
+### 20250829120000_035_update_vendors_schema_add_fields_remove_legacy.sql
 **Description**: No description available
 
-### 20250829123000_add_expense_gl_account_id_to_vendors.sql
+### 20250829123000_036_add_expense_gl_account_id_to_vendors.sql
 **Description**: No description available
 
-### 20250829124500_update_vendors_category_fields.sql
+### 20250829124500_037_update_vendors_category_fields.sql
 **Description**: No description available
 
-### 20250829131500_add_vendor_contact_fk.sql
+### 20250829131500_038_add_vendor_contact_fk.sql
 **Description**: No description available
 
-### 20250829133000_require_vendors_contact_id.sql
+### 20250829133000_039_require_vendors_contact_id.sql
 **Description**: No description available
 
-### 20250829140000_tasks_categories_and_relationships.sql
+### 20250829140000_040_tasks_categories_and_relationships.sql
 **Description**: No description available
 
-### 20250829150000_add_appliance_buildium_and_service_history.sql
+### 20250829150000_041_add_appliance_buildium_and_service_history.sql
 **Description**: No description available
 
-### 20250829153000_tenants_sms_bool_and_tenant_notes.sql
+### 20250829153000_042_tenants_sms_bool_and_tenant_notes.sql
 **Description**: No description available
 
-### 20250829154500_add_property_id_to_appliances.sql
+### 20250829180000_043_bank_accounts_extend_for_buildium.sql
 **Description**: No description available
 
-### 20250829180000_bank_accounts_extend_for_buildium.sql
-**Description**: No description available
-
-### 20250829181000_update_gl_accounts_field_mapping.sql
+### 20250829181000_044_update_gl_accounts_field_mapping.sql
 **Description**: Rename parent_gl_account_id to buildium_parent_gl_account_id for proper Buildium field mapping
 
-### 20250829190000_owner_indexes.sql
+### 20250829190000_045_owner_indexes.sql
 **Description**: No description available
 
-### 20250829190500_add_lease_notes_and_recurring.sql
+### 20250829190500_046_add_lease_notes_and_recurring.sql
 **Description**: No description available
 
-### 20250902090000_add_indexes_for_lease_transactions.sql
+### 20250902090000_047_add_indexes_for_lease_transactions.sql
 **Description**: No description available
 
-### 20250904180100_add_more_unit_counts_to_properties.sql
-**Description**: No description available
-
-### 20250904_add_total_vacant_units_to_properties.sql
+### 20250904000000_048_add_total_vacant_units_to_properties.sql
 **Description**: Adds total_vacant_units integer column and reuses the existing
 
-### 20250905010000_remove_vacant_units_count_and_add_occupancy_rate.sql
+### 20250904180100_049_add_more_unit_counts_to_properties.sql
 **Description**: No description available
 
-### 20250905011000_remove_vacant_units_count.sql
+### 20250905010000_050_remove_vacant_units_count_and_add_occupancy_rate.sql
 **Description**: No description available
 
-### 20250905013000_drop_square_footage_from_units.sql
+### 20250905011000_051_remove_vacant_units_count.sql
 **Description**: No description available
 
-### 20250906000000_create_property_staff.sql
+### 20250905013000_052_drop_square_footage_from_units.sql
 **Description**: No description available
 
-### 20250906001000_add_location_fields_to_properties.sql
+### 20250906000000_053_create_property_staff.sql
 **Description**: No description available
 
-### 20250906002000_add_property_type_enum_and_convert.sql
+### 20250906001000_054_add_location_fields_to_properties.sql
 **Description**: No description available
 
-### 20250906003000_drop_rental_sub_type.sql
+### 20250906002000_055_add_property_type_enum_and_convert.sql
 **Description**: No description available
 
-### 20250907091500_add_management_and_fee_fields_to_properties.sql
+### 20250906003000_056_drop_rental_sub_type.sql
 **Description**: No description available
 
-### 20250907093000_convert_service_assignment_enum.sql
+### 20250907091500_057_add_management_and_fee_fields_to_properties.sql
 **Description**: No description available
 
-### 20250907095500_rename_included_services_to_active_services.sql
+### 20250907093000_058_convert_service_assignment_enum.sql
 **Description**: No description available
 
-### 20250907113000_staff_roles_enum_and_convert.sql
+### 20250907095500_059_rename_included_services_to_active_services.sql
 **Description**: No description available
 
-### 20250911090000_integrity_enforcements.sql
+### 20250907113000_060_staff_roles_enum_and_convert.sql
 **Description**: No description available
 
-### 20250911133000_rbac_and_tenancy.sql
+### 20250911090000_061_integrity_enforcements.sql
 **Description**: No description available
 
-### 20250911140900_jwt_custom_claims.sql
+### 20250911133000_062_rbac_and_tenancy.sql
 **Description**: No description available
 
-### 20250911141000_extend_rls_and_portals.sql
+### 20250911140000_063_create_organizations_table.sql
 **Description**: No description available
 
-### 20250911143000_org_integrity_and_storage_fix.sql
+### 20250911140900_100_jwt_custom_claims.sql
 **Description**: No description available
 
-### 20250911150000_backfill_org_ids_and_constraints.sql
+### 20250911141000_064_extend_rls_and_portals.sql
 **Description**: No description available
 
-### 20250912120000_dashboard_kpis.sql
+### 20250911143000_065_org_integrity_and_storage_fix.sql
 **Description**: No description available
 
-### 20250912163000_property_financials.sql
+### 20250911150000_066_backfill_org_ids_and_constraints.sql
 **Description**: No description available
 
-### 20250912180010_users_profiles_contacts_views.sql
+### 20250912000000_068_add_security_deposit_flag.sql
 **Description**: No description available
 
-### 20250912_add_security_deposit_flag.sql
+### 20250912000001_069_reconciliation_log_buildium.sql
 **Description**: No description available
 
-### 20250912_get_property_financials_use_finished.sql
+### 20250912000002_070_gl_account_activity.sql
 **Description**: No description available
 
-### 20250912_gl_account_activity.sql
+### 20250912000003_071_latest_reconciliation_view.sql
 **Description**: No description available
 
-### 20250912_latest_reconciliation_view.sql
+### 20250912000004_072_reconciliation_unique_idx.sql
 **Description**: No description available
 
-### 20250912_reconciliation_alerts.sql
+### 20250912000005_073_reconciliation_variance.sql
 **Description**: No description available
 
-### 20250912_reconciliation_log_buildium.sql
+### 20250912000006_074_get_property_financials_use_finished.sql
 **Description**: No description available
 
-### 20250912_reconciliation_unique_idx.sql
+### 20250912000007_075_reconciliation_alerts.sql
 **Description**: No description available
 
-### 20250912_reconciliation_variance.sql
+### 20250912000008_076_replace_get_property_financials.sql
 **Description**: No description available
 
-### 20250912_replace_get_property_financials.sql
+### 20250912120000_067_dashboard_kpis.sql
 **Description**: No description available
 
-### 20250913_additional_perf_indexes.sql
+### 20250912163000_101_property_financials.sql
 **Description**: No description available
 
-### 20250913_performance_indexes.sql
+### 20250912180010_102_users_profiles_contacts_views.sql
 **Description**: No description available
 
-### 20250914000000_property_staff_role_index.sql
+### 20250913000000_077_additional_perf_indexes.sql
+**Description**: No description available
+
+### 20250913000001_078_performance_indexes.sql
+**Description**: No description available
+
+### 20250914000000_103_property_staff_role_index.sql
+**Description**: No description available
+
+### 20250914000001_079_property_images.sql
+**Description**: No description available
+
+### 20250915000000_080_staff_profile_enum_and_links.sql
+**Description**: No description available
+
+### 20250915000001_081_staff_columns_only.sql
+**Description**: No description available
+
+### 20250915000002_082_convert_roles_to_enum.sql
+**Description**: No description available
+
+### 20250915000003_083_buildium_sync_runs.sql
+**Description**: No description available
+
+### 20250916090000_084_rls_performance_fixes.sql
+**Description**: No description available
+
+### 20250916093000_085_drop_duplicate_indexes.sql
+**Description**: No description available
+
+### 20250916102000_086_rls_policy_cleanup.sql
+**Description**: No description available
+
+### 20250917000000_087_fix_auth_rls_initialization_plan.sql
+**Description**: No description available
+
+### 20250917010000_088_comprehensive_auth_rls_fix.sql
+**Description**: No description available
+
+### 20250917020000_089_fix_permissive_policies_and_duplicate_indexes.sql
+**Description**: No description available
+
+### 20250917030000_090_cleanup_remaining_duplicate_indexes.sql
+**Description**: No description available
+
+### 20250917040000_091_fix_remaining_auth_rls_initialization_plan.sql
+**Description**: No description available
+
+### 20250917050000_092_fix_all_permissive_policies.sql
+**Description**: No description available
+
+### 20250917060000_093_consolidate_overlapping_permissive_policies.sql
+**Description**: No description available
+
+### 20250917070000_094_add_missing_foreign_key_indexes.sql
+**Description**: No description available
+
+### 20250917080000_095_remove_unused_indexes.sql
+**Description**: No description available
+
+### 20250917090000_096_restore_necessary_foreign_key_indexes.sql
+**Description**: No description available
+
+### 20250917100000_097_remove_additional_unused_indexes.sql
+**Description**: No description available
+
+### 20250917110000_098_add_missing_inspections_unit_id_index.sql
+**Description**: No description available
+
+### 20250917120000_099_optimize_query_performance.sql
+**Description**: No description available
+
+### 20250917130000_104_additional_query_optimizations.sql
+**Description**: No description available
+
+### 20250919000000_105_add_onetime_to_rent_cycle_enum.sql
+**Description**: Adds 'OneTime' value to rent_cycle_enum to support one-off lease templates
+
+### 20250919000001_106_constraints_and_indexes.sql
+**Description**: Adds various constraints and indexes for data integrity and performance
+
+### 20250919000002_107_idempotency_enhancements.sql
+**Description**: Adds idempotency checks and error handling to prevent duplicate operations
+
+### 20250919000003_108_update_fn_create_lease_aggregate_bigint_and_lock.sql
+**Description**: Updates fn_create_lease_aggregate to handle bigint IDs and add row locking
+
+### 20250919000004_109_webhook_events_unique.sql
+**Description**: Prevents duplicate webhook events from being processed
+
+### 20250919093000_110_sync_tables_org_rls_and_grants.sql
+**Description**: No description available
+
+### 20250924000000_111_fix_org_memberships_infinite_recursion.sql
+**Description**: No description available
+
+### 20250924000001_112_fix_all_recursive_policies.sql
+**Description**: No description available
+
+### 20250924000002_113_fix_rls_policies_for_updates.sql
+**Description**: No description available
+
+### 20250924000003_114_fix_rls_policies_comprehensive.sql
+**Description**: No description available
+
+### 20250924000004_115_add_property_images_rls.sql
+**Description**: No description available
+
+### 20250924010000_115_restore_secure_rls.sql
+**Description**: No description available
+
+### 20250925000005_fix_lease_tenant_org_and_people.sql
+**Description**: No description available
+
+### 20250925020000_add_status_to_rent_schedules.sql
+**Description**: Creates rent_schedule_status enum and adds status column to rent_schedules
+
+### 20250925031500_update_transaction_type_enum.sql
+**Description**: No description available
+
+### 20250926000005_add_receipt_flags_to_transactions.sql
+**Description**: No description available
+
+### 20251008120000_001_files_unified_schema.sql
+**Description**: No description available
+
+### 20251008121000_002_files_backfill.sql
+**Description**: No description available
+
+### 20251008123000_003_files_lease_documents_trigger.sql
+**Description**: No description available
+
+### 20251008124500_004_drop_legacy_file_tables.sql
+**Description**: No description available
+
+### 20251008130000_005_unify_lease_documents_and_fn.sql
 **Description**: No description available
 
 
 ## Current Schema Status
 
-- **Total Migrations**: 82
+- **Total Migrations**: 127
 - **Database Provider**: PostgreSQL via Supabase
 - **ORM**: Direct Supabase client operations
 - **Security**: Row Level Security (RLS) enabled on all tables

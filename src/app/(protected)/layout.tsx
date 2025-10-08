@@ -1,10 +1,10 @@
 'use client'
 
-import { useAuth } from '@/components/providers'
+import React, { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
-import { AppSidebarLayout } from '@/components/layout/app-sidebar'
-import { AppStateProvider } from '@/components/layout/app-state'
+import { useAuth } from '@/components/providers'
+import AppSidebarLayout from '@/components/layout/app-sidebar'
+import AppStateProvider from '@/components/layout/app-state'
 
 export default function ProtectedLayout({ 
   children 

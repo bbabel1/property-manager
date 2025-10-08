@@ -31,7 +31,11 @@ export async function buildiumFetch(
     const text = await res.text()
     let json: any
     try { json = text ? JSON.parse(text) : undefined } catch { json = undefined }
-    console.log(`[Buildium] ${method} ${path} -> ${res.status}`, json?.Id ? { Id: json.Id } : undefined)
+    if (res.ok) {
+      console.log(`[Buildium] ${method} ${path} -> ${res.status}`, json?.Id ? { Id: json.Id } : json)
+    } else {
+      console.warn(`[Buildium] ${method} ${path} -> ${res.status}`, json ?? text)
+    }
     return { ok: res.ok, status: res.status, json, errorText: res.ok ? undefined : text }
   } catch (e) {
     console.warn(`[Buildium] ${method} ${path} failed`, (e as Error).message)

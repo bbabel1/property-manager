@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
+import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
 
 export async function GET() {
@@ -8,9 +8,10 @@ export async function GET() {
     if (process.env.NODE_ENV === 'production') {
       await requireRole('org_admin')
     }
-    if (!supabaseAdmin) {
+    if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
     }
+    const supabaseAdmin = requireSupabaseAdmin('list users')
 
     // List users via Admin API
     const { data: usersData, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000, page: 1 }) as any

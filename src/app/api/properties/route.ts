@@ -5,11 +5,36 @@ import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
+import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import type { Database as DatabaseSchema } from '@/types/database'
+import {
+  normalizeAssignmentLevel,
+  normalizeAssignmentLevelEnum,
+  normalizeBillingFrequency,
+  normalizeCountryWithDefault,
+  normalizeFeeType,
+  normalizeFeeFrequency,
+  normalizeManagementServicesList,
+  normalizePropertyStatus,
+  normalizePropertyType,
+  normalizeServicePlan,
+  normalizeUnitBathrooms,
+  normalizeUnitBedrooms,
+  toNumberOrDefault,
+  toNumberOrNull,
+} from '@/lib/normalizers'
+
+type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert']
+type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update']
+type UnitsInsert = DatabaseSchema['public']['Tables']['units']['Insert']
+type OwnershipInsert = DatabaseSchema['public']['Tables']['ownerships']['Insert']
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request)
     const body = await request.json()
+    const url = new URL(request.url)
+    const syncToBuildium = url.searchParams.get('syncToBuildium') === 'true'
     const {
       propertyType,
       name,
@@ -70,43 +95,60 @@ export async function POST(request: NextRequest) {
     }
 
     // Create property data object matching database schema (snake_case)
-    const normalizedCountry = mapGoogleCountryToEnum(country)
-    const propertyData = {
+    const normalizedCountry = normalizeCountryWithDefault(mapGoogleCountryToEnum(country ?? ''))
+    const activeServicesInput = Array.isArray(active_services) || typeof active_services === 'string'
+      ? active_services
+      : Array.isArray(included_services) || typeof included_services === 'string'
+      ? included_services
+      : null
+    const normalizedActiveServices = normalizeManagementServicesList(activeServicesInput)
+    const normalizedPropertyType = normalizePropertyType(propertyType)
+    const propertyStatus = normalizePropertyStatus(status)
+
+    // Coerce empty-string UUID fields to null to satisfy DB uuid type
+    const opId = typeof operatingBankAccountId === 'string' && operatingBankAccountId.trim() === ''
+      ? null
+      : operatingBankAccountId ?? null
+    const depId = typeof depositTrustAccountId === 'string' && depositTrustAccountId.trim() === ''
+      ? null
+      : depositTrustAccountId ?? null
+
+    const now = new Date().toISOString()
+    const propertyData: PropertiesInsert = {
       name,
-      structure_description: structureDescription,
+      structure_description: structureDescription ?? null,
       address_line1: addressLine1,
-      address_line2: addressLine2 || null,
-      city,
-      state,
+      address_line2: addressLine2 ?? null,
+      address_line3: body?.addressLine3 ?? null,
+      city: city ?? null,
+      state: state ?? null,
       postal_code: postalCode,
       country: normalizedCountry,
-      // Persist UI property_type to enum (NULL means None)
-      property_type: (propertyType === 'Mult-Family') ? 'Mult-Family' : propertyType,
-      operating_bank_account_id: operatingBankAccountId || null,
-      deposit_trust_account_id: depositTrustAccountId || null,
-      reserve: reserve ? parseFloat(reserve.toString()) : null,
-      year_built: yearBuilt ? parseInt(yearBuilt) : null,
-      status: status || 'Active',
-      rental_owner_ids: [],
-      // Management/Service/Fees (nullable if not provided)
-      management_scope: management_scope || null,
-      service_assignment: service_assignment || null,
-      service_plan: service_plan || null,
-      active_services: Array.isArray(active_services)
-        ? (active_services.length ? active_services : null)
-        : (Array.isArray(included_services) && included_services.length ? included_services : null),
-      fee_assignment: fee_assignment || null,
-      fee_type: fee_type || null,
-      fee_percentage: (fee_percentage ?? null) !== null ? Number(fee_percentage) : null,
-      management_fee: (management_fee ?? null) !== null ? Number(management_fee) : null,
-      billing_frequency: billing_frequency || null,
-      // Optional location fields from client (if present)
-      borough: typeof body?.borough === 'string' ? body.borough : null,
-      neighborhood: typeof body?.neighborhood === 'string' ? body.neighborhood : null,
-      longitude: body?.longitude != null ? Number(body.longitude) : null,
-      latitude: body?.latitude != null ? Number(body.latitude) : null,
-      location_verified: !!body?.locationVerified,
+      property_type: normalizedPropertyType,
+      operating_bank_account_id: opId,
+      deposit_trust_account_id: depId,
+      reserve: toNumberOrNull(reserve),
+      year_built: toNumberOrNull(yearBuilt),
+      status: propertyStatus,
+      is_active: propertyStatus === 'Active',
+      rental_owner_ids: null,
+      management_scope: normalizeAssignmentLevelEnum(management_scope),
+      service_assignment: normalizeAssignmentLevel(service_assignment),
+      service_plan: normalizeServicePlan(service_plan),
+      active_services: normalizedActiveServices,
+      fee_assignment: normalizeAssignmentLevelEnum(fee_assignment),
+      fee_type: normalizeFeeType(fee_type),
+      fee_percentage: toNumberOrNull(fee_percentage),
+      management_fee: toNumberOrNull(management_fee),
+      billing_frequency: normalizeBillingFrequency(billing_frequency),
+      borough: typeof body?.borough === 'string' && body.borough.trim() ? body.borough : null,
+      neighborhood: typeof body?.neighborhood === 'string' && body.neighborhood.trim() ? body.neighborhood : null,
+      longitude: toNumberOrNull(body?.longitude),
+      latitude: toNumberOrNull(body?.latitude),
+      location_verified: body?.locationVerified != null ? !!body.locationVerified : body?.location_verified != null ? !!body.location_verified : null,
       org_id: orgId,
+      created_at: now,
+      updated_at: now,
     }
 
     // Create the property
@@ -141,14 +183,14 @@ export async function POST(request: NextRequest) {
         }
       } catch {}
 
-      const ownershipRecords = owners.map((owner: any) => ({
-        owner_id: owner.id,
+      const ownershipRecords: OwnershipInsert[] = owners.map((owner: any) => ({
+        owner_id: String(owner.id),
         property_id: property.id,
-        ownership_percentage: owner.ownershipPercentage ? parseFloat(owner.ownershipPercentage.toString()) : null,
-        disbursement_percentage: owner.disbursementPercentage ? parseFloat(owner.disbursementPercentage.toString()) : null,
-        primary: !!owner.primary,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        ownership_percentage: toNumberOrDefault(owner.ownershipPercentage, 0),
+        disbursement_percentage: toNumberOrDefault(owner.disbursementPercentage, 0),
+        primary: Boolean(owner.primary),
+        created_at: now,
+        updated_at: now,
         org_id: orgId,
       }))
 
@@ -172,28 +214,47 @@ export async function POST(request: NextRequest) {
 
     // Create units if provided
     if (Array.isArray(units) && units.length > 0) {
-      const now = new Date().toISOString()
-      const unitRows = units
+      const unitRows: UnitsInsert[] = units
         .filter((u: any) => (u?.unitNumber || '').trim().length > 0)
-        .map((u: any) => ({
-          property_id: property.id,
-          unit_number: u.unitNumber,
-          unit_bedrooms: u.unitBedrooms || null,
-          unit_bathrooms: u.unitBathrooms || null,
-          unit_size: u.unitSize ? Number(u.unitSize) : null,
-          description: u.description || null,
-          // Default unit address fields from the property's address
-          address_line1: property.address_line1 || null,
-          address_line2: property.address_line2 || null,
-          address_line3: property.address_line3 || null,
-          city: property.city || null,
-          state: property.state || null,
-          postal_code: property.postal_code || null,
-          country: property.country || null,
-          created_at: now,
-          updated_at: now,
-          org_id: orgId,
-        }))
+        .map((u: any) => {
+          const unitNumber = String(u.unitNumber || '').trim()
+          const bedrooms = normalizeUnitBedrooms(u.unitBedrooms)
+          const bathrooms = normalizeUnitBathrooms(u.unitBathrooms)
+          return {
+            property_id: property.id,
+            unit_number: unitNumber,
+            unit_bedrooms: bedrooms,
+            unit_bathrooms: bathrooms,
+            unit_size: toNumberOrNull(u.unitSize),
+            market_rent: toNumberOrNull(u.marketRent),
+            description: u.description ?? null,
+            address_line1: property.address_line1,
+            address_line2: property.address_line2 ?? null,
+            address_line3: property.address_line3 ?? null,
+            city: property.city ?? null,
+            state: property.state ?? null,
+            postal_code: property.postal_code,
+            country: property.country,
+            created_at: now,
+            updated_at: now,
+            org_id: orgId,
+            service_plan: normalizeServicePlan(u.servicePlan),
+            fee_type: normalizeFeeType(u.feeType),
+            fee_frequency: normalizeFeeFrequency(u.feeFrequency),
+            fee_percent: toNumberOrNull(u.feePercent),
+            management_fee: toNumberOrNull(u.managementFee),
+            fee_notes: u.feeNotes ?? null,
+            unit_type: u.unitType ?? null,
+            service_start: u.serviceStart ?? null,
+            service_end: u.serviceEnd ?? null,
+            active_services: Array.isArray(u.activeServices)
+              ? (u.activeServices as string[]).filter(Boolean).join(', ') || null
+              : typeof u.activeServices === 'string'
+              ? u.activeServices
+              : null,
+            is_active: typeof u.isActive === 'boolean' ? u.isActive : null,
+          } as UnitsInsert
+        })
       if (unitRows.length) {
         const { data: insertedUnits, error: unitsErr } = await db.from('units').insert(unitRows).select('*')
         if (unitsErr) {
@@ -212,34 +273,87 @@ export async function POST(request: NextRequest) {
 
     // ===================== Buildium Sync (Property → Units → Owners) =====================
     try {
-      // Only attempt if Buildium credentials are configured: require both client id and secret
-      if (process.env.BUILDIUM_CLIENT_ID && process.env.BUILDIUM_CLIENT_SECRET) {
-        // 1) Create Property first (owners will be linked afterwards)
-        // Preload any existing Buildium owner IDs to include if already present
+      // Only attempt if explicitly requested and Buildium credentials are configured
+      if (syncToBuildium && process.env.BUILDIUM_CLIENT_ID && process.env.BUILDIUM_CLIENT_SECRET) {
+        // 1) Ensure Owners exist in Buildium and collect their Buildium IDs
         const prelinkedOwnerIds: number[] = []
         if (owners && owners.length > 0) {
           for (const o of owners) {
-            const { data: localOwner } = await db
-              .from('owners')
-              .select('buildium_owner_id')
-              .eq('id', o.id)
-              .single()
-            if (localOwner?.buildium_owner_id) prelinkedOwnerIds.push(Number(localOwner.buildium_owner_id))
+            try {
+              const { data: localOwner } = await db
+                .from('owners')
+                .select('*')
+                .eq('id', o.id)
+                .single()
+              if (!localOwner) continue
+              if (localOwner.buildium_owner_id) {
+                prelinkedOwnerIds.push(Number(localOwner.buildium_owner_id))
+                continue
+              }
+              // Create owner in Buildium when missing
+              const ownerSync = await buildiumEdgeClient.syncOwnerToBuildium(localOwner)
+              if (ownerSync.success && ownerSync.buildiumId) {
+                prelinkedOwnerIds.push(ownerSync.buildiumId)
+                try {
+                  await db
+                    .from('owners')
+                    .update({ buildium_owner_id: ownerSync.buildiumId, buildium_updated_at: new Date().toISOString() })
+                    .eq('id', localOwner.id)
+                } catch {}
+              } else {
+                logger.warn({ ownerId: localOwner.id, error: ownerSync.error }, 'Failed to sync owner to Buildium prior to property create')
+              }
+            } catch (e) {
+              logger.warn({ error: e instanceof Error ? e.message : String(e) }, 'Error ensuring owner Buildium ID')
+            }
           }
         }
 
         // 2) Create/Update Property payload
-        // Resolve local bank account UUID -> Buildium BankAccountId
+        // Resolve local bank account UUID -> Buildium BankAccountId (auto-sync bank account if missing)
         let buildiumOperatingBankAccountId: number | undefined
         if (operatingBankAccountId) {
           try {
             const { data: ba } = await db
               .from('bank_accounts')
-              .select('buildium_bank_id')
+              .select('id, buildium_bank_id, gl_account')
               .eq('id', operatingBankAccountId)
               .single()
-            if (ba?.buildium_bank_id) buildiumOperatingBankAccountId = Number(ba.buildium_bank_id)
-          } catch {}
+            if (ba?.buildium_bank_id) {
+              buildiumOperatingBankAccountId = Number(ba.buildium_bank_id)
+            } else if (ba?.id) {
+              // Attempt to create the bank account in Buildium first
+              let payload: any
+              try {
+                const { data: full } = await db
+                  .from('bank_accounts')
+                  .select('*')
+                  .eq('id', ba.id)
+                  .single()
+                payload = { ...full }
+                if (full?.gl_account) {
+                  const { data: gl } = await db
+                    .from('gl_accounts')
+                    .select('buildium_gl_account_id')
+                    .eq('id', full.gl_account)
+                    .maybeSingle()
+                  const glId = (gl as any)?.buildium_gl_account_id
+                  if (typeof glId === 'number' && glId > 0) payload = { ...payload, GLAccountId: glId }
+                }
+              } catch {}
+              const result = await buildiumEdgeClient.syncBankAccountToBuildium(payload || { id: ba.id })
+              if (result.success && result.buildiumId) {
+                try {
+                  await db.from('bank_accounts').update({ buildium_bank_id: result.buildiumId, updated_at: new Date().toISOString() }).eq('id', ba.id)
+                } catch {}
+                buildiumOperatingBankAccountId = result.buildiumId
+              } else {
+                logger.warn({ operatingBankAccountId, error: result.error }, 'Failed to create operating bank account in Buildium before property create')
+              }
+            }
+          } catch (e) {
+            logger.warn({ error: e instanceof Error ? e.message : String(e) }, 'Unable to resolve operating bank account for Buildium')
+          }
         }
         const propertyPayload = mapPropertyToBuildium({
           name,

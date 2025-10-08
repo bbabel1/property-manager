@@ -3,12 +3,13 @@ import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumToDoRequestCreateSchema } from '@/schemas/buildium';
-import supabaseAdmin from '@/lib/db';
+import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('todo requests sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -141,6 +142,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('todo requests sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {

@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { X, Building, MapPin, Users, DollarSign, UserCheck, Home } from 'lucide-react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { Building, MapPin, Users, DollarSign, UserCheck, Home } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
-import { Dropdown } from '@/components/ui/Dropdown'
 import { SelectWithDescription } from '@/components/ui/SelectWithDescription'
 import CreateBankAccountModal from '@/CreateBankAccountModal'
 import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property'
+import type { BankAccountSummary } from '@/components/forms/types'
 
 interface AddPropertyFormData {
   // Step 1: Property Type
@@ -54,6 +55,7 @@ interface AddPropertyFormData {
 
   // Step 5: Bank Account
   operatingBankAccountId?: string
+  operatingBankAccountName?: string
   depositTrustAccountId?: string
   reserve?: number
   // Management/Service/Fee fields (Step 4 with banking)
@@ -94,6 +96,7 @@ const INITIAL_FORM_DATA: AddPropertyFormData = {
   owners: [],
   units: [{ unitNumber: '' }],
   operatingBankAccountId: '',
+  operatingBankAccountName: '',
   depositTrustAccountId: '',
   reserve: 0,
   management_scope: undefined,
@@ -139,19 +142,17 @@ const COUNTRIES = [
 ]
 
 type OwnerOption = { id: string; name: string; status?: string | null }
-type BankAccountOption = { id: string; name: string; account_number?: string | null; routing_number?: string | null }
+type BankAccountOption = Pick<BankAccountSummary, 'id' | 'name' | 'account_number' | 'routing_number'>
 type StaffOption = { id: string; displayName: string }
 
 export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<AddPropertyFormData>(INITIAL_FORM_DATA)
+  const [syncToBuildium, setSyncToBuildium] = useState(true)
 
   // Options fetched from API
   const [owners, setOwners] = useState<OwnerOption[]>([])
-  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([])
-  const [managers, setManagers] = useState<StaffOption[]>([])
-  const [loadingOptions, setLoadingOptions] = useState(false)
-  const [optionsError, setOptionsError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
@@ -207,46 +208,29 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
     let cancelled = false
     const fetchOptions = async () => {
       try {
-        setLoadingOptions(true)
-        setOptionsError(null)
-        const [ownersRes, accountsRes, staffRes] = await Promise.all([
-          fetch('/api/owners'),
-          fetch('/api/bank-accounts?revealNumbers=false'),
-          fetch('/api/staff')
-        ])
+        const ownersRes = await fetch('/api/owners')
         if (!ownersRes.ok) throw new Error('Failed to load owners')
-        if (!accountsRes.ok) throw new Error('Failed to load bank accounts')
-        // staff can be empty if no table; treat non-200 as empty but non-fatal
         const ownersJson = await ownersRes.json()
-        const accountsJson = await accountsRes.json()
-        const staffJson = staffRes.ok ? await staffRes.json() : []
 
         if (cancelled) return
         setOwners(
-          ownersJson.map((o: any) => {
+          ownersJson.map((o: unknown) => {
+            const owner = o as Record<string, unknown>
             const label = (
-              o.displayName ||
-              o.name ||
-              `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() ||
-              `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() ||
-              o.companyName ||
-              o.company_name ||
+              owner.displayName ||
+              owner.name ||
+              `${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim() ||
+              `${owner.first_name ?? ''} ${owner.last_name ?? ''}`.trim() ||
+              owner.companyName ||
+              owner.company_name ||
               'Unnamed Owner'
             )
-            const status = o.status || o.owner_status || null
-            return { id: String(o.id), name: label, status }
+            const status = owner.status || owner.owner_status || null
+            return { id: String(owner.id), name: String(label), status: String(status) }
           })
         )
-        setBankAccounts(
-          accountsJson.map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number }))
-        )
-        setManagers(
-          (staffJson || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}` }))
-        )
       } catch (e) {
-        if (!cancelled) setOptionsError(e instanceof Error ? e.message : 'Failed to load options')
-      } finally {
-        if (!cancelled) setLoadingOptions(false)
+        console.error('Failed to load owners:', e)
       }
     }
     fetchOptions()
@@ -258,10 +242,10 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
     if (formData.service_plan === 'Full') {
       const allServices = ['Rent Collection','Maintenance','Turnovers','Compliance','Bill Pay','Condition Reports','Renewals'] as const
       if ((formData.active_services || []).length !== allServices.length) {
-        setFormData(prev => ({ ...prev, active_services: [...allServices] as any }))
+        setFormData(prev => ({ ...prev, active_services: [...allServices] as const }))
       }
     }
-  }, [formData.service_plan])
+  }, [formData.service_plan, formData.active_services])
 
   // Auto-calculate property name from Street Address and Primary Owner
   useEffect(() => {
@@ -272,7 +256,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
     if ((computed || '') !== (formData.name || '')) {
       setFormData(prev => ({ ...prev, name: computed }))
     }
-  }, [formData.addressLine1, formData.owners])
+  }, [formData.addressLine1, formData.owners, formData.name])
 
   const handleNext = () => {
     if (currentStep < 6) {
@@ -317,12 +301,15 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       }
 
       // Submit the form data to your API
-      const response = await fetch('/api/properties', {
+      const url = syncToBuildium ? '/api/properties?syncToBuildium=true' : '/api/properties'
+      const { operatingBankAccountName, ...submitPayload } = formData
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submitPayload),
       })
 
       if (!response.ok) {
@@ -333,15 +320,18 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       const result = await response.json()
       console.log('Property created successfully:', result)
       setSubmitSuccess('Property created successfully')
-      
+
+      const propertyId: string | undefined = result?.property?.id
+      const destination = propertyId ? `/properties/${propertyId}` : '/properties'
+
       onClose()
       if (onSuccess) onSuccess()
-      // Reset form to initial shape
+      // Reset form to initial shape for the next open
       setFormData(INITIAL_FORM_DATA)
+      setSyncToBuildium(true)
       setCurrentStep(1)
-      
-      // Optionally refresh the page or show success message
-      window.location.reload()
+
+      router.push(destination)
     } catch (error) {
       console.error('Error creating property:', error)
       setSubmitError(error instanceof Error ? error.message : 'Failed to create property. Please try again.')
@@ -398,9 +388,10 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
-        onInteractOutside={(e: any) => {
-          const orig = e?.detail?.originalEvent as Event | undefined
-          const target = (orig?.target as HTMLElement) || (e.target as HTMLElement)
+        onInteractOutside={(e: Event) => {
+          const event = e as CustomEvent
+          const orig = event?.detail?.originalEvent as Event | undefined
+          const target = (orig?.target as HTMLElement) || (event.target as HTMLElement)
           if (target && (target.closest?.('.pac-container') || target.classList?.contains('pac-item'))) {
             e.preventDefault()
           }
@@ -508,9 +499,22 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
             Previous
           </Button>
 
-          <Button type="button" onClick={handleNext} disabled={submitting || !canProceed(currentStep, formData)}>
-            {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
-          </Button>
+          <div className="flex items-center gap-4">
+            {currentStep === 6 && (
+              <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 border-border rounded"
+                  checked={syncToBuildium}
+                  onChange={(e) => setSyncToBuildium(e.target.checked)}
+                />
+                Create this property in Buildium
+              </label>
+            )}
+            <Button type="button" onClick={handleNext} disabled={submitting || !canProceed(currentStep, formData)}>
+              {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -648,8 +652,9 @@ function Step2PropertyDetails({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Country *</label>
-          <select
+            <label htmlFor="add-property-country" className="block text-sm font-medium text-foreground mb-1">Country *</label>
+            <select
+              id="add-property-country"
               value={formData.country}
               onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
               className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -663,8 +668,9 @@ function Step2PropertyDetails({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Status</label>
+          <label htmlFor="add-property-status" className="block text-sm font-medium text-foreground mb-1">Status</label>
           <select
+            id="add-property-status"
             value={formData.status}
             onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'Active' | 'Inactive' }))}
             className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -719,7 +725,6 @@ function Step3Ownership({
 }) {
   const CurrentIcon = STEPS[2].icon
   const [ownerList, setOwnerList] = useState<OwnerOption[]>([])
-  const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [showCreateInline, setShowCreateInline] = useState(false)
   const [createFirst, setCreateFirst] = useState('')
@@ -742,7 +747,7 @@ function Step3Ownership({
         if (!res.ok) return
         const j = await res.json().catch(() => ({}))
         if (!cancelled && j?.token) setCsrfToken(j.token as string)
-      } catch (_) {
+      } catch {
         // ignore; API will reject without token and surface an error, but we try early
       }
     }
@@ -754,31 +759,29 @@ function Step3Ownership({
     let cancelled = false
     const load = async () => {
       try {
-        setLoading(true)
         setErr(null)
         const res = await fetch('/api/owners')
         if (!res.ok) throw new Error('Failed to load owners')
         const data = await res.json()
         if (!cancelled) {
           setOwnerList(
-            (Array.isArray(data) ? data : []).map((o: any) => {
+            (Array.isArray(data) ? data : []).map((o: unknown) => {
+              const owner = o as Record<string, unknown>
               const label = (
-                o.displayName ||
-                o.name ||
-                `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() ||
-                `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() ||
-                o.companyName ||
-                o.company_name ||
+                owner.displayName ||
+                owner.name ||
+                `${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim() ||
+                `${owner.first_name ?? ''} ${owner.last_name ?? ''}`.trim() ||
+                owner.companyName ||
+                owner.company_name ||
                 'Unnamed Owner'
               )
-              return { id: String(o.id), name: label }
+              return { id: String(owner.id), name: String(label) }
             })
           )
         }
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load owners')
-      } finally {
-        if (!cancelled) setLoading(false)
       }
     }
     load()
@@ -798,8 +801,6 @@ function Step3Ownership({
     addOwner(value, selected?.name)
   }
 
-  // Legacy helper no longer used (cookie is httpOnly). Kept to avoid regressions.
-  const getCSRFCookie = (): string | null => null
 
   const handleCreateOwner = async () => {
     try {
@@ -880,10 +881,11 @@ function Step3Ownership({
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="add-property-owner-select" className="block text-sm font-medium text-foreground mb-1">
             Add Owners *
           </label>
           <select
+            id="add-property-owner-select"
             onChange={(e) => { handleSelectOwner(e.target.value); e.target.value = '' }}
             className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
           >
@@ -918,11 +920,11 @@ function Step3Ownership({
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
-                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value))} />
+                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value))} aria-label="Ownership percentage" />
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
-                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value))} />
+                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value))} aria-label="Disbursement percentage" />
               </div>
               <div className="sm:col-span-2">
                 <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
@@ -935,7 +937,7 @@ function Step3Ownership({
               <Button type="button" onClick={handleCreateOwner} disabled={creating}>
                 {creating ? 'Adding…' : 'Add Owner'}
               </Button>
-              <Button type="button" variant="outline" onClick={() => { setShowCreateInline(false); setErr(null) }}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={() => { setShowCreateInline(false); setErr(null) }}>Cancel</Button>
             </div>
           </div>
         )}
@@ -974,6 +976,7 @@ function Step3Ownership({
                           min={0}
                           max={100}
                           step={1}
+                          aria-label={`Ownership percentage for ${owner.name}`}
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -985,6 +988,7 @@ function Step3Ownership({
                           min={0}
                           max={100}
                           step={1}
+                          aria-label={`Disbursement percentage for ${owner.name}`}
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -992,10 +996,11 @@ function Step3Ownership({
                           type="checkbox"
                           checked={!!owner.primary}
                           onChange={() => setPrimaryOwner(owner.id)}
+                          aria-label={`Set ${owner.name} as primary owner`}
                         />
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => removeOwner(owner.id)} className="text-destructive hover:underline">Remove</button>
+                        <button onClick={() => removeOwner(owner.id)} className="text-destructive hover:underline" aria-label={`Remove ${owner.name} from property`}>Remove</button>
                       </td>
                     </tr>
                   ))}
@@ -1029,31 +1034,39 @@ function Step4BankAccount({
 }) {
   const CurrentIcon = STEPS[4].icon
   const [accounts, setAccounts] = useState<BankAccountOption[]>([])
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [createTarget, setCreateTarget] = useState<'operating' | 'trust' | null>(null)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        setLoading(true)
-        setErr(null)
         const res = await fetch('/api/bank-accounts?revealNumbers=false')
         if (!res.ok) throw new Error('Failed to load bank accounts')
         const data = await res.json()
-        if (!cancelled) setAccounts((data || []).map((a: any) => ({ id: String(a.id), name: a.name, account_number: a.account_number, routing_number: a.routing_number })))
+        if (!cancelled) setAccounts((data || []).map((a: unknown) => {
+          const account = a as Record<string, unknown>
+          return { 
+            id: String(account.id), 
+            name: String(account.name), 
+            account_number: account.account_number ? String(account.account_number) : null, 
+            routing_number: account.routing_number ? String(account.routing_number) : null 
+          }
+        }))
       } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load bank accounts')
-      } finally {
-        if (!cancelled) setLoading(false)
+        console.error('Failed to load bank accounts:', e)
       }
     }
     load()
     return () => { cancelled = true }
   }, [])
-  const selectedBankAccount = accounts.find(b => b.id === formData.operatingBankAccountId)
-  const selectedTrustAccount = accounts.find(b => b.id === formData.depositTrustAccountId)
+
+  useEffect(() => {
+    if (!formData.operatingBankAccountId || formData.operatingBankAccountName) return
+    const selected = accounts.find(a => a.id === formData.operatingBankAccountId)
+    if (selected) {
+      setFormData(prev => ({ ...prev, operatingBankAccountName: selected.name }))
+    }
+  }, [accounts, formData.operatingBankAccountId, formData.operatingBankAccountName, setFormData])
 
   return (
     <div>
@@ -1070,7 +1083,16 @@ function Step4BankAccount({
             value={formData.operatingBankAccountId || ''}
             onChange={(value: string) => {
               if (value === 'create-new') { setCreateTarget('operating'); setShowCreate(true); return }
-              setFormData({ ...formData, operatingBankAccountId: value })
+              if (!value) {
+                setFormData({ ...formData, operatingBankAccountId: '', operatingBankAccountName: '' })
+                return
+              }
+              const selected = accounts.find(a => a.id === value)
+              setFormData({
+                ...formData,
+                operatingBankAccountId: value,
+                operatingBankAccountName: selected?.name ?? ''
+              })
             }}
             options={[
               { value: 'create-new', label: '+ Create new account…', description: 'Add a bank account' },
@@ -1122,7 +1144,7 @@ function Step4BankAccount({
               <label className="block text-sm font-medium text-foreground mb-1">Management Scope *</label>
               <SelectWithDescription
                 value={formData.management_scope || ''}
-                onChange={(value: string) => setFormData({ ...formData, management_scope: (value || undefined) as any })}
+                onChange={(value: string) => setFormData({ ...formData, management_scope: (value || undefined) as 'Building' | 'Unit' | undefined })}
                 options={[
                   { value: 'Building', label: 'Building', description: 'Manage entire property' },
                   { value: 'Unit', label: 'Unit', description: 'Manage specific units' }
@@ -1134,7 +1156,7 @@ function Step4BankAccount({
               <label className="block text-sm font-medium text-foreground mb-1">Service Assignment *</label>
               <SelectWithDescription
                 value={formData.service_assignment || ''}
-                onChange={(value: string) => setFormData({ ...formData, service_assignment: (value || undefined) as any })}
+                onChange={(value: string) => setFormData({ ...formData, service_assignment: (value || undefined) as 'Property Level' | 'Unit Level' | undefined })}
                 options={[
                   { value: 'Property Level', label: 'Property Level' },
                   { value: 'Unit Level', label: 'Unit Level' }
@@ -1146,7 +1168,7 @@ function Step4BankAccount({
               <label className="block text-sm font-medium text-foreground mb-1">Service Plan *</label>
               <SelectWithDescription
                 value={formData.service_plan || ''}
-                onChange={(value: string) => setFormData({ ...formData, service_plan: (value || undefined) as any })}
+                onChange={(value: string) => setFormData({ ...formData, service_plan: (value || undefined) as 'Full' | 'Basic' | 'A-la-carte' | undefined })}
                 options={[
                   { value: 'Full', label: 'Full' },
                   { value: 'Basic', label: 'Basic' },
@@ -1158,8 +1180,8 @@ function Step4BankAccount({
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1">Active Services</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 border border-border rounded-md bg-background">
-                {['Rent Collection','Maintenance','Turnovers','Compliance','Bill Pay','Condition Reports','Renewals'].map((svc) => {
-                  const checked = (formData.active_services || []).includes(svc as any)
+                {(['Rent Collection','Maintenance','Turnovers','Compliance','Bill Pay','Condition Reports','Renewals'] as const).map((svc) => {
+                  const checked = (formData.active_services || []).includes(svc)
                   return (
                     <label key={svc} className="flex items-center gap-2 text-sm">
                       <input
@@ -1167,9 +1189,9 @@ function Step4BankAccount({
                         checked={checked}
                         onChange={(e) => {
                           const curr = new Set(formData.active_services || [])
-                          if (e.target.checked) curr.add(svc as any)
-                          else curr.delete(svc as any)
-                          setFormData({ ...formData, active_services: Array.from(curr) as any })
+                          if (e.target.checked) curr.add(svc)
+                          else curr.delete(svc)
+                          setFormData({ ...formData, active_services: Array.from(curr) as typeof formData.active_services })
                         }}
                       />
                       <span>{svc}</span>
@@ -1190,7 +1212,7 @@ function Step4BankAccount({
               <label className="block text-sm font-medium text-foreground mb-1">Fee Assignment *</label>
               <SelectWithDescription
                 value={formData.fee_assignment || ''}
-                onChange={(value: string) => setFormData({ ...formData, fee_assignment: (value || undefined) as any })}
+                onChange={(value: string) => setFormData({ ...formData, fee_assignment: (value || undefined) as 'Building' | 'Unit' | undefined })}
                 options={[
                   { value: 'Building', label: 'Building' },
                   { value: 'Unit', label: 'Unit' }
@@ -1204,7 +1226,7 @@ function Step4BankAccount({
                   <label className="block text-sm font-medium text-foreground mb-1">Fee Type *</label>
                   <SelectWithDescription
                     value={formData.fee_type || ''}
-                    onChange={(value: string) => setFormData({ ...formData, fee_type: (value || undefined) as any })}
+                    onChange={(value: string) => setFormData({ ...formData, fee_type: (value || undefined) as 'Percentage' | 'Flat Rate' | undefined })}
                     options={[
                       { value: 'Percentage', label: 'Percentage of rent' },
                       { value: 'Flat Rate', label: 'Flat Rate' }
@@ -1252,7 +1274,7 @@ function Step4BankAccount({
                   <label className="block text-sm font-medium text-foreground mb-1">Billing Frequency *</label>
                   <SelectWithDescription
                     value={formData.billing_frequency || ''}
-                    onChange={(value: string) => setFormData({ ...formData, billing_frequency: (value || undefined) as any })}
+                    onChange={(value: string) => setFormData({ ...formData, billing_frequency: (value || undefined) as 'Monthly' | 'Annual' | undefined })}
                     options={[
                       { value: 'Monthly', label: 'Monthly' },
                       { value: 'Annual', label: 'Annual' }
@@ -1270,17 +1292,22 @@ function Step4BankAccount({
         <CreateBankAccountModal
           isOpen={showCreate}
           onClose={() => { setShowCreate(false); setCreateTarget(null) }}
-          onSuccess={(newAccount: any) => {
-            // Accept both raw object or wrapped { id, name }
-            const id = String(newAccount?.id ?? newAccount?.bankAccount?.id ?? '')
-            const name = newAccount?.name ?? newAccount?.bankAccount?.name ?? 'New Bank Account'
-            const account_number = newAccount?.account_number ?? newAccount?.bankAccount?.account_number ?? null
-            const created: BankAccountOption = { id, name, account_number, routing_number: newAccount?.routing_number ?? null }
-            setAccounts(prev => [{ ...created }, ...prev.filter(a => a.id !== id)])
+          onSuccess={(newAccount) => {
+            const created: BankAccountOption = {
+              id: String(newAccount.id),
+              name: String(newAccount.name),
+              account_number: newAccount.account_number ? String(newAccount.account_number) : null,
+              routing_number: newAccount.routing_number ? String(newAccount.routing_number) : null
+            }
+            setAccounts(prev => [{ ...created }, ...prev.filter(a => a.id !== String(newAccount.id))])
             if (createTarget === 'operating') {
-              setFormData(prev => ({ ...prev, operatingBankAccountId: id }))
+              setFormData(prev => ({
+                ...prev,
+                operatingBankAccountId: String(newAccount.id),
+                operatingBankAccountName: String(newAccount.name)
+              }))
             } else if (createTarget === 'trust') {
-              setFormData(prev => ({ ...prev, depositTrustAccountId: id }))
+              setFormData(prev => ({ ...prev, depositTrustAccountId: String(newAccount.id) }))
             }
             setCreateTarget(null)
           }}
@@ -1300,14 +1327,10 @@ function Step5PropertyManager({
 }) {
   const CurrentIcon = STEPS[5].icon
   const [staff, setStaff] = useState<StaffOption[]>([])
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       try {
-        setLoading(true)
-        setErr(null)
         const res = await fetch('/api/staff')
         if (!res.ok) {
           // Not fatal if staff table missing; leave list empty
@@ -1315,11 +1338,15 @@ function Step5PropertyManager({
           return
         }
         const data = await res.json()
-        if (!cancelled) setStaff((data || []).map((s: any) => ({ id: String(s.id), displayName: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}` })))
+        if (!cancelled) setStaff((data || []).map((s: unknown) => {
+          const staff = s as Record<string, unknown>
+          return { 
+            id: String(staff.id), 
+            displayName: String(staff.displayName || `${staff.first_name ?? ''} ${staff.last_name ?? ''}`.trim() || `Staff ${staff.id}`) 
+          }
+        }))
       } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load staff')
-      } finally {
-        if (!cancelled) setLoading(false)
+        console.error('Failed to load staff:', e)
       }
     }
     load()
@@ -1336,10 +1363,11 @@ function Step5PropertyManager({
       
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="add-property-manager" className="block text-sm font-medium text-foreground mb-1">
             Property Manager (Optional)
           </label>
           <select
+            id="add-property-manager"
             value={formData.propertyManagerId}
             onChange={(e) => setFormData({ ...formData, propertyManagerId: e.target.value })}
             className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
@@ -1396,7 +1424,7 @@ function Step5PropertyManager({
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bank Account:</span>
               <span className="font-medium">
-                {formData.operatingBankAccountId || 'None selected'}
+                {formData.operatingBankAccountName || formData.operatingBankAccountId || 'None selected'}
               </span>
             </div>
             <div className="flex justify-between">
@@ -1449,7 +1477,7 @@ function Step4UnitDetails({
             <div className="flex items-center justify-between mb-3">
               <span className="font-medium">Unit {idx + 1}</span>
               {formData.units.length > 1 && (
-                <button onClick={() => removeUnit(idx)} className="text-destructive hover:underline text-sm">Remove</button>
+                <button onClick={() => removeUnit(idx)} className="text-destructive hover:underline text-sm" aria-label={`Remove unit ${idx + 1}`}>Remove</button>
               )}
             </div>
             <div className="grid grid-cols-1 gap-4">
@@ -1470,7 +1498,7 @@ function Step4UnitDetails({
                         type="button"
                         onClick={() => updateUnit(idx, { unitBedrooms: b })}
                         className={`flex-1 py-2 text-sm text-center focus:outline-none ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'}`}
-                        aria-pressed={selected}
+                        aria-label={`Select ${b} bedrooms for unit ${idx + 1}`}
                       >
                         {b}
                       </button>
@@ -1490,7 +1518,7 @@ function Step4UnitDetails({
                         type="button"
                         onClick={() => updateUnit(idx, { unitBathrooms: b })}
                         className={`flex-1 py-2 text-sm text-center focus:outline-none ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'}`}
-                        aria-pressed={selected}
+                        aria-label={`Select ${b} bathrooms for unit ${idx + 1}`}
                       >
                         {b}
                       </button>

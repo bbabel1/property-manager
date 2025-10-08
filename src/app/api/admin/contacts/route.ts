@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
+import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
 
 // Create or update a user's contact details
@@ -12,9 +12,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => null)
     if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
-    if (!supabaseAdmin) {
+    if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Server not configured with service role' }, { status: 500 })
     }
+
+    const supabaseAdmin = requireSupabaseAdmin('admin contacts')
 
     const { user_id, first_name, last_name, phone, email } = body
 

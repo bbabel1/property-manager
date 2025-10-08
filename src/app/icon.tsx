@@ -9,17 +9,7 @@ export default function Icon() {
   return new ImageResponse(
     (
       <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#111827',
-          color: 'white',
-          fontSize: 20,
-          fontWeight: 700,
-        }}
+        tw="flex h-full w-full items-center justify-center bg-slate-900 text-white text-[20px] font-bold"
       >
         O
       </div>
@@ -27,4 +17,3 @@ export default function Icon() {
     size
   )
 }
-

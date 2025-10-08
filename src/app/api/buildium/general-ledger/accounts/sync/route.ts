@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import supabase from '@/lib/db';
+import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { mapGLAccountFromBuildiumWithSubAccounts } from '@/lib/buildium-mappers';
 
 export async function POST(request: NextRequest) {
@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
     const accounts = await response.json();
     let synced = 0; let updated = 0; let failed = 0;
 
+    const supabase = getServerSupabaseClient('gl accounts sync');
+    
     for (const acc of accounts || []) {
       try {
         const mapped = await mapGLAccountFromBuildiumWithSubAccounts(acc, supabase);
@@ -82,4 +84,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

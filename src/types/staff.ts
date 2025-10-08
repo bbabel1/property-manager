@@ -1,12 +1,7 @@
 // TypeScript interfaces for the Staff table
 // These match the database schema defined in the migration
 
-export type StaffRoleEnum = 
-  | 'PROPERTY_MANAGER'
-  | 'ASSISTANT_PROPERTY_MANAGER'
-  | 'MAINTENANCE_COORDINATOR'
-  | 'ACCOUNTANT'
-  | 'ADMINISTRATOR';
+export type StaffRoleEnum = 'Property Manager' | 'Bookkeeper';
 
 // Database schema (matches the actual table structure) - Updated to match live database
 export interface StaffDB {

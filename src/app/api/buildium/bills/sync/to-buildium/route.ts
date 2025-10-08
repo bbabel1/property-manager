@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { supabaseAdmin } from '@/lib/db'
+import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers'
 
 // POST /api/buildium/bills/sync/to-buildium
@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
     if (!localId) {
       return NextResponse.json({ error: 'localId is required' }, { status: 400 })
     }
+
+    const supabaseAdmin = requireSupabaseAdmin('sync bill to Buildium')
 
     // Load local transaction
     const { data: tx, error: txErr } = await supabaseAdmin
@@ -71,8 +73,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, buildiumId: newBuildiumId ?? tx.buildium_bill_id, payload })
   } catch (error) {
-    logger.error('Error syncing local bill to Buildium', error)
+    logger.error({ error }, 'Error syncing local bill to Buildium')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

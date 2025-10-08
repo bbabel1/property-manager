@@ -17,16 +17,21 @@ import {
 } from "@/components/ui/sidebar";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Home,
+  LayoutDashboard,
   Building,
-  Building2,
-  ClipboardList,
+  Home,
+  FileText,
   Users,
+  User,
+  Handshake,
   Settings,
-  CreditCard,
+  LogOut,
 } from "lucide-react";
 import { ReactNode, useMemo } from "react";
 import { Guard } from '@/components/Guard'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useAuth } from '@/components/providers'
+import { RoleRank, type AppRole } from '@/lib/auth/roles'
 
 type NavItem = {
   id: string;
@@ -36,25 +41,55 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: Home },
+  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { id: "properties", label: "Properties", href: "/properties", icon: Building },
-  { id: "bank-accounts", label: "Bank Accounts", href: "/bank-accounts", icon: CreditCard },
-  { id: "units", label: "Units", href: "/units", icon: Building2 },
-  { id: "leases", label: "Leases", href: "/leases", icon: ClipboardList },
+  { id: "units", label: "Units", href: "/units", icon: Home },
+  { id: "leases", label: "Leases", href: "/leases", icon: FileText },
   { id: "owners", label: "Owners", href: "/owners", icon: Users },
-  { id: "tenants", label: "Tenants", href: "/tenants", icon: Users },
-  { id: "staff", label: "Staff", href: "/staff", icon: Users },
+  { id: "vendors", label: "Vendors", href: "/vendors", icon: Handshake },
+  { id: "tenants", label: "Tenants", href: "/tenants", icon: User },
   { id: "settings", label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function AppSidebarLayout({ children, title }: { children: ReactNode; title?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, signOut } = useAuth();
 
   const activeId = useMemo(() => {
     const match = NAV_ITEMS.find((i) => pathname === i.href || pathname.startsWith(i.href + "/"));
     return match?.id ?? "dashboard";
   }, [pathname]);
+
+  const displayName = useMemo(() => {
+    const meta: any = user?.user_metadata || {};
+    const full = meta.full_name || meta.name || `${meta.first_name ?? ''} ${meta.last_name ?? ''}`.trim();
+    return (full && full.length > 1 ? full : user?.email) || 'Signed in';
+  }, [user]);
+
+  const initials = useMemo(() => {
+    const src = (displayName || '').trim();
+    const parts = src.includes('@') ? [src[0], src.split('@')[0].slice(-1)] : src.split(/\s+/).filter(Boolean);
+    const first = parts[0]?.[0] || 'U';
+    const second = (parts[1]?.[0]) || (parts[0]?.[1]) || '';
+    return (first + (second || '')).toUpperCase();
+  }, [displayName]);
+
+  const roleLabel = useMemo(() => {
+    const roles = ((user?.app_metadata as any)?.claims?.roles ?? []) as AppRole[];
+    if (!roles?.length) return '';
+    // Pick highest ranked role
+    const highest = roles.sort((a, b) => (RoleRank[b] ?? 0) - (RoleRank[a] ?? 0))[0];
+    switch (highest) {
+      case 'platform_admin': return 'Platform Admin';
+      case 'org_admin': return 'Administrator';
+      case 'org_manager': return 'Manager';
+      case 'org_staff': return 'Staff';
+      case 'owner_portal': return 'Owner';
+      case 'tenant_portal': return 'Tenant';
+      default: return '';
+    }
+  }, [user]);
 
   return (
     <SidebarProvider>
@@ -62,8 +97,12 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
         <div className="flex w-full">
           <UISidebar collapsible="offcanvas" className="border-sidebar-border">
             <SidebarHeader>
-              <div className="px-2 py-1">
-                <span className="text-sm font-semibold">Ora Property Management</span>
+              <div className="px-2 py-2">
+                <div className="text-xl font-semibold leading-6">
+                  Ora Property
+                  <br />
+                  Management
+                </div>
               </div>
             </SidebarHeader>
             <SidebarContent>
@@ -76,6 +115,8 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                       <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
                           isActive={item.id === activeId}
+                          size="lg"
+                          className="rounded-xl text-[15px]"
                           onClick={() => router.push(item.href)}
                         >
                           <item.icon className="mr-2 h-4 w-4" />
@@ -101,7 +142,31 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
             </SidebarContent>
             <SidebarSeparator />
             <SidebarFooter>
-              <div className="px-2 text-xs text-muted-foreground">v0.1.0</div>
+              <div className="px-2 py-2">
+                <div className="flex items-center gap-3">
+                  <Avatar>
+                    <AvatarFallback className="bg-blue-600 text-white text-sm">{initials}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{displayName}</div>
+                    {roleLabel ? (
+                      <div className="text-xs text-muted-foreground truncate">{roleLabel}</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="mt-3 inline-flex items-center gap-2 text-sm text-foreground hover:underline"
+                  onClick={async () => {
+                    await signOut();
+                    router.push('/auth/signin');
+                  }}
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Log out</span>
+                </button>
+              </div>
             </SidebarFooter>
           </UISidebar>
           <SidebarInset>
@@ -120,3 +185,5 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
     </SidebarProvider>
   );
 }
+
+export default AppSidebarLayout;

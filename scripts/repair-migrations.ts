@@ -10,6 +10,15 @@ type Columns = {
   hasInsertedAt: boolean
 }
 
+type MigrationFile = {
+  /** Full filename without extension, e.g. 20250912000007_075_reconciliation_alerts */
+  baseName: string
+  /** Timestamp prefix (Supabase CLI stores this in the version column) */
+  version: string
+  /** Portion after the first underscore, e.g. 075_reconciliation_alerts */
+  name: string | null
+}
+
 function getLocalDbUrl(): string {
   return (
     process.env.LOCAL_DB_URL ||
@@ -18,14 +27,19 @@ function getLocalDbUrl(): string {
   )
 }
 
-function listMigrationBaseNames(): string[] {
+function listMigrationFiles(): MigrationFile[] {
   const dir = 'supabase/migrations'
   const files = readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isFile())
     .map((d) => d.name)
     .filter((f) => f.endsWith('.sql') && !f.endsWith('.sql.bak'))
     .sort((a, b) => a.localeCompare(b))
-  return files.map((f) => basename(join(dir, f), '.sql'))
+  return files.map((f) => {
+    const baseName = basename(join(dir, f), '.sql')
+    const [version, ...rest] = baseName.split('_')
+    const name = rest.length > 0 ? rest.join('_') : null
+    return { baseName, version, name }
+  })
 }
 
 async function ensureTrackingTable(client: Client): Promise<Columns> {
@@ -62,16 +76,35 @@ async function ensureTrackingTable(client: Client): Promise<Columns> {
   }
 }
 
-async function fetchExistingVersions(client: Client): Promise<Set<string>> {
-  // Prefer version column; if missing, fall back to name
-  let res
-  try {
-    res = await client.query(`SELECT version FROM supabase_migrations.schema_migrations`)
-    return new Set(res.rows.map((r) => String(r.version)))
-  } catch {
-    res = await client.query(`SELECT name FROM supabase_migrations.schema_migrations`)
-    return new Set(res.rows.map((r) => String(r.name)))
+async function fetchExistingEntries(client: Client, columns: Columns): Promise<{
+  versions: Set<string>
+  names: Set<string>
+}> {
+  const versions = new Set<string>()
+  const names = new Set<string>()
+
+  if (columns.hasVersion) {
+    const res = await client.query(`SELECT version FROM supabase_migrations.schema_migrations`)
+    for (const row of res.rows) {
+      if (row.version != null) {
+        versions.add(String(row.version))
+      }
+    }
   }
+
+  if (columns.hasName) {
+    const res = await client.query(`SELECT name FROM supabase_migrations.schema_migrations`)
+    for (const row of res.rows) {
+      if (row.name != null) {
+        names.add(String(row.name))
+      }
+    }
+  }
+
+  // Fallback: if neither column was available we already threw earlier, but in
+  // practice at least one will be populated. In case only one column exists we
+  // ensure the other set stays empty.
+  return { versions, names }
 }
 
 async function stampMigrations(options: { dryRun: boolean }) {
@@ -84,11 +117,15 @@ async function stampMigrations(options: { dryRun: boolean }) {
       throw new Error('schema_migrations missing both version and name columns; cannot proceed.')
     }
 
-    const files = listMigrationBaseNames()
-    const existing = await fetchExistingVersions(client)
+    const files = listMigrationFiles()
+    const existing = await fetchExistingEntries(client, columns)
 
-    const toInsert = files.filter((v) => !existing.has(v))
-    const already = files.filter((v) => existing.has(v))
+    const already = files.filter((file) => {
+      if (existing.versions.has(file.version)) return true
+      if (file.name && existing.names.has(file.name)) return true
+      return false
+    })
+    const toInsert = files.filter((file) => !already.includes(file))
 
     console.log(`Found ${files.length} migration files.`)
     console.log(`Already recorded: ${already.length}`)
@@ -101,29 +138,29 @@ async function stampMigrations(options: { dryRun: boolean }) {
 
     if (options.dryRun) {
       console.log('\n-- Dry run: would insert these rows --')
-      toInsert.forEach((v) => console.log(v))
+      toInsert.forEach((file) => console.log(file.baseName))
       return
     }
 
     // Insert missing rows in a single transaction
     await client.query('BEGIN')
     try {
-      for (const v of toInsert) {
+      for (const file of toInsert) {
         if (columns.hasVersion && columns.hasName) {
           await client.query(
-            `INSERT INTO supabase_migrations.schema_migrations(version, name) VALUES ($1, $1) ON CONFLICT DO NOTHING`,
-            [v]
+            `INSERT INTO supabase_migrations.schema_migrations(version, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [file.version, file.name]
           )
         } else if (columns.hasVersion) {
           await client.query(
             `INSERT INTO supabase_migrations.schema_migrations(version) VALUES ($1) ON CONFLICT DO NOTHING`,
-            [v]
+            [file.version]
           )
         } else {
           // Only name column
           await client.query(
             `INSERT INTO supabase_migrations.schema_migrations(name) VALUES ($1) ON CONFLICT DO NOTHING`,
-            [v]
+            [file.name ?? file.baseName]
           )
         }
       }
@@ -148,4 +185,3 @@ main().catch((e) => {
   console.error('Failed to repair migrations:', e instanceof Error ? e.message : e)
   process.exit(1)
 })
-

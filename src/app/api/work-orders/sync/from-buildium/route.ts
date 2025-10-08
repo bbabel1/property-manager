@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     await requireUser()
 
-    const body = await request.json().catch(() => ({}))
+    const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const params = {
       propertyId: typeof body.propertyId === 'number' ? body.propertyId : undefined,
       unitId: typeof body.unitId === 'number' ? body.unitId : undefined,
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       persist: true as const
     }
 
-    const { data, error } = await supabaseAdmin.functions.invoke('buildium-sync', {
+    const { data, error } = await (supabaseAdmin.functions as any).invoke('buildium-sync', {
       body: { entityType: 'workOrder', operation: 'syncFromBuildium', entityData: params }
     })
     if (error || !data?.success) {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ success: true, synced: data.synced || 0, updated: data.updated || 0 })
   } catch (error) {
-    logger.error('Error syncing work orders from Buildium', error)
+    logger.error({ error }, 'Error syncing work orders from Buildium')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -47,7 +47,7 @@ export default async function FinancialsTab({ params, searchParams }: { params: 
           <h2 className="text-lg font-semibold text-foreground">Account Activity</h2>
           <DateRangeControls defaultFrom={from} defaultTo={to} />
         </div>
-        <InfoCard>
+        <InfoCard title="General ledger activity">
           <Table>
             <TableHeader>
               <TableRow>

@@ -73,6 +73,18 @@ interface BuildiumUnit {
   }
 }
 
+interface BuildiumPropertyImage {
+  Id: number
+  Name?: string
+  Description?: string
+  FileType?: string
+  FileSize?: number
+  IsPrivate?: boolean
+  CreatedDateTime?: string
+  Href?: string
+  SortIndex?: number
+}
+
 // --- Leases ---
 interface BuildiumLeaseAccountDetails {
   Rent?: number | null
@@ -303,8 +315,27 @@ class BuildiumClient {
         const response = await fetch(url, config)
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${errorData.message || 'Unknown error'}`)
+          let errorPayload: any = null
+          try {
+            const text = await response.text()
+            errorPayload = text ? JSON.parse(text) : null
+          } catch {}
+          const detail = errorPayload?.message || errorPayload?.error || 'Unknown error'
+          throw new Error(`Buildium API error: ${response.status} ${response.statusText} - ${detail}`)
+        }
+
+        const contentType = response.headers.get('content-type') || ''
+        const contentLength = response.headers.get('content-length')
+        const isJson = contentType.includes('application/json')
+
+        if (response.status === 204 || (contentLength !== null && Number(contentLength) === 0)) {
+          // No content -- return undefined as expected type
+          return undefined as unknown as T
+        }
+
+        if (!isJson) {
+          const text = await response.text()
+          return (text as unknown) as T
         }
 
         const result = await response.json()
@@ -358,6 +389,23 @@ class BuildiumClient {
   async listOwners(params?: Record<string, string | number | boolean>): Promise<BuildiumOwner[]> {
     const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k,v])=>[k,String(v)]))}` : ''
     return this.makeRequest<BuildiumOwner[]>('GET', `/rentals/owners${qs}`)
+  }
+
+  // Property images
+  async listPropertyImages(propertyId: number): Promise<BuildiumPropertyImage[]> {
+    return this.makeRequest<BuildiumPropertyImage[]>('GET', `/rentals/${propertyId}/images`)
+  }
+
+  async uploadPropertyImage(propertyId: number, data: any): Promise<BuildiumPropertyImage> {
+    return this.makeRequest<BuildiumPropertyImage>('POST', `/rentals/${propertyId}/images`, data)
+  }
+
+  async updatePropertyImage(propertyId: number, imageId: number, data: any): Promise<BuildiumPropertyImage> {
+    return this.makeRequest<BuildiumPropertyImage>('PUT', `/rentals/${propertyId}/images/${imageId}`, data)
+  }
+
+  async deletePropertyImage(propertyId: number, imageId: number): Promise<void> {
+    await this.makeRequest<void>('DELETE', `/rentals/${propertyId}/images/${imageId}`)
   }
 
   // GL Accounts
@@ -684,9 +732,9 @@ async function upsertOwnerFromBuildiumEdge(o: BuildiumOwner, supabase: any): Pro
     is_active: true,
     management_agreement_start_date: o.ManagementAgreementStartDate || null,
     management_agreement_end_date: o.ManagementAgreementEndDate || null,
-    tax_address_line1: null,
-    tax_address_line2: null,
-    tax_address_line3: null,
+    tax_address_line_1: null,
+    tax_address_line_2: null,
+    tax_address_line_3: null,
     tax_city: null,
     tax_state: null,
     tax_postal_code: null,
@@ -2235,6 +2283,70 @@ serve(async (req) => {
             result = await buildiumClient.updateProperty(entityData.buildium_property_id, sanitizedData)
           }
           break
+
+        case 'property_image': {
+          const rawPropertyId = body?.propertyId ?? entityData?.propertyId
+          if (!rawPropertyId) {
+            throw new Error('propertyId is required for property_image operations')
+          }
+
+          let buildiumPropertyId: number | null = null
+          let localPropertyId: string | null = null
+
+          if (typeof rawPropertyId === 'string' && /^\d+$/.test(rawPropertyId)) {
+            buildiumPropertyId = Number(rawPropertyId)
+            localPropertyId = await resolveLocalPropertyIdByBuildiumId(supabase, buildiumPropertyId)
+          } else {
+            localPropertyId = String(rawPropertyId)
+            buildiumPropertyId = await resolveBuildiumPropertyIdByLocalId(supabase, localPropertyId)
+          }
+
+          if (!buildiumPropertyId) {
+            throw new Error('Unable to resolve Buildium property id for property_image operation')
+          }
+
+          if (operation === 'upload') {
+            const payload = body?.imageData ?? entityData
+            if (!payload) {
+              throw new Error('imageData is required for property image upload')
+            }
+            const sanitized = sanitizeForBuildium(payload)
+            const createdImage = await buildiumClient.uploadPropertyImage(buildiumPropertyId, sanitized)
+            return new Response(
+              JSON.stringify({ success: true, data: createdImage, buildiumPropertyId, propertyId: localPropertyId ?? rawPropertyId }),
+              { headers: { 'Content-Type': 'application/json' }, status: 201 }
+            )
+          }
+
+          if (operation === 'update') {
+            const imageIdRaw = body?.imageId ?? entityData?.imageId ?? entityData?.ImageId
+            const imageId = imageIdRaw ? Number(imageIdRaw) : NaN
+            if (!imageId || Number.isNaN(imageId)) {
+              throw new Error('imageId is required for property image update')
+            }
+            const payload = body?.imageData ?? entityData ?? {}
+            const sanitized = sanitizeForBuildium(payload)
+            const updatedImage = await buildiumClient.updatePropertyImage(buildiumPropertyId, imageId, sanitized)
+            return new Response(JSON.stringify({ success: true, data: updatedImage, buildiumPropertyId, propertyId: localPropertyId ?? rawPropertyId }), { headers: { 'Content-Type': 'application/json' } })
+          }
+
+          if (operation === 'delete') {
+            const imageIdRaw = body?.imageId ?? entityData?.imageId ?? entityData?.ImageId
+            const imageId = imageIdRaw ? Number(imageIdRaw) : NaN
+            if (!imageId || Number.isNaN(imageId)) {
+              throw new Error('imageId is required for property image delete')
+            }
+            await buildiumClient.deletePropertyImage(buildiumPropertyId, imageId)
+            return new Response(JSON.stringify({ success: true, buildiumPropertyId, propertyId: localPropertyId ?? rawPropertyId }), { headers: { 'Content-Type': 'application/json' } })
+          }
+
+          if (operation === 'list') {
+            const images = await buildiumClient.listPropertyImages(buildiumPropertyId)
+            return new Response(JSON.stringify({ success: true, data: images, buildiumPropertyId, propertyId: localPropertyId ?? rawPropertyId }), { headers: { 'Content-Type': 'application/json' } })
+          }
+
+          throw new Error(`Unsupported operation for property_image: ${operation}`)
+        }
 
         case 'owner':
           if (operation === 'create') {

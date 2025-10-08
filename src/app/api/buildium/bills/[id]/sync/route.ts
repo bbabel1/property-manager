@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { supabaseAdmin } from '@/lib/db'
+import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { upsertBillWithLines } from '@/lib/buildium-mappers'
 
 // POST /api/buildium/bills/[id]/sync
@@ -34,11 +34,11 @@ export async function POST(
     }
 
     const bill = await response.json()
+    const supabaseAdmin = requireSupabaseAdmin('sync bill from Buildium')
     const { transactionId } = await upsertBillWithLines(bill, supabaseAdmin)
     return NextResponse.json({ success: true, transactionId })
   } catch (error) {
-    logger.error('Error syncing bill by ID from Buildium', error)
+    logger.error({ error }, 'Error syncing bill by ID from Buildium')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

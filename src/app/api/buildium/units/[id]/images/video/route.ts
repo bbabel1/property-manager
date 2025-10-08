@@ -20,7 +20,7 @@ export async function POST(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
     const { id } = params;
 

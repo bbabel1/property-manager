@@ -3,6 +3,7 @@
 import * as Select from '@radix-ui/react-select'
 import { ChevronDown, ChevronUp, Check } from 'lucide-react'
 import React from 'react'
+import clsx from 'clsx'
 
 export type OptionWithDescription = {
   value: string
@@ -14,23 +15,30 @@ export function SelectWithDescription({
   value,
   onChange,
   options,
-  placeholder = 'Select...'
+  placeholder = 'Select...',
+  triggerClassName,
 }: {
   value: string | ''
   onChange: (v: string) => void
   options: OptionWithDescription[]
   placeholder?: string
+  triggerClassName?: string
 }) {
   return (
     <Select.Root value={value} onValueChange={onChange}>
-      <Select.Trigger className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm inline-flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-primary/30">
+      <Select.Trigger
+        className={clsx(
+          'w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm inline-flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-primary/30',
+          triggerClassName
+        )}
+      >
         <Select.Value placeholder={<span className="text-muted-foreground">{placeholder}</span>} />
         <Select.Icon>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="z-50 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+        <Select.Content className="z-50 overflow-hidden rounded-md border border-blue-200/70 bg-[#f3f7ff] text-popover-foreground shadow-lg">
           <Select.ScrollUpButton className="flex items-center justify-center py-1">
             <ChevronUp className="h-4 w-4" />
           </Select.ScrollUpButton>

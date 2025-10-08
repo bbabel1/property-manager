@@ -12,6 +12,8 @@ export const RentCycleEnumDb = z.enum([
   'Every6Months',
 ])
 
+export const RentScheduleStatusEnumDb = z.enum(['Past', 'Current', 'Future'])
+
 export const LeaseContactRoleEnum = z.enum(['Tenant', 'Cosigner'])
 export const LeaseContactStatusEnum = z.enum(['Future', 'Active', 'Past'])
 
@@ -23,19 +25,78 @@ const Phone = z
   .regex(/^\+?[1-9]\d{7,14}$/g, 'Invalid phone')
   .transform(v => v.replace(/\s|-/g, ''))
 
-export const LeaseAPIPersonSchema = z.object({
-  first_name: z.string().min(1).max(100),
-  last_name: z.string().min(1).max(100),
-  email: Email.optional(),
-  phone: Phone.optional(),
-  same_as_unit_address: z.boolean().optional().default(true),
-  address_line1: z.string().max(255).optional(),
-  address_line2: z.string().max(255).optional().nullable(),
-  city: z.string().max(100).optional(),
-  state: z.string().max(100).optional(),
-  postal_code: z.string().max(32).optional(),
-  country: z.string().max(100).optional(),
-})
+const nullableString = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+export const LeaseAPIPersonSchema = z
+  .object({
+    first_name: z.string().min(1).max(100),
+    last_name: z.string().min(1).max(100),
+    role: LeaseContactRoleEnum.optional().default('Tenant'),
+    email: Email.optional(),
+    phone: Phone.optional(),
+    alt_email: Email.optional(),
+    alt_phone: Phone.optional(),
+    same_as_unit: z.boolean().optional(),
+    same_as_unit_address: z.boolean().optional(),
+    addr1: z.string().max(255).optional().nullable(),
+    addr2: z.string().max(255).optional().nullable(),
+    address_line1: z.string().max(255).optional().nullable(),
+    address_line2: z.string().max(255).optional().nullable(),
+    city: z.string().max(100).optional().nullable(),
+    city_name: z.string().max(100).optional().nullable(),
+    state: z.string().max(100).optional().nullable(),
+    state_name: z.string().max(100).optional().nullable(),
+    postal: z.string().max(32).optional().nullable(),
+    postal_code: z.string().max(32).optional().nullable(),
+    country: z.string().max(100).optional().nullable(),
+    country_name: z.string().max(100).optional().nullable(),
+    alt_addr1: z.string().max(255).optional().nullable(),
+    alt_addr2: z.string().max(255).optional().nullable(),
+    alt_address_line1: z.string().max(255).optional().nullable(),
+    alt_address_line2: z.string().max(255).optional().nullable(),
+    alt_city: z.string().max(100).optional().nullable(),
+    alt_state: z.string().max(100).optional().nullable(),
+    alt_postal: z.string().max(32).optional().nullable(),
+    alt_postal_code: z.string().max(32).optional().nullable(),
+    alt_country: z.string().max(100).optional().nullable()
+  })
+  .transform((value) => {
+    const sameAsUnit = value.same_as_unit ?? value.same_as_unit_address ?? true
+
+    const primaryAddr1 = value.addr1 ?? value.address_line1 ?? null
+    const primaryAddr2 = value.addr2 ?? value.address_line2 ?? null
+    const primaryCity = value.city ?? value.city_name ?? null
+    const primaryState = value.state ?? value.state_name ?? null
+    const primaryPostal = value.postal ?? value.postal_code ?? null
+    const primaryCountry = value.country ?? value.country_name ?? null
+
+    return {
+      first_name: value.first_name,
+      last_name: value.last_name,
+      role: value.role ?? 'Tenant',
+      email: value.email ?? null,
+      phone: value.phone ?? null,
+      alt_email: value.alt_email ?? null,
+      alt_phone: value.alt_phone ?? null,
+      same_as_unit: sameAsUnit,
+      addr1: nullableString(primaryAddr1),
+      addr2: nullableString(primaryAddr2),
+      city: nullableString(primaryCity),
+      state: nullableString(primaryState),
+      postal: nullableString(primaryPostal),
+      country: nullableString(primaryCountry),
+      alt_addr1: nullableString(value.alt_addr1 ?? value.alt_address_line1 ?? null),
+      alt_addr2: nullableString(value.alt_addr2 ?? value.alt_address_line2 ?? null),
+      alt_city: nullableString(value.alt_city),
+      alt_state: nullableString(value.alt_state),
+      alt_postal: nullableString(value.alt_postal ?? value.alt_postal_code ?? null),
+      alt_country: nullableString(value.alt_country)
+    }
+  })
 
 export const LeaseAPIContactSchema = z.object({
   tenant_id: UUID.optional(),
@@ -54,6 +115,7 @@ export const LeaseAPIRentScheduleSchema = z.object({
   end_date: ISODate.optional(),
   total_amount: z.coerce.number().positive('Amount must be greater than 0'),
   rent_cycle: RentCycleEnumDb.default('Monthly'),
+  status: RentScheduleStatusEnumDb.default('Current'),
   backdate_charges: z.boolean().optional().default(false),
 })
 
@@ -166,7 +228,7 @@ export const LeaseAPICreateSchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'end_date must be on or after start_date', path: ['recurring_transactions', i, 'end_date'] })
       }
       // If start==end, must be OneTime frequency
-      if (r.end_date && r.end_date === r.start_date && r.frequency !== 'OneTime') {
+      if (r.end_date && r.end_date === r.start_date && String(r.frequency) !== 'OneTime') {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'One-day transactions must use frequency OneTime', path: ['recurring_transactions', i, 'frequency'] })
       }
       if (data.lease_from_date && r.start_date < data.lease_from_date) {

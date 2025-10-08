@@ -22,6 +22,7 @@
         "name": "next"
       }
     ],
+    "forceConsistentCasingInFileNames": true,
     "useUnknownInCatchVariables": true,
     "noImplicitAny": true,
     "paths": {

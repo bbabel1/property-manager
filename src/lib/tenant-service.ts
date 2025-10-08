@@ -29,7 +29,9 @@ export class TenantService {
     if (typeof params?.offset === 'number') qs.append('offset', String(params.offset))
     if (typeof params?.limit === 'number') qs.append('limit', String(params.limit))
     const url = `/rentals/tenants${qs.toString() ? `?${qs}` : ''}`
-    const items = await c.makeRequest<BuildiumTenant[]>('GET', url)
+    const items = await c
+      .makeRequest('GET', url)
+      .then((res: BuildiumTenant[]) => res)
 
     if (params?.persist) {
       for (const t of items) {
@@ -48,7 +50,10 @@ export class TenantService {
   static async getFromBuildium(id: number, persist = false): Promise<BuildiumTenant | null> {
     const c = client() as any
     const url = `/rentals/tenants/${id}`
-    const tenant = await c.makeRequest<BuildiumTenant>('GET', url).catch(() => null)
+    const tenant = await c
+      .makeRequest('GET', url)
+      .then((res: BuildiumTenant) => res)
+      .catch(() => null)
     if (tenant && persist) {
       try {
         const contactId = await findOrCreateContact(tenant, supabase)
@@ -63,7 +68,9 @@ export class TenantService {
   // Create in Buildium, then map and insert/update in DB
   static async createInBuildiumAndDB(payload: BuildiumTenantCreate): Promise<{ buildium: BuildiumTenant; localId?: string }> {
     const c = client() as any
-    const buildium = await c.makeRequest<BuildiumTenant>('POST', `/rentals/tenants`, payload)
+    const buildium = await c
+      .makeRequest('POST', `/rentals/tenants`, payload)
+      .then((res: BuildiumTenant) => res)
     const contactId = await findOrCreateContact(buildium, supabase)
     const localId = await findOrCreateTenant(contactId, buildium, supabase)
     return { buildium, localId }
@@ -72,7 +79,9 @@ export class TenantService {
   // Update in Buildium and update local DB row by buildium id
   static async updateInBuildiumAndDB(id: number, payload: BuildiumTenantUpdate): Promise<{ buildium: BuildiumTenant; localId?: string | null }> {
     const c = client() as any
-    const buildium = await c.makeRequest<BuildiumTenant>('PUT', `/rentals/tenants/${id}`, payload)
+    const buildium = await c
+      .makeRequest('PUT', `/rentals/tenants/${id}`, payload)
+      .then((res: BuildiumTenant) => res)
     let localId: string | null = null
     try {
       const contactId = await findOrCreateContact(buildium, supabase)

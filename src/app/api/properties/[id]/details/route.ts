@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: property, error } = await db
       .from('properties')
       .select(`
-        id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
+        id, org_id, buildium_property_id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
         property_type, status, reserve, year_built, created_at, updated_at,
         borough, neighborhood, longitude, latitude, location_verified,
         service_assignment, service_plan,
@@ -73,20 +73,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Banking names and units in parallel
     let operating_account: { id: string; name: string; last4?: string | null } | undefined
     let deposit_trust_account: { id: string; name: string; last4?: string | null } | undefined
-    const [opRes, depRes, unitsRes, imgRes] = await Promise.all([
+    const [opRes, depRes, unitsRes] = await Promise.all([
       property.operating_bank_account_id
         ? db.from('bank_accounts').select('id, name, account_number').eq('id', property.operating_bank_account_id).maybeSingle()
         : Promise.resolve({ data: null } as any),
       property.deposit_trust_account_id
         ? db.from('bank_accounts').select('id, name, account_number').eq('id', property.deposit_trust_account_id).maybeSingle()
         : Promise.resolve({ data: null } as any),
-      includeUnits ? db.from('units').select('*').eq('property_id', id).order('unit_number') : Promise.resolve({ data: [] } as any),
-      db.from('property_images').select('href').eq('property_id', id).order('updated_at', { ascending: false }).maybeSingle()
+      includeUnits ? db.from('units').select('*').eq('property_id', id).order('unit_number') : Promise.resolve({ data: [] } as any)
     ])
     const op = (opRes as any).data
     const tr = (depRes as any).data
     const units = (unitsRes as any).data
-    const img = (imgRes as any).data
+    const img = undefined
     if (op) operating_account = { id: op.id, name: op.name, last4: op.account_number ? String(op.account_number).slice(-4) : null }
     if (tr) deposit_trust_account = { id: tr.id, name: tr.name, last4: tr.account_number ? String(tr.account_number).slice(-4) : null }
 
@@ -98,32 +97,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // Resolve property manager (id + basic contact)
-    let property_manager_id: number | null = null
-    let property_manager_name: string | undefined
-    let property_manager_email: string | undefined
-    let property_manager_phone: string | undefined
-    try {
-      const { data: link } = await db
-        .from('property_staff')
-        .select('staff_id, role')
-        .eq('property_id', id)
-        .eq('role', 'PROPERTY_MANAGER')
-        .maybeSingle()
-      if (link?.staff_id) {
-        property_manager_id = Number(link.staff_id)
-        const { data: st } = await db
-          .from('staff')
-          .select('id, first_name, last_name, email, phone')
-          .eq('id', link.staff_id)
-          .maybeSingle()
-        if (st) {
-          const full = [ (st as any).first_name, (st as any).last_name ].filter(Boolean).join(' ').trim()
-          property_manager_name = full || `Staff ${st.id}`
-          property_manager_email = (st as any).email || undefined
-          property_manager_phone = (st as any).phone || undefined
-        }
-      }
-    } catch {}
+    const property_manager_id: number | null = null
+    const property_manager_name: string | undefined = undefined
+    const property_manager_email: string | undefined = undefined
+    const property_manager_phone: string | undefined = undefined
 
     const payload = {
       ...property,
@@ -138,7 +115,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       property_manager_name,
       property_manager_email,
       property_manager_phone,
-      primary_image_url: img?.href || undefined,
+      primary_image_url: undefined,
     }
 
     // Ensure nested ownerships (from old joins) are absent

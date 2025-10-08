@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/db'
 
+type TestData = Record<string, unknown>
+
 export default function TestSupabasePage() {
   const [connectionStatus, setConnectionStatus] = useState<string>('Testing...')
-  const [testData, setTestData] = useState<unknown>(null)
+  const [testData, setTestData] = useState<TestData[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const testConnection = useCallback(async () => {
@@ -29,7 +31,7 @@ export default function TestSupabasePage() {
         }
       } else {
         setConnectionStatus('✅ Connected to Supabase!')
-        setTestData(data as unknown)
+        setTestData(data as TestData[] | null)
       }
     } catch (err) {
       setConnectionStatus('❌ Connection failed')
@@ -93,7 +95,7 @@ export default function TestSupabasePage() {
         </div>
       </div>
 
-      {testData && (
+      {testData !== null && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Test Data</h2>
           <pre className="bg-gray-50 p-4 rounded-md overflow-auto text-sm">

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { supabaseAdmin } from '@/lib/db'
+import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
 // GET /api/work-orders
 // Searches local work_orders table with filters
@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
     const limit = Number(searchParams.get('limit') || '50')
     const offset = Number(searchParams.get('offset') || '0')
 
-    const { data, error } = await supabaseAdmin.functions.invoke('buildium-sync', {
+    const supabaseAdmin = requireSupabaseAdmin('search work orders')
+    const { data, error } = await (supabaseAdmin.functions as any).invoke('buildium-sync', {
       body: {
         entityType: 'workOrder',
         operation: 'searchLocal',
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({ success: true, data: data.data || [], count: data.count || 0 })
   } catch (error) {
-    logger.error('Error searching local work orders', error)
+    logger.error({ error }, 'Error searching local work orders')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

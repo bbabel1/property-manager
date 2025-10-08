@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import type { KeyboardEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
@@ -20,6 +21,7 @@ export default function UnitsTable({ propertyId, property, initialUnits }: { pro
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const router = useRouter()
 
   // Form state
   const [unitNumber, setUnitNumber] = useState('')
@@ -126,18 +128,34 @@ export default function UnitsTable({ propertyId, property, initialUnits }: { pro
           </TableRow>
         </TableHeader>
         <TableBody className="bg-card divide-y divide-border">
-          {units.map(u => (
-            <TableRow key={u.id}>
-              <TableCell>
-                <Link href={`/properties/${propertyId}/units/${u.id}`} className="text-primary hover:underline">
-                  {u.unit_number || '—'}
-                </Link>
-              </TableCell>
-              <TableCell>{tenantLabel(u)}</TableCell>
-              <TableCell>{statusBadge(u.status) || <span className="text-sm text-muted-foreground">—</span>}</TableCell>
-              <TableCell>{/* Most recent event not wired yet */}</TableCell>
-            </TableRow>
-          ))}
+          {units.map(u => {
+            const unitHref = `/properties/${propertyId}/units/${u.id}`
+            const unitLabel = u.unit_number || '—'
+            const goToUnit = () => router.push(unitHref)
+            const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
+              if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+                event.preventDefault()
+                goToUnit()
+              }
+            }
+
+            return (
+              <TableRow
+                key={u.id}
+                role="link"
+                tabIndex={0}
+                aria-label={`View details for unit ${unitLabel}`}
+                onClick={goToUnit}
+                onKeyDown={handleRowKeyDown}
+                className="cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <TableCell className="text-primary">{unitLabel}</TableCell>
+                <TableCell>{tenantLabel(u)}</TableCell>
+                <TableCell>{statusBadge(u.status) || <span className="text-sm text-muted-foreground">—</span>}</TableCell>
+                <TableCell>{/* Most recent event not wired yet */}</TableCell>
+              </TableRow>
+            )
+          })}
           {units.length === 0 && (
             <TableRow>
               <TableCell colSpan={4} className="text-sm text-muted-foreground">No units</TableCell>
@@ -211,7 +229,7 @@ export default function UnitsTable({ propertyId, property, initialUnits }: { pro
           {err && <div className="text-sm text-destructive mt-3">{err}</div>}
           <div className="flex items-center gap-2 mt-4">
             <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save unit'}</Button>
-            <Button variant="outline" onClick={()=>setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button variant="ghost" onClick={()=>setOpen(false)} disabled={saving}>Cancel</Button>
           </div>
         </div>
       )}

@@ -32,7 +32,7 @@ export async function GET(
     const unit = await res.json()
     return NextResponse.json({ success: true, data: unit })
   } catch (error) {
-    logger.error('Error fetching Buildium property unit', error)
+    logger.error({ error }, 'Error fetching Buildium property unit')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -71,7 +71,7 @@ export async function PUT(
     const unit = await res.json()
     return NextResponse.json({ success: true, data: unit })
   } catch (error) {
-    logger.error('Error updating Buildium property unit', error)
+    logger.error({ error }, 'Error updating Buildium property unit')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,4 +1,6 @@
-import supabaseAdmin, { supabase as supabaseClient } from './db'
+import { Blob } from 'buffer'
+import sharp from 'sharp'
+import { supabaseAdmin } from './db'
 import { logger } from './logger'
 import type { Database } from '@/types/database'
 import type {
@@ -19,6 +21,16 @@ const HEADERS = () => ({
 })
 
 export type UnitRow = Database['public']['Tables']['units']['Row']
+
+type PreparedImage = {
+  buffer: Buffer
+  base64: string
+  fileName: string
+  mimeType: string
+  originalDataUrl: string
+  originalMimeType: string
+  originalSize: number
+}
 
 export default class UnitService {
   // List Buildium units, optionally persisting to DB
@@ -94,13 +106,16 @@ export default class UnitService {
     const updated: BuildiumUnit = await res.json()
 
     // Update local if exists
-    const local = await supabase
+    const supabase = supabaseAdmin
+    const { data: local, error: localError } = await supabase
       .from('units')
       .select('id')
       .eq('buildium_unit_id', buildiumId)
-      .single()
-      .then(r => r.data)
-      .catch(() => null)
+      .maybeSingle()
+
+    if (localError) {
+      logger.error({ buildiumId, error: localError }, 'Failed to locate local unit by Buildium id')
+    }
 
     if (local?.id) {
       const mapped = UnitService.mapForDB(updated)
@@ -114,13 +129,15 @@ export default class UnitService {
   static async persistBuildiumUnit(buildiumUnit: BuildiumUnit): Promise<string | null> {
     // Resolve local property by Buildium PropertyId
     const supabase = supabaseAdmin
-    const propertyRow = await supabase
+    const { data: propertyRow, error: propertyLookupError } = await supabase
       .from('properties')
       .select('id')
       .eq('buildium_property_id', buildiumUnit.PropertyId)
-      .single()
-      .then(r => r.data)
-      .catch(() => null)
+      .maybeSingle()
+
+    if (propertyLookupError) {
+      logger.error({ propertyId: buildiumUnit.PropertyId, error: propertyLookupError }, 'Failed to find local property for Buildium unit')
+    }
 
     let propertyId: string | null = propertyRow?.id ?? null
 
@@ -146,13 +163,15 @@ export default class UnitService {
     mapped.updated_at = new Date().toISOString()
     if (!mapped.created_at) mapped.created_at = new Date().toISOString()
 
-    const existing = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('units')
       .select('id')
       .eq('buildium_unit_id', buildiumUnit.Id)
-      .single()
-      .then(r => r.data)
-      .catch(() => null)
+      .maybeSingle()
+
+    if (existingError) {
+      logger.error({ buildiumId: buildiumUnit.Id, error: existingError }, 'Failed to look up existing unit before upsert')
+    }
 
     if (existing?.id) {
       await supabase.from('units').update(mapped).eq('id', existing.id)
@@ -190,16 +209,120 @@ export default class UnitService {
     return res.json()
   }
 
-  static async uploadImage(unitId: number, payload: { FileName: string; FileData: string; Description?: string }): Promise<BuildiumUnitImage> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images`, {
+  static async uploadImage(
+    unitId: number,
+    prepared: PreparedImage,
+    options: { Description?: string; ShowInListing?: boolean; PropertyId?: number | string } = {}
+  ): Promise<BuildiumUnitImage> {
+    const metadata = {
+      FileName: prepared.fileName,
+      Description: options.Description ?? null,
+      ShowInListing: options.ShowInListing ?? true
+    }
+
+    const existingRes = await fetch(`${BASE}/rentals/units/${unitId}/images`, { headers: HEADERS() })
+    const beforeImages: BuildiumUnitImage[] = existingRes.ok ? await existingRes.json().catch(() => []) : []
+    const beforeIds = new Set<number>()
+    for (const img of Array.isArray(beforeImages) ? beforeImages : []) {
+      if (typeof img?.Id === 'number') beforeIds.add(img.Id)
+    }
+
+    const ticketRes = await fetch(`${BASE}/rentals/units/${unitId}/images/uploadrequests`, {
       method: 'POST',
       headers: HEADERS(),
-      body: JSON.stringify(payload)
+      body: JSON.stringify(metadata)
     })
-    if (!res.ok) throw new Error(`Buildium upload unit image failed: ${res.status}`)
-    const img = await res.json()
-    await UnitService.persistImages(unitId, [img]).catch(() => void 0)
-    return img
+
+    if (!ticketRes.ok) {
+      const errorText = await ticketRes.text().catch(() => '')
+      throw new Error(`Buildium unit image upload (metadata) failed: ${ticketRes.status} ${errorText}`)
+    }
+
+    const ticket: { BucketUrl?: string; FormData?: Record<string, string>; PhysicalFileName?: string } = await ticketRes.json()
+    if (!ticket?.BucketUrl || !ticket.FormData) {
+      throw new Error('Buildium unit image upload failed: missing upload ticket data')
+    }
+
+    const formData = new FormData()
+    for (const [key, value] of Object.entries(ticket.FormData)) {
+      if (value != null) formData.append(key, value)
+    }
+
+    formData.append('file', new Blob([prepared.buffer], { type: prepared.mimeType }), prepared.fileName)
+
+    const uploadRes = await fetch(ticket.BucketUrl, {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!uploadRes.ok) {
+      const errorText = await uploadRes.text().catch(() => '')
+      throw new Error(`Buildium unit image binary upload failed: ${uploadRes.status} ${errorText}`)
+    }
+
+    const locateUploadedImage = async (): Promise<BuildiumUnitImage | null> => {
+      const attempts = 10
+      for (let i = 0; i < attempts; i++) {
+        const listRes = await fetch(`${BASE}/rentals/units/${unitId}/images`, { headers: HEADERS() })
+        if (!listRes.ok) {
+          const errorText = await listRes.text().catch(() => '')
+          throw new Error(`Buildium unit image fetch failed after upload: ${listRes.status} ${errorText}`)
+        }
+        const images: BuildiumUnitImage[] = await listRes.json()
+        if (Array.isArray(images)) {
+          let candidate = images.find(img => typeof img?.Id === 'number' && !beforeIds.has(img.Id)) || null
+          if (!candidate && ticket?.PhysicalFileName) {
+            candidate = images.find(img => String((img as any)?.PhysicalFileName || '').toLowerCase() === String(ticket.PhysicalFileName || '').toLowerCase()) || null
+          }
+          if (!candidate && images.length) {
+            candidate = images[images.length - 1]
+          }
+          if (candidate) return candidate
+        }
+        if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, 700))
+      }
+      return null
+    }
+
+    const uploadedImage = await locateUploadedImage()
+    if (!uploadedImage) {
+      throw new Error('Buildium unit image upload succeeded but the image could not be retrieved')
+    }
+
+    uploadedImage.Href = prepared.originalDataUrl
+    uploadedImage.FileType = prepared.originalMimeType
+    uploadedImage.FileSize = prepared.originalSize
+
+    await UnitService.persistImages(unitId, [uploadedImage]).catch(() => void 0)
+    return uploadedImage
+  }
+
+  static async prepareImage(fileName: string, base64Data: string, originalMimeType?: string): Promise<PreparedImage> {
+    const original = Buffer.from(base64Data, 'base64')
+    const safeName = (fileName || 'unit-image').replace(/[^a-zA-Z0-9._-]/g, '_')
+    const inferredMime = originalMimeType || UnitService.inferMimeTypeFromName(fileName) || 'image/jpeg'
+    const originalDataUrl = `data:${inferredMime};base64,${base64Data}`
+
+    const processed = sharp(original)
+      .rotate()
+      .resize(1200, 1600, {
+        fit: 'cover',
+        position: 'centre'
+      })
+      .jpeg({ quality: 90 })
+
+    const { data } = await processed.toBuffer({ resolveWithObject: true })
+    const finalName = safeName.replace(/\.[^.]+$/, '') + '.jpg'
+    const base64 = data.toString('base64')
+    return {
+      buffer: data,
+      base64,
+      fileName: finalName,
+      mimeType: 'image/jpeg',
+      originalDataUrl,
+      originalMimeType: inferredMime,
+      originalSize: original.length
+    }
   }
 
   static async updateImage(unitId: number, imageId: number, payload: { Description?: string }): Promise<BuildiumUnitImage> {
@@ -322,15 +445,28 @@ export default class UnitService {
     if (!localUnitId) return
     const now = new Date().toISOString()
     for (const img of images) {
+      let href = img.Href ?? null
+      let fileType = img.FileType ?? null
+      let fileSize = typeof img.FileSize === 'number' ? img.FileSize : null
+      const needsLocalCopy = !href || !href.startsWith('data:')
+      if (needsLocalCopy && typeof img?.Id === 'number') {
+        const data = await UnitService.fetchBuildiumImageData(buildiumUnitId, img.Id)
+        if (data?.dataUrl) {
+          href = data.dataUrl
+          fileType = data.mimeType ?? fileType
+          fileSize = data.size ?? fileSize
+        }
+      }
+
       const row = {
         unit_id: localUnitId,
         buildium_image_id: img.Id,
         name: img.Name ?? null,
         description: img.Description ?? null,
-        file_type: img.FileType ?? null,
-        file_size: typeof img.FileSize === 'number' ? img.FileSize : null,
+        file_type: fileType ?? img.FileType ?? null,
+        file_size: fileSize,
         is_private: img.IsPrivate ?? null,
-        href: img.Href ?? null,
+        href,
         updated_at: now
       }
       const { data: existing } = await supabaseAdmin
@@ -344,6 +480,33 @@ export default class UnitService {
         await supabaseAdmin.from('unit_images').insert({ ...row, created_at: now })
       }
     }
+  }
+
+  static async fetchBuildiumImageData(unitId: number, imageId: number): Promise<{ dataUrl: string; mimeType: string | null; size: number } | null> {
+    try {
+      const download = await UnitService.downloadImage(unitId, imageId)
+      if (!download?.DownloadUrl) return null
+      const res = await fetch(download.DownloadUrl)
+      if (!res.ok) return null
+      const buffer = Buffer.from(await res.arrayBuffer())
+      const mime = res.headers.get('content-type') || 'image/jpeg'
+      return { dataUrl: `data:${mime};base64,${buffer.toString('base64')}`, mimeType: mime, size: buffer.length }
+    } catch (error) {
+      console.warn('Failed to fetch Buildium image data', error)
+      return null
+    }
+  }
+
+  private static inferMimeTypeFromName(name?: string | null): string | null {
+    if (!name) return null
+    const lower = name.toLowerCase()
+    if (lower.endsWith('.png')) return 'image/png'
+    if (lower.endsWith('.gif')) return 'image/gif'
+    if (lower.endsWith('.webp')) return 'image/webp'
+    if (lower.endsWith('.bmp')) return 'image/bmp'
+    if (lower.endsWith('.svg') || lower.endsWith('.svgz')) return 'image/svg+xml'
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic'
+    return lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' : null
   }
 
   static async persistNotes(buildiumUnitId: number, notes: any[]): Promise<void> {

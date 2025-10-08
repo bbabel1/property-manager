@@ -1,8 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react'
 import { User } from '@supabase/supabase-js'
-import { useMemo } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 interface AuthContextType {
@@ -89,3 +88,5 @@ export function useAuth(): AuthContextType {
 
 // Export the context for direct access if needed
 export { AuthContext }
+
+export default Providers;

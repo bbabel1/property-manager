@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumBillFileUpdateSchema } from '@/schemas/buildium';
-import { supabaseAdmin } from '@/lib/db'
+import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
 export async function GET(
   request: NextRequest,
@@ -135,6 +135,7 @@ export async function POST(
   { params }: { params: { id: string; fileId: string } }
 ) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('bill file download request')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -193,6 +194,7 @@ export async function PUT(
     const body = await request.json();
     const validated = sanitizeAndValidate(body, BuildiumBillFileUpdateSchema);
 
+    const supabaseAdmin = requireSupabaseAdmin('bill file update')
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-bills', {
       body: { op: 'file_update', billId: id, fileId, payload: validated }
     })
@@ -201,7 +203,7 @@ export async function PUT(
     }
     return NextResponse.json({ success: true, data: data.data })
   } catch (error) {
-    logger.error('Error updating Buildium bill file', error);
+    logger.error({ error }, 'Error updating Buildium bill file');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

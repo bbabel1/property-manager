@@ -1,44 +1,33 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Save, Users, Plus } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, Save, Users } from 'lucide-react'
 import { Button } from './ui/button'
+import type { CreateStaffFormValues, StaffSummary } from '@/components/forms/types'
+import { normalizeStaffRole } from '@/lib/staff-role'
 
-interface CreateStaffFormData {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  role: string
-}
-
-interface CreateStaffModalProps {
+type CreateStaffModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (newStaff: unknown) => void
+  onSuccess: (newStaff: StaffSummary) => void
 }
 
-const STAFF_ROLES = [
-  'PROPERTY_MANAGER',
-  'ASSISTANT_MANAGER',
-  'MAINTENANCE',
-  'LEASING_AGENT',
-  'ACCOUNTANT',
-  'ADMINISTRATOR'
-]
+const STAFF_ROLES = ['Property Manager', 'Bookkeeper']
+
+const INITIAL_FORM: CreateStaffFormValues = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  role: 'Property Manager'
+}
 
 export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateStaffModalProps) {
-  const [formData, setFormData] = useState<CreateStaffFormData>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    role: 'PROPERTY_MANAGER'
-  })
+  const [formData, setFormData] = useState<CreateStaffFormValues>(() => ({ ...INITIAL_FORM }))
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
@@ -46,12 +35,19 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
     try {
       console.log('🔍 CreateStaffModal: Submitting form data:', formData)
       
+      const normalizedRole = normalizeStaffRole(formData.role)
+      if (!normalizedRole) {
+        throw new Error('Please select a valid staff role')
+      }
+
+      const payload = { ...formData, role: normalizedRole }
+
       const response = await fetch('/api/staff', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -66,7 +62,7 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
         throw new Error(errorMessage)
       }
 
-      const newStaff = await response.json()
+      const newStaff = (await response.json()) as StaffSummary
       console.log('Staff member created successfully:', newStaff)
       
       onSuccess(newStaff)
@@ -79,7 +75,7 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
     }
   }
 
-  const handleInputChange = (field: keyof CreateStaffFormData, value: string) => {
+  const handleInputChange = <K extends keyof CreateStaffFormValues>(field: K, value: CreateStaffFormValues[K]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -87,13 +83,7 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
   }
 
   const handleClose = () => {
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      role: 'PROPERTY_MANAGER'
-    })
+    setFormData(() => ({ ...INITIAL_FORM }))
     setError(null)
     onClose()
   }
@@ -107,8 +97,10 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Create New Staff Member</h2>
           <button
+            type="button"
             onClick={handleClose}
             className="text-gray-400 hover:text-gray-600"
+            aria-label="Close create staff modal"
           >
             <X className="h-6 w-6" />
           </button>
@@ -122,7 +114,7 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
         )}
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form id="create-staff-modal-form" onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Staff Information */}
           <div className="space-y-4">
             <h4 className="font-medium text-gray-900 flex items-center gap-2">
@@ -194,19 +186,13 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
                 <select
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem'
-                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 shadow-sm appearance-none custom-select-arrow"
+                  aria-label="Staff role"
                   required
                 >
                   {STAFF_ROLES.map((role) => (
                     <option key={role} value={role} className="text-gray-900 bg-white">
-                      {role.replace(/_/g, ' ')}
+                      {role}
                     </option>
                   ))}
                 </select>
@@ -226,7 +212,8 @@ export default function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateS
           </Button>
           
           <Button
-            onClick={handleSubmit}
+            type="submit"
+            form="create-staff-modal-form"
             disabled={isLoading}
             className="flex items-center gap-2"
           >

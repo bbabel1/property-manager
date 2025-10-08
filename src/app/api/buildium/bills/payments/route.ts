@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBulkBillPaymentCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { supabaseAdmin } from '@/lib/db';
+import { requireSupabaseAdmin } from '@/lib/supabase-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = requireSupabaseAdmin('fetch Buildium bill payments')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
     const payments = data.data
     return NextResponse.json({ success: true, data: payments, count: Array.isArray(payments) ? payments.length : 0 })
   } catch (error) {
-    logger.error('Error fetching Buildium bill payments', error)
+    logger.error({ error }, 'Error fetching Buildium bill payments')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

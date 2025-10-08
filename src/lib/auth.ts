@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from './db'
+import { supabase, supabaseAdmin, supabaseAdminMaybe } from './db'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { User } from '@supabase/supabase-js'
@@ -90,7 +90,7 @@ export async function requireUser(request?: NextRequest): Promise<AuthenticatedU
   }
 
   // Fallback: validate using service role if Authorization header provided
-  if (!supabaseAdmin) throw new Error('UNAUTHENTICATED')
+  if (!supabaseAdminMaybe) throw new Error('UNAUTHENTICATED')
   const authHeader = request?.headers.get('authorization')
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.substring(7)

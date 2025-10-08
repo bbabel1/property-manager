@@ -30,7 +30,7 @@ export async function GET(
     const units = proxy.data
     return NextResponse.json({ success: true, data: units, count: units.length })
   } catch (error) {
-    logger.error('Error fetching Buildium property units', error)
+    logger.error({ error }, 'Error fetching Buildium property units')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -53,7 +53,7 @@ export async function POST(
     const unit = prox.data
     return NextResponse.json({ success: true, data: unit }, { status: 201 })
   } catch (error) {
-    logger.error('Error creating Buildium property unit', error)
+    logger.error({ error }, 'Error creating Buildium property unit')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,24 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { Building2, MapPin, Camera, Edit, CheckCircle, XCircle, Home, Users, DollarSign, Banknote } from 'lucide-react'
+import EditLink from '@/components/ui/EditLink'
 import { Button } from '../ui/button'
+import type { BankAccountSummary } from '@/components/forms/types'
 
 import { type PropertyWithDetails } from '@/lib/property-service'
 import EditPropertyModal from '../EditPropertyModal'
 import BankingDetailsModal from '../BankingDetailsModal'
 import PropertyNotes from './PropertyNotes'
-
-interface BankAccount {
-  id: string
-  name: string
-  description?: string
-  bank_account_type?: string
-  account_number?: string
-  routing_number?: string
-  country?: string
-  created_at?: string
-  updated_at?: string
-}
 
 interface PropertySummaryProps {
   property: PropertyWithDetails
@@ -29,7 +19,7 @@ interface PropertySummaryProps {
 export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryProps) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showBankingModal, setShowBankingModal] = useState(false)
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
   const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
 
   const handleEditSuccess = () => {
@@ -59,7 +49,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           throw new Error('Failed to fetch bank accounts')
         }
         
-        const bankAccountsData = await response.json()
+        const bankAccountsData = (await response.json()) as BankAccountSummary[]
         setBankAccounts(bankAccountsData)
       } catch (error) {
         console.error('Error fetching bank accounts:', error)
@@ -93,15 +83,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Property Details</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowEditModal(true)}
-                  className="bg-background text-foreground border-border hover:bg-muted"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
+                <EditLink onClick={() => setShowEditModal(true)} />
               </div>
             </div>
             <div className="p-6">
@@ -195,14 +177,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Location</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="bg-background text-foreground border-border hover:bg-muted"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
+                <EditLink />
               </div>
             </div>
             <div className="p-6">
@@ -248,15 +223,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Banking details</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowBankingModal(true)}
-                  className="bg-background text-foreground border-border hover:bg-muted"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
+                <EditLink onClick={() => setShowBankingModal(true)} />
               </div>
             </div>
             <div className="p-6 space-y-4">

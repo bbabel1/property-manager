@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
-import { supabase } from '@/lib/db'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import type { Database } from '@/types/database'
 import { StaffQuerySchema } from '@/schemas/staff'
 import { StaffCreateSchema } from '@/schemas/staff'
-import { supabaseAdmin } from '@/lib/db'
+import {
+  getServerSupabaseClient,
+  hasSupabaseAdmin,
+  requireSupabaseAdmin,
+  SupabaseAdminUnavailableError,
+} from '@/lib/supabase-client'
+import { mapUIStaffRoleToDB } from '@/lib/enums/staff-roles'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +24,7 @@ export async function GET(request: NextRequest) {
     // Fetch staff from database with optional filters
     const isActive = (query as any)?.isActive
     const role = (query as any)?.role
-    const client = supabaseAdmin || supabase
+    const client = getServerSupabaseClient()
     let q = client
       .from('staff')
       .select(`
@@ -41,7 +47,12 @@ export async function GET(request: NextRequest) {
     } else {
       q = q.eq('is_active', true)
     }
-    if (role) q = q.eq('role', role)
+    if (role) {
+      const dbRole = mapUIStaffRoleToDB(role)
+      if (dbRole) {
+        q = q.eq('role', dbRole)
+      }
+    }
 
     const { data: staff, error } = await q
 
@@ -92,7 +103,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map(i=>i.message).join(', ') }, { status: 400 })
     }
-    const { firstName, lastName, email, phone, role, isActive, buildiumUserId } = {
+    const { firstName, lastName, email, phone, role: rawRole, isActive, buildiumUserId } = {
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
       email: parsed.data.email,
@@ -101,25 +112,38 @@ export async function POST(request: NextRequest) {
       isActive: parsed.data.isActive ?? true,
       buildiumUserId: parsed.data.buildiumUserId ?? null
     }
+    const role = mapUIStaffRoleToDB(rawRole)
     const orgIdOverride = (body?.orgId as string | undefined) || null
     const sendInvite = body?.sendInvite !== false
 
     // Determine default org: caller's first org membership when not provided
     let targetOrgId: string | null = orgIdOverride
-    if (!targetOrgId && supabaseAdmin) {
-      const { data: mem } = await supabaseAdmin.from('org_memberships').select('org_id').eq('user_id', reqUser.id).limit(1).maybeSingle()
+    if (!targetOrgId && hasSupabaseAdmin()) {
+      const admin = requireSupabaseAdmin('staff POST org membership lookup')
+      const { data: mem } = await admin
+        .from('org_memberships')
+        .select('org_id')
+        .eq('user_id', reqUser.id)
+        .limit(1)
+        .maybeSingle()
       targetOrgId = (mem as any)?.org_id ?? null
     }
 
     // Create or invite auth user when email provided
     let staffUserId: string | null = null
+    const serverClient = getServerSupabaseClient()
+
     if (email) {
-      if (!supabaseAdmin) {
-        return NextResponse.json({ error: 'Server not configured for user invites (service role missing)' }, { status: 501 })
+      if (!hasSupabaseAdmin()) {
+        return NextResponse.json(
+          { error: 'Server not configured for user invites (service role missing)' },
+          { status: 501 }
+        )
       }
+      const admin = requireSupabaseAdmin('staff POST invite handler')
       // Try to locate existing auth user by email via users_with_auth view
       try {
-        const { data: existing } = await supabaseAdmin
+        const { data: existing } = await admin
           .from('users_with_auth')
           .select('user_id')
           .eq('email', email)
@@ -130,16 +154,16 @@ export async function POST(request: NextRequest) {
       if (!staffUserId) {
         try {
           if (sendInvite) {
-            const invite = await supabaseAdmin.auth.admin.inviteUserByEmail(email)
+            const invite = await admin.auth.admin.inviteUserByEmail(email)
             staffUserId = invite?.data?.user?.id ?? null
           } else {
-            const created = await supabaseAdmin.auth.admin.createUser({ email, email_confirm: false })
+            const created = await admin.auth.admin.createUser({ email, email_confirm: false })
             staffUserId = created?.data?.user?.id ?? null
           }
         } catch (e: any) {
           // Re-check users_with_auth in case user now exists
           try {
-            const { data: existing2 } = await supabaseAdmin
+            const { data: existing2 } = await admin
               .from('users_with_auth')
               .select('user_id')
               .eq('email', email)
@@ -149,17 +173,24 @@ export async function POST(request: NextRequest) {
           if (!staffUserId) return NextResponse.json({ error: 'Failed to create or invite user', details: e?.message || String(e) }, { status: 500 })
         }
       }
-      // Upsert profile
-      try {
-        const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || null
-        await supabaseAdmin
-          .from('profiles')
-          .upsert({ user_id: staffUserId, full_name: fullName, email }, { onConflict: 'user_id' })
-      } catch {}
+      if (staffUserId) {
+        // Upsert profile when we have an auth user identifier
+        try {
+          const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || null
+          const profilePayload = {
+            user_id: staffUserId,
+            full_name: fullName,
+            email
+          } satisfies Database['public']['Tables']['profiles']['Insert']
+          await admin
+            .from('profiles')
+            .upsert(profilePayload, { onConflict: 'user_id' })
+        } catch {}
+      }
     }
 
     // Insert staff
-    const { data: staffRow, error } = await (supabaseAdmin || supabase)
+    const { data: staffRow, error } = await serverClient
       .from('staff')
       .insert({
         user_id: staffUserId,
@@ -179,15 +210,18 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Failed to create staff', details: error.message }, { status: 500 })
 
     // Add org membership for the staff's user when we have an org context and user
-    if (targetOrgId && staffUserId && (supabaseAdmin || supabase)) {
-      const orgRole = role === 'PROPERTY_MANAGER' ? 'org_manager' : 'org_staff'
-      await (supabaseAdmin || supabase)
+    if (targetOrgId && staffUserId) {
+      const orgRole = rawRole === 'Property Manager' ? 'org_manager' : 'org_staff'
+      await serverClient
         .from('org_memberships')
         .upsert({ user_id: staffUserId, org_id: targetOrgId, role: orgRole as any }, { onConflict: 'user_id,org_id' })
     }
 
     return NextResponse.json({ staff: staffRow })
   } catch (e: any) {
+    if (e instanceof SupabaseAdminUnavailableError) {
+      return NextResponse.json({ error: e.message }, { status: 501 })
+    }
     if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -209,7 +243,13 @@ export async function PUT(request: NextRequest) {
     const id = body.id
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
     const patch: any = {}
-    if (body.role) patch.role = body.role
+    if (body.role) {
+      const dbRole = mapUIStaffRoleToDB(body.role)
+      if (!dbRole) {
+        return NextResponse.json({ error: 'Invalid role provided' }, { status: 400 })
+      }
+      patch.role = dbRole
+    }
     if (typeof body.isActive === 'boolean') patch.is_active = body.isActive
     if (typeof body.firstName === 'string') patch.first_name = body.firstName || null
     if (typeof body.lastName === 'string') patch.last_name = body.lastName || null
@@ -218,7 +258,8 @@ export async function PUT(request: NextRequest) {
     if (typeof body.title === 'string') patch.title = body.title || null
     patch.updated_at = new Date().toISOString()
     if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
-    const { error } = await supabase.from('staff').update(patch).eq('id', id)
+    const serverClient = getServerSupabaseClient()
+    const { error } = await serverClient.from('staff').update(patch).eq('id', id)
     if (error) return NextResponse.json({ error: 'Failed to update staff', details: error.message }, { status: 500 })
     return NextResponse.json({ success: true })
   } catch (e: any) {
@@ -233,7 +274,8 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const id = Number(searchParams.get('id'))
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-    const { error } = await supabase.from('staff').delete().eq('id', id)
+    const client = getServerSupabaseClient()
+    const { error } = await client.from('staff').delete().eq('id', id)
     if (error) return NextResponse.json({ error: 'Failed to delete staff', details: error.message }, { status: 500 })
     return NextResponse.json({ success: true })
   } catch (e: any) {

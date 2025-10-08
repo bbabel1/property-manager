@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
-import supabaseAdmin, { supabase } from '@/lib/db'
+import {
+  getServerSupabaseClient,
+  hasSupabaseAdmin,
+  requireSupabaseAdmin,
+  SupabaseAdminUnavailableError,
+} from '@/lib/supabase-client'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { z } from 'zod'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
@@ -23,7 +28,8 @@ const BankAccountUpdateLocalSchema = z.object({
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await requireUser(request)
-    const { data, error } = await supabase
+    const client = getServerSupabaseClient()
+    const { data, error } = await client
       .from('bank_accounts')
       .select(`
         id,
@@ -89,7 +95,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     toDb.last_source_ts = now
     toDb.updated_at = now
 
-    const { data: updated, error } = await supabaseAdmin
+    if (!hasSupabaseAdmin()) {
+      return NextResponse.json({ error: 'Server not configured for bank account updates (service role missing)' }, { status: 501 })
+    }
+    const admin = requireSupabaseAdmin('bank accounts PUT')
+
+    const { data: updated, error } = await admin
       .from('bank_accounts')
       .update(toDb)
       .eq('id', id)
@@ -102,35 +113,55 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Optional two-way sync to Buildium
     if (syncToBuildium) {
-      const syncPayload = { ...updated }
+      // Enrich with GLAccountId when available
+      let syncPayload: any = { ...updated }
+      try {
+        if (updated.gl_account) {
+          const { data: gl } = await admin
+            .from('gl_accounts')
+            .select('buildium_gl_account_id')
+            .eq('id', updated.gl_account)
+            .maybeSingle()
+          const glId = gl?.buildium_gl_account_id
+          if (typeof glId === 'number' && glId > 0) syncPayload = { ...syncPayload, GLAccountId: glId }
+        }
+      } catch {}
       const result = await buildiumEdgeClient.syncBankAccountToBuildium(syncPayload)
       if (!result.success) {
-        // record sync failure status but return 200 with info
-        await supabaseAdmin.rpc('update_buildium_sync_status', {
-          p_entity_type: 'bankAccount',
-          p_entity_id: id,
-          p_buildium_id: updated.buildium_bank_id || null,
-          p_status: 'failed',
-          p_error_message: result.error || 'Unknown error'
-        })
+        const currentBuildiumId = updated.buildium_bank_id ?? undefined
+        if (typeof currentBuildiumId === 'number') {
+          await admin.rpc('update_buildium_sync_status', {
+            p_entity_type: 'bankAccount',
+            p_entity_id: id,
+            p_buildium_id: currentBuildiumId,
+            p_status: 'failed',
+            p_error_message: result.error || 'Unknown error'
+          })
+        }
         return NextResponse.json({ success: true, data: updated, buildiumSync: { success: false, error: result.error } })
       }
 
       if (!updated.buildium_bank_id && result.buildiumId) {
-        await supabaseAdmin.from('bank_accounts').update({ buildium_bank_id: result.buildiumId, updated_at: new Date().toISOString() }).eq('id', id)
+        await admin.from('bank_accounts').update({ buildium_bank_id: result.buildiumId, updated_at: new Date().toISOString() }).eq('id', id)
       }
 
-      await supabaseAdmin.rpc('update_buildium_sync_status', {
-        p_entity_type: 'bankAccount',
-        p_entity_id: id,
-        p_buildium_id: result.buildiumId || updated.buildium_bank_id,
-        p_status: 'synced'
-      })
+      const syncedBuildiumId = result.buildiumId ?? updated.buildium_bank_id
+      if (typeof syncedBuildiumId === 'number') {
+        await admin.rpc('update_buildium_sync_status', {
+          p_entity_type: 'bankAccount',
+          p_entity_id: id,
+          p_buildium_id: syncedBuildiumId,
+          p_status: 'synced'
+        })
+      }
       return NextResponse.json({ success: true, data: { ...updated, buildium_bank_id: result.buildiumId || updated.buildium_bank_id } })
     }
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
+    if (error instanceof SupabaseAdminUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 501 })
+    }
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

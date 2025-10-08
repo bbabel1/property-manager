@@ -12,16 +12,17 @@ export type ListBankAccountsParams = {
 
 export function normalizeBankAccountType(input: string | null | undefined): string | null {
   if (!input) return null
-  const norm = String(input)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-  if (norm === 'money_market' || norm === 'moneymarket') return 'money_market'
-  if (norm === 'certificate_of_deposit' || norm === 'cd' || norm === 'certificateofdeposit') return 'certificate_of_deposit'
-  if (norm === 'business_checking' || norm === 'trust_account' || norm === 'escrow_account') return 'checking'
-  if (norm === 'business_savings') return 'savings'
-  return norm
+  
+  const normalized = String(input).trim().toLowerCase()
+  
+  // Map UI values to database enum values
+  if (normalized === 'checking' || normalized === 'business checking') return 'checking'
+  if (normalized === 'savings' || normalized === 'business savings') return 'savings'
+  if (normalized === 'money market' || normalized === 'money_market' || normalized === 'moneymarket') return 'money_market'
+  if (normalized === 'certificate of deposit' || normalized === 'certificate_of_deposit' || normalized === 'cd' || normalized === 'certificateofdeposit') return 'certificate_of_deposit'
+  
+  // Default fallback
+  return 'checking'
 }
 
 export class BankAccountService {

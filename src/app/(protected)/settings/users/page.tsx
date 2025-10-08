@@ -78,7 +78,10 @@ export default function UsersRolesPage() {
     if (user.memberships && user.memberships.length > 0) {
       const firstMembership = user.memberships[0]
       setEditSelectedOrg(firstMembership.org_id)
-      setEditSelectedRoles(user.memberships.map(m => m.role))
+      const uniqueRoles = Array.from(new Set(
+        user.memberships.map(m => m.role).filter((role): role is string => Boolean(role))
+      ))
+      setEditSelectedRoles(uniqueRoles)
     } else {
       setEditSelectedOrg('')
       setEditSelectedRoles(['org_staff'])
@@ -292,10 +295,10 @@ export default function UsersRolesPage() {
                     { label: 'Org Admin', value: 'org_admin' },
                     { label: 'Platform Admin', value: 'platform_admin' },
                   ]
-                    .filter(role => !selectedRoles.includes(role))
+                    .filter(opt => !selectedRoles.includes(opt.value))
                     .map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -416,7 +419,7 @@ export default function UsersRolesPage() {
             {createOrgErr && <div className="text-sm text-destructive">{createOrgErr}</div>}
             <div className="flex items-center gap-2">
               <Button onClick={createOrg} disabled={creatingOrg || !newOrgName.trim()}>{creatingOrg ? "Creating..." : "Create"}</Button>
-              <Button variant="outline" onClick={()=> setShowCreateOrg(false)}>Cancel</Button>
+              <Button variant="ghost" onClick={()=> setShowCreateOrg(false)}>Cancel</Button>
             </div>
           </div>
         </DialogContent>
@@ -543,7 +546,7 @@ export default function UsersRolesPage() {
                   >
                     {editBusy ? "Saving..." : "Save Changes"}
                   </Button>
-                  <Button variant="outline" onClick={cancelEdit}>Cancel</Button>
+                  <Button variant="ghost" onClick={cancelEdit}>Cancel</Button>
                 </div>
               </div>
             )}

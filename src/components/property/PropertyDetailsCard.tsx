@@ -13,6 +13,9 @@ type OwnerRow = { id: string; ownerId: string; name: string; ownershipPercentage
 
 export default function PropertyDetailsCard({ property }: { property: any }) {
   const [editing, setEditing] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [syncErr, setSyncErr] = useState<string | null>(null)
   // Use server-provided image first; client fetch only if missing
   const initialUrl = (property as any)?.primary_image_url || null
   const [address1, setAddress1] = useState(property.address_line1 || '')
@@ -51,6 +54,27 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl)
 
+  async function handleSyncToBuildium() {
+    setSyncing(true)
+    setSyncMsg(null)
+    setSyncErr(null)
+    try {
+      const res = await fetch(`/api/properties/${property.id}/sync`, { method: 'POST' })
+      const j = await res.json().catch(() => ({} as any))
+      if (!res.ok || j?.error) {
+        setSyncErr(j?.error || `Failed: HTTP ${res.status}`)
+      } else {
+        setSyncMsg('Synced to Buildium')
+        // Update badge in-place without reload if possible
+        if (j?.buildium_property_id) (property as any).buildium_property_id = j.buildium_property_id
+      }
+    } catch (e) {
+      setSyncErr(e instanceof Error ? e.message : 'Failed to sync')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   // Load current property image (Buildium or local fallback)
   useEffect(() => {
     if (initialUrl) return
@@ -60,7 +84,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         const res = await fetch(`/api/buildium/properties/${property.id}/images`, { credentials: 'include' })
         if (!res.ok) return
         const j = await res.json().catch(() => null as any)
-        const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || null
+        const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || j?.data?.[0]?.href || null
         if (!cancelled) setPreviewUrl(url || null)
       } catch {}
     }
@@ -77,7 +101,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         const res = await fetch(`/api/buildium/properties/${property.id}/images`, { credentials: 'include', cache: 'no-store' })
         if (!res.ok) return
         const j = await res.json().catch(() => null as any)
-        const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || null
+        const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || j?.data?.[0]?.href || null
         if (!cancelled) setPreviewUrl(url || null)
       } catch {}
     }
@@ -330,6 +354,17 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       variant="plain"
       view={
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
+          <div className="md:col-span-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {syncMsg && <span className="text-xs text-green-600">{syncMsg}</span>}
+              {syncErr && <span className="text-xs text-red-600">{syncErr}</span>}
+            </div>
+            {!property.buildium_property_id && (
+              <Button size="sm" onClick={handleSyncToBuildium} disabled={syncing}>
+                {syncing ? 'Syncing…' : 'Sync to Buildium'}
+              </Button>
+            )}
+          </div>
           <div className="relative md:col-span-2">
             <div className="w-full bg-muted rounded-lg overflow-hidden">
               {/* Fixed aspect ratio ~ 429x322 (≈ 75%) */}
@@ -389,7 +424,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                     // Re-fetch canonical URL (Buildium or storage)
                     const check = await fetch(`/api/buildium/properties/${property.id}/images?cb=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
                     const jj = await check.json().catch(() => null as any)
-                    const url = jj?.data?.[0]?.Href || jj?.data?.[0]?.Url || jj?.data?.url || null
+                    const url = jj?.data?.[0]?.Href || jj?.data?.[0]?.Url || jj?.data?.url || jj?.data?.[0]?.href || null
                     setPreviewUrl(url || obj)
                     setUploadSuccess('Image uploaded')
                   } catch (err) {
@@ -609,7 +644,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" onClick={createOwnerInline} disabled={creating}> {creating ? 'Creating…' : 'Create owner'} </Button>
-                      <Button variant="outline" size="sm" onClick={()=>{ setShowCreateInline(false); setCreateForRowId(null) }}>Cancel</Button>
+                      <Button variant="ghost" size="sm" onClick={()=>{ setShowCreateInline(false); setCreateForRowId(null) }}>Cancel</Button>
                     </div>
                   </div>
                 )}

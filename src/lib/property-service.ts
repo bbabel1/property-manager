@@ -1,84 +1,22 @@
 import { supabase, supabaseAdmin } from './db'
 import type { Database } from '@/types/database'
 
-export interface Property {
-  id: string
-  name: string
-  address_line1: string
-  address_line2?: string
-  address_line3?: string
-  city: string
-  state: string
-  postal_code: string
-  country: Database['public']['Enums']['countries']
-  borough?: string | null
-  neighborhood?: string | null
-  longitude?: number | null
-  latitude?: number | null
-  location_verified?: boolean
-  property_type?: string | null
-  // primary_owner removed - now determined from ownerships table where primary = true
-  status: string
-  reserve: number
-  year_built?: number
-  total_units: number
-  // Aggregated unit counts maintained by DB triggers
-  total_active_units?: number
-  total_occupied_units?: number
-  total_vacant_units?: number
-  total_inactive_units?: number
-  operating_bank_account_id?: string
-  deposit_trust_account_id?: string
-  created_at: string
-  updated_at: string
+export type Property = Database['public']['Tables']['properties']['Row']
+export type Unit = Database['public']['Tables']['units']['Row']
+export type Owner = Database['public']['Tables']['owners']['Row'] & {
+  ownership_percentage?: number | null
+  disbursement_percentage?: number | null
+  primary?: boolean | null
+  display_name?: string | null
+  primary_email?: string | null
+  primary_phone?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  is_company?: boolean | null
+  company_name?: string | null
 }
 
-export interface Unit {
-  id: string
-  property_id: string
-  unit_number: string
-  unit_size?: number
-  market_rent?: number
-  address_line1: string
-  address_line2?: string
-  address_line3?: string
-  city: string
-  state: string
-  postal_code: string
-  country: Database['public']['Enums']['countries']
-  unit_bedrooms?: string
-  unit_bathrooms?: string
-  description?: string
-  created_at: string
-  updated_at: string
-}
-
-export interface Owner {
-  id: string
-  contact_id: string
-  // Contact information (from contacts table)
-  first_name?: string
-  last_name?: string
-  is_company?: boolean
-  company_name?: string
-  primary_email?: string
-  primary_phone?: string
-  // Owner-specific fields
-  management_agreement_start_date?: string
-  management_agreement_end_date?: string
-  comment?: string
-  etf_account_type?: string
-  etf_account_number?: string
-  etf_routing_number?: string
-  created_at: string
-  updated_at: string
-  // Ownership details (when fetched with property)
-  ownership_percentage?: number
-  disbursement_percentage?: number
-  primary?: boolean
-}
-
-export interface PropertyWithDetails extends Property {
+export type PropertyWithDetails = Property & {
   units: Unit[]
   owners: Owner[]
   units_summary: {
@@ -89,16 +27,21 @@ export interface PropertyWithDetails extends Property {
   occupancy_rate: number
   total_owners: number
   primary_owner_name?: string
-  // Banking + manager enrichments
   operating_account?: { id: string; name: string; last4?: string | null }
   deposit_trust_account?: { id: string; name: string; last4?: string | null }
   property_manager_name?: string
-
+  property_manager_email?: string
+  property_manager_phone?: string
+  primary_image_url?: string
 }
+
+export type PropertyListItem = Pick<Property, 'id' | 'name' | 'status' | 'property_type' | 'created_at'>
+
+type PropertyShell = Pick<Property, 'id' | 'name' | 'status' | 'property_type' | 'buildium_property_id' | 'service_assignment' | 'service_plan'>
 
 export class PropertyService {
   // Lightweight shell: just enough for header/tabs without heavy joins
-  static async getPropertyShell(id: string): Promise<Pick<Property, 'id'|'name'|'status'|'property_type'> | null> {
+  static async getPropertyShell(id: string): Promise<PropertyShell | null> {
     try {
       const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
       if (!hasEnv) {
@@ -107,18 +50,26 @@ export class PropertyService {
           const res = await fetch(`/api/properties/${id}/details`, { next: { revalidate: 60, tags: [`property-details:${id}`] } })
           if (res.ok) {
             const data = await res.json()
-            return { id: data.id, name: data.name, status: data.status, property_type: (data as any)?.property_type }
+            return {
+              id: data.id,
+              name: data.name,
+              status: data.status,
+              property_type: (data as any)?.property_type,
+              buildium_property_id: (data as any)?.buildium_property_id ?? null,
+              service_assignment: (data as any)?.service_assignment ?? null,
+              service_plan: (data as any)?.service_plan ?? null
+            }
           }
         } catch {}
         return null
       }
       const { data, error } = await supabase
         .from('properties')
-        .select('id,name,status,property_type')
+        .select('id,name,status,property_type,buildium_property_id,service_assignment,service_plan')
         .eq('id', id)
         .maybeSingle()
       if (error || !data) return null
-      return data as any
+      return data as PropertyShell
     } catch {
       return null
     }
@@ -253,15 +204,19 @@ export class PropertyService {
       const total_owners = ownership?.length || 0
 
       // Extract owners with ownership details from ownership data
-      const owners = ownership?.map(o => ({
-        ...o.owners,
-        ...o.owners.contacts, // Include contact information
-        ownership_percentage: o.ownership_percentage,
-        disbursement_percentage: o.disbursement_percentage,
-        primary: o.primary
-      })).filter(Boolean)
-        // Primary owner first for display purposes
-        .sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)) || []
+      const owners: Owner[] = (ownership?.map(o => {
+        const ownerSource = (o.owners ?? {}) as Record<string, unknown>
+        const { contacts, ...ownerRow } = ownerSource
+        const contactRow = (contacts as Record<string, unknown> | null) ?? {}
+        return {
+          ...(ownerRow as Partial<Owner>),
+          ...(contactRow as Partial<Owner>),
+          ownership_percentage: o.ownership_percentage,
+          disbursement_percentage: o.disbursement_percentage,
+          primary: o.primary,
+        } as Owner
+      }).filter(Boolean) as Owner[] | undefined)
+        ?.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)) || []
 
       // Enrich: banking accounts (names + masked last4)
       let operating_account: PropertyWithDetails['operating_account'] | undefined
@@ -283,47 +238,12 @@ export class PropertyService {
         if (tr) deposit_trust_account = { id: tr.id, name: tr.name, last4: tr.account_number ? String(tr.account_number).slice(-4) : null }
       }
 
-      // Enrich: property manager name (if any)
-      let property_manager_name: string | undefined
-      let property_manager_email: string | undefined
-      let property_manager_phone: string | undefined
-      const { data: staffLink } = await dbClient
-        .from('property_staff')
-        .select('staff_id, role')
-        .eq('property_id', id)
-        .eq('role', 'PROPERTY_MANAGER')
-        .maybeSingle()
-      if (staffLink?.staff_id) {
-        try {
-          const { data: st } = await dbClient
-            .from('staff')
-            .select('id, first_name, last_name, email, phone, user_id')
-            .eq('id', staffLink.staff_id)
-            .maybeSingle()
-          if (st) {
-            const full = [ (st as any).first_name, (st as any).last_name ].filter(Boolean).join(' ').trim()
-            property_manager_name = full || `Staff ${st.id}`
-            property_manager_email = (st as any).email || undefined
-            property_manager_phone = (st as any).phone || undefined
-          } else {
-            property_manager_name = `Staff ${staffLink.staff_id}`
-          }
-        } catch {
-          property_manager_name = `Staff ${staffLink.staff_id}`
-        }
-      }
+      const property_manager_name: string | undefined = undefined
+      const property_manager_email: string | undefined = undefined
+      const property_manager_phone: string | undefined = undefined
 
-      // Enrich: primary image URL (if persisted)
+      // Enrich: primary image URL (disabled until product defines property image strategy)
       let primary_image_url: string | undefined
-      try {
-        const { data: img } = await dbClient
-          .from('property_images')
-          .select('href')
-          .eq('property_id', id)
-          .order('updated_at', { ascending: false })
-          .maybeSingle()
-        if (img?.href) primary_image_url = img.href as any
-      } catch {}
 
       // Compute primary owner name for display
       let primary_owner_name: string | undefined
@@ -343,7 +263,6 @@ export class PropertyService {
         occupancy_rate,
         total_owners,
         primary_owner_name,
-        isMockData: false,
         operating_account,
         deposit_trust_account,
         property_manager_name,
@@ -366,7 +285,7 @@ export class PropertyService {
     }
   }
 
-  static async getAllProperties(): Promise<Property[]> {
+  static async getAllProperties(): Promise<PropertyListItem[]> {
     try {
       if (!supabase) {
         console.warn('Supabase client not available, returning empty array')
@@ -383,7 +302,7 @@ export class PropertyService {
         return []
       }
 
-      return data || []
+      return (data || []) as PropertyListItem[]
     } catch (error) {
       console.error('Error in getAllProperties:', error)
       return []
@@ -442,10 +361,21 @@ export class PropertyService {
         return []
       }
 
-      return data?.map(o => ({
-        ...o.owners,
-        ...o.owners.contacts // Include contact information
-      })).filter(Boolean) || []
+      return (
+        data
+          ?.map(o => {
+            const ownerSource = Array.isArray(o.owners) ? o.owners[0] : o.owners
+            if (!ownerSource) return null
+            const contacts = Array.isArray(ownerSource.contacts)
+              ? ownerSource.contacts[0]
+              : ownerSource.contacts
+            return {
+              ...(ownerSource as Partial<Owner>),
+              ...(contacts as Partial<Owner> | null),
+            } as Owner
+          })
+          .filter(Boolean) as Owner[] | undefined
+      ) || []
     } catch (error) {
       console.error('Error in getPropertyOwners:', error)
       return []
@@ -454,7 +384,7 @@ export class PropertyService {
 }
 
 // Server-side cache helpers (noop on client). Use in RSC layouts to avoid refetch on tab switches.
-export const getPropertyShellCached = ((): ((id: string) => Promise<Pick<Property, 'id'|'name'|'status'|'property_type'> | null>) => {
+export const getPropertyShellCached = ((): ((id: string) => Promise<PropertyShell | null>) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { cache } = require('react') as { cache: <T extends (...args: any[]) => any>(fn: T) => T }

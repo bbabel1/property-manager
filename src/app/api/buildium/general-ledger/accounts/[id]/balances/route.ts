@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
-import supabase from '@/lib/db';
+import { supabase } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
