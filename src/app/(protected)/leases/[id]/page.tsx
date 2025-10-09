@@ -958,7 +958,13 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-base font-medium text-foreground">{tenant.name}</p>
+                          {tenant.tenantId ? (
+                            <Link href={`/tenants/${tenant.tenantId}`} className="text-base font-medium text-foreground hover:text-primary hover:underline">
+                              {tenant.name}
+                            </Link>
+                          ) : (
+                            <p className="text-base font-medium text-foreground">{tenant.name}</p>
+                          )}
                           <div className="mt-1">
                             <TenantMoveInEditor contactId={tenant.id} value={tenant.moveIn} />
                           </div>
@@ -1019,7 +1025,13 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-base font-medium text-foreground">{tenant.name}</p>
+                          {tenant.tenantId ? (
+                            <Link href={`/tenants/${tenant.tenantId}`} className="text-base font-medium text-foreground hover:text-primary hover:underline">
+                              {tenant.name}
+                            </Link>
+                          ) : (
+                            <p className="text-base font-medium text-foreground">{tenant.name}</p>
+                          )}
                           <p className="text-xs text-muted-foreground">{tenant.roleLabel}</p>
                           <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
                             {tenant.phones.map((phone, idx) => (
