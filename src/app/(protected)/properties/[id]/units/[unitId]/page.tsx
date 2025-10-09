@@ -8,8 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PropertyService } from '@/lib/property-service'
 import { supabase as supaClient, supabaseAdmin } from '@/lib/db'
 import UnitDetailsCard from '@/components/unit/UnitDetailsCard'
-import UnitBalanceCard from '@/components/unit/UnitBalanceCard'
-import ManagementServicesCard from '@/components/property/ManagementServicesCard'
+import UnitFinancialServicesCard from '@/components/unit/UnitFinancialServicesCard'
 import LeaseSection from '@/components/units/LeaseSection'
 
 type Fin = { cash_balance?: number; security_deposits?: number; reserve?: number; available_balance?: number; as_of?: string }
@@ -137,6 +136,7 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
   // Prefer DB-maintained columns on the unit when present
   let unitBalance = typeof (unit as any)?.balance === 'number' ? Number((unit as any).balance) : 0
   let activeLeaseRent: number | null = null
+  let activeLeaseId: string | null = null
   let depositsHeld = typeof (unit as any)?.deposits_held_balance === 'number' ? Number((unit as any).deposits_held_balance) : 0
   let prepayments = typeof (unit as any)?.prepayments_balance === 'number' ? Number((unit as any).prepayments_balance) : 0
   
@@ -144,6 +144,7 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
     // Get the most recent active lease
     const activeLease = leases.find(l => l.status?.toLowerCase() === 'active' || l.status?.toLowerCase() === 'current') || leases[0]
     activeLeaseRent = activeLease?.rent_amount || null
+    activeLeaseId = activeLease?.id || null
 
     // If deposits weren't derived from unit columns, use lease metadata
     if (!depositsHeld) depositsHeld = Number((activeLease as any)?.security_deposit ?? 0) || 0
@@ -335,10 +336,16 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* Right rail: compact balance + management */}
+        {/* Right rail: combined financial and services card */}
         <div className="space-y-6">
-          <UnitBalanceCard fin={unitFin} rent={activeLeaseRent} prepayments={prepayments} />
-          <ManagementServicesCard property={property} />
+          <UnitFinancialServicesCard 
+            fin={unitFin} 
+            rent={activeLeaseRent} 
+            prepayments={prepayments}
+            property={property}
+            unit={unit}
+            leaseId={activeLeaseId}
+          />
         </div>
       </div>
 
