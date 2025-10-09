@@ -963,7 +963,7 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
                               {tenant.name}
                             </Link>
                           ) : (
-                            <p className="text-base font-medium text-foreground">{tenant.name}</p>
+                            <p className="text-base font-medium text-foreground">{tenant.name} (ID: {tenant.tenantId || 'null'})</p>
                           )}
                           <div className="mt-1">
                             <TenantMoveInEditor contactId={tenant.id} value={tenant.moveIn} />
