@@ -134,18 +134,19 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
   }
 
   // Calculate unit-specific balance from the active lease
-  let unitBalance = 0
+  // Prefer DB-maintained columns on the unit when present
+  let unitBalance = typeof (unit as any)?.balance === 'number' ? Number((unit as any).balance) : 0
   let activeLeaseRent: number | null = null
-  let depositsHeld = 0
-  let prepayments = 0
+  let depositsHeld = typeof (unit as any)?.deposits_held_balance === 'number' ? Number((unit as any).deposits_held_balance) : 0
+  let prepayments = typeof (unit as any)?.prepayments_balance === 'number' ? Number((unit as any).prepayments_balance) : 0
   
   if (leases.length > 0) {
     // Get the most recent active lease
     const activeLease = leases.find(l => l.status?.toLowerCase() === 'active' || l.status?.toLowerCase() === 'current') || leases[0]
     activeLeaseRent = activeLease?.rent_amount || null
 
-    // Base deposits on lease metadata when available
-    depositsHeld = Number((activeLease as any)?.security_deposit ?? 0) || 0
+    // If deposits weren't derived from unit columns, use lease metadata
+    if (!depositsHeld) depositsHeld = Number((activeLease as any)?.security_deposit ?? 0) || 0
 
     const determineSignedAmount = (tx: any) => {
       const rawAmount = tx?.TotalAmount ?? tx?.total_amount ?? 0
@@ -170,7 +171,8 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
       ? relevantTransactions.reduce((sum, tx) => sum + determineSignedAmount(tx), 0)
       : 0
 
-    unitBalance = localBalance
+    // Only override DB-maintained balance if it is missing (zero) and we have a local non-zero calculation
+    if (!unitBalance && localBalance) unitBalance = localBalance
 
     // Supplement with transaction line analysis for prepayments / deposits and as a safety net for balance.
     let transactionLines: any[] = []
