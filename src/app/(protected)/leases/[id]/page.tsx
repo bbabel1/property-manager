@@ -374,6 +374,7 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
     email: string | null
     phones: { number: string; action?: { label: string; href: string } }[]
     roleLabel: string
+    tenantId: string | null
   }
 
   const tenantsByRole = contactRows.reduce(
@@ -386,6 +387,7 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
         email: row.email,
         phones: row.phones,
         roleLabel: row.role,
+        tenantId: row.tenantId ? String(row.tenantId) : null,
       }
       const bucket = row.roleKey.includes('cosigner') ? 'cosigners' : 'tenants'
       acc[bucket].push(info)
@@ -963,7 +965,7 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
                               {tenant.name}
                             </Link>
                           ) : (
-                            <p className="text-base font-medium text-foreground">{tenant.name} (ID: {tenant.tenantId || 'null'})</p>
+                            <p className="text-base font-medium text-foreground">{tenant.name}</p>
                           )}
                           <div className="mt-1">
                             <TenantMoveInEditor contactId={tenant.id} value={tenant.moveIn} />
