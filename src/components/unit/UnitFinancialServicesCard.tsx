@@ -199,7 +199,7 @@ export default function UnitFinancialServicesCard({
 
   const managementServicesView = (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <h3 className="text-base font-semibold text-foreground">Management Services</h3>
         <EditLink onClick={() => setEditing(true)} />
       </div>
@@ -231,7 +231,7 @@ export default function UnitFinancialServicesCard({
 
   const managementServicesEdit = (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <h3 className="text-base font-semibold text-foreground">Management Services</h3>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setError(null) }}>

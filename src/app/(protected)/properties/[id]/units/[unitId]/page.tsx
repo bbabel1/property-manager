@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import AddLink from '@/components/ui/AddLink'
 import { PropertyService } from '@/lib/property-service'
 import { supabase as supaClient, supabaseAdmin } from '@/lib/db'
 import UnitDetailsCard from '@/components/unit/UnitDetailsCard'
@@ -261,9 +262,9 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
 
           <div className="space-y-6">
             <section className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold text-foreground">Appliances</h3>
-                <Link href="#"><Button variant="outline" size="sm">Add</Button></Link>
+                <AddLink aria-label="Add appliance" />
               </div>
               <Card>
                 <CardContent className="p-4">
@@ -290,9 +291,9 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
             </section>
 
             <section>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-base font-semibold text-foreground">Monthly Logs</h3>
-                <Link href="#"><Button variant="outline" size="sm">Add</Button></Link>
+                <AddLink aria-label="Add monthly log" />
               </div>
               <Card>
                 <Table>
@@ -312,9 +313,9 @@ export default async function UnitDetailsNested({ params }: { params: Promise<{ 
             </section>
 
             <section>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-base font-semibold text-foreground">Files</h3>
-                <Link href="#"><Button variant="outline" size="sm">Add</Button></Link>
+                <AddLink aria-label="Add file" />
               </div>
               <Card>
                 <Table>

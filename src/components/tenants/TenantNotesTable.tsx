@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ChevronDown, Download, Plus, PencilLine, Trash2, MoreHorizontal, Eye } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import type { Database } from '@/types/database'
 import { Textarea } from '@/components/ui/textarea'
@@ -184,10 +185,7 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="action" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
-                          </Button>
+                          <ActionButton aria-label="Actions" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
                           <DropdownMenuItem onClick={() => openEdit(note)}>

@@ -57,7 +57,7 @@ export default function PageHeader({ property }: Props) {
         </span>
         {property.buildium_property_id ? (
           <Badge variant="secondary" className="text-xs font-medium">
-            Buildium ID: {property.buildium_property_id}
+            {property.buildium_property_id}
           </Badge>
         ) : (
           <Badge variant="outline" className="text-xs font-medium">

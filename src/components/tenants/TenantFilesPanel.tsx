@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, Mail, Trash2, Download, Eye } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import { CheckCircle2 } from 'lucide-react'
 
 interface TenantFileRow {
@@ -181,10 +182,7 @@ export default function TenantFilesPanel({
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="action" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
-                          </Button>
+                          <ActionButton aria-label="Actions" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
                           <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => console.log('Delete file', file.id)}>

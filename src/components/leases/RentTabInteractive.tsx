@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MoreHorizontal } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import RentScheduleForm, { RentScheduleFormDefaults, RentScheduleFormLeaseSummary } from '@/components/leases/RentScheduleForm'
 
 type RentLogRowDisplay = {
@@ -222,9 +223,7 @@ export default function RentTabInteractive({
                     <TableCell className="text-sm text-foreground">{row.cycleLabel}</TableCell>
                     <TableCell className="text-right text-sm text-foreground">{row.amountLabel}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" aria-label="Rent schedule actions">
-                        <MoreHorizontal className="h-5 w-5" />
-                      </Button>
+                      <ActionButton aria-label="Rent schedule actions" />
                     </TableCell>
                   </TableRow>
                 ))

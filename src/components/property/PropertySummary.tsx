@@ -81,7 +81,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           {/* Property Details */}
           <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">Property Details</h2>
                 <EditLink onClick={() => setShowEditModal(true)} />
               </div>
@@ -181,7 +181,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           {/* Location Card */}
           <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">Location</h2>
                 <EditLink />
               </div>
@@ -227,7 +227,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
           {/* Banking Details */}
           <div className="bg-card rounded-lg border border-border">
             <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-foreground">Banking details</h2>
                 <EditLink onClick={() => setShowBankingModal(true)} />
               </div>

@@ -7,8 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Dropdown } from '@/components/ui/Dropdown'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { Plus } from 'lucide-react'
+import { Plus, MoreHorizontal } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
+import AddLink from '@/components/ui/AddLink'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -779,9 +782,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
 
   return (
     <section className="relative">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center gap-2 mb-2">
         <h3 className="text-base font-semibold text-foreground">Leases</h3>
-        {!open && <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Add</Button>}
+        {!open && <AddLink onClick={() => setOpen(true)} aria-label="Add lease" />}
       </div>
 
       {!open && (
@@ -793,7 +796,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 <TableHead>Start - End</TableHead>
                 <TableHead>Tenant</TableHead>
                 <TableHead>Rent</TableHead>
-                <TableHead>Buildium</TableHead>
+                <TableHead className="w-[50px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -820,23 +823,32 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   </TableCell>
                   <TableCell className="text-sm text-foreground">{fmtUsd(lease.rent_amount)}</TableCell>
                   <TableCell className="text-sm text-foreground">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {lease.buildium_lease_id ? (
-                        <Badge variant="secondary">Buildium ID: {lease.buildium_lease_id}</Badge>
-                      ) : (
-                        <Badge variant="outline">Not in Buildium</Badge>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => { e.stopPropagation(); syncLease(String(lease.id)) }}
-                        disabled={syncingLeaseId === String(lease.id)}
-                      >
-                        {syncingLeaseId === String(lease.id)
-                          ? 'Syncing…'
-                          : lease.buildium_lease_id ? 'Re-sync' : 'Sync to Buildium'}
-                      </Button>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton onClick={(e) => e.stopPropagation()} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.location.href = `/leases/${lease.id}` }}>
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => { e.stopPropagation(); syncLease(String(lease.id)) }}
+                          disabled={syncingLeaseId === String(lease.id)}
+                        >
+                          {syncingLeaseId === String(lease.id)
+                            ? 'Syncing…'
+                            : lease.buildium_lease_id ? 'Re-sync' : 'Sync to Buildium'}
+                        </DropdownMenuItem>
+                        {lease.buildium_lease_id && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                              Buildium ID: {lease.buildium_lease_id}
+                            </div>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     {leaseSyncError?.id === String(lease.id) ? (
                       <p className="text-xs text-destructive mt-1">{leaseSyncError.message}</p>
                     ) : null}

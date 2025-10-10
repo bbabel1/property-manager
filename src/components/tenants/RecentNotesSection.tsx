@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, PencilLine, Trash2, Eye } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import AddNoteModal from '@/components/tenants/AddNoteModal'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import type { Database } from '@/types/database'
@@ -119,10 +120,7 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="action" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Actions</span>
-                          </Button>
+                          <ActionButton aria-label="Actions" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
                           <DropdownMenuItem onClick={() => setModalOpen(true)}>
