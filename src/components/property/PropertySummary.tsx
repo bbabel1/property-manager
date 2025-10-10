@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Building2, MapPin, Camera, Edit, CheckCircle, XCircle, Home, Users, DollarSign, Banknote } from 'lucide-react'
+import { Building2, MapPin, Camera, CheckCircle, XCircle, Home, Users, DollarSign, Banknote } from 'lucide-react'
+import EditLink from '@/components/ui/EditLink'
 import { Button } from '../ui/button'
 import type { BankAccountSummary } from '@/components/forms/types'
 
@@ -82,15 +83,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Property Details</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowEditModal(true)}
-                  className="bg-background text-foreground border-border hover:bg-muted"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
+                <EditLink onClick={() => setShowEditModal(true)} />
               </div>
             </div>
             <div className="p-6">
@@ -190,14 +183,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Location</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="bg-background text-foreground border-border hover:bg-muted"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
+                <EditLink />
               </div>
             </div>
             <div className="p-6">
@@ -243,15 +229,7 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-foreground">Banking details</h2>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowBankingModal(true)}
-                  className="bg-background text-foreground border-border hover:bg-muted"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
+                <EditLink onClick={() => setShowBankingModal(true)} />
               </div>
             </div>
             <div className="p-6 space-y-4">

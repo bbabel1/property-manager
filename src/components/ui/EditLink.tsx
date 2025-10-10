@@ -10,6 +10,7 @@ export default function EditLink({ label = 'Edit', className = '', ...props }: P
       type="button"
       {...props}
       className={`text-primary hover:underline px-0 py-0 h-auto bg-transparent text-sm ${className}`}
+      aria-label={props['aria-label'] || `Edit ${label.toLowerCase()}`}
     >
       {label}
     </button>

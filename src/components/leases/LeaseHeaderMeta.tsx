@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import InlineEditCard from '@/components/form/InlineEditCard'
+import EditLink from '@/components/ui/EditLink'
 
 function toInputDate(d?: string | null) {
   if (!d) return ''
@@ -99,7 +100,7 @@ export default function LeaseHeaderMeta({
             {buildiumLeaseId ? <span>| {String(buildiumLeaseId).padStart(6, '0')}</span> : null}
             {type ? <span>| {type}</span> : null}
             <span>| {formatDisplayDate(from || startDate)} – {formatDisplayDate(to || endDate)}</span>
-            <button className="text-primary hover:underline" onClick={() => setEditing(true)}>Edit</button>
+            <EditLink onClick={() => setEditing(true)} />
           </div>
         </div>
       )}
