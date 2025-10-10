@@ -2,7 +2,8 @@
 
 import { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { Edit, X, Save } from "lucide-react"
+import { X, Save } from "lucide-react"
+import EditLink from "@/components/ui/EditLink"
 
 export default function InlineEditCard({
   title,
@@ -54,9 +55,7 @@ export default function InlineEditCard({
         <div className={headerBase}>
           {titleHidden ? <div /> : <h2 className="text-base font-semibold text-foreground">{title}</h2>}
           {!editing ? (
-            <Button variant="outline" size="sm" onClick={onEdit} aria-label="Edit">
-              <Edit className="h-4 w-4 mr-2"/>Edit
-            </Button>
+            <EditLink onClick={onEdit} />
           ) : (
             actionsPlacement === 'header' ? (
               <div className="flex items-center gap-2">

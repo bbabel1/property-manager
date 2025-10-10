@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import InlineEditCard from '@/components/form/InlineEditCard'
 import { SelectWithDescription } from '@/components/ui/SelectWithDescription'
 import { Button } from '@/components/ui/button'
+import { X, Save } from 'lucide-react'
+import EditLink from '@/components/ui/EditLink'
 import Link from 'next/link'
 
 type MgmtScope = 'Building' | 'Unit'
@@ -173,20 +174,10 @@ export default function UnitFinancialServicesCard({
 
   const financialSection = (
     <div className="border-b border-border pb-4 mb-4">
-      <div className="grid grid-cols-2 gap-4 mb-3">
+      <div className="space-y-3 mb-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Balance:</span>
           <span className="text-lg font-semibold text-foreground">{fmt(fin?.available_balance ?? fin?.cash_balance)}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Rent:</span>
-          <span className="text-lg font-semibold text-foreground">{fmt(rent)}</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Prepayments:</span>
-          <span>{fmt(prepayments ?? fin?.prepayments ?? 0)}</span>
         </div>
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>Deposits held:</span>
@@ -207,36 +198,56 @@ export default function UnitFinancialServicesCard({
   )
 
   const managementServicesView = (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ASSIGNMENT LEVEL</p>
-        <p className="text-sm text-foreground mt-1">{(service_assignment as string) || '—'}</p>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-foreground">Management Services</h3>
+        <EditLink onClick={() => setEditing(true)} />
       </div>
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">SERVICE PLAN</p>
-        <p className="text-sm text-foreground mt-1">{(service_plan as string) || '—'}</p>
-      </div>
-      <div className="sm:col-span-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ACTIVE SERVICES</p>
-        <p className="text-sm text-foreground mt-1">{active_services.length ? active_services.join(', ') : '—'}</p>
-      </div>
-      <div className="sm:col-span-2">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MANAGEMENT FEE</p>
-        <p className="text-sm text-foreground mt-1">{(() => {
-          const type = fee_type as FeeType | ''
-          if (type === 'Percentage' && typeof fee_percentage === 'number') return `${fee_percentage}%`
-          if (type === 'Flat Rate' && typeof management_fee === 'number') return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(management_fee)
-          return '—'
-        })()}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ASSIGNMENT LEVEL</p>
+          <p className="text-sm text-foreground mt-1">{(service_assignment as string) || '—'}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">SERVICE PLAN</p>
+          <p className="text-sm text-foreground mt-1">{(service_plan as string) || '—'}</p>
+        </div>
+        <div className="sm:col-span-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">ACTIVE SERVICES</p>
+          <p className="text-sm text-foreground mt-1">{active_services.length ? active_services.join(', ') : '—'}</p>
+        </div>
+        <div className="sm:col-span-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MANAGEMENT FEE</p>
+          <p className="text-sm text-foreground mt-1">{(() => {
+            const type = fee_type as FeeType | ''
+            if (type === 'Percentage' && typeof fee_percentage === 'number') return `${fee_percentage}%`
+            if (type === 'Flat Rate' && typeof management_fee === 'number') return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(management_fee)
+            return '—'
+          })()}</p>
+        </div>
       </div>
     </div>
   )
 
   const managementServicesEdit = (
-    <div className="space-y-6">
-      {error ? (
-        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">{error}</div>
-      ) : null}
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-foreground">Management Services</h3>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setError(null) }}>
+            <X className="h-4 w-4 mr-2" />
+            Cancel
+          </Button>
+          <Button size="sm" onClick={onSave} disabled={saving || !validate()}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-6">
+        {error ? (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">{error}</div>
+        ) : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Management Scope</label>
@@ -386,6 +397,7 @@ export default function UnitFinancialServicesCard({
           )}
         </div>
       </div>
+      </div>
     </div>
   )
 
@@ -404,17 +416,10 @@ export default function UnitFinancialServicesCard({
   )
 
   return (
-    <InlineEditCard
-      title="Unit Financials & Services"
-      editing={editing}
-      onEdit={() => setEditing(true)}
-      onCancel={() => { setEditing(false); setError(null) }}
-      onSave={onSave}
-      isSaving={saving}
-      canSave={!validate()}
-      className="bg-[#d9e7ff] border border-blue-200/70 shadow-sm"
-      view={combinedView}
-      edit={combinedEdit}
-    />
+    <Card className="bg-primary/5 border border-primary/30 shadow-sm">
+      <CardContent className="p-4">
+        {editing ? combinedEdit : combinedView}
+      </CardContent>
+    </Card>
   )
 }

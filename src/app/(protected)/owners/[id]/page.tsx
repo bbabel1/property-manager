@@ -11,7 +11,6 @@ import {
   Home, 
   Calendar, 
   ArrowLeft,
-  Edit,
   DollarSign,
   User,
   Building2,
@@ -658,9 +657,7 @@ export default function OwnerDetailsPage() {
                 <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-medium text-foreground">Rental owner information</h2>
-                    <button className="text-primary hover:underline transition-colors">
-                      <Edit className="h-4 w-4" />
-                    </button>
+                    <EditLink aria-label="Edit rental owner information" />
                   </div>
                   
                   {/* 3-Column Layout for Contact Info */}
@@ -676,6 +673,7 @@ export default function OwnerDetailsPage() {
                             <button 
                               onClick={() => copyToClipboard(owner.primary_email!)}
                               className="text-muted-foreground hover:text-foreground transition-colors"
+                              aria-label="Copy email to clipboard"
                             >
                               <Copy className="h-3 w-3" />
                             </button>
@@ -688,6 +686,7 @@ export default function OwnerDetailsPage() {
                             <button 
                               onClick={() => copyToClipboard(owner.alt_email!)}
                               className="text-muted-foreground hover:text-foreground transition-colors"
+                              aria-label="Copy alternate email to clipboard"
                             >
                               <Copy className="h-3 w-3" />
                             </button>
@@ -764,9 +763,7 @@ export default function OwnerDetailsPage() {
                 <div className="bg-card rounded-lg border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-medium text-foreground">Management Agreement</h2>
-                    <button className="text-primary hover:underline transition-colors">
-                      <Edit className="h-4 w-4" />
-                    </button>
+                    <EditLink aria-label="Edit management agreement" />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -807,9 +804,7 @@ export default function OwnerDetailsPage() {
                       <span className="px-2 py-1 bg-success/10 text-success text-xs font-medium rounded">
                         EFT Enabled
                       </span>
-                      <button className="text-primary hover:underline transition-colors">
-                        <Edit className="h-4 w-4" />
-                      </button>
+                    <EditLink aria-label="Edit banking information" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -861,7 +856,7 @@ export default function OwnerDetailsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
                       <div className="p-2 rounded-full bg-primary/10">
-                        <Edit className="h-4 w-4 text-primary" />
+                        Edit
                       </div>
                       <div className="flex-1">
                         <div className="text-sm font-medium text-foreground">Owner information updated</div>
