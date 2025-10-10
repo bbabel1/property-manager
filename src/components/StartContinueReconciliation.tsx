@@ -82,7 +82,16 @@ export default function StartContinueReconciliation({
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <input type="date" value={statementDate} onChange={(e)=> setStatementDate(e.target.value)} className="border rounded px-2 py-1 text-sm" />
+      <label className="sr-only" htmlFor="reconciliation-statement-date">
+        Statement ending date
+      </label>
+      <input
+        id="reconciliation-statement-date"
+        type="date"
+        value={statementDate}
+        onChange={(e)=> setStatementDate(e.target.value)}
+        className="border rounded px-2 py-1 text-sm"
+      />
       <button onClick={start} disabled={busy !== null} className={`border px-2 py-1 rounded text-sm ${busy==='start'?'opacity-60':''}`}>Start</button>
       <button onClick={cont} disabled={busy !== null} className={`border px-2 py-1 rounded text-sm ${busy==='continue'?'opacity-60':''}`}>Continue</button>
     </div>
