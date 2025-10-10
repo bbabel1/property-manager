@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import AddLink from '@/components/ui/AddLink'
 import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog'
 
 export default function TenantRecentFilesSummary({ uploaderName }: { uploaderName?: string | null }) {
@@ -16,7 +17,7 @@ export default function TenantRecentFilesSummary({ uploaderName }: { uploaderNam
     <div className="rounded-lg border border-border bg-background shadow-sm">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <h2 className="text-lg font-semibold text-foreground">Recent files</h2>
-        <Button variant="link" className="px-2 py-0 h-auto" onClick={() => setOpen(true)}>Add</Button>
+        <AddLink onClick={() => setOpen(true)} aria-label="Add file" />
       </div>
       <div className="px-4 py-6 text-sm text-muted-foreground">
         You don't have any files for this tenant right now.{' '}

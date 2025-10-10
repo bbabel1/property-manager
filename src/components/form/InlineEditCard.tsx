@@ -46,8 +46,8 @@ export default function InlineEditCard({
     : `rounded-lg border border-border ${hasBgOverride ? '' : 'bg-card'}`
   const headerPad = size === 'compact' ? 'px-3 py-2' : 'px-4 py-3'
   const headerBase = variant === 'plain'
-    ? `flex items-center justify-between ${headerPad}`
-    : `flex items-center justify-between ${headerPad} border-b border-border`
+    ? `flex items-center gap-2 ${headerPad}`
+    : `flex items-center gap-2 ${headerPad} border-b border-border`
   const contentPad = size === 'compact' ? 'p-3' : 'p-4'
   return (
     <div className={`${containerBase} relative ${className ?? ''}`}>

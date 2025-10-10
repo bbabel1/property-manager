@@ -16,6 +16,7 @@ import RecurringTransactionsPanel from '@/components/leases/RecurringTransaction
 import LeaseLedgerPanel from '@/components/leases/LeaseLedgerPanel'
 import { RentCycleEnumDb, RentScheduleStatusEnumDb } from '@/schemas/lease-api'
 import { ArrowRight, ExternalLink, Mail, MoreHorizontal, Phone, Trash2 } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import type { LeaseAccountOption } from '@/components/leases/types'
 
 type LeaseDetailsPageParams = { id: string }
@@ -855,9 +856,7 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
     <div className="flex items-center gap-2">
       <Button disabled>Receive payment</Button>
       <Button variant="outline" disabled>Enter charge</Button>
-      <Button variant="action" size="icon" className="h-8 w-8" aria-label="More actions" disabled>
-        <MoreHorizontal className="h-5 w-5" />
-      </Button>
+      <ActionButton aria-label="More actions" disabled />
     </div>
   </div>
   <div className="overflow-hidden rounded-lg border border-border">
@@ -891,9 +890,7 @@ export default async function LeaseDetailsPage({ params, searchParams }: { param
                 <TableCell className="text-sm text-foreground">{fmtUsd(row.amount)}</TableCell>
                 <TableCell className="text-sm text-foreground">{fmtUsd(row.balance)}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="action" size="icon" className="h-8 w-8" aria-label="Deposit actions">
-                    <MoreHorizontal className="h-5 w-5" />
-                  </Button>
+                  <ActionButton aria-label="Deposit actions" />
                 </TableCell>
               </TableRow>
             ))}

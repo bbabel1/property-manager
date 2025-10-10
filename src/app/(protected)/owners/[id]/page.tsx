@@ -655,7 +655,7 @@ export default function OwnerDetailsPage() {
               <div className="lg:col-span-3 space-y-6">
                 {/* Rental owner information */}
                 <div className="bg-card rounded-lg border p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2 mb-6">
                     <h2 className="text-lg font-medium text-foreground">Rental owner information</h2>
                     <EditLink aria-label="Edit rental owner information" />
                   </div>
@@ -761,7 +761,7 @@ export default function OwnerDetailsPage() {
 
                 {/* Management Agreement */}
                 <div className="bg-card rounded-lg border p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2 mb-6">
                     <h2 className="text-lg font-medium text-foreground">Management Agreement</h2>
                     <EditLink aria-label="Edit management agreement" />
                   </div>
@@ -798,13 +798,13 @@ export default function OwnerDetailsPage() {
 
                 {/* Banking Information */}
                 <div className="bg-card rounded-lg border p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2 mb-6">
                     <h2 className="text-lg font-medium text-foreground">Banking Information</h2>
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-1 bg-success/10 text-success text-xs font-medium rounded">
                         EFT Enabled
                       </span>
-                    <EditLink aria-label="Edit banking information" />
+                      <EditLink aria-label="Edit banking information" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

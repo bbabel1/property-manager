@@ -119,7 +119,7 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold text-foreground">{name}</h1>
             {tenant?.buildium_tenant_id
-              ? <Badge variant="secondary" className="text-xs">Buildium ID: {tenant.buildium_tenant_id}</Badge>
+              ? <Badge variant="secondary" className="text-xs">{tenant.buildium_tenant_id}</Badge>
               : <Badge variant="outline" className="text-xs">Not in Buildium</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">

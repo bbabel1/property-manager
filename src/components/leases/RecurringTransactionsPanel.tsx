@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MoreHorizontal, Plus } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import RecurringChargeForm from '@/components/leases/RecurringChargeForm'
 import RecurringPaymentForm from '@/components/leases/RecurringPaymentForm'
 import type { LeaseAccountOption } from '@/components/leases/types'
@@ -164,9 +165,7 @@ export default function RecurringTransactionsPanel({ leaseId, rows, accounts, le
                   <TableCell className="text-sm text-foreground">{row.posting}</TableCell>
                   <TableCell className="text-right text-sm font-medium text-foreground">{row.amount}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="action" size="icon" className="h-8 w-8" aria-label="Recurring transaction actions">
-                      <MoreHorizontal className="h-5 w-5" />
-                    </Button>
+                    <ActionButton aria-label="Recurring transaction actions" />
                   </TableCell>
                 </TableRow>
               ))

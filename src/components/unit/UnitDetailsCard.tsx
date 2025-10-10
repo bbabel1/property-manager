@@ -133,7 +133,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
           <div className="flex items-center gap-2">
             {status ? <Badge className={statusCls}>{unit?.status}</Badge> : null}
             {unit?.buildium_unit_id ? (
-              <Badge variant="secondary">Buildium ID: {unit.buildium_unit_id}</Badge>
+              <Badge variant="secondary">{unit.buildium_unit_id}</Badge>
             ) : (
               <Badge variant="outline">Not in Buildium</Badge>
             )}

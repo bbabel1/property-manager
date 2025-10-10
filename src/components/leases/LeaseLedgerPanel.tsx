@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { ArrowRight, MoreHorizontal } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import ReceivePaymentForm from '@/components/leases/ReceivePaymentForm'
 import EnterChargeForm from '@/components/leases/EnterChargeForm'
 import IssueCreditForm from '@/components/leases/IssueCreditForm'
@@ -236,9 +237,7 @@ export default function LeaseLedgerPanel({
           <Button variant="outline" onClick={() => setMode('charge')}>Enter charge</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <MoreHorizontal className="h-5 w-5" />
-              </Button>
+              <ActionButton />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[14rem]">
               <DropdownMenuItem className="cursor-pointer" onSelect={() => setMode('credit')}>
@@ -309,9 +308,7 @@ export default function LeaseLedgerPanel({
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="action" size="icon" className="h-8 w-8" aria-label="Ledger actions">
-                            <MoreHorizontal className="h-5 w-5" />
-                          </Button>
+                          <ActionButton aria-label="Ledger actions" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-[12rem]" side="bottom" sideOffset={6}>
                           <DropdownMenuItem
