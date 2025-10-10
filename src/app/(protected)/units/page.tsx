@@ -137,20 +137,42 @@ export default function UnitsPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium text-foreground">Units</h2>
             <div className="flex items-center space-x-4">
+              <label className="sr-only" htmlFor="units-search">
+                Search units or properties
+              </label>
               <input
+                id="units-search"
                 type="text"
                 placeholder="Search units or properties..."
                 className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               />
-              <select className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground">
+              <label className="sr-only" htmlFor="units-property-filter">
+                Filter units by property
+              </label>
+              <select
+                id="units-property-filter"
+                className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+              >
                 <option>All Properties</option>
               </select>
-              <select className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground">
+              <label className="sr-only" htmlFor="units-status-filter">
+                Filter units by status
+              </label>
+              <select
+                id="units-status-filter"
+                className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+              >
                 <option>All Status</option>
                 <option>Occupied</option>
                 <option>Vacant</option>
               </select>
-              <select className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground">
+              <label className="sr-only" htmlFor="units-bedroom-filter">
+                Filter units by bedroom count
+              </label>
+              <select
+                id="units-bedroom-filter"
+                className="px-3 py-2 border border-input rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+              >
                 <option>All Bedrooms</option>
                 <option>1 Bedroom</option>
                 <option>2 Bedrooms</option>

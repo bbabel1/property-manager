@@ -143,7 +143,11 @@ export default function PropertiesPage() {
                   className="pl-10 w-64"
                 />
               </div>
+              <label className="sr-only" htmlFor="properties-status-filter">
+                Filter properties by status
+              </label>
               <select
+                id="properties-status-filter"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
@@ -152,7 +156,11 @@ export default function PropertiesPage() {
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
               </select>
+              <label className="sr-only" htmlFor="properties-type-filter">
+                Filter properties by type
+              </label>
               <select
+                id="properties-type-filter"
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
                 className="px-3 py-2 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"

@@ -72,9 +72,14 @@ export default function PageHeader({ property }: Props) {
       <p className="text-muted-foreground text-sm">{subtitleParts.length ? subtitleParts.join(' | ') : '—'}</p>
 
       <div className="border-b border-border mt-2">
-        <nav className="flex space-x-8" role="tablist" aria-label="Property sections">
+        <nav className="flex space-x-8" aria-label="Property sections">
           {tabs.map(t => (
-            <Link key={t.key} href={`/properties/${property.id}/${t.key}`} role="tab" aria-selected={seg === t.key} aria-controls={`panel-${t.key}`} className={`py-4 px-1 border-b-2 text-sm font-medium transition-colors ${seg === t.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}>
+            <Link
+              key={t.key}
+              href={`/properties/${property.id}/${t.key}`}
+              aria-current={seg === t.key ? 'page' : undefined}
+              className={`py-4 px-1 border-b-2 text-sm font-medium transition-colors ${seg === t.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
+            >
               {t.label}
             </Link>
           ))}
