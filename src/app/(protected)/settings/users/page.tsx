@@ -273,7 +273,7 @@ export default function UsersRolesPage() {
             <div>
               <label className="block text-sm mb-1">Organization (optional)</label>
               <Select value={selectedOrg} onValueChange={(v)=> v==="__create__" ? setShowCreateOrg(true) : setSelectedOrg(v)}>
-                <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+                <SelectTrigger aria-label="Select organization"><SelectValue placeholder="Select organization" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__create__">+ Create New</SelectItem>
                   {orgs.map(o => (
@@ -285,7 +285,7 @@ export default function UsersRolesPage() {
             <div>
               <label className="block text-sm mb-1">Initial Roles (optional)</label>
               <Select onValueChange={handleRoleSelect}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Add roles">
                   <SelectValue placeholder="Add roles..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -314,6 +314,7 @@ export default function UsersRolesPage() {
                       type="button"
                       onClick={() => handleRoleRemove(role)}
                       className="ml-1 hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
+                      aria-label={`Remove ${role} role`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -528,6 +529,7 @@ export default function UsersRolesPage() {
                             type="button"
                             onClick={() => handleEditRoleRemove(role)}
                             className="ml-1 hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
+                            aria-label={`Remove ${role} role`}
                           >
                             <X className="h-3 w-3" />
                           </button>
