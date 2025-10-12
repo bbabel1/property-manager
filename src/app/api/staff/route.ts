@@ -21,7 +21,7 @@ interface StaffQueryParams {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request)
+    const _user = await requireUser(request)
 
     // Validate query parameters
     const { searchParams } = new URL(request.url);
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform data to include friendly display name
-    const transformedStaff = (staff || []).map((member: StaffRow) => {
+    const transformedStaff = (staff || []).map((member) => {
       const name = [member.first_name, member.last_name].filter(Boolean).join(' ').trim()
       const displayName = name || member.email || `Staff ${member.id}`
       return { ...member, displayName }
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
         .eq('user_id', reqUser.id)
         .limit(1)
         .maybeSingle()
-      targetOrgId = (mem as any)?.org_id ?? null
+      targetOrgId = (mem as { org_id?: string })?.org_id ?? null
     }
 
     // Create or invite auth user when email provided
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
           .select('user_id')
           .eq('email', email)
           .maybeSingle()
-        staffUserId = (existing as any)?.user_id ?? null
+        staffUserId = (existing as { user_id?: string })?.user_id ?? null
       } catch {}
       // If not found, invite or create
       if (!staffUserId) {
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
               .select('user_id')
               .eq('email', email)
               .maybeSingle()
-            staffUserId = (existing2 as any)?.user_id ?? null
+            staffUserId = (existing2 as { user_id?: string })?.user_id ?? null
           } catch {}
           if (!staffUserId) return NextResponse.json({ error: 'Failed to create or invite user', details: (e as Error)?.message || String(e) }, { status: 500 })
         }
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
       const orgRole = rawRole === 'Property Manager' ? 'org_manager' : 'org_staff'
       await serverClient
         .from('org_memberships')
-        .upsert({ user_id: staffUserId, org_id: targetOrgId, role: orgRole as any }, { onConflict: 'user_id,org_id' })
+        .upsert({ user_id: staffUserId, org_id: targetOrgId, role: orgRole }, { onConflict: 'user_id,org_id' })
     }
 
     return NextResponse.json({ staff: staffRow })
