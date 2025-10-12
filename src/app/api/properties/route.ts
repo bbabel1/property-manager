@@ -29,6 +29,40 @@ type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update
 type UnitsInsert = DatabaseSchema['public']['Tables']['units']['Insert']
 type OwnershipInsert = DatabaseSchema['public']['Tables']['ownerships']['Insert']
 
+interface PropertyRequestBody {
+  propertyType: string
+  name: string
+  addressLine1: string
+  addressLine2?: string | null
+  city: string
+  state: string
+  postalCode: string
+  country: string
+  yearBuilt?: number | string | null
+  structureDescription?: string | null
+  owners?: Array<{ ownerId: string; percentage?: number; primary?: boolean }>
+  units?: Array<{ unitNumber: string; bedrooms?: string; bathrooms?: string; sqFt?: number }>
+  operatingBankAccountId?: string | null
+  depositTrustAccountId?: string | null
+  reserve?: string | null
+  propertyManagerId?: string | null
+  status?: string | null
+  management_scope?: string | null
+  service_assignment?: string | null
+  service_plan?: string | null
+  included_services?: string[] | string | null
+  active_services?: string[] | string | null
+  fee_assignment?: string | null
+  fee_type?: string | null
+  fee_percentage?: number | string | null
+  management_fee?: number | string | null
+  billing_frequency?: string | null
+}
+
+interface OrgMembershipRow {
+  org_id: string
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request)
@@ -86,7 +120,7 @@ export async function POST(request: NextRequest) {
           .eq('user_id', user.id)
           .limit(1)
         const first = Array.isArray(rows) && rows.length > 0 ? rows[0] : null
-        orgId = (first as any)?.org_id || null
+        orgId = (first as OrgMembershipRow)?.org_id || null
       } catch {}
     }
 
@@ -173,7 +207,7 @@ export async function POST(request: NextRequest) {
     if (owners && owners.length > 0) {
       // Ensure owners belong to the same org. If owner.org_id is null, backfill it.
       try {
-        const ownerIds = owners.map((o: any) => o.id)
+        const ownerIds = owners.map((o: { id: string }) => o.id)
         if (ownerIds.length) {
           await db
             .from('owners')
@@ -183,7 +217,7 @@ export async function POST(request: NextRequest) {
         }
       } catch {}
 
-      const ownershipRecords: OwnershipInsert[] = owners.map((owner: any) => ({
+      const ownershipRecords: OwnershipInsert[] = owners.map((owner: { id: string; ownershipPercentage?: number; disbursementPercentage?: number; primary?: boolean }) => ({
         owner_id: String(owner.id),
         property_id: property.id,
         ownership_percentage: toNumberOrDefault(owner.ownershipPercentage, 0),
@@ -215,8 +249,8 @@ export async function POST(request: NextRequest) {
     // Create units if provided
     if (Array.isArray(units) && units.length > 0) {
       const unitRows: UnitsInsert[] = units
-        .filter((u: any) => (u?.unitNumber || '').trim().length > 0)
-        .map((u: any) => {
+        .filter((u) => (u?.unitNumber || '').trim().length > 0)
+        .map((u) => {
           const unitNumber = String(u.unitNumber || '').trim()
           const bedrooms = normalizeUnitBedrooms(u.unitBedrooms)
           const bathrooms = normalizeUnitBathrooms(u.unitBathrooms)
@@ -323,7 +357,7 @@ export async function POST(request: NextRequest) {
               buildiumOperatingBankAccountId = Number(ba.buildium_bank_id)
             } else if (ba?.id) {
               // Attempt to create the bank account in Buildium first
-              let payload: any
+              let payload: Record<string, unknown> | undefined
               try {
                 const { data: full } = await db
                   .from('bank_accounts')
@@ -341,7 +375,7 @@ export async function POST(request: NextRequest) {
                   if (typeof glId === 'number' && glId > 0) payload = { ...payload, GLAccountId: glId }
                 }
               } catch {}
-              const result = await buildiumEdgeClient.syncBankAccountToBuildium(payload || { id: ba.id })
+              const result = await buildiumEdgeClient.syncBankAccountToBuildium(payload || { id: ba.id } as Record<string, unknown>)
               if (result.success && result.buildiumId) {
                 try {
                   await db.from('bank_accounts').update({ buildium_bank_id: result.buildiumId, updated_at: new Date().toISOString() }).eq('id', ba.id)
@@ -389,7 +423,7 @@ export async function POST(request: NextRequest) {
         // If request included units, include them in the Buildium property create payload (per Buildium docs)
         let includedUnitsInCreate = false
         if (Array.isArray(units) && units.length > 0) {
-          const toEnumBedrooms = (v: any): any => {
+          const toEnumBedrooms = (v: string | number | null | undefined): string | null => {
             switch (String(v || '').trim()) {
               case 'Studio': return 'Studio'
               case '1': return 'OneBed'
@@ -405,7 +439,7 @@ export async function POST(request: NextRequest) {
               default: return 'NotSet'
             }
           }
-          const toEnumBathrooms = (v: any): any => {
+          const toEnumBathrooms = (v: string | number | null | undefined): string | null => {
             switch (String(v || '').trim()) {
               case '1': return 'OneBath'
               case '1.5': return 'OnePointFiveBath'
@@ -422,8 +456,8 @@ export async function POST(request: NextRequest) {
             }
           }
           const buildiumUnits = units
-            .filter((u: any) => (u?.unitNumber || '').trim().length > 0)
-            .map((u: any) => ({
+            .filter((u) => (u?.unitNumber || '').trim().length > 0)
+            .map((u) => ({
               UnitNumber: u.unitNumber,
               UnitBedrooms: toEnumBedrooms(u.unitBedrooms),
               UnitBathrooms: toEnumBathrooms(u.unitBathrooms),
@@ -489,13 +523,13 @@ export async function POST(request: NextRequest) {
 
         // 3) Map Units via initial property create: if we included units, fetch them from Buildium and link IDs
         if (buildiumPropertyId) {
-          const insertedUnits: any[] = (body as any).__insertedUnits || []
+          const insertedUnits: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> = (body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> }).__insertedUnits || []
           if (includedUnitsInCreate && insertedUnits.length > 0) {
             try { await Promise.all(insertedUnits.map(u => recordSyncStatus(db, u.id, null, 'syncing'))) } catch {}
             // Buildium units listing is property-scoped via query param
             const listRes = await buildiumFetch('GET', `/rentals/units`, { propertyids: buildiumPropertyId })
             if (listRes.ok && Array.isArray(listRes.json)) {
-              const remoteUnits: any[] = listRes.json
+              const remoteUnits: Array<{ Id: number; UnitNumber: string }> = listRes.json
               for (const local of insertedUnits) {
                 const match = remoteUnits.find(it => String(it?.UnitNumber || '') === String(local.unit_number || ''))
                 if (match?.Id) {
@@ -516,7 +550,7 @@ export async function POST(request: NextRequest) {
           }
         } else {
           // Property didn't sync; mark any units as failed
-          const insertedUnits: any[] = (body as any).__insertedUnits || []
+          const insertedUnits: Array<{ id: string }> = (body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string }> }).__insertedUnits || []
           if (insertedUnits.length > 0) {
             for (const local of insertedUnits) {
               try { await recordSyncStatus(db, local.id, null, 'failed', 'Property did not sync to Buildium') } catch {}
@@ -635,7 +669,7 @@ async function searchBuildiumOwnerId(params: {
     // Use /v1/rentals/owners with filters
     const res = await buildiumFetch('GET', '/rentals/owners', q)
     if (!res.ok || !Array.isArray(res.json)) break
-    const arr: any[] = res.json
+    const arr: Array<Record<string, unknown>> = res.json
 
     // If searching by email, match locally (case-insensitive)
     if (emailLc) {
@@ -661,7 +695,7 @@ async function searchBuildiumOwnerId(params: {
 }
 
 // Record sync status via RPC (entity_type = 'Rental' for both properties and units)
-async function recordSyncStatus(db: any, entityId: string, buildiumId: number | null, status: 'pending'|'syncing'|'synced'|'failed', errorMessage?: string) {
+async function recordSyncStatus(db: typeof supabase, entityId: string, buildiumId: number | null, status: 'pending'|'syncing'|'synced'|'failed', errorMessage?: string) {
   try {
     await db.rpc('update_buildium_sync_status', {
       p_entity_type: 'Rental',
@@ -676,10 +710,10 @@ async function recordSyncStatus(db: any, entityId: string, buildiumId: number | 
 }
 
 // Validate required fields for Buildium property create
-function validateBuildiumPropertyPayload(payload: any): { ok: boolean; missing: string[] } {
+function validateBuildiumPropertyPayload(payload: Record<string, unknown> | { Name?: string; Address?: unknown; RentalType?: string; RentalSubType?: string }): { ok: boolean; missing: string[] } {
   const missing: string[] = []
   if (!payload?.Name) missing.push('Name')
-  const addr = payload?.Address || {}
+  const addr = (payload?.Address as Record<string, unknown>) || {}
   if (!addr?.AddressLine1) missing.push('Address.AddressLine1')
   if (!addr?.City) missing.push('Address.City')
   if (!addr?.State) missing.push('Address.State')
@@ -724,7 +758,7 @@ export async function GET() {
       )
     }
 
-    const mapped = (data || []).map((p: any) => {
+    const mapped = (data || []).map((p) => {
       const ownerships = Array.isArray(p.ownerships) ? p.ownerships : []
       const ownersCount = ownerships.length
       let primaryOwnerName: string | undefined

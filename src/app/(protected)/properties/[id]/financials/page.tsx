@@ -1,15 +1,29 @@
-import { Fragment } from 'react'
-import { endOfMonth, startOfMonth } from 'date-fns'
-import DateRangeControls from '@/components/DateRangeControls'
-import LedgerFilters from '@/components/financials/LedgerFilters'
-import BillsFilters from '@/components/financials/BillsFilters'
-import ClearFiltersButton from '@/components/financials/ClearFiltersButton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { Fragment } from 'react';
+import { endOfMonth, startOfMonth } from 'date-fns';
+import DateRangeControls from '@/components/DateRangeControls';
+import LedgerFilters from '@/components/financials/LedgerFilters';
+import BillsFilters from '@/components/financials/BillsFilters';
+import ClearFiltersButton from '@/components/financials/ClearFiltersButton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import ActionButton from '@/components/ui/ActionButton';
+import { supabase, supabaseAdmin } from '@/lib/db';
 
-type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled'
+type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
 const BILL_STATUS_OPTIONS: { slug: string; label: BillStatusLabel }[] = [
   { slug: 'overdue', label: 'Overdue' },
@@ -17,105 +31,114 @@ const BILL_STATUS_OPTIONS: { slug: string; label: BillStatusLabel }[] = [
   { slug: 'partially-paid', label: 'Partially paid' },
   { slug: 'paid', label: 'Paid' },
   { slug: 'cancelled', label: 'Cancelled' },
-]
+];
 
-const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.slug, opt.label]))
+const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.slug, opt.label]));
 
 function normalizeBillStatus(value: any): BillStatusLabel {
   switch (String(value ?? '').toLowerCase()) {
     case 'overdue':
-      return 'Overdue'
+      return 'Overdue';
     case 'due':
     case 'pending':
-      return 'Due'
+      return 'Due';
     case 'partiallypaid':
     case 'partially_paid':
     case 'partially paid':
-      return 'Partially paid'
+      return 'Partially paid';
     case 'paid':
-      return 'Paid'
+      return 'Paid';
     case 'cancelled':
-      return 'Cancelled'
+      return 'Cancelled';
     case '':
     default:
-      return ''
+      return '';
   }
 }
 
 function deriveBillStatusFromDates(
   currentStatus: BillStatusLabel,
   dueDateIso: string | null,
-  paidDateIso: string | null
+  paidDateIso: string | null,
 ): BillStatusLabel {
-  if (currentStatus === 'Cancelled') return 'Cancelled'
-  if (currentStatus === 'Partially paid') return 'Partially paid'
-  if (currentStatus === 'Paid') return 'Paid'
-  if (paidDateIso) return 'Paid'
+  if (currentStatus === 'Cancelled') return 'Cancelled';
+  if (currentStatus === 'Partially paid') return 'Partially paid';
+  if (currentStatus === 'Paid') return 'Paid';
+  if (paidDateIso) return 'Paid';
 
   if (dueDateIso) {
-    const due = new Date(`${dueDateIso}T00:00:00Z`)
+    const due = new Date(`${dueDateIso}T00:00:00Z`);
     if (!Number.isNaN(due.getTime())) {
-      const today = new Date()
-      const todayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+      const today = new Date();
+      const todayStart = new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+      );
       if (due < todayStart) {
-        return 'Overdue'
+        return 'Overdue';
       }
     }
   }
 
-  return 'Due'
+  return 'Due';
 }
 
 export default async function FinancialsTab({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>
-  searchParams?: Promise<{ from?: string; to?: string; unit?: string; gl?: string; range?: string }>
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{
+    from?: string;
+    to?: string;
+    unit?: string;
+    gl?: string;
+    range?: string;
+  }>;
 }) {
-  const { id } = await params
-  const sp = (await (searchParams || Promise.resolve({}))) as any
+  const { id } = await params;
+  const sp = (await (searchParams || Promise.resolve({}))) as any;
 
-  const today = new Date()
-  const hasRangeParam = typeof sp?.range === 'string'
-  const hasExplicitDates = typeof sp?.from === 'string' || typeof sp?.to === 'string'
+  const today = new Date();
+  const hasRangeParam = typeof sp?.range === 'string';
+  const hasExplicitDates = typeof sp?.from === 'string' || typeof sp?.to === 'string';
 
-  const defaultTo = endOfMonth(today)
-  const defaultFrom = startOfMonth(today)
+  const defaultTo = endOfMonth(today);
+  const defaultFrom = startOfMonth(today);
 
-  const to = sp?.to ? new Date(sp.to) : defaultTo
-  const from = sp?.from ? new Date(sp.from) : defaultFrom
-  const range = hasRangeParam ? sp.range : hasExplicitDates ? 'custom' : 'currentMonth'
-  const db = supabaseAdmin || supabase
+  const to = sp?.to ? new Date(sp.to) : defaultTo;
+  const from = sp?.from ? new Date(sp.from) : defaultFrom;
+  const range = hasRangeParam ? sp.range : hasExplicitDates ? 'custom' : 'currentMonth';
+  const db = supabaseAdmin || supabase;
 
-  const unitsParam = typeof sp?.units === 'string' ? sp.units : typeof sp?.unit === 'string' ? sp.unit : ''
-  const glParam = typeof sp?.gl === 'string' ? sp.gl : ''
+  const unitsParam =
+    typeof sp?.units === 'string' ? sp.units : typeof sp?.unit === 'string' ? sp.unit : '';
+  const glParam = typeof sp?.gl === 'string' ? sp.gl : '';
 
   const { data: propertyRow } = await (db as any)
     .from('properties')
     .select('org_id')
     .eq('id', id)
-    .maybeSingle()
-  const orgId = propertyRow?.org_id ?? null
+    .maybeSingle();
+  const orgId = propertyRow?.org_id ?? null;
 
-  const fromStr = from.toISOString().slice(0, 10)
-  const toStr = to.toISOString().slice(0, 10)
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = to.toISOString().slice(0, 10);
 
   type Line = {
-    date: string
-    amount: number
-    posting_type: string
-    memo: string | null
-    gl_account_id: string
-    ga_name: string
-    ga_number: string | null
-    ga_type: string | null
-    unit_label: string | null
-    transaction_type: string | null
-    transaction_memo: string | null
-    transaction_reference: string | null
-    created_at: string | null
-  }
+    date: string;
+    amount: number;
+    posting_type: string;
+    memo: string | null;
+    gl_account_id: string;
+    ga_name: string;
+    ga_number: string | null;
+    ga_type: string | null;
+    unit_label: string | null;
+    transaction_type: string | null;
+    transaction_memo: string | null;
+    transaction_reference: string | null;
+    created_at: string | null;
+  };
 
   const qBase = () =>
     (db as any)
@@ -129,9 +152,9 @@ export default async function FinancialsTab({
          created_at,
          gl_accounts(name, account_number, type),
          units(unit_number, unit_name),
-         transactions(transaction_type, memo, reference_number)`
+         transactions(transaction_type, memo, reference_number)`,
       )
-      .eq('property_id', id)
+      .eq('property_id', id);
 
   const mapRow = (r: any): Line => ({
     date: r.date,
@@ -147,95 +170,120 @@ export default async function FinancialsTab({
     transaction_memo: r.transactions?.memo || null,
     transaction_reference: r.transactions?.reference_number || null,
     created_at: r.created_at || null,
-  })
+  });
 
   const unitsResponse = await (db as any)
     .from('units')
     .select('id, unit_number, unit_name')
-    .eq('property_id', id)
+    .eq('property_id', id);
 
   let accountsQuery = (db as any)
     .from('gl_accounts')
     .select('id, name, account_number, type')
     .order('type', { ascending: true })
-    .order('name', { ascending: true })
+    .order('name', { ascending: true });
   if (orgId) {
-    accountsQuery = accountsQuery.eq('org_id', orgId)
+    accountsQuery = accountsQuery.eq('org_id', orgId);
   }
-  const accountsResponse = await accountsQuery
+  const accountsResponse = await accountsQuery;
 
-  const unitOptions: { id: string; label: string }[] = (unitsResponse?.data || []).map((u: any) => ({
-    id: String(u.id),
-    label: u.unit_number || u.unit_name || 'Unit',
-  })).sort((a, b) => a.label.localeCompare(b.label))
+  interface UnitRecord {
+    id: string;
+    unit_number?: string;
+    unit_name?: string;
+  }
+  interface AccountRecord {
+    id: string;
+    name: string;
+    account_number?: string;
+    type?: string;
+  }
 
-  const accountOptions = (accountsResponse?.data || []).map((acc: any) => ({
-    value: String(acc.id),
-    label: [acc.name, acc.account_number ? `(${acc.account_number})` : ''].filter(Boolean).join(' '),
-    group: acc.type || 'Other',
-    groupLabel: acc.type ? `${acc.type} accounts` : 'Other accounts',
-  })).sort((a, b) => (a.group || 'Other').localeCompare(b.group || 'Other') || a.label.localeCompare(b.label))
+  const unitOptions: { id: string; label: string }[] = (unitsResponse?.data || [])
+    .map((u: UnitRecord) => ({
+      id: String(u.id),
+      label: u.unit_number || u.unit_name || 'Unit',
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 
-  const allUnitIds = unitOptions.map((opt) => opt.id)
-  const noUnitsSelected = unitsParam === 'none'
+  const accountOptions = (accountsResponse?.data || [])
+    .map((acc: AccountRecord) => ({
+      value: String(acc.id),
+      label: [acc.name, acc.account_number ? `(${acc.account_number})` : '']
+        .filter(Boolean)
+        .join(' '),
+      group: acc.type || 'Other',
+      groupLabel: acc.type ? `${acc.type} accounts` : 'Other accounts',
+    }))
+    .sort(
+      (a, b) =>
+        (a.group || 'Other').localeCompare(b.group || 'Other') || a.label.localeCompare(b.label),
+    );
 
-  let selectedUnitIds: string[]
+  const allUnitIds = unitOptions.map((opt) => opt.id);
+  const noUnitsSelected = unitsParam === 'none';
+
+  let selectedUnitIds: string[];
   if (noUnitsSelected) {
-    selectedUnitIds = []
+    selectedUnitIds = [];
   } else if (unitsParam) {
     selectedUnitIds = unitsParam
       .split(',')
-      .map((id: string) => id.trim())
-      .filter((id: string) => allUnitIds.includes(id))
+      .map((id) => id.trim())
+      .filter((id) => allUnitIds.includes(id));
   } else {
-    selectedUnitIds = [...allUnitIds]
+    selectedUnitIds = [...allUnitIds];
   }
 
   const unitFilterIds = noUnitsSelected
     ? []
     : selectedUnitIds.length === 0 || selectedUnitIds.length === allUnitIds.length
       ? null
-      : selectedUnitIds
+      : selectedUnitIds;
 
-  const allAccountIds = accountOptions.map((opt) => opt.value)
+  const allAccountIds = accountOptions.map((opt) => opt.value);
   let selectedAccountIds = glParam
-    ? glParam.split(',').map((id) => id.trim()).filter((id) => allAccountIds.includes(id))
-    : [...allAccountIds]
-  if (selectedAccountIds.length === 0) selectedAccountIds = [...allAccountIds]
-  const accountFilterIds = selectedAccountIds.length === allAccountIds.length ? null : selectedAccountIds
+    ? glParam
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => allAccountIds.includes(id))
+    : [...allAccountIds];
+  if (selectedAccountIds.length === 0) selectedAccountIds = [...allAccountIds];
+  const accountFilterIds =
+    selectedAccountIds.length === allAccountIds.length ? null : selectedAccountIds;
 
-  let periodLines: Line[] = []
-  let priorLines: Line[] = []
+  let periodLines: Line[] = [];
+  let priorLines: Line[] = [];
 
   if (!noUnitsSelected) {
-    let qPeriod = qBase().gte('date', fromStr).lte('date', toStr)
-    if (unitFilterIds) qPeriod = qPeriod.in('unit_id', unitFilterIds)
-    if (accountFilterIds) qPeriod = qPeriod.in('gl_account_id', accountFilterIds)
-    const { data: periodData, error: periodError } = await qPeriod
-    periodLines = periodError ? [] : (periodData || []).map(mapRow)
+    let qPeriod = qBase().gte('date', fromStr).lte('date', toStr);
+    if (unitFilterIds) qPeriod = qPeriod.in('unit_id', unitFilterIds);
+    if (accountFilterIds) qPeriod = qPeriod.in('gl_account_id', accountFilterIds);
+    const { data: periodData, error: periodError } = await qPeriod;
+    periodLines = periodError ? [] : (periodData || []).map(mapRow);
 
-    let qPrior = qBase().lt('date', fromStr)
-    if (unitFilterIds) qPrior = qPrior.in('unit_id', unitFilterIds)
-    if (accountFilterIds) qPrior = qPrior.in('gl_account_id', accountFilterIds)
-    const { data: priorData, error: priorError } = await qPrior
-    priorLines = priorError ? [] : (priorData || []).map(mapRow)
+    let qPrior = qBase().lt('date', fromStr);
+    if (unitFilterIds) qPrior = qPrior.in('unit_id', unitFilterIds);
+    if (accountFilterIds) qPrior = qPrior.in('gl_account_id', accountFilterIds);
+    const { data: priorData, error: priorError } = await qPrior;
+    priorLines = priorError ? [] : (priorData || []).map(mapRow);
   }
 
   type Group = {
-    id: string
-    name: string
-    number: string | null
-    type: string | null
-    prior: number
-    net: number
-    lines: { line: Line; signed: number }[]
-  }
+    id: string;
+    name: string;
+    number: string | null;
+    type: string | null;
+    prior: number;
+    net: number;
+    lines: { line: Line; signed: number }[];
+  };
 
-  const groupMap = new Map<string, Group>()
+  const groupMap = new Map<string, Group>();
   const ensureGroup = (line: Line): Group => {
-    const key = line.gl_account_id
-    const existing = groupMap.get(key)
-    if (existing) return existing
+    const key = line.gl_account_id;
+    const existing = groupMap.get(key);
+    if (existing) return existing;
     const created: Group = {
       id: key,
       name: line.ga_name,
@@ -244,53 +292,61 @@ export default async function FinancialsTab({
       prior: 0,
       net: 0,
       lines: [],
-    }
-    groupMap.set(key, created)
-    return created
-  }
+    };
+    groupMap.set(key, created);
+    return created;
+  };
 
-  const signedAmount = (line: Line) => ((line.posting_type || '').toLowerCase() === 'debit' ? line.amount : -line.amount)
+  const signedAmount = (line: Line) =>
+    (line.posting_type || '').toLowerCase() === 'debit' ? line.amount : -line.amount;
 
   for (const line of priorLines) {
-    const group = ensureGroup(line)
-    group.prior += signedAmount(line)
+    const group = ensureGroup(line);
+    group.prior += signedAmount(line);
   }
 
   for (const line of periodLines) {
-    const group = ensureGroup(line)
-    const signed = signedAmount(line)
-    group.net += signed
-    group.lines.push({ line, signed })
+    const group = ensureGroup(line);
+    const signed = signedAmount(line);
+    group.net += signed;
+    group.lines.push({ line, signed });
   }
 
   const groups = Array.from(groupMap.values()).sort((a, b) => {
-    const typeA = a.type || 'Other'
-    const typeB = b.type || 'Other'
-    const typeCmp = typeA.localeCompare(typeB)
-    if (typeCmp !== 0) return typeCmp
-    return a.name.localeCompare(b.name)
-  })
+    const typeA = a.type || 'Other';
+    const typeB = b.type || 'Other';
+    const typeCmp = typeA.localeCompare(typeB);
+    if (typeCmp !== 0) return typeCmp;
+    return a.name.localeCompare(b.name);
+  });
 
-  const fmt = (n: number) => `$${Number(Math.abs(n || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const fmtSigned = (n: number) => (n < 0 ? `(${fmt(n)})` : fmt(n))
+  const fmt = (n: number) =>
+    `$${Number(Math.abs(n || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtSigned = (n: number) => (n < 0 ? `(${fmt(n)})` : fmt(n));
   const dateFmt = new Intl.DateTimeFormat('en-US', {
     month: '2-digit',
     day: '2-digit',
     year: 'numeric',
-  })
+  });
 
   const emptyStateMessage = noUnitsSelected
     ? 'Select at least one unit to view ledger activity.'
-    : 'No activity for the selected period.'
+    : 'No activity for the selected period.';
 
   return (
     <div id="panel-financials" role="tabpanel" aria-labelledby="financials" className="space-y-6">
       <Tabs defaultValue="ledger" className="space-y-6">
-        <TabsList className="bg-transparent p-0 border-b border-border rounded-none h-auto">
-          <TabsTrigger value="ledger" className="rounded-none border-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary px-3 py-2 text-sm font-medium">
+        <TabsList className="border-border h-auto rounded-none border-b bg-transparent p-0">
+          <TabsTrigger
+            value="ledger"
+            className="data-[state=active]:border-primary data-[state=active]:text-primary rounded-none border-0 border-b-2 border-transparent px-3 py-2 text-sm font-medium"
+          >
             Ledger
           </TabsTrigger>
-          <TabsTrigger value="bills" className="rounded-none border-0 border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary px-3 py-2 text-sm font-medium">
+          <TabsTrigger
+            value="bills"
+            className="data-[state=active]:border-primary data-[state=active]:text-primary rounded-none border-0 border-b-2 border-transparent px-3 py-2 text-sm font-medium"
+          >
             Bills
           </TabsTrigger>
         </TabsList>
@@ -306,98 +362,121 @@ export default async function FinancialsTab({
             <DateRangeControls defaultFrom={from} defaultTo={to} defaultRange={range} />
             <ClearFiltersButton />
           </div>
-          <div className="border-t border-border" />
-          <div className="rounded-lg border border-border shadow-sm overflow-hidden mt-4">
+          <div className="border-border border-t" />
+          <div className="border-border mt-4 overflow-hidden rounded-lg border shadow-sm">
             <Table className="text-sm">
               <TableHeader className="bg-muted/60">
-                <TableRow className="border-b border-border">
-                  <TableHead className="w-[12rem] text-muted-foreground">Date (cash basis)</TableHead>
-                  <TableHead className="w-[8rem] text-muted-foreground">Unit</TableHead>
+                <TableRow className="border-border border-b">
+                  <TableHead className="text-muted-foreground w-[12rem]">
+                    Date (cash basis)
+                  </TableHead>
+                  <TableHead className="text-muted-foreground w-[8rem]">Unit</TableHead>
                   <TableHead className="text-muted-foreground">Transaction</TableHead>
                   <TableHead className="text-muted-foreground">Memo</TableHead>
-                  <TableHead className="text-right w-[10rem] text-muted-foreground">Amount</TableHead>
-                  <TableHead className="text-right w-[10rem] text-muted-foreground">Balance</TableHead>
+                  <TableHead className="text-muted-foreground w-[10rem] text-right">
+                    Amount
+                  </TableHead>
+                  <TableHead className="text-muted-foreground w-[10rem] text-right">
+                    Balance
+                  </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y divide-border">
+              <TableBody className="divide-border divide-y">
                 {groups.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-muted-foreground py-6 text-center">
                       {emptyStateMessage}
                     </TableCell>
                   </TableRow>
                 ) : (
                   groups.map((group) => {
-                    const detail = group.lines
-                      .sort((a, b) => {
-                        const dateCmp = a.line.date.localeCompare(b.line.date)
-                        if (dateCmp !== 0) return dateCmp
-                        return (a.line.created_at || '').localeCompare(b.line.created_at || '')
-                      })
+                    const detail = group.lines.sort((a, b) => {
+                      const dateCmp = a.line.date.localeCompare(b.line.date);
+                      if (dateCmp !== 0) return dateCmp;
+                      return (a.line.created_at || '').localeCompare(b.line.created_at || '');
+                    });
 
-                    let running = group.prior
+                    let running = group.prior;
 
                     return (
                       <Fragment key={group.id}>
                         <TableRow className="bg-muted/40">
                           <TableCell colSpan={6} className="text-primary font-medium">
-                            <span className="mr-2 text-muted-foreground">—</span>
+                            <span className="text-muted-foreground mr-2">—</span>
                             {group.name}
                             {group.number ? (
-                              <span className="ml-2 text-xs text-muted-foreground">{group.number}</span>
+                              <span className="text-muted-foreground ml-2 text-xs">
+                                {group.number}
+                              </span>
                             ) : null}
                             {group.type ? (
-                              <span className="ml-3 text-xs uppercase text-muted-foreground">{group.type}</span>
+                              <span className="text-muted-foreground ml-3 text-xs uppercase">
+                                {group.type}
+                              </span>
                             ) : null}
                           </TableCell>
                         </TableRow>
                         <TableRow className="bg-background">
-                          <TableCell colSpan={5} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          <TableCell
+                            colSpan={5}
+                            className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
+                          >
                             Prior balance
                           </TableCell>
-                          <TableCell className="text-right font-semibold text-muted-foreground">{fmtSigned(group.prior)}</TableCell>
+                          <TableCell className="text-muted-foreground text-right font-semibold">
+                            {fmtSigned(group.prior)}
+                          </TableCell>
                         </TableRow>
                         {detail.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="py-4 text-center text-sm text-muted-foreground">
+                            <TableCell
+                              colSpan={6}
+                              className="text-muted-foreground py-4 text-center text-sm"
+                            >
                               No activity in selected period.
                             </TableCell>
                           </TableRow>
                         ) : (
                           detail.map(({ line, signed }, idx) => {
-                            running += signed
+                            running += signed;
                             const txnLabel = [
                               line.transaction_type || 'Transaction',
                               line.transaction_reference ? `#${line.transaction_reference}` : '',
                             ]
                               .filter(Boolean)
-                              .join(' ')
-                            const memo = line.memo || line.transaction_memo || '—'
+                              .join(' ');
+                            const memo = line.memo || line.transaction_memo || '—';
                             return (
                               <TableRow key={`${group.id}-${line.date}-${idx}`}>
                                 <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
                                 <TableCell>{line.unit_label || '—'}</TableCell>
                                 <TableCell>{txnLabel || '—'}</TableCell>
                                 <TableCell>{memo}</TableCell>
-                                <TableCell className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}>
+                                <TableCell
+                                  className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                >
                                   {fmtSigned(signed)}
                                 </TableCell>
-                                <TableCell className="text-right font-medium">{fmtSigned(running)}</TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {fmtSigned(running)}
+                                </TableCell>
                               </TableRow>
-                            )
+                            );
                           })
                         )}
                         <TableRow className="bg-muted/30">
                           <TableCell colSpan={4} className="font-semibold">
                             Total {group.name}
                           </TableCell>
-                          <TableCell className="text-right font-semibold text-foreground">{fmtSigned(group.net)}</TableCell>
-                          <TableCell className="text-right font-semibold text-foreground">
+                          <TableCell className="text-foreground text-right font-semibold">
+                            {fmtSigned(group.net)}
+                          </TableCell>
+                          <TableCell className="text-foreground text-right font-semibold">
                             {fmtSigned(group.prior + group.net)}
                           </TableCell>
                         </TableRow>
                       </Fragment>
-                    )
+                    );
                   })
                 )}
               </TableBody>
@@ -406,118 +485,158 @@ export default async function FinancialsTab({
         </TabsContent>
         <TabsContent value="bills" className="space-y-6">
           {/* Bills Actions */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <Button type="button">Record bill</Button>
-            <Button type="button" variant="outline">Pay bills</Button>
-            <Button type="button" variant="outline">Request owner contribution</Button>
-            <Button type="button" variant="outline">Approve in bulk</Button>
+            <Button type="button" variant="outline">
+              Pay bills
+            </Button>
+            <Button type="button" variant="outline">
+              Request owner contribution
+            </Button>
+            <Button type="button" variant="outline">
+              Approve in bulk
+            </Button>
           </div>
 
           {await (async () => {
             // Units for bills reuse unitOptions
-            const unitIdsAll = unitOptions.map((u) => u.id)
+            const unitIdsAll = unitOptions.map((u) => u.id);
 
             // Vendors options
             let vendorsQuery = (db as any)
               .from('vendors')
-              .select('id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)')
+              .select(
+                'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
+              )
               .order('updated_at', { ascending: false })
-              .limit(200)
-            if (orgId) vendorsQuery = vendorsQuery.eq('org_id', orgId)
-            const { data: vendorsData } = await vendorsQuery
-            const nameOfVendor = (v: any) =>
-              v?.contact?.display_name || v?.contact?.company_name || [v?.contact?.first_name, v?.contact?.last_name].filter(Boolean).join(' ') || 'Vendor'
-            const vendorOptions = (vendorsData || []).map((v: any) => ({ id: String(v.id), label: nameOfVendor(v) }))
-              .sort((a: any, b: any) => a.label.localeCompare(b.label))
+              .limit(200);
+            if (orgId) vendorsQuery = vendorsQuery.eq('org_id', orgId);
+            const { data: vendorsData } = await vendorsQuery;
+            interface VendorRecord {
+              id: string;
+              contact?: {
+                display_name?: string;
+                company_name?: string;
+                first_name?: string;
+                last_name?: string;
+              };
+            }
+            const nameOfVendor = (v: VendorRecord) =>
+              v?.contact?.display_name ||
+              v?.contact?.company_name ||
+              [v?.contact?.first_name, v?.contact?.last_name].filter(Boolean).join(' ') ||
+              'Vendor';
+            const vendorOptions = (vendorsData || [])
+              .map((v: VendorRecord) => ({ id: String(v.id), label: nameOfVendor(v) }))
+              .sort((a, b) => a.label.localeCompare(b.label));
 
             // Parse filters
-            const spVendors = typeof sp?.vendors === 'string' ? sp.vendors : ''
-            const spStatusRaw = typeof sp?.bstatus === 'string' ? sp.bstatus : ''
+            const spVendors = typeof sp?.vendors === 'string' ? sp.vendors : '';
+            const spStatusRaw = typeof sp?.bstatus === 'string' ? sp.bstatus : '';
 
-            let selectedUnitIdsBills: string[]
-            if (unitsParam === 'none') selectedUnitIdsBills = []
-            else if (unitsParam) selectedUnitIdsBills = unitsParam.split(',').map((s: string) => s.trim()).filter((s: string) => unitIdsAll.includes(s))
-            else selectedUnitIdsBills = [...unitIdsAll]
+            let selectedUnitIdsBills: string[];
+            if (unitsParam === 'none') selectedUnitIdsBills = [];
+            else if (unitsParam)
+              selectedUnitIdsBills = unitsParam
+                .split(',')
+                .map((s) => s.trim())
+                .filter((s) => unitIdsAll.includes(s));
+            else selectedUnitIdsBills = [...unitIdsAll];
 
-            const allVendorIds = vendorOptions.map((v) => v.id)
-            let selectedVendorIds = spVendors ? spVendors.split(',').map((s: string) => s.trim()).filter((s: string) => allVendorIds.includes(s)) : [...allVendorIds]
-            if (selectedVendorIds.length === 0) selectedVendorIds = [...allVendorIds]
+            const allVendorIds = vendorOptions.map((v) => v.id);
+            let selectedVendorIds = spVendors
+              ? spVendors
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter((s) => allVendorIds.includes(s))
+              : [...allVendorIds];
+            if (selectedVendorIds.length === 0) selectedVendorIds = [...allVendorIds];
             const statusParamSlugs = spStatusRaw
               ? spStatusRaw
                   .split(',')
-                  .map((s: string) => s.trim().toLowerCase())
-                  .filter((slug: string) => BILL_STATUS_SLUG_TO_LABEL.has(slug))
-              : []
+                  .map((s) => s.trim().toLowerCase())
+                  .filter((slug) => BILL_STATUS_SLUG_TO_LABEL.has(slug))
+              : [];
             const defaultStatusSlugs = statusParamSlugs.length
               ? statusParamSlugs
-              : ['overdue', 'due', 'partially-paid']
+              : ['overdue', 'due', 'partially-paid'];
             const selectedStatuses = defaultStatusSlugs
               .map((slug) => BILL_STATUS_SLUG_TO_LABEL.get(slug))
-              .filter((label): label is BillStatusLabel => Boolean(label))
-            let resolvedStatusSlugs = defaultStatusSlugs
-            let resolvedStatusLabels = selectedStatuses
+              .filter((label): label is BillStatusLabel => Boolean(label));
+            let resolvedStatusSlugs = defaultStatusSlugs;
+            let resolvedStatusLabels = selectedStatuses;
             if (resolvedStatusLabels.length === 0) {
-              resolvedStatusSlugs = BILL_STATUS_OPTIONS.map((opt) => opt.slug)
-              resolvedStatusLabels = BILL_STATUS_OPTIONS.map((opt) => opt.label)
+              resolvedStatusSlugs = BILL_STATUS_OPTIONS.map((opt) => opt.slug);
+              resolvedStatusLabels = BILL_STATUS_OPTIONS.map((opt) => opt.label);
             }
-            const statusFilterSet = new Set(resolvedStatusLabels)
+            const statusFilterSet = new Set(resolvedStatusLabels);
             const statusFilterActive =
-              statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length
+              statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length;
 
             // Fetch matching transaction ids for this property (via lines)
-            let qLine = (db as any).from('transaction_lines').select('transaction_id, unit_id').eq('property_id', id)
+            let qLine = (db as any)
+              .from('transaction_lines')
+              .select('transaction_id, unit_id')
+              .eq('property_id', id);
             if (selectedUnitIdsBills.length && selectedUnitIdsBills.length !== unitIdsAll.length) {
-              qLine = qLine.in('unit_id', selectedUnitIdsBills)
+              qLine = qLine.in('unit_id', selectedUnitIdsBills);
             }
-            const { data: linesData } = await qLine
-            const txIds = Array.from(new Set((linesData || []).map((r: any) => r.transaction_id).filter(Boolean)))
+            const { data: linesData } = await qLine;
+            const txIds = Array.from(
+              new Set((linesData || []).map((r: any) => r.transaction_id).filter(Boolean)),
+            );
 
-            let billRows: any[] = []
+            let billRows: any[] = [];
             if (txIds.length) {
               let qTx = (db as any)
                 .from('transactions')
-                .select('id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type')
+                .select(
+                  'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type',
+                )
                 .in('id', txIds)
                 .eq('transaction_type', 'Bill')
-                .order('due_date', { ascending: true })
+                .order('due_date', { ascending: true });
 
               if (selectedVendorIds.length && selectedVendorIds.length !== allVendorIds.length) {
-                qTx = qTx.in('vendor_id', selectedVendorIds)
+                qTx = qTx.in('vendor_id', selectedVendorIds);
               }
 
-              const { data: txData } = await qTx
-              const statusUpdates: { id: string; status: BillStatusLabel }[] = []
+              const { data: txData } = await qTx;
+              const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
               const enrichedRows = (txData || []).map((row: any) => {
-                const current = normalizeBillStatus(row.status)
-                const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date)
+                const current = normalizeBillStatus(row.status);
+                const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
                 if (derived !== current) {
-                  statusUpdates.push({ id: row.id, status: derived })
+                  statusUpdates.push({ id: row.id, status: derived });
                 }
-                return { ...row, status: derived }
-              })
+                return { ...row, status: derived };
+              });
 
               if (statusUpdates.length) {
                 try {
                   await Promise.all(
                     statusUpdates.map((update) =>
-                      (db as any).from('transactions').update({ status: update.status }).eq('id', update.id)
-                    )
-                  )
+                      (db as any)
+                        .from('transactions')
+                        .update({ status: update.status })
+                        .eq('id', update.id),
+                    ),
+                  );
                 } catch (error) {
-                  console.error('Failed to update bill transaction status', error)
+                  console.error('Failed to update bill transaction status', error);
                 }
               }
 
               billRows = enrichedRows.filter((row: any) => {
-                if (!statusFilterActive) return true
-                return statusFilterSet.has(row.status as BillStatusLabel)
-              })
+                if (!statusFilterActive) return true;
+                return statusFilterSet.has(row.status as BillStatusLabel);
+              });
             }
 
-            const vendorMap = new Map<string, string>()
-            for (const v of vendorOptions) vendorMap.set(v.id, v.label)
+            const vendorMap = new Map<string, string>();
+            for (const v of vendorOptions) vendorMap.set(v.id, v.label);
 
-            const countLabel = `${billRows.length} match${billRows.length === 1 ? '' : 'es'}`
+            const countLabel = `${billRows.length} match${billRows.length === 1 ? '' : 'es'}`;
 
             // Render
             return (
@@ -530,42 +649,71 @@ export default async function FinancialsTab({
                     unitOptions={unitOptions}
                     vendorOptions={vendorOptions}
                   />
-                  <div className="pb-2 ml-auto text-sm text-muted-foreground">{countLabel}</div>
+                  <div className="text-muted-foreground ml-auto pb-2 text-sm">{countLabel}</div>
                 </div>
-                <div className="rounded-lg border border-border shadow-sm overflow-hidden">
+                <div className="border-border overflow-hidden rounded-lg border shadow-sm">
                   <Table className="text-sm">
                     <TableHeader className="bg-muted/60">
-                      <TableRow className="border-b border-border">
-                        <TableHead className="w-[12rem] text-muted-foreground">Due date</TableHead>
-                        <TableHead className="w-[10rem] text-muted-foreground">Status</TableHead>
-                        <TableHead className="w-[16rem] text-muted-foreground">Vendors</TableHead>
+                      <TableRow className="border-border border-b">
+                        <TableHead className="text-muted-foreground w-[12rem]">Due date</TableHead>
+                        <TableHead className="text-muted-foreground w-[10rem]">Status</TableHead>
+                        <TableHead className="text-muted-foreground w-[16rem]">Vendors</TableHead>
                         <TableHead className="text-muted-foreground">Memo</TableHead>
-                        <TableHead className="w-[10rem] text-muted-foreground">Ref No.</TableHead>
-                        <TableHead className="w-[12rem] text-muted-foreground">Approval status</TableHead>
-                        <TableHead className="text-right w-[10rem] text-muted-foreground">Amount</TableHead>
+                        <TableHead className="text-muted-foreground w-[10rem]">Ref No.</TableHead>
+                        <TableHead className="text-muted-foreground w-[12rem]">
+                          Approval status
+                        </TableHead>
+                        <TableHead className="text-muted-foreground w-[10rem] text-right">Amount</TableHead>
+                        <TableHead className="w-[3rem]" />
                       </TableRow>
                     </TableHeader>
-                    <TableBody className="divide-y divide-border">
+                    <TableBody className="divide-border divide-y">
                       {billRows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
-                            We didn't find any bills. Maybe you don't have any or maybe you need to clear your filters.
+                          <TableCell colSpan={8} className="text-muted-foreground py-6 text-center">
+                            We didn't find any bills. Maybe you don't have any or maybe you need to
+                            clear your filters.
                           </TableCell>
                         </TableRow>
                       ) : (
                         billRows.map((row) => (
                           <TableRow key={row.id}>
-                            <TableCell>{row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}</TableCell>
+                            <TableCell>
+                              {row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}
+                            </TableCell>
                             <TableCell>{row.status || '—'}</TableCell>
-                            <TableCell className="text-foreground">{vendorMap.get(String(row.vendor_id)) || '—'}</TableCell>
+                            <TableCell className="text-foreground">
+                              {vendorMap.get(String(row.vendor_id)) || '—'}
+                            </TableCell>
                             <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
                             <TableCell>{row.reference_number || '—'}</TableCell>
                             <TableCell className="text-muted-foreground">—</TableCell>
                             <TableCell className="text-right">
-                              {`$${Number(Math.abs(row.total_amount || 0)).toLocaleString(undefined, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}`}
+                              {`$${Number(Math.abs(row.total_amount || 0)).toLocaleString(
+                                undefined,
+                                {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                },
+                              )}`}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <ActionButton aria-label="Bill actions" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="min-w-[10rem]" side="bottom" sideOffset={6}>
+                                  <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
+                                    Email
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
+                                    Print
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </TableCell>
                           </TableRow>
                         ))
@@ -574,10 +722,10 @@ export default async function FinancialsTab({
                   </Table>
                 </div>
               </div>
-            )
+            );
           })()}
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

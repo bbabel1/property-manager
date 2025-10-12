@@ -1,43 +1,58 @@
-"use client"
+'use client';
 
-import { useState, useTransition } from 'react'
-import type { VendorDashboardData } from '@/lib/vendor-service'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Building2, Loader2, PlugZap, ShieldAlert, Sparkles } from 'lucide-react'
+import { useState, useTransition } from 'react';
+import type { VendorDashboardData } from '@/lib/vendor-service';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Building2, Loader2, PlugZap, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface VendorSourcingPanelProps {
-  snapshot: VendorDashboardData['aiSnapshot']
+  snapshot: VendorDashboardData['aiSnapshot'];
 }
 
 interface Recommendation {
-  vendorName: string
-  vendorId?: string
-  confidence: number
-  category?: string | null
-  rationale: string
-  complianceStatus?: string
-  buildiumVendorId?: number | null
-  source: 'internal' | 'buildium'
+  vendorName: string;
+  vendorId?: string;
+  confidence: number;
+  category?: string | null;
+  rationale: string;
+  complianceStatus?: string;
+  buildiumVendorId?: number | null;
+  source: 'internal' | 'buildium';
+}
+
+interface BuildiumVendorItem {
+  Name?: string;
+  name?: string;
+  Id?: number;
+  id?: number;
+  Category?: { Name?: string };
+  categoryName?: string;
 }
 
 export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
-  const [propertyQuery, setPropertyQuery] = useState('')
-  const [jobCategory, setJobCategory] = useState('general')
-  const [budget, setBudget] = useState('')
-  const [notes, setNotes] = useState('')
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
-  const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [propertyQuery, setPropertyQuery] = useState('');
+  const [jobCategory, setJobCategory] = useState('general');
+  const [budget, setBudget] = useState('');
+  const [notes, setNotes] = useState('');
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   const runSourcing = () => {
     startTransition(async () => {
-      setError(null)
+      setError(null);
       try {
         const payload = {
           propertyQuery: propertyQuery.trim(),
@@ -45,7 +60,7 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
           budget: budget ? Number(budget) : undefined,
           notes,
           snapshot,
-        }
+        };
         const [internalResponse, buildiumResponse] = await Promise.all([
           fetch('/api/vendors/recommendations', {
             method: 'POST',
@@ -53,18 +68,18 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
             body: JSON.stringify(payload),
           }),
           fetch(`/api/buildium/vendors?name=${encodeURIComponent(propertyQuery || jobCategory)}`),
-        ])
+        ]);
 
-        const internalJson = await internalResponse.json()
-        const buildiumJson = buildiumResponse.ok ? await buildiumResponse.json() : null
+        const internalJson = await internalResponse.json();
+        const buildiumJson = buildiumResponse.ok ? await buildiumResponse.json() : null;
 
         if (!internalResponse.ok) {
-          throw new Error(internalJson?.error || 'Failed to generate recommendations')
+          throw new Error(internalJson?.error || 'Failed to generate recommendations');
         }
 
-        const internal: Recommendation[] = internalJson.recommendations ?? []
+        const internal: Recommendation[] = internalJson.recommendations ?? [];
         const external: Recommendation[] = Array.isArray(buildiumJson?.data)
-          ? (buildiumJson.data as any[]).slice(0, 5).map((item: any) => ({
+          ? (buildiumJson.data as BuildiumVendorItem[]).slice(0, 5).map((item) => ({
               vendorName: item.Name ?? item.name ?? 'Unknown vendor',
               buildiumVendorId: item.Id ?? item.id ?? null,
               category: item.Category?.Name ?? item.categoryName ?? jobCategory,
@@ -72,15 +87,15 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
               source: 'buildium' as const,
               rationale: 'Matched from Buildium vendor directory based on search criteria.',
             }))
-          : []
+          : [];
 
-        setRecommendations([...internal, ...external])
+        setRecommendations([...internal, ...external]);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unexpected sourcing error'
-        setError(message)
+        const message = err instanceof Error ? err.message : 'Unexpected sourcing error';
+        setError(message);
       }
-    })
-  }
+    });
+  };
 
   return (
     <Card className="h-full">
@@ -88,7 +103,9 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
         <div className="flex items-center justify-between gap-2">
           <div>
             <CardTitle className="text-lg">AI vendor sourcing</CardTitle>
-            <CardDescription>Auto-source internal and Buildium vendors based on property needs.</CardDescription>
+            <CardDescription>
+              Auto-source internal and Buildium vendors based on property needs.
+            </CardDescription>
           </div>
           <Badge variant="secondary" className="bg-primary/10 text-primary">
             <PlugZap className="mr-1 h-3.5 w-3.5" /> Integrations live
@@ -145,11 +162,15 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">
+          <div className="text-muted-foreground text-xs">
             Combines Ora vendor history, compliance data, and live Buildium directory.
           </div>
           <Button type="button" className="gap-2" onClick={runSourcing} disabled={isPending}>
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
             Generate matches
           </Button>
         </div>
@@ -158,24 +179,31 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
           <div className="space-y-3 p-4">
             {recommendations.length > 0 ? (
               recommendations.map((rec, index) => (
-                <div key={`${rec.vendorName}-${index}`} className="rounded-lg border border-border/70 bg-card p-3">
+                <div
+                  key={`${rec.vendorName}-${index}`}
+                  className="border-border/70 bg-card rounded-lg border p-3"
+                >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <div className="text-foreground flex items-center gap-2 text-sm font-semibold">
                       {rec.source === 'internal' ? (
-                        <Sparkles className="h-4 w-4 text-primary" />
+                        <Sparkles className="text-primary h-4 w-4" />
                       ) : (
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <Building2 className="text-muted-foreground h-4 w-4" />
                       )}
                       <span>{rec.vendorName}</span>
                       {rec.category ? <Badge variant="outline">{rec.category}</Badge> : null}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{rec.source === 'internal' ? 'Internal intelligence' : 'Buildium directory'}</span>
-                      <Badge variant="secondary">Confidence {(rec.confidence * 100).toFixed(0)}%</Badge>
+                    <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                      <span>
+                        {rec.source === 'internal' ? 'Internal intelligence' : 'Buildium directory'}
+                      </span>
+                      <Badge variant="secondary">
+                        Confidence {(rec.confidence * 100).toFixed(0)}%
+                      </Badge>
                     </div>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{rec.rationale}</p>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-xs">{rec.rationale}</p>
+                  <div className="text-muted-foreground mt-2 flex flex-wrap gap-2 text-xs">
                     {rec.complianceStatus ? (
                       <span className="inline-flex items-center gap-1">
                         <ShieldAlert className="h-3.5 w-3.5" />
@@ -189,14 +217,18 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
                     ) : null}
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="xs" variant="secondary">Invite to quote</Button>
-                    <Button size="xs" variant="ghost">Preview outreach</Button>
+                    <Button size="xs" variant="secondary">
+                      Invite to quote
+                    </Button>
+                    <Button size="xs" variant="ghost">
+                      Preview outreach
+                    </Button>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="flex h-[200px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                <PlugZap className="h-5 w-5 text-primary" />
+              <div className="text-muted-foreground flex h-[200px] flex-col items-center justify-center gap-2 text-sm">
+                <PlugZap className="text-primary h-5 w-5" />
                 Run sourcing to pull AI-ranked matches from internal data and Buildium.
               </div>
             )}
@@ -204,7 +236,7 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
         </ScrollArea>
       </CardContent>
     </Card>
-  )
+  );
 }
 
-export default VendorSourcingPanel
+export default VendorSourcingPanel;
