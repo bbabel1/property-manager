@@ -2684,28 +2684,6 @@ function mapBillStatusFromBuildium(
   }
 }
 
-function normalizeLocalBillStatus(value: string | null | undefined): LocalBillStatus {
-  switch (String(value ?? '').toLowerCase()) {
-    case 'overdue':
-      return 'Overdue'
-    case 'due':
-    case 'pending':
-      return 'Due'
-    case 'partiallypaid':
-    case 'partially_paid':
-    case 'partially paid':
-      return 'Partially paid'
-    case 'paid':
-      return 'Paid'
-    case 'cancelled':
-      return 'Cancelled'
-    case '':
-      return ''
-    default:
-      return ''
-  }
-}
-
 function deriveLocalBillStatus(
   buildiumStatus: LocalBillStatus,
   dueDateIso: string | null,

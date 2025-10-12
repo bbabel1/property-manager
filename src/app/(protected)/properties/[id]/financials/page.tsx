@@ -20,7 +20,6 @@ const BILL_STATUS_OPTIONS: { slug: string; label: BillStatusLabel }[] = [
 ]
 
 const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.slug, opt.label]))
-const BILL_STATUS_LABEL_TO_SLUG = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.label, opt.slug]))
 
 function normalizeBillStatus(value: any): BillStatusLabel {
   switch (String(value ?? '').toLowerCase()) {
@@ -455,7 +454,13 @@ export default async function FinancialsTab({
             const selectedStatuses = defaultStatusSlugs
               .map((slug) => BILL_STATUS_SLUG_TO_LABEL.get(slug))
               .filter((label): label is BillStatusLabel => Boolean(label))
-            const statusFilterSet = new Set(selectedStatuses)
+            let resolvedStatusSlugs = defaultStatusSlugs
+            let resolvedStatusLabels = selectedStatuses
+            if (resolvedStatusLabels.length === 0) {
+              resolvedStatusSlugs = BILL_STATUS_OPTIONS.map((opt) => opt.slug)
+              resolvedStatusLabels = BILL_STATUS_OPTIONS.map((opt) => opt.label)
+            }
+            const statusFilterSet = new Set(resolvedStatusLabels)
             const statusFilterActive =
               statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length
 
@@ -521,7 +526,7 @@ export default async function FinancialsTab({
                   <BillsFilters
                     defaultUnitIds={selectedUnitIdsBills}
                     defaultVendorIds={selectedVendorIds}
-                    defaultStatuses={defaultStatusSlugs}
+                    defaultStatuses={resolvedStatusSlugs}
                     unitOptions={unitOptions}
                     vendorOptions={vendorOptions}
                   />

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { ArrowRight } from 'lucide-react'
 import ActionButton from '@/components/ui/ActionButton'
+import DynamicOverlay from '@/components/ui/DynamicOverlay'
 import ReceivePaymentForm from '@/components/leases/ReceivePaymentForm'
 import EnterChargeForm from '@/components/leases/EnterChargeForm'
 import IssueCreditForm from '@/components/leases/IssueCreditForm'
@@ -212,16 +213,9 @@ export default function LeaseLedgerPanel({
 
   if (overlayActive) {
     return (
-      <div
-        className="fixed bottom-0 z-40 overflow-auto bg-background px-6 pb-12"
-        style={{ 
-          top: `${Math.max(overlayTop, 0)}px`, 
-          left: `${Math.max(overlayLeft, 0)}px`, 
-          right: 0 
-        }}
-      >
+      <DynamicOverlay overlayTop={overlayTop} overlayLeft={overlayLeft}>
         {renderOverlayContent()}
-      </div>
+      </DynamicOverlay>
     )
   }
 
