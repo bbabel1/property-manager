@@ -4,25 +4,74 @@ import { useEffect, useMemo, useState, Fragment, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Edit, Trash2, Plus } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import InlineEditCard from '@/components/form/InlineEditCard'
 import RepeaterField from '@/components/form/fields/RepeaterField'
 
 type OwnerOption = { id: string; name: string }
 type OwnerRow = { id: string; ownerId: string; name: string; ownershipPercentage: number; disbursementPercentage: number; primary?: boolean }
 
-export default function PropertyDetailsCard({ property }: { property: any }) {
+interface Property {
+  id: string
+  name: string
+  address_line1?: string
+  address_line2?: string
+  city?: string
+  state?: string
+  postal_code?: string
+  country?: string
+  status?: string
+  property_type?: string
+  reserve?: number
+  year_built?: number
+  property_manager_id?: string
+  property_manager_name?: string
+  buildium_property_id?: string
+  primary_image_url?: string
+  owners?: Owner[]
+}
+
+interface Owner {
+  id?: string
+  owner_id?: string
+  display_name?: string
+  company_name?: string
+  first_name?: string
+  last_name?: string
+  ownership_percentage?: number
+  disbursement_percentage?: number
+  primary?: boolean
+}
+
+interface StaffMember {
+  id: string
+  displayName?: string
+  first_name?: string
+  last_name?: string
+  role?: string
+}
+
+interface OwnerAPIResponse {
+  id: string
+  displayName?: string
+  name?: string
+  firstName?: string
+  lastName?: string
+  companyName?: string
+}
+
+export default function PropertyDetailsCard({ property }: { property: Property }) {
   const [editing, setEditing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState<string | null>(null)
   const [syncErr, setSyncErr] = useState<string | null>(null)
   // Use server-provided image first; client fetch only if missing
-  const initialUrl = (property as any)?.primary_image_url || null
+  const initialUrl = property?.primary_image_url || null
   const [address1, setAddress1] = useState(property.address_line1 || '')
   const [city, setCity] = useState(property.city || '')
   const [state, setState] = useState(property.state || '')
   const [postal, setPostal] = useState(property.postal_code || '')
-  const [owners, setOwners] = useState<OwnerRow[]>(() => (property.owners || []).map((o: any) => ({
+  const [owners, setOwners] = useState<OwnerRow[]>(() => (property.owners || []).map((o: Owner) => ({
     id: String(o.owner_id || o.id || crypto.randomUUID()),
     ownerId: String(o.owner_id || o.id || ''),
     name: o.display_name || o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Owner',
@@ -33,7 +82,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
   const [managerId, setManagerId] = useState<string>('')
   const [managerOptions, setManagerOptions] = useState<{ id: string; name: string; role?: string }[]>([])
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
-  const [loadingOwners, setLoadingOwners] = useState(false)
+  const [_loadingOwners, setLoadingOwners] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // Inline create-new-owner state (mirrors New Property form approach)
@@ -60,13 +109,13 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     setSyncErr(null)
     try {
       const res = await fetch(`/api/properties/${property.id}/sync`, { method: 'POST' })
-      const j = await res.json().catch(() => ({} as any))
+      const j = await res.json().catch(() => ({} as Record<string, unknown>))
       if (!res.ok || j?.error) {
         setSyncErr(j?.error || `Failed: HTTP ${res.status}`)
       } else {
         setSyncMsg('Synced to Buildium')
         // Update badge in-place without reload if possible
-        if (j?.buildium_property_id) (property as any).buildium_property_id = j.buildium_property_id
+        if (j?.buildium_property_id) (property as Property).buildium_property_id = j.buildium_property_id
       }
     } catch (e) {
       setSyncErr(e instanceof Error ? e.message : 'Failed to sync')
@@ -83,7 +132,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       try {
         const res = await fetch(`/api/buildium/properties/${property.id}/images`, { credentials: 'include' })
         if (!res.ok) return
-        const j = await res.json().catch(() => null as any)
+        const j = await res.json().catch(() => null as Record<string, unknown> | null)
         const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || j?.data?.[0]?.href || null
         if (!cancelled) setPreviewUrl(url || null)
       } catch {}
@@ -100,7 +149,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       try {
         const res = await fetch(`/api/buildium/properties/${property.id}/images`, { credentials: 'include', cache: 'no-store' })
         if (!res.ok) return
-        const j = await res.json().catch(() => null as any)
+        const j = await res.json().catch(() => null as Record<string, unknown> | null)
         const url = j?.data?.[0]?.Href || j?.data?.[0]?.Url || j?.data?.url || j?.data?.[0]?.href || null
         if (!cancelled) setPreviewUrl(url || null)
       } catch {}
@@ -120,7 +169,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         const data = await res.json()
         const list = Array.isArray(data?.owners) ? data.owners : []
         if (!cancelled && list.length) {
-          setOwners(list.map((o: any) => ({
+          setOwners(list.map((o: Owner) => ({
             id: String(o.owner_id || o.id || crypto.randomUUID()),
             ownerId: String(o.owner_id || o.id || ''),
             name: o.display_name || o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Owner',
@@ -133,7 +182,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     }
     hydrate()
     return () => { cancelled = true }
-  }, [])
+  }, [owners, property.id])
 
   useEffect(() => {
     if (!editing) return
@@ -160,7 +209,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         if (!res.ok) throw new Error('Failed to load owners')
         const data = await res.json()
         if (!cancelled) {
-          const fetched = (Array.isArray(data) ? data : []).map((o: any) => ({
+          const fetched = (Array.isArray(data) ? data : []).map((o: OwnerAPIResponse) => ({
             id: String(o.id),
             name: o.displayName || o.name || `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim() || o.companyName || 'Owner'
           }))
@@ -174,7 +223,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     }
     load()
     return () => { cancelled = true }
-  }, [editing])
+  }, [editing, owners])
 
   // Load staff and filter for role = PROPERTY_MANAGER (space/underscore tolerant)
   useEffect(() => {
@@ -187,8 +236,8 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         const data = await res.json()
         if (!cancelled) {
           const options = (Array.isArray(data) ? data : [])
-            .filter((s: any) => String(s.role || '').toUpperCase().replace(/\s+/g,'_') === 'PROPERTY_MANAGER')
-            .map((s: any) => ({ id: String(s.id), name: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}`, role: s.role }))
+            .filter((s: StaffMember) => String(s.role || '').toUpperCase().replace(/\s+/g,'_') === 'PROPERTY_MANAGER')
+            .map((s: StaffMember) => ({ id: String(s.id), name: s.displayName || `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim() || `Staff ${s.id}`, role: s.role }))
           setManagerOptions(options)
           // Initialize selection from current property if available
           if (!managerId && property?.property_manager_id) {
@@ -199,7 +248,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     }
     loadStaff()
     return () => { cancelled = true }
-  }, [editing])
+  }, [editing, managerId, property.property_manager_id])
 
   function addOwnerRow() {
     setOwners(prev => [...prev, { id: crypto.randomUUID(), ownerId: '', name: '', ownershipPercentage: 0, disbursementPercentage: 0 }])
@@ -236,7 +285,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     const fetchToken = async () => {
       try {
         const res = await fetch('/api/csrf', { credentials: 'include' })
-        const j = await res.json().catch(() => ({} as any))
+        const j = await res.json().catch(() => ({} as Record<string, unknown>))
         if (!cancelled) setCsrfToken(j?.token || null)
       } catch {
         if (!cancelled) setCsrfToken(null)
@@ -261,7 +310,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         body: JSON.stringify({ isCompany: false, firstName: createFirst, lastName: createLast, primaryEmail: createEmail, primaryPhone: createPhone || undefined })
       })
       if (!res.ok) {
-        const j = await res.json().catch(() => ({} as any))
+        const j = await res.json().catch(() => ({} as Record<string, unknown>))
         throw new Error(j?.error || 'Failed to create owner')
       }
       const j = await res.json()
@@ -293,7 +342,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
     try {
       setSaving(true)
       setError(null)
-      const body: any = {
+      const body: Record<string, unknown> = {
         address_line1: address1,
         city,
         state,
@@ -303,7 +352,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         name: property.name,
         country: property.country || 'United States',
         status: property.status || 'Active',
-        property_type: (property as any).property_type ?? null,
+        property_type: property.property_type ?? null,
         reserve: property.reserve ?? 0,
         year_built: property.year_built ?? null,
         property_manager_id: managerId || null
@@ -330,7 +379,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         body: JSON.stringify(body)
       })
       if (!res.ok) {
-        const j = await res.json().catch(() => ({} as any))
+        const j = await res.json().catch(() => ({} as Record<string, unknown>))
         throw new Error(j?.error || 'Failed to save property')
       }
       // Refresh page to reflect saved values
@@ -352,6 +401,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
       isSaving={saving}
       canSave={ownershipTotal === 100}
       variant="plain"
+      headerHidden={editing}
       view={
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
           <div className="md:col-span-5 flex items-center justify-between">
@@ -392,6 +442,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                 type="file"
                 accept="image/*"
                 className="hidden"
+                aria-label="Upload property image"
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (!file) return
@@ -418,12 +469,12 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                       body: JSON.stringify({ FileName: file.name, FileData: base64 }),
                     })
                     if (!res.ok) {
-                      const j = await res.json().catch(() => ({} as any))
+                      const j = await res.json().catch(() => ({} as Record<string, unknown>))
                       throw new Error(j?.error || 'Upload failed')
                     }
                     // Re-fetch canonical URL (Buildium or storage)
                     const check = await fetch(`/api/buildium/properties/${property.id}/images?cb=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
-                    const jj = await check.json().catch(() => null as any)
+                    const jj = await check.json().catch(() => null as Record<string, unknown> | null)
                     const url = jj?.data?.[0]?.Href || jj?.data?.[0]?.Url || jj?.data?.url || jj?.data?.[0]?.href || null
                     setPreviewUrl(url || obj)
                     setUploadSuccess('Image uploaded')
@@ -473,7 +524,7 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                         <span>Disbursement</span>
                       </div>
                     </div>
-                    {displayOwners.map((o: any, idx: number) => (
+                    {displayOwners.map((o: Owner, idx: number) => (
                       <div key={idx} className="flex items-center justify-between py-1">
                         <div className="flex items-center gap-2 min-w-0">
                           <p className="text-sm text-foreground truncate leading-tight">{o.company_name || `${o.first_name ?? ''} ${o.last_name ?? ''}`.trim() || 'Unnamed Owner'}</p>
@@ -490,12 +541,12 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                       <div className="grid grid-cols-2 gap-8 text-sm text-right min-w-[140px]">
                         <span className="font-bold">{(() => {
                           const list = displayOwners
-                          const t = list.reduce((a: number, o: any) => a + (o.ownership_percentage || 0), 0)
+                          const t = list.reduce((a: number, o: Owner) => a + (o.ownership_percentage || 0), 0)
                           return `${t}%`
                         })()}</span>
                         <span className="font-bold">{(() => {
                           const list = displayOwners
-                          const t = list.reduce((a: number, o: any) => a + (o.disbursement_percentage || 0), 0)
+                          const t = list.reduce((a: number, o: Owner) => a + (o.disbursement_percentage || 0), 0)
                           return `${t}%`
                         })()}</span>
                       </div>
@@ -510,41 +561,33 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
         </div>
       }
       edit={
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-start">
-          <div className="relative md:col-span-2">
-            <div className="w-full bg-muted rounded-lg overflow-hidden">
-              <div className="relative w-full pb-[75%]">
-                {previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewUrl} alt="Property" className="absolute inset-0 w-full h-full object-cover" />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="space-y-6 md:col-span-3">
+        <div className="rounded-lg border border-gray-200 p-4 text-sm relative bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+          <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-sm" />
+          <button type="button" aria-label="Close" onClick={()=> setEditing(false)} className="absolute right-3 top-3 text-gray-600 hover:text-gray-800">
+            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <div className="space-y-6">
             {/* Address */}
             <div>
               <h4 className="text-sm font-medium text-foreground mb-2">Address Information</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Street Address</label>
-                  <input value={address1} onChange={e=>setAddress1(e.target.value)} className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm" placeholder="123 Main Street" />
+                  <input value={address1} onChange={e=>setAddress1(e.target.value)} className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm" placeholder="123 Main Street" aria-label="Street address" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">City</label>
-                  <input value={city} onChange={e=>setCity(e.target.value)} className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm" placeholder="City" />
+                  <input value={city} onChange={e=>setCity(e.target.value)} className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm" placeholder="City" aria-label="City" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">State</label>
-                  <input value={state} onChange={e=>setState(e.target.value)} className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm" placeholder="NY" />
+                  <input value={state} onChange={e=>setState(e.target.value)} className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm" placeholder="NY" aria-label="State" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">Zip Code</label>
-                  <input value={postal} onChange={e=>setPostal(e.target.value)} className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm" placeholder="11217" />
+                  <input value={postal} onChange={e=>setPostal(e.target.value)} className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm" placeholder="11217" aria-label="Zip code" />
                 </div>
               </div>
             </div>
@@ -554,9 +597,10 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
               <h4 className="text-sm font-medium text-foreground mb-2">Property Management</h4>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Property Manager</label>
               <select
-                className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm"
+                className="w-full h-9 px-2 border border-gray-200 rounded-md bg-background text-foreground text-sm"
                 value={managerId}
                 onChange={(e)=> setManagerId(e.target.value)}
+                aria-label="Property manager"
               >
                 <option value="">No manager assigned</option>
                 {managerOptions.map(m => (
@@ -575,7 +619,8 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                       <select
                         value={row.ownerId}
                         onChange={e=> onOwnerSelect(row.id, e.target.value)}
-                        className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm"
+                        className="w-full h-9 px-2 border border-gray-200 rounded-md bg-background text-foreground text-sm"
+                        aria-label="Owner selection"
                       >
                         <option value="">Select owner…</option>
                         <option value="create-new-owner">+ Create new owner…</option>
@@ -586,17 +631,19 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                       <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
                       <input type="number" value={row.ownershipPercentage}
                         onChange={e=> setOwners(prev => prev.map(o => o.id===row.id ? { ...o, ownershipPercentage: Number(e.target.value) } : o))}
-                        className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" />
+                        className="w-full h-9 px-2 border border-gray-200 rounded-md bg-background text-foreground text-sm" 
+                        aria-label="Ownership percentage" />
                     </div>
                     <div className="col-span-2">
                       <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
                       <input type="number" value={row.disbursementPercentage}
                         onChange={e=> setOwners(prev => prev.map(o => o.id===row.id ? { ...o, disbursementPercentage: Number(e.target.value) } : o))}
-                        className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" />
+                        className="w-full h-9 px-2 border border-gray-200 rounded-md bg-background text-foreground text-sm" 
+                        aria-label="Disbursement percentage" />
                     </div>
                     <div className="col-span-2 flex items-center gap-2">
                       <label className="text-xs text-muted-foreground">Primary</label>
-                      <input type="radio" name="primary-owner" checked={!!row.primary} onChange={()=> setPrimaryOwner(row.id)} />
+                      <input type="radio" name="primary-owner" checked={!!row.primary} onChange={()=> setPrimaryOwner(row.id)} aria-label="Set as primary owner" />
                     </div>
                     <div className="col-span-1 flex justify-end">
                       <button type="button" className="text-destructive" aria-label="Remove owner" onClick={()=> removeOwnerRow(row.id)}>
@@ -615,27 +662,27 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">First name</label>
-                        <input value={createFirst} onChange={e=>setCreateFirst(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                        <input value={createFirst} onChange={e=>setCreateFirst(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" aria-label="First name" />
                       </div>
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">Last name</label>
-                        <input value={createLast} onChange={e=>setCreateLast(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                        <input value={createLast} onChange={e=>setCreateLast(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" aria-label="Last name" />
                       </div>
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">Email</label>
-                        <input type="email" value={createEmail} onChange={e=>setCreateEmail(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                        <input type="email" value={createEmail} onChange={e=>setCreateEmail(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" aria-label="Email address" />
                       </div>
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">Phone</label>
-                        <input value={createPhone} onChange={e=>setCreatePhone(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                        <input value={createPhone} onChange={e=>setCreatePhone(e.target.value)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" aria-label="Phone number" />
                       </div>
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
-                        <input type="number" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value)||0)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                        <input type="number" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value)||0)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" aria-label="Ownership percentage" />
                       </div>
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
-                        <input type="number" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value)||0)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" />
+                        <input type="number" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value)||0)} className="w-full h-9 px-2 border rounded-md bg-background text-sm" aria-label="Disbursement percentage" />
                       </div>
                       <div className="flex items-center gap-2">
                         <input id="new-owner-primary" type="checkbox" checked={createPrimary} onChange={e=>setCreatePrimary(e.target.checked)} />
@@ -652,6 +699,14 @@ export default function PropertyDetailsCard({ property }: { property: any }) {
             </RepeaterField>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="mt-6 flex items-center gap-4">
+            <Button onClick={save} disabled={saving || ownershipTotal !== 100}>
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+            <Button variant="ghost" onClick={()=> setEditing(false)}>Cancel</Button>
           </div>
         </div>
       }
