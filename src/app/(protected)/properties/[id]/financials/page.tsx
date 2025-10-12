@@ -9,6 +9,64 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { supabase, supabaseAdmin } from '@/lib/db'
 
+type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled'
+
+const BILL_STATUS_OPTIONS: { slug: string; label: BillStatusLabel }[] = [
+  { slug: 'overdue', label: 'Overdue' },
+  { slug: 'due', label: 'Due' },
+  { slug: 'partially-paid', label: 'Partially paid' },
+  { slug: 'paid', label: 'Paid' },
+  { slug: 'cancelled', label: 'Cancelled' },
+]
+
+const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.slug, opt.label]))
+const BILL_STATUS_LABEL_TO_SLUG = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.label, opt.slug]))
+
+function normalizeBillStatus(value: any): BillStatusLabel {
+  switch (String(value ?? '').toLowerCase()) {
+    case 'overdue':
+      return 'Overdue'
+    case 'due':
+    case 'pending':
+      return 'Due'
+    case 'partiallypaid':
+    case 'partially_paid':
+    case 'partially paid':
+      return 'Partially paid'
+    case 'paid':
+      return 'Paid'
+    case 'cancelled':
+      return 'Cancelled'
+    case '':
+    default:
+      return ''
+  }
+}
+
+function deriveBillStatusFromDates(
+  currentStatus: BillStatusLabel,
+  dueDateIso: string | null,
+  paidDateIso: string | null
+): BillStatusLabel {
+  if (currentStatus === 'Cancelled') return 'Cancelled'
+  if (currentStatus === 'Partially paid') return 'Partially paid'
+  if (currentStatus === 'Paid') return 'Paid'
+  if (paidDateIso) return 'Paid'
+
+  if (dueDateIso) {
+    const due = new Date(`${dueDateIso}T00:00:00Z`)
+    if (!Number.isNaN(due.getTime())) {
+      const today = new Date()
+      const todayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+      if (due < todayStart) {
+        return 'Overdue'
+      }
+    }
+  }
+
+  return 'Due'
+}
+
 export default async function FinancialsTab({
   params,
   searchParams,
@@ -375,7 +433,7 @@ export default async function FinancialsTab({
 
             // Parse filters
             const spVendors = typeof sp?.vendors === 'string' ? sp.vendors : ''
-            const spBStatus = typeof sp?.bstatus === 'string' ? sp.bstatus : ''
+            const spStatusRaw = typeof sp?.bstatus === 'string' ? sp.bstatus : ''
 
             let selectedUnitIdsBills: string[]
             if (unitsParam === 'none') selectedUnitIdsBills = []
@@ -385,10 +443,21 @@ export default async function FinancialsTab({
             const allVendorIds = vendorOptions.map((v) => v.id)
             let selectedVendorIds = spVendors ? spVendors.split(',').map((s: string) => s.trim()).filter((s: string) => allVendorIds.includes(s)) : [...allVendorIds]
             if (selectedVendorIds.length === 0) selectedVendorIds = [...allVendorIds]
-
-            const allStatuses = ['overdue','pending','partiallypaid','paid','cancelled']
-            let selectedStatuses = spBStatus ? spBStatus.split(',').map((s: string) => s.trim().toLowerCase()).filter((s: string) => allStatuses.includes(s)) : ['overdue','pending','partiallypaid']
-            if (selectedStatuses.length === 0) selectedStatuses = ['overdue','pending','partiallypaid']
+            const statusParamSlugs = spStatusRaw
+              ? spStatusRaw
+                  .split(',')
+                  .map((s: string) => s.trim().toLowerCase())
+                  .filter((slug: string) => BILL_STATUS_SLUG_TO_LABEL.has(slug))
+              : []
+            const defaultStatusSlugs = statusParamSlugs.length
+              ? statusParamSlugs
+              : ['overdue', 'due', 'partially-paid']
+            const selectedStatuses = defaultStatusSlugs
+              .map((slug) => BILL_STATUS_SLUG_TO_LABEL.get(slug))
+              .filter((label): label is BillStatusLabel => Boolean(label))
+            const statusFilterSet = new Set(selectedStatuses)
+            const statusFilterActive =
+              statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length
 
             // Fetch matching transaction ids for this property (via lines)
             let qLine = (db as any).from('transaction_lines').select('transaction_id, unit_id').eq('property_id', id)
@@ -402,7 +471,7 @@ export default async function FinancialsTab({
             if (txIds.length) {
               let qTx = (db as any)
                 .from('transactions')
-                .select('id, date, due_date, total_amount, status, memo, reference_number, vendor_id, transaction_type')
+                .select('id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type')
                 .in('id', txIds)
                 .eq('transaction_type', 'Bill')
                 .order('due_date', { ascending: true })
@@ -412,13 +481,31 @@ export default async function FinancialsTab({
               }
 
               const { data: txData } = await qTx
-              const todayIso = new Date().toISOString().slice(0, 10)
-              billRows = (txData || []).filter((row: any) => {
-                const status = String(row.status || '').toLowerCase()
-                const isOverdue = (row.due_date || '') < todayIso && status !== 'paid' && status !== 'cancelled'
-                const matchOverdue = selectedStatuses.includes('overdue') && isOverdue
-                const matchExplicit = selectedStatuses.includes(status)
-                return matchOverdue || matchExplicit
+              const statusUpdates: { id: string; status: BillStatusLabel }[] = []
+              const enrichedRows = (txData || []).map((row: any) => {
+                const current = normalizeBillStatus(row.status)
+                const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date)
+                if (derived !== current) {
+                  statusUpdates.push({ id: row.id, status: derived })
+                }
+                return { ...row, status: derived }
+              })
+
+              if (statusUpdates.length) {
+                try {
+                  await Promise.all(
+                    statusUpdates.map((update) =>
+                      (db as any).from('transactions').update({ status: update.status }).eq('id', update.id)
+                    )
+                  )
+                } catch (error) {
+                  console.error('Failed to update bill transaction status', error)
+                }
+              }
+
+              billRows = enrichedRows.filter((row: any) => {
+                if (!statusFilterActive) return true
+                return statusFilterSet.has(row.status as BillStatusLabel)
               })
             }
 
@@ -427,16 +514,6 @@ export default async function FinancialsTab({
 
             const countLabel = `${billRows.length} match${billRows.length === 1 ? '' : 'es'}`
 
-            const formatStatus = (value: any) => {
-              if (!value) return '—'
-              const normalized = String(value)
-              return normalized
-                .replace(/([a-z])([A-Z])/g, '$1 $2')
-                .replace(/_/g, ' ')
-                .toLowerCase()
-                .replace(/\b\w/g, (char) => char.toUpperCase())
-            }
-
             // Render
             return (
               <div className="space-y-4">
@@ -444,7 +521,7 @@ export default async function FinancialsTab({
                   <BillsFilters
                     defaultUnitIds={selectedUnitIdsBills}
                     defaultVendorIds={selectedVendorIds}
-                    defaultStatuses={selectedStatuses}
+                    defaultStatuses={defaultStatusSlugs}
                     unitOptions={unitOptions}
                     vendorOptions={vendorOptions}
                   />
@@ -474,7 +551,7 @@ export default async function FinancialsTab({
                         billRows.map((row) => (
                           <TableRow key={row.id}>
                             <TableCell>{row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}</TableCell>
-                            <TableCell>{formatStatus(row.status)}</TableCell>
+                            <TableCell>{row.status || '—'}</TableCell>
                             <TableCell className="text-foreground">{vendorMap.get(String(row.vendor_id)) || '—'}</TableCell>
                             <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
                             <TableCell>{row.reference_number || '—'}</TableCell>

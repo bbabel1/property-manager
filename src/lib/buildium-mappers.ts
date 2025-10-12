@@ -2647,6 +2647,8 @@ export function mapBillFromBuildium(buildiumBill: BuildiumBill): any {
   }
 }
 
+type LocalBillStatus = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled'
+
 function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid' {
   switch (localStatus?.toLowerCase()) {
     case 'paid':
@@ -2655,6 +2657,7 @@ function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Ove
       return 'Overdue'
     case 'cancelled':
       return 'Cancelled'
+    case 'partially paid':
     case 'partially_paid':
     case 'partiallypaid':
       return 'PartiallyPaid'
@@ -2663,13 +2666,66 @@ function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Ove
   }
 }
 
-function mapBillStatusFromBuildium(buildiumStatus: 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid'): string {
+function mapBillStatusFromBuildium(
+  buildiumStatus: 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid'
+): LocalBillStatus {
   switch (buildiumStatus) {
+    case 'Overdue':
+      return 'Overdue'
+    case 'Cancelled':
+      return 'Cancelled'
+    case 'Paid':
+      return 'Paid'
     case 'PartiallyPaid':
-      return 'partially_paid'
+      return 'Partially paid'
+    case 'Pending':
     default:
-      return buildiumStatus.toLowerCase()
+      return 'Due'
   }
+}
+
+function normalizeLocalBillStatus(value: string | null | undefined): LocalBillStatus {
+  switch (String(value ?? '').toLowerCase()) {
+    case 'overdue':
+      return 'Overdue'
+    case 'due':
+    case 'pending':
+      return 'Due'
+    case 'partiallypaid':
+    case 'partially_paid':
+    case 'partially paid':
+      return 'Partially paid'
+    case 'paid':
+      return 'Paid'
+    case 'cancelled':
+      return 'Cancelled'
+    case '':
+      return ''
+    default:
+      return ''
+  }
+}
+
+function deriveLocalBillStatus(
+  buildiumStatus: LocalBillStatus,
+  dueDateIso: string | null,
+  paidDateIso: string | null
+): LocalBillStatus {
+  if (buildiumStatus === 'Cancelled') return 'Cancelled'
+  if (buildiumStatus === 'Partially paid') return 'Partially paid'
+  if (buildiumStatus === 'Paid') return 'Paid'
+  if (paidDateIso) return 'Paid'
+
+  if (dueDateIso) {
+    const due = new Date(`${dueDateIso}T00:00:00Z`)
+    const today = new Date()
+    const todayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+    if (!Number.isNaN(due.getTime()) && due < todayStart) {
+      return 'Overdue'
+    }
+  }
+
+  return 'Due'
 }
 
 // ============================================================================
@@ -2767,16 +2823,21 @@ export async function mapBillTransactionFromBuildium(
   const vendorId = await resolveLocalVendorIdFromBuildium(buildiumBill?.VendorId ?? null, supabase)
   const categoryId = await resolveBillCategoryIdFromBuildium(buildiumBill?.CategoryId ?? null, supabase)
 
+  const normalizedDueDate = buildiumBill?.DueDate ? normalizeDateString(buildiumBill?.DueDate) : null
+  const normalizedPaidDate = buildiumBill?.PaidDate ? normalizeDateString(buildiumBill?.PaidDate) : null
+  const initialStatus = mapBillStatusFromBuildium((buildiumBill?.Status as any) || 'Pending')
+  const localStatus = deriveLocalBillStatus(initialStatus, normalizedDueDate, normalizedPaidDate)
+
   return {
     buildium_bill_id: buildiumBill?.Id ?? null,
     date: normalizeDateString(buildiumBill?.Date),
-    due_date: buildiumBill?.DueDate ? normalizeDateString(buildiumBill?.DueDate) : null,
-    paid_date: buildiumBill?.PaidDate ? normalizeDateString(buildiumBill?.PaidDate) : null,
+    due_date: normalizedDueDate,
+    paid_date: normalizedPaidDate,
     total_amount: Number(buildiumBill?.Amount ?? 0),
     reference_number: buildiumBill?.ReferenceNumber ?? null,
     memo: buildiumBill?.Description ?? null,
     transaction_type: 'Bill',
-    status: mapBillStatusFromBuildium((buildiumBill?.Status as any) || 'Pending'),
+    status: localStatus,
     vendor_id: vendorId,
     category_id: categoryId,
     updated_at: nowIso

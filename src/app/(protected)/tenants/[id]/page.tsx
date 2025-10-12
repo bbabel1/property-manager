@@ -46,6 +46,9 @@ type ContactQueryRow = { contact: ContactDetails | null } | null
 type LeaseContactRow = {
   role: string
   status: string
+  lease_id: number
+  move_in_date: string | null
+  tenants: { id: string }[]
   lease: {
     id: number
     lease_from_date: string | null
@@ -54,7 +57,7 @@ type LeaseContactRow = {
     rent_amount: number | null
     property_id: string | number | null
     unit_id: string | number | null
-  } | null
+  }[]
 }
 
 function fmtDate(value?: string | null) {
@@ -89,10 +92,12 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
     const unitIds = new Set<string>()
 
     for (const row of leaseRows) {
-      const lease = row?.lease
-      if (!lease) continue
-      if (lease.property_id != null) propertyIds.add(String(lease.property_id))
-      if (lease.unit_id != null) unitIds.add(String(lease.unit_id))
+      const leaseArray = row?.lease
+      if (!leaseArray || !Array.isArray(leaseArray)) continue
+      for (const lease of leaseArray) {
+        if (lease.property_id != null) propertyIds.add(String(lease.property_id))
+        if (lease.unit_id != null) unitIds.add(String(lease.unit_id))
+      }
     }
 
     const propertyIdList = Array.from(propertyIds)
@@ -121,29 +126,31 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
     }
 
     for (const row of leaseRows) {
-      const lease = row?.lease
-      if (!lease) continue
+      const leaseArray = row?.lease
+      if (!leaseArray || !Array.isArray(leaseArray)) continue
 
-      const propertyRow = lease.property_id != null ? propertyById.get(String(lease.property_id)) : undefined
-      const unitRow = lease.unit_id != null ? unitById.get(String(lease.unit_id)) : undefined
+      for (const lease of leaseArray) {
+        const propertyRow = lease.property_id != null ? propertyById.get(String(lease.property_id)) : undefined
+        const unitRow = lease.unit_id != null ? unitById.get(String(lease.unit_id)) : undefined
 
-      const streetLine = propertyRow?.address_line1 || unitRow?.address_line1 || propertyRow?.name || null
-      const unitNumber = unitRow?.unit_number || null
-      const unitLabel = [streetLine, unitNumber].filter(Boolean).join(' - ')
+        const streetLine = propertyRow?.address_line1 || unitRow?.address_line1 || propertyRow?.name || null
+        const unitNumber = unitRow?.unit_number || null
+        const unitLabel = [streetLine, unitNumber].filter(Boolean).join(' - ')
 
-      const unitName = unitLabel || unitRow?.unit_name || propertyRow?.address_line1 || propertyRow?.name || unitNumber || null
-      const propertyUnit = unitLabel || propertyRow?.address_line1 || propertyRow?.name || unitRow?.unit_name || unitNumber || null
+        const unitName = unitLabel || unitRow?.unit_name || propertyRow?.address_line1 || propertyRow?.name || unitNumber || null
+        const propertyUnit = unitLabel || propertyRow?.address_line1 || propertyRow?.name || unitRow?.unit_name || unitNumber || null
 
-      leases.push({
-        id: lease.id,
-        start: lease.lease_from_date,
-        end: lease.lease_to_date,
-        type: lease.lease_type,
-        rent: lease.rent_amount,
-        propertyUnit,
-        status: row.status,
-        unitName,
-      })
+        leases.push({
+          id: lease.id,
+          start: lease.lease_from_date,
+          end: lease.lease_to_date,
+          type: lease.lease_type,
+          rent: lease.rent_amount,
+          propertyUnit,
+          status: row.status,
+          unitName,
+        })
+      }
     }
   }
 

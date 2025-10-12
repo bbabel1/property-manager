@@ -55,8 +55,8 @@ export default function BillsFilters({
   const statusOptionsFormatted = useMemo(
     () => [
       { value: 'overdue', label: 'Overdue', group: 'Status', groupLabel: 'Status' },
-      { value: 'pending', label: 'Pending', group: 'Status', groupLabel: 'Status' },
-      { value: 'partiallypaid', label: 'Partially paid', group: 'Status', groupLabel: 'Status' },
+      { value: 'due', label: 'Due', group: 'Status', groupLabel: 'Status' },
+      { value: 'partially-paid', label: 'Partially paid', group: 'Status', groupLabel: 'Status' },
       { value: 'paid', label: 'Paid', group: 'Status', groupLabel: 'Status' },
       { value: 'cancelled', label: 'Cancelled', group: 'Status', groupLabel: 'Status' },
     ],
@@ -84,7 +84,7 @@ export default function BillsFilters({
   function handleStatusChange(ids: string[]) {
     setStatusIds(ids)
     updateSearch((p) => {
-      const all = ['overdue','pending','partiallypaid','paid','cancelled']
+      const all = ['overdue', 'due', 'partially-paid', 'paid', 'cancelled']
       if (!ids.length || ids.length === all.length) p.delete('bstatus')
       else p.set('bstatus', ids.join(','))
     })
@@ -134,4 +134,3 @@ export default function BillsFilters({
     </div>
   )
 }
-
