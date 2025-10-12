@@ -157,8 +157,8 @@ export default function DateRangeControls({ defaultFrom, defaultTo, defaultRange
   function handlePresetChange(next: PresetValue) {
     setRange(next)
     if (next === "custom") {
-      updateSearch((url) => {
-        url.searchParams.delete("range")
+      updateSearch((params) => {
+        params.delete("range")
       })
       return
     }
