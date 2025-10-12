@@ -2,7 +2,10 @@
 
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import { resolveGLAccountId, mapPaymentMethodToEnum } from '../../src/lib/buildium-mappers'
+import {
+  resolveGLAccountId,
+  mapPaymentMethodToEnum
+} from '../../src/lib/buildium-mappers'
 
 // Load environment variables first
 config()
@@ -18,6 +21,46 @@ const logger = {
   info: (message: string) => console.log(`[INFO] ${message}`),
   error: (message: string, error?: any) => console.error(`[ERROR] ${message}`, error),
   warn: (message: string) => console.warn(`[WARN] ${message}`)
+}
+
+async function resolveLocalPropertyId(buildiumPropertyId: number | null | undefined) {
+  if (!buildiumPropertyId) return null
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('properties')
+      .select('id')
+      .eq('buildium_property_id', buildiumPropertyId)
+      .maybeSingle()
+
+    if (error) {
+      logger.warn(`Failed to resolve local property for Buildium property ${buildiumPropertyId}: ${error.message}`)
+      return null
+    }
+    return data?.id ?? null
+  } catch (error: any) {
+    logger.warn(`Error resolving local property ${buildiumPropertyId}: ${error?.message ?? error}`)
+    return null
+  }
+}
+
+async function resolveLocalUnitId(buildiumUnitId: number | null | undefined) {
+  if (!buildiumUnitId) return null
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('units')
+      .select('id')
+      .eq('buildium_unit_id', buildiumUnitId)
+      .maybeSingle()
+
+    if (error) {
+      logger.warn(`Failed to resolve local unit for Buildium unit ${buildiumUnitId}: ${error.message}`)
+      return null
+    }
+    return data?.id ?? null
+  } catch (error: any) {
+    logger.warn(`Error resolving local unit ${buildiumUnitId}: ${error?.message ?? error}`)
+    return null
+  }
 }
 
 async function fetchBillPaymentFromBuildium(billId: number, paymentId: number) {
@@ -49,128 +92,183 @@ async function fetchBillPaymentFromBuildium(billId: number, paymentId: number) {
 
 async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: number) {
   try {
-    // Check if payment already exists
-    const { data: existingPayment } = await supabaseAdmin
-      .from('transactions')
-      .select('id, buildium_transaction_id')
-      .eq('buildium_transaction_id', buildiumPayment.Id)
-      .eq('transaction_type', 'Payment')
-      .single()
+    const paymentLines = Array.isArray(buildiumPayment?.Lines) ? buildiumPayment.Lines : []
+    const paymentTotalRaw = paymentLines.reduce((sum: number, line: any) => sum + Number(line?.Amount ?? 0), 0)
+    const paymentTotalAbs = Math.abs(paymentTotalRaw)
+    const totalAmount = paymentTotalRaw === 0 ? 0 : paymentTotalRaw > 0 ? -paymentTotalAbs : paymentTotalRaw
+    const entryDateIso = buildiumPayment.EntryDate ? new Date(buildiumPayment.EntryDate).toISOString() : new Date().toISOString()
+    const entryDate = entryDateIso.split('T')[0]
+    const nowIso = new Date().toISOString()
 
-    if (existingPayment) {
-      logger.info(`Bill payment ${buildiumPayment.Id} already exists in database with ID: ${existingPayment.id}`)
-      
-      // Check if transaction lines already exist
-      const { data: existingLines } = await supabaseAdmin
-        .from('transaction_lines')
-        .select('id')
-        .eq('transaction_id', existingPayment.id)
+    // Derive property/unit context from the first distribution line (if present)
+    const firstLine = paymentLines[0] || {}
+    const buildiumPropertyId = firstLine?.AccountingEntity?.Id ?? null
+    const buildiumUnitId = firstLine?.AccountingEntity?.Unit?.Id
+      ?? firstLine?.AccountingEntity?.UnitId
+      ?? null
+    const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId)
+    const localUnitId = await resolveLocalUnitId(buildiumUnitId)
+    const accountEntityTypeRaw = (firstLine?.AccountingEntity?.AccountingEntityType || 'Rental') as string
+    const accountEntityType = accountEntityTypeRaw.toLowerCase() === 'company' ? 'Company' : 'Rental'
 
-      if (existingLines && existingLines.length > 0) {
-        logger.info(`Transaction lines already exist for payment ${buildiumPayment.Id}`)
-        return existingPayment
+    const accountsPayableGlId = await resolveGLAccountId(7, supabaseAdmin)
+    const { data: bankAccount } = await supabaseAdmin
+      .from('bank_accounts')
+      .select('id, gl_account, property_id, buildium_bank_id')
+      .eq('buildium_bank_id', buildiumPayment.BankAccountId != null ? String(buildiumPayment.BankAccountId) : '')
+      .maybeSingle()
+
+    let bankGlAccountId: string | null = null
+    if (bankAccount?.gl_account) {
+      const { data: bankGl } = await supabaseAdmin
+        .from('gl_accounts')
+        .select('id, is_bank_account')
+        .eq('id', bankAccount.gl_account)
+        .maybeSingle()
+      if (bankGl?.is_bank_account) {
+        bankGlAccountId = bankGl.id
       }
-      
-      // Insert payment lines into transaction_lines table
-      if (buildiumPayment.Lines && buildiumPayment.Lines.length > 0) {
-        for (const line of buildiumPayment.Lines) {
-          await insertPaymentLine(existingPayment.id, line, billId)
-        }
-      }
-      
-      return existingPayment
+    }
+    if (!bankGlAccountId && buildiumPayment.BankAccountId) {
+      bankGlAccountId = await resolveGLAccountId(buildiumPayment.BankAccountId, supabaseAdmin)
     }
 
-    // Get lease_id from the bill's lease_id
+    // Pull lease context from the originating bill
     const { data: billData } = await supabaseAdmin
       .from('transactions')
       .select('lease_id')
       .eq('buildium_bill_id', billId)
       .eq('transaction_type', 'Bill')
-      .single()
+      .maybeSingle()
+    const leaseId = billData?.lease_id ?? null
 
-    const leaseId = billData?.lease_id || 1 // Default to 1 if not found
-
-    // Calculate total amount from lines
-    const totalAmount = buildiumPayment.Lines?.reduce((sum: number, line: any) => sum + (line.Amount || 0), 0) || 0
-
-    // Insert the payment as a transaction
-    const { data: insertedPayment, error: insertError } = await supabaseAdmin
-      .from('transactions')
-      .insert({
-        buildium_transaction_id: buildiumPayment.Id,
-        date: buildiumPayment.EntryDate,
-        transaction_type: 'Payment',
-        total_amount: totalAmount,
-        check_number: buildiumPayment.CheckNumber || '',
-        lease_id: leaseId,
-        payee_tenant_id: buildiumPayment.PayeeTenantId,
-        payment_method: mapPaymentMethodToEnum(buildiumPayment.PaymentMethod),
-        memo: buildiumPayment.Memo,
-        buildium_bill_id: billId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select('*')
-      .single()
-
-    if (insertError) {
-      logger.error('Error inserting bill payment into database:', insertError)
-      throw insertError
+    const paymentHeader = {
+      buildium_transaction_id: buildiumPayment.Id,
+      date: entryDate,
+      transaction_type: 'Payment' as const,
+      total_amount: totalAmount,
+      check_number: buildiumPayment.CheckNumber || '',
+      lease_id: leaseId,
+      payee_tenant_id: buildiumPayment.PayeeTenantId ?? null,
+      payment_method: mapPaymentMethodToEnum(buildiumPayment.PaymentMethod),
+      memo: buildiumPayment.Memo ?? null,
+      buildium_bill_id: billId,
+      bank_account_id: bankAccount?.id ?? null,
+      updated_at: nowIso
     }
 
-    logger.info(`Successfully inserted bill payment into transactions table with ID: ${insertedPayment.id}`)
+    // Upsert header
+    const { data: existingPayment } = await supabaseAdmin
+      .from('transactions')
+      .select('id, created_at')
+      .eq('buildium_transaction_id', buildiumPayment.Id)
+      .eq('transaction_type', 'Payment')
+      .maybeSingle()
 
-    // Insert payment lines into transaction_lines table
-    if (buildiumPayment.Lines && buildiumPayment.Lines.length > 0) {
-      for (const line of buildiumPayment.Lines) {
-        await insertPaymentLine(insertedPayment.id, line, billId)
+    let transactionId: string
+    if (existingPayment) {
+      const { error: updateError } = await supabaseAdmin
+        .from('transactions')
+        .update(paymentHeader)
+        .eq('id', existingPayment.id)
+      if (updateError) {
+        logger.error('Failed to update existing payment header', updateError)
+        throw updateError
+      }
+      transactionId = existingPayment.id
+    } else {
+      const { data: insertedPayment, error: insertError } = await supabaseAdmin
+        .from('transactions')
+        .insert({ ...paymentHeader, created_at: nowIso })
+        .select('*')
+        .single()
+      if (insertError) {
+        logger.error('Error inserting bill payment into database:', insertError)
+        throw insertError
+      }
+      logger.info(`Successfully inserted bill payment into transactions table with ID: ${insertedPayment.id}`)
+      transactionId = insertedPayment.id
+    }
+
+    // Refresh ledger lines
+    await supabaseAdmin
+      .from('transaction_lines')
+      .delete()
+      .eq('transaction_id', transactionId)
+
+    const propertyIdForLines = localPropertyId ?? bankAccount?.property_id ?? null
+    const lineTimestamp = nowIso
+    const lineDate = entryDate
+    const memo = buildiumPayment.Memo ?? null
+    const ledgerLines: any[] = []
+
+    if (accountsPayableGlId && paymentTotalAbs > 0) {
+      ledgerLines.push({
+        transaction_id: transactionId,
+        gl_account_id: accountsPayableGlId,
+        amount: paymentTotalAbs,
+        posting_type: 'Debit',
+        memo,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? null,
+        date: lineDate,
+        created_at: lineTimestamp,
+        updated_at: lineTimestamp,
+        buildium_property_id: buildiumPropertyId,
+        buildium_unit_id: buildiumUnitId,
+        buildium_lease_id: null,
+        property_id: propertyIdForLines,
+        unit_id: localUnitId
+      })
+    } else {
+      if (!accountsPayableGlId) {
+        logger.warn('Unable to resolve Accounts Payable GL account; payment ledger will be incomplete')
       }
     }
 
-    return insertedPayment
-  } catch (error) {
-    logger.error('Error in insertBillPaymentIntoDatabase:', error)
-    throw error
-  }
-}
-
-async function insertPaymentLine(transactionId: string, line: any, billId: number) {
-  try {
-    // Resolve or create local GL account from Buildium GL account ID
-    const glAccountId = await resolveGLAccountId(line.GLAccountId, supabaseAdmin)
-
-    // Get property and unit info from the accounting entity
-    const propertyId = line.AccountingEntity?.Id || null
-    const unitId = line.AccountingEntity?.UnitId || null
-
-    const { data: insertedLine, error: insertError } = await supabaseAdmin
-      .from('transaction_lines')
-      .insert({
+    if (bankGlAccountId && paymentTotalAbs > 0) {
+      ledgerLines.push({
         transaction_id: transactionId,
-        gl_account_id: glAccountId,
-        amount: line.Amount,
-        memo: line.Memo || null,
-        date: new Date().toISOString().split('T')[0], // Use current date
-        account_entity_type: line.AccountingEntity?.AccountingEntityType || 'Rental',
-        buildium_property_id: propertyId,
-        buildium_unit_id: unitId,
-        posting_type: 'Credit', // Payment lines are typically credits
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        gl_account_id: bankGlAccountId,
+        amount: paymentTotalAbs,
+        posting_type: 'Credit',
+        memo,
+        account_entity_type: accountEntityType,
+        account_entity_id: buildiumPropertyId ?? null,
+        date: lineDate,
+        created_at: lineTimestamp,
+        updated_at: lineTimestamp,
+        buildium_property_id: buildiumPropertyId,
+        buildium_unit_id: buildiumUnitId,
+        buildium_lease_id: null,
+        property_id: propertyIdForLines,
+        unit_id: localUnitId
       })
-      .select('*')
-      .single()
-
-    if (insertError) {
-      logger.error('Error inserting payment line:', insertError)
-      throw insertError
+    } else {
+      if (!bankGlAccountId) {
+        logger.warn(`Unable to resolve bank GL account for Buildium bank ${buildiumPayment.BankAccountId}; cash balance will be off`)
+      }
     }
 
-    logger.info(`Successfully inserted payment line with ID: ${insertedLine.id}`)
-    return insertedLine
+    if (ledgerLines.length > 0) {
+      const { error: lineInsertError } = await supabaseAdmin
+        .from('transaction_lines')
+        .insert(ledgerLines)
+      if (lineInsertError) {
+        logger.error('Failed to insert payment ledger lines', lineInsertError)
+        throw lineInsertError
+      }
+    }
+
+    const { data: refreshed } = await supabaseAdmin
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single()
+
+    return refreshed
   } catch (error) {
-    logger.error('Error in insertPaymentLine:', error)
+    logger.error('Error in insertBillPaymentIntoDatabase:', error)
     throw error
   }
 }
@@ -178,8 +276,13 @@ async function insertPaymentLine(transactionId: string, line: any, billId: numbe
 // Note: GL account resolution is handled by resolveGLAccountId()
 
 async function main() {
-  const billId = 723092
-  const paymentId = 844376
+  const billId = Number(process.argv[2])
+  const paymentId = Number(process.argv[3])
+
+  if (!Number.isFinite(billId) || !Number.isFinite(paymentId)) {
+    console.error('Usage: tsx scripts/buildium/fetch-and-insert-bill-payment.ts <billId> <paymentId>')
+    process.exit(1)
+  }
 
   try {
     logger.info(`Starting bill payment fetch and insert process...`)

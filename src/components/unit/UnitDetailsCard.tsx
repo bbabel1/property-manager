@@ -72,6 +72,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             type="file"
             accept="image/*"
             className="hidden"
+            aria-label="Upload unit image"
             onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return
@@ -190,7 +191,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         </div>
         <div className="mt-2 flex items-center gap-4">
           {/* Reuse image uploader */}
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload unit image"
             onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return

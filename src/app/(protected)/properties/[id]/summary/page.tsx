@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Building2, Edit } from 'lucide-react'
 import { PropertyService } from '@/lib/property-service'
-import PropertyNotes from '@/property/PropertyNotes'
+import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection'
+import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection'
 import Link from 'next/link'
 import { cookies as nextCookies, headers as nextHeaders } from 'next/headers'
 import PropertyDetailsCard from '@/components/property/PropertyDetailsCard'
 import LocationCard from '@/components/property/LocationCard'
-import ManagementServicesCard from '@/components/property/ManagementServicesCard'
-import BankingDetailsCard from '@/components/property/BankingDetailsCard'
+import PropertyBankingAndServicesCard from '@/components/property/PropertyBankingAndServicesCard'
+import { supabaseAdmin } from '@/lib/db'
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -18,9 +19,16 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
   // Fetch property details and financials in parallel for faster TTFB.
   const today = new Date().toISOString().slice(0, 10)
   const propertyPromise = PropertyService.getPropertyById(id)
-  const finPromise = fetch(`/api/properties/${id}/financials?asOf=${today}`, { next: { revalidate: 60, tags: [`property-financials:${id}`] } })
-    .then(r => (r.ok ? r.json() : null))
-    .catch(() => null)
+  const finPromise = supabaseAdmin.rpc('get_property_financials', {
+    p_property_id: id,
+    p_as_of: today
+  }).then(({ data, error }) => {
+    if (error) {
+      console.error('Financials RPC error:', error.message)
+      return null
+    }
+    return data
+  })
 
   let [property, fin] = await Promise.all([propertyPromise, finPromise])
 
@@ -68,17 +76,15 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
         <PropertyDetailsCard property={property} />
 
         <LocationCard property={property} />
+
+        <PropertyRecentNotesSection propertyId={property.id} buildiumPropertyId={property.buildium_property_id ?? null} />
+
+        <PropertyRecentFilesSection propertyId={property.id} buildiumPropertyId={property.buildium_property_id ?? null} />
       </div>
 
       {/* Right rail stacked cards */}
       <div className="space-y-6">
-        <BankingDetailsCard property={property} fin={fin} />
-
-        {/* Management Services */}
-        <ManagementServicesCard property={property} />
-
-        {/* Notes under management services */}
-        <PropertyNotes propertyId={property.id} />
+        <PropertyBankingAndServicesCard property={property} fin={fin} />
       </div>
     </div>
   )

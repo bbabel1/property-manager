@@ -13,10 +13,11 @@ import PropertyNotes from './PropertyNotes'
 
 interface PropertySummaryProps {
   property: PropertyWithDetails
+  fin?: { cash_balance?: number; security_deposits?: number; reserve?: number; available_balance?: number; as_of?: string }
   onPropertyUpdate?: () => void
 }
 
-export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryProps) {
+export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySummaryProps) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showBankingModal, setShowBankingModal] = useState(false)
   const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
@@ -196,20 +197,20 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-foreground">Cash balance:</span>
-                <span className="font-semibold text-foreground">$3,061.80</span>
+                <span className="font-semibold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.cash_balance ?? 0)}</span>
               </div>
               <div className="flex justify-between items-center text-muted-foreground">
                 <span className="pl-4">- Security deposits and early payments:</span>
-                <span>$875.00</span>
+                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.security_deposits ?? 0)}</span>
               </div>
               <div className="flex justify-between items-center text-muted-foreground">
                 <span className="pl-4">- Property reserve:</span>
-                <span>${property.reserve?.toFixed(2) || '200.00'}</span>
+                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.reserve ?? (property.reserve || 0))}</span>
               </div>
               <div className="border-t border-border pt-3">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-foreground">Available:</span>
-                  <span className="text-xl font-bold text-foreground">$2,576.80</span>
+                  <span className="text-xl font-bold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.available_balance ?? 0)}</span>
                 </div>
               </div>
               <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary">
@@ -276,10 +277,6 @@ export function PropertySummary({ property, onPropertyUpdate }: PropertySummaryP
                     </Button>
                   )}
                 </div>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">PROPERTY RESERVE</p>
-                <span className="font-semibold text-foreground">${property.reserve?.toFixed(2) || '200.00'}</span>
               </div>
             </div>
           </div>

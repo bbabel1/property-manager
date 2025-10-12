@@ -306,3 +306,17 @@ html {
 }
 .pac-item { cursor: pointer; }
 .pac-item:hover { background: #f3f4f6; }
+
+/* Dynamic overlay positioning using CSS custom properties */
+.dynamic-overlay {
+  position: fixed;
+  bottom: 0;
+  z-index: 40;
+  overflow: auto;
+  background: var(--background);
+  padding: 1.5rem;
+  padding-bottom: 3rem;
+  top: var(--overlay-top, 0);
+  left: var(--overlay-left, 0);
+  right: 0;
+}

@@ -128,7 +128,7 @@ export default function LeaseHeaderMeta({
                 <div className="flex flex-nowrap gap-4 items-end">
                   <div className="space-y-2 min-w-[10rem] w-40">
                     <label className="block text-[11px] tracking-wide font-semibold text-muted-foreground uppercase mb-1">Status</label>
-                    <select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm">
+                    <select value={status} onChange={(e)=>setStatus(e.target.value)} className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" aria-label="Lease status">
                       {[
                         { v: 'Active', l: 'Active' },
                         { v: 'Draft', l: 'Draft' },
@@ -141,7 +141,7 @@ export default function LeaseHeaderMeta({
                   </div>
                   <div className="space-y-2 min-w-[10rem] w-40">
                     <label className="block text-[11px] tracking-wide font-semibold text-muted-foreground uppercase mb-1">Type</label>
-                    <select value={type} onChange={(e)=>setType(e.target.value)} className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm">
+                    <select value={type} onChange={(e)=>setType(e.target.value)} className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" aria-label="Lease type">
                       {['Fixed','FixedWithRollover','MonthToMonth','AtWill','Other'].map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>

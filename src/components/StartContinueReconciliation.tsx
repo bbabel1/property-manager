@@ -91,6 +91,7 @@ export default function StartContinueReconciliation({
         value={statementDate}
         onChange={(e)=> setStatementDate(e.target.value)}
         className="border rounded px-2 py-1 text-sm"
+        aria-label="Statement ending date"
       />
       <button onClick={start} disabled={busy !== null} className={`border px-2 py-1 rounded text-sm ${busy==='start'?'opacity-60':''}`}>Start</button>
       <button onClick={cont} disabled={busy !== null} className={`border px-2 py-1 rounded text-sm ${busy==='continue'?'opacity-60':''}`}>Continue</button>

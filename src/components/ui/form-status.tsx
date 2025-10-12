@@ -9,6 +9,10 @@ export function FormStatus({ type, message, className }: { type: 'success'|'erro
     : type === 'error'
       ? 'bg-red-50 border-red-200 text-red-700'
       : 'bg-blue-50 border-blue-200 text-blue-700'
-  return <div className={cn(base, styles, className)} role={type === 'error' ? 'alert' : undefined}>{message}</div>
+  
+  if (type === 'error') {
+    return <div className={cn(base, styles, className)} role="alert">{message}</div>
+  }
+  return <div className={cn(base, styles, className)} role="status">{message}</div>
 }
 

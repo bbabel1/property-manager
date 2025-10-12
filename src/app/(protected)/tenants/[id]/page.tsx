@@ -46,15 +46,18 @@ type ContactQueryRow = { contact: ContactDetails | null } | null
 type LeaseContactRow = {
   role: string
   status: string
+  lease_id: number
+  move_in_date: string | null
+  tenants: { id: string }[]
   lease: {
     id: number
     lease_from_date: string | null
     lease_to_date: string | null
     lease_type: string | null
     rent_amount: number | null
-    property_id: number | null
-    unit_id: number | null
-  } | null
+    property_id: string | number | null
+    unit_id: string | number | null
+  }[]
 }
 
 function fmtDate(value?: string | null) {
@@ -84,22 +87,70 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
     id: number; start: string | null; end: string | null; type: string | null; rent: number | null; propertyUnit: string | null; status: string; unitName: string | null
   }> = []
   if (Array.isArray(leaseContacts)) {
-    for (const row of leaseContacts as LeaseContactRow[]) {
-      const lease = row?.lease
-      if (!lease) continue
-      // Resolve property/unit display
-      let propertyUnit: string | null = null
-      let unitRow: any = null
-      try {
-        const [{ data: propertyRow }, { data: unitData }] = await Promise.all([
-          db.from('properties').select('name').eq('id', lease.property_id).maybeSingle(),
-          db.from('units').select('unit_number, unit_name').eq('id', lease.unit_id).maybeSingle(),
-        ])
-        unitRow = unitData
-        if (propertyRow?.name) propertyUnit = propertyRow.name
-        if (unitRow?.unit_number) propertyUnit = propertyUnit ? `${propertyUnit} - ${unitRow.unit_number}` : unitRow.unit_number
-      } catch {}
-      leases.push({ id: lease.id, start: lease.lease_from_date, end: lease.lease_to_date, type: lease.lease_type, rent: lease.rent_amount, propertyUnit, status: row.status, unitName: unitRow?.unit_name || null })
+    const leaseRows = leaseContacts as LeaseContactRow[]
+    const propertyIds = new Set<string>()
+    const unitIds = new Set<string>()
+
+    for (const row of leaseRows) {
+      const leaseArray = row?.lease
+      if (!leaseArray || !Array.isArray(leaseArray)) continue
+      for (const lease of leaseArray) {
+        if (lease.property_id != null) propertyIds.add(String(lease.property_id))
+        if (lease.unit_id != null) unitIds.add(String(lease.unit_id))
+      }
+    }
+
+    const propertyIdList = Array.from(propertyIds)
+    const unitIdList = Array.from(unitIds)
+
+    let propertyRows: Array<{ id: string; name: string | null; address_line1: string | null }> = []
+    if (propertyIdList.length) {
+      const { data } = await db.from('properties').select('id, name, address_line1').in('id', propertyIdList)
+      propertyRows = data ?? []
+    }
+
+    let unitRows: Array<{ id: string; unit_number: string | null; unit_name: string | null; address_line1: string | null }> = []
+    if (unitIdList.length) {
+      const { data } = await db.from('units').select('id, unit_number, unit_name, address_line1').in('id', unitIdList)
+      unitRows = data ?? []
+    }
+
+    const propertyById = new Map<string, { id: string; name: string | null; address_line1: string | null }>()
+    for (const property of propertyRows) {
+      if (property?.id) propertyById.set(String(property.id), property)
+    }
+
+    const unitById = new Map<string, { id: string; unit_number: string | null; unit_name: string | null; address_line1: string | null }>()
+    for (const unit of unitRows) {
+      if (unit?.id) unitById.set(String(unit.id), unit)
+    }
+
+    for (const row of leaseRows) {
+      const leaseArray = row?.lease
+      if (!leaseArray || !Array.isArray(leaseArray)) continue
+
+      for (const lease of leaseArray) {
+        const propertyRow = lease.property_id != null ? propertyById.get(String(lease.property_id)) : undefined
+        const unitRow = lease.unit_id != null ? unitById.get(String(lease.unit_id)) : undefined
+
+        const streetLine = propertyRow?.address_line1 || unitRow?.address_line1 || propertyRow?.name || null
+        const unitNumber = unitRow?.unit_number || null
+        const unitLabel = [streetLine, unitNumber].filter(Boolean).join(' - ')
+
+        const unitName = unitLabel || unitRow?.unit_name || propertyRow?.address_line1 || propertyRow?.name || unitNumber || null
+        const propertyUnit = unitLabel || propertyRow?.address_line1 || propertyRow?.name || unitRow?.unit_name || unitNumber || null
+
+        leases.push({
+          id: lease.id,
+          start: lease.lease_from_date,
+          end: lease.lease_to_date,
+          type: lease.lease_type,
+          rent: lease.rent_amount,
+          propertyUnit,
+          status: row.status,
+          unitName,
+        })
+      }
     }
   }
 

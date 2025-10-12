@@ -85,7 +85,7 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
             Add
           </Button>
         </div>
-        <div className="rounded-lg border border-border bg-background shadow-sm">
+        <div className="rounded-lg border border-border bg-background shadow-sm overflow-hidden">
 
         {loading ? (
           <div className="px-4 py-6 text-sm text-muted-foreground text-center">
@@ -107,39 +107,37 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
             </Button>
           </div>
         ) : (
-          <div className="border-t border-border">
-            <Table>
-              <TableBody>
-                {notes.map((note) => (
-                  <TableRow key={note.id}>
-                    <TableCell className="text-sm">{formatDateTime(note.created_at)}</TableCell>
-                    <TableCell>
-                      <div className="text-sm text-foreground line-clamp-2" title={note.note || ''}>{note.note || '—'}</div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{note.buildium_note_id ? 'Buildium' : 'Private'}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <ActionButton aria-label="Actions" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem onClick={() => setModalOpen(true)}>
-                            <PencilLine className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => alert(note.note || '')}>
-                            <Eye className="mr-2 h-4 w-4" /> View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => console.log('Delete note', note.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <Table>
+            <TableBody className="divide-y divide-border">
+              {notes.map((note) => (
+                <TableRow key={note.id} className="hover:bg-muted/40">
+                  <TableCell className="text-sm">{formatDateTime(note.created_at)}</TableCell>
+                  <TableCell>
+                    <div className="text-sm text-foreground line-clamp-2" title={note.note || ''}>{note.note || '—'}</div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{note.buildium_note_id ? 'Buildium' : 'Private'}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton aria-label="Actions" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => setModalOpen(true)}>
+                          <PencilLine className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => alert(note.note || '')}>
+                          <Eye className="mr-2 h-4 w-4" /> View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => console.log('Delete note', note.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
         </div>
       </div>

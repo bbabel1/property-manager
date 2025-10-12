@@ -397,7 +397,131 @@ class BuildiumClient {
   }
 
   async uploadPropertyImage(propertyId: number, data: any): Promise<BuildiumPropertyImage> {
-    return this.makeRequest<BuildiumPropertyImage>('POST', `/rentals/${propertyId}/images`, data)
+    const fileName: string | undefined = data?.FileName
+    const normalize = normalizeBase64(data?.FileData)
+    const fileData: string | undefined = normalize.base64
+    const description: string | undefined = data?.Description ?? data?.description
+
+    if (!fileName || !fileData) {
+      throw new Error('FileName and FileData are required for property image upload')
+    }
+
+    const directPayload = sanitizeForBuildium({
+      Name: fileName,
+      FileName: fileName,
+      FileData: fileData,
+      Description: description ?? null,
+      ShowInListing: true,
+    })
+
+    try {
+      const createdDirect = await this.makeRequest<BuildiumPropertyImage>('POST', `/rentals/${propertyId}/images`, directPayload)
+      return createdDirect
+    } catch (primaryError) {
+      console.error('Direct Buildium property image upload failed, attempting upload request workflow', {
+        propertyId,
+        error: primaryError instanceof Error ? primaryError.message : primaryError,
+      })
+    }
+
+    const beforeImages = await this.listPropertyImages(propertyId).catch((err) => {
+      console.error('Unable to list property images before upload', {
+        propertyId,
+        error: err instanceof Error ? err.message : err,
+      })
+      return []
+    })
+    const beforeIds = new Set<number>()
+    for (const img of Array.isArray(beforeImages) ? beforeImages : []) {
+      if (typeof img?.Id === 'number') beforeIds.add(img.Id)
+    }
+
+    const metadata = {
+      FileName: fileName,
+      Description: description ?? null,
+      ShowInListing: true,
+    }
+
+    let ticket: any
+    try {
+      ticket = await this.makeRequest<any>('POST', `/rentals/${propertyId}/images/uploadrequests`, metadata)
+    } catch (ticketError) {
+      console.error('Failed to create property image upload request in Buildium', {
+        propertyId,
+        error: ticketError instanceof Error ? ticketError.message : ticketError,
+      })
+      throw ticketError
+    }
+
+    if (!ticket?.BucketUrl || !ticket?.FormData) {
+      throw new Error('Buildium property image upload failed: missing upload ticket data')
+    }
+
+    const binaryString = atob(fileData)
+    const buffer = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      buffer[i] = binaryString.charCodeAt(i)
+    }
+
+    const formData = new FormData()
+    for (const [key, value] of Object.entries(ticket.FormData)) {
+      if (value != null) formData.append(key, value)
+    }
+
+    const mimeType = normalize.mime ?? inferMimeType(fileName) ?? 'application/octet-stream'
+    formData.append('file', new File([buffer], fileName, { type: mimeType }))
+
+    const uploadResponse = await fetch(ticket.BucketUrl, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text().catch(() => '')
+      console.error('Buildium property image binary upload failed', {
+        status: uploadResponse.status,
+        errorText,
+        bucketUrl: ticket.BucketUrl,
+      })
+      throw new Error(`Buildium property image binary upload failed: ${uploadResponse.status} ${errorText}`)
+    }
+
+    const locateUploaded = async (): Promise<BuildiumPropertyImage | null> => {
+      const attempts = 10
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const images = await this.listPropertyImages(propertyId).catch((err) => {
+          console.error('Failed to refresh property images after upload', {
+            propertyId,
+            attempt: i,
+            error: err instanceof Error ? err.message : err,
+          })
+          return []
+        })
+        if (Array.isArray(images) && images.length) {
+          let candidate = images.find((img) => typeof img?.Id === 'number' && !beforeIds.has(img.Id)) || null
+          if (!candidate && ticket?.PhysicalFileName) {
+            candidate = images.find((img: any) => String(img?.PhysicalFileName || '').toLowerCase() === String(ticket.PhysicalFileName || '').toLowerCase()) || null
+          }
+          if (!candidate) {
+            candidate = images[images.length - 1] ?? null
+          }
+          if (candidate) return candidate
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400))
+      }
+      console.error('Failed to locate newly uploaded property image after multiple attempts', {
+        propertyId,
+        beforeCount: beforeIds.size,
+      })
+      return null
+    }
+
+    const createdImage = await locateUploaded()
+    if (!createdImage) {
+      throw new Error('Failed to verify property image upload with Buildium')
+    }
+
+    return createdImage
   }
 
   async updatePropertyImage(propertyId: number, imageId: number, data: any): Promise<BuildiumPropertyImage> {
@@ -610,6 +734,38 @@ class BuildiumClient {
   async getLeaseTransaction(leaseId: number, transactionId: number): Promise<BuildiumLeaseTransaction> {
     return this.makeRequest<BuildiumLeaseTransaction>('GET', `/leases/${leaseId}/transactions/${transactionId}`)
   }
+}
+
+function inferMimeType(fileName?: string): string | undefined {
+  if (!fileName) return undefined
+  const extension = (() => {
+    const parts = fileName.split('.')
+    return parts.length > 1 ? parts.pop()?.toLowerCase() ?? '' : ''
+  })()
+  switch (extension) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'png':
+      return 'image/png'
+    case 'gif':
+      return 'image/gif'
+    case 'webp':
+      return 'image/webp'
+    case 'svg':
+      return 'image/svg+xml'
+    default:
+      return undefined
+  }
+}
+
+function normalizeBase64(value: string | undefined): { base64?: string; mime?: string } {
+  if (!value) return {}
+  const match = value.match(/^data:(.*?);base64,(.*)$/)
+  if (match) {
+    return { mime: match[1], base64: match[2] }
+  }
+  return { base64: value }
 }
 
 // Data mapping functions
@@ -1349,7 +1505,8 @@ async function upsertLeaseTransactionWithLines(
     if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`)
 
     const propertyIdLocal = await resolveLocalPropertyId(supabase, line?.PropertyId ?? null)
-    const unitIdLocal = await resolveLocalUnitId(supabase, line?.UnitId ?? null)
+    const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? null
+    const unitIdLocal = await resolveLocalUnitId(supabase, buildiumUnitId)
 
     await supabase.from('transaction_lines').insert({
       transaction_id: transactionId,
@@ -1363,7 +1520,7 @@ async function upsertLeaseTransactionWithLines(
       created_at: now,
       updated_at: now,
       buildium_property_id: line?.PropertyId ?? null,
-      buildium_unit_id: line?.UnitId ?? null,
+      buildium_unit_id: buildiumUnitId,
       buildium_lease_id: leaseTx.LeaseId ?? null,
       property_id: propertyIdLocal,
       unit_id: unitIdLocal
@@ -1496,7 +1653,9 @@ async function upsertGLEntry(
     if (!glAccountId) throw new Error('Unable to resolve GL account id')
 
     const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
-    const buildiumUnitId = line?.AccountingEntity?.UnitId ?? null
+    const buildiumUnitId = line?.AccountingEntity?.Unit?.Id
+      ?? line?.AccountingEntity?.UnitId
+      ?? null
     const propId = await resolveLocalPropertyId(supabase, buildiumPropertyId)
     const unitId = await resolveLocalUnitId(supabase, buildiumUnitId)
 
