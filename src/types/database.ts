@@ -2341,7 +2341,7 @@ export type Database = {
           requested_by_contact_id: number | null
           requested_by_type: string | null
           scheduled_date: string | null
-          status: string | null
+          status: Database["public"]["Enums"]["transaction_status_enum"]
           subject: string
           task_category_id: string | null
           task_kind: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2375,7 +2375,7 @@ export type Database = {
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
           scheduled_date?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["transaction_status_enum"]
           subject: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2409,7 +2409,7 @@ export type Database = {
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
           scheduled_date?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["transaction_status_enum"]
           subject?: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2728,6 +2728,7 @@ export type Database = {
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt: boolean
+          paid_date: string | null
           recurring_schedule: Json | null
           reference_number: string | null
           status: string | null
@@ -2757,6 +2758,7 @@ export type Database = {
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt?: boolean
+          paid_date?: string | null
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
@@ -2786,6 +2788,7 @@ export type Database = {
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt?: boolean
+          paid_date?: string | null
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
@@ -4186,6 +4189,13 @@ export type Database = {
         | "Savings"
         | "MoneyMarket"
         | "CertificateOfDeposit"
+      transaction_status_enum:
+        | ""
+        | "Overdue"
+        | "Due"
+        | "Partially paid"
+        | "Paid"
+        | "Cancelled"
       buildium_bill_status:
         | "Pending"
         | "Paid"

@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http'
+import { env } from '@/env/server'
 
 export async function GET(
   request: NextRequest,
@@ -25,6 +26,11 @@ export async function GET(
 
     const { id } = params;
 
+    if (!env.BUILDIUM_BASE_URL || !env.BUILDIUM_CLIENT_ID || !env.BUILDIUM_CLIENT_SECRET) {
+      logger.warn('Buildium credentials missing; returning empty property notes list.');
+      return NextResponse.json({ success: true, data: [], count: 0 });
+    }
+
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const limit = searchParams.get('limit') || '50';
@@ -39,25 +45,34 @@ export async function GET(
 
     const prox = await buildiumFetch('GET', `/rentals/${id}/notes`, Object.fromEntries(queryParams.entries()))
     if (!prox.ok) {
-      logger.error(`Buildium property notes fetch failed`);
+      logger.error({ status: prox.status, error: prox.errorText || prox.json }, 'Buildium property notes fetch failed');
 
-      return NextResponse.json(
-        { error: 'Failed to fetch property notes from Buildium', details: prox.errorText || prox.json },
-        { status: prox.status || 502 }
-      );
+      return NextResponse.json({
+        success: true,
+        data: [],
+        count: 0,
+        warning: 'Buildium notes unavailable at the moment.'
+      })
     }
-    const notes = prox.json;
+    const raw = prox.json
+    const list = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.results)
+          ? raw.results
+          : []
 
-    logger.info(`Buildium property notes fetched successfully`);
+    logger.info({ propertyId: id, count: list.length }, 'Buildium property notes fetched successfully');
 
     return NextResponse.json({
       success: true,
-      data: notes,
-      count: notes.length,
+      data: list,
+      count: list.length,
     });
 
   } catch (error) {
-    logger.error(`Error fetching Buildium property notes`);
+    logger.error({ error }, 'Error fetching Buildium property notes');
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -85,6 +100,11 @@ export async function POST(
 
     const { id } = params;
 
+    if (!env.BUILDIUM_BASE_URL || !env.BUILDIUM_CLIENT_ID || !env.BUILDIUM_CLIENT_SECRET) {
+      logger.warn('Buildium credentials missing; cannot create property note.');
+      return NextResponse.json({ error: 'Buildium integration not configured' }, { status: 503 });
+    }
+
     // Parse and validate request body
     const body = await request.json();
     
@@ -93,7 +113,7 @@ export async function POST(
 
     const prox = await buildiumFetch('POST', `/rentals/${id}/notes`, undefined, validatedData)
     if (!prox.ok) {
-      logger.error(`Buildium property note creation failed`);
+      logger.error({ status: prox.status, error: prox.errorText || prox.json }, 'Buildium property note creation failed');
 
       return NextResponse.json(
         { error: 'Failed to create property note in Buildium', details: prox.errorText || prox.json },
@@ -110,7 +130,7 @@ export async function POST(
     }, { status: 201 });
 
   } catch (error) {
-    logger.error(`Error creating Buildium property note`);
+    logger.error({ error }, 'Error creating Buildium property note');
 
     return NextResponse.json(
       { error: 'Internal server error' },

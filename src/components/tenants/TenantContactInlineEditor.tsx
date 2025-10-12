@@ -133,11 +133,11 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
                 <div className="space-y-3">
                   {/* Name Fields */}
                   <div>
-                    <div className="text-xs mb-1">First name</div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase">FIRST NAME</div>
                     <Input value={values.first_name ?? ''} onChange={(e)=>setValues(v=>({ ...v, first_name: e.target.value }))} />
                   </div>
                   <div>
-                    <div className="text-xs mb-1">Last name</div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase">LAST NAME</div>
                     <Input value={values.last_name ?? ''} onChange={(e)=>setValues(v=>({ ...v, last_name: e.target.value }))} />
                   </div>
 

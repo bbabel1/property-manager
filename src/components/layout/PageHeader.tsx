@@ -72,7 +72,7 @@ export default function PageHeader({ property }: Props) {
       <p className="text-muted-foreground text-sm">{subtitleParts.length ? subtitleParts.join(' | ') : '—'}</p>
 
       <div className="border-b border-border mt-2">
-        <nav className="flex space-x-8" aria-label="Property sections">
+        <nav className="flex space-x-8" aria-label="Property sections" role="navigation">
           {tabs.map(t => (
             <Link
               key={t.key}

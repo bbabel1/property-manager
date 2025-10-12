@@ -12,6 +12,13 @@ import {
 } from '@/lib/supabase-client'
 import { mapUIStaffRoleToDB } from '@/lib/enums/staff-roles'
 
+type StaffRow = Database['public']['Tables']['staff']['Row']
+
+interface StaffQueryParams {
+  isActive?: boolean
+  role?: string
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request)
@@ -22,8 +29,7 @@ export async function GET(request: NextRequest) {
     console.log('Staff API: Validated query parameters:', query);
 
     // Fetch staff from database with optional filters
-    const isActive = (query as any)?.isActive
-    const role = (query as any)?.role
+    const { isActive, role } = query as StaffQueryParams
     const client = getServerSupabaseClient()
     let q = client
       .from('staff')
@@ -60,7 +66,7 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching staff:', error)
       // If schema/columns are missing or table is absent, return an empty list for dev
       const msg = String(error.message || '')
-      const code = (error as any).code
+      const code = (error as { code?: string }).code
       if (code === '42703' || msg.includes('does not exist') || msg.includes('Could not find the table')) {
         console.log('Staff schema incomplete or table missing, returning empty array')
         return NextResponse.json([])
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform data to include friendly display name
-    const transformedStaff = (staff || []).map((member: any) => {
+    const transformedStaff = (staff || []).map((member: StaffRow) => {
       const name = [member.first_name, member.last_name].filter(Boolean).join(' ').trim()
       const displayName = name || member.email || `Staff ${member.id}`
       return { ...member, displayName }
@@ -160,7 +166,7 @@ export async function POST(request: NextRequest) {
             const created = await admin.auth.admin.createUser({ email, email_confirm: false })
             staffUserId = created?.data?.user?.id ?? null
           }
-        } catch (e: any) {
+        } catch (e) {
           // Re-check users_with_auth in case user now exists
           try {
             const { data: existing2 } = await admin
@@ -170,7 +176,7 @@ export async function POST(request: NextRequest) {
               .maybeSingle()
             staffUserId = (existing2 as any)?.user_id ?? null
           } catch {}
-          if (!staffUserId) return NextResponse.json({ error: 'Failed to create or invite user', details: e?.message || String(e) }, { status: 500 })
+          if (!staffUserId) return NextResponse.json({ error: 'Failed to create or invite user', details: (e as Error)?.message || String(e) }, { status: 500 })
         }
       }
       if (staffUserId) {
@@ -218,11 +224,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ staff: staffRow })
-  } catch (e: any) {
+  } catch (e) {
     if (e instanceof SupabaseAdminUnavailableError) {
       return NextResponse.json({ error: e.message }, { status: 501 })
     }
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if ((e as Error)?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -242,7 +248,7 @@ export async function PUT(request: NextRequest) {
     }
     const id = body.id
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-    const patch: any = {}
+    const patch: Partial<StaffRow> = {}
     if (body.role) {
       const dbRole = mapUIStaffRoleToDB(body.role)
       if (!dbRole) {
@@ -262,8 +268,8 @@ export async function PUT(request: NextRequest) {
     const { error } = await serverClient.from('staff').update(patch).eq('id', id)
     if (error) return NextResponse.json({ error: 'Failed to update staff', details: error.message }, { status: 500 })
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  } catch (e) {
+    if ((e as Error)?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -278,8 +284,8 @@ export async function DELETE(request: NextRequest) {
     const { error } = await client.from('staff').delete().eq('id', id)
     if (error) return NextResponse.json({ error: 'Failed to delete staff', details: error.message }, { status: 500 })
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  } catch (e) {
+    if ((e as Error)?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

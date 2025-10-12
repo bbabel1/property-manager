@@ -1,6 +1,8 @@
 // Buildium Data Mappers
 // This file contains functions to map between local database format and Buildium API format
 
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '../types/database'
 import type {
   BuildiumProperty,
   BuildiumPropertyCreate,
@@ -20,7 +22,10 @@ import type {
   BuildiumLeaseType,
   BuildiumLeaseTermType,
   BuildiumLeaseRenewalStatus,
-  BuildiumSyncStatus
+  BuildiumSyncStatus,
+  BuildiumLeaseTransaction,
+  BuildiumBankAccount,
+  BuildiumGLAccount
 } from '../types/buildium'
 import type {
   BuildiumWorkOrder,
@@ -30,6 +35,143 @@ import type {
   BuildiumWorkOrderStatus
 } from '../types/buildium'
 
+// Type alias for typed Supabase client
+type TypedSupabaseClient = SupabaseClient<Database>
+
+// ============================================================================
+// RETURN TYPE DEFINITIONS
+// ============================================================================
+
+interface GLEntryHeader {
+  buildium_transaction_id: number | null
+  date: string
+  total_amount: number
+  check_number: string | null
+  memo: string | null
+  transaction_type: string
+  updated_at: string
+}
+
+interface LeaseTransactionData {
+  buildium_transaction_id: number | null
+  lease_id: number | null
+  property_id: string | null
+  unit_id: string | null
+  date: string
+  total_amount: number
+  transaction_type: string
+  payment_method: string | null
+  check_number: string | null
+  memo: string | null
+  updated_at: string
+}
+
+interface StaffData {
+  buildium_staff_id: number
+  first_name: string
+  last_name: string
+  email: string | null
+  phone_number: string | null
+  phone?: string | null
+  role: string | null
+  is_active: boolean
+}
+
+interface PropertyData {
+  buildium_property_id: number
+  name: string
+  address_line1: string
+  address_line2: string | null
+  city: string
+  state: string
+  postal_code: string
+  country: string
+  property_type: string
+  rental_type?: string | null
+  operating_bank_account_id: string | null
+  reserve_bank_account_id: string | null
+  sync_status: BuildiumSyncStatus
+}
+
+interface UnitData {
+  buildium_unit_id: number
+  buildium_property_id: number
+  building_name: string | null | undefined
+  unit_number: string
+  description: string | null | undefined
+  market_rent: number | null | undefined
+  address_line1: string | null | undefined
+  address_line2: string | null | undefined
+  address_line3?: string | null | undefined
+  city: string | null | undefined
+  state: string | null | undefined
+  postal_code: string | null | undefined
+  country: string | null
+  unit_bedrooms: string | null
+  unit_bathrooms: string | null
+  unit_size: number | null | undefined
+}
+
+interface OwnerData {
+  buildium_owner_id: number
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  email: string | null
+  phone_number: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
+  is_company: boolean
+  is_active?: boolean
+  tax_id?: string | null
+}
+
+interface ContactData {
+  is_company: boolean
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  primary_email: string | null
+  alt_email: string | null
+  primary_phone: string | null
+  alt_phone: string | null
+  date_of_birth: string | null
+  primary_address_line_1: string | null
+  primary_address_line_2: string | null
+  primary_address_line_3: string | null
+  primary_city: string | null
+  primary_state: string | null
+  primary_postal_code: string | null
+  primary_country: Database['public']['Enums']['countries'] | null
+  alt_address_line_1: string | null
+  alt_address_line_2: string | null
+  alt_address_line_3: string | null
+  alt_city: string | null
+  alt_state: string | null
+  alt_postal_code: string | null
+  alt_country: Database['public']['Enums']['countries'] | null
+  mailing_preference: string | null
+}
+
+interface VendorData {
+  buildium_vendor_id: number
+  name: string
+  email: string | null
+  phone: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  postal_code: string | null
+  country: string | null
+  category: string | null
+  description: string | null
+  is_active: boolean
+}
 
 // ============================================================================
 // COUNTRY MAPPING UTILITIES
@@ -316,7 +458,9 @@ const BUILDIUM_TO_DATABASE_COUNTRY_MAP: Record<string, string> = {
  * mapCountryFromBuildium('AntiguaandBarbuda') // Returns 'Antigua and Barbuda'
  * mapCountryFromBuildium('Canada') // Returns 'Canada' (no change needed)
  */
-export function mapCountryFromBuildium(buildiumCountry: string | null | undefined): string | null {
+export function mapCountryFromBuildium(
+  buildiumCountry: string | null | undefined
+): Database['public']['Enums']['countries'] | null {
   if (!buildiumCountry) {
     return null
   }
@@ -324,7 +468,7 @@ export function mapCountryFromBuildium(buildiumCountry: string | null | undefine
   // Check if we have a direct mapping
   const mappedCountry = BUILDIUM_TO_DATABASE_COUNTRY_MAP[buildiumCountry]
   if (mappedCountry) {
-    return mappedCountry
+    return mappedCountry as Database['public']['Enums']['countries']
   }
 
   // If no direct mapping found, try to add spaces before capital letters
@@ -334,13 +478,13 @@ export function mapCountryFromBuildium(buildiumCountry: string | null | undefine
   // Check if the spaced version exists in our map
   const spacedMapping = BUILDIUM_TO_DATABASE_COUNTRY_MAP[spacedCountry]
   if (spacedMapping) {
-    return spacedMapping
+    return spacedMapping as Database['public']['Enums']['countries']
   }
 
   // If still no match, return the original value
   // This allows for graceful degradation and easy debugging
   console.warn(`⚠️  No country mapping found for Buildium value: "${buildiumCountry}"`)
-  return buildiumCountry
+  return buildiumCountry as Database['public']['Enums']['countries']
 }
 
 /**
@@ -457,7 +601,7 @@ function showDeprecationWarning(functionName: string, enhancedFunction: string) 
  */
 export async function resolveSubAccounts(
   buildiumSubAccounts: number[] | null | undefined,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string[]> {
   if (!buildiumSubAccounts || buildiumSubAccounts.length === 0) {
     return [];
@@ -509,7 +653,7 @@ export async function resolveSubAccounts(
  */
 export async function resolveGLAccountId(
   buildiumGLAccountId: number | null | undefined,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string | null> {
   if (!buildiumGLAccountId) {
     return null;
@@ -672,19 +816,31 @@ function mapTransactionTypeFromAny(input: string | null | undefined): 'Bill' | '
 /**
  * Maps a Buildium GL Entry header to our transactions table shape
  */
-export function mapGLEntryHeaderFromBuildium(buildiumEntry: any): any {
+export function mapGLEntryHeaderFromBuildium(buildiumEntry: Record<string, unknown>): GLEntryHeader {
   const nowIso = new Date().toISOString()
   const totalAmount = typeof buildiumEntry?.TotalAmount === 'number'
     ? buildiumEntry.TotalAmount
     : Array.isArray(buildiumEntry?.Lines)
-      ? buildiumEntry.Lines.reduce((sum: number, l: any) => sum + Math.abs(Number(l?.Amount || 0)), 0)
+      ? buildiumEntry.Lines.reduce((sum: number, l: unknown) => {
+          const line = l as Record<string, unknown>
+          return sum + Math.abs(Number(line?.Amount || 0))
+        }, 0)
       : 0
+  const rawId = buildiumEntry?.Id
+  const buildiumTransactionId = typeof rawId === 'number'
+    ? rawId
+    : typeof rawId === 'string' && rawId.trim() !== ''
+      ? Number.parseInt(rawId, 10)
+      : null
+  const rawDate = typeof buildiumEntry?.Date === 'string' ? buildiumEntry.Date : null
+  const rawCheckNumber = typeof buildiumEntry?.CheckNumber === 'string' ? buildiumEntry.CheckNumber : null
+  const rawMemo = typeof buildiumEntry?.Memo === 'string' ? buildiumEntry.Memo : null
   return {
-    buildium_transaction_id: buildiumEntry?.Id ?? null,
-    date: normalizeDateString(buildiumEntry?.Date),
+    buildium_transaction_id: Number.isFinite(buildiumTransactionId) ? buildiumTransactionId : null,
+    date: normalizeDateString(rawDate),
     total_amount: Number(totalAmount),
-    check_number: buildiumEntry?.CheckNumber ?? null,
-    memo: buildiumEntry?.Memo ?? null,
+    check_number: rawCheckNumber ?? null,
+    memo: rawMemo ?? null,
     transaction_type: 'JournalEntry',
     updated_at: nowIso
   }
@@ -693,12 +849,12 @@ export function mapGLEntryHeaderFromBuildium(buildiumEntry: any): any {
 /**
  * Upserts a GL Entry (general journal) and its lines into transactions + transaction_lines
  */
-export async function upsertGLEntryWithLines(buildiumEntry: any, supabase: any): Promise<{ transactionId: string }>{
+export async function upsertGLEntryWithLines(buildiumEntry: Record<string, unknown>, supabase: TypedSupabaseClient): Promise<{ transactionId: string }>{
   const nowIso = new Date().toISOString()
   const header = mapGLEntryHeaderFromBuildium(buildiumEntry)
 
   // Look up existing transaction by buildium_transaction_id
-  let existing: any = null
+  let existing: { id: string; created_at: string } | null = null
   {
     const { data, error } = await supabase
       .from('transactions')
@@ -755,7 +911,9 @@ export async function upsertGLEntryWithLines(buildiumEntry: any, supabase: any):
     }
 
     const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
-    const buildiumUnitId = line?.AccountingEntity?.UnitId ?? null
+    const buildiumUnitId = line?.AccountingEntity?.Unit?.Id
+      ?? line?.AccountingEntity?.UnitId
+      ?? null
     const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId, supabase)
     const localUnitId = await resolveLocalUnitId(buildiumUnitId, supabase)
 
@@ -799,21 +957,32 @@ export async function upsertGLEntryWithLines(buildiumEntry: any, supabase: any):
 
   // Upsert into journal_entries table
   try {
+    const rawJeId = buildiumEntry?.Id
+    const jeBuildiumId = typeof rawJeId === 'number'
+      ? rawJeId
+      : typeof rawJeId === 'string' && rawJeId.trim() !== ''
+        ? Number.parseInt(rawJeId, 10)
+        : null
+    const jeDate = typeof buildiumEntry?.Date === 'string' ? buildiumEntry.Date : null
+    const jeMemo = typeof buildiumEntry?.Memo === 'string' ? buildiumEntry.Memo : null
+    const jeCheckNumber = typeof buildiumEntry?.CheckNumber === 'string' ? buildiumEntry.CheckNumber : null
     const je = {
-      buildium_gl_entry_id: buildiumEntry?.Id ?? null,
+      buildium_gl_entry_id: Number.isFinite(jeBuildiumId) ? jeBuildiumId : null,
       transaction_id: transactionId,
-      date: normalizeDateString(buildiumEntry?.Date),
-      memo: buildiumEntry?.Memo ?? null,
-      check_number: buildiumEntry?.CheckNumber ?? null,
+      date: normalizeDateString(jeDate),
+      memo: jeMemo ?? null,
+      check_number: jeCheckNumber ?? null,
       total_amount: pendingLines.reduce((s, l) => s + Number(l.amount || 0), 0),
       updated_at: new Date().toISOString()
     }
     // Check existing
-    const { data: existingJE, error: findErr } = await supabase
+    let journalQuery = supabase
       .from('journal_entries')
       .select('id')
-      .eq('buildium_gl_entry_id', je.buildium_gl_entry_id)
-      .single()
+    journalQuery = je.buildium_gl_entry_id !== null
+      ? journalQuery.eq('buildium_gl_entry_id', je.buildium_gl_entry_id)
+      : journalQuery.is('buildium_gl_entry_id', null)
+    const { data: existingJE, error: findErr } = await journalQuery.single()
     if (findErr && findErr.code !== 'PGRST116') throw findErr
     if (existingJE) {
       const { error } = await supabase
@@ -845,7 +1014,7 @@ export async function upsertGLEntryWithLines(buildiumEntry: any, supabase: any):
  */
 export async function mapTransactionBillToBuildium(
   transactionId: string,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<BuildiumBillCreate> {
   // Fetch transaction and lines
   const { data: tx, error: txErr } = await supabase
@@ -1108,7 +1277,7 @@ async function resolveLocalUnitId(buildiumUnitId: number | null | undefined, sup
  * Maps a Buildium lease transaction object to our transactions insert/update payload.
  * Does not write to DB; used by upsert orchestrator below.
  */
-export function mapLeaseTransactionFromBuildium(buildiumTx: any): any {
+export function mapLeaseTransactionFromBuildium(buildiumTx: Partial<BuildiumLeaseTransaction>): Record<string, unknown> {
   return {
     buildium_transaction_id: buildiumTx.Id,
     date: normalizeDateString(buildiumTx.Date || buildiumTx.TransactionDate || buildiumTx.PostDate),
@@ -1127,7 +1296,7 @@ export function mapLeaseTransactionFromBuildium(buildiumTx: any): any {
  * Enforces that at least one local FK is present (lease_id or any line with property_id/unit_id).
  * Fails the whole import if any GL account cannot be resolved.
  */
-export async function upsertLeaseTransactionWithLines(buildiumTx: any, supabase: any): Promise<{ transactionId: string }> {
+export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<BuildiumLeaseTransaction>, supabase: TypedSupabaseClient): Promise<{ transactionId: string }> {
   const nowIso = new Date().toISOString()
   const mappedTx = mapLeaseTransactionFromBuildium(buildiumTx)
 
@@ -1135,7 +1304,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: any, supabase:
   const localLeaseId = await resolveLocalLeaseId(buildiumTx.LeaseId, supabase)
 
   // Find existing transaction by buildium_transaction_id
-  let existingTx: any = null
+  let existingTx: { id: string; created_at: string } | null = null
   {
     const { data, error } = await supabase
       .from('transactions')
@@ -1196,7 +1365,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: any, supabase:
     }
     // Lease transaction lines may not include explicit accounting entity; default to Rental
     const buildiumPropertyId = line?.PropertyId ?? null
-    const buildiumUnitId = line?.UnitId ?? null
+    const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? null
     const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId, supabase)
     const localUnitId = await resolveLocalUnitId(buildiumUnitId, supabase)
 
@@ -1272,7 +1441,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: any, supabase:
  */
 export async function resolveBankAccountId(
   buildiumOperatingBankAccountId: number | null | undefined,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string | null> {
   if (!buildiumOperatingBankAccountId) {
     return null;
@@ -1409,7 +1578,7 @@ export function mapStaffToBuildium(local: any): BuildiumStaffInput {
   }
 }
 
-export function mapStaffFromBuildium(buildium: any): any {
+export function mapStaffFromBuildium(buildium: Record<string, unknown>): StaffData {
   const role = String(buildium?.Role || '').toLowerCase()
   let localRole: string | null = null
   if (role.includes('assistant')) localRole = 'ASSISTANT_PROPERTY_MANAGER'
@@ -1457,7 +1626,7 @@ export function mapBuildiumToUiPropertyType(buildiumSubType: string | null | und
  * This basic mapper does NOT handle bank account relationships and will result in missing data
  * @see mapPropertyFromBuildiumWithBankAccount
  */
-export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): any {
+export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): PropertyData {
   // Show deprecation warning in development
   if (process.env.NODE_ENV === 'development') {
     showDeprecationWarning('mapPropertyFromBuildium', 'mapPropertyFromBuildiumWithBankAccount')
@@ -1491,7 +1660,7 @@ export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): any
  */
 export async function mapPropertyFromBuildiumWithBankAccount(
   buildiumProperty: BuildiumProperty,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const baseProperty = mapPropertyFromBuildium(buildiumProperty);
   
@@ -1541,7 +1710,7 @@ export function mapUnitToBuildium(localUnit: any): BuildiumUnitCreate {
   }
 }
 
-export function mapUnitFromBuildium(buildiumUnit: BuildiumUnit): any {
+export function mapUnitFromBuildium(buildiumUnit: BuildiumUnit): UnitData {
   return {
     buildium_unit_id: buildiumUnit.Id,
     buildium_property_id: buildiumUnit.PropertyId,
@@ -1723,30 +1892,32 @@ export function mapOwnerToBuildium(localOwner: any): BuildiumOwnerCreate {
   }
 }
 
-export function mapOwnerFromBuildium(buildiumOwner: BuildiumOwner): any {
+export function mapOwnerFromBuildium(buildiumOwner: BuildiumOwner): OwnerData {
+  const mappedCountry = mapCountryFromBuildium(buildiumOwner.Address?.Country) ?? 'United States'
   return {
-    first_name: buildiumOwner.FirstName,
-    last_name: buildiumOwner.LastName,
-    email: buildiumOwner.Email,
-    phone_number: buildiumOwner.PhoneNumber,
-    address_line1: buildiumOwner.Address.AddressLine1,
-    address_line2: buildiumOwner.Address.AddressLine2,
-    city: buildiumOwner.Address.City,
-    state: buildiumOwner.Address.State,
-    postal_code: buildiumOwner.Address.PostalCode,
-    country: mapCountryFromBuildium(buildiumOwner.Address.Country) || 'United States',
-    tax_id: buildiumOwner.TaxId,
-    is_active: buildiumOwner.IsActive,
+    first_name: buildiumOwner.FirstName ?? null,
+    last_name: buildiumOwner.LastName ?? null,
+    email: buildiumOwner.Email ?? null,
+    phone_number: buildiumOwner.PhoneNumber ?? null,
+    address_line1: buildiumOwner.Address?.AddressLine1 ?? null,
+    address_line2: buildiumOwner.Address?.AddressLine2 ?? null,
+    city: buildiumOwner.Address?.City ?? null,
+    state: buildiumOwner.Address?.State ?? null,
+    postal_code: buildiumOwner.Address?.PostalCode ?? null,
+    country: mappedCountry,
+    tax_id: buildiumOwner.TaxId ?? null,
+    is_active: buildiumOwner.IsActive ?? true,
     buildium_owner_id: buildiumOwner.Id,
-    buildium_created_at: buildiumOwner.CreatedDate,
-    buildium_updated_at: buildiumOwner.ModifiedDate
+    company_name: null,
+    is_company: false
   }
 }
 
 /**
  * Maps a Buildium owner into our contacts table shape
  */
-export function mapOwnerToContact(buildiumOwner: BuildiumOwner): any {
+export function mapOwnerToContact(buildiumOwner: BuildiumOwner): ContactData {
+  const mappedPrimaryCountry = mapCountryFromBuildium(buildiumOwner.Address?.Country)
   return {
     is_company: false,
     first_name: buildiumOwner.FirstName || null,
@@ -1763,7 +1934,7 @@ export function mapOwnerToContact(buildiumOwner: BuildiumOwner): any {
     primary_city: buildiumOwner.Address?.City || null,
     primary_state: buildiumOwner.Address?.State || null,
     primary_postal_code: buildiumOwner.Address?.PostalCode || null,
-    primary_country: mapCountryFromBuildium(buildiumOwner.Address?.Country) || null,
+    primary_country: mappedPrimaryCountry,
     alt_address_line_1: null,
     alt_address_line_2: null,
     alt_address_line_3: null,
@@ -1898,7 +2069,7 @@ export function mapVendorToBuildium(localVendor: any): BuildiumVendorCreate {
   }
 }
 
-export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): any {
+export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): VendorData {
   const v: any = buildiumVendor as any
 
   // Handle phones: support both array-of-objects and flat object variants
@@ -1970,7 +2141,7 @@ export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): any {
  */
 export async function resolveVendorCategoryIdFromBuildium(
   buildiumVendor: BuildiumVendor,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string | null> {
   const v: any = buildiumVendor as any
   const buildiumCategoryId: number | null = v?.Category?.Id ?? v?.CategoryId ?? null
@@ -2014,7 +2185,7 @@ export async function resolveVendorCategoryIdFromBuildium(
  */
 export async function mapVendorFromBuildiumWithCategory(
   buildiumVendor: BuildiumVendor,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const base = mapVendorFromBuildium(buildiumVendor)
   try {
@@ -2251,7 +2422,7 @@ export function mapTaskFromBuildium(buildiumTask: any): any {
  */
 export async function mapTaskFromBuildiumWithRelations(
   buildiumTask: any,
-  supabase: any,
+  supabase: TypedSupabaseClient,
   options?: { taskKind?: 'owner' | 'resident' | 'contact' | 'todo' | 'other'; requireCategory?: boolean; defaultCategoryName?: string }
 ): Promise<any> {
   const base = mapTaskFromBuildium(buildiumTask)
@@ -2645,6 +2816,8 @@ export function mapBillFromBuildium(buildiumBill: BuildiumBill): any {
   }
 }
 
+type LocalBillStatus = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled'
+
 function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid' {
   switch (localStatus?.toLowerCase()) {
     case 'paid':
@@ -2653,6 +2826,7 @@ function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Ove
       return 'Overdue'
     case 'cancelled':
       return 'Cancelled'
+    case 'partially paid':
     case 'partially_paid':
     case 'partiallypaid':
       return 'PartiallyPaid'
@@ -2661,13 +2835,44 @@ function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Ove
   }
 }
 
-function mapBillStatusFromBuildium(buildiumStatus: 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid'): string {
+function mapBillStatusFromBuildium(
+  buildiumStatus: 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid'
+): LocalBillStatus {
   switch (buildiumStatus) {
+    case 'Overdue':
+      return 'Overdue'
+    case 'Cancelled':
+      return 'Cancelled'
+    case 'Paid':
+      return 'Paid'
     case 'PartiallyPaid':
-      return 'partially_paid'
+      return 'Partially paid'
+    case 'Pending':
     default:
-      return buildiumStatus.toLowerCase()
+      return 'Due'
   }
+}
+
+function deriveLocalBillStatus(
+  buildiumStatus: LocalBillStatus,
+  dueDateIso: string | null,
+  paidDateIso: string | null
+): LocalBillStatus {
+  if (buildiumStatus === 'Cancelled') return 'Cancelled'
+  if (buildiumStatus === 'Partially paid') return 'Partially paid'
+  if (buildiumStatus === 'Paid') return 'Paid'
+  if (paidDateIso) return 'Paid'
+
+  if (dueDateIso) {
+    const due = new Date(`${dueDateIso}T00:00:00Z`)
+    const today = new Date()
+    const todayStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+    if (!Number.isNaN(due.getTime()) && due < todayStart) {
+      return 'Overdue'
+    }
+  }
+
+  return 'Due'
 }
 
 // ============================================================================
@@ -2680,7 +2885,7 @@ function mapBillStatusFromBuildium(buildiumStatus: 'Pending' | 'Paid' | 'Overdue
  */
 export async function resolveLocalVendorIdFromBuildium(
   buildiumVendorId: number | null | undefined,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string | null> {
   if (!buildiumVendorId) return null
   try {
@@ -2723,7 +2928,7 @@ export async function resolveLocalVendorIdFromBuildium(
  */
 export async function resolveBillCategoryIdFromBuildium(
   buildiumCategoryId: number | null | undefined,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string | null> {
   if (!buildiumCategoryId) return null
   try {
@@ -2759,21 +2964,27 @@ export async function resolveBillCategoryIdFromBuildium(
  */
 export async function mapBillTransactionFromBuildium(
   buildiumBill: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const nowIso = new Date().toISOString()
   const vendorId = await resolveLocalVendorIdFromBuildium(buildiumBill?.VendorId ?? null, supabase)
   const categoryId = await resolveBillCategoryIdFromBuildium(buildiumBill?.CategoryId ?? null, supabase)
 
+  const normalizedDueDate = buildiumBill?.DueDate ? normalizeDateString(buildiumBill?.DueDate) : null
+  const normalizedPaidDate = buildiumBill?.PaidDate ? normalizeDateString(buildiumBill?.PaidDate) : null
+  const initialStatus = mapBillStatusFromBuildium((buildiumBill?.Status as any) || 'Pending')
+  const localStatus = deriveLocalBillStatus(initialStatus, normalizedDueDate, normalizedPaidDate)
+
   return {
     buildium_bill_id: buildiumBill?.Id ?? null,
     date: normalizeDateString(buildiumBill?.Date),
-    due_date: buildiumBill?.DueDate ? normalizeDateString(buildiumBill?.DueDate) : null,
+    due_date: normalizedDueDate,
+    paid_date: normalizedPaidDate,
     total_amount: Number(buildiumBill?.Amount ?? 0),
     reference_number: buildiumBill?.ReferenceNumber ?? null,
     memo: buildiumBill?.Description ?? null,
     transaction_type: 'Bill',
-    status: mapBillStatusFromBuildium((buildiumBill?.Status as any) || 'Pending'),
+    status: localStatus,
     vendor_id: vendorId,
     category_id: categoryId,
     updated_at: nowIso
@@ -2786,7 +2997,7 @@ export async function mapBillTransactionFromBuildium(
  */
 export async function upsertBillWithLines(
   buildiumBill: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<{ transactionId: string }> {
   const nowIso = new Date().toISOString()
   const header = await mapBillTransactionFromBuildium(buildiumBill, supabase)
@@ -2837,7 +3048,9 @@ export async function upsertBillWithLines(
     }
 
     const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
-    const buildiumUnitId = line?.AccountingEntity?.UnitId ?? null
+    const buildiumUnitId = line?.AccountingEntity?.Unit?.Id
+      ?? line?.AccountingEntity?.UnitId
+      ?? null
     const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId, supabase)
     const localUnitId = await resolveLocalUnitId(buildiumUnitId, supabase)
 
@@ -2861,6 +3074,33 @@ export async function upsertBillWithLines(
       property_id: localPropertyId,
       unit_id: localUnitId
     })
+  }
+
+  if (pendingLines.length > 0) {
+    const totalAmount = pendingLines.reduce((sum, current) => sum + Number(current?.amount ?? 0), 0)
+    if (totalAmount > 0) {
+      const accountsPayableGlId = await resolveGLAccountId(7, supabase)
+      if (accountsPayableGlId) {
+        const sample = pendingLines[0] ?? {}
+        pendingLines.push({
+          transaction_id: transactionId,
+          gl_account_id: accountsPayableGlId,
+          amount: totalAmount,
+          posting_type: 'Credit',
+          memo: buildiumBill?.Memo ?? sample?.memo ?? null,
+          account_entity_type: sample?.account_entity_type ?? 'Company',
+          account_entity_id: sample?.account_entity_id ?? null,
+          date: normalizeDateString(buildiumBill?.Date),
+          created_at: nowIso,
+          updated_at: nowIso,
+          buildium_property_id: sample?.buildium_property_id ?? null,
+          buildium_unit_id: sample?.buildium_unit_id ?? null,
+          buildium_lease_id: null,
+          property_id: sample?.property_id ?? null,
+          unit_id: sample?.unit_id ?? null
+        })
+      }
+    }
   }
 
   // Replace existing lines
@@ -2940,7 +3180,7 @@ export function mapGLAccountFromBuildium(buildiumGLAccount: any): any {
  */
 export async function mapGLAccountFromBuildiumWithSubAccounts(
   buildiumGLAccount: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const baseGLAccount = mapGLAccountFromBuildium(buildiumGLAccount);
   
@@ -3011,7 +3251,7 @@ export function mapBankAccountFromBuildium(buildiumBankAccount: any): any {
  */
 export async function mapBankAccountFromBuildiumWithGLAccount(
   buildiumBankAccount: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const baseBankAccount = mapBankAccountFromBuildium(buildiumBankAccount);
   
@@ -3587,7 +3827,7 @@ export async function mapWorkOrderFromBuildiumWithRelations(buildiumWO: Buildium
 
 export async function mapWorkOrderToBuildium(
   localWO: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<BuildiumWorkOrderCreate | BuildiumWorkOrderUpdate> {
   // Resolve Buildium IDs from local UUIDs if provided
   const buildiumPropertyId = await resolveBuildiumPropertyIdFromLocal(localWO.property_id ?? null, supabase)
@@ -3858,7 +4098,7 @@ export async function createLeaseContactRelationship(
   leaseId: number, 
   tenantId: string, 
   role: string, 
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<string> {
   try {
     const leaseContactData = {
@@ -3894,7 +4134,7 @@ export async function createLeaseContactRelationship(
  */
 export async function mapLeaseFromBuildiumWithTenants(
   buildiumLease: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const baseLease = mapLeaseFromBuildium(buildiumLease)
   const tenantRelationships: Array<{ tenantId: string; role: string }> = []
@@ -3954,7 +4194,7 @@ import type {
  */
 export async function mapApplianceFromBuildium(
   appliance: BuildiumAppliance,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<any> {
   const unitId = await resolveLocalUnitId(appliance.UnitId ?? null, supabase)
   const propertyId = await resolveLocalPropertyId(appliance.PropertyId ?? null, supabase)
@@ -3982,7 +4222,7 @@ export async function mapApplianceFromBuildium(
  */
 export async function mapApplianceToBuildium(
   local: any,
-  supabase: any
+  supabase: TypedSupabaseClient
 ): Promise<BuildiumApplianceCreate | BuildiumApplianceUpdate> {
   // Resolve Buildium PropertyId and UnitId from local relations if not provided
   let buildiumUnitId: number | null = null

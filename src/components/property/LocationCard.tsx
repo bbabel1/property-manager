@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import InlineEditCard from '@/components/form/InlineEditCard'
+import EditLink from '@/components/ui/EditLink'
+import { Button } from '@/components/ui/button'
 
 export default function LocationCard({ property }: { property: any }) {
   const [editing, setEditing] = useState(false)
@@ -102,71 +104,105 @@ export default function LocationCard({ property }: { property: any }) {
   )
 
   const edit = (
-    <div className="space-y-6">
-      {error ? <div className="p-3 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">{error}</div> : null}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="rounded-lg border border-gray-200 p-4 text-sm relative bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+      <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-sm" />
+      <button type="button" aria-label="Close" onClick={()=> setEditing(false)} className="absolute right-3 top-3 text-gray-600 hover:text-gray-800">
+        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+      <div className="space-y-6">
+        {/* Location Information */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Borough</label>
-          <input
-            type="text"
-            value={borough}
-            onChange={(e) => setBorough(e.target.value)}
-            className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
-            placeholder="e.g., Manhattan"
-          />
+          <h4 className="text-sm font-medium text-foreground mb-2">Location Information</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Borough</label>
+              <input
+                type="text"
+                value={borough}
+                onChange={(e) => setBorough(e.target.value)}
+                className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm"
+                placeholder="e.g., Manhattan"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Neighborhood</label>
+              <input
+                type="text"
+                value={neighborhood}
+                onChange={(e) => setNeighborhood(e.target.value)}
+                className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm"
+                placeholder="e.g., Upper West Side"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Longitude</label>
+              <input
+                type="number"
+                step="0.000001"
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+                className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm"
+                placeholder="e.g., -73.9857"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Latitude</label>
+              <input
+                type="number"
+                step="0.000001"
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+                className="w-full h-9 px-3 border border-gray-200 rounded-md bg-background text-foreground text-sm"
+                placeholder="e.g., 40.7484"
+              />
+            </div>
+          </div>
         </div>
+
+        {/* Verification */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Neighborhood</label>
-          <input
-            type="text"
-            value={neighborhood}
-            onChange={(e) => setNeighborhood(e.target.value)}
-            className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
-            placeholder="e.g., Upper West Side"
-          />
+          <h4 className="text-sm font-medium text-foreground mb-2">Verification</h4>
+          <div className="flex items-center gap-2">
+            <input id="verified" type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} />
+            <label htmlFor="verified" className="text-sm text-foreground">Location Verified</label>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Longitude</label>
-          <input
-            type="number"
-            step="0.000001"
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
-            placeholder="e.g., -73.9857"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Latitude</label>
-          <input
-            type="number"
-            step="0.000001"
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            className="w-full h-9 px-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
-            placeholder="e.g., 40.7484"
-          />
-        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
-      <div className="flex items-center gap-2">
-        <input id="verified" type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)} />
-        <label htmlFor="verified" className="text-sm text-foreground">Location Verified</label>
+      
+      {/* Action Buttons */}
+      <div className="mt-6 flex items-center gap-4">
+        <Button onClick={onSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+        <Button variant="ghost" onClick={()=> setEditing(false)}>Cancel</Button>
       </div>
     </div>
   )
 
   return (
-    <InlineEditCard
-      title="Location"
-      editing={editing}
-      onEdit={() => setEditing(true)}
-      onCancel={() => { setEditing(false); setError(null) }}
-      onSave={onSave}
-      isSaving={saving}
-      canSave={true}
-      variant="plain"
-      view={view}
-      edit={edit}
-    />
+    <>
+      <div className="mb-4 flex items-center gap-3 border-b border-border pb-3">
+        <h2 className="text-lg font-semibold text-foreground">Location</h2>
+        {!editing && <EditLink onClick={() => setEditing(true)} />}
+      </div>
+      <InlineEditCard
+        title=""
+        editing={editing}
+        onEdit={() => setEditing(true)}
+        onCancel={() => { setEditing(false); setError(null) }}
+        onSave={onSave}
+        isSaving={saving}
+        canSave={true}
+        variant="plain"
+        view={view}
+        edit={edit}
+        titleHidden={true}
+        headerHidden={true}
+      />
+    </>
   )
 }

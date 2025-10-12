@@ -2,9 +2,10 @@ import { DollarSign, TrendingUp, TrendingDown, Users, Building, Banknote } from 
 
 interface PropertyFinancialsProps {
   propertyId: string
+  fin?: { cash_balance?: number; security_deposits?: number; reserve?: number; available_balance?: number; as_of?: string }
 }
 
-export function PropertyFinancials({ propertyId }: PropertyFinancialsProps) {
+export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps) {
   // TODO: Implement real financial data with database integration
   const hasFinancialData = true // Changed to true to show the cash balance layout
 
@@ -16,20 +17,20 @@ export function PropertyFinancials({ propertyId }: PropertyFinancialsProps) {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-foreground">Cash balance:</span>
-            <span className="font-semibold text-foreground">$3,061.80</span>
+            <span className="font-semibold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.cash_balance ?? 0)}</span>
           </div>
           <div className="flex justify-between items-center text-muted-foreground">
             <span className="pl-4">- Security deposits and early payments:</span>
-            <span>$875.00</span>
+            <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.security_deposits ?? 0)}</span>
           </div>
           <div className="flex justify-between items-center text-muted-foreground">
             <span className="pl-4">- Property reserve:</span>
-            <span>$200.00</span>
+            <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.reserve ?? 0)}</span>
           </div>
           <div className="border-t border-border pt-3">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-foreground">Available:</span>
-              <span className="text-xl font-bold text-foreground">$2,576.80</span>
+              <span className="text-xl font-bold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.available_balance ?? 0)}</span>
             </div>
           </div>
         </div>

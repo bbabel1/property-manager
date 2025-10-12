@@ -70,7 +70,7 @@ export default function ClearingPanel({
                   <td className="p-2">{memo}</td>
                   <td className="p-2 text-right">{fmtCurrency(amount)}</td>
                   <td className="p-2 text-center">
-                    <input type="checkbox" defaultChecked={cleared} onChange={e=> toggle(id, e.target.checked)} disabled={isFinished} />
+                    <input type="checkbox" defaultChecked={cleared} onChange={e=> toggle(id, e.target.checked)} disabled={isFinished} aria-label={`Mark transaction as ${cleared ? 'uncleared' : 'cleared'}`} />
                   </td>
                 </tr>
               )

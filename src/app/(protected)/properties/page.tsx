@@ -151,6 +151,7 @@ export default function PropertiesPage() {
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                aria-label="Filter properties by status"
               >
                 <option value="All Status">All Status</option>
                 <option value="Active">Active</option>
@@ -164,6 +165,7 @@ export default function PropertiesPage() {
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
                 className="px-3 py-2 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
+                aria-label="Filter properties by type"
               >
                 <option value="All Types">All Types</option>
                 <option value="None">None</option>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MoreHorizontal, Plus } from 'lucide-react'
 import ActionButton from '@/components/ui/ActionButton'
+import DynamicOverlay from '@/components/ui/DynamicOverlay'
 import RecurringChargeForm from '@/components/leases/RecurringChargeForm'
 import RecurringPaymentForm from '@/components/leases/RecurringPaymentForm'
 import type { LeaseAccountOption } from '@/components/leases/types'
@@ -78,10 +79,7 @@ export default function RecurringTransactionsPanel({ leaseId, rows, accounts, le
 
   if (mode === 'charge' || mode === 'payment') {
     return (
-      <div
-        className="fixed bottom-0 z-40 overflow-auto bg-background px-6 pb-12"
-        style={{ top: `${Math.max(overlayTop, 0)}px`, left: `${Math.max(overlayLeft, 0)}px`, right: 0 }}
-      >
+      <DynamicOverlay overlayTop={overlayTop} overlayLeft={overlayLeft}>
         {mode === 'charge' ? (
           <RecurringChargeForm
             leaseId={leaseId}
@@ -106,7 +104,7 @@ export default function RecurringTransactionsPanel({ leaseId, rows, accounts, le
             }}
           />
         )}
-      </div>
+      </DynamicOverlay>
     )
   }
 

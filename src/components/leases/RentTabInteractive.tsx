@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { MoreHorizontal } from 'lucide-react'
 import ActionButton from '@/components/ui/ActionButton'
+import DynamicOverlay from '@/components/ui/DynamicOverlay'
 import RentScheduleForm, { RentScheduleFormDefaults, RentScheduleFormLeaseSummary } from '@/components/leases/RentScheduleForm'
 
 type RentLogRowDisplay = {
@@ -120,12 +121,9 @@ export default function RentTabInteractive({
 
   if (isAdding) {
     return (
-      <div
-        className="fixed bottom-0 z-40 overflow-auto bg-background px-6 pb-12"
-        style={{ top: `${Math.max(overlayTop, 0)}px`, left: `${Math.max(overlayLeft, 0)}px`, right: 0 }}
-      >
+      <DynamicOverlay overlayTop={overlayTop} overlayLeft={overlayLeft}>
         {formMarkup}
-      </div>
+      </DynamicOverlay>
     )
   }
 

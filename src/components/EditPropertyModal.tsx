@@ -429,7 +429,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="bg-white sm:rounded-2xl rounded-none border-0 shadow-[0_4px_12px_rgba(0,0,0,0.08)] w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
         {/* Header */}
         <DialogHeader className="p-6 border-b border-border">
           <DialogTitle className="text-xl font-semibold text-foreground">Edit Property Details</DialogTitle>
@@ -473,7 +473,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm"
                   placeholder="e.g., Sunset Apartments"
                   required
                 />
@@ -499,7 +499,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                   type="number"
                   value={formData.year_built || ''}
                   onChange={(e) => handleInputChange('year_built', e.target.value ? parseInt(e.target.value) : null)}
-                  className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
                   placeholder="e.g., 2010"
                   min="1800"
                   max={new Date().getFullYear()}
@@ -516,7 +516,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                   type="text"
                                 value=""
               onChange={(e) => {}} // primary_owner removed - now determined from ownerships table
-                  className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary text-sm bg-background text-foreground"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary text-sm bg-background text-foreground"
                   placeholder="e.g., John Smith"
                 />
               </div>
@@ -557,7 +557,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                   type="text"
                   value={formData.city}
                   onChange={e => handleInputChange('city', e.target.value)}
-                  className="w-full h-9 px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
+                  className="w-full h-9 px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
                   placeholder="e.g., Los Angeles"
                   required
                 />
@@ -568,7 +568,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                   type="text"
                   value={formData.state}
                   onChange={e => handleInputChange('state', e.target.value)}
-                  className="w-full h-9 px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
+                  className="w-full h-9 px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
                   placeholder="e.g., CA"
                   required
                 />
@@ -581,7 +581,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                   type="text"
                   value={formData.postal_code}
                   onChange={e => handleInputChange('postal_code', e.target.value)}
-                  className="w-full h-9 px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
+                  className="w-full h-9 px-3 py-2 border border-gray-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-sm bg-background text-foreground"
                   placeholder="e.g., 90210"
                   required
                 />
@@ -631,7 +631,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                       }
                     }}
                   >
-                    <Listbox.Button className="w-full h-9 px-3 py-2 bg-background border border-input rounded-md text-foreground appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary flex items-center justify-between">
+                    <Listbox.Button className="w-full h-9 px-3 py-2 bg-background border border-gray-200 rounded-md text-foreground appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary flex items-center justify-between">
                       <span className="block truncate text-sm">Choose owners to add...</span>
                       <svg className="h-5 w-5 text-muted-foreground ml-2" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
                         <path d="M7 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -701,7 +701,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                               type="number"
                               value={owner.ownershipPercentage}
                               onChange={(e) => updateOwnerPercentage(owner.id, 'ownershipPercentage', Number(e.target.value))}
-                              className="w-full px-2 py-1 border border-input rounded text-sm h-8 bg-background text-foreground"
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm h-8 bg-background text-foreground"
                               min="0"
                               max="100"
                             />
@@ -713,7 +713,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                               type="number"
                               value={owner.disbursementPercentage}
                               onChange={(e) => updateOwnerPercentage(owner.id, 'disbursementPercentage', Number(e.target.value))}
-                              className="w-full px-2 py-1 border border-input rounded text-sm h-8 bg-background text-foreground"
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm h-8 bg-background text-foreground"
                               min="0"
                               max="100"
                             />
