@@ -2999,7 +2999,7 @@ export function mapBillFromBuildium(buildiumBill: BuildiumBill): any {
 
 type LocalBillStatus = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled'
 
-function mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid' {
+function _mapBillStatusToBuildium(localStatus: string): 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid' {
   switch (localStatus?.toLowerCase()) {
     case 'paid':
       return 'Paid'

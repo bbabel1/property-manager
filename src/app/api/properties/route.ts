@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/db'
-import { mapPropertyToBuildium, mapCountryToBuildium, mapUiPropertyTypeToBuildium } from '@/lib/buildium-mappers'
+import { mapPropertyToBuildium, mapCountryToBuildium } from '@/lib/buildium-mappers'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
@@ -25,9 +25,21 @@ import {
 } from '@/lib/normalizers'
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert']
-type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update']
+// type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update'] // Unused
 type UnitsInsert = DatabaseSchema['public']['Tables']['units']['Insert']
 type OwnershipInsert = DatabaseSchema['public']['Tables']['ownerships']['Insert']
+type PropertyRow = DatabaseSchema['public']['Tables']['properties']['Row']
+type OwnershipRow = DatabaseSchema['public']['Tables']['ownerships']['Row']
+type OwnerRow = DatabaseSchema['public']['Tables']['owners']['Row']
+type ContactRow = DatabaseSchema['public']['Tables']['contacts']['Row']
+
+type PropertyWithOwners = PropertyRow & {
+  ownerships?: Array<
+    OwnershipRow & {
+      owners: (OwnerRow & { contacts: ContactRow | null }) | null
+    }
+  > | null
+}
 
 interface PropertyRequestBody {
   propertyType: string
@@ -213,7 +225,7 @@ export async function POST(request: NextRequest) {
             .from('owners')
             .update({ org_id: orgId })
             .in('id', ownerIds)
-            .is('org_id', null as any)
+            .is('org_id', null)
         }
       } catch {}
 
@@ -296,11 +308,11 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to create units' }, { status: 500 })
         }
         // Replace units with inserted rows (for Buildium sync later)
-        (body as any).__insertedUnits = insertedUnits || []
+        (body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string }> }).__insertedUnits = insertedUnits || []
 
         // Mark units pending for sync
         try {
-          await Promise.all(((body as any).__insertedUnits as any[]).map(u => recordSyncStatus(db, u.id, null, 'pending')))
+          await Promise.all(((body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string }> }).__insertedUnits || []).map(u => recordSyncStatus(db, u.id, null, 'pending')))
         } catch {}
       }
     }
@@ -371,7 +383,7 @@ export async function POST(request: NextRequest) {
                     .select('buildium_gl_account_id')
                     .eq('id', full.gl_account)
                     .maybeSingle()
-                  const glId = (gl as any)?.buildium_gl_account_id
+                  const glId = (gl as { buildium_gl_account_id?: number })?.buildium_gl_account_id
                   if (typeof glId === 'number' && glId > 0) payload = { ...payload, GLAccountId: glId }
                 }
               } catch {}
@@ -404,7 +416,7 @@ export async function POST(request: NextRequest) {
           year_built: yearBuilt,
           rental_type: 'Rental',
           property_type: propertyType
-        } as any)
+        } as unknown as PropertyRow)
         // Attach PropertyManagerId from staff.buildium_user_id when available
         if (propertyManagerId) {
           try {
@@ -415,10 +427,10 @@ export async function POST(request: NextRequest) {
               .not('buildium_user_id', 'is', null)
               .single()
             const pmId = pm?.buildium_user_id ? Number(pm.buildium_user_id) : null
-            if (pmId) (propertyPayload as any).PropertyManagerId = pmId
+            if (pmId) (propertyPayload as unknown as Record<string, unknown>).PropertyManagerId = pmId
           } catch {}
         }
-        if (prelinkedOwnerIds.length) (propertyPayload as any).RentalOwnerIds = prelinkedOwnerIds
+        if (prelinkedOwnerIds.length) (propertyPayload as unknown as Record<string, unknown>).RentalOwnerIds = prelinkedOwnerIds
 
         // If request included units, include them in the Buildium property create payload (per Buildium docs)
         let includedUnitsInCreate = false
@@ -473,7 +485,7 @@ export async function POST(request: NextRequest) {
               }
             }))
           if (buildiumUnits.length) {
-            ;(propertyPayload as any).Units = buildiumUnits
+            ;(propertyPayload as unknown as Record<string, unknown>).Units = buildiumUnits
             includedUnitsInCreate = true
           }
         }
@@ -487,12 +499,12 @@ export async function POST(request: NextRequest) {
 
         // Mark syncing and attempt create
         try { await recordSyncStatus(db, property.id, null, 'syncing') } catch {}
-        let propAttempted = false
+        const _propAttempted = false
         if (propValidation.ok) {
           // Mark syncing and attempt create
           try { await recordSyncStatus(db, property.id, null, 'syncing') } catch {}
           const propRes = await buildiumFetch('POST', '/rentals', undefined, propertyPayload)
-          propAttempted = true
+          // propAttempted = true
           if (propRes.ok && propRes.json?.Id) {
             const buildiumId = Number(propRes.json.Id)
             await db.from('properties').update({ buildium_property_id: buildiumId }).eq('id', property.id)
@@ -504,12 +516,12 @@ export async function POST(request: NextRequest) {
               errorText: propRes.errorText,
               responseJson: propRes.json,
               requestPreview: {
-                Name: (propertyPayload as any)?.Name,
-                RentalType: (propertyPayload as any)?.RentalType,
-                RentalSubType: (propertyPayload as any)?.RentalSubType,
-                OperatingBankAccountId: (propertyPayload as any)?.OperatingBankAccountId,
-                Address: (propertyPayload as any)?.Address,
-                UnitsCount: Array.isArray((propertyPayload as any)?.Units) ? (propertyPayload as any).Units.length : undefined,
+                Name: (propertyPayload as unknown as Record<string, unknown>)?.Name,
+                RentalType: (propertyPayload as unknown as Record<string, unknown>)?.RentalType,
+                RentalSubType: (propertyPayload as unknown as Record<string, unknown>)?.RentalSubType,
+                OperatingBankAccountId: (propertyPayload as unknown as Record<string, unknown>)?.OperatingBankAccountId,
+                Address: (propertyPayload as unknown as Record<string, unknown>)?.Address,
+                UnitsCount: Array.isArray((propertyPayload as unknown as Record<string, unknown>)?.Units) ? ((propertyPayload as unknown as Record<string, unknown>).Units as unknown[]).length : undefined,
               }
             }
             try { logger.warn(errorLog, 'Buildium property sync failed') } catch { console.warn('Buildium property sync failed', errorLog) }
@@ -649,7 +661,7 @@ export async function POST(request: NextRequest) {
 // Buildium HTTP helper moved to '@/lib/buildium-http'
 
 // Helper: robust Buildium owner search with optional filters and pagination
-async function searchBuildiumOwnerId(params: {
+async function _searchBuildiumOwnerId(params: {
   email?: string
   firstName?: string
   lastName?: string
@@ -662,7 +674,7 @@ async function searchBuildiumOwnerId(params: {
   const maxPages = 60 // up to 12,000 owners
 
   for (let page = 0; page < maxPages; page++) {
-    const q: Record<string, any> = { limit, offset }
+    const q: Record<string, unknown> = { limit, offset }
     if (params.buildiumPropertyId) q.propertyids = params.buildiumPropertyId
     if (ownername) q.ownername = ownername
 
@@ -745,10 +757,12 @@ export async function GET() {
     `
     const withOwners = `${baseCols}, ownerships(id, owners(contacts(first_name, last_name, company_name)))`
 
+    const columns = canJoinOwners ? withOwners : baseCols
     const { data, error } = await db
       .from('properties')
-      .select(canJoinOwners ? withOwners : baseCols)
+      .select(columns)
       .order('created_at', { ascending: false })
+      .returns<PropertyWithOwners[]>()
 
     if (error) {
       console.error('Error fetching properties:', error)
@@ -759,7 +773,7 @@ export async function GET() {
     }
 
     const mapped = (data || []).map((p) => {
-      const ownerships = Array.isArray(p.ownerships) ? p.ownerships : []
+      const ownerships = Array.isArray(p?.ownerships) ? p.ownerships : []
       const ownersCount = ownerships.length
       let primaryOwnerName: string | undefined
       if (canJoinOwners && ownerships.length) {
