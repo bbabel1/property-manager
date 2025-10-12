@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { X, Save, DollarSign } from 'lucide-react'
 import { Button } from './ui/button'
 import { type PropertyWithDetails } from '@/lib/property-service'
-import CreateBankAccountModal from './CreateBankAccountModal'
+import CreateBankAccountModal from './components/CreateBankAccountModal'
 import { Dropdown } from './ui/Dropdown'
 import type { BankAccountSummary, BankingDetailsFormValues } from '@/components/forms/types'
 
@@ -24,7 +24,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
-  const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
+  const [_isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
   const [showCreateBankAccountModal, setShowCreateBankAccountModal] = useState(false)
   const [selectedAccountType, setSelectedAccountType] = useState<'operating' | 'trust' | null>(null)
 
@@ -134,10 +134,10 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto border-l-2 border-l-primary shadow-lg">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">Edit Banking Details</h2>
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-xl font-semibold text-foreground">Edit Banking Details</h2>
           <button
             type="button"
             onClick={onClose}
@@ -166,7 +166,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Property Reserve ($)
                 </label>
                 <div className="relative">
@@ -175,7 +175,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
                     type="number"
                     value={formData.reserve}
                     onChange={(e) => handleInputChange('reserve', parseFloat(e.target.value) || 0)}
-                    className="w-full h-9 pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary text-sm"
                     placeholder="e.g., 50000.00"
                     min="0"
                     step="0.01"
@@ -184,7 +184,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Operating Bank Account
                 </label>
                 <Dropdown
@@ -202,7 +202,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Deposit Trust Account
                 </label>
                 <Dropdown

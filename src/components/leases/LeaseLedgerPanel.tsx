@@ -214,7 +214,11 @@ export default function LeaseLedgerPanel({
     return (
       <div
         className="fixed bottom-0 z-40 overflow-auto bg-background px-6 pb-12"
-        style={{ top: `${Math.max(overlayTop, 0)}px`, left: `${Math.max(overlayLeft, 0)}px`, right: 0 }}
+        style={{ 
+          top: `${Math.max(overlayTop, 0)}px`, 
+          left: `${Math.max(overlayLeft, 0)}px`, 
+          right: 0 
+        }}
       >
         {renderOverlayContent()}
       </div>

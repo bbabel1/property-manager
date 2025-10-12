@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseServerClient } from "@/lib/supabase/server"
+import { supabaseAdmin } from "@/lib/db"
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = await getSupabaseServerClient()
+  const supabase = supabaseAdmin
   const { searchParams } = new URL(req.url)
   const asOf = (searchParams.get("asOf") || new Date().toISOString().slice(0,10))
 
@@ -11,7 +11,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     p_as_of: asOf,
   })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    console.error(`[API] RPC error:`, error.message)
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+  
   return new NextResponse(JSON.stringify(data), {
     headers: {
       'Content-Type': 'application/json',

@@ -61,6 +61,7 @@ export default function TenantMoveInEditor({
         className="h-7 rounded border border-input bg-background px-2 text-foreground"
         value={date}
         onChange={(e) => setDate(e.target.value)}
+        aria-label="Move-in date"
       />
       <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditing(false)}>
         Cancel

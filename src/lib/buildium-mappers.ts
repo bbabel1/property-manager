@@ -755,7 +755,9 @@ export async function upsertGLEntryWithLines(buildiumEntry: any, supabase: any):
     }
 
     const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
-    const buildiumUnitId = line?.AccountingEntity?.UnitId ?? null
+    const buildiumUnitId = line?.AccountingEntity?.Unit?.Id
+      ?? line?.AccountingEntity?.UnitId
+      ?? null
     const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId, supabase)
     const localUnitId = await resolveLocalUnitId(buildiumUnitId, supabase)
 
@@ -1196,7 +1198,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: any, supabase:
     }
     // Lease transaction lines may not include explicit accounting entity; default to Rental
     const buildiumPropertyId = line?.PropertyId ?? null
-    const buildiumUnitId = line?.UnitId ?? null
+    const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? null
     const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId, supabase)
     const localUnitId = await resolveLocalUnitId(buildiumUnitId, supabase)
 
@@ -2769,6 +2771,7 @@ export async function mapBillTransactionFromBuildium(
     buildium_bill_id: buildiumBill?.Id ?? null,
     date: normalizeDateString(buildiumBill?.Date),
     due_date: buildiumBill?.DueDate ? normalizeDateString(buildiumBill?.DueDate) : null,
+    paid_date: buildiumBill?.PaidDate ? normalizeDateString(buildiumBill?.PaidDate) : null,
     total_amount: Number(buildiumBill?.Amount ?? 0),
     reference_number: buildiumBill?.ReferenceNumber ?? null,
     memo: buildiumBill?.Description ?? null,
@@ -2837,7 +2840,9 @@ export async function upsertBillWithLines(
     }
 
     const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
-    const buildiumUnitId = line?.AccountingEntity?.UnitId ?? null
+    const buildiumUnitId = line?.AccountingEntity?.Unit?.Id
+      ?? line?.AccountingEntity?.UnitId
+      ?? null
     const localPropertyId = await resolveLocalPropertyId(buildiumPropertyId, supabase)
     const localUnitId = await resolveLocalUnitId(buildiumUnitId, supabase)
 
@@ -2861,6 +2866,33 @@ export async function upsertBillWithLines(
       property_id: localPropertyId,
       unit_id: localUnitId
     })
+  }
+
+  if (pendingLines.length > 0) {
+    const totalAmount = pendingLines.reduce((sum, current) => sum + Number(current?.amount ?? 0), 0)
+    if (totalAmount > 0) {
+      const accountsPayableGlId = await resolveGLAccountId(7, supabase)
+      if (accountsPayableGlId) {
+        const sample = pendingLines[0] ?? {}
+        pendingLines.push({
+          transaction_id: transactionId,
+          gl_account_id: accountsPayableGlId,
+          amount: totalAmount,
+          posting_type: 'Credit',
+          memo: buildiumBill?.Memo ?? sample?.memo ?? null,
+          account_entity_type: sample?.account_entity_type ?? 'Company',
+          account_entity_id: sample?.account_entity_id ?? null,
+          date: normalizeDateString(buildiumBill?.Date),
+          created_at: nowIso,
+          updated_at: nowIso,
+          buildium_property_id: sample?.buildium_property_id ?? null,
+          buildium_unit_id: sample?.buildium_unit_id ?? null,
+          buildium_lease_id: null,
+          property_id: sample?.property_id ?? null,
+          unit_id: sample?.unit_id ?? null
+        })
+      }
+    }
   }
 
   // Replace existing lines

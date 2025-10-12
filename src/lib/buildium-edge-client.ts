@@ -2,6 +2,7 @@
 // This client calls the Supabase Edge Functions instead of direct Buildium API
 
 import { supabase } from './db'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 
 export class BuildiumEdgeClient {
   private supabaseUrl: string
@@ -1033,6 +1034,18 @@ export class BuildiumEdgeClient {
 
       return data.data
     } catch (error) {
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const details = await error.context.json()
+          const message = details?.error || JSON.stringify(details)
+          console.error('Failed to upload property image via edge function', message)
+          throw new Error(message || error.message)
+        } catch (parseErr) {
+          console.error('Failed to parse edge function error response', parseErr)
+          throw new Error(error.message)
+        }
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('Failed to upload property image:', errorMessage)
       throw new Error(errorMessage)

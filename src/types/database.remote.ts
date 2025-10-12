@@ -2789,6 +2789,7 @@ export type Database = {
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt: boolean
+          paid_date: string | null
           recurring_schedule: Json | null
           reference_number: string | null
           status: string | null
@@ -2818,6 +2819,7 @@ export type Database = {
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt?: boolean
+          paid_date?: string | null
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null
@@ -2847,6 +2849,7 @@ export type Database = {
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt?: boolean
+          paid_date?: string | null
           recurring_schedule?: Json | null
           reference_number?: string | null
           status?: string | null

@@ -1,12 +1,19 @@
 "use client"
 
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
 export default function ClearFiltersButton() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
   function handleClick() {
-    const url = new URL(window.location.href)
-    ;['units', 'unit', 'gl', 'range', 'from', 'to'].forEach((param) => url.searchParams.delete(param))
-    window.location.assign(url.toString())
+    const base = searchParams ? searchParams.toString() : ''
+    const params = new URLSearchParams(base)
+    ;['units', 'unit', 'gl', 'range', 'from', 'to'].forEach((param) => params.delete(param))
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
   }
 
   return (

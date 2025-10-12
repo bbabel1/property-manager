@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { SelectWithDescription } from '@/components/ui/SelectWithDescription'
-import CreateBankAccountModal from '@/CreateBankAccountModal'
+import CreateBankAccountModal from '@/components/CreateBankAccountModal'
 import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property'
 import type { BankAccountSummary } from '@/components/forms/types'
 
