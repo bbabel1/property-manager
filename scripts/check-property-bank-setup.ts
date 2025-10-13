@@ -85,3 +85,4 @@ async function checkPropertyBankSetup() {
 
 checkPropertyBankSetup().catch(console.error)
 
+

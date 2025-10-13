@@ -60,7 +60,11 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Accounting',
     icon: Receipt,
     children: [
-      { id: 'accounting-general-ledger', label: 'General ledger', href: '/accounting/general-ledger' },
+      {
+        id: 'accounting-general-ledger',
+        label: 'General ledger',
+        href: '/accounting/general-ledger',
+      },
       { id: 'accounting-banking', label: 'Banking', href: '/accounting/banking' },
       { id: 'accounting-bills', label: 'Bills', href: '/bills' },
       {
@@ -70,8 +74,16 @@ const NAV_ITEMS: NavItem[] = [
       },
       { id: 'accounting-eft-approvals', label: 'EFT approvals', href: '/accounting/eft-approvals' },
       { id: 'accounting-budgets', label: 'Budgets', href: '/accounting/budgets' },
-      { id: 'accounting-chart-of-accounts', label: 'Chart of accounts', href: '/accounting/chart-of-accounts' },
-      { id: 'accounting-company-financials', label: 'Company financials', href: '/accounting/company-financials' },
+      {
+        id: 'accounting-chart-of-accounts',
+        label: 'Chart of accounts',
+        href: '/accounting/chart-of-accounts',
+      },
+      {
+        id: 'accounting-company-financials',
+        label: 'Company financials',
+        href: '/accounting/company-financials',
+      },
     ],
   },
   { id: 'settings', label: 'Settings', href: '/settings', icon: Settings },
@@ -94,6 +106,11 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
       }
     };
   }, []);
+
+  useEffect(() => {
+    setOpenItemId(null);
+    setSubmenuPosition(null);
+  }, [pathname]);
 
   const matchesPath = (href?: string) =>
     Boolean(href && (pathname === href || pathname.startsWith(`${href}/`)));
@@ -176,7 +193,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                   {NAV_ITEMS.map((item) => {
                     const childMatch = item.children?.some((child) => matchesPath(child.href));
                     const isActive = item.id === activeId || Boolean(childMatch);
-                    const isOpen = childMatch || openItemId === item.id;
+                    const isOpen = openItemId === item.id;
 
                     const handleNavigate = () => {
                       if (!item.children?.length && item.href) {
@@ -199,7 +216,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                             const rect = e.currentTarget.getBoundingClientRect();
                             setSubmenuPosition({
                               top: rect.top,
-                              left: rect.right + 8, // Small gap from sidebar
+                              left: rect.right + 12, // Small gap from sidebar
                             });
 
                             setOpenItemId(item.id);
@@ -226,8 +243,8 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                       >
                         <SidebarMenuButton
                           isActive={isActive}
-                          size="lg"
-                          className="rounded-none text-sm font-medium"
+                          size="default"
+                          className="h-9 rounded-none text-base"
                           onClick={handleNavigate}
                           aria-haspopup={item.children?.length ? 'true' : undefined}
                           aria-expanded={item.children?.length ? isOpen : undefined}
@@ -238,7 +255,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                         {item.children?.length ? (
                           <div
                             className={cn(
-                              'fixed z-[9999] min-w-[15.5rem] border border-border bg-card text-card-foreground shadow-lg ring-1 ring-border/80',
+                              'border-border bg-popover text-popover-foreground fixed z-[9999] min-w-[15.5rem] rounded-lg border p-3 shadow-md',
                               isOpen
                                 ? 'pointer-events-auto visible opacity-100 transition-opacity duration-150'
                                 : 'pointer-events-none invisible opacity-0',
@@ -260,14 +277,14 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                               }, 120);
                             }}
                           >
-                            <SidebarMenuSub className="mx-0 flex flex-col divide-y divide-border/40 border-0 p-0">
+                            <SidebarMenuSub className="mx-0 flex flex-col border-0 p-0">
                               {item.children.map((child) => {
                                 const childActive = matchesPath(child.href);
                                 return (
                                   <SidebarMenuSubItem key={child.id}>
                                     <SidebarMenuSubButton
                                       isActive={childActive}
-                                      className="flex w-full items-center gap-2 whitespace-nowrap rounded-none px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                                      className="flex h-10 w-full items-center gap-2 rounded-none px-4 text-base leading-5 font-normal whitespace-nowrap text-black transition-colors hover:bg-gray-100 hover:text-black data-[active=true]:bg-gray-100 data-[active=true]:text-black"
                                       href={child.href}
                                       onClick={(event) => {
                                         event.preventDefault();

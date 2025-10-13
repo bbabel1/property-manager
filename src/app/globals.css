@@ -58,6 +58,17 @@
   --color-teal: #007C8C;
   --color-yellow: #FAE34D;
   --color-red: #FF2300;
+
+  /* Typography scale */
+  --text-scale-factor: 1.07;
+  --text-xs: calc(0.75rem * var(--text-scale-factor));
+  --text-sm: calc(0.875rem * var(--text-scale-factor));
+  --text-base: calc(1rem * var(--text-scale-factor));
+  --text-lg: calc(1.125rem * var(--text-scale-factor));
+  --text-xl: calc(1.25rem * var(--text-scale-factor));
+  --text-2xl: calc(1.5rem * var(--text-scale-factor));
+  --text-3xl: calc(1.875rem * var(--text-scale-factor));
+  --text-4xl: calc(2.25rem * var(--text-scale-factor));
 }
 
 .dark {
@@ -165,7 +176,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
 
   body {
@@ -225,6 +236,18 @@
       font-weight: var(--font-weight-normal);
       line-height: 1.5;
     }
+  }
+}
+
+@layer base {
+  .bill-tab-link,
+  .bill-tab-link:focus,
+  .bill-tab-link:focus-visible,
+  [data-slot="tabs-trigger"],
+  [data-slot="tabs-trigger"]:focus,
+  [data-slot="tabs-trigger"]:focus-visible {
+    outline: none;
+    box-shadow: none;
   }
 }
 

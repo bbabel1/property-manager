@@ -120,14 +120,15 @@
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), 'SF Mono', Monaco, monospace;
 
-  --text-xs: 0.75rem;     /* 12px */
-  --text-sm: 0.875rem;    /* 14px */
-  --text-base: 1rem;      /* 16px */
-  --text-lg: 1.125rem;    /* 18px */
-  --text-xl: 1.25rem;     /* 20px */
-  --text-2xl: 1.5rem;     /* 24px */
-  --text-3xl: 1.875rem;   /* 30px */
-  --text-4xl: 2.25rem;    /* 36px */
+  --text-scale-factor: 1.07; /* mild bump for readability */
+  --text-xs: calc(0.75rem * var(--text-scale-factor));     /* ≈11px */
+  --text-sm: calc(0.875rem * var(--text-scale-factor));    /* ≈13px */
+  --text-base: calc(1rem * var(--text-scale-factor));      /* ≈15px */
+  --text-lg: calc(1.125rem * var(--text-scale-factor));    /* ≈17px */
+  --text-xl: calc(1.25rem * var(--text-scale-factor));     /* ≈19px */
+  --text-2xl: calc(1.5rem * var(--text-scale-factor));     /* ≈22px */
+  --text-3xl: calc(1.875rem * var(--text-scale-factor));   /* ≈28px */
+  --text-4xl: calc(2.25rem * var(--text-scale-factor));    /* ≈34px */
 
   --leading-tight: 1.25;
   --leading-normal: 1.5;
