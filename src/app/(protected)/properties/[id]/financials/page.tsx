@@ -13,14 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { TableRowLink } from '@/components/ui/table-row-link';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import ActionButton from '@/components/ui/ActionButton';
+import BillRowActions from '@/components/financials/BillRowActions';
 import { supabase, supabaseAdmin } from '@/lib/db';
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
@@ -114,12 +109,33 @@ export default async function FinancialsTab({
     typeof sp?.units === 'string' ? sp.units : typeof sp?.unit === 'string' ? sp.unit : '';
   const glParam = typeof sp?.gl === 'string' ? sp.gl : '';
 
-  const { data: propertyRow } = await (db as any)
+  const propertyPromise = (db as any)
     .from('properties')
-    .select('org_id')
+    .select('org_id, name')
     .eq('id', id)
     .maybeSingle();
+
+  const unitsPromise = (db as any)
+    .from('units')
+    .select('id, unit_number, unit_name')
+    .eq('property_id', id);
+
+  const [{ data: propertyRow }, unitsResponse] = await Promise.all([propertyPromise, unitsPromise]);
   const orgId = propertyRow?.org_id ?? null;
+  const propertyLabel = (propertyRow as { name?: string } | null)?.name || 'Property';
+  const propertyOptions = [{ id, label: propertyLabel }];
+
+  const accountsPromise = (async () => {
+    let query = (db as any)
+      .from('gl_accounts')
+      .select('id, name, account_number, type')
+      .order('type', { ascending: true })
+      .order('name', { ascending: true });
+    if (orgId) {
+      query = query.eq('org_id', orgId);
+    }
+    return await query;
+  })();
 
   const fromStr = from.toISOString().slice(0, 10);
   const toStr = to.toISOString().slice(0, 10);
@@ -172,21 +188,6 @@ export default async function FinancialsTab({
     created_at: r.created_at || null,
   });
 
-  const unitsResponse = await (db as any)
-    .from('units')
-    .select('id, unit_number, unit_name')
-    .eq('property_id', id);
-
-  let accountsQuery = (db as any)
-    .from('gl_accounts')
-    .select('id, name, account_number, type')
-    .order('type', { ascending: true })
-    .order('name', { ascending: true });
-  if (orgId) {
-    accountsQuery = accountsQuery.eq('org_id', orgId);
-  }
-  const accountsResponse = await accountsQuery;
-
   interface UnitRecord {
     id: string;
     unit_number?: string;
@@ -199,15 +200,18 @@ export default async function FinancialsTab({
     type?: string;
   }
 
-  const unitOptions: { id: string; label: string }[] = (unitsResponse?.data || [])
-    .map((u: UnitRecord) => ({
+  const unitsData = (unitsResponse?.data ?? []) as UnitRecord[];
+  const unitOptions: { id: string; label: string }[] = unitsData
+    .map((u) => ({
       id: String(u.id),
       label: u.unit_number || u.unit_name || 'Unit',
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const accountOptions = (accountsResponse?.data || [])
-    .map((acc: AccountRecord) => ({
+  const accountsResponse = await accountsPromise;
+  const accountsData = (accountsResponse?.data ?? []) as AccountRecord[];
+  const accountOptions = accountsData
+    .map((acc) => ({
       value: String(acc.id),
       label: [acc.name, acc.account_number ? `(${acc.account_number})` : '']
         .filter(Boolean)
@@ -229,8 +233,8 @@ export default async function FinancialsTab({
   } else if (unitsParam) {
     selectedUnitIds = unitsParam
       .split(',')
-      .map((id) => id.trim())
-      .filter((id) => allUnitIds.includes(id));
+      .map((id: string) => id.trim())
+      .filter((id: string) => allUnitIds.includes(id));
   } else {
     selectedUnitIds = [...allUnitIds];
   }
@@ -245,8 +249,8 @@ export default async function FinancialsTab({
   let selectedAccountIds = glParam
     ? glParam
         .split(',')
-        .map((id) => id.trim())
-        .filter((id) => allAccountIds.includes(id))
+        .map((id: string) => id.trim())
+        .filter((id: string) => allAccountIds.includes(id))
     : [...allAccountIds];
   if (selectedAccountIds.length === 0) selectedAccountIds = [...allAccountIds];
   const accountFilterIds =
@@ -256,16 +260,24 @@ export default async function FinancialsTab({
   let priorLines: Line[] = [];
 
   if (!noUnitsSelected) {
-    let qPeriod = qBase().gte('date', fromStr).lte('date', toStr);
-    if (unitFilterIds) qPeriod = qPeriod.in('unit_id', unitFilterIds);
-    if (accountFilterIds) qPeriod = qPeriod.in('gl_account_id', accountFilterIds);
-    const { data: periodData, error: periodError } = await qPeriod;
-    periodLines = periodError ? [] : (periodData || []).map(mapRow);
+    const periodPromise = (async () => {
+      let query = qBase().gte('date', fromStr).lte('date', toStr);
+      if (unitFilterIds) query = query.in('unit_id', unitFilterIds);
+      if (accountFilterIds) query = query.in('gl_account_id', accountFilterIds);
+      return await query;
+    })();
 
-    let qPrior = qBase().lt('date', fromStr);
-    if (unitFilterIds) qPrior = qPrior.in('unit_id', unitFilterIds);
-    if (accountFilterIds) qPrior = qPrior.in('gl_account_id', accountFilterIds);
-    const { data: priorData, error: priorError } = await qPrior;
+    const priorPromise = (async () => {
+      let query = qBase().lt('date', fromStr);
+      if (unitFilterIds) query = query.in('unit_id', unitFilterIds);
+      if (accountFilterIds) query = query.in('gl_account_id', accountFilterIds);
+      return await query;
+    })();
+
+    const [{ data: periodData, error: periodError }, { data: priorData, error: priorError }] =
+      await Promise.all([periodPromise, priorPromise]);
+
+    periodLines = periodError ? [] : (periodData || []).map(mapRow);
     priorLines = priorError ? [] : (priorData || []).map(mapRow);
   }
 
@@ -526,9 +538,19 @@ export default async function FinancialsTab({
               v?.contact?.company_name ||
               [v?.contact?.first_name, v?.contact?.last_name].filter(Boolean).join(' ') ||
               'Vendor';
-            const vendorOptions = (vendorsData || [])
-              .map((v: VendorRecord) => ({ id: String(v.id), label: nameOfVendor(v) }))
+            const vendorOptions = ((vendorsData || []) as VendorRecord[])
+              .map((v) => ({ id: String(v.id), label: nameOfVendor(v) }))
               .sort((a, b) => a.label.localeCompare(b.label));
+
+            const propertyIdsAll = propertyOptions.map((p) => p.id);
+            const spProperties = typeof sp?.properties === 'string' ? sp.properties : '';
+            let selectedPropertyIds = spProperties
+              ? spProperties
+                  .split(',')
+                  .map((s: string) => s.trim())
+                  .filter((s: string) => propertyIdsAll.includes(s))
+              : [...propertyIdsAll];
+            if (selectedPropertyIds.length === 0) selectedPropertyIds = [...propertyIdsAll];
 
             // Parse filters
             const spVendors = typeof sp?.vendors === 'string' ? sp.vendors : '';
@@ -536,58 +558,61 @@ export default async function FinancialsTab({
 
             let selectedUnitIdsBills: string[];
             if (unitsParam === 'none') selectedUnitIdsBills = [];
-            else if (unitsParam)
+              else if (unitsParam)
               selectedUnitIdsBills = unitsParam
                 .split(',')
-                .map((s) => s.trim())
-                .filter((s) => unitIdsAll.includes(s));
+                .map((s: string) => s.trim())
+                .filter((s: string) => unitIdsAll.includes(s));
             else selectedUnitIdsBills = [...unitIdsAll];
 
             const allVendorIds = vendorOptions.map((v) => v.id);
             let selectedVendorIds = spVendors
               ? spVendors
                   .split(',')
-                  .map((s) => s.trim())
-                  .filter((s) => allVendorIds.includes(s))
+                  .map((s: string) => s.trim())
+                  .filter((s: string) => allVendorIds.includes(s))
               : [...allVendorIds];
             if (selectedVendorIds.length === 0) selectedVendorIds = [...allVendorIds];
             const statusParamSlugs = spStatusRaw
               ? spStatusRaw
                   .split(',')
-                  .map((s) => s.trim().toLowerCase())
-                  .filter((slug) => BILL_STATUS_SLUG_TO_LABEL.has(slug))
+                  .map((s: string) => s.trim().toLowerCase())
+                  .filter((slug: string) => BILL_STATUS_SLUG_TO_LABEL.has(slug))
               : [];
             const defaultStatusSlugs = statusParamSlugs.length
               ? statusParamSlugs
               : ['overdue', 'due', 'partially-paid'];
             const selectedStatuses = defaultStatusSlugs
-              .map((slug) => BILL_STATUS_SLUG_TO_LABEL.get(slug))
-              .filter((label): label is BillStatusLabel => Boolean(label));
+              .map((slug: string) => BILL_STATUS_SLUG_TO_LABEL.get(slug))
+              .filter((label: BillStatusLabel | undefined): label is BillStatusLabel => Boolean(label));
             let resolvedStatusSlugs = defaultStatusSlugs;
             let resolvedStatusLabels = selectedStatuses;
             if (resolvedStatusLabels.length === 0) {
               resolvedStatusSlugs = BILL_STATUS_OPTIONS.map((opt) => opt.slug);
-              resolvedStatusLabels = BILL_STATUS_OPTIONS.map((opt) => opt.label);
+              resolvedStatusLabels = BILL_STATUS_OPTIONS.map(
+                (opt: { label: BillStatusLabel }) => opt.label,
+              );
             }
             const statusFilterSet = new Set(resolvedStatusLabels);
             const statusFilterActive =
               statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length;
 
-            // Fetch matching transaction ids for this property (via lines)
-            let qLine = (db as any)
-              .from('transaction_lines')
-              .select('transaction_id, unit_id')
-              .eq('property_id', id);
-            if (selectedUnitIdsBills.length && selectedUnitIdsBills.length !== unitIdsAll.length) {
-              qLine = qLine.in('unit_id', selectedUnitIdsBills);
-            }
-            const { data: linesData } = await qLine;
-            const txIds = Array.from(
-              new Set((linesData || []).map((r: any) => r.transaction_id).filter(Boolean)),
-            );
-
             let billRows: any[] = [];
-            if (txIds.length) {
+            if (selectedPropertyIds.includes(id)) {
+              // Fetch matching transaction ids for this property (via lines)
+              let qLine = (db as any)
+                .from('transaction_lines')
+                .select('transaction_id, unit_id')
+                .eq('property_id', id);
+              if (selectedUnitIdsBills.length && selectedUnitIdsBills.length !== unitIdsAll.length) {
+                qLine = qLine.in('unit_id', selectedUnitIdsBills);
+              }
+              const { data: linesData } = await qLine;
+              const txIds = Array.from(
+                new Set((linesData || []).map((r: any) => r.transaction_id).filter(Boolean)),
+              );
+
+              if (txIds.length) {
               let qTx = (db as any)
                 .from('transactions')
                 .select(
@@ -601,9 +626,9 @@ export default async function FinancialsTab({
                 qTx = qTx.in('vendor_id', selectedVendorIds);
               }
 
-              const { data: txData } = await qTx;
-              const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
-              const enrichedRows = (txData || []).map((row: any) => {
+                const { data: txData } = await qTx;
+                const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
+                const enrichedRows = (txData || []).map((row: any) => {
                 const current = normalizeBillStatus(row.status);
                 const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
                 if (derived !== current) {
@@ -631,6 +656,7 @@ export default async function FinancialsTab({
                 if (!statusFilterActive) return true;
                 return statusFilterSet.has(row.status as BillStatusLabel);
               });
+              }
             }
 
             const vendorMap = new Map<string, string>();
@@ -643,9 +669,11 @@ export default async function FinancialsTab({
               <div className="space-y-4">
                 <div className="mb-2 flex flex-wrap items-end gap-4">
                   <BillsFilters
+                    defaultPropertyIds={selectedPropertyIds}
                     defaultUnitIds={selectedUnitIdsBills}
                     defaultVendorIds={selectedVendorIds}
                     defaultStatuses={resolvedStatusSlugs}
+                    propertyOptions={propertyOptions}
                     unitOptions={unitOptions}
                     vendorOptions={vendorOptions}
                   />
@@ -677,7 +705,7 @@ export default async function FinancialsTab({
                         </TableRow>
                       ) : (
                         billRows.map((row) => (
-                          <TableRow key={row.id}>
+                          <TableRowLink key={row.id} href={`/bills/${row.id}`}>
                             <TableCell>
                               {row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}
                             </TableCell>
@@ -698,24 +726,9 @@ export default async function FinancialsTab({
                               )}`}
                             </TableCell>
                             <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <ActionButton aria-label="Bill actions" />
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="min-w-[10rem]" side="bottom" sideOffset={6}>
-                                  <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
-                                    Email
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem className="cursor-pointer" onSelect={(e) => e.preventDefault()}>
-                                    Print
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <BillRowActions />
                             </TableCell>
-                          </TableRow>
+                          </TableRowLink>
                         ))
                       )}
                     </TableBody>
