@@ -7,17 +7,21 @@ import AccountMultiSelect from "@/components/financials/AccountMultiSelect"
 type Option = { id: string; label: string }
 
 type Props = {
+  defaultPropertyIds: string[]
   defaultUnitIds: string[]
   defaultVendorIds: string[]
   defaultStatuses: string[]
+  propertyOptions: Option[]
   unitOptions: Option[]
   vendorOptions: Option[]
 }
 
 export default function BillsFilters({
+  defaultPropertyIds,
   defaultUnitIds,
   defaultVendorIds,
   defaultStatuses,
+  propertyOptions,
   unitOptions,
   vendorOptions,
 }: Props) {
@@ -25,13 +29,16 @@ export default function BillsFilters({
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  const allPropertyIds = useMemo(() => propertyOptions.map((p) => p.id), [propertyOptions])
   const allUnitIds = useMemo(() => unitOptions.map((u) => u.id), [unitOptions])
   const allVendorIds = useMemo(() => vendorOptions.map((v) => v.id), [vendorOptions])
 
+  const [propertyIds, setPropertyIds] = useState<string[]>(defaultPropertyIds)
   const [unitIds, setUnitIds] = useState<string[]>(defaultUnitIds)
   const [vendorIds, setVendorIds] = useState<string[]>(defaultVendorIds)
   const [statusIds, setStatusIds] = useState<string[]>(defaultStatuses)
 
+  useEffect(() => setPropertyIds(defaultPropertyIds), [defaultPropertyIds])
   useEffect(() => setUnitIds(defaultUnitIds), [defaultUnitIds])
   useEffect(() => setVendorIds(defaultVendorIds), [defaultVendorIds])
   useEffect(() => setStatusIds(defaultStatuses), [defaultStatuses])
@@ -44,6 +51,16 @@ export default function BillsFilters({
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
   }, [pathname, router, searchParams])
 
+  const propertyOptionsFormatted = useMemo(
+    () =>
+      propertyOptions.map((p) => ({
+        value: p.id,
+        label: p.label,
+        group: 'Properties',
+        groupLabel: 'Properties',
+      })),
+    [propertyOptions],
+  )
   const unitOptionsFormatted = useMemo(
     () => unitOptions.map((u) => ({ value: u.id, label: u.label, group: 'Units', groupLabel: 'Units' })),
     [unitOptions]
@@ -62,6 +79,14 @@ export default function BillsFilters({
     ],
     []
   )
+
+  function handlePropertiesChange(ids: string[]) {
+    setPropertyIds(ids)
+    updateSearch((p) => {
+      if (!ids.length || ids.length === allPropertyIds.length) p.delete('properties')
+      else p.set('properties', ids.join(','))
+    })
+  }
 
   function handleUnitsChange(ids: string[]) {
     const next = ids.length ? ids : []
@@ -92,6 +117,19 @@ export default function BillsFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-col gap-1 min-w-[16rem]">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Properties</span>
+        <AccountMultiSelect
+          value={propertyIds}
+          onChange={handlePropertiesChange}
+          options={propertyOptionsFormatted}
+          placeholder="All properties"
+          hideGroupSidebar
+          selectAllLabel="Select all properties"
+          clearAllLabel="Clear all properties"
+          className="min-w-[16rem]"
+        />
+      </div>
       <div className="flex flex-col gap-1 min-w-[16rem]">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unit</span>
         <AccountMultiSelect
