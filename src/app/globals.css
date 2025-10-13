@@ -8,6 +8,9 @@
 
 :root {
   --font-size: 14px;
+  --sidebar-width: 16rem;
+  --sidebar-width-mobile: 18rem;
+  --sidebar-width-icon: 3rem;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -342,4 +345,9 @@ html {
   top: var(--overlay-top, 0);
   left: var(--overlay-left, 0);
   right: 0;
+}
+
+/* Sidebar skeleton width using data attribute */
+[data-skeleton-width] {
+  max-width: attr(data-skeleton-width);
 }
