@@ -14,6 +14,7 @@ type Props = {
   propertyOptions: Option[]
   unitOptions: Option[]
   vendorOptions: Option[]
+  showPropertyFilter?: boolean
 }
 
 export default function BillsFilters({
@@ -24,6 +25,7 @@ export default function BillsFilters({
   propertyOptions,
   unitOptions,
   vendorOptions,
+  showPropertyFilter = true,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -117,19 +119,21 @@ export default function BillsFilters({
 
   return (
     <div className="flex flex-wrap items-end gap-4">
-      <div className="flex flex-col gap-1 min-w-[16rem]">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Properties</span>
-        <AccountMultiSelect
-          value={propertyIds}
-          onChange={handlePropertiesChange}
-          options={propertyOptionsFormatted}
-          placeholder="All properties"
-          hideGroupSidebar
-          selectAllLabel="Select all properties"
-          clearAllLabel="Clear all properties"
-          className="min-w-[16rem]"
-        />
-      </div>
+      {showPropertyFilter ? (
+        <div className="flex flex-col gap-1 min-w-[16rem]">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Properties</span>
+          <AccountMultiSelect
+            value={propertyIds}
+            onChange={handlePropertiesChange}
+            options={propertyOptionsFormatted}
+            placeholder="All properties"
+            hideGroupSidebar
+            selectAllLabel="Select all properties"
+            clearAllLabel="Clear all properties"
+            className="min-w-[16rem]"
+          />
+        </div>
+      ) : null}
       <div className="flex flex-col gap-1 min-w-[16rem]">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unit</span>
         <AccountMultiSelect

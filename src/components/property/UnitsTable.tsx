@@ -229,7 +229,7 @@ export default function UnitsTable({ propertyId, property, initialUnits }: { pro
           {err && <div className="text-sm text-destructive mt-3">{err}</div>}
           <div className="flex items-center gap-2 mt-4">
             <Button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save unit'}</Button>
-            <Button variant="ghost" onClick={()=>setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button variant="cancel" onClick={()=>setOpen(false)} disabled={saving}>Cancel</Button>
           </div>
         </div>
       )}

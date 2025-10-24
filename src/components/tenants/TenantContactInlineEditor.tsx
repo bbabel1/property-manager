@@ -295,7 +295,7 @@ export default function TenantContactInlineEditor({ contactId, initial }: { cont
               {error ? <div className="text-sm text-destructive">{error}</div> : null}
               <div className="mt-4 flex items-center gap-3">
                 <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-                <Button variant="ghost" onClick={() => { setEditing(false); setValues(initial || {}) }}>Cancel</Button>
+                <Button variant="cancel" onClick={() => { setEditing(false); setValues(initial || {}) }}>Cancel</Button>
               </div>
             </div>
           )}

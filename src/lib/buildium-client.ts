@@ -418,6 +418,27 @@ export class BuildiumClient {
     return this.makeRequest<BuildiumBill>(`POST`, `/bills`, sanitizedData)
   }
 
+  async getBillFiles(billId: number): Promise<any[]> {
+    return this.makeRequest<any[]>(`GET`, `/bills/${billId}/files`)
+  }
+
+  async createBillFileUploadRequest(
+    billId: number,
+    data: {
+      FileName: string
+      ContentType: string
+      Description?: string | null
+      UnitId?: number | null
+      OwnerId?: number | null
+      IsPrivate?: boolean | null
+      PropertyId?: number | null
+      FileTitle?: string | null
+    }
+  ): Promise<any> {
+    const sanitizedData = sanitizeForBuildium(data)
+    return this.makeRequest<any>(`POST`, `/bills/${billId}/files/uploadrequests`, sanitizedData)
+  }
+
   async updateBill(id: number, data: Partial<BuildiumBillCreateEnhancedInput>): Promise<BuildiumBill> {
     const buildiumData = mapBillToBuildium(data as any)
     const sanitizedData = sanitizeForBuildium(buildiumData)

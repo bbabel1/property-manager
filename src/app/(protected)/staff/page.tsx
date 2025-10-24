@@ -268,7 +268,7 @@ function EditStaffModal({ staff, onClose, onSaved }:{ staff: Staff | null, onClo
               </label>
             </div>
             {err && <div className="text-sm text-destructive">{err}</div>}
-            <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></div>
+            <div className="flex justify-end gap-2"><Button variant="cancel" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button></div>
           </div>
         )}
       </DialogContent>

@@ -157,7 +157,7 @@ export default function TenantPersonalInfoInlineEditor({
                 <Button onClick={handleSave} disabled={saving}>
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
-                <Button variant="ghost" onClick={handleCancel} disabled={saving}>
+                <Button variant="cancel" onClick={handleCancel} disabled={saving}>
                   Cancel
                 </Button>
               </div>

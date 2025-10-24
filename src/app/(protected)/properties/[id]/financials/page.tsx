@@ -77,6 +77,33 @@ function deriveBillStatusFromDates(
   return 'Due';
 }
 
+const billDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'numeric',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+const billCurrencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatBillDate(value?: string | null): string {
+  if (!value) return '—';
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const date = new Date(isoLike);
+  if (Number.isNaN(date.getTime())) return '—';
+  return billDateFormatter.format(date);
+}
+
+function formatBillCurrency(value?: number | null): string {
+  const amount = Math.abs(Number(value ?? 0));
+  if (!Number.isFinite(amount)) return billCurrencyFormatter.format(0);
+  return billCurrencyFormatter.format(amount);
+}
+
 export default async function FinancialsTab({
   params,
   searchParams,
@@ -502,12 +529,6 @@ export default async function FinancialsTab({
             <Button type="button" variant="outline">
               Pay bills
             </Button>
-            <Button type="button" variant="outline">
-              Request owner contribution
-            </Button>
-            <Button type="button" variant="outline">
-              Approve in bulk
-            </Button>
           </div>
 
           {await (async () => {
@@ -597,70 +618,119 @@ export default async function FinancialsTab({
             const statusFilterActive =
               statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length;
 
+            const memoByTransactionId = new Map<string, string>();
             let billRows: any[] = [];
             if (selectedPropertyIds.includes(id)) {
               // Fetch matching transaction ids for this property (via lines)
               let qLine = (db as any)
                 .from('transaction_lines')
-                .select('transaction_id, unit_id')
+                .select('transaction_id, unit_id, memo')
                 .eq('property_id', id);
               if (selectedUnitIdsBills.length && selectedUnitIdsBills.length !== unitIdsAll.length) {
                 qLine = qLine.in('unit_id', selectedUnitIdsBills);
               }
               const { data: linesData } = await qLine;
               const txIds = Array.from(
-                new Set((linesData || []).map((r: any) => r.transaction_id).filter(Boolean)),
+                new Set(
+                  (linesData || [])
+                    .map((r: any) => {
+                      const txId = r?.transaction_id ? String(r.transaction_id) : null;
+                      if (!txId) return null;
+                      const memo = typeof r?.memo === 'string' ? r.memo.trim() : '';
+                      if (memo && !memoByTransactionId.has(txId)) {
+                        memoByTransactionId.set(txId, memo);
+                      }
+                      return txId;
+                    })
+                    .filter(Boolean),
+                ),
               );
 
               if (txIds.length) {
-              let qTx = (db as any)
-                .from('transactions')
-                .select(
-                  'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type',
-                )
-                .in('id', txIds)
-                .eq('transaction_type', 'Bill')
-                .order('due_date', { ascending: true });
+                let qTx = (db as any)
+                  .from('transactions')
+                  .select(
+                    'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type',
+                  )
+                  .in('id', txIds)
+                  .eq('transaction_type', 'Bill')
+                  .order('due_date', { ascending: true });
 
-              if (selectedVendorIds.length && selectedVendorIds.length !== allVendorIds.length) {
-                qTx = qTx.in('vendor_id', selectedVendorIds);
-              }
+                if (selectedVendorIds.length && selectedVendorIds.length !== allVendorIds.length) {
+                  qTx = qTx.in('vendor_id', selectedVendorIds);
+                }
 
                 const { data: txData } = await qTx;
                 const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
                 const enrichedRows = (txData || []).map((row: any) => {
-                const current = normalizeBillStatus(row.status);
-                const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
-                if (derived !== current) {
-                  statusUpdates.push({ id: row.id, status: derived });
-                }
-                return { ...row, status: derived };
-              });
+                  const current = normalizeBillStatus(row.status);
+                  const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
+                  if (derived !== current) {
+                    statusUpdates.push({ id: row.id, status: derived });
+                  }
+                  return { ...row, status: derived };
+                });
 
-              if (statusUpdates.length) {
-                try {
-                  await Promise.all(
-                    statusUpdates.map((update) =>
-                      (db as any)
-                        .from('transactions')
-                        .update({ status: update.status })
-                        .eq('id', update.id),
-                    ),
-                  );
-                } catch (error) {
-                  console.error('Failed to update bill transaction status', error);
+                if (statusUpdates.length) {
+                  try {
+                    await Promise.all(
+                      statusUpdates.map((update) =>
+                        (db as any)
+                          .from('transactions')
+                          .update({ status: update.status })
+                          .eq('id', update.id),
+                      ),
+                    );
+                  } catch (error) {
+                    console.error('Failed to update bill transaction status', error);
+                  }
                 }
-              }
 
-              billRows = enrichedRows.filter((row: any) => {
-                if (!statusFilterActive) return true;
-                return statusFilterSet.has(row.status as BillStatusLabel);
-              });
+                billRows = enrichedRows.filter((row: any) => {
+                  if (!statusFilterActive) return true;
+                  return statusFilterSet.has(row.status as BillStatusLabel);
+                });
               }
             }
 
             const vendorMap = new Map<string, string>();
             for (const v of vendorOptions) vendorMap.set(v.id, v.label);
+
+            const vendorIdsReferenced = Array.from(
+              new Set(
+                billRows
+                  .map((row) => (row.vendor_id ? String(row.vendor_id) : null))
+                  .filter((value): value is string => Boolean(value)),
+              ),
+            );
+            const vendorIdsMissing = vendorIdsReferenced.filter((vendorId) => !vendorMap.has(vendorId));
+            if (vendorIdsMissing.length) {
+              const { data: extraVendors } = await (db as any)
+                .from('vendors')
+                .select(
+                  'id, contacts(display_name, company_name, first_name, last_name)',
+                )
+                .in('id', vendorIdsMissing);
+              for (const vendor of extraVendors || []) {
+                const vendorId = vendor?.id ? String(vendor.id) : null;
+                if (!vendorId) continue;
+                const contact =
+                  typeof vendor?.contacts === 'object' && vendor.contacts
+                    ? (vendor.contacts as {
+                        display_name?: string | null;
+                        company_name?: string | null;
+                        first_name?: string | null;
+                        last_name?: string | null;
+                      })
+                    : null;
+                const fallbackLabel =
+                  contact?.display_name ||
+                  contact?.company_name ||
+                  [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') ||
+                  'Vendor';
+                vendorMap.set(vendorId, fallbackLabel);
+              }
+            }
 
             const countLabel = `${billRows.length} match${billRows.length === 1 ? '' : 'es'}`;
 
@@ -676,6 +746,7 @@ export default async function FinancialsTab({
                     propertyOptions={propertyOptions}
                     unitOptions={unitOptions}
                     vendorOptions={vendorOptions}
+                    showPropertyFilter={false}
                   />
                   <div className="text-muted-foreground ml-auto pb-2 text-sm">{countLabel}</div>
                 </div>
@@ -705,29 +776,27 @@ export default async function FinancialsTab({
                         </TableRow>
                       ) : (
                         billRows.map((row) => (
-                          <TableRowLink key={row.id} href={`/bills/${row.id}`}>
-                            <TableCell>
-                              {row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}
-                            </TableCell>
-                            <TableCell>{row.status || '—'}</TableCell>
-                            <TableCell className="text-foreground">
-                              {vendorMap.get(String(row.vendor_id)) || '—'}
-                            </TableCell>
-                            <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
-                            <TableCell>{row.reference_number || '—'}</TableCell>
-                            <TableCell className="text-muted-foreground">—</TableCell>
-                            <TableCell className="text-right">
-                              {`$${Number(Math.abs(row.total_amount || 0)).toLocaleString(
-                                undefined,
-                                {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                },
-                              )}`}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <BillRowActions />
-                            </TableCell>
+                        <TableRowLink key={row.id} href={`/bills/${row.id}`}>
+                          <TableCell>
+                            {formatBillDate(row.due_date)}
+                          </TableCell>
+                          <TableCell>{row.status || '—'}</TableCell>
+                          <TableCell className="text-foreground">
+                            {vendorMap.get(String(row.vendor_id)) || '—'}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {row.memo?.trim()
+                              ? row.memo
+                              : memoByTransactionId.get(String(row.id)) || '—'}
+                          </TableCell>
+                          <TableCell>{row.reference_number || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right">
+                            {formatBillCurrency(row.total_amount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <BillRowActions />
+                          </TableCell>
                           </TableRowLink>
                         ))
                       )}

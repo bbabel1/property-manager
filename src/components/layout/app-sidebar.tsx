@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import {
   Sidebar as UISidebar,
   SidebarProvider,
@@ -7,7 +8,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
@@ -26,10 +26,10 @@ import {
   FileText,
   Users,
   User,
-  Handshake,
   Settings,
   Receipt,
   LogOut,
+  Wrench,
 } from 'lucide-react';
 import { ReactNode, useMemo, useState, useRef, useEffect } from 'react';
 import type { FocusEvent } from 'react';
@@ -53,7 +53,16 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'units', label: 'Units', href: '/units', icon: Home },
   { id: 'leases', label: 'Leases', href: '/leases', icon: FileText },
   { id: 'owners', label: 'Owners', href: '/owners', icon: Users },
-  { id: 'vendors', label: 'Vendors', href: '/vendors', icon: Handshake },
+  {
+    id: 'maintenance',
+    label: 'Maintenance',
+    icon: Wrench,
+    children: [
+      { id: 'maintenance-tasks', label: 'Tasks', href: '/tasks' },
+      { id: 'maintenance-work-orders', label: 'Work orders', href: '/maintenance' },
+      { id: 'maintenance-vendors', label: 'Vendors', href: '/vendors' },
+    ],
+  },
   { id: 'tenants', label: 'Tenants', href: '/tenants', icon: User },
   {
     id: 'accounting',
@@ -177,18 +186,18 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
       <div className="min-h-svh w-full">
         <div className="flex w-full">
           <UISidebar collapsible="offcanvas" className="border-sidebar-border font-sans">
-            <SidebarHeader>
-              <div className="px-2 py-2">
-                <div className="text-xl leading-6 font-semibold">
-                  Ora Property
-                  <br />
-                  Management
-                </div>
-              </div>
+            <SidebarHeader className="items-center gap-0 px-4 py-5 border-b border-sidebar-border">
+              <Image
+                src="/ora-logo-wordmark.svg"
+                alt="Ora Property Management"
+                width={4000}
+                height={630}
+                priority
+                className="h-10 w-auto object-contain"
+              />
             </SidebarHeader>
             <SidebarContent>
               <SidebarGroup>
-                <SidebarGroupLabel>Navigation</SidebarGroupLabel>
                 <SidebarMenu>
                   {NAV_ITEMS.map((item) => {
                     const childMatch = item.children?.some((child) => matchesPath(child.href));

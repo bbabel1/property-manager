@@ -178,7 +178,7 @@ export default function LocationCard({ property }: { property: any }) {
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
-        <Button variant="ghost" onClick={()=> setEditing(false)}>Cancel</Button>
+        <Button variant="cancel" onClick={()=> setEditing(false)}>Cancel</Button>
       </div>
     </div>
   )

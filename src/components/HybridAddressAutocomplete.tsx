@@ -19,6 +19,7 @@ interface AddressAutocompleteProps {
   placeholder?: string
   className?: string
   required?: boolean
+  autoComplete?: string
 }
 
 export default function AddressAutocomplete({
@@ -27,7 +28,8 @@ export default function AddressAutocomplete({
   onPlaceSelect,
   placeholder = "Enter address...",
   className = "",
-  required = false
+  required = false,
+  autoComplete
 }: AddressAutocompleteProps) {
   return (
     <div>
@@ -38,6 +40,7 @@ export default function AddressAutocomplete({
         placeholder={placeholder}
         className={className}
         required={required}
+        autoComplete={autoComplete}
       />
     </div>
   )

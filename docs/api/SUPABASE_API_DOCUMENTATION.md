@@ -140,7 +140,7 @@ Creates a new property with optional ownership and staff assignments.
 
 {
   // Required fields
-  propertyType: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
+  propertyType: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   name: string;
   addressLine1: string;
   city: string;
@@ -254,7 +254,7 @@ Array<{
   // Property fields
   id: string;
   name: string;
-  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
+  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   address_line1: string;
   // ... other property fields
 
@@ -429,7 +429,7 @@ CREATE POLICY "Users can only see their properties" ON properties
 // Type definitions ensure compile-time validation
 interface CreatePropertyRequest {
   name: string;
-  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
+  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   // ... other fields with proper types
 }
 

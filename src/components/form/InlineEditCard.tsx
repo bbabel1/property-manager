@@ -59,7 +59,7 @@ export default function InlineEditCard({
           ) : (
             actionsPlacement === 'header' ? (
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={onCancel}><X className="h-4 w-4 mr-2"/>Cancel</Button>
+                <Button variant="cancel" size="sm" onClick={onCancel}><X className="h-4 w-4 mr-2"/>Cancel</Button>
                 <Button size="sm" onClick={onSave} disabled={isSaving || !canSave}>
                   <Save className="h-4 w-4 mr-2"/>{isSaving ? 'Saving…' : 'Save'}
                 </Button>
@@ -84,7 +84,7 @@ export default function InlineEditCard({
         {editing && actionsPlacement === 'footer' && (
           <div className={`${size === 'compact' ? 'mt-4' : 'mt-6'} flex items-center gap-4`}>
             <Button onClick={onSave} disabled={isSaving || !canSave}>{isSaving ? 'Saving…' : 'Save'}</Button>
-            <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+            <Button variant="cancel" onClick={onCancel}>Cancel</Button>
           </div>
         )}
       </div>

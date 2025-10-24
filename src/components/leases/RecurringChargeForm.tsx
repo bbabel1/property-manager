@@ -272,7 +272,7 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
               <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                 Add another recurring charge
               </Button>
-              <Button type="button" variant="ghost" className="text-muted-foreground" onClick={onCancel}>
+              <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
                 Cancel
               </Button>
             </div>

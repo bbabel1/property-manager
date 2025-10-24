@@ -285,7 +285,7 @@ export default function WithholdDepositForm({ leaseId, leaseSummary, accounts, o
               <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                 Withhold another deposit
               </Button>
-              <Button type="button" variant="ghost" className="text-muted-foreground" onClick={onCancel}>
+              <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
                 Cancel
               </Button>
             </div>

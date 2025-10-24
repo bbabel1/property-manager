@@ -162,10 +162,10 @@ export default function PropertyFileUploadDialog({
             <>
               <Button type="button" onClick={save}>Save</Button>
               <Button type="button" variant="secondary" onClick={save}>Save and share</Button>
-              <Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+              <Button type="button" variant="cancel" onClick={close}>Cancel</Button>
             </>
           ) : (
-            <Button type="button" variant="ghost" onClick={close}>Cancel</Button>
+            <Button type="button" variant="cancel" onClick={close}>Cancel</Button>
           )}
         </DialogFooter>
       </DialogContent>

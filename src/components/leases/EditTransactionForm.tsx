@@ -198,7 +198,7 @@ export default function EditTransactionForm({
                 {state.message}
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" onClick={onCancel}>
+                <Button variant="cancel" onClick={onCancel}>
                   Close
                 </Button>
                 <Button variant="ghost" onClick={() => setReloadToken((value) => value + 1)}>
@@ -214,7 +214,7 @@ export default function EditTransactionForm({
                 Editing {state.typeLabel.toLowerCase()} transactions is not supported yet. You can manage this entry from Buildium.
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" onClick={onCancel}>
+                <Button variant="cancel" onClick={onCancel}>
                   Close
                 </Button>
               </div>

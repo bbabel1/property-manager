@@ -5,6 +5,7 @@ export const PropertyCreateSchema = z.object({
     'Condo',
     'Co-op',
     'Condop',
+    'Rental Building',
     'Mult-Family',
     'Townhouse'
   ]),

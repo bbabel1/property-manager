@@ -27,7 +27,7 @@ export interface Property {
   
   // Integration and business fields
   buildium_property_id?: number; // INTEGER, NULL
-  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
+  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids?: number[]; // INTEGER[], NULL
   operating_bank_account_id: number; // INTEGER, NOT NULL
   reserve?: number; // NUMERIC(12,2), NULL
@@ -49,7 +49,7 @@ export interface CreatePropertyRequest {
   postal_code: string;
   country: CountryEnum;
   buildium_property_id?: number;
-  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
+  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids?: number[];
   operating_bank_account_id: number;
   reserve?: number;
@@ -72,7 +72,7 @@ export interface PropertyFormData {
   postal_code: string;
   country: CountryEnum;
   buildium_property_id: string; // Form field as string
-  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Mult-Family' | 'Townhouse' | null;
+  property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids: string; // Form field as comma-separated string
   operating_bank_account_id: string; // Form field as string
   reserve: string; // Form field as string

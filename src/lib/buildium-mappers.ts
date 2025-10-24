@@ -268,7 +268,6 @@ interface VendorData {
   buildium_vendor_id: number
   is_active: boolean
   website: string | null
-  comments: string | null
   insurance_provider: string | null
   insurance_policy_number: string | null
   insurance_expiration_date: string | null
@@ -288,8 +287,6 @@ interface VendorData {
   tax_address_country: Database['public']['Enums']['countries'] | null
   buildium_category_id: number | null
   notes: string | null
-  buildium_created_at: string | null
-  buildium_updated_at: string | null
 }
 
 type LocalOwnerForBuildium = {
@@ -1805,8 +1802,8 @@ export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): Pro
   return {
     name: buildiumProperty.Name,
     rental_type: buildiumProperty.RentalType,
-    // property_type UX label mapping: MultiFamily => Mult-Family, otherwise null
-    property_type: (String(buildiumProperty.RentalSubType || '').toLowerCase() === 'multifamily') ? 'Mult-Family' : null,
+    // property_type UX label mapping: MultiFamily => Rental Building, otherwise null
+    property_type: (String(buildiumProperty.RentalSubType || '').toLowerCase() === 'multifamily') ? 'Rental Building' : null,
     address_line1: buildiumProperty.Address.AddressLine1,
     address_line2: buildiumProperty.Address.AddressLine2,
     city: buildiumProperty.Address.City,
@@ -2249,7 +2246,6 @@ export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): VendorDat
     buildium_vendor_id: buildiumVendor.Id,
     is_active: buildiumVendor.IsActive ?? true,
     website: buildiumVendor.Website ?? null,
-    comments: buildiumVendor.Comments ?? null,
     insurance_provider: buildiumVendor.VendorInsurance?.Provider ?? null,
     insurance_policy_number: buildiumVendor.VendorInsurance?.PolicyNumber ?? null,
     insurance_expiration_date: insuranceExpirationDate,
@@ -2268,9 +2264,7 @@ export function mapVendorFromBuildium(buildiumVendor: BuildiumVendor): VendorDat
     tax_address_postal_code: taxAddress?.PostalCode ?? null,
     tax_address_country: mapCountryFromBuildium(taxAddress?.Country) ?? null,
     buildium_category_id: buildiumVendor.Category?.Id ?? buildiumVendor.CategoryId ?? null,
-    notes: buildiumVendor.Notes ?? null,
-    buildium_created_at: buildiumVendor.CreatedDate ?? null,
-    buildium_updated_at: buildiumVendor.ModifiedDate ?? null
+    notes: buildiumVendor.Notes ?? null
   }
 }
 
@@ -3974,12 +3968,15 @@ async function resolveBuildiumUnitIdFromLocal(localUnitId: string | null | undef
 
 export function mapWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): any {
   const subject = buildiumWO.Subject || buildiumWO.Title || ''
+  const rawStatus =
+    (buildiumWO.WorkOrderStatus as BuildiumWorkOrderStatus | undefined) ||
+    (typeof buildiumWO.Status === 'string' ? (buildiumWO.Status as BuildiumWorkOrderStatus) : undefined)
   return {
     buildium_work_order_id: buildiumWO.Id,
     subject,
     description: buildiumWO.Description ?? null,
     priority: mapWorkOrderPriorityFromBuildium(buildiumWO.Priority),
-    status: mapWorkOrderStatusFromBuildium(buildiumWO.WorkOrderStatus),
+    status: mapWorkOrderStatusFromBuildium(rawStatus),
     assigned_to: buildiumWO.AssignedToUserId ? String(buildiumWO.AssignedToUserId) : null,
     estimated_cost: null,
     actual_cost: null,
@@ -3990,6 +3987,7 @@ export function mapWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): any {
     // property_id/unit_id are resolved in the WithRelations variant
     property_id: null,
     unit_id: null,
+    org_id: null,
     created_at: buildiumWO.CreatedDateTime ?? new Date().toISOString(),
     updated_at: buildiumWO.LastUpdatedDateTime ?? new Date().toISOString()
   }
@@ -3997,12 +3995,48 @@ export function mapWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): any {
 
 export async function mapWorkOrderFromBuildiumWithRelations(buildiumWO: BuildiumWorkOrder, supabase: any): Promise<any> {
   const base = mapWorkOrderFromBuildium(buildiumWO)
-  const localPropertyId = await resolveLocalPropertyIdFromBuildium(buildiumWO.Property?.Id, supabase)
-  const localUnitId = await resolveLocalUnitIdFromBuildium(buildiumWO.UnitId ?? null, supabase)
+  const buildiumUnitId = buildiumWO.UnitId ?? buildiumWO.Task?.UnitId ?? null
+  const localUnitId = await resolveLocalUnitIdFromBuildium(buildiumUnitId, supabase)
+
+  let localPropertyId = await resolveLocalPropertyIdFromBuildium(buildiumWO.Property?.Id, supabase)
+  let orgId: string | null = null
+  if (!localPropertyId && localUnitId) {
+    try {
+      const { data: unitRow, error } = await supabase
+        .from('units')
+        .select('property_id')
+        .eq('id', localUnitId)
+        .maybeSingle()
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(typeof error?.message === 'string' ? error.message : 'Failed to resolve property from unit')
+      }
+      localPropertyId = unitRow?.property_id ?? null
+    } catch (error) {
+      console.warn('mapWorkOrderFromBuildiumWithRelations: failed to resolve property from unit', error)
+    }
+  }
+
+  if (!orgId && localPropertyId) {
+    try {
+      const { data: propertyRow, error } = await supabase
+        .from('properties')
+        .select('org_id')
+        .eq('id', localPropertyId)
+        .maybeSingle()
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(typeof error?.message === 'string' ? error.message : 'Failed to resolve org_id from property')
+      }
+      orgId = propertyRow?.org_id ?? null
+    } catch (error) {
+      console.warn('mapWorkOrderFromBuildiumWithRelations: failed to resolve org_id from property', error)
+    }
+  }
+
   return {
     ...base,
     property_id: localPropertyId,
-    unit_id: localUnitId
+    unit_id: localUnitId,
+    org_id: orgId ?? base.org_id ?? null
   }
 }
 
