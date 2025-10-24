@@ -372,7 +372,7 @@ export default function ReceivePaymentForm({ leaseId, leaseSummary, accounts, te
               <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                 Add another payment
               </Button>
-              <Button type="button" variant="ghost" className="text-muted-foreground" onClick={onCancel}>
+              <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
                 Cancel
               </Button>
             </div>

@@ -875,7 +875,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 <Checkbox id="syncBuildiumOnSave" checked={syncToBuildium} onCheckedChange={(v)=>setSyncToBuildium(Boolean(v))} />
                 <span>Sync to Buildium on save</span>
               </label>
-              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button variant="cancel" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
               <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
             </div>
           </div>
@@ -1440,7 +1440,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     </div>
                     <div className="flex items-center gap-2 justify-start">
                       <Button size="sm" onClick={()=> setShowAddTenant(false)} disabled={!selectedExistingTenantIds.length}>Add tenant</Button>
-                      <Button variant="ghost" size="sm" onClick={()=> setShowAddTenant(false)}>Cancel</Button>
+                      <Button variant="cancel" size="sm" onClick={()=> setShowAddTenant(false)}>Cancel</Button>
                     </div>
                   </div>
                 )}
@@ -1701,7 +1701,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                       setTenantFirstName(''); setTenantLastName(''); setTenantPhone(''); setTenantEmail('');
                       setShowAddTenant(false)
                     }}>Add tenant</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
+                    <Button variant="cancel" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
                   </div>
                 )}
               </TabsContent>
@@ -1898,7 +1898,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                     resetCosignerForm()
                     setShowAddTenant(false)
                   }}>Add cosigner</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
+                  <Button variant="cancel" size="sm" onClick={() => setShowAddTenant(false)}>Cancel</Button>
                 </div>
               </TabsContent>
             </Tabs>

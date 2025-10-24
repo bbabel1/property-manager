@@ -415,7 +415,7 @@ export default function RecurringPaymentForm({ leaseId, leaseSummary, accounts, 
               <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                 Add another recurring payment
               </Button>
-              <Button type="button" variant="ghost" className="text-muted-foreground" onClick={onCancel}>
+              <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
                 Cancel
               </Button>
             </div>

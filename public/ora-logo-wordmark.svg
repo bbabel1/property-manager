@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  width="4000"
+  height="630"
+  viewBox="0 0 4000 630"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <style>
+      .wordmark {
+        fill: #ffffff;
+        font-family: 'Georgia', 'Times New Roman', serif;
+        font-weight: 700;
+      }
+      .descriptor {
+        fill: #ffffff;
+        font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+        font-weight: 400;
+        letter-spacing: 0.04em;
+      }
+    </style>
+  </defs>
+  <text x="120" y="450" class="wordmark" font-size="420">Ora</text>
+  <text x="980" y="365" class="descriptor" font-size="190">Property Management</text>
+</svg>

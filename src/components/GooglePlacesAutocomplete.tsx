@@ -19,6 +19,7 @@ interface GooglePlacesAutocompleteProps {
   placeholder?: string
   className?: string
   required?: boolean
+  autoComplete?: string
 }
 
 declare global {
@@ -34,7 +35,8 @@ export default function GooglePlacesAutocomplete({
   onPlaceSelect,
   placeholder = "Enter address...",
   className = "",
-  required = false
+  required = false,
+  autoComplete
 }: GooglePlacesAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<any>(null)
@@ -186,9 +188,10 @@ export default function GooglePlacesAutocomplete({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={isLoading ? "Loading autocomplete..." : placeholder}
-        className={`w-full h-9 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${className}`}
+        className={`w-full h-9 px-3 py-2 border border-gray-300 rounded-md text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary ${className}`}
         required={required}
         disabled={isLoading}
+        autoComplete={autoComplete}
       />
       {isLoading && (
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">

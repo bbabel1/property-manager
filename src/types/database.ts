@@ -1291,7 +1291,9 @@ export type Database = {
           tax_payer_id: string | null
           tax_payer_name1: string | null
           tax_payer_name2: string | null
-          tax_payer_type: string | null
+          tax_payer_type:
+            | Database["public"]["Enums"]["tax_payer_type"]
+            | null
           tax_postal_code: string | null
           tax_state: string | null
           updated_at: string
@@ -1324,7 +1326,9 @@ export type Database = {
           tax_payer_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?: string | null
+          tax_payer_type?:
+            | Database["public"]["Enums"]["tax_payer_type"]
+            | null
           tax_postal_code?: string | null
           tax_state?: string | null
           updated_at: string
@@ -1357,7 +1361,9 @@ export type Database = {
           tax_payer_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?: string | null
+          tax_payer_type?:
+            | Database["public"]["Enums"]["tax_payer_type"]
+            | null
           tax_postal_code?: string | null
           tax_state?: string | null
           updated_at?: string
@@ -3102,7 +3108,6 @@ export type Database = {
           account_number: string | null
           buildium_category_id: number | null
           buildium_vendor_id: number | null
-          comments: string | null
           contact_id: number
           created_at: string | null
           expense_gl_account_id: number | null
@@ -3124,7 +3129,9 @@ export type Database = {
           tax_id: string | null
           tax_payer_name1: string | null
           tax_payer_name2: string | null
-          tax_payer_type: string | null
+          tax_payer_type:
+            | Database["public"]["Enums"]["tax_payer_type"]
+            | null
           updated_at: string | null
           vendor_category: string | null
           website: string | null
@@ -3133,7 +3140,6 @@ export type Database = {
           account_number?: string | null
           buildium_category_id?: number | null
           buildium_vendor_id?: number | null
-          comments?: string | null
           contact_id: number
           created_at?: string | null
           expense_gl_account_id?: number | null
@@ -3155,7 +3161,9 @@ export type Database = {
           tax_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?: string | null
+          tax_payer_type?:
+            | Database["public"]["Enums"]["tax_payer_type"]
+            | null
           updated_at?: string | null
           vendor_category?: string | null
           website?: string | null
@@ -3164,7 +3172,6 @@ export type Database = {
           account_number?: string | null
           buildium_category_id?: number | null
           buildium_vendor_id?: number | null
-          comments?: string | null
           contact_id?: number
           created_at?: string | null
           expense_gl_account_id?: number | null
@@ -3186,7 +3193,9 @@ export type Database = {
           tax_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?: string | null
+          tax_payer_type?:
+            | Database["public"]["Enums"]["tax_payer_type"]
+            | null
           updated_at?: string | null
           vendor_category?: string | null
           website?: string | null
@@ -4528,6 +4537,7 @@ export type Database = {
         | "Accountant"
         | "Administrator"
       sync_source_enum: "local" | "buildium"
+      tax_payer_type: "SSN" | "EIN"
       task_kind_enum: "owner" | "resident" | "contact" | "todo" | "other"
       transaction_type_enum:
         | "Bill"

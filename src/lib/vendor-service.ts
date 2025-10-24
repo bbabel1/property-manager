@@ -1,5 +1,6 @@
 import { differenceInCalendarDays, isAfter, isBefore, isWithinInterval, startOfMonth, startOfYear, subDays } from 'date-fns'
 import { logger } from '@/lib/logger'
+import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/database'
 
@@ -267,14 +268,14 @@ function buildAutomationSignals(
 }
 
 export async function getVendorDashboardData(): Promise<VendorDashboardData> {
-  const supabase = await getSupabaseServerClient()
+  const supabase = (supabaseAdmin ?? (await getSupabaseServerClient())) as TypedSupabaseClient
   const now = new Date()
   const startOfCurrentMonth = startOfMonth(now)
   const startOfCurrentYear = startOfYear(now)
   const startOfCurrentYearIso = startOfCurrentYear.toISOString().slice(0, 10)
   const last30Boundary = subDays(now, 30)
 
-  const { data: rawVendors, error: vendorError } = await (supabase as any)
+  const { data: rawVendors, error: vendorError } = await supabase
     .from('vendors')
     .select(
       `
@@ -321,7 +322,7 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
 
   let transactions: RawTransaction[] = []
   if (vendorIds.length > 0) {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('transactions')
       .select('id, vendor_id, total_amount, status, date, due_date, category_id, transaction_type, buildium_bill_id, memo, reference_number')
       .in('vendor_id', vendorIds)
@@ -336,7 +337,7 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
 
   let workOrders: RawWorkOrder[] = []
   if (vendorIds.length > 0) {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('work_orders')
       .select('id, vendor_id, subject, status, priority, scheduled_date, property_id, buildium_work_order_id, created_at, updated_at')
       .in('vendor_id', vendorIds)
@@ -354,7 +355,7 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
   )
   const propertyMap = new Map<string, Pick<PropertyRow, 'id' | 'name' | 'address_line1' | 'city' | 'state' | 'postal_code' | 'buildium_property_id'>>()
   if (propertyIds.length > 0) {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('properties')
       .select('id, name, address_line1, city, state, postal_code, buildium_property_id')
       .in('id', propertyIds)
@@ -362,7 +363,11 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
     if (error) {
       logger.error({ error }, 'Failed to load properties for vendor dashboard')
     } else if (data) {
-      for (const prop of data as any[]) {
+      const rows = data as Pick<
+        PropertyRow,
+        'id' | 'name' | 'address_line1' | 'city' | 'state' | 'postal_code' | 'buildium_property_id'
+      >[]
+      for (const prop of rows) {
         propertyMap.set(prop.id, prop)
       }
     }

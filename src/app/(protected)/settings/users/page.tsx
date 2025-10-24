@@ -420,7 +420,7 @@ export default function UsersRolesPage() {
             {createOrgErr && <div className="text-sm text-destructive">{createOrgErr}</div>}
             <div className="flex items-center gap-2">
               <Button onClick={createOrg} disabled={creatingOrg || !newOrgName.trim()}>{creatingOrg ? "Creating..." : "Create"}</Button>
-              <Button variant="ghost" onClick={()=> setShowCreateOrg(false)}>Cancel</Button>
+              <Button variant="cancel" onClick={()=> setShowCreateOrg(false)}>Cancel</Button>
             </div>
           </div>
         </DialogContent>
@@ -548,7 +548,7 @@ export default function UsersRolesPage() {
                   >
                     {editBusy ? "Saving..." : "Save Changes"}
                   </Button>
-                  <Button variant="ghost" onClick={cancelEdit}>Cancel</Button>
+                  <Button variant="cancel" onClick={cancelEdit}>Cancel</Button>
                 </div>
               </div>
             )}

@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
-import { SelectWithDescription } from '@/components/ui/SelectWithDescription'
 import CreateBankAccountModal from '@/components/CreateBankAccountModal'
 import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property'
 import type { BankAccountSummary } from '@/components/forms/types'
@@ -124,7 +123,8 @@ const PROPERTY_TYPES = [
   'Condo',
   'Co-op',
   'Condop',
-  'Mult-Family',
+  'Rental Building',
+  'Multi-Family',
   'Townhouse'
 ]
 
@@ -140,6 +140,8 @@ const COUNTRIES = [
   'India',
   'Brazil'
 ]
+
+const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
 type OwnerOption = { id: string; name: string; status?: string | null }
 type BankAccountOption = Pick<BankAccountSummary, 'id' | 'name' | 'account_number' | 'routing_number'>
@@ -495,6 +497,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
             variant="ghost"
             onClick={handlePrevious}
             disabled={currentStep === 1}
+            className={FOCUS_RING}
           >
             Previous
           </Button>
@@ -504,14 +507,14 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
               <label className="flex items-center gap-2 text-sm text-muted-foreground select-none">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 border-border rounded"
+                  className={`h-4 w-4 border-border rounded ${FOCUS_RING}`}
                   checked={syncToBuildium}
                   onChange={(e) => setSyncToBuildium(e.target.checked)}
                 />
                 Create this property in Buildium
               </label>
             )}
-            <Button type="button" onClick={handleNext} disabled={submitting || !canProceed(currentStep, formData)}>
+            <Button type="button" onClick={handleNext} disabled={submitting || !canProceed(currentStep, formData)} className={FOCUS_RING}>
               {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
             </Button>
           </div>
@@ -546,7 +549,7 @@ function Step1PropertyType({
                 key={type}
                 type="button"
                 variant={selected ? 'default' : 'outline'}
-                className={`h-14 md:h-16 flex-col gap-1 justify-center ${selected ? 'bg-primary text-primary-foreground' : 'bg-card'} transition-colors`}
+                className={`h-14 md:h-16 flex-col gap-1 justify-center ${selected ? 'bg-primary text-primary-foreground' : 'bg-card'} transition-colors ${FOCUS_RING}`}
                 onClick={() => setFormData({ ...formData, propertyType: type })}
               >
                 <Building className={`h-5 w-5 ${selected ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
@@ -603,6 +606,8 @@ function Step2PropertyDetails({
             }}
             placeholder="e.g., 123 Main Street"
             required
+            autoComplete="street-address"
+            className={FOCUS_RING}
           />
         </div>
 
@@ -612,7 +617,8 @@ function Step2PropertyDetails({
             type="text"
             value={formData.addressLine2}
             onChange={(e) => setFormData(prev => ({ ...prev, addressLine2: e.target.value }))}
-            className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            autoComplete="address-line2"
+            className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground ${FOCUS_RING}`}
             placeholder="Apartment, suite, unit, building, floor, etc."
           />
         </div>
@@ -620,21 +626,23 @@ function Step2PropertyDetails({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">City *</label>
-          <input
+            <input
               type="text"
               value={formData.city}
               onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              autoComplete="address-level2"
+              className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground ${FOCUS_RING}`}
               placeholder="Enter city"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">State *</label>
-          <input
+            <input
               type="text"
               value={formData.state}
               onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
-              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              autoComplete="address-level1"
+              className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground ${FOCUS_RING}`}
               placeholder="Enter state"
             />
           </div>
@@ -643,11 +651,12 @@ function Step2PropertyDetails({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">ZIP Code *</label>
-          <input
+            <input
               type="text"
               value={formData.postalCode}
               onChange={(e) => setFormData(prev => ({ ...prev, postalCode: e.target.value }))}
-              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              autoComplete="postal-code"
+              className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground ${FOCUS_RING}`}
               placeholder="Enter ZIP code"
             />
           </div>
@@ -657,7 +666,8 @@ function Step2PropertyDetails({
               id="add-property-country"
               value={formData.country}
               onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
-              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              autoComplete="country-name"
+              className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
             >
               <option value="">Select country</option>
               {COUNTRIES.map(c => (
@@ -673,7 +683,7 @@ function Step2PropertyDetails({
             id="add-property-status"
             value={formData.status}
             onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'Active' | 'Inactive' }))}
-            className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
           >
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
@@ -683,11 +693,11 @@ function Step2PropertyDetails({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Year Built (Optional)</label>
-          <input
+            <input
               type="text"
               value={formData.yearBuilt}
               onChange={(e) => setFormData(prev => ({ ...prev, yearBuilt: e.target.value }))}
-              className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground ${FOCUS_RING}`}
               placeholder="e.g., 2008"
             />
           </div>
@@ -696,7 +706,7 @@ function Step2PropertyDetails({
           <textarea
               value={formData.structureDescription}
               onChange={(e) => setFormData(prev => ({ ...prev, structureDescription: e.target.value }))}
-              className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className={`w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground ${FOCUS_RING}`}
               rows={3}
               placeholder="Brief description of the property..."
             />
@@ -887,7 +897,7 @@ function Step3Ownership({
           <select
             id="add-property-owner-select"
             onChange={(e) => { handleSelectOwner(e.target.value); e.target.value = '' }}
-            className="w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
           >
             <option value="">Choose owners to add...</option>
             <option value="create-new-owner">+ Create new owner…</option>
@@ -904,40 +914,40 @@ function Step3Ownership({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">First Name *</label>
-                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createFirst} onChange={e=>setCreateFirst(e.target.value)} placeholder="e.g., John" />
+                <input className={`w-full h-9 px-2 border border-border rounded bg-background ${FOCUS_RING}`} value={createFirst} onChange={e=>setCreateFirst(e.target.value)} placeholder="e.g., John" />
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Last Name *</label>
-                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createLast} onChange={e=>setCreateLast(e.target.value)} placeholder="e.g., Smith" />
+                <input className={`w-full h-9 px-2 border border-border rounded bg-background ${FOCUS_RING}`} value={createLast} onChange={e=>setCreateLast(e.target.value)} placeholder="e.g., Smith" />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs text-muted-foreground mb-1">Email *</label>
-                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createEmail} onChange={e=>setCreateEmail(e.target.value)} placeholder="e.g., john.smith@example.com" />
+                <input className={`w-full h-9 px-2 border border-border rounded bg-background ${FOCUS_RING}`} value={createEmail} onChange={e=>setCreateEmail(e.target.value)} placeholder="e.g., john.smith@example.com" />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs text-muted-foreground mb-1">Phone (Optional)</label>
-                <input className="w-full h-9 px-2 border border-border rounded bg-background" value={createPhone} onChange={e=>setCreatePhone(e.target.value)} placeholder="e.g., (555) 123-4567" />
+                <input className={`w-full h-9 px-2 border border-border rounded bg-background ${FOCUS_RING}`} value={createPhone} onChange={e=>setCreatePhone(e.target.value)} placeholder="e.g., (555) 123-4567" />
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Ownership %</label>
-                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value))} aria-label="Ownership percentage" />
+                <input type="number" min={0} max={100} className={`w-full h-9 px-2 border border-border rounded bg-background ${FOCUS_RING}`} value={createOwnershipPct} onChange={e=>setCreateOwnershipPct(Number(e.target.value))} aria-label="Ownership percentage" />
               </div>
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Disbursement %</label>
-                <input type="number" min={0} max={100} className="w-full h-9 px-2 border border-border rounded bg-background" value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value))} aria-label="Disbursement percentage" />
+                <input type="number" min={0} max={100} className={`w-full h-9 px-2 border border-border rounded bg-background ${FOCUS_RING}`} value={createDisbursementPct} onChange={e=>setCreateDisbursementPct(Number(e.target.value))} aria-label="Disbursement percentage" />
               </div>
               <div className="sm:col-span-2">
                 <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                  <input type="checkbox" checked={createPrimary} onChange={e=>setCreatePrimary(e.target.checked)} />
+                  <input type="checkbox" className={FOCUS_RING} checked={createPrimary} onChange={e=>setCreatePrimary(e.target.checked)} />
                   Primary
                 </label>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button type="button" onClick={handleCreateOwner} disabled={creating}>
+              <Button type="button" onClick={handleCreateOwner} disabled={creating} className={FOCUS_RING}>
                 {creating ? 'Adding…' : 'Add Owner'}
               </Button>
-              <Button type="button" variant="ghost" onClick={() => { setShowCreateInline(false); setErr(null) }}>Cancel</Button>
+              <Button type="button" variant="cancel" onClick={() => { setShowCreateInline(false); setErr(null) }} className={FOCUS_RING}>Cancel</Button>
             </div>
           </div>
         )}
@@ -969,13 +979,13 @@ function Step3Ownership({
                       </td>
                       <td className="px-4 py-3 text-center">
                         <input
-                          type="number"
-                          value={owner.ownershipPercentage}
-                          onChange={(e) => updateOwnerPercentage(owner.id, 'ownershipPercentage', Number(e.target.value))}
-                          className="w-24 px-2 py-1 border border-border rounded text-sm text-foreground bg-background"
-                          min={0}
-                          max={100}
-                          step={1}
+                        type="number"
+                        value={owner.ownershipPercentage}
+                        onChange={(e) => updateOwnerPercentage(owner.id, 'ownershipPercentage', Number(e.target.value))}
+                        className={`w-24 px-2 py-1 border border-border rounded text-sm text-foreground bg-background ${FOCUS_RING}`}
+                        min={0}
+                        max={100}
+                        step={1}
                           aria-label={`Ownership percentage for ${owner.name}`}
                         />
                       </td>
@@ -984,7 +994,7 @@ function Step3Ownership({
                           type="number"
                           value={owner.disbursementPercentage}
                           onChange={(e) => updateOwnerPercentage(owner.id, 'disbursementPercentage', Number(e.target.value))}
-                          className="w-24 px-2 py-1 border border-border rounded text-sm text-foreground bg-background"
+                          className={`w-24 px-2 py-1 border border-border rounded text-sm text-foreground bg-background ${FOCUS_RING}`}
                           min={0}
                           max={100}
                           step={1}
@@ -994,13 +1004,14 @@ function Step3Ownership({
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
+                          className={FOCUS_RING}
                           checked={!!owner.primary}
                           onChange={() => setPrimaryOwner(owner.id)}
                           aria-label={`Set ${owner.name} as primary owner`}
                         />
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => removeOwner(owner.id)} className="text-destructive hover:underline" aria-label={`Remove ${owner.name} from property`}>Remove</button>
+                        <button onClick={() => removeOwner(owner.id)} className={`text-destructive hover:underline ${FOCUS_RING}`} aria-label={`Remove ${owner.name} from property`}>Remove</button>
                       </td>
                     </tr>
                   ))}
@@ -1078,11 +1089,17 @@ function Step4BankAccount({
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Operating Bank Account *</label>
-          <SelectWithDescription
+          <label htmlFor="add-property-operating-account" className="block text-sm font-medium text-foreground mb-1">Operating Bank Account *</label>
+          <select
+            id="add-property-operating-account"
             value={formData.operatingBankAccountId || ''}
-            onChange={(value: string) => {
-              if (value === 'create-new') { setCreateTarget('operating'); setShowCreate(true); return }
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === 'create-new') {
+                setCreateTarget('operating')
+                setShowCreate(true)
+                return
+              }
               if (!value) {
                 setFormData({ ...formData, operatingBankAccountId: '', operatingBankAccountName: '' })
                 return
@@ -1094,28 +1111,42 @@ function Step4BankAccount({
                 operatingBankAccountName: selected?.name ?? ''
               })
             }}
-            options={[
-              { value: 'create-new', label: '+ Create new account…', description: 'Add a bank account' },
-              ...accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))
-            ]}
-            placeholder="Select account..."
-          />
+            className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+          >
+            <option value="">Select account...</option>
+            <option value="create-new">+ Create new account…</option>
+            {accounts.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.name}{a.account_number ? ` (...${a.account_number})` : ''}
+              </option>
+            ))}
+          </select>
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Deposit Trust Account</label>
-          <SelectWithDescription
+          <label htmlFor="add-property-trust-account" className="block text-sm font-medium text-foreground mb-1">Deposit Trust Account</label>
+          <select
+            id="add-property-trust-account"
             value={formData.depositTrustAccountId || ''}
-            onChange={(value: string) => {
-              if (value === 'create-new') { setCreateTarget('trust'); setShowCreate(true); return }
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === 'create-new') {
+                setCreateTarget('trust')
+                setShowCreate(true)
+                return
+              }
               setFormData({ ...formData, depositTrustAccountId: value })
             }}
-            options={[
-              { value: 'create-new', label: '+ Create new account…', description: 'Add a bank account' },
-              ...accounts.map(a => ({ value: String(a.id), label: `${a.name}${a.account_number ? ` (...${a.account_number})` : ''}` }))
-            ]}
-            placeholder="Select account..."
-          />
+            className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+          >
+            <option value="">Select account...</option>
+            <option value="create-new">+ Create new account…</option>
+            {accounts.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.name}{a.account_number ? ` (...${a.account_number})` : ''}
+              </option>
+            ))}
+          </select>
         </div>
         
         <div>
@@ -1126,7 +1157,7 @@ function Step4BankAccount({
               type="number"
               value={formData.reserve}
               onChange={(e) => setFormData({ ...formData, reserve: Number(e.target.value) })}
-              className="w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+              className={`w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground text-sm ${FOCUS_RING}`}
               placeholder="e.g., 0.00"
               step="0.01"
               min="0"
@@ -1141,41 +1172,44 @@ function Step4BankAccount({
           <h4 className="font-medium text-foreground mb-3">Management & Services</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Management Scope *</label>
-              <SelectWithDescription
+              <label htmlFor="add-property-management-scope" className="block text-sm font-medium text-foreground mb-1">Management Scope *</label>
+              <select
+                id="add-property-management-scope"
                 value={formData.management_scope || ''}
-                onChange={(value: string) => setFormData({ ...formData, management_scope: (value || undefined) as 'Building' | 'Unit' | undefined })}
-                options={[
-                  { value: 'Building', label: 'Building', description: 'Manage entire property' },
-                  { value: 'Unit', label: 'Unit', description: 'Manage specific units' }
-                ]}
-                placeholder="Select scope..."
-              />
+                onChange={(e) => setFormData({ ...formData, management_scope: (e.target.value || undefined) as 'Building' | 'Unit' | undefined })}
+                className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+              >
+                <option value="">Select scope...</option>
+                <option value="Building">Building (manage entire property)</option>
+                <option value="Unit">Unit (manage specific units)</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Service Assignment *</label>
-              <SelectWithDescription
+              <label htmlFor="add-property-service-assignment" className="block text-sm font-medium text-foreground mb-1">Service Assignment *</label>
+              <select
+                id="add-property-service-assignment"
                 value={formData.service_assignment || ''}
-                onChange={(value: string) => setFormData({ ...formData, service_assignment: (value || undefined) as 'Property Level' | 'Unit Level' | undefined })}
-                options={[
-                  { value: 'Property Level', label: 'Property Level' },
-                  { value: 'Unit Level', label: 'Unit Level' }
-                ]}
-                placeholder="Select level..."
-              />
+                onChange={(e) => setFormData({ ...formData, service_assignment: (e.target.value || undefined) as 'Property Level' | 'Unit Level' | undefined })}
+                className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+              >
+                <option value="">Select level...</option>
+                <option value="Property Level">Property Level</option>
+                <option value="Unit Level">Unit Level</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Service Plan *</label>
-              <SelectWithDescription
+              <label htmlFor="add-property-service-plan" className="block text-sm font-medium text-foreground mb-1">Service Plan *</label>
+              <select
+                id="add-property-service-plan"
                 value={formData.service_plan || ''}
-                onChange={(value: string) => setFormData({ ...formData, service_plan: (value || undefined) as 'Full' | 'Basic' | 'A-la-carte' | undefined })}
-                options={[
-                  { value: 'Full', label: 'Full' },
-                  { value: 'Basic', label: 'Basic' },
-                  { value: 'A-la-carte', label: 'A-la-carte' }
-                ]}
-                placeholder="Select plan..."
-              />
+                onChange={(e) => setFormData({ ...formData, service_plan: (e.target.value || undefined) as 'Full' | 'Basic' | 'A-la-carte' | undefined })}
+                className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+              >
+                <option value="">Select plan...</option>
+                <option value="Full">Full</option>
+                <option value="Basic">Basic</option>
+                <option value="A-la-carte">A-la-carte</option>
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-foreground mb-1">Active Services</label>
@@ -1186,6 +1220,7 @@ function Step4BankAccount({
                     <label key={svc} className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
+                        className={FOCUS_RING}
                         checked={checked}
                         onChange={(e) => {
                           const curr = new Set(formData.active_services || [])
@@ -1209,30 +1244,32 @@ function Step4BankAccount({
           <h4 className="font-medium text-foreground mb-3">Management Fees</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Fee Assignment *</label>
-              <SelectWithDescription
+              <label htmlFor="add-property-fee-assignment" className="block text-sm font-medium text-foreground mb-1">Fee Assignment *</label>
+              <select
+                id="add-property-fee-assignment"
                 value={formData.fee_assignment || ''}
-                onChange={(value: string) => setFormData({ ...formData, fee_assignment: (value || undefined) as 'Building' | 'Unit' | undefined })}
-                options={[
-                  { value: 'Building', label: 'Building' },
-                  { value: 'Unit', label: 'Unit' }
-                ]}
-                placeholder="Select assignment..."
-              />
+                onChange={(e) => setFormData({ ...formData, fee_assignment: (e.target.value || undefined) as 'Building' | 'Unit' | undefined })}
+                className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+              >
+                <option value="">Select assignment...</option>
+                <option value="Building">Building</option>
+                <option value="Unit">Unit</option>
+              </select>
             </div>
             {formData.fee_assignment === 'Building' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Fee Type *</label>
-                  <SelectWithDescription
+                  <label htmlFor="add-property-fee-type" className="block text-sm font-medium text-foreground mb-1">Fee Type *</label>
+                  <select
+                    id="add-property-fee-type"
                     value={formData.fee_type || ''}
-                    onChange={(value: string) => setFormData({ ...formData, fee_type: (value || undefined) as 'Percentage' | 'Flat Rate' | undefined })}
-                    options={[
-                      { value: 'Percentage', label: 'Percentage of rent' },
-                      { value: 'Flat Rate', label: 'Flat Rate' }
-                    ]}
-                    placeholder="Select type..."
-                  />
+                    onChange={(e) => setFormData({ ...formData, fee_type: (e.target.value || undefined) as 'Percentage' | 'Flat Rate' | undefined })}
+                    className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+                  >
+                    <option value="">Select type...</option>
+                    <option value="Percentage">Percentage of rent</option>
+                    <option value="Flat Rate">Flat Rate</option>
+                  </select>
                 </div>
                 {formData.fee_type === 'Percentage' && (
                   <div>
@@ -1242,7 +1279,7 @@ function Step4BankAccount({
                         type="number"
                         value={formData.fee_percentage ?? ''}
                         onChange={(e) => setFormData({ ...formData, fee_percentage: e.target.value === '' ? undefined : Number(e.target.value) })}
-                        className="w-full h-9 px-3 pr-10 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+                        className={`w-full h-9 px-3 pr-10 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground text-sm ${FOCUS_RING}`}
                         placeholder="e.g., 8"
                         step="0.01"
                         min={0}
@@ -1262,7 +1299,7 @@ function Step4BankAccount({
                         type="number"
                         value={formData.management_fee ?? ''}
                         onChange={(e) => setFormData({ ...formData, management_fee: e.target.value === '' ? undefined : Number(e.target.value) })}
-                        className="w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 text-sm"
+                        className={`w-full h-9 pl-8 pr-3 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground text-sm ${FOCUS_RING}`}
                         placeholder="e.g., 0.00"
                         step="0.01"
                         min={0}
@@ -1271,16 +1308,17 @@ function Step4BankAccount({
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Billing Frequency *</label>
-                  <SelectWithDescription
+                  <label htmlFor="add-property-billing-frequency" className="block text-sm font-medium text-foreground mb-1">Billing Frequency *</label>
+                  <select
+                    id="add-property-billing-frequency"
                     value={formData.billing_frequency || ''}
-                    onChange={(value: string) => setFormData({ ...formData, billing_frequency: (value || undefined) as 'Monthly' | 'Annual' | undefined })}
-                    options={[
-                      { value: 'Monthly', label: 'Monthly' },
-                      { value: 'Annual', label: 'Annual' }
-                    ]}
-                    placeholder="Select frequency..."
-                  />
+                    onChange={(e) => setFormData({ ...formData, billing_frequency: (e.target.value || undefined) as 'Monthly' | 'Annual' | undefined })}
+                    className={`w-full h-10 px-3 border border-border rounded-lg bg-background text-foreground ${FOCUS_RING}`}
+                  >
+                    <option value="">Select frequency...</option>
+                    <option value="Monthly">Monthly</option>
+                    <option value="Annual">Annual</option>
+                  </select>
                 </div>
               </>
             )}
@@ -1370,7 +1408,7 @@ function Step5PropertyManager({
             id="add-property-manager"
             value={formData.propertyManagerId}
             onChange={(e) => setFormData({ ...formData, propertyManagerId: e.target.value })}
-            className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-background text-foreground"
+            className={`w-full px-3 py-2 border border-input rounded-md bg-background text-foreground ${FOCUS_RING}`}
           >
             <option value="">Choose a manager...</option>
             {staff.map((m) => (
@@ -1477,14 +1515,14 @@ function Step4UnitDetails({
             <div className="flex items-center justify-between mb-3">
               <span className="font-medium">Unit {idx + 1}</span>
               {formData.units.length > 1 && (
-                <button onClick={() => removeUnit(idx)} className="text-destructive hover:underline text-sm" aria-label={`Remove unit ${idx + 1}`}>Remove</button>
+                  <button onClick={() => removeUnit(idx)} className={`text-destructive hover:underline text-sm ${FOCUS_RING}`} aria-label={`Remove unit ${idx + 1}`}>Remove</button>
               )}
             </div>
             <div className="grid grid-cols-1 gap-4">
               {/* Unit Number */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Unit Number *</label>
-                <input value={u.unitNumber} onChange={e=>updateUnit(idx,{ unitNumber:e.target.value })} className="w-full h-9 px-3 border border-border rounded-md bg-background" placeholder="e.g., 101, A, 1" />
+                <input value={u.unitNumber} onChange={e=>updateUnit(idx,{ unitNumber:e.target.value })} className={`w-full h-9 px-3 border border-border rounded-md bg-background ${FOCUS_RING}`} placeholder="e.g., 101, A, 1" />
               </div>
               {/* Bedrooms */}
               <div>
@@ -1497,7 +1535,7 @@ function Step4UnitDetails({
                         key={b}
                         type="button"
                         onClick={() => updateUnit(idx, { unitBedrooms: b })}
-                        className={`flex-1 py-2 text-sm text-center focus:outline-none ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'}`}
+                        className={`flex-1 py-3 text-sm text-center ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
                         aria-label={`Select ${b} bedrooms for unit ${idx + 1}`}
                       >
                         {b}
@@ -1517,7 +1555,7 @@ function Step4UnitDetails({
                         key={b}
                         type="button"
                         onClick={() => updateUnit(idx, { unitBathrooms: b })}
-                        className={`flex-1 py-2 text-sm text-center focus:outline-none ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'}`}
+                        className={`flex-1 py-3 text-sm text-center ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
                         aria-label={`Select ${b} bathrooms for unit ${idx + 1}`}
                       >
                         {b}
@@ -1529,13 +1567,13 @@ function Step4UnitDetails({
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Description (Optional)</label>
-                <textarea value={u.description || ''} onChange={e=>updateUnit(idx,{ description: e.target.value || undefined })} rows={3} className="w-full px-3 py-2 border border-border rounded-lg bg-background" placeholder="Unit-specific details, amenities, notes..." />
+                <textarea value={u.description || ''} onChange={e=>updateUnit(idx,{ description: e.target.value || undefined })} rows={3} className={`w-full px-3 py-2 border border-border rounded-lg bg-background ${FOCUS_RING}`} placeholder="Unit-specific details, amenities, notes..." />
               </div>
             </div>
           </div>
         ))}
 
-        <Button type="button" variant="outline" onClick={addUnit} className="w-full">+ Add Another Unit</Button>
+        <Button type="button" variant="outline" onClick={addUnit} className={`w-full ${FOCUS_RING}`}>+ Add Another Unit</Button>
       </div>
     </div>
   )

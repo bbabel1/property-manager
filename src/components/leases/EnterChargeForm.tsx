@@ -412,7 +412,7 @@ export default function EnterChargeForm({
                 <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                   Save and prepare invoice
                 </Button>
-                <Button type="button" variant="ghost" className="text-muted-foreground" onClick={onCancel}>
+                <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
                   Cancel
                 </Button>
               </div>
@@ -528,7 +528,7 @@ export default function EnterChargeForm({
                   <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                     Save and prepare invoice
                   </Button>
-                  <Button type="button" variant="ghost" className="text-muted-foreground" onClick={onCancel}>
+                  <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
                     Cancel
                   </Button>
                 </div>

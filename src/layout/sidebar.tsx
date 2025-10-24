@@ -1,5 +1,6 @@
 'use client'
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -89,12 +90,15 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
       >
         <div className="flex h-full flex-col">
           <div className="p-6">
-            <div className="mb-6">
-              <div className="text-xl font-semibold leading-6">
-                Ora Property
-                <br />
-                Management
-              </div>
+            <div className="mb-6 flex justify-center">
+              <Image
+                src="/ora-logo.png"
+                alt="Ora Property Management"
+                width={320}
+                height={320}
+                className="w-full max-w-[232px]"
+                priority
+              />
             </div>
 
             <div className="text-sm text-muted-foreground mb-3">Navigation</div>

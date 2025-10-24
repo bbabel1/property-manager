@@ -172,6 +172,7 @@ export default function PropertiesPage() {
                 <option value="Condo">Condo</option>
                 <option value="Co-op">Co-op</option>
                 <option value="Condop">Condop</option>
+                <option value="Rental Building">Rental Building</option>
                 <option value="Mult-Family">Mult-Family</option>
                 <option value="Townhouse">Townhouse</option>
               </select>

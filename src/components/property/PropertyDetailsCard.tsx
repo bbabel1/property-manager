@@ -691,7 +691,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" onClick={createOwnerInline} disabled={creating}> {creating ? 'Creating…' : 'Create owner'} </Button>
-                      <Button variant="ghost" size="sm" onClick={()=>{ setShowCreateInline(false); setCreateForRowId(null) }}>Cancel</Button>
+                      <Button variant="cancel" size="sm" onClick={()=>{ setShowCreateInline(false); setCreateForRowId(null) }}>Cancel</Button>
                     </div>
                   </div>
                 )}
@@ -706,7 +706,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
             <Button onClick={save} disabled={saving || ownershipTotal !== 100}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
-            <Button variant="ghost" onClick={()=> setEditing(false)}>Cancel</Button>
+            <Button variant="cancel" onClick={()=> setEditing(false)}>Cancel</Button>
           </div>
         </div>
       }
