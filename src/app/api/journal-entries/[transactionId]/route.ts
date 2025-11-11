@@ -310,7 +310,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
 
   const { data: transaction, error: transactionError } = await admin
     .from('transactions')
-    .select('id, transaction_type, org_id')
+    .select('id, transaction_type')
     .eq('id', transactionId)
     .maybeSingle();
 
@@ -330,83 +330,6 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     return NextResponse.json(
       { error: 'Only general journal entries can be updated via this endpoint.' },
       { status: 400 },
-    );
-  }
-
-  const transactionOrgId = transaction?.org_id ? String(transaction.org_id) : null;
-  if (transactionOrgId) {
-    const hasTransactionOrgAccess = await userHasOrgAccess({
-      supabase,
-      user,
-      orgId: transactionOrgId,
-    });
-    if (!hasTransactionOrgAccess) {
-      logIssue('user lacks access to transaction org', { orgId: transactionOrgId });
-      return NextResponse.json(
-        { error: 'You do not have access to this journal entry' },
-        { status: 403 },
-      );
-    }
-  }
-
-  const { data: originalLines, error: selectOriginalError } = await admin
-    .from('transaction_lines')
-    .select('*')
-    .eq('transaction_id', transactionId);
-
-  if (selectOriginalError) {
-    logIssue(
-      'failed to load existing transaction lines',
-      { supabaseError: { message: selectOriginalError.message, hint: selectOriginalError.hint } },
-      'error',
-    );
-    return NextResponse.json({ error: 'Unable to load existing journal lines' }, { status: 500 });
-  }
-
-  type OriginalLineRow = {
-    property_id?: string | number | null;
-  };
-  const typedOriginalLines = (originalLines ?? []) as OriginalLineRow[];
-  const originalPropertyIds = Array.from(
-    new Set(
-      typedOriginalLines
-        .map((line) => (line?.property_id != null ? String(line.property_id) : null))
-        .filter((value): value is string => Boolean(value)),
-    ),
-  );
-
-  if (!isCompanyLevel && propertyRow) {
-    const propertyMismatchIds = originalPropertyIds.filter((id) => id !== propertyRow.id);
-    if (propertyMismatchIds.length > 0) {
-      logIssue('existing lines belong to a different property', {
-        requestedPropertyId: propertyRow.id,
-        linePropertyIds: propertyMismatchIds,
-      });
-      return NextResponse.json(
-        { error: 'This journal entry does not belong to the selected property' },
-        { status: 403 },
-      );
-    }
-  }
-
-  if (isCompanyLevel && originalPropertyIds.length > 0) {
-    logIssue('company-level payload provided for property-scoped journal entry', {
-      linePropertyIds: originalPropertyIds,
-    });
-    return NextResponse.json(
-      { error: 'This journal entry is associated with a property and cannot be updated as company-level' },
-      { status: 403 },
-    );
-  }
-
-  if (propertyRow?.org_id && transactionOrgId && propertyRow.org_id !== transactionOrgId) {
-    logIssue('transaction org does not match property org', {
-      transactionOrgId,
-      propertyOrgId: propertyRow.org_id,
-    });
-    return NextResponse.json(
-      { error: 'This journal entry does not belong to the selected property' },
-      { status: 403 },
     );
   }
 
@@ -530,7 +453,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   const resolvedOrgId = await resolveUserOrgId({
     supabase,
     user,
-    preferred: propertyRow?.org_id ?? transactionOrgId ?? null,
+    preferred: propertyRow?.org_id ?? null,
   });
 
   if (resolvedOrgId) {
@@ -571,6 +494,20 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
       'error',
     );
     return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
+  }
+
+  const { data: originalLines, error: selectOriginalError } = await admin
+    .from('transaction_lines')
+    .select('*')
+    .eq('transaction_id', transactionId);
+
+  if (selectOriginalError) {
+    logIssue(
+      'failed to load existing transaction lines',
+      { supabaseError: { message: selectOriginalError.message, hint: selectOriginalError.hint } },
+      'error',
+    );
+    return NextResponse.json({ error: 'Unable to load existing journal lines' }, { status: 500 });
   }
 
   const deleteLinesResult = await admin.from('transaction_lines').delete().eq('transaction_id', transactionId);

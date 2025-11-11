@@ -149,7 +149,6 @@ export interface BuildiumGLEntry {
 }
 
 export interface BuildiumGeneralJournalEntryInput {
-  AccountingEntity: BuildiumAccountingEntityRef;
   Date: string;
   Memo?: string | null;
   CheckNumber?: string | null;

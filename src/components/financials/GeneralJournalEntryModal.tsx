@@ -12,11 +12,9 @@ export type GeneralJournalEntryModalProps = {
   onOpenChange: (open: boolean) => void;
   propertyOptions: PropertyOption[];
   unitOptions: UnitOption[];
-  unitsByProperty?: Record<string, UnitOption[]>;
   accountOptions: AccountOption[];
   defaultPropertyId?: string;
   defaultUnitId?: string;
-  autoSelectDefaultProperty?: boolean;
   onSuccess?: () => void;
 };
 
@@ -27,11 +25,9 @@ export function GeneralJournalEntryModal({
   onOpenChange,
   propertyOptions,
   unitOptions,
-  unitsByProperty,
   accountOptions,
   defaultPropertyId,
   defaultUnitId,
-  autoSelectDefaultProperty,
   onSuccess,
 }: GeneralJournalEntryModalProps) {
   const handleClose = () => onOpenChange(false);
@@ -47,11 +43,9 @@ export function GeneralJournalEntryModal({
           layout="modal"
           propertyOptions={propertyOptions}
           unitOptions={unitOptions}
-          unitsByProperty={unitsByProperty}
           accountOptions={accountOptions}
           defaultPropertyId={defaultPropertyId}
           defaultUnitId={defaultUnitId}
-          autoSelectDefaultProperty={autoSelectDefaultProperty}
           onCancel={handleClose}
           onSuccess={() => {
             onSuccess?.();
