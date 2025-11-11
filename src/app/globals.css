@@ -3,124 +3,74 @@
 @plugin "@tailwindcss/typography";
 @plugin "@tailwindcss/container-queries";
 
+@import "../../styles/tokens.css";
+
+/* Sidebar submenu positioning */
+.sidebar-submenu {
+  --submenu-top: 0px;
+  --submenu-left: 0px;
+  top: var(--submenu-top);
+  left: var(--submenu-left);
+}
+
+/* Bill edit form trash button positioning */
+.trash-button-positioned {
+  top: var(--top-position);
+}
+
+/* Bill edit form trash buttons - positioned for each row */
+.bill-trash-container .trash-button-positioned:nth-child(1) { top: 56px; }
+.bill-trash-container .trash-button-positioned:nth-child(2) { top: 113px; }
+.bill-trash-container .trash-button-positioned:nth-child(3) { top: 170px; }
+.bill-trash-container .trash-button-positioned:nth-child(4) { top: 227px; }
+.bill-trash-container .trash-button-positioned:nth-child(5) { top: 284px; }
+.bill-trash-container .trash-button-positioned:nth-child(6) { top: 341px; }
+.bill-trash-container .trash-button-positioned:nth-child(7) { top: 398px; }
+.bill-trash-container .trash-button-positioned:nth-child(8) { top: 455px; }
+.bill-trash-container .trash-button-positioned:nth-child(9) { top: 512px; }
+.bill-trash-container .trash-button-positioned:nth-child(10) { top: 569px; }
+
+/* Monthly logs drag and drop styles */
+.monthly-log-card {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.monthly-log-card.dragging {
+  opacity: 0.5;
+}
+
 /* Inline Sample UI comprehensive design system */
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 14px;
+  --font-size: 15px;
   --sidebar-width: 16rem;
   --sidebar-width-mobile: 18rem;
   --sidebar-width-icon: 3rem;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #164AAC;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #164AAC;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #164AAC;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.2);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  /* Sidebar palette tuned to slate/indigo look from mock */
-  --sidebar: #1E293B; /* slate-800 */
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: #164AAC;
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: rgba(255, 255, 255, 0.1);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: rgba(255, 255, 255, 0.2);
-  --sidebar-ring: oklch(0.439 0 0);
 
-  /* Custom Color Palette */
-  --color-white: #FFFFFF;
-  --color-light-gray: #F2F2F2;
-  --color-silver: #DCDCDC;
-  --color-medium-gray: #6E6E6E;
-  --color-black: #000000;
-  --color-blue: #164AAC;
-  --color-dark-gray: #1A1A1A;
-  --color-teal: #007C8C;
-  --color-yellow: #FAE34D;
-  --color-red: #FF2300;
-
-  /* Typography scale */
-  --text-scale-factor: 1.07;
-  --text-xs: calc(0.75rem * var(--text-scale-factor));
-  --text-sm: calc(0.875rem * var(--text-scale-factor));
-  --text-base: calc(1rem * var(--text-scale-factor));
-  --text-lg: calc(1.125rem * var(--text-scale-factor));
-  --text-xl: calc(1.25rem * var(--text-scale-factor));
-  --text-2xl: calc(1.5rem * var(--text-scale-factor));
-  --text-3xl: calc(1.875rem * var(--text-scale-factor));
-  --text-4xl: calc(2.25rem * var(--text-scale-factor));
+  /* Palette hooks for utility classes */
+  --color-light-gray: var(--color-gray-100);
+  --color-silver: var(--color-gray-200);
+  --color-medium-gray: var(--color-gray-600);
+  --color-black: var(--color-gray-900);
+  --color-blue: var(--color-action-400);
+  --color-dark-gray: var(--color-brand-700);
+  --color-teal: var(--color-action-400);
+  --color-yellow: var(--color-warning-500);
+  --color-red: var(--color-danger-500);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #164AAC;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #0F172A; /* slate-900 for dark */
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: #164AAC;
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: rgba(255, 255, 255, 0.1);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: rgba(255, 255, 255, 0.2);
-  --sidebar-ring: oklch(0.439 0 0);
-
-  /* Custom Color Palette - Dark Mode Variants */
-  --color-white: #FFFFFF;
-  --color-light-gray: #F2F2F2;
-  --color-silver: #DCDCDC;
-  --color-medium-gray: #6E6E6E;
-  --color-black: #000000;
-  --color-blue: #164AAC;
-  --color-dark-gray: #1A1A1A;
-  --color-teal: #007C8C;
-  --color-yellow: #FAE34D;
-  --color-red: #FF2300;
+  --color-light-gray: var(--color-gray-600);
+  --color-silver: var(--border-strong);
+  --color-medium-gray: var(--muted-foreground);
+  --color-black: var(--color-gray-900);
+  --color-blue: var(--color-action-400);
+  --color-dark-gray: var(--sidebar-primary-foreground);
+  --color-teal: var(--color-action-400);
+  --color-yellow: var(--color-warning-500);
+  --color-red: var(--color-danger-500);
 }
 
 @theme inline {
@@ -141,6 +91,13 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-surface-info-bg: var(--surface-info-bg);
+  --color-surface-info-border: var(--surface-info-border);
+  --color-surface-primary-soft: var(--surface-primary-soft);
+  --color-surface-primary-soft-border: var(--surface-primary-soft-border);
+  --color-surface-primary-soft-highlight: var(--surface-primary-soft-highlight);
   /* Inputs: match Property Details card — card background with standard border */
   --color-input: var(--color-border);
   --color-input-background: var(--color-card);
@@ -244,11 +201,19 @@
 
 @layer base {
   .bill-tab-link,
-  .bill-tab-link:focus,
+  [data-slot="tabs-trigger"] {
+    outline-offset: 3px;
+    transition: outline 0.2s ease, box-shadow 0.2s ease;
+  }
+
   .bill-tab-link:focus-visible,
-  [data-slot="tabs-trigger"],
-  [data-slot="tabs-trigger"]:focus,
   [data-slot="tabs-trigger"]:focus-visible {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 2px var(--ring-offset), 0 0 0 4px var(--ring);
+  }
+
+  .bill-tab-link:focus:not(:focus-visible),
+  [data-slot="tabs-trigger"]:focus:not(:focus-visible) {
     outline: none;
     box-shadow: none;
   }
@@ -306,18 +271,74 @@ html {
   .to-palette-blue { --tw-gradient-to: var(--color-blue); }
   .to-palette-teal { --tw-gradient-to: var(--color-teal); }
 
-  /* Layout Utilities for Consistent Spacing */
-  .page-header { @apply w-full px-8 py-4; }
-  .page-content { @apply w-full px-8 pt-6 pb-3; }
-  .page-content-wide { @apply w-full px-12 pt-6 pb-3; }
-  .page-container { @apply w-full; }
-  .content-grid { @apply grid grid-cols-1 lg:grid-cols-3 gap-8; }
-  .content-grid-wide { @apply grid grid-cols-1 lg:grid-cols-4 gap-8; }
+}
+
+@layer components {
+  .surface-card {
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  .surface-card--muted {
+    background: var(--surface-primary-soft);
+    border-color: var(--surface-primary-soft-border);
+  }
+
+  .eyebrow-label {
+    font-size: var(--text-xs);
+    line-height: var(--leading-tight);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-muted);
+  }
+
+  .card-divider {
+    border-color: var(--border-subtle);
+  }
+
+  .divide-card > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--border-subtle);
+  }
+
+  .section-title-row {
+    @apply mb-4 flex flex-wrap items-center gap-3 border-b border-[var(--color-border-strong)] pb-3;
+  }
+
+  .section-title-text {
+    @apply text-lg font-semibold text-foreground;
+  }
+}
+
+@layer utilities {
+  .interactive-surface {
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    will-change: background-color, color, box-shadow;
+  }
+
+  .interactive-surface:hover {
+    background-color: var(--state-hover-overlay);
+  }
+
+  .interactive-surface:active {
+    background-color: var(--state-active-overlay);
+  }
+
+  .focus-ring-token {
+    outline: none;
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  .focus-ring-token:focus-visible {
+    box-shadow: 0 0 0 3px var(--state-focus-ring);
+  }
 }
 
 /* Custom dropdown arrow for select elements */
 .custom-select-arrow {
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  color: var(--text-muted);
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.5rem center;
   background-repeat: no-repeat;
   background-size: 1.5em 1.5em;
@@ -331,7 +352,7 @@ html {
   pointer-events: auto !important;
 }
 .pac-item { cursor: pointer; }
-.pac-item:hover { background: #f3f4f6; }
+.pac-item:hover { background: var(--surface-dropdown-hover); }
 
 /* Dynamic overlay positioning using CSS custom properties */
 .dynamic-overlay {

@@ -24,15 +24,17 @@ import {
   Building,
   Home,
   FileText,
+  Files,
   Users,
   User,
   Settings,
   Receipt,
   LogOut,
   Wrench,
+  ChevronRight,
 } from 'lucide-react';
 import { ReactNode, useMemo, useState, useRef, useEffect } from 'react';
-import type { FocusEvent } from 'react';
+import type { FocusEvent, MouseEvent } from 'react';
 import { Guard } from '@/components/Guard';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/components/providers';
@@ -64,6 +66,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { id: 'tenants', label: 'Tenants', href: '/tenants', icon: User },
+  { id: 'files', label: 'Files', href: '/files', icon: Files },
   {
     id: 'accounting',
     label: 'Accounting',
@@ -76,6 +79,11 @@ const NAV_ITEMS: NavItem[] = [
       },
       { id: 'accounting-banking', label: 'Banking', href: '/accounting/banking' },
       { id: 'accounting-bills', label: 'Bills', href: '/bills' },
+      {
+        id: 'accounting-monthly-logs',
+        label: 'Monthly logs',
+        href: '/monthly-logs',
+      },
       {
         id: 'accounting-recurring-transactions',
         label: 'Recurring transactions',
@@ -186,7 +194,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
       <div className="min-h-svh w-full">
         <div className="flex w-full">
           <UISidebar collapsible="offcanvas" className="border-sidebar-border font-sans">
-            <SidebarHeader className="items-center gap-0 px-4 py-5 border-b border-sidebar-border">
+            <SidebarHeader className="border-sidebar-border items-center gap-0 border-b px-4 py-5">
               <Image
                 src="/ora-logo-wordmark.svg"
                 alt="Ora Property Management"
@@ -200,12 +208,37 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
               <SidebarGroup>
                 <SidebarMenu>
                   {NAV_ITEMS.map((item) => {
-                    const childMatch = item.children?.some((child) => matchesPath(child.href));
+                    const children = item.children ?? [];
+                    const hasChildren = children.length > 0;
+                    const childMatch = hasChildren
+                      ? children.some((child) => matchesPath(child.href))
+                      : false;
                     const isActive = item.id === activeId || Boolean(childMatch);
                     const isOpen = openItemId === item.id;
 
-                    const handleNavigate = () => {
-                      if (!item.children?.length && item.href) {
+                    const handleButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
+                      if (hasChildren) {
+                        event.preventDefault();
+                        if (closeTimeoutRef.current) {
+                          clearTimeout(closeTimeoutRef.current);
+                        }
+
+                        if (isOpen) {
+                          setOpenItemId(null);
+                          setSubmenuPosition(null);
+                          return;
+                        }
+
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        setSubmenuPosition({
+                          top: rect.top,
+                          left: rect.right + 12,
+                        });
+                        setOpenItemId(item.id);
+                        return;
+                      }
+
+                      if (item.href) {
                         router.push(item.href);
                       }
                     };
@@ -215,7 +248,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                         key={item.id}
                         className="group relative"
                         onMouseEnter={(e) => {
-                          if (item.children?.length) {
+                          if (hasChildren) {
                             // Clear any pending close timeout
                             if (closeTimeoutRef.current) {
                               clearTimeout(closeTimeoutRef.current);
@@ -232,7 +265,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                           }
                         }}
                         onMouseLeave={() => {
-                          if (!item.children?.length) return;
+                          if (!hasChildren) return;
                           // Add a small delay before closing to allow moving to submenu
                           closeTimeoutRef.current = setTimeout(() => {
                             setOpenItemId((prev) => (prev === item.id ? null : prev));
@@ -240,10 +273,10 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                           }, 150);
                         }}
                         onFocusCapture={() => {
-                          if (item.children?.length) setOpenItemId(item.id);
+                          if (hasChildren) setOpenItemId(item.id);
                         }}
                         onBlurCapture={(event: FocusEvent<HTMLLIElement>) => {
-                          if (!item.children?.length) return;
+                          if (!hasChildren) return;
                           const nextTarget = event.relatedTarget as Node | null;
                           if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
                             setOpenItemId((prev) => (prev === item.id ? null : prev));
@@ -254,25 +287,43 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                           isActive={isActive}
                           size="default"
                           className="h-9 rounded-none text-base"
-                          onClick={handleNavigate}
-                          aria-haspopup={item.children?.length ? 'true' : undefined}
-                          aria-expanded={item.children?.length ? isOpen : undefined}
+                          type="button"
+                          onClick={handleButtonClick}
+                          aria-haspopup={hasChildren ? 'menu' : undefined}
+                          aria-expanded={hasChildren ? isOpen : undefined}
                         >
                           <item.icon className="mr-2 h-4 w-4" />
-                          <span>{item.label}</span>
+                          <span className="flex-1 truncate text-left">{item.label}</span>
+                          {hasChildren ? (
+                            <ChevronRight
+                              aria-hidden="true"
+                              className={cn(
+                                'ml-2 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ease-out',
+                                isOpen && 'rotate-90',
+                              )}
+                            />
+                          ) : null}
                         </SidebarMenuButton>
-                        {item.children?.length ? (
+                        {hasChildren ? (
                           <div
+                            ref={(el) => {
+                              if (el) {
+                                el.style.setProperty(
+                                  '--submenu-top',
+                                  `${submenuPosition?.top || 0}px`,
+                                );
+                                el.style.setProperty(
+                                  '--submenu-left',
+                                  `${submenuPosition?.left || 0}px`,
+                                );
+                              }
+                            }}
                             className={cn(
-                              'border-border bg-popover text-popover-foreground fixed z-[9999] min-w-[15.5rem] rounded-lg border p-3 shadow-md',
+                              'sidebar-submenu border-border bg-popover text-popover-foreground fixed z-[9999] min-w-[15.5rem] rounded-lg border p-3 shadow-md',
                               isOpen
                                 ? 'pointer-events-auto visible opacity-100 transition-opacity duration-150'
                                 : 'pointer-events-none invisible opacity-0',
                             )}
-                            style={{
-                              top: submenuPosition?.top || 0,
-                              left: submenuPosition?.left || 0,
-                            }}
                             onMouseEnter={() => {
                               if (closeTimeoutRef.current) {
                                 clearTimeout(closeTimeoutRef.current);
@@ -287,7 +338,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                             }}
                           >
                             <SidebarMenuSub className="mx-0 flex flex-col border-0 p-0">
-                              {item.children.map((child) => {
+                              {children.map((child) => {
                                 const childActive = matchesPath(child.href);
                                 return (
                                   <SidebarMenuSubItem key={child.id}>
@@ -360,15 +411,15 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
             </SidebarFooter>
           </UISidebar>
           <SidebarInset>
-            <div className="border-border bg-background sticky top-0 z-10 border-b">
-              <div className="flex items-center gap-2 px-4 py-3">
+            <div className="border-border bg-background/95 sticky top-0 z-10 border-b backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <div className="flex h-12 items-center gap-2 px-3 sm:px-4 md:px-6">
                 <SidebarTrigger />
-                <div className="text-foreground truncate text-sm font-medium">
+                <div className="text-foreground truncate text-base font-medium">
                   {title ?? activeLabel}
                 </div>
               </div>
             </div>
-            <div className="p-4 md:p-6">{children}</div>
+            <div className="bg-background">{children}</div>
           </SidebarInset>
         </div>
       </div>

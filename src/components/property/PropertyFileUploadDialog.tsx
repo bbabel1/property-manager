@@ -123,7 +123,7 @@ export default function PropertyFileUploadDialog({
               </div>
               <div className="grid grid-cols-12 items-center gap-3 border-t bg-background px-3 py-3">
                 <div className="col-span-4 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
                   <Input
                     id="property-file-title"
                     value={title}
@@ -135,7 +135,7 @@ export default function PropertyFileUploadDialog({
                     id="property-file-category"
                     value={category}
                     onChange={(event) => setCategory(event.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                   >
                     <option value="Uncategorized">Uncategorized</option>
                     <option value="Lease">Lease</option>
@@ -172,4 +172,3 @@ export default function PropertyFileUploadDialog({
     </Dialog>
   )
 }
-

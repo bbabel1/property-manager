@@ -30,6 +30,7 @@
 - **GET** `/leases` - List all leases
 - **GET** `/leases/{id}` - Get specific lease
 - **POST** `/leases` - Create new lease
+- **POST** `/leases/{id}/payments` - Create payment for a lease
 
 ### Tenants
 
@@ -51,23 +52,21 @@
 ### Basic API Call Template
 
 ```typescript
-import { config } from "dotenv";
-config({ path: ".env.local" });
+import { config } from 'dotenv';
+config({ path: '.env.local' });
 
 async function fetchFromBuildium(endpoint: string) {
   const response = await fetch(`${process.env.BUILDIUM_BASE_URL}${endpoint}`, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "x-buildium-client-id": process.env.BUILDIUM_CLIENT_ID!,
-      "x-buildium-client-secret": process.env.BUILDIUM_CLIENT_SECRET!,
-      Accept: "application/json",
+      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
+      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      Accept: 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Buildium API error: ${response.status} ${response.statusText}`
-    );
+    throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
   }
 
   return await response.json();
@@ -92,6 +91,62 @@ curl -i \
   -H "x-buildium-client-secret: $BUILDIUM_CLIENT_SECRET" \
   "$BUILDIUM_BASE_URL/vendors"
 ```
+
+## File Management
+
+### File Categories
+
+- **GET** `/filecategories` - List all file categories
+- **GET** `/filecategories/{id}` - Get specific category
+- **POST** `/filecategories` - Create new category
+- **PUT** `/filecategories/{id}` - Update category
+
+### File Upload (Two-Step Process)
+
+Buildium uses a two-step file upload process:
+
+1. **Create Upload Request**:
+
+   ```typescript
+   POST /files/uploadrequests
+   {
+     "EntityType": "Lease",
+     "EntityId": 12345,
+     "FileName": "lease_agreement.pdf",
+     "Title": "Lease Agreement",
+     "Description": "Original lease document",
+     "CategoryId": 1
+   }
+   ```
+
+   Response:
+
+   ```json
+   {
+     "BucketUrl": "https://s3.amazonaws.com/...",
+     "FormData": { "key": "value", ... },
+     "PhysicalFileName": "unique-file-name.pdf"
+   }
+   ```
+
+2. **Upload Binary File**:
+   - POST to `BucketUrl` with `FormData` as form fields
+   - Include the actual file binary in the form
+
+3. **Sync to Local Database**:
+   - Use `/api/buildium/files/uploadrequests` endpoint
+   - File will be automatically associated with entity via `entity_type` and `entity_id`
+   - The application-level `/api/files/upload` endpoint now orchestrates this automatically for any entity that has a Buildium ID (property, unit, lease, tenant, owner, vendor, bill). When the upload succeeds, the returned Buildium file identifiers are persisted back onto the local record.
+    - Portal sharing can be updated via `/api/files/{id}/sharing` (with the file’s `buildium_file_id`). Payloads must include both tenant and rental-owner flags; the handler maps to the appropriate Buildium sharing scopes based on the file’s entity type (lease, property, unit, etc.).
+
+### File Operations
+
+- **GET** `/files` - List files (supports `entityType` and `entityId` filters)
+- **GET** `/files/{id}` - Get specific file
+- **PUT** `/files/{id}` - Update file metadata
+- **POST** `/files/{id}/download` - Get download URL (presigned)
+
+**Entity Types**: Account, Association, AssociationOwner, AssociationUnit, Lease, OwnershipAccount, PublicAsset, Rental, RentalOwner, RentalUnit, Tenant, Vendor
 
 ## Common Patterns
 
@@ -118,7 +173,7 @@ Always check response status and handle errors appropriately:
 ```typescript
 if (!response.ok) {
   const errorData = await response.json().catch(() => ({}));
-  console.error("Buildium API error:", response.status, errorData);
+  console.error('Buildium API error:', response.status, errorData);
   throw new Error(`API call failed: ${response.status}`);
 }
 ```

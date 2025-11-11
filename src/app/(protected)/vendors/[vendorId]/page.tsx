@@ -1,26 +1,29 @@
-import { notFound } from 'next/navigation'
+import { notFound } from 'next/navigation';
 
-import { supabase, supabaseAdmin } from '@/lib/db'
-import type { Database } from '@/types/database'
+import { supabase, supabaseAdmin } from '@/lib/db';
+import type { Database } from '@/types/database';
 
-import { VendorsDetailsClient, type RecentVendorWorkOrder } from './_components/VendorDetailsClient'
+import {
+  VendorsDetailsClient,
+  type RecentVendorWorkOrder,
+} from './_components/VendorDetailsClient';
 
-type VendorRow = Database['public']['Tables']['vendors']['Row']
-type ContactRow = Database['public']['Tables']['contacts']['Row']
-type VendorCategoryRow = Database['public']['Tables']['vendor_categories']['Row']
+type VendorRow = Database['public']['Tables']['vendors']['Row'];
+type ContactRow = Database['public']['Tables']['contacts']['Row'];
+type VendorCategoryRow = Database['public']['Tables']['vendor_categories']['Row'];
 
 type VendorRecord = VendorRow & {
-  contact: ContactRow | null
-  category: Pick<VendorCategoryRow, 'id' | 'name'> | null
-}
+  contact: ContactRow | null;
+  category: Pick<VendorCategoryRow, 'id' | 'name'> | null;
+};
 
 export default async function VendorDetailsPage({
   params,
 }: {
-  params: { vendorId: string }
+  params: Promise<{ vendorId: string }>;
 }) {
-  const { vendorId } = params
-  const db = supabaseAdmin || supabase
+  const { vendorId } = await params;
+  const db = supabaseAdmin || supabase;
 
   const [vendorRes, categoriesRes, expenseAccountsRes] = await Promise.all([
     db
@@ -74,7 +77,7 @@ export default async function VendorDetailsPage({
           id,
           name
         )
-      `
+      `,
       )
       .eq('id', vendorId)
       .maybeSingle(),
@@ -85,24 +88,24 @@ export default async function VendorDetailsPage({
       .eq('type', 'Expense')
       .eq('is_active', true)
       .order('account_number', { ascending: true }),
-  ])
+  ]);
 
   if (vendorRes.error) {
-    console.error('Failed to fetch vendor', vendorRes.error)
+    console.error('Failed to fetch vendor', vendorRes.error);
   }
   if (categoriesRes.error) {
-    console.error('Failed to fetch vendor categories', categoriesRes.error)
+    console.error('Failed to fetch vendor categories', categoriesRes.error);
   }
   if (expenseAccountsRes.error) {
-    console.error('Failed to fetch expense accounts', expenseAccountsRes.error)
+    console.error('Failed to fetch expense accounts', expenseAccountsRes.error);
   }
 
-  const vendor = (vendorRes.data as VendorRecord | null) ?? null
+  const vendor = (vendorRes.data as VendorRecord | null) ?? null;
   if (!vendor) {
-    notFound()
+    notFound();
   }
 
-  let recentWorkOrders: RecentVendorWorkOrder[] = []
+  let recentWorkOrders: RecentVendorWorkOrder[] = [];
   try {
     const workOrdersRes = await db
       .from('work_orders')
@@ -119,27 +122,28 @@ export default async function VendorDetailsPage({
           id,
           name
         )
-      `
+      `,
       )
       .eq('vendor_id', vendor.id)
       .order('updated_at', { ascending: false })
-      .limit(5)
+      .limit(5);
 
     if (workOrdersRes.error) {
-      console.error('Failed to load vendor work orders', workOrdersRes.error)
+      console.error('Failed to load vendor work orders', workOrdersRes.error);
     } else if (Array.isArray(workOrdersRes.data)) {
       recentWorkOrders = (workOrdersRes.data as any[]).map((workOrder) => {
         const property =
           workOrder?.property && typeof workOrder.property === 'object'
             ? (workOrder.property as { id?: string | null; name?: string | null })
-            : null
+            : null;
 
         const record: RecentVendorWorkOrder = {
           id: String(workOrder.id),
           subject: typeof workOrder.subject === 'string' ? workOrder.subject : 'Work order',
           status: typeof workOrder.status === 'string' ? workOrder.status : null,
           priority: typeof workOrder.priority === 'string' ? workOrder.priority : null,
-          scheduledDate: typeof workOrder.scheduled_date === 'string' ? workOrder.scheduled_date : null,
+          scheduledDate:
+            typeof workOrder.scheduled_date === 'string' ? workOrder.scheduled_date : null,
           propertyId: property?.id ?? null,
           propertyName: property?.name ?? null,
           updatedAt:
@@ -148,28 +152,33 @@ export default async function VendorDetailsPage({
               : typeof workOrder.created_at === 'string'
                 ? workOrder.created_at
                 : null,
-        }
+        };
 
-        return record
-      })
+        return record;
+      });
     }
   } catch (error) {
-    console.error('Failed to load vendor work orders', error)
+    console.error('Failed to load vendor work orders', error);
   }
 
-  const categories =
-    ((categoriesRes.data as Pick<VendorCategoryRow, 'id' | 'name'>[] | null) ?? []).map((cat) => ({
-      id: cat.id,
-      name: cat.name,
-    }))
+  const categories = (
+    (categoriesRes.data as Pick<VendorCategoryRow, 'id' | 'name'>[] | null) ?? []
+  ).map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+  }));
 
-  const expenseAccounts =
-    ((expenseAccountsRes.data as Array<{ buildium_gl_account_id: number; name: string; account_number: string | null }> | null) ??
-      []).map((account) => ({
-      id: account.buildium_gl_account_id,
-      name: account.name,
-      accountNumber: account.account_number,
-    }))
+  const expenseAccounts = (
+    (expenseAccountsRes.data as Array<{
+      buildium_gl_account_id: number;
+      name: string;
+      account_number: string | null;
+    }> | null) ?? []
+  ).map((account) => ({
+    id: account.buildium_gl_account_id,
+    name: account.name,
+    accountNumber: account.account_number,
+  }));
 
   const vendorDetails = {
     id: vendor.id,
@@ -199,7 +208,7 @@ export default async function VendorDetailsPage({
     insurance_expiration_date: vendor.insurance_expiration_date,
     contact: vendor.contact,
     category: vendor.category,
-  }
+  };
 
   return (
     <VendorsDetailsClient
@@ -208,5 +217,5 @@ export default async function VendorDetailsPage({
       expenseAccounts={expenseAccounts}
       recentWorkOrders={recentWorkOrders}
     />
-  )
+  );
 }

@@ -9,7 +9,7 @@ import { BEDROOM_OPTIONS, BATHROOM_OPTIONS } from '@/types/units'
 
 export default function UnitDetailsCard({ property, unit }: { property: any; unit: any }) {
   const status = String(unit?.status || '').toLowerCase()
-  const statusCls = status === 'occupied' ? 'bg-emerald-100 text-emerald-700' : status ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-800'
+  const statusCls = status === 'occupied' ? 'bg-[var(--color-action-50)] text-[var(--color-action-600)]' : status ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-800'
   const bedrooms = unit?.unit_bedrooms ?? '—'
   const bathrooms = unit?.unit_bathrooms ?? '—'
   const size = unit?.unit_size ? `${unit.unit_size} sq ft` : '—'
@@ -126,7 +126,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             {previewUrl ? (uploading ? 'Uploading…' : 'Replace Image') : (uploading ? 'Uploading…' : 'Add Image')}
           </button>
           {uploadError ? <p className="mt-1 text-xs text-destructive">{uploadError}</p> : null}
-          {uploadSuccess ? <p className="mt-1 text-xs text-emerald-600">{uploadSuccess}</p> : null}
+          {uploadSuccess ? <p className="mt-1 text-xs text-[var(--color-action-600)]">{uploadSuccess}</p> : null}
         </div>
       </div>
       <div className="space-y-5 md:col-span-3">
@@ -238,7 +238,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             >Remove Image</button>
           ) : null}
           {uploadError ? <p className="mt-1 text-xs text-destructive">{uploadError}</p> : null}
-          {uploadSuccess ? <p className="mt-1 text-xs text-emerald-600">{uploadSuccess}</p> : null}
+          {uploadSuccess ? <p className="mt-1 text-xs text-[var(--color-action-600)]">{uploadSuccess}</p> : null}
         </div>
       </div>
       <div className="space-y-5 md:col-span-3">
@@ -300,12 +300,26 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
       if (unitBedrooms) body.unit_bedrooms = unitBedrooms
       if (unitBathrooms) body.unit_bathrooms = unitBathrooms
       if (unitSize) body.unit_size = Number(unitSize)
-      const res = await fetch(`/api/units/${unit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      if (!res.ok) {
-        const j = await res.json().catch(()=>({} as any))
-        throw new Error(j?.error || 'Failed to update unit')
+      const res = await fetch(`/api/units/${unit.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      const updated = await res.json().catch(() => null as any)
+      if (!res.ok || !updated) {
+        throw new Error((updated as any)?.error || 'Failed to update unit')
       }
-      window.location.reload()
+      setUnitNumber(updated.unit_number ?? unitNumber)
+      setUnitStatus(updated.status ?? unitStatus)
+      setUnitBedrooms(updated.unit_bedrooms ?? unitBedrooms)
+      setUnitBathrooms(updated.unit_bathrooms ?? unitBathrooms)
+      setUnitSize(
+        updated.unit_size != null && !Number.isNaN(updated.unit_size)
+          ? String(updated.unit_size)
+          : unitSize
+      )
+      setNotes(updated.description ?? notes)
+      setEditing(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update unit')
     } finally {

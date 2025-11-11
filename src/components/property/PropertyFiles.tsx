@@ -72,7 +72,7 @@ export function PropertyFiles({ propertyId }: PropertyFilesProps) {
             <h2 className="text-lg font-semibold">Property Files</h2>
             <p className="text-sm text-muted-foreground">{files.length} files</p>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-[var(--color-border-subtle)]">
             {files.map((file) => (
               <div key={file.id} className="p-6 flex items-center justify-between">
                 <div className="flex items-center space-x-4">

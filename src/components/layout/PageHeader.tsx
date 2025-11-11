@@ -52,7 +52,7 @@ export default function PageHeader({ property }: Props) {
   return (
     <header className="p-6 pb-2 space-y-3">
       <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded ${statusActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+        <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded ${statusActive ? 'bg-[var(--color-action-50)] text-[var(--color-action-600)]' : 'bg-red-100 text-red-700'}`}>
           {property.status || '—'}
         </span>
         {property.buildium_property_id ? (

@@ -4,13 +4,52 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumFetch } from '@/lib/buildium-http'
-import { env } from '@/env/server'
+import { supabaseAdmin } from '@/lib/db';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+const TABLE = 'property_notes'
+
+function mapRowToBuildiumNote(row: any) {
+  return {
+    Id: row?.id ?? null,
+    Subject: row?.subject ?? null,
+    Body: row?.body ?? null,
+    CreatedDate: row?.created_at ?? null,
+    CreatedByName: row?.created_by_name ?? null,
+    IsPrivate: Boolean(row?.is_private ?? false),
+  }
+}
+
+function looksLikeUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+async function resolveLocalPropertyId(propertyRef: string) {
+  const client = supabaseAdmin as any
+  if (!propertyRef) return null
+
+  if (looksLikeUuid(propertyRef)) {
+    const { data } = await client
+      .from('properties')
+      .select('id')
+      .eq('id', propertyRef)
+      .maybeSingle()
+    if (data?.id) return data.id
+  }
+
+  const numericId = Number(propertyRef)
+  if (!Number.isNaN(numericId)) {
+    const { data } = await client
+      .from('properties')
+      .select('id')
+      .eq('buildium_property_id', numericId)
+      .maybeSingle()
+    if (data?.id) return data.id
+  }
+
+  return null
+}
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -22,56 +61,52 @@ export async function GET(
     }
 
     // Require authentication
-    const user = await requireUser();
+    await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
-    if (!env.BUILDIUM_BASE_URL || !env.BUILDIUM_CLIENT_ID || !env.BUILDIUM_CLIENT_SECRET) {
-      logger.warn('Buildium credentials missing; returning empty property notes list.');
-      return NextResponse.json({ success: true, data: [], count: 0 });
+    const propertyId = await resolveLocalPropertyId(id)
+    if (!propertyId) {
+      logger.warn({ buildiumPropertyId: id }, 'No local property found for property notes request')
+      return NextResponse.json({ success: true, data: [], count: 0 })
     }
 
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
-    const limit = searchParams.get('limit') || '50';
-    const offset = searchParams.get('offset') || '0';
-    const orderby = searchParams.get('orderby');
+    const { searchParams } = new URL(request.url)
+    const limitRaw = Number(searchParams.get('limit') ?? '50')
+    const offsetRaw = Number(searchParams.get('offset') ?? '0')
+    const orderbyRaw = (searchParams.get('orderby') || '').toLowerCase()
+    const limit = Number.isNaN(limitRaw) ? 50 : Math.min(Math.max(limitRaw, 1), 100)
+    const offset = Number.isNaN(offsetRaw) ? 0 : Math.max(offsetRaw, 0)
+    const ascending = orderbyRaw.includes('asc') && !orderbyRaw.includes('desc')
+    const start = offset
+    const end = offset + (limit > 0 ? limit - 1 : 0)
 
-    // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-
-    const prox = await buildiumFetch('GET', `/rentals/${id}/notes`, Object.fromEntries(queryParams.entries()))
-    if (!prox.ok) {
-      logger.error({ status: prox.status, error: prox.errorText || prox.json }, 'Buildium property notes fetch failed');
-
-      return NextResponse.json({
-        success: true,
-        data: [],
-        count: 0,
-        warning: 'Buildium notes unavailable at the moment.'
-      })
+    const client = supabaseAdmin as any
+    const { data, error } = await client
+      .from(TABLE)
+      .select('*')
+      .eq('property_id', propertyId)
+      .order('created_at', { ascending })
+      .range(start, end)
+    if (error) {
+      logger.error({ error, propertyId }, 'Failed to load property notes from database')
+      return NextResponse.json({ error: 'Failed to load property notes' }, { status: 500 })
     }
-    const raw = prox.json
-    const list = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data)
-        ? raw.data
-        : Array.isArray(raw?.results)
-          ? raw.results
-          : []
 
-    logger.info({ propertyId: id, count: list.length }, 'Buildium property notes fetched successfully');
+    const list = Array.isArray(data) ? data.map(mapRowToBuildiumNote) : []
 
-    return NextResponse.json({
-      success: true,
-      data: list,
-      count: list.length,
-    });
+    logger.info({ propertyId, source: 'database', count: list.length }, 'Property notes fetched successfully')
+
+    return NextResponse.json({ success: true, data: list, count: list.length })
 
   } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     logger.error({ error }, 'Error fetching Buildium property notes');
 
     return NextResponse.json(
@@ -81,10 +116,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -96,13 +128,14 @@ export async function POST(
     }
 
     // Require authentication
-    const user = await requireUser();
+    await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
-    if (!env.BUILDIUM_BASE_URL || !env.BUILDIUM_CLIENT_ID || !env.BUILDIUM_CLIENT_SECRET) {
-      logger.warn('Buildium credentials missing; cannot create property note.');
-      return NextResponse.json({ error: 'Buildium integration not configured' }, { status: 503 });
+    const propertyId = await resolveLocalPropertyId(id)
+    if (!propertyId) {
+      logger.warn({ buildiumPropertyId: id }, 'Cannot create property note; property not found locally')
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
 
     // Parse and validate request body
@@ -111,25 +144,37 @@ export async function POST(
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyNoteCreateSchema);
 
-    const prox = await buildiumFetch('POST', `/rentals/${id}/notes`, undefined, validatedData)
-    if (!prox.ok) {
-      logger.error({ status: prox.status, error: prox.errorText || prox.json }, 'Buildium property note creation failed');
+    const client = supabaseAdmin as any
+    const { data, error } = await client
+      .from(TABLE)
+      .insert({
+        property_id: propertyId,
+        subject: validatedData.Subject,
+        body: validatedData.Body,
+        is_private: validatedData.IsPrivate ?? false,
+        created_by: user.id,
+        created_by_name: user.email ?? user.user_metadata?.full_name ?? 'Unknown',
+      })
+      .select()
+      .single()
 
-      return NextResponse.json(
-        { error: 'Failed to create property note in Buildium', details: prox.errorText || prox.json },
-        { status: prox.status || 502 }
-      );
+    if (error) {
+      logger.error({ error, propertyId, userId: user.id }, 'Failed to create property note in database')
+      return NextResponse.json({ error: 'Failed to create property note' }, { status: 500 })
     }
-    const note = prox.json;
 
-    logger.info(`Buildium property note created successfully`);
+    logger.info({ propertyId, userId: user.id }, 'Property note created successfully')
 
-    return NextResponse.json({
-      success: true,
-      data: note,
-    }, { status: 201 });
+    return NextResponse.json({ success: true, data: mapRowToBuildiumNote(data) }, { status: 201 })
 
   } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     logger.error({ error }, 'Error creating Buildium property note');
 
     return NextResponse.json(

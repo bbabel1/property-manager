@@ -6,10 +6,7 @@ import { BuildiumPropertyUpdateEnhancedSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -23,7 +20,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
     const prox = await buildiumFetch('GET', `/rentals/${id}`)
     if (!prox.ok) {
       logger.error(`Buildium property fetch failed`);
@@ -51,10 +48,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -68,7 +62,7 @@ export async function PUT(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
     // Parse and validate request body
     const body = await request.json();
     

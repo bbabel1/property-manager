@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { PageBody, PageColumns, PageHeader, PageShell } from '@/components/layout/page-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +18,6 @@ import { cn } from '@/components/ui/utils';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import BillFileAttachmentsCard from '@/components/bills/BillFileAttachmentsCard';
 import BillActionsMenu from '@/components/bills/BillActionsMenu';
-import { listFilesForEntity } from '@/lib/files';
 import type { BillFileRecord } from '@/components/bills/types';
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
@@ -137,7 +137,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     throw new Error('Database client is unavailable');
   }
 
-  const billRes = await (db as any)
+  const billRes = await db
     .from('transactions')
     .select(
       'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type',
@@ -156,7 +156,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   }
 
   const [linesRes, vendorRes] = await Promise.all([
-    (db as any)
+    db
       .from('transaction_lines')
       .select(
         `id,
@@ -174,7 +174,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
       .eq('transaction_id', bill.id)
       .order('created_at', { ascending: true }),
     bill.vendor_id
-      ? (db as any)
+      ? db
           .from('vendors')
           .select('id, contacts(display_name, company_name)')
           .eq('id', bill.vendor_id)
@@ -190,10 +190,8 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     console.error('Failed to load vendor for bill', vendorRes.error);
   }
 
-  const rawLines: any[] = Array.isArray(linesRes?.data)
-    ? (linesRes.data as any[]).filter(
-        (line) => String(line?.posting_type || '').toLowerCase() !== 'credit',
-      )
+  const rawLines = Array.isArray(linesRes?.data)
+    ? linesRes.data.filter((line) => String(line?.posting_type || '').toLowerCase() !== 'credit')
     : [];
   const vendor = vendorRes?.data as
     | (Record<string, unknown> & {
@@ -209,36 +207,51 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
 
   let billFiles: BillFileRecord[] = [];
   try {
-    const { files: linkedFiles, links } = await listFilesForEntity(db as any, {
-      type: 'bill',
-      id: bill.id,
-    });
-    const filesById = new Map<string, any>(linkedFiles.map((file: any) => [file.id, file]));
-    billFiles = links
-      .map((link: any) => {
-        const file = filesById.get(link.file_id);
-        if (!file) return null;
-        const uploadedAt =
-          typeof link?.added_at === 'string'
-            ? link.added_at
-            : typeof file?.created_at === 'string'
-              ? file.created_at
-              : null;
-        if (!uploadedAt) return null;
-        const uploadedBy = links?.length ? ((link?.added_by as string | null) ?? null) : null;
-        const fileRecord: BillFileRecord = {
-          id: file.id as string,
-          title: (file.file_name as string) || 'File',
-          uploadedAt,
-          uploadedBy,
-          buildiumFileId: typeof file?.buildium_file_id === 'number' ? file.buildium_file_id : null,
-          buildiumHref: typeof file?.buildium_href === 'string' ? file.buildium_href : null,
-          buildiumSyncError: null,
-        };
-        return fileRecord;
-      })
-      .filter(Boolean) as BillFileRecord[];
-    billFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    // Get org_id from the bill's transaction or property
+    const propertyId = rawLines[0]?.property_id;
+    let orgId: string | null = null;
+
+    if (propertyId) {
+      const { data: property } = await db
+        .from('properties')
+        .select('org_id')
+        .eq('id', propertyId)
+        .maybeSingle();
+      orgId = property?.org_id || null;
+    }
+
+    if (orgId && bill.buildium_bill_id) {
+      // Query files associated with this bill via Buildium bill ID
+      // Note: Files in Buildium may be associated with Vendor entity type
+      // For now, we'll query by buildium_file_id from Buildium's bill files endpoint
+      // or query directly if files are stored with bill context
+      const { data: files } = await db
+        .from('files')
+        .select('*')
+        .eq('org_id', orgId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      // Filter files that might be related to this bill
+      // Since bills aren't a direct entity type, we match by context
+      // TODO: Add a better way to associate files with local bills
+      billFiles = (files || [])
+        .map((file: any) => {
+          const fileRecord: BillFileRecord = {
+            id: file.id,
+            title: file.title || file.file_name || 'File',
+            uploadedAt: file.created_at,
+            uploadedBy: file.created_by || null,
+            buildiumFileId: file.buildium_file_id || null,
+            buildiumHref: file.buildium_href || null,
+            buildiumSyncError: null,
+          };
+          return fileRecord;
+        })
+        .filter((f) => f.uploadedAt) as BillFileRecord[];
+
+      billFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    }
   } catch (error) {
     console.error('Failed to load bill file attachments', error);
   }
@@ -337,192 +350,175 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   if (bill.reference_number) headerMetaParts.push(`Ref: ${bill.reference_number}`);
 
   return (
-    <div className="space-y-8">
-      <div className="border-border flex flex-wrap items-start justify-between gap-4 border-b pb-6">
-        <div className="space-y-2">
+    <PageShell>
+      <PageHeader
+        title={
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-foreground text-2xl font-semibold">{vendorName}</h1>
+            <span>{vendorName}</span>
             {statusLabel ? (
               <Badge variant={statusToVariant(statusLabel)}>{statusLabel}</Badge>
             ) : null}
           </div>
-          <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span>{headerMetaParts.join(' • ')}</span>
-            <Link
-              href={`/bills/${bill.id}/edit`}
-              className="text-primary px-0 text-sm font-medium hover:underline"
-            >
-              Edit
-            </Link>
+        }
+        description={headerMetaParts.join(' • ')}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/bills/${bill.id}/edit`}>Edit</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href={`/bills/${bill.id}/pay`}>Pay bill</Link>
+            </Button>
+            <BillActionsMenu billId={bill.id} />
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" asChild>
-            <Link href={`/bills/${bill.id}/pay`}>Pay bill</Link>
-          </Button>
-          <BillActionsMenu billId={bill.id} />
-        </div>
-      </div>
+        }
+      />
+      <PageBody>
+        <PageColumns
+          primary={
+            <>
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="border-border/60 bg-muted/30 border-b">
+                  <CardTitle>Bill details</CardTitle>
+                </CardHeader>
+                <CardContent className="py-6">
+                  <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-2">
+                    {detailEntries.map((entry) => (
+                      <div key={entry.name} className="space-y-1">
+                        <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                          {entry.name}
+                        </dt>
+                        <dd
+                          className={cn(
+                            'text-foreground',
+                            entry.multiline ? 'whitespace-pre-wrap' : undefined,
+                          )}
+                        >
+                          {entry.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </CardContent>
+              </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <Card className="border-border border shadow-sm">
-            <CardHeader className="border-border bg-muted/40 flex items-center border-b px-4 !pt-4 !pb-4">
-              <CardTitle>Bill details</CardTitle>
-            </CardHeader>
-            <CardContent className="px-6 py-6">
-              <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-2">
-                {detailEntries.map((entry) => (
-                  <div key={entry.name} className="space-y-1">
-                    <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                      {entry.name}
-                    </dt>
-                    <dd
-                      className={cn(
-                        'text-foreground',
-                        entry.multiline ? 'whitespace-pre-wrap' : undefined,
-                      )}
-                    >
-                      {entry.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border border shadow-sm">
-            <CardHeader className="border-border bg-muted/40 flex items-center justify-between border-b px-4 !pt-4 !pb-4">
-              <CardTitle>Approval</CardTitle>
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                className="!h-auto !min-h-0 px-0 !py-0 text-sm font-medium"
-                disabled
-                title="Coming soon"
-              >
-                Add approval
-              </Button>
-            </CardHeader>
-            <CardContent className="text-muted-foreground px-6 py-8 text-sm">
-              This bill does not have a recorded approval.
-            </CardContent>
-          </Card>
-
-          <Card className="border-border gap-0 border shadow-sm">
-            <CardHeader className="border-border bg-muted/40 flex items-center justify-between border-b px-4 !pt-4 !pb-4">
-              <CardTitle>Item details</CardTitle>
-            </CardHeader>
-            <CardContent className="![&:last-child]:pb-0 overflow-hidden p-0">
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow className="border-border bg-muted/40 border-b">
-                    <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                      Property or company
-                    </TableHead>
-                    <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                      Unit
-                    </TableHead>
-                    <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                      Account
-                    </TableHead>
-                    <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                      Description
-                    </TableHead>
-                    <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
-                      Amount
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-border divide-y">
-                  {debitLineItems.length === 0 ? (
-                    <TableRow className="hover:bg-transparent">
-                      <TableCell
-                        colSpan={5}
-                        className="text-muted-foreground bg-background px-4 py-8 text-center text-sm"
-                      >
-                        No itemized charges recorded for this bill.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <>
-                      {debitLineItems.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-transparent">
-                          <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                            {item.propertyName}
-                          </TableCell>
-                          <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                            {item.unitLabel}
-                          </TableCell>
-                          <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                            {item.accountLabel}
-                          </TableCell>
-                          <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3 whitespace-pre-wrap">
-                            {item.description}
-                          </TableCell>
-                          <TableCell className="px-4 py-3 text-right font-medium">
-                            {formatCurrency(item.initialAmount)}
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="border-border/60 bg-muted/30 border-b">
+                  <CardTitle>Item details</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table className="text-sm">
+                    <TableHeader>
+                      <TableRow className="border-border/60 bg-muted/30 border-b">
+                        <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                          Property or company
+                        </TableHead>
+                        <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                          Unit
+                        </TableHead>
+                        <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                          Account
+                        </TableHead>
+                        <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                          Description
+                        </TableHead>
+                        <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
+                          Amount
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-border/60 divide-y">
+                      {debitLineItems.length === 0 ? (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell
+                            colSpan={5}
+                            className="text-muted-foreground bg-background px-4 py-8 text-center text-sm"
+                          >
+                            No itemized charges recorded for this bill.
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </>
-                  )}
-                </TableBody>
-                <TableFooter className="bg-background font-semibold">
-                  <TableRow className="border-border border-t">
-                    <TableCell colSpan={4} className="text-foreground px-4 py-3">
-                      Total
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-right">
-                      {formatCurrency(lineItemsInitialTotal || billAmount)}
-                    </TableCell>
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </CardContent>
-          </Card>
+                      ) : (
+                        <>
+                          {debitLineItems.map((item) => (
+                            <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
+                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
+                                {item.propertyName}
+                              </TableCell>
+                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
+                                {item.unitLabel}
+                              </TableCell>
+                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
+                                {item.accountLabel}
+                              </TableCell>
+                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3 whitespace-pre-wrap">
+                                {item.description}
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right font-medium">
+                                {formatCurrency(item.initialAmount)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </>
+                      )}
+                    </TableBody>
+                    <TableFooter className="bg-background font-semibold">
+                      <TableRow className="border-border/60 border-t">
+                        <TableCell colSpan={4} className="text-foreground px-4 py-3">
+                          Total
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-right">
+                          {formatCurrency(lineItemsInitialTotal || billAmount)}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </CardContent>
+              </Card>
 
-          <BillFileAttachmentsCard
-            billId={bill.id}
-            uploaderName={vendorName}
-            initialFiles={billFiles}
-          />
-        </div>
+              <BillFileAttachmentsCard
+                billId={bill.id}
+                uploaderName={vendorName}
+                initialFiles={billFiles}
+              />
+            </>
+          }
+          secondary={
+            <>
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="border-border/60 bg-muted/30 border-b">
+                  <CardTitle>Bill amount</CardTitle>
+                </CardHeader>
+                <CardContent className="py-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                      Remaining
+                    </span>
+                    <span className="text-foreground text-xl font-semibold">
+                      {formatCurrency(remainingAmount)}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
 
-        <div className="w-full space-y-6 lg:ml-auto lg:max-w-sm">
-          <Card className="border-border border shadow-sm">
-            <CardHeader className="border-border bg-muted/40 flex items-center border-b px-4 !pt-4 !pb-4">
-              <CardTitle>Bill amount</CardTitle>
-            </CardHeader>
-            <CardContent className="px-6 py-6">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                  Remaining
-                </span>
-                <span className="text-foreground text-xl font-semibold">
-                  {formatCurrency(remainingAmount)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border border shadow-sm">
-            <CardHeader className="border-border bg-muted/40 flex items-center border-b px-4 !pt-4 !pb-4">
-              <CardTitle>Available credits</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 px-6 py-6">
-              <div className="border-border bg-muted/40 rounded-lg border border-dashed p-4 text-center">
-                <div className="text-foreground text-xl font-semibold">0.00</div>
-                <div className="text-foreground text-xs">No vendor credits</div>
-              </div>
-              <Button type="button" variant="outline" size="sm" disabled title="Coming soon">
-                Add a credit
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+              <Card className="border-border/70 shadow-sm">
+                <CardHeader className="border-border/60 bg-muted/30 border-b">
+                  <CardTitle>Available credits</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 py-6">
+                  <div className="border-border/60 bg-muted/20 rounded-lg border border-dashed p-4 text-center">
+                    <div className="text-foreground text-xl font-semibold">0.00</div>
+                    <div className="text-foreground text-xs">No vendor credits</div>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" disabled title="Coming soon">
+                    Add a credit
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
+          }
+          secondaryClassName="lg:ml-auto lg:max-w-sm"
+        />
+      </PageBody>
+    </PageShell>
   );
 }

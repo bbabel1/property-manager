@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { randomUUID } from 'crypto';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import LeaseFilesTable from '@/components/leases/LeaseFilesTable';
 import {
   Table,
   TableBody,
@@ -19,12 +20,15 @@ import LeaseHeaderMeta from '@/components/leases/LeaseHeaderMeta';
 import InfoCard from '@/components/layout/InfoCard';
 import { supabaseAdmin, supabase as supaClient } from '@/lib/db';
 import RentTabInteractive from '@/components/leases/RentTabInteractive';
-import RecurringTransactionsPanel from '@/components/leases/RecurringTransactionsPanel';
+import RecurringTransactionsPanel, {
+  type RecurringRow,
+} from '@/components/leases/RecurringTransactionsPanel';
 import LeaseLedgerPanel from '@/components/leases/LeaseLedgerPanel';
 import { RentCycleEnumDb, RentScheduleStatusEnumDb } from '@/schemas/lease-api';
 import { ArrowRight, ExternalLink, Mail, MoreHorizontal, Phone, Trash2 } from 'lucide-react';
+import { getFilesByEntity, FILE_ENTITY_TYPES } from '@/lib/files';
 import ActionButton from '@/components/ui/ActionButton';
-import type { LeaseAccountOption } from '@/components/leases/types';
+import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 
 type LeaseDetailsPageParams = { id: string };
 
@@ -53,7 +57,7 @@ export default async function LeaseDetailsPage({
     const { data, error: e } = await (supabase as any)
       .from('lease')
       .select(
-        'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
+        'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
       )
       .eq('id', Number.isFinite(numericId) ? numericId : (id as any))
       .maybeSingle();
@@ -64,7 +68,7 @@ export default async function LeaseDetailsPage({
       const { data: data2 } = await (supabase as any)
         .from('lease')
         .select(
-          'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
+          'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
         )
         .eq('id', id as any)
         .maybeSingle();
@@ -91,7 +95,7 @@ export default async function LeaseDetailsPage({
     if (lease.property_id) {
       const { data: p } = await (supabase as any)
         .from('properties')
-        .select('id, name, address_line1, city, state, postal_code, buildium_property_id')
+        .select('id, name, address_line1, city, state, postal_code, buildium_property_id, org_id')
         .eq('id', lease.property_id)
         .maybeSingle();
       property = p;
@@ -108,13 +112,145 @@ export default async function LeaseDetailsPage({
     }
   } catch {}
 
+  // Load files for this lease and category metadata
+  // Note: Files are associated by entity_type='Lease' and entity_id=buildium_lease_id
+  let leaseFiles: any[] = [];
+  let fileCategories: any[] = [];
+  let propertyOrgId: string | null =
+    typeof property?.org_id === 'string' && property.org_id ? property.org_id : null;
+
+  if (!propertyOrgId && lease.property_id) {
+    const { data: propertyLookup, error: propertyErr } = await (supabase as any)
+      .from('properties')
+      .select('org_id')
+      .eq('id', lease.property_id)
+      .maybeSingle();
+    if (propertyErr) {
+      console.error('Failed to fetch property for org_id:', {
+        error: propertyErr,
+        propertyId: lease.property_id,
+      });
+    }
+    propertyOrgId =
+      typeof propertyLookup?.org_id === 'string' && propertyLookup.org_id
+        ? propertyLookup.org_id
+        : null;
+  }
+
+  if (propertyOrgId) {
+    try {
+      const { data: categoryRows, error: categoryErr } = await (supabase as any)
+        .from('file_categories')
+        .select('id, category_name, buildium_category_id, description, is_active')
+        .eq('org_id', propertyOrgId)
+        .order('category_name', { ascending: true });
+      if (categoryErr) {
+        console.error('Failed to load file categories for org', {
+          error: categoryErr,
+          orgId: propertyOrgId,
+        });
+      } else if (Array.isArray(categoryRows)) {
+        fileCategories = categoryRows.filter((row) => row?.is_active !== false);
+      }
+    } catch (categoryException) {
+      console.error('Unexpected error loading file categories', categoryException);
+    }
+  }
+
+  if (!fileCategories.length) {
+    try {
+      const { data: fallbackCategories, error: fallbackErr } = await (supabase as any)
+        .from('file_categories')
+        .select('id, category_name, buildium_category_id, description, is_active, org_id')
+        .order('category_name', { ascending: true });
+      if (fallbackErr) {
+        console.error('Failed to load fallback file categories', fallbackErr);
+      } else if (Array.isArray(fallbackCategories)) {
+        fileCategories = fallbackCategories.filter((row) => row?.is_active !== false);
+      }
+    } catch (fallbackException) {
+      console.error('Unexpected error loading fallback file categories', fallbackException);
+    }
+  }
+
+  try {
+    if (lease.buildium_lease_id && propertyOrgId) {
+      const entityId =
+        typeof lease.buildium_lease_id === 'number'
+          ? lease.buildium_lease_id
+          : Number(lease.buildium_lease_id);
+
+      if (!Number.isFinite(entityId)) {
+        console.warn('Invalid buildium_lease_id for files query:', lease.buildium_lease_id);
+      } else {
+        leaseFiles = await getFilesByEntity(
+          supabase as any,
+          propertyOrgId,
+          FILE_ENTITY_TYPES.LEASES,
+          entityId,
+        );
+      }
+    } else {
+      // Silently skip if required data is missing - this is expected for leases without Buildium IDs
+      if (!lease.buildium_lease_id) {
+        console.debug('Lease has no buildium_lease_id, skipping file load');
+      }
+      if (!propertyOrgId) {
+        console.debug('Property org_id unavailable, skipping file load');
+      }
+    }
+  } catch (fileErr: any) {
+    // Improved error logging with proper serialization
+    const errorDetails = {
+      message: fileErr?.message || 'Unknown error',
+      name: fileErr?.name || 'Error',
+      stack: fileErr?.stack || null,
+      cause: fileErr?.cause || null,
+      leaseId: lease?.id,
+      buildiumLeaseId: lease?.buildium_lease_id,
+      propertyId: lease?.property_id,
+    };
+    console.error('Failed to load lease files', JSON.stringify(errorDetails, null, 2));
+  }
+
+  const categoryNameLookup = new Map<number, string>();
+  for (const category of fileCategories) {
+    if (
+      category &&
+      typeof category.buildium_category_id === 'number' &&
+      typeof category.category_name === 'string'
+    ) {
+      const trimmed = category.category_name.trim();
+      if (trimmed) {
+        categoryNameLookup.set(category.buildium_category_id, trimmed);
+      }
+    }
+  }
+
+  // Format for compatibility with existing component structure
+  const initialFileBundle = {
+    files: leaseFiles || [],
+    links: (leaseFiles || []).map((f) => ({
+      id: f.id,
+      file_id: f.id,
+      entity_type: 'Lease' as const,
+      entity_id: lease.buildium_lease_id,
+      added_at: f.created_at,
+      added_by: f.created_by,
+      category:
+        typeof f.buildium_category_id === 'number'
+          ? (categoryNameLookup.get(f.buildium_category_id) ?? null)
+          : null,
+    })),
+  };
+
   // Step 3: Fetch contacts for header (tenant names)
   let contacts: any[] = [];
   try {
     const { data: lc } = await (supabase as any)
       .from('lease_contacts')
       .select(
-        'id, role, status, move_in_date, tenant_id, tenants( id, contact:contacts(display_name, first_name, last_name, company_name, is_company, primary_email, alt_email, primary_phone, alt_phone) )',
+        'id, role, status, move_in_date, tenant_id, tenants( id, buildium_tenant_id, contact:contacts(display_name, first_name, last_name, company_name, is_company, primary_email, alt_email, primary_phone, alt_phone) )',
       )
       .eq('lease_id', lease.id);
     contacts = Array.isArray(lc) ? lc : [];
@@ -401,13 +537,23 @@ export default async function LeaseDetailsPage({
             .map((phone) => normalizePhone(phone))
             .filter(Boolean)
             .map((number) => ({ number: number as string }));
+          const tenantId = lc?.tenant_id;
+          const buildiumTenantIdRaw = lc?.tenants?.buildium_tenant_id ?? null;
+          const buildiumTenantId =
+            typeof buildiumTenantIdRaw === 'number'
+              ? buildiumTenantIdRaw
+              : buildiumTenantIdRaw != null && !Number.isNaN(Number(buildiumTenantIdRaw))
+                ? Number(buildiumTenantIdRaw)
+                : null;
+
           return {
             id: lc?.id ?? name,
             name,
             role,
             email,
             moveIn,
-            tenantId: lc?.tenant_id,
+            tenantId: tenantId,
+            buildiumTenantId,
             initials: computeInitials(name),
             phones,
             roleKey: String(lc?.role || 'Tenant').toLowerCase(),
@@ -416,16 +562,24 @@ export default async function LeaseDetailsPage({
         .filter(Boolean)
     : [];
 
-  const tenantOptionMap = new Map<string, string>();
+  const tenantOptionMap = new Map<string, LeaseTenantOption>();
   for (const row of contactRows) {
     if (!row) continue;
     const optionId = row.tenantId ? String(row.tenantId) : row.id ? String(row.id) : null;
-    if (optionId) tenantOptionMap.set(optionId, row.name);
+    if (!optionId) continue;
+    const buildiumTenantId =
+      typeof row.buildiumTenantId === 'number'
+        ? row.buildiumTenantId
+        : row.buildiumTenantId != null && !Number.isNaN(Number(row.buildiumTenantId))
+          ? Number(row.buildiumTenantId)
+          : null;
+    tenantOptionMap.set(optionId, {
+      id: optionId,
+      name: row.name,
+      buildiumTenantId,
+    });
   }
-  const recurringTenantOptions = Array.from(tenantOptionMap.entries()).map(([id, name]) => ({
-    id,
-    name,
-  }));
+  const recurringTenantOptions = Array.from(tenantOptionMap.values());
 
   // Resolve first tenant id for summary link
   const firstTenantRow = contactRows.find(
@@ -555,6 +709,10 @@ export default async function LeaseDetailsPage({
     total_amount: upcomingSchedule?.total_amount ?? currentSchedule?.total_amount ?? null,
     status: 'Future',
   };
+  const leaseChargesNote =
+    typeof lease?.lease_charges === 'string' && lease.lease_charges.trim().length
+      ? lease.lease_charges
+      : null;
   const leaseRangeLabel =
     lease?.lease_from_date || lease?.lease_to_date
       ? `${lease?.lease_from_date ? formatScheduleDate(lease.lease_from_date) : 'Start date not set'} – ${lease?.lease_to_date ? formatScheduleDate(lease.lease_to_date) : 'No end date'}`
@@ -588,10 +746,10 @@ export default async function LeaseDetailsPage({
     .filter((account) => account && account.id != null)
     .map((account) => ({ id: String(account.id), name: account.name || 'Bank account' }));
 
-  const recurringRows = recurringTemplates.filter(Boolean).map((row: any) => {
+  const recurringRows: RecurringRow[] = recurringTemplates.filter(Boolean).map((row: any) => {
     const nextDate = row?.start_date ? formatScheduleDate(row.start_date) : '—';
     const frequencyLabel = formatRentCycleLabel(row?.frequency) || '—';
-    const durationLabel = row?.duration ? toTitleCase(row.duration) : '—';
+    const durationLabel = row?.duration ? String(toTitleCase(row.duration)) : '—';
     const postingDescription = (() => {
       if (typeof row?.posting_days_in_advance === 'number' && row.posting_days_in_advance !== 0) {
         const days = Math.abs(row.posting_days_in_advance);
@@ -604,14 +762,14 @@ export default async function LeaseDetailsPage({
       }
       return 'Post on due date';
     })();
-    const accountName = row?.gl_accounts?.name || row?.gl_account_name || '—';
+    const accountName = String(row?.gl_accounts?.name || row?.gl_account_name || '—');
     const typeLabel = toTitleCase(row?.type) || 'Transaction';
     return {
       id: String(row?.id ?? randomUUID()),
       nextDate,
       type: typeLabel,
       account: accountName,
-      memo: row?.memo || '—',
+      memo: String(row?.memo || '—'),
       frequency: frequencyLabel,
       duration: durationLabel,
       posting: postingDescription,
@@ -848,7 +1006,7 @@ export default async function LeaseDetailsPage({
 
       <TabsContent value="summary" className="space-y-6 px-6 pb-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+          <div className="space-y-6 lg:col-span-2">
             <InfoCard title="Lease details">
               <div className="grid grid-cols-1 gap-6 text-sm sm:grid-cols-3">
                 <div>
@@ -899,7 +1057,22 @@ export default async function LeaseDetailsPage({
                   )}
                 </div>
               </div>
+              <div className="sm:col-span-3">
+                <div className="text-muted-foreground mb-1 text-xs font-medium">LEASE CHARGES</div>
+                {leaseChargesNote ? (
+                  <p className="text-foreground whitespace-pre-wrap">{leaseChargesNote}</p>
+                ) : (
+                  <span className="text-muted-foreground">No additional charges noted.</span>
+                )}
+              </div>
             </InfoCard>
+
+            <LeaseFilesTable
+              leaseId={lease.id}
+              isBuildiumLinked={Boolean(lease.buildium_lease_id)}
+              initialFiles={initialFileBundle}
+              categories={fileCategories}
+            />
           </div>
           <div>
             <div className="bg-primary/5 rounded-lg p-6 text-sm">
@@ -991,7 +1164,7 @@ export default async function LeaseDetailsPage({
               </div>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="divide-border min-w-full divide-y">
-                  <TableHeader className="bg-muted">
+                  <TableHeader>
                     <TableRow>
                       <TableHead className="w-28">Date</TableHead>
                       <TableHead>Invoice</TableHead>
@@ -1255,11 +1428,12 @@ export default async function LeaseDetailsPage({
       </TabsContent>
 
       <TabsContent value="files" className="space-y-6 px-6 pb-6">
-        <Card>
-          <CardContent className="text-muted-foreground py-8 text-sm">
-            Files and documents will appear here.
-          </CardContent>
-        </Card>
+        <LeaseFilesTable
+          leaseId={lease.id}
+          isBuildiumLinked={Boolean(lease.buildium_lease_id)}
+          initialFiles={initialFileBundle}
+          categories={fileCategories}
+        />
       </TabsContent>
     </Tabs>
   );

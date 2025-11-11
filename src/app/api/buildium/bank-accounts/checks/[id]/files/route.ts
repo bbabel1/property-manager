@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const checkId = params.id;
+    const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check_files' }, 'Fetching Buildium check files');
 
@@ -42,7 +39,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, checkId: params.id }, 'Error fetching Buildium check files');
+    logger.error({ error, checkId: (await params).id }, 'Error fetching Buildium check files');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium check files', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

@@ -4,10 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { supabase } from '@/lib/db';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -16,7 +13,7 @@ export async function GET(
 
     await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     const asOfDate = searchParams.get('asOfDate');
 

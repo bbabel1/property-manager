@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireRole, requireOrg } from '@/lib/auth/guards'
 
-export async function GET(req: Request, { params }: { params: { orgId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ orgId: string }> }) {
   try {
     const { supabase } = await requireRole(['org_staff','org_manager','org_admin','platform_admin'])
-    const orgId = params.orgId
+    const orgId = (await params).orgId
     await requireOrg(orgId)
 
     const [kpis, renewals, onboardingSummary, recentTx, activeWOs] = await Promise.all([

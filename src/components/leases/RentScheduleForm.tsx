@@ -191,7 +191,7 @@ export function RentScheduleForm({
                       <DatePicker
                         value={formValues.start_date}
                         onChange={(value) => updateField('start_date', value)}
-                        placeholder="YYYY-MM-DD"
+                        placeholder="mm/dd/yyyy"
                       />
                       {errors.start_date ? <p className="text-xs text-destructive">{errors.start_date}</p> : null}
                     </label>
@@ -203,7 +203,7 @@ export function RentScheduleForm({
                       <DatePicker
                         value={formValues.end_date}
                         onChange={(value) => updateField('end_date', value)}
-                        placeholder="YYYY-MM-DD"
+                        placeholder="mm/dd/yyyy"
                       />
                       {errors.end_date ? <p className="text-xs text-destructive">{errors.end_date}</p> : null}
                     </label>
@@ -252,7 +252,7 @@ export function RentScheduleForm({
                   </div>
                   <div className="space-y-4">
                     <div className="relative overflow-hidden rounded-lg border border-border bg-background shadow-sm">
-                      <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" aria-hidden="true" />
+                      <div className="absolute left-0 top-0 h-full w-1 bg-[var(--color-action-50)]0" aria-hidden="true" />
                       <div className="grid gap-5 p-6 sm:grid-cols-2">
                         <label className="space-y-2">
                           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Amount *</span>

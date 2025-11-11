@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
+import { AppRole, RoleRank } from '@/lib/auth/roles'
+
+const ALLOWED_ROLES: AppRole[] = [
+  'platform_admin',
+  'org_admin',
+  'org_manager',
+  'org_staff',
+  'owner_portal',
+  'tenant_portal',
+]
+
+const InviteSchema = z.object({
+  email: z.string().email('email must be a valid address'),
+  org_id: z.string().min(1).optional(),
+  roles: z.array(z.string()).optional()
+})
+
+function normalizeRole(value: string): AppRole | null {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') as AppRole
+
+  if (ALLOWED_ROLES.includes(normalized)) {
+    return normalized
+  }
+  if (normalized === 'property_manager' || normalized === 'propertymanager') {
+    return 'org_manager'
+  }
+  if (normalized === 'assistant_property_manager' || normalized === 'assistantpropertymanager') {
+    return 'org_staff'
+  }
+  return null
+}
 
 // Invite a new user to the platform
 // Body: { email: string, org_id?: string, roles?: string[] }
@@ -10,19 +46,34 @@ export async function POST(request: NextRequest) {
       await requireRole('org_admin')
     }
 
-    const body = await request.json().catch(() => null)
-    if (!body || !body.email) {
-      return NextResponse.json({ error: 'email is required' }, { status: 400 })
+    const body = await request.json().catch(() => ({}))
+    const parsed = InviteSchema.safeParse(body)
+    if (!parsed.success) {
+      const message = parsed.error.issues.map(i => i.message).join('\n') || 'Invalid payload'
+      return NextResponse.json({ error: message }, { status: 400 })
     }
+    const { email: rawEmail, org_id: rawOrgId, roles: rawRoles } = parsed.data
+
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Server not configured with service role' }, { status: 500 })
     }
 
-    const email = String(body.email).trim().toLowerCase()
-    const org_id = typeof body.org_id === 'string' && body.org_id.trim().length > 0 ? body.org_id : undefined
-    const roles: string[] = Array.isArray(body.roles)
-      ? body.roles.map((role: unknown) => String(role)).filter(Boolean)
-      : ['org_staff']
+    const email = rawEmail.trim().toLowerCase()
+    const org_id = rawOrgId?.trim() || undefined
+    const normalizedRoles = Array.from(
+      new Set(
+        (rawRoles ?? ['org_staff'])
+          .map(normalizeRole)
+          .filter((role): role is AppRole => role !== null)
+      )
+    )
+
+    if (!normalizedRoles.length) {
+      normalizedRoles.push('org_staff')
+    }
+
+    normalizedRoles.sort((a, b) => RoleRank[b] - RoleRank[a])
+    const topRole = normalizedRoles[0]
 
     const supabaseAdmin = requireSupabaseAdmin('admin invite user')
 
@@ -59,22 +110,18 @@ export async function POST(request: NextRequest) {
       userId = newUser.user.id
     }
 
-    // If org_id and roles are provided, create memberships
-    type MembershipRole = 'platform_admin' | 'org_admin' | 'org_manager' | 'org_staff' | 'owner_portal' | 'tenant_portal'
-    const allowedRoles: MembershipRole[] = ['platform_admin', 'org_admin', 'org_manager', 'org_staff', 'owner_portal', 'tenant_portal']
-    const normalizedRoles = (roles.length > 0 ? roles : ['org_staff'])
-      .filter((role): role is MembershipRole => allowedRoles.includes(role as MembershipRole))
-
-    if (org_id && normalizedRoles.length > 0) {
-      const memberships = normalizedRoles.map(role => ({
-        user_id: userId,
-        org_id: org_id,
-        role: role
-      }))
-
+    // If org_id provided, create membership
+    if (org_id) {
       const { error: membershipError } = await supabaseAdmin
         .from('org_memberships')
-        .insert(memberships)
+        .upsert(
+          {
+            user_id: userId,
+            org_id,
+            role: topRole
+          },
+          { onConflict: 'user_id,org_id' }
+        )
 
       if (membershipError) {
         return NextResponse.json({ error: membershipError.message }, { status: 500 })

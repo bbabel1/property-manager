@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
-import { supabase } from '@/lib/db'
+import { supabase, supabaseAdmin } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
+
+const ADMIN_ROLE_SET = new Set(['org_admin', 'org_manager', 'platform_admin'])
 
 export async function PUT(
   request: NextRequest,
@@ -25,6 +27,8 @@ export async function PUT(
     const user = await requireUser(request);
     const propertyId = resolvedParams.id;
 
+    const client = supabaseAdmin || supabase;
+
     logger.info({ userId: user.id, propertyId, action: 'update_banking_details' }, 'Updating property banking details');
 
     // Parse request body
@@ -39,8 +43,72 @@ export async function PUT(
       );
     }
 
+    const {
+      data: propertyRow,
+      error: propertyFetchError,
+    } = await client
+      .from('properties')
+      .select('id, org_id')
+      .eq('id', propertyId)
+      .maybeSingle();
+
+    if (propertyFetchError) {
+      logger.error(
+        { error: propertyFetchError, userId: user.id, propertyId },
+        'Failed to load property before banking update'
+      );
+      return NextResponse.json(
+        { error: 'Failed to update banking details' },
+        { status: 500 }
+      );
+    }
+
+    if (!propertyRow) {
+      return NextResponse.json(
+        { error: 'Property not found' },
+        { status: 404 }
+      );
+    }
+
+    const orgId = propertyRow.org_id;
+
+    if (!orgId) {
+      return NextResponse.json(
+        { error: 'Property missing organization context' },
+        { status: 400 }
+      );
+    }
+
+    const {
+      data: membership,
+      error: membershipError,
+    } = await client
+      .from('org_memberships')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (membershipError) {
+      logger.error(
+        { error: membershipError, userId: user.id, propertyId, orgId },
+        'Failed to verify org membership before banking update'
+      );
+      return NextResponse.json(
+        { error: 'Failed to update banking details' },
+        { status: 500 }
+      );
+    }
+
+    if (!membership || !ADMIN_ROLE_SET.has(String(membership.role))) {
+      return NextResponse.json(
+        { error: 'Not authorized to manage this property' },
+        { status: 403 }
+      );
+    }
+
     // Update property banking details
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('properties')
       .update({
         reserve: reserve,

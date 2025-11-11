@@ -86,7 +86,7 @@ export default function BillFileAttachmentsCard({
         ) : (
           <div className="border-border border-t">
             <Table>
-              <TableHeader className="bg-muted/60">
+              <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Uploaded</TableHead>
@@ -97,10 +97,10 @@ export default function BillFileAttachmentsCard({
                 {files.map((file) => (
                   <TableRow
                     key={file.id}
-                    className="group cursor-pointer align-middle transition-colors hover:bg-muted/40"
+                    className="group hover:bg-muted/40 cursor-pointer align-middle transition-colors"
                     onClick={() => openViewer(file)}
                   >
-                    <TableCell className="text-foreground font-medium group-hover:text-primary">
+                    <TableCell className="text-foreground group-hover:text-primary font-medium">
                       {file.title}
                     </TableCell>
                     <TableCell className="text-sm">
@@ -123,7 +123,10 @@ export default function BillFileAttachmentsCard({
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <ActionButton aria-label="File actions" onClick={(e) => e.stopPropagation()} />
+                          <ActionButton
+                            aria-label="File actions"
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-36">
                           <DropdownMenuItem onSelect={() => openViewer(file)}>

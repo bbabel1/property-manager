@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Building, MapPin, Users, DollarSign, UserCheck, Home } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -747,23 +747,30 @@ function Step3Ownership({
   const [creating, setCreating] = useState(false)
   // CSRF token for POSTs to secured API routes
   const [csrfToken, setCsrfToken] = useState<string | null>(null)
+  const [csrfLoading, setCsrfLoading] = useState(true)
 
   // Fetch CSRF token on mount so we can include it in headers (cookie is httpOnly)
-  useEffect(() => {
-    let cancelled = false
-    const fetchCsrf = async () => {
-      try {
-        const res = await fetch('/api/csrf', { credentials: 'include' })
-        if (!res.ok) return
+  const fetchCsrf = useCallback(async () => {
+    setCsrfLoading(true)
+    let token: string | null = null
+    try {
+      const res = await fetch('/api/csrf', { credentials: 'include' })
+      if (res.ok) {
         const j = await res.json().catch(() => ({}))
-        if (!cancelled && j?.token) setCsrfToken(j.token as string)
-      } catch {
-        // ignore; API will reject without token and surface an error, but we try early
+        token = typeof j?.token === 'string' ? j.token : null
       }
+    } catch {
+      // ignore; UI will show retry affordance through disabled state/error
+    } finally {
+      setCsrfToken(token)
+      setCsrfLoading(false)
     }
-    fetchCsrf()
-    return () => { cancelled = true }
+    return token
   }, [])
+
+  useEffect(() => {
+    fetchCsrf()
+  }, [fetchCsrf])
 
   useEffect(() => {
     let cancelled = false
@@ -821,6 +828,12 @@ function Step3Ownership({
         setErr('First name, last name, and email are required')
         return
       }
+      if (!csrfToken) {
+        // Token missing or still loading; proactively refetch and inform user
+        await fetchCsrf()
+        setErr('Preparing security token. Please try again in a moment.')
+        return
+      }
       const csrf = csrfToken
       const res = await fetch('/api/owners', {
         method: 'POST',
@@ -838,6 +851,10 @@ function Step3Ownership({
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
+        if (res.status === 403) {
+          await fetchCsrf()
+          throw new Error('Security token expired. Refreshing—please try again.')
+        }
         throw new Error(j?.error || 'Failed to create owner')
       }
       const j = await res.json()
@@ -911,6 +928,9 @@ function Step3Ownership({
           <div className="border border-border rounded-lg p-4 bg-muted/10">
             <h4 className="text-sm font-medium mb-3">Create New Owner</h4>
             {err && <p className="text-sm text-destructive mb-2">{err}</p>}
+            {!err && (csrfLoading || !csrfToken) && (
+              <p className="text-sm text-muted-foreground mb-2">Preparing security token…</p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">First Name *</label>
@@ -944,8 +964,13 @@ function Step3Ownership({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button type="button" onClick={handleCreateOwner} disabled={creating} className={FOCUS_RING}>
-                {creating ? 'Adding…' : 'Add Owner'}
+              <Button
+                type="button"
+                onClick={handleCreateOwner}
+                disabled={creating || csrfLoading || !csrfToken}
+                className={FOCUS_RING}
+              >
+                {creating ? 'Adding…' : csrfLoading || !csrfToken ? 'Preparing…' : 'Add Owner'}
               </Button>
               <Button type="button" variant="cancel" onClick={() => { setShowCreateInline(false); setErr(null) }} className={FOCUS_RING}>Cancel</Button>
             </div>

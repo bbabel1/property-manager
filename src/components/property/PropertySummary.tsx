@@ -1,134 +1,164 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Building2, MapPin, Camera, CheckCircle, XCircle, Home, Users, DollarSign, Banknote } from 'lucide-react'
-import EditLink from '@/components/ui/EditLink'
-import { Button } from '../ui/button'
-import type { BankAccountSummary } from '@/components/forms/types'
+import { useState, useEffect } from 'react';
+import {
+  Building2,
+  MapPin,
+  Camera,
+  CheckCircle,
+  XCircle,
+  Home,
+  Users,
+  DollarSign,
+  Banknote,
+} from 'lucide-react';
+import EditLink from '@/components/ui/EditLink';
+import { Button } from '../ui/button';
+import type { BankAccountSummary } from '@/components/forms/types';
 
-import { type PropertyWithDetails } from '@/lib/property-service'
-import PropertyNotes from '@/property/PropertyNotes'
-import EditPropertyModal from '../EditPropertyModal'
-import BankingDetailsModal from '../BankingDetailsModal'
+import { type PropertyWithDetails } from '@/lib/property-service';
+import PropertyNotes from '@/property/PropertyNotes';
+import EditPropertyModal from '../EditPropertyModal';
+import BankingDetailsModal from '../BankingDetailsModal';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 interface PropertySummaryProps {
-  property: PropertyWithDetails
-  fin?: { cash_balance?: number; security_deposits?: number; reserve?: number; available_balance?: number; as_of?: string }
-  onPropertyUpdate?: () => void
+  property: PropertyWithDetails;
+  fin?: {
+    cash_balance?: number;
+    security_deposits?: number;
+    reserve?: number;
+    available_balance?: number;
+    as_of?: string;
+  };
+  onPropertyUpdate?: () => void;
 }
 
 export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySummaryProps) {
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [showBankingModal, setShowBankingModal] = useState(false)
-  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
-  const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showBankingModal, setShowBankingModal] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([]);
+  const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false);
+  const panelBaseClass = 'rounded-lg shadow-none';
+  const panelClass = `${panelBaseClass} bg-card border-0`;
+  const accentPanelClass = `${panelBaseClass} border-[0.75px] border-[var(--color-surface-primary-soft-border)] bg-[var(--color-surface-primary-soft)] shadow-[0_3px_8px_rgba(22,74,172,0.06)]`;
+  const panelHeaderClass = 'border-b border-[var(--color-border-subtle)] bg-card px-6 py-4';
+  const accentPanelHeaderClass =
+    'border-b border-[0.75px] border-[var(--color-surface-primary-soft-border)] bg-[var(--color-surface-primary-soft-highlight)] px-6 py-4';
 
   const handleEditSuccess = () => {
-    console.log('Property updated successfully')
+    console.log('Property updated successfully');
     // Call the callback to refresh the property data
     if (onPropertyUpdate) {
-      onPropertyUpdate()
+      onPropertyUpdate();
     }
-  }
+  };
 
   const handleBankingEditSuccess = () => {
-    console.log('Banking details updated successfully')
+    console.log('Banking details updated successfully');
     // Call the callback to refresh the property data
     if (onPropertyUpdate) {
-      onPropertyUpdate()
+      onPropertyUpdate();
     }
-  }
+  };
 
   // Fetch bank accounts when component mounts
   useEffect(() => {
     const fetchBankAccounts = async () => {
       try {
-        setIsLoadingBankAccounts(true)
-        const response = await fetch('/api/bank-accounts')
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch bank accounts')
-        }
-        
-        const bankAccountsData = (await response.json()) as BankAccountSummary[]
-        setBankAccounts(bankAccountsData)
-      } catch (error) {
-        console.error('Error fetching bank accounts:', error)
-      } finally {
-        setIsLoadingBankAccounts(false)
-      }
-    }
+        setIsLoadingBankAccounts(true);
+        const response = await fetchWithSupabaseAuth('/api/bank-accounts');
 
-    fetchBankAccounts()
-  }, [])
+        if (!response.ok) {
+          throw new Error('Failed to fetch bank accounts');
+        }
+
+        const bankAccountsData = (await response.json()) as BankAccountSummary[];
+        setBankAccounts(bankAccountsData);
+      } catch (error) {
+        console.error('Error fetching bank accounts:', error);
+      } finally {
+        setIsLoadingBankAccounts(false);
+      }
+    };
+
+    fetchBankAccounts();
+  }, []);
 
   // Helper functions to get bank account information
   const getOperatingBankAccount = () => {
-    if (!property.operating_bank_account_id) return null
-    return bankAccounts.find(account => account.id === property.operating_bank_account_id)
-  }
+    if (!property.operating_bank_account_id) return null;
+    return bankAccounts.find((account) => account.id === property.operating_bank_account_id);
+  };
 
   const getDepositTrustBankAccount = () => {
-    if (!property.deposit_trust_account_id) return null
-    return bankAccounts.find(account => account.id === property.deposit_trust_account_id)
-  }
+    if (!property.deposit_trust_account_id) return null;
+    return bankAccounts.find((account) => account.id === property.deposit_trust_account_id);
+  };
 
   return (
     <div className="space-y-6">
       {/* Main Content - Two Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left Column */}
         <div className="space-y-6">
           {/* Property Details */}
-          <div className="bg-card rounded-lg border border-border">
-            <div className="p-6 border-b border-border">
+          <div className={panelClass}>
+            <div className={panelHeaderClass}>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">Property Details</h2>
+                <h2 className="text-foreground text-lg font-semibold">Property Details</h2>
                 <EditLink onClick={() => setShowEditModal(true)} />
               </div>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-5">
                 {/* Column 1: Property Image */}
-                <div className="md:col-span-2 space-y-4">
+                <div className="space-y-4 md:col-span-2">
                   <div className="relative">
-                    <div className="w-full h-64 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center overflow-hidden">
+                    <div className="flex h-64 w-full items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-[var(--color-gray-100)] to-[var(--color-gray-200)]">
                       <div className="text-center">
-                        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-3">
-                          <Home className="h-10 w-10 text-blue-600" />
+                        <div className="bg-card mx-auto mb-3 flex h-20 w-20 items-center justify-center rounded-full">
+                          <Home className="h-10 w-10 text-[var(--color-brand-500)]" />
                         </div>
-                        <p className="text-sm text-muted-foreground">Property Image</p>
+                        <p className="text-muted-foreground text-sm">Property Image</p>
                       </div>
                     </div>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
-                      className="absolute bottom-4 left-4 bg-card border-border text-primary hover:bg-muted"
+                      className="bg-card border-border text-primary hover:bg-muted absolute bottom-4 left-4"
                     >
-                      <Camera className="h-4 w-4 mr-1" />
+                      <Camera className="text-primary mr-1 h-4 w-4" />
                       Replace photo
                     </Button>
                   </div>
                 </div>
 
                 {/* Column 2: Property Details */}
-                <div className="md:col-span-3 space-y-6">
+                <div className="space-y-6 md:col-span-3">
                   {/* Address */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">ADDRESS</p>
+                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                      ADDRESS
+                    </p>
                     <p className="text-foreground mb-3 text-lg">
-                      {property.address_line1}<br />
+                      {property.address_line1}
+                      <br />
                       {property.city}, {property.state} {property.postal_code}
                     </p>
-                    <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary">
-                      <MapPin className="h-4 w-4 mr-1" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:text-primary h-auto p-0"
+                    >
+                      <MapPin className="mr-1 h-4 w-4" />
                       Map it
                     </Button>
                   </div>
 
                   {/* Property Manager */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
                       PROPERTY MANAGER
                     </p>
                     <p className="text-foreground">No manager assigned</p>
@@ -136,35 +166,54 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
 
                   {/* Property Type */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">PROPERTY TYPE</p>
-                    <p className="text-foreground font-semibold">{(property as any).property_type || 'None'}</p>
+                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                      PROPERTY TYPE
+                    </p>
+                    <p className="text-foreground font-semibold">
+                      {(property as any).property_type || 'None'}
+                    </p>
                   </div>
 
                   {/* Status */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">STATUS</p>
-                    <p className={`font-semibold ${property.status === 'Active' ? 'text-emerald-600' : 'text-red-600'}`}>{property.status || 'Unknown'}</p>
+                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                      STATUS
+                    </p>
+                    <p
+                      className={`font-semibold ${property.status === 'Active' ? 'text-[var(--color-action-500)]' : 'text-[var(--color-danger-500)]'}`}
+                    >
+                      {property.status || 'Unknown'}
+                    </p>
                   </div>
 
                   {/* Rental Owners */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">RENTAL OWNERS</p>
+                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                      RENTAL OWNERS
+                    </p>
                     {property.owners && property.owners.length > 0 ? (
                       <div className="space-y-2">
                         {property.owners.map((owner, index) => (
-                          <div key={owner.id} className="border-l-2 border-blue-500 pl-3">
+                          <div
+                            key={owner.id}
+                            className="border-l-2 border-[var(--color-brand-500)] pl-3"
+                          >
                             <div className="flex items-center justify-between">
-                              <span className="font-medium text-foreground">
-                                {owner.is_company ? owner.company_name : `${owner.first_name} ${owner.last_name}`}
+                              <span className="text-foreground font-medium">
+                                {owner.is_company
+                                  ? owner.company_name
+                                  : `${owner.first_name} ${owner.last_name}`}
                                 {owner.primary && (
-                                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  <span className="ml-2 inline-flex items-center rounded-full bg-[var(--color-action-50)] px-2 py-0.5 text-xs font-medium text-[var(--color-action-600)]">
                                     Primary
                                   </span>
                                 )}
                               </span>
                             </div>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              <span className="mr-4">Ownership: {owner.ownership_percentage || 0}%</span>
+                            <div className="text-muted-foreground mt-1 text-sm">
+                              <span className="mr-4">
+                                Ownership: {owner.ownership_percentage || 0}%
+                              </span>
                               <span>Disbursement: {owner.disbursement_percentage || 0}%</span>
                             </div>
                           </div>
@@ -180,16 +229,16 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
           </div>
 
           {/* Location Card */}
-          <div className="bg-card rounded-lg border border-border">
-            <div className="p-6 border-b border-border">
+          <div className={panelClass}>
+            <div className={panelHeaderClass}>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">Location</h2>
+                <h2 className="text-foreground text-lg font-semibold">Location</h2>
                 <EditLink />
               </div>
             </div>
             <div className="p-6">
-              <div className="text-center text-muted-foreground py-8">
-                <MapPin className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+              <div className="text-muted-foreground py-8 text-center">
+                <MapPin className="text-muted-foreground/50 mx-auto mb-3 h-12 w-12" />
                 <p>Location information will appear here</p>
               </div>
             </div>
@@ -199,57 +248,80 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
         {/* Right Column */}
         <div className="space-y-6">
           {/* Financial Summary */}
-          <div className="bg-card rounded-lg border border-border p-6">
+          <div className={`${accentPanelClass} p-6`}>
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <span className="text-foreground">Cash balance:</span>
-                <span className="font-semibold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.cash_balance ?? 0)}</span>
+                <span className="text-foreground font-semibold">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                    fin?.cash_balance ?? 0,
+                  )}
+                </span>
               </div>
-              <div className="flex justify-between items-center text-muted-foreground">
+              <div className="text-muted-foreground flex items-center justify-between">
                 <span className="pl-4">- Security deposits and early payments:</span>
-                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.security_deposits ?? 0)}</span>
+                <span>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                    fin?.security_deposits ?? 0,
+                  )}
+                </span>
               </div>
-              <div className="flex justify-between items-center text-muted-foreground">
+              <div className="text-muted-foreground flex items-center justify-between">
                 <span className="pl-4">- Property reserve:</span>
-                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.reserve ?? (property.reserve || 0))}</span>
+                <span>
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                    fin?.reserve ?? (property.reserve || 0),
+                  )}
+                </span>
               </div>
-              <div className="border-t border-border pt-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-foreground">Available:</span>
-                  <span className="text-xl font-bold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.available_balance ?? 0)}</span>
+              <div className="border-border border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground font-semibold">Available:</span>
+                  <span className="text-foreground text-xl font-bold">
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                      fin?.available_balance ?? 0,
+                    )}
+                  </span>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary hover:text-primary h-auto p-0"
+              >
                 View income statement
               </Button>
             </div>
           </div>
 
           {/* Banking Details */}
-          <div className="bg-card rounded-lg border border-border">
-            <div className="p-6 border-b border-border">
+          <div className={accentPanelClass}>
+            <div className={accentPanelHeaderClass}>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">Banking details</h2>
+                <h2 className="text-foreground text-lg font-semibold">Banking details</h2>
                 <EditLink onClick={() => setShowBankingModal(true)} />
               </div>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-6">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">OPERATING ACCOUNT</p>
+                <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                  OPERATING ACCOUNT
+                </p>
                 <div className="flex items-center">
-                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center mr-3">
-                    <Banknote className="h-4 w-4 text-muted-foreground" />
+                  <div className="bg-muted mr-3 flex h-8 w-8 items-center justify-center rounded-full">
+                    <Banknote className="text-muted-foreground h-4 w-4" />
                   </div>
                   {isLoadingBankAccounts ? (
                     <span className="text-muted-foreground">Loading...</span>
                   ) : getOperatingBankAccount() ? (
                     <div>
-                      <div className="font-medium text-foreground">{getOperatingBankAccount()?.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {getOperatingBankAccount()?.account_number ? 
-                          `****${getOperatingBankAccount()?.account_number?.slice(-4) || ''}` : 
-                          'No account number'
-                        }
+                      <div className="text-foreground font-medium">
+                        {getOperatingBankAccount()?.name}
+                      </div>
+                      <div className="text-muted-foreground text-sm">
+                        {getOperatingBankAccount()?.account_number
+                          ? `****${getOperatingBankAccount()?.account_number?.slice(-4) || ''}`
+                          : 'No account number'}
                       </div>
                     </div>
                   ) : (
@@ -258,27 +330,32 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
                 </div>
               </div>
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
                   DEPOSIT TRUST ACCOUNT
                 </p>
                 <div className="flex items-center">
-                    <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center mr-3">
-                    <Banknote className="h-4 w-4 text-muted-foreground" />
+                  <div className="bg-muted mr-3 flex h-8 w-8 items-center justify-center rounded-full">
+                    <Banknote className="text-muted-foreground h-4 w-4" />
                   </div>
                   {isLoadingBankAccounts ? (
                     <span className="text-muted-foreground">Loading...</span>
                   ) : getDepositTrustBankAccount() ? (
                     <div>
-                      <div className="font-medium text-foreground">{getDepositTrustBankAccount()?.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {getDepositTrustBankAccount()?.account_number ? 
-                          `****${getDepositTrustBankAccount()?.account_number?.slice(-4) || ''}` : 
-                          'No account number'
-                        }
+                      <div className="text-foreground font-medium">
+                        {getDepositTrustBankAccount()?.name}
+                      </div>
+                      <div className="text-muted-foreground text-sm">
+                        {getDepositTrustBankAccount()?.account_number
+                          ? `****${getDepositTrustBankAccount()?.account_number?.slice(-4) || ''}`
+                          : 'No account number'}
                       </div>
                     </div>
                   ) : (
-                    <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:text-primary h-auto p-0"
+                    >
                       Setup
                     </Button>
                   )}
@@ -307,5 +384,5 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
         property={property}
       />
     </div>
-  )
+  );
 }

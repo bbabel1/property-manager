@@ -21,4 +21,6 @@ Provide steps, commands, or screenshots. Include edge cases.
 - [ ] If DB changes: added migration in `supabase/migrations/`
 - [ ] No secrets committed; env changes documented
 - [ ] Considered logging, error handling, and performance
-
+- [ ] For UI changes: linked Figma frames or before/after screenshots
+- [ ] `npm run test:a11y` (or equivalent) run with results noted for UI changes
+- [ ] `npm run test:visual` reviewed; diffs acknowledged or snapshots updated as needed

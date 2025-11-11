@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'get_buildium_reconciliation' }, 'Fetching Buildium reconciliation details');
 
@@ -41,7 +38,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error fetching Buildium reconciliation details');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error fetching Buildium reconciliation details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium reconciliation details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -49,14 +46,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'update_buildium_reconciliation' }, 'Updating Buildium reconciliation');
 
@@ -93,7 +87,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error updating Buildium reconciliation');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error updating Buildium reconciliation');
     return NextResponse.json(
       { error: 'Failed to update Buildium reconciliation', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

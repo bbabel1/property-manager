@@ -28,7 +28,7 @@ export function SelectWithDescription({
     <Select.Root value={value} onValueChange={onChange}>
       <Select.Trigger
         className={clsx(
-          'w-full h-9 px-3 border border-border rounded-md bg-background text-foreground text-sm inline-flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-primary/30',
+          'w-full h-11 px-3 border border-border rounded-md bg-background text-foreground text-sm inline-flex items-center justify-between transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           triggerClassName
         )}
       >
@@ -38,7 +38,7 @@ export function SelectWithDescription({
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="z-50 overflow-hidden rounded-md border border-blue-200/70 bg-[#f3f7ff] text-popover-foreground shadow-lg">
+        <Select.Content className="z-50 overflow-hidden rounded-md border border-border bg-card text-popover-foreground shadow-lg shadow-black/10 dark:bg-card">
           <Select.ScrollUpButton className="flex items-center justify-center py-1">
             <ChevronUp className="h-4 w-4" />
           </Select.ScrollUpButton>

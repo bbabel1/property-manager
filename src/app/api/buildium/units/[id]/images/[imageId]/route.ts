@@ -6,10 +6,7 @@ import { BuildiumUnitImageUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; imageId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -23,7 +20,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser(request);
 
-    const { id, imageId } = params;
+    const { id, imageId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}`;
@@ -70,10 +67,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string; imageId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -87,7 +81,7 @@ export async function PUT(
     // Require authentication
     const user = await requireUser(request);
 
-    const { id, imageId } = params;
+    const { id, imageId } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -141,10 +135,7 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string; imageId: string } }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -158,7 +149,7 @@ export async function DELETE(
     // Require authentication
     const user = await requireUser(request);
 
-    const { id, imageId } = params;
+    const { id, imageId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}`;
@@ -203,10 +194,7 @@ export async function DELETE(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string; imageId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -220,7 +208,7 @@ export async function POST(
     // Require authentication
     const user = await requireUser();
 
-    const { id, imageId } = params;
+    const { id, imageId } = await params;
 
     // Make request to Buildium API for image download
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}/download`;

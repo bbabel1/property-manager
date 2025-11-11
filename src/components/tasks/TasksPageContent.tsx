@@ -39,7 +39,7 @@ import type { TaskPriorityKey, TaskStatusKey } from '@/lib/tasks/utils';
 const STATUS_BADGE_STYLES: Record<TaskStatusKey, string> = {
   new: 'border-amber-200 bg-amber-50 text-amber-700',
   in_progress: 'border-sky-200 bg-sky-50 text-sky-700',
-  completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  completed: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-600)]',
   on_hold: 'border-slate-200 bg-slate-100 text-slate-700',
   cancelled: 'border-border bg-muted/60 text-muted-foreground',
 };

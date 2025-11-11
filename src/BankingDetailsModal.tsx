@@ -7,6 +7,7 @@ import { type PropertyWithDetails } from '@/lib/property-service'
 import CreateBankAccountModal from './components/CreateBankAccountModal'
 import { Dropdown } from './ui/Dropdown'
 import type { BankAccountSummary, BankingDetailsFormValues } from '@/components/forms/types'
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 type BankingDetailsModalProps = {
   isOpen: boolean
@@ -50,7 +51,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
   const fetchBankAccounts = async () => {
     try {
       setIsLoadingBankAccounts(true)
-      const response = await fetch('/api/bank-accounts')
+      const response = await fetchWithSupabaseAuth('/api/bank-accounts')
       
       if (!response.ok) {
         throw new Error('Failed to fetch bank accounts')
@@ -74,7 +75,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     try {
       console.log('🔍 BankingDetailsModal: Submitting form data:', formData)
       
-      const response = await fetch(`/api/properties/${property.id}/banking`, {
+      const response = await fetchWithSupabaseAuth(`/api/properties/${property.id}/banking`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

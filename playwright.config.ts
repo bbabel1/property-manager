@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  testIgnore: ['**/jest/**', '**/components/**'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -24,7 +25,8 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     env: {
-      TEST_AUTH_BYPASS: 'true'
-    }
+      TEST_AUTH_BYPASS: 'true',
+      NEXT_PUBLIC_TEST_AUTH_BYPASS: 'true',
+    },
   },
 });

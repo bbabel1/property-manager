@@ -5,10 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBillUpdateSchema, BuildiumBillPatchSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -22,7 +19,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}`;
@@ -68,10 +65,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -85,7 +79,7 @@ export async function PUT(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -139,10 +133,7 @@ export async function PUT(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -156,7 +147,7 @@ export async function PATCH(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     // Parse and validate request body
     const body = await request.json();

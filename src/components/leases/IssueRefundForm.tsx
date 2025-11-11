@@ -1,16 +1,29 @@
-"use client"
+'use client';
 
-import { useCallback, useMemo, useState } from 'react'
-import { z } from 'zod'
-import { Info, Plus, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Dropdown } from '@/components/ui/Dropdown'
-import { Input } from '@/components/ui/input'
-import { DatePicker } from '@/components/ui/date-picker'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
-import type { LeaseAccountOption } from '@/components/leases/types'
+import { useCallback, useMemo, useState } from 'react';
+import { z } from 'zod';
+import { Info, Plus, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dropdown } from '@/components/ui/Dropdown';
+import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  extractLeaseTransactionFromResponse,
+  getTenantOptionValue,
+  type LeaseAccountOption,
+  type LeaseFormSuccessPayload,
+  type LeaseTenantOption,
+} from '@/components/leases/types';
 
 const IssueRefundSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -23,45 +36,47 @@ const IssueRefundSchema = z.object({
   queue_print: z.boolean().optional(),
   address_option: z.enum(['current', 'tenant', 'forwarding', 'custom']),
   custom_address: z.string().optional(),
-  allocations: z.array(
-    z.object({
-      account_id: z.string().min(1, 'Account required'),
-      amount: z.number().nonnegative(),
-    })
-  ).min(1, 'Add at least one allocation'),
-})
+  allocations: z
+    .array(
+      z.object({
+        account_id: z.string().min(1, 'Account required'),
+        amount: z.number().nonnegative(),
+      }),
+    )
+    .min(1, 'Add at least one allocation'),
+});
 
 type AllocationRow = {
-  id: string
-  account_id: string
-  amount: string
-}
+  id: string;
+  account_id: string;
+  amount: string;
+};
 
 type FormState = {
-  date: string | null
-  bank_account_id: string
-  payment_method: 'check' | 'eft'
-  party_id: string
-  amount: string
-  check_number: string
-  memo: string
-  queue_print: boolean
-  address_option: 'current' | 'tenant' | 'forwarding' | 'custom'
-  custom_address: string
-  allocations: AllocationRow[]
-}
+  date: string | null;
+  bank_account_id: string;
+  payment_method: 'check' | 'eft';
+  party_id: string;
+  amount: string;
+  check_number: string;
+  memo: string;
+  queue_print: boolean;
+  address_option: 'current' | 'tenant' | 'forwarding' | 'custom';
+  custom_address: string;
+  allocations: AllocationRow[];
+};
 
 export interface IssueRefundFormProps {
-  leaseId: number | string
+  leaseId: number | string;
   leaseSummary: {
-    propertyUnit?: string | null
-    tenants?: string | null
-  }
-  bankAccounts: Array<{ id: string; name: string }>
-  accounts: LeaseAccountOption[]
-  parties: Array<{ id: string; name: string }>
-  onCancel?: () => void
-  onSuccess?: () => void
+    propertyUnit?: string | null;
+    tenants?: string | null;
+  };
+  bankAccounts: Array<{ id: string; name: string }>;
+  accounts: LeaseAccountOption[];
+  parties: LeaseTenantOption[];
+  onCancel?: () => void;
+  onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
 }
 
 const AddressOptions = [
@@ -69,20 +84,32 @@ const AddressOptions = [
   { value: 'tenant', label: 'Tenant address' },
   { value: 'forwarding', label: 'Forwarding address' },
   { value: 'custom', label: 'Custom' },
-]
+];
 
-export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, accounts, parties, onCancel, onSuccess }: IssueRefundFormProps) {
-  const createId = () => (
-    typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+export default function IssueRefundForm({
+  leaseId,
+  leaseSummary,
+  bankAccounts,
+  accounts,
+  parties,
+  onCancel,
+  onSuccess,
+}: IssueRefundFormProps) {
+  const createId = () =>
+    typeof globalThis !== 'undefined' &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.randomUUID === 'function'
       ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2)
-  )
+      : Math.random().toString(36).slice(2);
+
+  const defaultPartyValue =
+    parties && parties.length > 0 ? getTenantOptionValue(parties[0]) : '';
 
   const [form, setForm] = useState<FormState>({
     date: null,
     bank_account_id: bankAccounts?.[0]?.id ?? '',
     payment_method: 'check',
-    party_id: parties?.[0]?.id ?? '',
+    party_id: defaultPartyValue,
     amount: '',
     check_number: '',
     memo: '',
@@ -90,52 +117,57 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
     address_option: 'current',
     custom_address: '',
     allocations: [{ id: createId(), account_id: accounts?.[0]?.id ?? '', amount: '' }],
-  })
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>> & { allocations?: string }>({})
-  const [formError, setFormError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  });
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof FormState, string>> & { allocations?: string }
+  >({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const updateField = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    setErrors((prev) => ({ ...prev, [key]: undefined }))
-  }, [])
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: undefined }));
+  }, []);
 
   const updateAllocation = useCallback((id: string, changes: Partial<AllocationRow>) => {
     setForm((prev) => ({
       ...prev,
       allocations: prev.allocations.map((row) => (row.id === id ? { ...row, ...changes } : row)),
-    }))
-    setErrors((prev) => ({ ...prev, allocations: undefined }))
-  }, [])
+    }));
+    setErrors((prev) => ({ ...prev, allocations: undefined }));
+  }, []);
 
   const addRow = useCallback(() => {
     setForm((prev) => ({
       ...prev,
       allocations: [...prev.allocations, { id: createId(), account_id: '', amount: '' }],
-    }))
-  }, [])
+    }));
+  }, []);
 
   const removeRow = useCallback((id: string) => {
     setForm((prev) => ({
       ...prev,
-      allocations: prev.allocations.length > 1 ? prev.allocations.filter((row) => row.id !== id) : prev.allocations,
-    }))
-  }, [])
+      allocations:
+        prev.allocations.length > 1
+          ? prev.allocations.filter((row) => row.id !== id)
+          : prev.allocations,
+    }));
+  }, []);
 
   const allocationsTotal = useMemo(
     () => form.allocations.reduce((sum, row) => sum + Number(row.amount || '0'), 0),
-    [form.allocations]
-  )
+    [form.allocations],
+  );
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      setSubmitting(true)
-      setFormError(null)
+      event.preventDefault();
+      setSubmitting(true);
+      setFormError(null);
 
       const allocationsParsed = form.allocations
         .filter((row) => row.account_id)
-        .map((row) => ({ account_id: row.account_id, amount: Number(row.amount || '0') }))
+        .map((row) => ({ account_id: row.account_id, amount: Number(row.amount || '0') }));
 
       const payload = {
         date: form.date ?? '',
@@ -149,26 +181,29 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
         address_option: form.address_option,
         custom_address: form.address_option === 'custom' ? form.custom_address : undefined,
         allocations: allocationsParsed,
-      }
+      };
 
-      const parsed = IssueRefundSchema.safeParse(payload)
+      const parsed = IssueRefundSchema.safeParse(payload);
       if (!parsed.success) {
-        const fieldErrors: Record<string, string> = {}
+        const fieldErrors: Record<string, string> = {};
         for (const issue of parsed.error.issues) {
-          const key = issue.path?.[0]
-          if (key === 'allocations') fieldErrors.allocations = issue.message
-          else if (typeof key === 'string') fieldErrors[key] = issue.message
+          const key = issue.path?.[0];
+          if (key === 'allocations') fieldErrors.allocations = issue.message;
+          else if (typeof key === 'string') fieldErrors[key] = issue.message;
         }
-        setErrors(fieldErrors as any)
-        setSubmitting(false)
-        return
+        setErrors(fieldErrors as any);
+        setSubmitting(false);
+        return;
       }
 
-      const amountValue = Number(form.amount || '0')
+      const amountValue = Number(form.amount || '0');
       if (allocationsTotal !== amountValue) {
-        setErrors((prev) => ({ ...prev, allocations: 'Allocated amounts must equal the refund amount' }))
-        setSubmitting(false)
-        return
+        setErrors((prev) => ({
+          ...prev,
+          allocations: 'Allocated amounts must equal the refund amount',
+        }));
+        setSubmitting(false);
+        return;
       }
 
       try {
@@ -180,18 +215,22 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
             amount: amountValue,
             allocations: allocationsParsed,
           }),
-        })
+        });
 
+        const body = await res.json().catch(() => null);
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(typeof body?.error === 'string' ? body.error : 'Failed to issue refund')
+          throw new Error(
+            body && typeof (body as any)?.error === 'string'
+              ? ((body as any).error as string)
+              : 'Failed to issue refund',
+          );
         }
 
         setForm({
           date: null,
           bank_account_id: bankAccounts?.[0]?.id ?? '',
           payment_method: 'check',
-          party_id: parties?.[0]?.id ?? '',
+          party_id: defaultPartyValue,
           amount: '',
           check_number: '',
           memo: '',
@@ -199,62 +238,87 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
           address_option: 'current',
           custom_address: '',
           allocations: [{ id: createId(), account_id: '', amount: '' }],
-        })
-        setErrors({})
-        onSuccess?.()
+        });
+        setErrors({});
+        const transactionRecord = extractLeaseTransactionFromResponse(body);
+        onSuccess?.(
+          transactionRecord ? { transaction: transactionRecord } : undefined,
+        );
       } catch (error) {
-        setFormError(error instanceof Error ? error.message : 'Unexpected error while issuing refund')
-        setSubmitting(false)
-        return
+        setFormError(
+          error instanceof Error ? error.message : 'Unexpected error while issuing refund',
+        );
+        setSubmitting(false);
+        return;
       }
 
-      setSubmitting(false)
+      setSubmitting(false);
     },
-    [form, leaseId, onSuccess, allocationsTotal, bankAccounts, parties]
-  )
+    [form, leaseId, onSuccess, allocationsTotal, bankAccounts, defaultPartyValue],
+  );
 
-  const party = parties.find((item) => item.id === form.party_id)
+  const party = parties.find((item) => getTenantOptionValue(item) === form.party_id);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 lg:flex-row">
       <div className="flex-1 space-y-8">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-foreground">
+          <h1 className="text-foreground text-2xl font-semibold">
             Issue refund{leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
             {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
           </h1>
         </div>
 
-        <Card className="border border-border/70 shadow-sm">
-          <CardContent className="p-8 space-y-10">
+        <Card className="border-border/70 border shadow-sm">
+          <CardContent className="space-y-10 p-8">
             <form className="space-y-10" onSubmit={handleSubmit}>
               <section className="grid gap-6 lg:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Date *</span>
-                  <DatePicker value={form.date} onChange={(value) => updateField('date', value)} placeholder="YYYY-MM-DD" />
-                  {errors.date ? <p className="text-xs text-destructive">{errors.date}</p> : null}
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Date *
+                  </span>
+                  <DatePicker
+                    value={form.date}
+                    onChange={(value) => updateField('date', value)}
+                    placeholder="mm/dd/yyyy"
+                  />
+                  {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bank account *</span>
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Bank account *
+                  </span>
                   <Dropdown
                     value={form.bank_account_id}
                     onChange={(value) => updateField('bank_account_id', value)}
-                    options={(bankAccounts ?? []).map((account) => ({ value: account.id, label: account.name }))}
+                    options={(bankAccounts ?? []).map((account) => ({
+                      value: account.id,
+                      label: account.name,
+                    }))}
                     placeholder="Select bank account"
                   />
-                  {errors.bank_account_id ? <p className="text-xs text-destructive">{errors.bank_account_id}</p> : null}
+                  {errors.bank_account_id ? (
+                    <p className="text-destructive text-xs">{errors.bank_account_id}</p>
+                  ) : null}
                 </label>
                 <div className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Refund method *</span>
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Refund method *
+                  </span>
                   <div className="flex flex-col gap-2">
                     {['check', 'eft'].map((value) => (
-                      <label key={value} className="flex items-center gap-2 text-sm text-foreground">
+                      <label
+                        key={value}
+                        className="text-foreground flex items-center gap-2 text-sm"
+                      >
                         <input
                           type="radio"
                           name="payment-method"
                           value={value}
                           checked={form.payment_method === value}
-                          onChange={() => updateField('payment_method', value as FormState['payment_method'])}
+                          onChange={() =>
+                            updateField('payment_method', value as FormState['payment_method'])
+                          }
                           className="h-4 w-4"
                         />
                         {value === 'check' ? 'Check' : 'EFT (learn more)'}
@@ -263,7 +327,9 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Refund amount *</span>
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Refund amount *
+                  </span>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -274,10 +340,15 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                   />
                 </div>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Check number</span>
-                  <Input value={form.check_number} onChange={(event) => updateField('check_number', event.target.value)} />
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Check number
+                  </span>
+                  <Input
+                    value={form.check_number}
+                    onChange={(event) => updateField('check_number', event.target.value)}
+                  />
                 </label>
-                <label className="flex items-center gap-2 text-sm text-foreground">
+                <label className="text-foreground flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={form.queue_print}
@@ -287,16 +358,23 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                   Queue for printing
                 </label>
                 <label className="space-y-2 lg:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Memo</span>
-                  <Textarea rows={3} value={form.memo} onChange={(event) => updateField('memo', event.target.value)} maxLength={200} />
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Memo
+                  </span>
+                  <Textarea
+                    rows={3}
+                    value={form.memo}
+                    onChange={(event) => updateField('memo', event.target.value)}
+                    maxLength={200}
+                  />
                 </label>
               </section>
 
               <section className="space-y-4">
-                <h2 className="text-sm font-semibold text-foreground">Refunding accounts</h2>
-                <div className="overflow-hidden rounded-lg border border-border">
+                <h2 className="text-foreground text-sm font-semibold">Refunding accounts</h2>
+                <div className="border-border overflow-hidden rounded-lg border">
                   <Table className="min-w-full">
-                    <TableHeader className="bg-muted/40">
+                    <TableHeader>
                       <TableRow>
                         <TableHead>Account</TableHead>
                         <TableHead className="w-32 text-right">Amount</TableHead>
@@ -310,7 +388,10 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                             <Dropdown
                               value={row.account_id}
                               onChange={(value) => updateAllocation(row.id, { account_id: value })}
-                              options={(accounts ?? []).map((account) => ({ value: String(account.id), label: account.name }))}
+                              options={(accounts ?? []).map((account) => ({
+                                value: String(account.id),
+                                label: account.name,
+                              }))}
                               placeholder="Select account"
                             />
                           </TableCell>
@@ -321,11 +402,18 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                               inputMode="decimal"
                               step="0.01"
                               value={row.amount}
-                              onChange={(event) => updateAllocation(row.id, { amount: event.target.value })}
+                              onChange={(event) =>
+                                updateAllocation(row.id, { amount: event.target.value })
+                              }
                             />
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" onClick={() => removeRow(row.id)} aria-label="Remove allocation">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeRow(row.id)}
+                              aria-label="Remove allocation"
+                            >
                               <X className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -333,7 +421,9 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                       ))}
                       <TableRow className="bg-muted/30 font-medium">
                         <TableCell>Total</TableCell>
-                        <TableCell className="text-right text-sm">${allocationsTotal.toFixed(2)}</TableCell>
+                        <TableCell className="text-right text-sm">
+                          ${allocationsTotal.toFixed(2)}
+                        </TableCell>
                         <TableCell />
                       </TableRow>
                     </TableBody>
@@ -342,20 +432,27 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                 <Button variant="link" className="px-0" type="button" onClick={addRow}>
                   <Plus className="h-4 w-4" /> Add row
                 </Button>
-                {errors.allocations ? <p className="text-xs text-destructive">{errors.allocations}</p> : null}
+                {errors.allocations ? (
+                  <p className="text-destructive text-xs">{errors.allocations}</p>
+                ) : null}
               </section>
 
               <section className="space-y-4">
-                <h2 className="text-sm font-semibold text-foreground">Refund check address</h2>
+                <h2 className="text-foreground text-sm font-semibold">Refund check address</h2>
                 <div className="space-y-2">
                   {AddressOptions.map((option) => (
-                    <label key={option.value} className="flex items-start gap-2 text-sm text-foreground">
+                    <label
+                      key={option.value}
+                      className="text-foreground flex items-start gap-2 text-sm"
+                    >
                       <input
                         type="radio"
                         name="refund-address"
                         value={option.value}
                         checked={form.address_option === option.value}
-                        onChange={() => updateField('address_option', option.value as FormState['address_option'])}
+                        onChange={() =>
+                          updateField('address_option', option.value as FormState['address_option'])
+                        }
                         className="mt-1 h-4 w-4"
                       />
                       <span>{option.label}</span>
@@ -370,14 +467,14 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                     placeholder="Enter custom address"
                   />
                 ) : party ? (
-                  <div className="rounded-md border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                  <div className="border-border text-muted-foreground rounded-md border border-dashed px-4 py-3 text-sm">
                     {party.name}
                   </div>
                 ) : null}
               </section>
 
               {formError ? (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
                   {formError}
                 </div>
               ) : null}
@@ -389,7 +486,12 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
                 <Button type="button" variant="outline" className="text-muted-foreground" disabled>
                   Issue refund(s)
                 </Button>
-                <Button type="button" variant="cancel" className="text-muted-foreground" onClick={onCancel}>
+                <Button
+                  type="button"
+                  variant="cancel"
+                  className="text-muted-foreground"
+                  onClick={onCancel}
+                >
                   Cancel
                 </Button>
               </div>
@@ -398,12 +500,12 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
         </Card>
       </div>
 
-      <aside className="w-full max-w-sm space-y-4 rounded-lg border border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+      <aside className="border-border bg-muted/30 text-muted-foreground w-full max-w-sm space-y-4 rounded-lg border p-5 text-sm">
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-foreground">Refund summary</h2>
+          <h2 className="text-foreground text-sm font-semibold">Refund summary</h2>
           <div className="flex items-center justify-between">
             <span>Available refund amount</span>
-            <span className="font-semibold text-foreground">$0.00</span>
+            <span className="text-foreground font-semibold">$0.00</span>
           </div>
           <div className="flex items-center justify-between">
             <span>Refunded</span>
@@ -411,10 +513,10 @@ export default function IssueRefundForm({ leaseId, leaseSummary, bankAccounts, a
           </div>
           <div className="flex items-center justify-between">
             <span>Remaining balance</span>
-            <span className="font-semibold text-foreground">$0.00</span>
+            <span className="text-foreground font-semibold">$0.00</span>
           </div>
         </div>
       </aside>
     </div>
-  )
+  );
 }

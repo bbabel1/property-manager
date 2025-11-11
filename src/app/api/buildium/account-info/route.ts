@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Require authentication
-    const user = await requireUser();
+    await requireUser();
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/accountinfo`;
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       data: accountInfo,
     });
 
-  } catch (error) {
+  } catch {
     logger.error(`Error fetching Buildium account info`);
 
     return NextResponse.json(

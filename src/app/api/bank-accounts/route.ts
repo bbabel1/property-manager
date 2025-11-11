@@ -146,8 +146,13 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (!existingErr && existingAccount) {
+      const maskedExisting = {
+        ...existingAccount,
+        account_number: mask(existingAccount.account_number),
+        routing_number: mask(existingAccount.routing_number)
+      }
       return NextResponse.json(
-        { error: 'Bank account already exists', existing: existingAccount },
+        { error: 'Bank account already exists', existing: maskedExisting },
         { status: 409 }
       )
     }
@@ -233,6 +238,11 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: 'Failed to create bank account', details: error.message }, { status: 500 })
     }
+    const maskedData = {
+      ...data,
+      account_number: mask(data.account_number),
+      routing_number: mask(data.routing_number)
+    }
 
     // Optional immediate sync to Buildium
     const url = new URL(request.url)
@@ -275,7 +285,7 @@ export async function POST(request: NextRequest) {
             })
           } catch {}
         }
-        return NextResponse.json({ success: true, data, buildiumSync: { success: false, error: result.error } })
+        return NextResponse.json({ success: true, data: maskedData, buildiumSync: { success: false, error: result.error } })
       }
 
       // Ensure local record stores the returned Buildium Id
@@ -291,10 +301,16 @@ export async function POST(request: NextRequest) {
         } catch {}
       }
 
-      return NextResponse.json({ success: true, data: { ...data, buildium_bank_id: result.buildiumId ?? undefined } })
+      return NextResponse.json({
+        success: true,
+        data: {
+          ...maskedData,
+          buildium_bank_id: result.buildiumId ?? undefined
+        }
+      })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(maskedData)
   } catch (error) {
     if (error instanceof SupabaseAdminUnavailableError) {
       return NextResponse.json({ error: error.message }, { status: 501 })

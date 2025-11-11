@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { describeBuildiumPayload } from '@/lib/buildium-response';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -12,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, Trash2, X } from 'lucide-react';
@@ -112,11 +115,15 @@ export default function BillEditForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      const body = await res.json().catch(() => null);
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setError(j?.error || 'Failed to save bill');
+        const message = extractBuildiumErrorMessage(body);
+        setError(message);
+        toast.error('Failed to sync bill to Buildium', message ? { description: message } : undefined);
         return;
       }
+      const successDescription = extractBuildiumSuccessDescription(body);
+      toast.success('Bill updated in Buildium', successDescription ? { description: successDescription } : undefined);
       router.push(`/bills/${billId}`);
       router.refresh();
     });
@@ -126,7 +133,9 @@ export default function BillEditForm({
   const expenseAccountOptions = useMemo(
     () =>
       accounts.filter((account) =>
-        String(account.type ?? '').toLowerCase().includes('expense'),
+        String(account.type ?? '')
+          .toLowerCase()
+          .includes('expense'),
       ),
     [accounts],
   );
@@ -209,10 +218,9 @@ export default function BillEditForm({
                 <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   Date *
                 </span>
-                <Input
-                  type="date"
+                <DateInput
                   value={form.date}
-                  onChange={(e) => update('date', e.target.value)}
+                  onChange={(nextDate) => update('date', nextDate)}
                   className="w-40"
                 />
               </label>
@@ -220,10 +228,9 @@ export default function BillEditForm({
                 <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   Due *
                 </span>
-                <Input
-                  type="date"
+                <DateInput
                   value={form.due_date || ''}
-                  onChange={(e) => update('due_date', e.target.value)}
+                  onChange={(nextDate) => update('due_date', nextDate)}
                   className="w-40"
                 />
               </label>
@@ -287,7 +294,7 @@ export default function BillEditForm({
               <div className="relative pr-12">
                 <div className="border-border/70 rounded-lg border">
                   <Table className="text-sm">
-                    <TableHeader className="bg-muted/60">
+                    <TableHeader>
                       <TableRow>
                         <TableHead className="border-border/60 w-[18rem] border-r border-dotted">
                           Property or company
@@ -334,219 +341,223 @@ export default function BillEditForm({
                                     {editing?.id === l.id &&
                                     editing.field === 'property' &&
                                     l.posting_type !== 'Credit' ? (
-                                    <div className="relative">
-                                      <select
-                                        autoFocus
-                                        value={l.property_id || ''}
-                                        onBlur={() => setEditing(null)}
-                                        onChange={(e) => {
-                                          setRow(l.id, {
-                                            property_id: e.target.value || null,
-                                            unit_id: null,
-                                          });
-                                          setEditing(null);
-                                        }}
-                                        className={cellSelectClass}
-                                        aria-label="Select property"
-                                      >
-                                        {propertyOptions.map((p) => (
-                                          <option key={p.id} value={p.id}>
-                                            {p.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className={cellTextButtonClass}
-                                      onClick={() =>
-                                        l.posting_type !== 'Credit' &&
-                                        setEditing({ id: l.id, field: 'property' })
-                                      }
-                                    >
-                                      {propertyLabel(l.property_id)}
-                                    </button>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                <div className="px-4 py-2.5">
-                                  {editing?.id === l.id &&
-                                  editing.field === 'unit' &&
-                                  l.posting_type !== 'Credit' ? (
-                                    <div className="relative">
-                                      <select
-                                        autoFocus
-                                        value={l.unit_id || ''}
-                                        onBlur={() => setEditing(null)}
-                                        onChange={(e) => {
-                                          setRow(l.id, { unit_id: e.target.value || null });
-                                          setEditing(null);
-                                        }}
-                                        className={cellSelectClass}
-                                        aria-label="Select unit"
-                                      >
-                                        <option value="">Property level</option>
-                                        {units
-                                          .filter(
-                                            (u) =>
-                                              !l.property_id || u.property_id === l.property_id,
-                                          )
-                                          .map((u) => (
-                                            <option key={u.id} value={u.id}>
-                                              {u.label}
+                                      <div className="relative">
+                                        <select
+                                          autoFocus
+                                          value={l.property_id || ''}
+                                          onBlur={() => setEditing(null)}
+                                          onChange={(e) => {
+                                            setRow(l.id, {
+                                              property_id: e.target.value || null,
+                                              unit_id: null,
+                                            });
+                                            setEditing(null);
+                                          }}
+                                          className={cellSelectClass}
+                                          aria-label="Select property"
+                                        >
+                                          {propertyOptions.map((p) => (
+                                            <option key={p.id} value={p.id}>
+                                              {p.label}
                                             </option>
                                           ))}
-                                      </select>
-                                      <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className={cellMutedTextButtonClass}
-                                      onClick={() =>
-                                        l.posting_type !== 'Credit' &&
-                                        setEditing({ id: l.id, field: 'unit' })
-                                      }
-                                    >
-                                      {unitLabel(l.unit_id)}
-                                    </button>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                <div className="px-4 py-2.5">
-                                  {editing?.id === l.id &&
-                                  editing.field === 'account' &&
-                                  l.posting_type !== 'Credit' ? (
-                                    <div className="relative">
-                                      <select
-                                        autoFocus
-                                        value={l.gl_account_id}
-                                        onBlur={() => setEditing(null)}
-                                        onChange={(e) => {
-                                          setRow(l.id, { gl_account_id: e.target.value });
-                                          setEditing(null);
-                                        }}
-                                        className={cellSelectClass}
-                                        aria-label="Select account"
+                                        </select>
+                                        <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className={cellTextButtonClass}
+                                        onClick={() =>
+                                          l.posting_type !== 'Credit' &&
+                                          setEditing({ id: l.id, field: 'property' })
+                                        }
                                       >
-                                        {currentAccountOption ? (
-                                          <option value={currentAccountOption.id} disabled>
-                                            {currentAccountOption.label}
-                                          </option>
-                                        ) : null}
-                                        {expenseAccountOptions.length > 0 ? (
-                                          expenseAccountOptions.map((a) => (
-                                            <option key={a.id} value={a.id}>
-                                              {a.label}
-                                            </option>
-                                          ))
-                                        ) : (
-                                          <option value="" disabled>
-                                            No expense accounts available
-                                          </option>
-                                        )}
-                                      </select>
-                                      <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className={cellTextButtonClass}
-                                      onClick={() =>
-                                        l.posting_type !== 'Credit' &&
-                                        setEditing({ id: l.id, field: 'account' })
-                                      }
-                                    >
-                                      {l.isNew && !l.gl_account_id ? '' : accountLabel(l.gl_account_id)}
-                                    </button>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                <div className="px-4 py-2.5">
-                                  {editing?.id === l.id &&
-                                  editing.field === 'description' &&
-                                  l.posting_type !== 'Credit' ? (
-                                    <Input
-                                      autoFocus
-                                      value={l.description}
-                                      onBlur={() => setEditing(null)}
-                                      onChange={(e) =>
-                                        setRow(l.id, { description: e.target.value })
-                                      }
-                                      className={cellControlBaseClass}
-                                    />
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className={cellTextButtonClass}
-                                      onClick={() =>
-                                        l.posting_type !== 'Credit' &&
-                                        setEditing({ id: l.id, field: 'description' })
-                                      }
-                                    >
-                                      {(l.isNew && !l.description) ? '' : (l.description || '—')}
-                                    </button>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="border-border/60 border-r border-dotted px-0 text-right align-middle font-medium">
-                                <div className="px-4 py-2.5">
-                                  {l.posting_type === 'Credit' ? (
-                                    new Intl.NumberFormat('en-US', {
-                                      style: 'currency',
-                                      currency: 'USD',
-                                    }).format(Math.abs(Number(l.amount || 0)))
-                                  ) : (
-                                    <div className="flex items-center justify-end gap-2">
-                                      {editing?.id === l.id && editing.field === 'amount' ? (
-                                        <Input
+                                        {propertyLabel(l.property_id)}
+                                      </button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
+                                  <div className="px-4 py-2.5">
+                                    {editing?.id === l.id &&
+                                    editing.field === 'unit' &&
+                                    l.posting_type !== 'Credit' ? (
+                                      <div className="relative">
+                                        <select
                                           autoFocus
-                                          type="number"
-                                          inputMode="decimal"
-                                          step="0.01"
-                                          value={String(l.amount)}
+                                          value={l.unit_id || ''}
                                           onBlur={() => setEditing(null)}
-                                          onChange={(e) =>
-                                            setRow(l.id, { amount: Number(e.target.value || 0) })
-                                          }
-                                          className={`${cellNumericInputClass} w-[10rem] min-w-[7rem]`}
-                                        />
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className={cellAmountButtonClass}
-                                          onClick={() => setEditing({ id: l.id, field: 'amount' })}
+                                          onChange={(e) => {
+                                            setRow(l.id, { unit_id: e.target.value || null });
+                                            setEditing(null);
+                                          }}
+                                          className={cellSelectClass}
+                                          aria-label="Select unit"
                                         >
-                                          {new Intl.NumberFormat('en-US', {
-                                            style: 'currency',
-                                            currency: 'USD',
-                                          }).format(Math.abs(Number(l.amount || 0)))}
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="px-0 text-right align-middle font-medium">
-                                <div className="px-4 py-2.5">
-                                  <button
-                                    type="button"
-                                    className={cellAmountPaidButtonClass}
-                                    disabled
-                                  >
-                                    {new Intl.NumberFormat('en-US', {
-                                      style: 'currency',
-                                      currency: 'USD',
-                                    }).format(0)}
-                                  </button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
+                                          <option value="">Property level</option>
+                                          {units
+                                            .filter(
+                                              (u) =>
+                                                !l.property_id || u.property_id === l.property_id,
+                                            )
+                                            .map((u) => (
+                                              <option key={u.id} value={u.id}>
+                                                {u.label}
+                                              </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className={cellMutedTextButtonClass}
+                                        onClick={() =>
+                                          l.posting_type !== 'Credit' &&
+                                          setEditing({ id: l.id, field: 'unit' })
+                                        }
+                                      >
+                                        {unitLabel(l.unit_id)}
+                                      </button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
+                                  <div className="px-4 py-2.5">
+                                    {editing?.id === l.id &&
+                                    editing.field === 'account' &&
+                                    l.posting_type !== 'Credit' ? (
+                                      <div className="relative">
+                                        <select
+                                          autoFocus
+                                          value={l.gl_account_id}
+                                          onBlur={() => setEditing(null)}
+                                          onChange={(e) => {
+                                            setRow(l.id, { gl_account_id: e.target.value });
+                                            setEditing(null);
+                                          }}
+                                          className={cellSelectClass}
+                                          aria-label="Select account"
+                                        >
+                                          {currentAccountOption ? (
+                                            <option value={currentAccountOption.id} disabled>
+                                              {currentAccountOption.label}
+                                            </option>
+                                          ) : null}
+                                          {expenseAccountOptions.length > 0 ? (
+                                            expenseAccountOptions.map((a) => (
+                                              <option key={a.id} value={a.id}>
+                                                {a.label}
+                                              </option>
+                                            ))
+                                          ) : (
+                                            <option value="" disabled>
+                                              No expense accounts available
+                                            </option>
+                                          )}
+                                        </select>
+                                        <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className={cellTextButtonClass}
+                                        onClick={() =>
+                                          l.posting_type !== 'Credit' &&
+                                          setEditing({ id: l.id, field: 'account' })
+                                        }
+                                      >
+                                        {l.isNew && !l.gl_account_id
+                                          ? ''
+                                          : accountLabel(l.gl_account_id)}
+                                      </button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
+                                  <div className="px-4 py-2.5">
+                                    {editing?.id === l.id &&
+                                    editing.field === 'description' &&
+                                    l.posting_type !== 'Credit' ? (
+                                      <Input
+                                        autoFocus
+                                        value={l.description}
+                                        onBlur={() => setEditing(null)}
+                                        onChange={(e) =>
+                                          setRow(l.id, { description: e.target.value })
+                                        }
+                                        className={cellControlBaseClass}
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className={cellTextButtonClass}
+                                        onClick={() =>
+                                          l.posting_type !== 'Credit' &&
+                                          setEditing({ id: l.id, field: 'description' })
+                                        }
+                                      >
+                                        {l.isNew && !l.description ? '' : l.description || '—'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="border-border/60 border-r border-dotted px-0 text-right align-middle font-medium">
+                                  <div className="px-4 py-2.5">
+                                    {l.posting_type === 'Credit' ? (
+                                      new Intl.NumberFormat('en-US', {
+                                        style: 'currency',
+                                        currency: 'USD',
+                                      }).format(Math.abs(Number(l.amount || 0)))
+                                    ) : (
+                                      <div className="flex items-center justify-end gap-2">
+                                        {editing?.id === l.id && editing.field === 'amount' ? (
+                                          <Input
+                                            autoFocus
+                                            type="number"
+                                            inputMode="decimal"
+                                            step="0.01"
+                                            value={String(l.amount)}
+                                            onBlur={() => setEditing(null)}
+                                            onChange={(e) =>
+                                              setRow(l.id, { amount: Number(e.target.value || 0) })
+                                            }
+                                            className={`${cellNumericInputClass} w-[10rem] min-w-[7rem]`}
+                                          />
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            className={cellAmountButtonClass}
+                                            onClick={() =>
+                                              setEditing({ id: l.id, field: 'amount' })
+                                            }
+                                          >
+                                            {new Intl.NumberFormat('en-US', {
+                                              style: 'currency',
+                                              currency: 'USD',
+                                            }).format(Math.abs(Number(l.amount || 0)))}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="px-0 text-right align-middle font-medium">
+                                  <div className="px-4 py-2.5">
+                                    <button
+                                      type="button"
+                                      className={cellAmountPaidButtonClass}
+                                      disabled
+                                    >
+                                      {new Intl.NumberFormat('en-US', {
+                                        style: 'currency',
+                                        currency: 'USD',
+                                      }).format(0)}
+                                    </button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
                             );
                           })}
                           <TableRow className="bg-muted/30">
@@ -575,20 +586,21 @@ export default function BillEditForm({
                   </Table>
                 </div>
                 {/* Trash bins positioned outside table border */}
-                {rows
-                  .filter((l) => l.posting_type !== 'Credit')
-                  .map((l, index) => (
-                    <button
-                      key={`remove-${l.id}`}
-                      type="button"
-                      aria-label="Remove line"
-                      className="text-destructive hover:bg-destructive/10 absolute right-0 inline-flex h-8 w-8 items-center justify-center rounded transition-colors"
-                      style={{ top: `${56 + index * 57}px` }}
-                      onClick={() => removeLine(l.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  ))}
+                <div className="bill-trash-container">
+                  {rows
+                    .filter((l) => l.posting_type !== 'Credit')
+                    .map((l, index) => (
+                      <button
+                        key={`remove-${l.id}`}
+                        type="button"
+                        aria-label="Remove line"
+                        className="text-destructive hover:bg-destructive/10 trash-button-positioned absolute right-0 inline-flex h-8 w-8 items-center justify-center rounded transition-colors"
+                        onClick={() => removeLine(l.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ))}
+                </div>
               </div>
               <div className="py-4 text-sm">
                 <button type="button" className="text-primary hover:underline" onClick={addLine}>
@@ -624,4 +636,24 @@ export default function BillEditForm({
       </form>
     </div>
   );
+}
+
+const FALLBACK_BILL_ERROR_MESSAGE = 'Failed to save bill';
+
+function extractBuildiumErrorMessage(body: unknown): string {
+  const buildiumMessage = describeBuildiumPayload((body as any)?.buildium?.payload);
+  if (buildiumMessage) return buildiumMessage;
+  if (typeof (body as any)?.error === 'string') return (body as any).error;
+  if (typeof (body as any)?.details === 'string') return (body as any).details;
+  return FALLBACK_BILL_ERROR_MESSAGE;
+}
+
+function extractBuildiumSuccessDescription(body: unknown): string | null {
+  const payload = (body as any)?.buildium?.payload;
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+  if (typeof record.Id === 'number') return `Buildium confirmation #${record.Id}`;
+  if (typeof record.Message === 'string') return record.Message as string;
+  if (typeof record.message === 'string') return record.message as string;
+  return null;
 }

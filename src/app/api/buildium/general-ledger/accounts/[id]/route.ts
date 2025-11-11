@@ -6,10 +6,7 @@ import { BuildiumGeneralLedgerAccountUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabase } from '@/lib/db';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -17,7 +14,7 @@ export async function GET(
     }
 
     await requireUser();
-    const { id } = params;
+    const { id } = await params;
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
       body: { method: 'GET', entityType: 'glAccount', entityId: id }
@@ -32,10 +29,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -43,7 +37,7 @@ export async function PUT(
     }
 
     await requireUser();
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const validatedData = sanitizeAndValidate(body, BuildiumGeneralLedgerAccountUpdateSchema);
 

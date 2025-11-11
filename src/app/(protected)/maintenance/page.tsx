@@ -1,10 +1,5 @@
 import Link from 'next/link';
-import {
-  CircleHelp,
-  Download,
-  MoreHorizontal,
-  ChevronDown,
-} from 'lucide-react';
+import { CircleHelp, Download, MoreHorizontal, ChevronDown } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,7 +51,7 @@ type UIWorkOrder = {
 const STATUS_BADGE_STYLES: Record<WorkOrderStatus, string> = {
   New: 'border-amber-200 bg-amber-50 text-amber-700',
   'In progress': 'border-sky-200 bg-sky-50 text-sky-700',
-  Completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  Completed: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-600)]',
   Cancelled: 'border-border bg-muted/60 text-muted-foreground',
 };
 
@@ -133,7 +128,7 @@ function relativeLabel(value?: string | null): string {
 
 function taskLabel(task?: TaskRow | null): string | null {
   if (!task) return null;
-  const kindLabel = task.task_kind ? TASK_KIND_LABELS[task.task_kind] ?? 'Task' : 'Task';
+  const kindLabel = task.task_kind ? (TASK_KIND_LABELS[task.task_kind] ?? 'Task') : 'Task';
   const idPart = task.buildium_task_id ? ` | ${task.buildium_task_id}` : '';
   return `${kindLabel}${idPart}`;
 }
@@ -141,13 +136,13 @@ function taskLabel(task?: TaskRow | null): string | null {
 export default async function MaintenancePage() {
   const db = supabaseAdmin || supabase;
 
-  const { data: workOrdersData, error: workOrdersError } = await db
+  const { data: workOrdersData, error: workOrdersError } = (await db
     .from('work_orders')
     .select(
       'id, buildium_work_order_id, subject, status, priority, scheduled_date, created_at, updated_at, property_id, unit_id, vendor_id, assigned_to',
     )
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(50)) as { data: WorkOrderRow[] | null; error: any };
 
   if (workOrdersError) {
     console.error('Failed to load work orders', workOrdersError);
@@ -156,13 +151,17 @@ export default async function MaintenancePage() {
   const workOrderRows: WorkOrderRow[] = workOrdersData ?? [];
 
   const propertyIds = Array.from(
-    new Set(workOrderRows.map((order) => order.property_id).filter((id): id is string => Boolean(id))),
+    new Set(
+      workOrderRows.map((order) => order.property_id).filter((id): id is string => Boolean(id)),
+    ),
   );
   const unitIds = Array.from(
     new Set(workOrderRows.map((order) => order.unit_id).filter((id): id is string => Boolean(id))),
   );
   const vendorIds = Array.from(
-    new Set(workOrderRows.map((order) => order.vendor_id).filter((id): id is string => Boolean(id))),
+    new Set(
+      workOrderRows.map((order) => order.vendor_id).filter((id): id is string => Boolean(id)),
+    ),
   );
 
   const propertyMap = new Map<string, Pick<PropertyRow, 'name'>>();
@@ -182,7 +181,10 @@ export default async function MaintenancePage() {
 
   const unitPropertyIds = new Set<string>();
   if (unitIds.length > 0) {
-    const { data, error } = await db.from('units').select('id, unit_number, property_id').in('id', unitIds);
+    const { data, error } = await db
+      .from('units')
+      .select('id, unit_number, property_id')
+      .in('id', unitIds);
     if (error) {
       console.error('Failed to load units for work orders', error);
     } else {
@@ -195,7 +197,10 @@ export default async function MaintenancePage() {
 
   const additionalPropertyIds = Array.from(unitPropertyIds).filter((id) => !propertyMap.has(id));
   if (additionalPropertyIds.length > 0) {
-    const { data, error } = await db.from('properties').select('id, name').in('id', additionalPropertyIds);
+    const { data, error } = await db
+      .from('properties')
+      .select('id, name')
+      .in('id', additionalPropertyIds);
     if (error) {
       console.error('Failed to load additional properties for units', error);
     } else {
@@ -224,11 +229,11 @@ export default async function MaintenancePage() {
   const tasksByProperty = new Map<string, TaskRow>();
 
   if (unitIds.length > 0) {
-    const { data, error } = await db
+    const { data, error } = (await db
       .from('tasks')
       .select('id, subject, task_kind, buildium_task_id, unit_id, property_id, created_at')
       .in('unit_id', unitIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })) as { data: TaskRow[] | null; error: any };
     if (error) {
       console.error('Failed to load unit tasks for work orders', error);
     } else {
@@ -241,11 +246,11 @@ export default async function MaintenancePage() {
   }
 
   if (propertyIds.length > 0) {
-    const { data, error } = await db
+    const { data, error } = (await db
       .from('tasks')
       .select('id, subject, task_kind, buildium_task_id, unit_id, property_id, created_at')
       .in('property_id', propertyIds)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })) as { data: TaskRow[] | null; error: any };
     if (error) {
       console.error('Failed to load property tasks for work orders', error);
     } else {
@@ -272,12 +277,16 @@ export default async function MaintenancePage() {
       unitLabel = propertyName;
     }
 
-    const relatedTask = (order.unit_id && tasksByUnit.get(order.unit_id)) ||
+    const relatedTask =
+      (order.unit_id && tasksByUnit.get(order.unit_id)) ||
       (order.property_id && tasksByProperty.get(order.property_id)) ||
       null;
 
-    const requestType = taskLabel(relatedTask)
-      || (order.buildium_work_order_id ? `Work order | ${order.buildium_work_order_id}` : 'Work order');
+    const requestType =
+      taskLabel(relatedTask) ||
+      (order.buildium_work_order_id
+        ? `Work order | ${order.buildium_work_order_id}`
+        : 'Work order');
 
     const title = order.subject || relatedTask?.subject || 'Untitled work order';
     const statusLabel = normalizeStatus(order.status);
@@ -305,14 +314,16 @@ export default async function MaintenancePage() {
 
   const propertyFilterOptions = [
     'All properties',
-    ...Array.from(new Set(uiWorkOrders.map((wo) => wo.propertyName).filter((name) => name && name !== '—'))).sort(),
+    ...Array.from(
+      new Set(uiWorkOrders.map((wo) => wo.propertyName).filter((name) => name && name !== '—')),
+    ).sort(),
   ];
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">Work orders</h1>
+          <h1 className="text-foreground text-2xl font-bold">Work orders</h1>
           <Link
             href="#"
             className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm font-medium"
@@ -328,18 +339,19 @@ export default async function MaintenancePage() {
         </div>
       </div>
 
-      <Card className="border border-border/70 shadow-sm">
+      <Card className="border-border/70 border shadow-sm">
         <CardContent className="flex flex-col gap-0 p-0">
-          <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-6 py-4">
+          <div className="border-border/70 flex flex-wrap items-center gap-3 border-b px-6 py-4">
             <Select defaultValue="all-properties">
               <SelectTrigger className="min-w-[200px] sm:w-[220px]">
                 <SelectValue placeholder="All properties" />
               </SelectTrigger>
               <SelectContent>
                 {propertyFilterOptions.map((option) => {
-                  const value = option === 'All properties'
-                    ? 'all-properties'
-                    : option.toLowerCase().replace(/\s+/g, '-');
+                  const value =
+                    option === 'All properties'
+                      ? 'all-properties'
+                      : option.toLowerCase().replace(/\s+/g, '-');
                   return (
                     <SelectItem key={option} value={value}>
                       {option}
@@ -355,9 +367,10 @@ export default async function MaintenancePage() {
               </SelectTrigger>
               <SelectContent>
                 {STATUS_FILTER_OPTIONS.map((option) => {
-                  const value = option === 'All statuses'
-                    ? 'all-statuses'
-                    : option.toLowerCase().replace(/\s+/g, '-');
+                  const value =
+                    option === 'All statuses'
+                      ? 'all-statuses'
+                      : option.toLowerCase().replace(/\s+/g, '-');
                   return (
                     <SelectItem key={option} value={value}>
                       {option}
@@ -377,7 +390,7 @@ export default async function MaintenancePage() {
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-6 py-3 text-sm text-muted-foreground">
+          <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
             <span>{uiWorkOrders.length} matches</span>
             <Button
               variant="ghost"
@@ -389,41 +402,41 @@ export default async function MaintenancePage() {
             </Button>
           </div>
 
-          <div className="px-2 pb-2 pt-4 sm:px-4 md:px-6">
+          <div className="px-2 pt-4 pb-2 sm:px-4 md:px-6">
             <Table className="min-w-[960px]">
               <TableHeader>
-                <TableRow className="border-b border-border/70 bg-muted/40 text-xs uppercase tracking-widest text-muted-foreground">
-                  <TableHead className="pl-2 text-xs font-semibold tracking-wide text-muted-foreground">
+                <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs tracking-widest uppercase">
+                  <TableHead className="text-muted-foreground pl-2 text-xs font-semibold tracking-wide">
                     Work order
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Unit
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Updated
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Age
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Status
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Due
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Assigned to
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Priority
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Vendor
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Bill total
                   </TableHead>
-                  <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                     Bill status
                   </TableHead>
                   <TableHead>
@@ -434,26 +447,29 @@ export default async function MaintenancePage() {
               <TableBody>
                 {uiWorkOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="py-12 text-center text-sm text-muted-foreground">
+                    <TableCell
+                      colSpan={12}
+                      className="text-muted-foreground py-12 text-center text-sm"
+                    >
                       No work orders found.
                     </TableCell>
                   </TableRow>
                 ) : (
                   uiWorkOrders.map((order) => (
-                    <TableRow key={order.id} className="border-b border-border/70 last:border-0">
-                      <TableCell className="whitespace-normal px-2 py-4 align-top text-sm">
+                    <TableRow key={order.id} className="border-border/70 border-b last:border-0">
+                      <TableCell className="px-2 py-4 align-top text-sm whitespace-normal">
                         <Link
                           href="#"
-                          className="text-primary hover:underline font-medium leading-5"
+                          className="text-primary leading-5 font-medium hover:underline"
                         >
                           {order.title}
                         </Link>
                         <p className="text-muted-foreground mt-1 text-xs">{order.requestType}</p>
                       </TableCell>
-                      <TableCell className="whitespace-normal py-4 align-top text-sm text-muted-foreground">
+                      <TableCell className="text-muted-foreground py-4 align-top text-sm whitespace-normal">
                         {order.unit}
                       </TableCell>
-                      <TableCell className="whitespace-normal py-4 align-top text-sm">
+                      <TableCell className="py-4 align-top text-sm whitespace-normal">
                         <p>{order.updatedAt}</p>
                         <p className="text-muted-foreground text-xs">{order.updatedRelative}</p>
                       </TableCell>
@@ -464,8 +480,8 @@ export default async function MaintenancePage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="py-4 align-top text-sm">{order.dueDate}</TableCell>
-                      <TableCell className="whitespace-normal py-4 align-top text-sm">
-                        <p className="font-medium text-foreground">{order.assignedTo}</p>
+                      <TableCell className="py-4 align-top text-sm whitespace-normal">
+                        <p className="text-foreground font-medium">{order.assignedTo}</p>
                       </TableCell>
                       <TableCell className="py-4 align-top text-sm">
                         <div className="flex items-center gap-2">
@@ -475,16 +491,16 @@ export default async function MaintenancePage() {
                           <span>{order.priority}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="whitespace-normal py-4 align-top text-sm">
+                      <TableCell className="py-4 align-top text-sm whitespace-normal">
                         {order.vendor}
                       </TableCell>
-                      <TableCell className="whitespace-normal py-4 align-top text-sm">
-                        <p className="font-medium text-muted-foreground">{order.billTotal}</p>
+                      <TableCell className="py-4 align-top text-sm whitespace-normal">
+                        <p className="text-muted-foreground font-medium">{order.billTotal}</p>
                       </TableCell>
                       <TableCell className="py-4 align-top text-sm">
                         <span className="text-muted-foreground">{order.billStatus}</span>
                       </TableCell>
-                      <TableCell className="py-4 align-top text-right">
+                      <TableCell className="py-4 text-right align-top">
                         <Button
                           variant="ghost"
                           size="icon"

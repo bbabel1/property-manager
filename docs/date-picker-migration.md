@@ -1,111 +1,65 @@
-# Date Picker Migration Guide
+# Date Input Guidance
 
 ## Overview
 
-We have standardized on using native HTML date inputs (`type="date"`) instead of the custom `DatePicker` component for better consistency, accessibility, and user experience across the application.
+All date entry across Property Manager now uses the shared [`<DateInput />`](../src/components/ui/date-input.tsx) component. It replaces native `<input type="date">` fields and legacy date pickers with a consistent month/day/year dropdown experience that is easier to navigate across months and years.
 
-## Current Status
+## Why `<DateInput />`?
 
-### ✅ Forms Updated to Native Date Inputs
+1. **Usability** – dedicated dropdowns for month, day, and year make it simple to jump between dates without fiddly calendar navigation.
+2. **Consistency** – every flow exposes the same interface and default year range (current year, plus a 10-year lookback and 10-year lookahead).
+3. **Accessibility** – keyboard-friendly popover and clear labelling, with built-in support for clearing a date.
+4. **Submission safety** – the component keeps an ISO `YYYY-MM-DD` value in sync behind the scenes, so forms submit the right payload.
 
-- **Receive Payment Form** (`src/components/leases/ReceivePaymentForm.tsx`)
-- **Enter Charge Form** (`src/components/leases/EnterChargeForm.tsx`)
-- **Add New Lease Form** (`src/components/units/LeaseSection.tsx`)
-
-### 🔄 Forms Still Using Custom DatePicker (Need Migration)
-
-- Tenant Personal Info Editor (`src/components/tenants/TenantPersonalInfoInlineEditor.tsx`)
-- Edit Owner Modal (`src/EditOwnerModal.tsx`, `src/components/EditOwnerModal.tsx`)
-- Create Owner Modal (`src/CreateOwnerModal.tsx`, `src/components/CreateOwnerModal.tsx`)
-- Edit Tenant Contact Modal (`src/components/tenants/EditTenantContactModal.tsx`)
-- Withhold Deposit Form (`src/components/leases/WithholdDepositForm.tsx`)
-- Recurring Payment Form (`src/components/leases/RecurringPaymentForm.tsx`)
-- Issue Refund Form (`src/components/leases/IssueRefundForm.tsx`)
-- Issue Credit Form (`src/components/leases/IssueCreditForm.tsx`)
-- Recurring Charge Form (`src/components/leases/RecurringChargeForm.tsx`)
-- Rent Schedule Form (`src/components/leases/RentScheduleForm.tsx`)
-
-### ✅ Forms Already Using Native Date Inputs
-
-- Lease Header Meta (`src/components/leases/LeaseHeaderMeta.tsx`)
-- Tenant Move In Editor (`src/components/leases/TenantMoveInEditor.tsx`)
-- Start Continue Reconciliation (`src/components/StartContinueReconciliation.tsx`)
-- Date Range Controls (`src/components/DateRangeControls.tsx`)
-
-## Migration Pattern
-
-### Before (Custom DatePicker)
+## Basic Usage
 
 ```tsx
-import { DatePicker } from '@/components/ui/date-picker';
+import { DateInput } from '@/components/ui/date-input';
 
-<DatePicker value={date} onChange={setDate} placeholder="YYYY-MM-DD" />;
+function Example() {
+  const [moveInDate, setMoveInDate] = useState('');
+
+  return (
+    <DateInput
+      id="move-in-date"
+      value={moveInDate}
+      onChange={setMoveInDate}
+      placeholder="mm/dd/yyyy"
+    />
+  );
+}
 ```
 
-### After (Native Date Input)
+The component is controlled; pass the current ISO value (`YYYY-MM-DD`) and handle the updated value in `onChange`.
+
+## Shared Defaults
+
+Leverage `DATE_PICKER_CONFIG` to keep behaviour aligned with the rest of the product:
 
 ```tsx
-import { Input } from '@/components/ui/input';
-
-<Input type="date" value={date || ''} onChange={(e) => setDate(e.target.value)} />;
-```
-
-### Using the Helper Function
-
-```tsx
-import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { DATE_PICKER_CONFIG } from '@/lib/date-picker-config';
 
-<Input {...DATE_PICKER_CONFIG.createDateInputProps(date, setDate)} />;
+<DateInput
+  {...DATE_PICKER_CONFIG.createDateInputProps(date, setDate)}
+  id="statement-date"
+  placeholder="mm/dd/yyyy"
+/>;
 ```
 
-## Benefits of Native Date Inputs
+The helper injects the default 10-year lookback/lookahead ranges. You can override any prop by passing a third argument.
 
-1. **Consistency**: Same date picker experience across all browsers
-2. **Accessibility**: Better screen reader support and keyboard navigation
-3. **Mobile Friendly**: Native mobile date pickers on mobile devices
-4. **Simpler Code**: Less complex state management and parsing
-5. **Performance**: No custom JavaScript for date parsing and validation
+## Tips
 
-## Configuration
+- Use `containerClassName` to control layout widths when the surrounding flex/grid styles need it.
+- Pass `hideClear` if a flow should prevent clearing the existing date.
+- When the field participates in a plain HTML `<form>`, provide a `name` prop so the hidden ISO input submits with the rest of the form.
+- Components that previously relied on native browser calendars should now import `DateInput`; avoid mixing `type="date"` fields to keep the UX consistent.
+- The legacy `<DatePicker />` export now delegates to `<DateInput />` for backward compatibility. Prefer importing `DateInput` directly in new code so you can opt into the helper utilities and props without the wrapper.
 
-Global configuration is available in `src/lib/date-picker-config.ts`:
+## Testing Checklist
 
-```tsx
-import { DATE_PICKER_CONFIG } from '@/lib/date-picker-config';
-
-// Check if native inputs are enabled
-DATE_PICKER_CONFIG.useNativeDateInput; // true
-
-// Get standardized props
-const props = DATE_PICKER_CONFIG.createDateInputProps(date, setDate, 'custom-class');
-```
-
-## Migration Checklist
-
-For each form using custom DatePicker:
-
-- [ ] Remove `DatePicker` import
-- [ ] Replace `<DatePicker>` with `<Input type="date">`
-- [ ] Update value prop to handle null/undefined (use `|| ''`)
-- [ ] Update onChange to use `e.target.value`
-- [ ] Test date selection and validation
-- [ ] Verify form submission works correctly
-- [ ] Check accessibility (screen readers, keyboard navigation)
-
-## Testing
-
-After migration, verify:
-
-1. Date picker opens correctly in browser
-2. Date selection works properly
-3. Form validation still works
-4. Mobile date picker appears on mobile devices
-5. Screen readers can access the date input
-6. Keyboard navigation works (Tab to focus, Enter to open picker)
-
-## Future Considerations
-
-- Consider deprecating the custom `DatePicker` component once all forms are migrated
-- Add ESLint rules to prevent usage of custom DatePicker
-- Consider adding TypeScript types for date input props
+- Keyboard access: Tab into the field and use Enter/Space to open the popover.
+- Selection flow: choosing month/day/year updates the visible text and persists the ISO value.
+- Clearing: the Clear action resets the value (unless disabled via `hideClear`).
+- Form submission: when used inside a form, verify the hidden ISO value posts correctly.

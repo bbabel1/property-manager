@@ -212,3 +212,23 @@ end $$;
 comment on function public.fn_recalculate_property_financials(uuid) is 'Recalculates property cash balance using transaction_lines posted to bank GL accounts (is_bank_account=true). Credits reduce cash, debits increase cash.';
 comment on function public.get_property_financials(uuid, date) is 'Returns property financials with cash balance from bank GL transaction_lines (different from unit balance which uses transactions table)';
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -28,7 +28,30 @@ const supabaseAdminInternal = isServer && serviceKey
   ? createClient<Database>(supabaseUrl || '', serviceKey)
   : undefined
 
+if (isServer && !serviceKey) {
+  console.warn(
+    '[supabase] SUPABASE_SERVICE_ROLE_KEY is not configured. Server-side data loaders that rely on the service role client will fail.'
+  )
+}
+
 export const supabaseAdminMaybe = supabaseAdminInternal
 export const supabaseAdmin: TypedSupabaseClient = supabaseAdminInternal ?? supabase
+
+export class SupabaseServiceRoleMissingError extends Error {
+  constructor(context?: string) {
+    const suffix = context ? ` while ${context}` : ''
+    super(
+      `Supabase service role key is not configured${suffix}. Set SUPABASE_SERVICE_ROLE_KEY in your environment to enable server-side data access.`
+    )
+    this.name = 'SupabaseServiceRoleMissingError'
+  }
+}
+
+export function getSupabaseServiceRoleClient(context?: string): TypedSupabaseClient {
+  if (!supabaseAdminInternal) {
+    throw new SupabaseServiceRoleMissingError(context)
+  }
+  return supabaseAdminInternal
+}
 
 export default supabase

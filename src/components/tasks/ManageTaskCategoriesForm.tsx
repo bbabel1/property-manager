@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -107,17 +107,13 @@ export default function ManageTaskCategoriesForm({
 
   const handleRemove = (localId: string) => {
     setDrafts((prev) =>
-      prev.map((draft) =>
-        draft.localId === localId ? { ...draft, isDeleted: true } : draft,
-      ),
+      prev.map((draft) => (draft.localId === localId ? { ...draft, isDeleted: true } : draft)),
     );
   };
 
   const handleNameChange = (localId: string, name: string) => {
     setDrafts((prev) =>
-      prev.map((draft) =>
-        draft.localId === localId ? { ...draft, draftName: name } : draft,
-      ),
+      prev.map((draft) => (draft.localId === localId ? { ...draft, draftName: name } : draft)),
     );
   };
 
@@ -150,21 +146,21 @@ export default function ManageTaskCategoriesForm({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-6 pb-12">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-foreground">Manage task categories</h1>
+        <h1 className="text-foreground text-3xl font-semibold">Manage task categories</h1>
         <p className="text-muted-foreground text-sm">
           Organize tasks by editing existing categories or adding new ones.
         </p>
       </div>
 
-      <Card className="border border-border/70 shadow-sm">
+      <Card className="border-border/70 border shadow-sm">
         <CardContent className="space-y-4 p-0">
           <Table className="text-sm">
-            <TableHeader className="bg-muted/50">
+            <TableHeader>
               <TableRow className="border-border border-b">
-                <TableHead className="w-2/5 uppercase tracking-wide text-xs text-muted-foreground">
+                <TableHead className="text-muted-foreground w-2/5 text-xs tracking-wide uppercase">
                   Category name
                 </TableHead>
-                <TableHead className="uppercase tracking-wide text-xs text-muted-foreground">
+                <TableHead className="text-muted-foreground text-xs tracking-wide uppercase">
                   Details
                 </TableHead>
                 <TableHead className="w-12">
@@ -175,10 +171,7 @@ export default function ManageTaskCategoriesForm({
             <TableBody>
               {visibleDrafts.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={3}
-                    className="py-6 text-center text-sm text-muted-foreground"
-                  >
+                  <TableCell colSpan={3} className="text-muted-foreground py-6 text-center text-sm">
                     No categories yet. Add one below to get started.
                   </TableCell>
                 </TableRow>
@@ -193,10 +186,10 @@ export default function ManageTaskCategoriesForm({
                           onChange={(event) => handleNameChange(draft.localId, event.target.value)}
                           disabled={saving || draft.isUnassigned}
                           placeholder="Category name"
-                          className="border-transparent bg-transparent px-0 text-base font-medium shadow-none focus:border-primary focus:bg-white"
+                          className="focus:border-primary border-transparent bg-transparent px-0 text-base font-medium shadow-none focus:bg-white"
                         />
                       </TableCell>
-                      <TableCell className="py-4 align-middle text-sm text-muted-foreground">
+                      <TableCell className="text-muted-foreground py-4 align-middle text-sm">
                         {draft.isUnassigned
                           ? 'Tasks without a category are listed here.'
                           : taskCountLabel(draft.taskCount)}
@@ -211,7 +204,7 @@ export default function ManageTaskCategoriesForm({
                             disabled={saving}
                             aria-label={`Remove ${draft.draftName || 'category'}`}
                           >
-                            <X className="size-4 text-muted-foreground" />
+                            <X className="text-muted-foreground size-4" />
                           </Button>
                         ) : null}
                       </TableCell>
@@ -241,7 +234,12 @@ export default function ManageTaskCategoriesForm({
         <Button type="button" onClick={handleSave} disabled={saving || !hasChanges}>
           {saving ? 'Saving...' : 'Save'}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => router.push('/tasks')} disabled={saving}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => router.push('/tasks')}
+          disabled={saving}
+        >
           Cancel
         </Button>
       </div>

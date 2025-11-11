@@ -5,6 +5,7 @@ import { Save, Building2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import type { BankAccountSummary, CreateBankAccountFormValues } from '@/components/forms/types'
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 type CreateBankAccountModalProps = {
   isOpen: boolean
@@ -54,7 +55,7 @@ export default function CreateBankAccountModal({ isOpen, onClose, onSuccess }: C
     setError(null)
 
     try {
-      const response = await fetch('/api/bank-accounts', {
+      const response = await fetchWithSupabaseAuth('/api/bank-accounts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

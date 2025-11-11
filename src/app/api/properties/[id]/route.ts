@@ -227,14 +227,24 @@ export async function PUT(
       updatePatch.fee_percentage = toNumberOrNull(feePercentageInput)
     }
 
-    const managementFeeInput = getField('management_fee', 'managementFee')
-    if (managementFeeInput !== undefined) {
-      updatePatch.management_fee = toNumberOrNull(managementFeeInput)
+    const feeDollarAmountInput = getField('fee_dollar_amount', 'feeDollarAmount')
+    if (feeDollarAmountInput !== undefined) {
+      updatePatch.fee_dollar_amount = toNumberOrNull(feeDollarAmountInput)
     }
 
     const billingFrequencyInput = getField('billing_frequency', 'billingFrequency')
     if (billingFrequencyInput !== undefined) {
       updatePatch.billing_frequency = normalizeBillingFrequency(billingFrequencyInput)
+    }
+
+    const billPayListInput = getField('bill_pay_list', 'billPayList')
+    if (billPayListInput !== undefined) {
+      updatePatch.bill_pay_list = billPayListInput ?? null
+    }
+
+    const billPayNotesInput = getField('bill_pay_notes', 'billPayNotes')
+    if (billPayNotesInput !== undefined) {
+      updatePatch.bill_pay_notes = billPayNotesInput ?? null
     }
 
     const boroughInput = getField('borough')

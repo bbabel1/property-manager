@@ -204,7 +204,7 @@ export function RecurringChargeForm({ leaseId, leaseSummary, onCancel, onSuccess
                   <DatePicker
                     value={form.next_date}
                     onChange={(value) => update('next_date', value)}
-                    placeholder="YYYY-MM-DD"
+                    placeholder="mm/dd/yyyy"
                   />
                   {errors.next_date ? <p className="text-xs text-destructive">{errors.next_date}</p> : null}
                 </label>

@@ -5,16 +5,14 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumUnitUpdateSchema } from '@/schemas/buildium'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; unitId: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     await requireUser()
 
-    const url = `${process.env.BUILDIUM_BASE_URL}/rentals/${params.id}/units/${params.unitId}`
+    const { id, unitId } = await params
+    const url = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/units/${unitId}`
     const res = await fetch(url, {
       method: 'GET',
       headers: {
@@ -37,20 +35,18 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string; unitId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; unitId: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     await requireUser()
 
+    const { id, unitId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumUnitUpdateSchema)
-    validated.PropertyId = Number(params.id)
+    validated.PropertyId = Number(id)
 
-    const url = `${process.env.BUILDIUM_BASE_URL}/rentals/${params.id}/units/${params.unitId}`
+    const url = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/units/${unitId}`
     const res = await fetch(url, {
       method: 'PUT',
       headers: {

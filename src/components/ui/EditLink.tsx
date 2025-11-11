@@ -1,18 +1,33 @@
-"use client"
+'use client';
 
-import React from 'react'
+import React from 'react';
+import { Button, type ButtonProps } from './button';
+import { cn } from './utils';
 
-type Props = React.ComponentProps<'button'> & { label?: string }
+type Props = Omit<ButtonProps, 'variant' | 'children'> & {
+  label?: string;
+  children?: React.ReactNode;
+};
 
-export default function EditLink({ label = 'Edit', className = '', ...props }: Props) {
+export default function EditLink({
+  label = 'Edit',
+  className,
+  children,
+  'aria-label': ariaLabel,
+  ...props
+}: Props) {
+  const content = children ?? label;
+  const inferredAria =
+    ariaLabel || (typeof content === 'string' ? `Edit ${content.toLowerCase()}` : 'Edit');
+
   return (
-    <button
-      type="button"
+    <Button
+      variant="link"
+      className={cn('px-1 text-sm font-semibold', className)}
+      aria-label={inferredAria}
       {...props}
-      className={`text-primary hover:underline px-0 py-0 h-auto bg-transparent text-sm ${className}`}
-      aria-label={props['aria-label'] || `Edit ${label.toLowerCase()}`}
     >
-      {label}
-    </button>
-  )
+      {content}
+    </Button>
+  );
 }

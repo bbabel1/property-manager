@@ -57,7 +57,7 @@ export async function GET(
 
     const tx = isNumeric ? await LeaseTransactionService.getFromBuildium(leaseId, txNumeric, false) : null
     if (!tx) {
-      return NextResponse.json({ error: `Transaction not found for lease ${leaseId} and reference ${raw}` }, { status: 404 })
+      return NextResponse.json({ error: `Transaction not found for lease ${leaseId} and reference ${txIdRaw}` }, { status: 404 })
     }
     return NextResponse.json({ data: tx })
   } catch (error) {

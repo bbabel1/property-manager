@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { DateInput } from '@/components/ui/date-input'
 import { Edit2 } from 'lucide-react'
 
 export default function TenantMoveInEditor({
@@ -56,12 +57,12 @@ export default function TenantMoveInEditor({
 
   return (
     <div className="flex items-center gap-2 text-xs">
-      <input
-        type="date"
-        className="h-7 rounded border border-input bg-background px-2 text-foreground"
+      <DateInput
         value={date}
-        onChange={(e) => setDate(e.target.value)}
+        onChange={setDate}
         aria-label="Move-in date"
+        className="h-7 text-xs"
+        containerClassName="w-fit"
       />
       <Button size="sm" variant="outline" disabled={pending} onClick={() => setEditing(false)}>
         Cancel
@@ -83,4 +84,3 @@ function toInput(display: string) {
   const dd = String(d.getDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
 }
-

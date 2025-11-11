@@ -7,10 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -24,7 +21,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     const proxy = await buildiumEdgeClient.proxyRaw('GET', `/rentals/units/${id}`)
     if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch unit from Buildium' }, { status: 502 })
@@ -53,10 +50,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -70,7 +64,7 @@ export async function PUT(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     // Parse and validate request body
     const body = await request.json();

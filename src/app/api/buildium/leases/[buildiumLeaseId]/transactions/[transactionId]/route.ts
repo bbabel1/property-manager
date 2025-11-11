@@ -7,10 +7,7 @@ import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumLeaseTransactionUpdateSchema } from '@/schemas/buildium';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; transactionId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; transactionId: string }> }) {
   try {
     const supabaseAdmin = requireSupabaseAdmin('lease transaction sync')
     // Check rate limiting
@@ -25,7 +22,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id, transactionId } = params;
+    const { id, transactionId } = await params;
     const { searchParams } = new URL(request.url);
     const persist = (searchParams.get('persist') || '').toLowerCase() === 'true';
 
@@ -88,10 +85,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string; transactionId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; transactionId: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
@@ -99,7 +93,7 @@ export async function PUT(
     }
 
     const user = await requireUser()
-    const { id, transactionId } = params
+    const { id, transactionId } = await params
 
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumLeaseTransactionUpdateSchema)

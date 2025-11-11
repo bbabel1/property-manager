@@ -474,6 +474,7 @@ POST /api/buildium/leases/{id}/notes
 
 GET /api/buildium/leases/{id}/transactions
 POST /api/buildium/leases/{id}/transactions
+POST /api/buildium/leases/{id}/payments
 GET /api/buildium/leases/{id}/transactions/{transactionId}
 PUT /api/buildium/leases/{id}/transactions/{transactionId}
 
@@ -522,6 +523,14 @@ GET /api/buildium/leases/{leaseId}/transactions/{transactionId}
 ```http
 
 POST /api/buildium/leases/{leaseId}/transactions
+
+```
+
+#### Create Payment
+
+```http
+
+POST /api/buildium/leases/{leaseId}/payments
 
 ```
 

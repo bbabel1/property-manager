@@ -1,32 +1,51 @@
-"use client"
+'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 // import { Textarea } from '@/components/ui/textarea'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Mail, Trash2, Download, Eye } from 'lucide-react'
-import ActionButton from '@/components/ui/ActionButton'
-import { CheckCircle2 } from 'lucide-react'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, Mail, Trash2, Download, Eye } from 'lucide-react';
+import ActionButton from '@/components/ui/ActionButton';
+import { CheckCircle2 } from 'lucide-react';
 
 interface TenantFileRow {
-  id: string
-  title: string
-  category: string
-  description: string | null
-  uploadedAt: Date
-  uploadedBy: string
+  id: string;
+  title: string;
+  category: string;
+  description: string | null;
+  uploadedAt: Date;
+  uploadedBy: string;
 }
 
 interface TenantFilesPanelProps {
-  tenantId?: string | null
-  uploaderName?: string | null
-  initialFiles?: TenantFileRow[]
+  tenantId?: string | null;
+  uploaderName?: string | null;
+  initialFiles?: TenantFileRow[];
 }
 
-const DEFAULT_CATEGORY = 'Uncategorized'
+const DEFAULT_CATEGORY = 'Uncategorized';
 
 const formatDateTime = (date: Date): string =>
   new Intl.DateTimeFormat('en-US', {
@@ -34,90 +53,93 @@ const formatDateTime = (date: Date): string =>
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
-    minute: '2-digit'
-  }).format(date)
+    minute: '2-digit',
+  }).format(date);
 
 export default function TenantFilesPanel({
   tenantId: _tenantId,
   uploaderName = 'Team member',
-  initialFiles = []
+  initialFiles = [],
 }: TenantFilesPanelProps) {
-  const [files, setFiles] = useState<TenantFileRow[]>(initialFiles)
-  const [isOpen, setIsOpen] = useState(false)
-  const [step, setStep] = useState<'select' | 'details'>('select')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [title, setTitle] = useState('')
-  const [category, setCategory] = useState(DEFAULT_CATEGORY)
-  const [description, setDescription] = useState('')
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [files, setFiles] = useState<TenantFileRow[]>(initialFiles);
+  const [isOpen, setIsOpen] = useState(false);
+  const [step, setStep] = useState<'select' | 'details'>('select');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState(DEFAULT_CATEGORY);
+  const [description, setDescription] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const matchesLabel = useMemo(() => {
-    const count = files.length
-    return `${count} match${count === 1 ? '' : 'es'}`
-  }, [files.length])
+    const count = files.length;
+    return `${count} match${count === 1 ? '' : 'es'}`;
+  }, [files.length]);
 
   const resetState = useCallback(() => {
-    setStep('select')
-    setSelectedFile(null)
-    setTitle('')
-    setCategory(DEFAULT_CATEGORY)
-    setDescription('')
-  }, [])
+    setStep('select');
+    setSelectedFile(null);
+    setTitle('');
+    setCategory(DEFAULT_CATEGORY);
+    setDescription('');
+  }, []);
 
   const closeModal = useCallback(() => {
-    setIsOpen(false)
-    resetState()
-  }, [resetState])
+    setIsOpen(false);
+    resetState();
+  }, [resetState]);
 
   const openModal = () => {
-    setIsOpen(true)
-    resetState()
-  }
+    setIsOpen(true);
+    resetState();
+  };
 
   const handleFiles = (fileList: FileList | null) => {
-    if (!fileList || !fileList.length) return
-    const file = fileList[0]
-    setSelectedFile(file)
-    setTitle(file.name)
-    setStep('details')
-  }
+    if (!fileList || !fileList.length) return;
+    const file = fileList[0];
+    setSelectedFile(file);
+    setTitle(file.name);
+    setStep('details');
+  };
 
   const onFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(event.target.files)
-  }
+    handleFiles(event.target.files);
+  };
 
   const onDrop = (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault()
-    handleFiles(event.dataTransfer.files)
-  }
+    event.preventDefault();
+    handleFiles(event.dataTransfer.files);
+  };
 
   const saveFile = () => {
-    if (!selectedFile) return
-    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+    if (!selectedFile) return;
+    const id =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`;
     const newRow: TenantFileRow = {
       id,
       title: title.trim() || selectedFile.name,
       category: category.trim() || DEFAULT_CATEGORY,
       description: description.trim() || null,
       uploadedAt: new Date(),
-      uploadedBy: uploaderName || 'Team member'
-    }
-    setFiles((prev) => [newRow, ...prev])
-    closeModal()
-  }
+      uploadedBy: uploaderName || 'Team member',
+    };
+    setFiles((prev) => [newRow, ...prev]);
+    closeModal();
+  };
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-background shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-border px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <select 
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      <div className="border-border bg-background rounded-lg border shadow-sm">
+        <div className="border-border flex flex-col gap-4 border-b px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-sm">
+            <select
+              className="border-input bg-background focus-visible:ring-primary h-9 rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
               aria-label="Filter by category"
             >
               <option>All categories</option>
             </select>
-            <button type="button" className="text-primary hover:underline">Add filter option</button>
+            <button type="button" className="text-primary hover:underline">
+              Add filter option
+            </button>
           </div>
           <div className="flex items-center gap-3">
             <Button type="button" onClick={openModal}>
@@ -128,23 +150,23 @@ export default function TenantFilesPanel({
             </Button>
           </div>
         </div>
-        <div className="px-4 py-3 text-xs text-muted-foreground">{matchesLabel}</div>
+        <div className="text-muted-foreground px-4 py-3 text-xs">{matchesLabel}</div>
 
         {files.length === 0 ? (
-          <div className="border-t border-border px-4 py-6 text-sm text-muted-foreground">
+          <div className="border-border text-muted-foreground border-t px-4 py-6 text-sm">
             You don't have any files for this tenant right now.{' '}
             <button
               type="button"
               onClick={openModal}
-              className="text-primary hover:underline text-sm font-normal align-baseline"
+              className="text-primary align-baseline text-sm font-normal hover:underline"
             >
               Upload your first file.
             </button>
           </div>
         ) : (
-          <div className="border-t border-border">
+          <div className="border-border border-t">
             <Table>
-              <TableHeader className="bg-muted/50">
+              <TableHeader>
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
                   <TableHead>Title</TableHead>
@@ -162,22 +184,22 @@ export default function TenantFilesPanel({
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-muted-foreground/40 bg-muted/40 text-xs font-semibold text-muted-foreground">
+                        <div className="border-muted-foreground/40 bg-muted/40 text-muted-foreground flex h-10 w-10 items-center justify-center rounded-md border border-dashed text-xs font-semibold">
                           PDF
                         </div>
                         <div className="space-y-1">
-                          <div className="font-medium text-foreground">{file.title}</div>
+                          <div className="text-foreground font-medium">{file.title}</div>
                           {file.description ? (
-                            <div className="text-xs text-muted-foreground">{file.description}</div>
+                            <div className="text-muted-foreground text-xs">{file.description}</div>
                           ) : null}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">Private</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">Private</TableCell>
                     <TableCell className="text-sm">{file.category || DEFAULT_CATEGORY}</TableCell>
                     <TableCell className="space-y-1 text-sm">
                       <div>{formatDateTime(file.uploadedAt)}</div>
-                      <div className="text-xs text-muted-foreground">by {file.uploadedBy}</div>
+                      <div className="text-muted-foreground text-xs">by {file.uploadedBy}</div>
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -185,7 +207,10 @@ export default function TenantFilesPanel({
                           <ActionButton aria-label="Actions" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => console.log('Delete file', file.id)}>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => console.log('Delete file', file.id)}
+                          >
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => console.log('Email file', file.id)}>
@@ -209,7 +234,7 @@ export default function TenantFilesPanel({
       </div>
 
       <Dialog open={isOpen} onOpenChange={(value) => (value ? setIsOpen(true) : closeModal())}>
-        <DialogContent className="max-w-3xl sm:max-w-4xl top-[35%] translate-y-[-35%]">
+        <DialogContent className="top-[35%] max-w-3xl translate-y-[-35%] sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Upload File</DialogTitle>
             <DialogDescription>
@@ -224,7 +249,7 @@ export default function TenantFilesPanel({
               <label
                 onDrop={onDrop}
                 onDragOver={(event) => event.preventDefault()}
-                className="flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/40 bg-muted/40 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+                className="border-muted-foreground/40 bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed text-sm transition"
               >
                 <div className="text-center">
                   Drag &amp; drop files here or{' '}
@@ -238,21 +263,21 @@ export default function TenantFilesPanel({
                   accept="application/pdf,image/*"
                 />
               </label>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-muted-foreground text-xs">
                 Supported formats include PDF and common image types. Maximum size 25 MB.
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="overflow-hidden rounded-md border">
-                <div className="grid grid-cols-12 bg-muted/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="bg-muted/60 text-muted-foreground grid grid-cols-12 text-xs font-semibold tracking-wide uppercase">
                   <div className="col-span-4 px-4 py-2">Title</div>
                   <div className="col-span-3 px-4 py-2">Category</div>
                   <div className="col-span-5 px-4 py-2">Description</div>
                 </div>
-                <div className="grid grid-cols-12 items-center gap-3 border-t bg-background px-3 py-3">
+                <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
                   <div className="col-span-4 flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
                     <Input
                       id="tenant-file-title"
                       value={title}
@@ -264,7 +289,7 @@ export default function TenantFilesPanel({
                       id="tenant-file-category"
                       value={category}
                       onChange={(event) => setCategory(event.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      className="border-input bg-background focus-visible:ring-primary w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
                       aria-label="Select file category"
                     >
                       <option value="Uncategorized">Uncategorized</option>
@@ -308,5 +333,5 @@ export default function TenantFilesPanel({
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

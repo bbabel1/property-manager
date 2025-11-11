@@ -5,10 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileShareSettingsUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -20,25 +17,34 @@ export async function GET(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/${id}/sharesettings`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/${id}/sharing`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
+        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
       },
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium file share settings fetch failed`);
+      const rawText = await response.text().catch(() => '');
+      let errorData: any = {};
+      try {
+        errorData = rawText ? JSON.parse(rawText) : {};
+      } catch (parseError) {
+        errorData = { raw: rawText || 'Unauthorized' };
+      }
+      logger.error('Buildium file share settings fetch failed', {
+        status: response.status,
+        errorData,
+      });
 
       return NextResponse.json(
         { 
@@ -68,10 +74,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -83,9 +86,9 @@ export async function PUT(
     }
 
     // Require authentication
-    const user = await requireUser();
+    const user = await requireUser(request);
 
-    const { id } = params;
+    const { id } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -94,22 +97,31 @@ export async function PUT(
     const validatedData = sanitizeAndValidate(body, BuildiumFileShareSettingsUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/${id}/sharesettings`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/${id}/sharing`;
     
     const response = await fetch(buildiumUrl, {
       method: 'PUT',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
+        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
       },
       body: JSON.stringify(validatedData),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium file share settings update failed`);
+      const rawText = await response.text().catch(() => '');
+      let errorData: any = {};
+      try {
+        errorData = rawText ? JSON.parse(rawText) : {};
+      } catch (parseError) {
+        errorData = { raw: rawText || 'Unauthorized' };
+      }
+      logger.error('Buildium file share settings update failed', {
+        status: response.status,
+        errorData,
+      });
 
       return NextResponse.json(
         { 

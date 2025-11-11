@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2 } from 'lucide-react'
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 import type { BillFileRecord } from './types'
 
 type BillFileUploadDialogProps = {
@@ -13,6 +14,33 @@ type BillFileUploadDialogProps = {
   billId: string
   uploaderName?: string | null
   onSaved?: (row: BillFileRecord) => void
+}
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf']
+const ALLOWED_MIME_TYPES = new Set<string>([
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.presentationml.template',
+  'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  'text/plain'
+])
+const UNSUPPORTED_FILE_MESSAGE =
+  'Unsupported file type. Allowed formats: PDF, images, and Office documents.'
+
+const isAllowedMimeType = (mimeType: string | undefined | null) => {
+  if (!mimeType) return true
+  for (const prefix of ALLOWED_MIME_PREFIXES) {
+    if (mimeType.startsWith(prefix)) return true
+  }
+  if (ALLOWED_MIME_TYPES.has(mimeType)) return true
+  if (mimeType.startsWith('application/vnd.openxmlformats-officedocument')) return true
+  return false
 }
 
 export default function BillFileUploadDialog({
@@ -46,6 +74,19 @@ export default function BillFileUploadDialog({
   const handleFiles = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return
     const file = fileList[0]
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError('File size exceeds 25 MB limit')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    if (!isAllowedMimeType(file.type)) {
+      setError(UNSUPPORTED_FILE_MESSAGE)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
     setSelectedFile(file)
     setTitle(file.name)
     setStep('details')
@@ -60,32 +101,23 @@ export default function BillFileUploadDialog({
     handleFiles(event.dataTransfer.files)
   }
 
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result
-        if (typeof result !== 'string') {
-          reject(new Error('Invalid file data'))
-          return
-        }
-        const base64 = result.includes(',') ? result.split(',')[1] ?? '' : result
-        resolve(base64)
-      }
-      reader.onerror = () => reject(new Error('Failed to read file'))
-      reader.readAsDataURL(file)
-    })
-
   const save = async () => {
     if (!selectedFile || isSaving) return
+
+    if (selectedFile.size > MAX_UPLOAD_BYTES) {
+      setError('File size exceeds 25 MB limit')
+      return
+    }
+
+    if (!isAllowedMimeType(selectedFile.type)) {
+      setError(UNSUPPORTED_FILE_MESSAGE)
+      return
+    }
 
     setIsSaving(true)
     setError(null)
 
     try {
-      const base64 = await fileToBase64(selectedFile)
-      if (!base64) throw new Error('Unable to read file contents')
-
       const trimmedTitle = title.trim() || selectedFile.name
       let fileName = trimmedTitle
       if (!fileName.includes('.') && selectedFile.name.includes('.')) {
@@ -93,18 +125,30 @@ export default function BillFileUploadDialog({
         if (ext) fileName = `${fileName}.${ext}`
       }
 
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entityType: 'bill',
-          entityId: billId,
-          fileName,
-          mimeType: selectedFile.type || undefined,
-          base64,
-          isPrivate: true
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      formData.append('entityType', 'bill')
+      formData.append('entityId', billId)
+      formData.append('fileName', fileName)
+      if (selectedFile.type) {
+        formData.append('mimeType', selectedFile.type)
+      }
+      formData.append('isPrivate', 'true')
+
+      let response: Response
+      try {
+        response = await fetchWithSupabaseAuth('/api/files/upload', {
+          method: 'POST',
+          body: formData
         })
-      })
+      } catch (authError) {
+        console.warn('fetchWithSupabaseAuth failed for bill file upload; falling back.', authError)
+        response = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        })
+      }
 
       if (!response.ok) {
         const details = await response.json().catch(() => ({}))
@@ -211,7 +255,7 @@ export default function BillFileUploadDialog({
               </div>
               <div className="grid grid-cols-12 items-center gap-3 border-t bg-background px-3 py-3">
                 <div className="col-span-12 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
                   <Input
                     id="bill-file-title"
                     value={title}

@@ -3,10 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; paymentId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; paymentId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -20,7 +17,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id, paymentId } = params;
+    const { id, paymentId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/payments/${paymentId}`;

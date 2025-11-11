@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [
@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Align Tailwind color names to Sample UI CSS variables
+        // Align Tailwind color names to Buildium design tokens
         background: 'var(--color-background)',
         foreground: 'var(--color-foreground)',
         card: {
@@ -61,13 +61,13 @@ const config: Config = {
         '3xl': ['var(--text-3xl)', { lineHeight: 'var(--leading-tight)' }],
         '4xl': ['var(--text-4xl)', { lineHeight: 'var(--leading-tight)' }],
       },
-      
+
       borderRadius: {
         sm: 'var(--radius-sm)',
         DEFAULT: 'var(--radius-lg)',
         lg: 'var(--radius-xl)',
       },
-      
+
       fontFamily: {
         sans: 'var(--font-sans)',
         mono: 'var(--font-mono)',
@@ -79,6 +79,6 @@ const config: Config = {
     require('@tailwindcss/typography'),
     require('@tailwindcss/container-queries'),
   ],
-}
+};
 
-export default config
+export default config;

@@ -7,13 +7,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const params: any = {}
     // Map common Buildium list params
-    if (searchParams.get('propertyids')) params.propertyids = searchParams.get('propertyids')!.split(',').map(n => Number(n.trim())).filter(Boolean)
-    if (searchParams.get('unitids')) params.unitids = searchParams.get('unitids')!.split(',').map(n => Number(n.trim())).filter(Boolean)
-    if (searchParams.get('lastupdatedfrom')) params.lastupdatedfrom = searchParams.get('lastupdatedfrom')!
-    if (searchParams.get('lastupdatedto')) params.lastupdatedto = searchParams.get('lastupdatedto')!
-    if (searchParams.get('orderby')) params.orderby = searchParams.get('orderby')!
-    if (searchParams.get('offset')) params.offset = Number(searchParams.get('offset'))
-    if (searchParams.get('limit')) params.limit = Number(searchParams.get('limit'))
+    if (searchParams.get('propertyids')) (await params).propertyids = searchParams.get('propertyids')!.split(',').map(n => Number(n.trim())).filter(Boolean)
+    if (searchParams.get('unitids')) (await params).unitids = searchParams.get('unitids')!.split(',').map(n => Number(n.trim())).filter(Boolean)
+    if (searchParams.get('lastupdatedfrom')) (await params).lastupdatedfrom = searchParams.get('lastupdatedfrom')!
+    if (searchParams.get('lastupdatedto')) (await params).lastupdatedto = searchParams.get('lastupdatedto')!
+    if (searchParams.get('orderby')) (await params).orderby = searchParams.get('orderby')!
+    if (searchParams.get('offset')) (await params).offset = Number(searchParams.get('offset'))
+    if (searchParams.get('limit')) (await params).limit = Number(searchParams.get('limit'))
 
     const res = await buildiumEdgeClient.listLeasesFromBuildium(params)
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to list leases' }, { status: 500 })

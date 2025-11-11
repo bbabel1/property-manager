@@ -123,7 +123,7 @@ export default function TenantFileUploadDialog({
               </div>
               <div className="grid grid-cols-12 items-center gap-3 border-t bg-background px-3 py-3">
                 <div className="col-span-4 flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
                   <Input
                     id="tenant-file-title"
                     value={title}

@@ -4,14 +4,11 @@ import { logger } from '@/lib/logger'
 import { BuildiumDepositUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const depositId = params.id;
+    const depositId = (await params).id;
     
     logger.info({ userId: user.id, depositId, action: 'get_buildium_deposit' }, 'Fetching Buildium deposit details');
 
@@ -43,7 +40,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, depositId: params.id }, 'Error fetching Buildium deposit details');
+    logger.error({ error, depositId: (await params).id }, 'Error fetching Buildium deposit details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium deposit details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -51,14 +48,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const depositId = params.id;
+    const depositId = (await params).id;
     
     logger.info({ userId: user.id, depositId, action: 'update_buildium_deposit' }, 'Updating Buildium deposit');
 
@@ -96,7 +90,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, depositId: params.id }, 'Error updating Buildium deposit');
+    logger.error({ error, depositId: (await params).id }, 'Error updating Buildium deposit');
     return NextResponse.json(
       { error: 'Failed to update Buildium deposit', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

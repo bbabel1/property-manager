@@ -3,10 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; serviceHistoryId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; serviceHistoryId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -20,7 +17,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id, serviceHistoryId } = params;
+    const { id, serviceHistoryId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`;
@@ -66,10 +63,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string; serviceHistoryId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; serviceHistoryId: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
@@ -77,7 +71,7 @@ export async function PUT(
     }
 
     const user = await requireUser()
-    const { id, serviceHistoryId } = params
+    const { id, serviceHistoryId } = await params
     const body = await request.json()
 
     // The service history update schema is identical to create per Buildium docs

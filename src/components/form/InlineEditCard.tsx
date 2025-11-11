@@ -22,6 +22,7 @@ export default function InlineEditCard({
   titleHidden = false,
   size = 'default',
   headerHidden = false,
+  divider = true,
 }: {
   title: string
   editing: boolean
@@ -39,26 +40,32 @@ export default function InlineEditCard({
   titleHidden?: boolean
   size?: 'default' | 'compact'
   headerHidden?: boolean
+  divider?: boolean
 }) {
   const hasBgOverride = Boolean(className && /\bbg-\[/i.test(className))
   const containerBase = variant === 'plain'
     ? `rounded-lg border border-transparent shadow-none ${hasBgOverride ? '' : 'bg-transparent'}`
     : `rounded-lg border border-border ${hasBgOverride ? '' : 'bg-card'}`
   const headerPad = size === 'compact' ? 'px-3 py-2' : 'px-4 py-3'
-  const headerBase = variant === 'plain'
-    ? `flex items-center gap-2 ${headerPad}`
-    : `flex items-center gap-2 ${headerPad} border-b border-border`
+  const headerDividerClass = divider ? 'border-b border-[var(--color-border-strong)]' : ''
+  const headerBase = `flex items-center gap-2 ${headerPad} ${headerDividerClass}`
   const contentPad = size === 'compact' ? 'p-3' : 'p-4'
   return (
     <div className={`${containerBase} relative ${className ?? ''}`}>
       {!headerHidden && (
         <div className={headerBase}>
-          {titleHidden ? <div /> : <h2 className="text-base font-semibold text-foreground">{title}</h2>}
+          {titleHidden ? (
+            <div />
+          ) : (
+            <h2 className="text-lg font-semibold leading-tight tracking-tight text-foreground md:text-xl">
+              {title}
+            </h2>
+          )}
           {!editing ? (
             <EditLink onClick={onEdit} />
           ) : (
             actionsPlacement === 'header' ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <Button variant="cancel" size="sm" onClick={onCancel}><X className="h-4 w-4 mr-2"/>Cancel</Button>
                 <Button size="sm" onClick={onSave} disabled={isSaving || !canSave}>
                   <Save className="h-4 w-4 mr-2"/>{isSaving ? 'Saving…' : 'Save'}

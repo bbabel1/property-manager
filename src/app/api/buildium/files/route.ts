@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Require authentication
-    const user = await requireUser();
+    await requireUser(request);
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Require authentication
-    const user = await requireUser();
+    await requireUser(request);
 
     // Parse and validate request body
     const body = await request.json();

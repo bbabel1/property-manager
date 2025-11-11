@@ -5,15 +5,12 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumRecurringTransactionUpdateSchema } from '@/schemas/buildium'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; recurringId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; recurringId: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     const user = await requireUser()
-    const { id, recurringId } = params
+    const { id, recurringId } = await params
 
     const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${id}/recurring-transactions/${recurringId}`, {
       method: 'GET',
@@ -37,15 +34,12 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string; recurringId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; recurringId: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     const user = await requireUser()
-    const { id, recurringId } = params
+    const { id, recurringId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionUpdateSchema)
 
@@ -72,15 +66,12 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string; recurringId: string } }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; recurringId: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     const user = await requireUser()
-    const { id, recurringId } = params
+    const { id, recurringId } = await params
 
     const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${id}/recurring-transactions/${recurringId}`, {
       method: 'DELETE',

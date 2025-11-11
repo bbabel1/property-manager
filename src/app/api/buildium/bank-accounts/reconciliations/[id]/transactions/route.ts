@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'get_buildium_reconciliation_transactions' }, 'Fetching Buildium reconciliation transactions');
 
@@ -42,7 +39,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error fetching Buildium reconciliation transactions');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error fetching Buildium reconciliation transactions');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium reconciliation transactions', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

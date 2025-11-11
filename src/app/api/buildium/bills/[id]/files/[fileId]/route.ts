@@ -6,10 +6,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumBillFileUpdateSchema } from '@/schemas/buildium';
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -23,7 +20,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id, fileId } = params;
+    const { id, fileId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/files/${fileId}`;
@@ -69,10 +66,7 @@ export async function GET(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -86,7 +80,7 @@ export async function DELETE(
     // Require authentication
     const user = await requireUser();
 
-    const { id, fileId } = params;
+    const { id, fileId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/files/${fileId}`;
@@ -130,10 +124,7 @@ export async function DELETE(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
     const supabaseAdmin = requireSupabaseAdmin('bill file download request')
     // Check rate limiting
@@ -148,7 +139,7 @@ export async function POST(
     // Require authentication
     const user = await requireUser();
 
-    const { id, fileId } = params;
+    const { id, fileId } = await params;
 
     const { data, error } = await supabaseAdmin.functions.invoke('buildium-bills', {
       body: { op: 'file_downloadrequest', billId: id, fileId }
@@ -175,10 +166,7 @@ export async function POST(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string; fileId: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -189,7 +177,7 @@ export async function PUT(
     }
 
     await requireUser();
-    const { id, fileId } = params;
+    const { id, fileId } = await params;
 
     const body = await request.json();
     const validated = sanitizeAndValidate(body, BuildiumBillFileUpdateSchema);

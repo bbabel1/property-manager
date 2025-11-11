@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
-type Params = { id: string }
+type Params = Promise<{ id: string }>
 
 export async function PUT(request: NextRequest, { params }: { params: Params }) {
   try {
     const admin = requireSupabaseAdmin('update lease contact move-in')
-    const { id } = params
+    const { id } = await params
     const body = await request.json().catch(() => ({} as any))
     const patch: Record<string, any> = {}
     if ('move_in_date' in body) patch.move_in_date = body.move_in_date || null
@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
 export async function DELETE(_request: NextRequest, { params }: { params: Params }) {
   try {
     const admin = requireSupabaseAdmin('delete lease contact')
-    const { id } = params
+    const { id } = await params
     const { error } = await admin.from('lease_contacts').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ success: true })

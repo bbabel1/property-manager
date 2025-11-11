@@ -53,7 +53,7 @@ export default function EditTenantContactModal({
   onOpenChange: (v: boolean) => void;
   contactId: number;
   initial: ContactValues;
-  onSaved?: () => void;
+  onSaved?: (updated: ContactValues) => void;
 }) {
   const [values, setValues] = useState<ContactValues>({});
   const [saving, setSaving] = useState(false);
@@ -75,7 +75,7 @@ export default function EditTenantContactModal({
     try {
       setSaving(true);
       setError(null);
-      const update: Partial<ContactValues> = {
+      const payload: Partial<ContactValues> & { updated_at: string } = {
         first_name: values.first_name ?? null,
         last_name: values.last_name ?? null,
         is_company: Boolean(values.is_company ?? false),
@@ -93,10 +93,14 @@ export default function EditTenantContactModal({
         primary_country: values.primary_country ?? 'United States',
         updated_at: new Date().toISOString(),
       };
-      const { error } = await supa.from('contacts').update(update).eq('id', contactId);
+      const { error } = await supa.from('contacts').update(payload).eq('id', contactId);
       if (error) throw new Error(error.message);
+      const { updated_at: _ignored, ...nextValues } = payload;
+      setValues(nextValues);
+      setShowAltPhone(Boolean(nextValues.alt_phone));
+      setShowCompanyName(Boolean(nextValues.is_company));
       onOpenChange(false);
-      onSaved?.();
+      onSaved?.(nextValues);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save contact');
     } finally {
@@ -163,7 +167,7 @@ export default function EditTenantContactModal({
                 onChange={(date) =>
                   setValues((v) => ({
                     ...v,
-                    date_of_birth: date ? date.toISOString().split('T')[0] : null,
+                    date_of_birth: date ? date.toISOString().split('T')[0] : undefined,
                   }))
                 }
                 placeholder="Select date of birth"

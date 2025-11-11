@@ -12,11 +12,8 @@ const RentSchedulePayloadSchema = z.object({
   backdate_charges: z.boolean().optional().default(false),
 })
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const leaseIdRaw = params.id
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const leaseIdRaw = (await params).id
   const leaseIdNumber = Number(leaseIdRaw)
 
   if (!leaseIdRaw) {

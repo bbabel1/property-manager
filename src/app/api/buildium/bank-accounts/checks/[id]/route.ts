@@ -4,14 +4,11 @@ import { logger } from '@/lib/logger'
 import { BuildiumCheckUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const checkId = params.id;
+    const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check' }, 'Fetching Buildium check details');
 
@@ -43,7 +40,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, checkId: params.id }, 'Error fetching Buildium check details');
+    logger.error({ error, checkId: (await params).id }, 'Error fetching Buildium check details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium check details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -51,14 +48,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const checkId = params.id;
+    const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'update_buildium_check' }, 'Updating Buildium check');
 
@@ -96,7 +90,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, checkId: params.id }, 'Error updating Buildium check');
+    logger.error({ error, checkId: (await params).id }, 'Error updating Buildium check');
     return NextResponse.json(
       { error: 'Failed to update Buildium check', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

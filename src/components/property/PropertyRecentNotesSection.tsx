@@ -1,111 +1,118 @@
-"use client"
+'use client';
 
-import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import PropertyAddNoteModal from '@/components/property/PropertyAddNoteModal'
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import PropertyAddNoteModal from '@/components/property/PropertyAddNoteModal';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 type PropertyNote = {
-  Id?: number
-  Subject?: string
-  Body?: string
-  CreatedDate?: string
-  CreatedByName?: string
-  IsPrivate?: boolean
-}
+  id: string;
+  subject: string | null;
+  body: string | null;
+  created_at: string;
+  created_by_name: string | null;
+  is_private: boolean | null;
+};
 
 interface PropertyRecentNotesSectionProps {
-  propertyId: string
-  buildiumPropertyId: number | null
+  propertyId: string;
 }
 
 function formatDateTime(value?: string) {
-  if (!value) return '—'
+  if (!value) return '—';
   try {
-    return new Date(value).toLocaleString()
+    return new Date(value).toLocaleString();
   } catch {
-    return '—'
+    return '—';
   }
 }
 
-export default function PropertyRecentNotesSection({ propertyId, buildiumPropertyId }: PropertyRecentNotesSectionProps) {
-  const [notes, setNotes] = useState<PropertyNote[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+export default function PropertyRecentNotesSection({
+  propertyId,
+}: PropertyRecentNotesSectionProps) {
+  const [notes, setNotes] = useState<PropertyNote[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (!buildiumPropertyId) {
-      setNotes([])
-      setLoading(false)
-      return
-    }
-    fetchNotes(buildiumPropertyId)
-  }, [propertyId, buildiumPropertyId])
+    fetchNotes(propertyId);
+  }, [propertyId]);
 
-  async function fetchNotes(buildiumId: number) {
+  async function fetchNotes(propId: string) {
+    if (!propId) {
+      setNotes([]);
+      setExpandedNotes({});
+      setLoading(false);
+      return;
+    }
     try {
-      setLoading(true)
-      setError(null)
-      const res = await fetch(`/api/buildium/properties/${buildiumId}/notes?limit=5&orderby=CreatedDate desc`, {
+      setLoading(true);
+      const res = await fetchWithSupabaseAuth(`/api/properties/${propId}/notes?limit=5`, {
         cache: 'no-store',
-        credentials: 'include'
-      })
+      });
       if (!res.ok) {
-        let message = 'Unable to load property notes'
-        try {
-          const json = await res.json()
-          if (json?.error) message = json.error
-        } catch {}
-        setError(message)
-        setNotes([])
-        return
+        setNotes([]);
+        setExpandedNotes({});
+        return;
       }
-      const json = await res.json()
-      const rows: PropertyNote[] = Array.isArray(json?.data) ? json.data : []
-      setNotes(rows)
+      const json = await res.json();
+      const rows: PropertyNote[] = Array.isArray(json?.data) ? json.data : [];
+      setNotes(rows);
+      setExpandedNotes({});
     } catch (err: any) {
-      console.error('Failed to load property notes', err)
-      setError(err?.message || 'Failed to load notes')
-      setNotes([])
+      console.error('Failed to load property notes', err);
+      setNotes([]);
+      setExpandedNotes({});
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const handleNoteAdded = (note: PropertyNote) => {
-    setNotes((prev) => [note, ...prev].slice(0, 5))
-  }
+    setNotes((prev) => [note, ...prev].slice(0, 5));
+    setExpandedNotes((prev) => ({ ...prev, [note.id]: true }));
+  };
+
+  const toggleNoteExpansion = (id: string) => {
+    setExpandedNotes((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <>
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold text-foreground">Recent notes</h2>
+        <div className="section-title-row">
+          <h2 className="section-title-text">Recent notes</h2>
           <Button
             variant="link"
-            className="px-2 py-0 h-auto"
-            onClick={() => buildiumPropertyId && setModalOpen(true)}
-            disabled={!buildiumPropertyId}
+            className="px-2"
+            onClick={() => propertyId && setModalOpen(true)}
+            disabled={!propertyId}
           >
             Add
           </Button>
         </div>
-        <div className="rounded-lg border border-border bg-background shadow-sm">
-          {!buildiumPropertyId ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">Notes are available after this property is linked to Buildium.</div>
+        <div className="surface-card">
+          {!propertyId ? (
+            <div className="text-muted-foreground px-4 py-6 text-sm">
+              Notes are available after this property is saved.
+            </div>
           ) : loading ? (
-            <div className="px-4 py-6 text-center text-sm text-muted-foreground">Loading recent notes...</div>
-          ) : error ? (
-            <div className="px-4 py-6 text-center text-sm text-destructive">{error}</div>
+            <div className="text-muted-foreground px-4 py-6 text-center text-sm">
+              Loading recent notes...
+            </div>
           ) : notes.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-muted-foreground">
+            <div className="text-muted-foreground px-4 py-6 text-sm">
               You don't have any notes for this property right now.{' '}
-              <Button
-                variant="link"
-                className="px-1 py-0 h-auto"
-                onClick={() => setModalOpen(true)}
-              >
+              <Button variant="link" className="px-1" onClick={() => setModalOpen(true)}>
                 Add your first note
               </Button>
             </div>
@@ -118,20 +125,39 @@ export default function PropertyRecentNotesSection({ propertyId, buildiumPropert
                   <TableHead className="w-32">Visibility</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody className="divide-y divide-border">
+              <TableBody className="divide-card divide-y">
                 {notes.map((note) => (
-                  <TableRow key={String(note.Id ?? note.CreatedDate)}>
-                    <TableCell className="text-sm text-muted-foreground">{formatDateTime(note.CreatedDate)}</TableCell>
+                  <TableRow key={note.id}>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {formatDateTime(note.created_at)}
+                    </TableCell>
                     <TableCell>
-                      <div className="text-sm font-medium text-foreground">{note.Subject || 'Note'}</div>
-                      <div className="text-sm text-muted-foreground line-clamp-2" title={note.Body || ''}>
-                        {note.Body || '—'}
+                      <div className="text-foreground text-sm font-medium">
+                        {note.subject || 'Note'}
                       </div>
-                      {note.CreatedByName ? (
-                        <div className="mt-1 text-xs text-muted-foreground">By {note.CreatedByName}</div>
+                      <div
+                        className={`text-muted-foreground text-sm ${expandedNotes[note.id] ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}
+                      >
+                        {note.body || '—'}
+                      </div>
+                      {note.body && note.body.length > 140 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleNoteExpansion(note.id)}
+                          className="text-primary focus-visible:ring-offset-background mt-1 inline-flex min-h-[2.75rem] items-center rounded-md px-1 py-1 text-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:outline-none"
+                        >
+                          {expandedNotes[note.id] ? 'Show less' : 'View more'}
+                        </button>
+                      ) : null}
+                      {note.created_by_name ? (
+                        <div className="text-muted-foreground mt-1 text-xs">
+                          By {note.created_by_name}
+                        </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{note.IsPrivate ? 'Private' : 'Shared'}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {note.is_private ? 'Private' : 'Shared'}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -142,11 +168,10 @@ export default function PropertyRecentNotesSection({ propertyId, buildiumPropert
 
       <PropertyAddNoteModal
         propertyId={propertyId}
-        buildiumPropertyId={buildiumPropertyId}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onNoteAdded={handleNoteAdded}
       />
     </>
-  )
+  );
 }

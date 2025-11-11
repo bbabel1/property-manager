@@ -17,6 +17,9 @@ import { TableRowLink } from '@/components/ui/table-row-link';
 import { Button } from '@/components/ui/button';
 import BillRowActions from '@/components/financials/BillRowActions';
 import { supabase, supabaseAdmin } from '@/lib/db';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/components/ui/utils';
+import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
@@ -102,6 +105,21 @@ function formatBillCurrency(value?: number | null): string {
   const amount = Math.abs(Number(value ?? 0));
   if (!Number.isFinite(amount)) return billCurrencyFormatter.format(0);
   return billCurrencyFormatter.format(amount);
+}
+
+function statusVariant(status: BillStatusLabel) {
+  switch (status) {
+    case 'Paid':
+      return 'secondary' as const;
+    case 'Overdue':
+      return 'destructive' as const;
+    case 'Partially paid':
+      return 'default' as const;
+    case 'Cancelled':
+      return 'outline' as const;
+    default:
+      return 'outline' as const;
+  }
 }
 
 export default async function FinancialsTab({
@@ -271,6 +289,8 @@ export default async function FinancialsTab({
     : selectedUnitIds.length === 0 || selectedUnitIds.length === allUnitIds.length
       ? null
       : selectedUnitIds;
+  const modalDefaultUnitId =
+    !noUnitsSelected && selectedUnitIds.length === 1 ? selectedUnitIds[0] : '';
 
   const allAccountIds = accountOptions.map((opt) => opt.value);
   let selectedAccountIds = glParam
@@ -402,9 +422,18 @@ export default async function FinancialsTab({
             <ClearFiltersButton />
           </div>
           <div className="border-border border-t" />
+          <div className="mt-4 flex justify-end">
+            <RecordGeneralJournalEntryButton
+              propertyOptions={propertyOptions}
+              unitOptions={unitOptions}
+              accountOptions={accountOptions}
+              defaultPropertyId={id}
+              defaultUnitId={modalDefaultUnitId}
+            />
+          </div>
           <div className="border-border mt-4 overflow-hidden rounded-lg border shadow-sm">
             <Table className="text-sm">
-              <TableHeader className="bg-muted/60">
+              <TableHeader>
                 <TableRow className="border-border border-b">
                   <TableHead className="text-muted-foreground w-[12rem]">
                     Date (cash basis)
@@ -579,7 +608,7 @@ export default async function FinancialsTab({
 
             let selectedUnitIdsBills: string[];
             if (unitsParam === 'none') selectedUnitIdsBills = [];
-              else if (unitsParam)
+            else if (unitsParam)
               selectedUnitIdsBills = unitsParam
                 .split(',')
                 .map((s: string) => s.trim())
@@ -605,7 +634,9 @@ export default async function FinancialsTab({
               : ['overdue', 'due', 'partially-paid'];
             const selectedStatuses = defaultStatusSlugs
               .map((slug: string) => BILL_STATUS_SLUG_TO_LABEL.get(slug))
-              .filter((label: BillStatusLabel | undefined): label is BillStatusLabel => Boolean(label));
+              .filter((label: BillStatusLabel | undefined): label is BillStatusLabel =>
+                Boolean(label),
+              );
             let resolvedStatusSlugs = defaultStatusSlugs;
             let resolvedStatusLabels = selectedStatuses;
             if (resolvedStatusLabels.length === 0) {
@@ -626,7 +657,10 @@ export default async function FinancialsTab({
                 .from('transaction_lines')
                 .select('transaction_id, unit_id, memo')
                 .eq('property_id', id);
-              if (selectedUnitIdsBills.length && selectedUnitIdsBills.length !== unitIdsAll.length) {
+              if (
+                selectedUnitIdsBills.length &&
+                selectedUnitIdsBills.length !== unitIdsAll.length
+              ) {
                 qLine = qLine.in('unit_id', selectedUnitIdsBills);
               }
               const { data: linesData } = await qLine;
@@ -703,13 +737,13 @@ export default async function FinancialsTab({
                   .filter((value): value is string => Boolean(value)),
               ),
             );
-            const vendorIdsMissing = vendorIdsReferenced.filter((vendorId) => !vendorMap.has(vendorId));
+            const vendorIdsMissing = vendorIdsReferenced.filter(
+              (vendorId) => !vendorMap.has(vendorId),
+            );
             if (vendorIdsMissing.length) {
               const { data: extraVendors } = await (db as any)
                 .from('vendors')
-                .select(
-                  'id, contacts(display_name, company_name, first_name, last_name)',
-                )
+                .select('id, contacts(display_name, company_name, first_name, last_name)')
                 .in('id', vendorIdsMissing);
               for (const vendor of extraVendors || []) {
                 const vendorId = vendor?.id ? String(vendor.id) : null;
@@ -752,51 +786,62 @@ export default async function FinancialsTab({
                 </div>
                 <div className="border-border overflow-hidden rounded-lg border shadow-sm">
                   <Table className="text-sm">
-                    <TableHeader className="bg-muted/60">
+                    <TableHeader>
                       <TableRow className="border-border border-b">
                         <TableHead className="text-muted-foreground w-[12rem]">Due date</TableHead>
                         <TableHead className="text-muted-foreground w-[10rem]">Status</TableHead>
                         <TableHead className="text-muted-foreground w-[16rem]">Vendors</TableHead>
                         <TableHead className="text-muted-foreground">Memo</TableHead>
                         <TableHead className="text-muted-foreground w-[10rem]">Ref No.</TableHead>
-                        <TableHead className="text-muted-foreground w-[12rem]">
-                          Approval status
+                        <TableHead className="text-muted-foreground w-[10rem] text-right">
+                          Amount
                         </TableHead>
-                        <TableHead className="text-muted-foreground w-[10rem] text-right">Amount</TableHead>
                         <TableHead className="w-[3rem]" />
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-border divide-y">
                       {billRows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-muted-foreground py-6 text-center">
+                          <TableCell colSpan={7} className="text-muted-foreground py-6 text-center">
                             We didn't find any bills. Maybe you don't have any or maybe you need to
                             clear your filters.
                           </TableCell>
                         </TableRow>
                       ) : (
                         billRows.map((row) => (
-                        <TableRowLink key={row.id} href={`/bills/${row.id}`}>
-                          <TableCell>
-                            {formatBillDate(row.due_date)}
-                          </TableCell>
-                          <TableCell>{row.status || '—'}</TableCell>
-                          <TableCell className="text-foreground">
-                            {vendorMap.get(String(row.vendor_id)) || '—'}
-                          </TableCell>
-                          <TableCell className="text-foreground">
-                            {row.memo?.trim()
-                              ? row.memo
-                              : memoByTransactionId.get(String(row.id)) || '—'}
-                          </TableCell>
-                          <TableCell>{row.reference_number || '—'}</TableCell>
-                          <TableCell className="text-muted-foreground">—</TableCell>
-                          <TableCell className="text-right">
-                            {formatBillCurrency(row.total_amount)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <BillRowActions />
-                          </TableCell>
+                          <TableRowLink key={row.id} href={`/bills/${row.id}`}>
+                            <TableCell>{formatBillDate(row.due_date)}</TableCell>
+                            <TableCell className="text-foreground">
+                              {row.status ? (
+                                <Badge
+                                  variant={statusVariant(row.status)}
+                                  className={cn(
+                                    'uppercase',
+                                    row.status === 'Overdue' &&
+                                      'bg-destructive/10 text-destructive',
+                                  )}
+                                >
+                                  {row.status}
+                                </Badge>
+                              ) : (
+                                '—'
+                              )}
+                            </TableCell>
+                            <TableCell className="text-foreground">
+                              {vendorMap.get(String(row.vendor_id)) || '—'}
+                            </TableCell>
+                            <TableCell className="text-foreground">
+                              {row.memo?.trim()
+                                ? row.memo
+                                : memoByTransactionId.get(String(row.id)) || '—'}
+                            </TableCell>
+                            <TableCell>{row.reference_number || '—'}</TableCell>
+                            <TableCell className="text-right">
+                              {formatBillCurrency(row.total_amount)}
+                            </TableCell>
+                              <TableCell className="text-right" data-row-link-ignore="true">
+                              <BillRowActions billId={String(row.id)} />
+                            </TableCell>
                           </TableRowLink>
                         ))
                       )}

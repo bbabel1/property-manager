@@ -15,7 +15,7 @@ function extFromMime(mime: string) {
   return 'bin'
 }
 
-export async function POST(request: NextRequest, { params }: { params: { leaseId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ leaseId: string }> }) {
   const corr = request.headers.get('Idempotency-Key') || `presign:${Date.now()}:${Math.random()}`
   try {
     if (!hasSupabaseAdmin()) return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 })

@@ -6,10 +6,7 @@ import { BuildiumTenantUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
@@ -27,10 +24,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })

@@ -1,27 +1,85 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { Building, Search, Filter, Plus, MapPin, Users, DollarSign, Building2 } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  ArrowUpDown,
+  Building,
+  Building2,
+  Loader2,
+  MapPin,
+  Plus,
+  Search,
+  Users,
+} from 'lucide-react'
+
 import AddPropertyModal from '@/components/AddPropertyModal'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Cluster,
+  PageBody,
+  PageHeader,
+  PageShell,
+  Stack,
+} from '@/components/layout/page-shell'
 
 interface Property {
   id: string
   name: string
   addressLine1: string
+  city?: string | null
+  state?: string | null
   propertyType: string | null
   status: string
   createdAt: string
-  updatedAt?: string
   totalActiveUnits?: number
   totalOccupiedUnits?: number
   totalVacantUnits?: number
   ownersCount?: number
   primaryOwnerName?: string
+  operatingBankAccountId?: string | null
+  depositTrustAccountId?: string | null
+}
+
+const statusOptions = [
+  { value: 'all', label: 'All rentals' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Inactive', label: 'Inactive' },
+]
+
+const typeOptions = [
+  { value: 'all', label: 'Add filter option' },
+  { value: 'Condo', label: 'Condo' },
+  { value: 'Co-op', label: 'Co-op' },
+  { value: 'Condop', label: 'Condop' },
+  { value: 'Rental Building', label: 'Rental Building' },
+  { value: 'Mult-Family', label: 'Multi-Family' },
+  { value: 'Townhouse', label: 'Townhouse' },
+  { value: 'none', label: 'No type assigned' },
+]
+
+const filterableStrings = (property: Property) =>
+  [property.name, property.addressLine1, property.city, property.state, property.primaryOwnerName]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.toLowerCase())
+
+const formatLocation = (property: Property) => {
+  const parts = [property.city, property.state].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  )
+  if (parts.length > 0) return parts.join(', ')
+  return property.addressLine1 || '—'
 }
 
 export default function PropertiesPage() {
@@ -30,11 +88,12 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All Status')
-  const [typeFilter, setTypeFilter] = useState('All Types')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [showBankAccounts, setShowBankAccounts] = useState(true)
 
   useEffect(() => {
-    fetchProperties()
+    void fetchProperties()
   }, [])
 
   async function fetchProperties() {
@@ -44,7 +103,7 @@ export default function PropertiesPage() {
       const res = await fetch('/api/properties')
       if (!res.ok) throw new Error('Failed to fetch properties')
       const data = await res.json()
-      setProperties(data)
+      setProperties(Array.isArray(data) ? data : [])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load properties')
     } finally {
@@ -52,248 +111,270 @@ export default function PropertiesPage() {
     }
   }
 
-  const filtered = properties.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.addressLine1.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'All Status' || p.status === statusFilter
-    const matchesType =
-      typeFilter === 'All Types' ||
-      (typeFilter === 'None' ? !p.propertyType : p.propertyType === typeFilter)
-    return matchesSearch && matchesStatus && matchesType
-  })
+  const filtered = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+    return properties.filter((property) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        filterableStrings(property).some((value) => value.includes(normalizedSearch))
+      const matchesStatus = statusFilter === 'all' || property.status === statusFilter
+      const matchesType =
+        typeFilter === 'all' ||
+        (typeFilter === 'none'
+          ? !property.propertyType
+          : property.propertyType === typeFilter)
+      return matchesSearch && matchesStatus && matchesType
+    })
+  }, [properties, searchTerm, statusFilter, typeFilter])
 
   const handlePropertyCreated = () => {
-    fetchProperties()
+    void fetchProperties()
     setIsAddPropertyModalOpen(false)
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Properties</h1>
-            <p className="text-muted-foreground">Manage your property portfolio and view detailed information.</p>
-          </div>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Loading properties...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  let mainContent: ReactNode
 
-  if (error) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+  if (loading) {
+    mainContent = (
+      <Card className="overflow-hidden">
+        <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">Loading properties…</p>
+        </CardContent>
+      </Card>
+    )
+  } else if (error) {
+    mainContent = (
+      <Card className="overflow-hidden">
+        <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+          <div className="text-destructive">
+            <Building className="h-10 w-10" aria-hidden="true" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Properties</h1>
-            <p className="text-muted-foreground">Manage your property portfolio and view detailed information.</p>
+            <h3 className="text-lg font-semibold text-foreground">Unable to load properties</h3>
+            <p className="text-sm text-muted-foreground">{error}</p>
           </div>
+          <Button onClick={() => void fetchProperties()}>Try again</Button>
+        </CardContent>
+      </Card>
+    )
+  } else {
+    const renderAccountStatus = (accountId: string | null | undefined, label: string) => {
+      const hasAccount = Boolean(accountId)
+      const textClass = hasAccount
+        ? 'text-sm font-medium text-foreground'
+        : 'text-sm font-medium text-primary'
+      return (
+        <Stack gap="xs">
+          {hasAccount && showBankAccounts ? (
+            <Cluster gap="xs" wrap={false}>
+              <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                EFT
+              </span>
+              <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                ACH
+              </span>
+            </Cluster>
+          ) : null}
+          <span className={textClass}>{hasAccount ? label : 'Setup'}</span>
+        </Stack>
+      )
+    }
+
+    mainContent = (
+      <Card className="overflow-hidden">
+        <div className="border-border/80 flex flex-col gap-4 border-b bg-card px-6 py-4">
+          <Stack gap="md" className="lg:flex-row lg:items-center lg:justify-between">
+            <Cluster gap="sm" className="lg:flex-1">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All rentals" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Add filter option" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Cluster>
+            <Cluster gap="md" className="lg:flex-none">
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search properties"
+                  className="w-56 pl-9"
+                />
+              </div>
+              <Cluster gap="sm" wrap={false}>
+                <Switch
+                  id="properties-show-bank-accounts"
+                  checked={showBankAccounts}
+                  onCheckedChange={(checked) => setShowBankAccounts(Boolean(checked))}
+                />
+                <Label
+                  htmlFor="properties-show-bank-accounts"
+                  className="text-sm text-muted-foreground"
+                >
+                  Show bank accounts
+                </Label>
+              </Cluster>
+            </Cluster>
+          </Stack>
         </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="text-destructive mb-4">
-              <Building className="h-12 w-12 mx-auto" />
+
+        <div className="border-border/80 flex items-center justify-between border-b bg-card px-6 py-3">
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} {filtered.length === 1 ? 'match' : 'matches'}
+          </p>
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+            Export
+          </Button>
+        </div>
+
+        <CardContent className="p-0">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <Building2 className="h-12 w-12 text-muted-foreground" aria-hidden="true" />
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">No properties found</h3>
+                <p className="text-sm text-muted-foreground">
+                  Adjust your filters or try a different search.
+                </p>
+              </div>
+              {properties.length === 0 ? (
+                <Button onClick={() => setIsAddPropertyModalOpen(true)} size="sm">
+                  Add your first property
+                </Button>
+              ) : null}
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">Error Loading Properties</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={fetchProperties}>
-              Try Again
-            </Button>
-          </div>
-        </div>
-      </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-t border-border text-sm">
+                <thead className="bg-muted/70 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-6 py-3 font-semibold">
+                      <span className="flex items-center gap-2">
+                        Property
+                        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden="true" />
+                      </span>
+                    </th>
+                    <th className="px-6 py-3 font-semibold">Location</th>
+                    <th className="px-6 py-3 font-semibold">Rental owners</th>
+                    <th className="px-6 py-3 font-semibold">Manager</th>
+                    <th className="px-6 py-3 font-semibold">Type</th>
+                    <th className="px-6 py-3 font-semibold">Operating account</th>
+                    <th className="px-6 py-3 font-semibold">Deposit trust account</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-card">
+                  {filtered.map((property) => {
+                    const ownersCount = property.ownersCount ?? 0
+                    const additionalOwners = ownersCount > 1 ? ownersCount - 1 : 0
+
+                    return (
+                      <tr
+                        key={property.id}
+                        className="border-b border-border/80 last:border-0 transition-colors hover:bg-muted/40"
+                      >
+                        <td className="px-6 py-5 align-top">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                              <Building2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                            </div>
+                            <Stack gap="xs" className="min-w-0">
+                              <Link
+                                href={`/properties/${property.id}`}
+                                className="text-sm font-semibold text-primary hover:underline"
+                              >
+                                {property.name}
+                              </Link>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3" aria-hidden="true" />
+                                <span className="truncate">{property.addressLine1}</span>
+                              </div>
+                            </Stack>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 align-top text-sm text-muted-foreground">
+                          {formatLocation(property)}
+                        </td>
+                        <td className="px-6 py-5 align-top">
+                          <Stack gap="xs">
+                            <span className="text-sm font-medium text-foreground">
+                              {property.primaryOwnerName ?? '—'}
+                            </span>
+                            {additionalOwners > 0 ? (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Users className="h-3 w-3" aria-hidden="true" />
+                                +{additionalOwners} more
+                              </span>
+                            ) : null}
+                          </Stack>
+                        </td>
+                        <td className="px-6 py-5 align-top text-sm text-muted-foreground">
+                          Not assigned
+                        </td>
+                        <td className="px-6 py-5 align-top text-sm text-muted-foreground">
+                          {property.propertyType ?? '—'}
+                        </td>
+                        <td className="px-6 py-5 align-top">
+                          {renderAccountStatus(property.operatingBankAccountId, 'Trust account')}
+                        </td>
+                        <td className="px-6 py-5 align-top">
+                          {renderAccountStatus(property.depositTrustAccountId, 'Deposit account')}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Properties</h1>
-          <p className="text-muted-foreground">Manage and monitor all your properties in one place.</p>
-        </div>
-        <Button onClick={() => setIsAddPropertyModalOpen(true)} className="flex items-center">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Property
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Building className="h-5 w-5" />
-              Properties ({filtered.length})
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search properties..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-              <label className="sr-only" htmlFor="properties-status-filter">
-                Filter properties by status
-              </label>
-              <select
-                id="properties-status-filter"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-                aria-label="Filter properties by status"
-              >
-                <option value="All Status">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-              <label className="sr-only" htmlFor="properties-type-filter">
-                Filter properties by type
-              </label>
-              <select
-                id="properties-type-filter"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="px-3 py-2 border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background"
-                aria-label="Filter properties by type"
-              >
-                <option value="All Types">All Types</option>
-                <option value="None">None</option>
-                <option value="Condo">Condo</option>
-                <option value="Co-op">Co-op</option>
-                <option value="Condop">Condop</option>
-                <option value="Rental Building">Rental Building</option>
-                <option value="Mult-Family">Mult-Family</option>
-                <option value="Townhouse">Townhouse</option>
-              </select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {filtered.length === 0 ? (
-            <div className="p-16 text-center">
-              <Building className="mx-auto h-16 w-16 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium text-foreground">No properties found</h3>
-              <p className="mt-2 text-muted-foreground">
-                {searchTerm || statusFilter !== 'All Status' || typeFilter !== 'All Types'
-                  ? 'Try adjusting your search or filter criteria.'
-                  : 'Get started by creating your first property.'}
-              </p>
-              {properties.length === 0 && (
-                <div className="mt-6">
-                  <Button onClick={() => setIsAddPropertyModalOpen(true)} className="flex items-center">
-                    <Building className="h-4 w-4 mr-2" /> Add Property
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Property</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">Units</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">Owners</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-card divide-y divide-border">
-                    {filtered.map((property) => (
-                      <tr key={property.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Link href={`/properties/${property.id}`} className="hover:text-primary transition-colors">
-                            <div className="flex items-start gap-3">
-                              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                <Building2 className="h-5 w-5 text-primary" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium text-foreground">{property.name}</div>
-                                <div className="flex items-center gap-1 mt-1">
-                                  <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                  <span className="text-sm text-muted-foreground truncate">{property.addressLine1}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <Badge variant="secondary" className="text-xs">
-                            {property.propertyType ?? 'None'}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium text-foreground">{property.totalActiveUnits ?? 0}</div>
-                            <div className="text-xs text-muted-foreground">
-                              <span className="text-success">{property.totalOccupiedUnits ?? 0}</span>/<span className="text-muted-foreground">{property.totalVacantUnits ?? 0}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-center gap-1">
-                              <Users className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm font-medium text-foreground">{property.ownersCount ?? 0}</span>
-                            </div>
-                            {property.primaryOwnerName ? (
-                              <div className="text-xs text-muted-foreground truncate max-w-[12rem] mx-auto" title={property.primaryOwnerName}>
-                                {property.primaryOwnerName}
-                              </div>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <Badge 
-                            variant={property.status === 'Active' ? 'default' : 'destructive'}
-                            className="text-xs"
-                          >
-                            {property.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="px-6 py-4 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Showing {filtered.length} of {properties.length} properties</p>
-                  <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                    <span>
-                      Total Units: <span className="font-medium text-foreground">{filtered.reduce((sum, p) => sum + (p.totalActiveUnits ?? 0), 0)}</span>
-                    </span>
-                    <span>
-                      Occupied: <span className="font-medium text-success">{filtered.reduce((sum, p) => sum + (p.totalOccupiedUnits ?? 0), 0)}</span>
-                    </span>
-                    <span>
-                      Available: <span className="font-medium text-foreground">{filtered.reduce((sum, p) => sum + (p.totalVacantUnits ?? 0), 0)}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
+    <PageShell>
+      <PageHeader
+        title="Properties"
+        description="Manage and monitor your property portfolio from a single view."
+        actions={
+          <Button onClick={() => setIsAddPropertyModalOpen(true)} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Add Property
+          </Button>
+        }
+      />
+      <PageBody>
+        <Stack gap="lg">{mainContent}</Stack>
+      </PageBody>
       <AddPropertyModal
         isOpen={isAddPropertyModalOpen}
         onClose={() => setIsAddPropertyModalOpen(false)}
         onSuccess={handlePropertyCreated}
       />
-    </div>
+    </PageShell>
   )
 }

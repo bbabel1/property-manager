@@ -6,28 +6,70 @@
 // ============================================================================
 
 export type BuildiumPropertyType = 'Rental' | 'Association' | 'Commercial';
-export type BuildiumUnitType = 'Apartment' | 'Condo' | 'House' | 'Townhouse' | 'Office' | 'Retail' | 'Warehouse' | 'Other';
+export type BuildiumUnitType =
+  | 'Apartment'
+  | 'Condo'
+  | 'House'
+  | 'Townhouse'
+  | 'Office'
+  | 'Retail'
+  | 'Warehouse'
+  | 'Other';
 export type BuildiumTaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type BuildiumTaskStatus = 'Open' | 'InProgress' | 'Completed' | 'Cancelled' | 'OnHold';
 export type BuildiumBillStatus = 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid';
-export type BuildiumPaymentMethod = 'Check' | 'Cash' | 'CreditCard' | 'BankTransfer' | 'OnlinePayment';
-export type BuildiumVendorCategory = 'Contractor' | 'Maintenance' | 'Utilities' | 'Insurance' | 'Legal' | 'Accounting' | 'Marketing' | 'Other';
-export type BuildiumBankAccountType = 'Checking' | 'Savings' | 'MoneyMarket' | 'CertificateOfDeposit';
+export type BuildiumPaymentMethod =
+  | 'Check'
+  | 'Cash'
+  | 'CreditCard'
+  | 'BankTransfer'
+  | 'OnlinePayment';
+export type BuildiumVendorCategory =
+  | 'Contractor'
+  | 'Maintenance'
+  | 'Utilities'
+  | 'Insurance'
+  | 'Legal'
+  | 'Accounting'
+  | 'Marketing'
+  | 'Other';
+export type BuildiumBankAccountType =
+  | 'Checking'
+  | 'Savings'
+  | 'MoneyMarket'
+  | 'CertificateOfDeposit';
 export type BuildiumLeaseStatus = 'Future' | 'Active' | 'Past' | 'Cancelled';
 export type BuildiumLeaseType = 'Fixed' | 'FixedWithRollover' | 'MonthToMonth' | 'AtWill' | 'Other';
 export type BuildiumLeaseTermType = 'Standard' | 'MonthToMonth' | 'WeekToWeek' | 'AtWill' | 'Other';
-export type BuildiumLeaseRenewalStatus = 'NotOffered' | 'Offered' | 'Accepted' | 'Declined' | 'Expired';
+export type BuildiumLeaseRenewalStatus =
+  | 'NotOffered'
+  | 'Offered'
+  | 'Accepted'
+  | 'Declined'
+  | 'Expired';
 export type BuildiumLeaseContactRole = 'Tenant' | 'Cosigner' | 'Guarantor';
 // Work Order enums (per Buildium docs)
 export type BuildiumWorkOrderStatus = 'New' | 'InProgress' | 'Completed' | 'Cancelled';
 export type BuildiumWorkOrderPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
-export type BuildiumWebhookEventType = 
-  | 'PropertyCreated' | 'PropertyUpdated' | 'PropertyDeleted'
-  | 'UnitCreated' | 'UnitUpdated' | 'UnitDeleted'
-  | 'OwnerCreated' | 'OwnerUpdated' | 'OwnerDeleted'
-  | 'LeaseCreated' | 'LeaseUpdated' | 'LeaseDeleted'
-  | 'BillCreated' | 'BillUpdated' | 'BillPaid'
-  | 'TaskCreated' | 'TaskUpdated' | 'TaskCompleted';
+export type BuildiumWebhookEventType =
+  | 'PropertyCreated'
+  | 'PropertyUpdated'
+  | 'PropertyDeleted'
+  | 'UnitCreated'
+  | 'UnitUpdated'
+  | 'UnitDeleted'
+  | 'OwnerCreated'
+  | 'OwnerUpdated'
+  | 'OwnerDeleted'
+  | 'LeaseCreated'
+  | 'LeaseUpdated'
+  | 'LeaseDeleted'
+  | 'BillCreated'
+  | 'BillUpdated'
+  | 'BillPaid'
+  | 'TaskCreated'
+  | 'TaskUpdated'
+  | 'TaskCompleted';
 export type BuildiumSyncStatusType = 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict';
 
 // ============================================================================
@@ -194,7 +236,7 @@ export type BuildiumUnitBedrooms =
   | 'SixBed'
   | 'SevenBed'
   | 'EightBed'
-  | 'NineBedPlus'
+  | 'NineBedPlus';
 
 export type BuildiumUnitBathrooms =
   | 'NotSet'
@@ -207,43 +249,43 @@ export type BuildiumUnitBathrooms =
   | 'FourBath'
   | 'FourPointFiveBath'
   | 'FiveBath'
-  | 'FivePlusBath'
+  | 'FivePlusBath';
 
 export interface BuildiumAddress {
-  AddressLine1?: string
-  AddressLine2?: string
-  AddressLine3?: string
-  City?: string
-  State?: string
-  PostalCode?: string
-  Country?: string
+  AddressLine1?: string;
+  AddressLine2?: string;
+  AddressLine3?: string;
+  City?: string;
+  State?: string;
+  PostalCode?: string;
+  Country?: string;
 }
 
 export interface BuildiumUnit {
-  Id: number
-  PropertyId: number
-  BuildingName?: string
-  UnitNumber: string
-  Description?: string
-  MarketRent?: number
-  Address?: BuildiumAddress
-  UnitBedrooms?: BuildiumUnitBedrooms
-  UnitBathrooms?: BuildiumUnitBathrooms
-  UnitSize?: number
-  IsUnitListed?: boolean
-  IsUnitOccupied?: boolean
-  Href?: string
+  Id: number;
+  PropertyId: number;
+  BuildingName?: string;
+  UnitNumber: string;
+  Description?: string;
+  MarketRent?: number;
+  Address?: BuildiumAddress;
+  UnitBedrooms?: BuildiumUnitBedrooms;
+  UnitBathrooms?: BuildiumUnitBathrooms;
+  UnitSize?: number;
+  IsUnitListed?: boolean;
+  IsUnitOccupied?: boolean;
+  Href?: string;
 }
 
 export interface BuildiumUnitCreate {
-  UnitNumber: string
-  PropertyId: number
-  UnitSize?: number
-  MarketRent?: number
-  Address?: BuildiumAddress
-  UnitBedrooms?: BuildiumUnitBedrooms
-  UnitBathrooms?: BuildiumUnitBathrooms
-  Description?: string
+  UnitNumber: string;
+  PropertyId: number;
+  UnitSize?: number;
+  MarketRent?: number;
+  Address?: BuildiumAddress;
+  UnitBedrooms?: BuildiumUnitBedrooms;
+  UnitBathrooms?: BuildiumUnitBathrooms;
+  Description?: string;
 }
 
 export interface BuildiumUnitUpdate extends Partial<BuildiumUnitCreate> {}
@@ -253,20 +295,150 @@ export interface BuildiumUnitUpdate extends Partial<BuildiumUnitCreate> {}
 // ============================================================================
 
 export interface BuildiumUnitImage {
-  Id: number
-  Name?: string
-  Description?: string
-  FileType?: string
-  FileSize?: number
-  IsPrivate?: boolean
-  CreatedDateTime?: string
-  Href?: string
+  Id: number;
+  Name?: string;
+  Description?: string;
+  FileType?: string;
+  FileSize?: number;
+  IsPrivate?: boolean;
+  CreatedDateTime?: string;
+  Href?: string;
+  SortOrder?: number;
 }
 
 export interface BuildiumFileDownloadMessage {
-  DownloadUrl: string
-  ExpirationDateTime: string
+  DownloadUrl: string;
+  ExpirationDateTime: string;
 }
+
+// ============================================================================
+// FILE TYPES (Buildium Files API)
+// ============================================================================
+
+export type BuildiumEntityType =
+  | 'Account'
+  | 'Association'
+  | 'AssociationOwner'
+  | 'AssociationUnit'
+  | 'Lease'
+  | 'OwnershipAccount'
+  | 'PublicAsset'
+  | 'Rental'
+  | 'RentalOwner'
+  | 'RentalUnit'
+  | 'Tenant'
+  | 'Vendor';
+
+export interface BuildiumFile {
+  Id: number;
+  EntityType: BuildiumEntityType;
+  EntityId: number | null;
+  FileName: string;
+  Title: string;
+  Description?: string | null;
+  CategoryId?: number | null;
+  FileType?: string;
+  FileSize?: number;
+  IsPrivate?: boolean;
+  CreatedDateTime?: string;
+  ModifiedDateTime?: string;
+  Href?: string;
+}
+
+export interface BuildiumFileCategory {
+  Id: number;
+  Name: string;
+  Description?: string | null;
+  IsActive?: boolean;
+  CreatedDateTime?: string;
+  ModifiedDateTime?: string;
+}
+
+// File upload request (step 1: metadata)
+export interface BuildiumFileUploadRequest {
+  EntityType: BuildiumEntityType;
+  EntityId: number | null;
+  FileName: string;
+  Title: string;
+  Description?: string | null;
+  CategoryId: number;
+}
+
+// File upload response (step 1: returns upload URL and form data)
+export interface BuildiumFileUploadResponse {
+  BucketUrl: string;
+  FormData: Record<string, string>;
+  PhysicalFileName: string;
+}
+
+export interface BuildiumFileShareScope {
+  Tenants?: boolean;
+  RentalOwners?: boolean;
+  RentalOwner?: boolean;
+  AssociationOwners?: boolean;
+  BoardMembers?: boolean;
+  Committee?: boolean;
+  AllResidents?: boolean;
+  AllRentalOwners?: boolean;
+  WebsiteVisitors?: boolean;
+  Vendor?: boolean;
+  PropertyIds?: number[];
+  RentalOwnerIds?: number[];
+}
+
+export interface BuildiumFileShareSettings {
+  Account?: {
+    AllResidents?: boolean;
+    PropertyIds?: number[];
+    AllRentalOwners?: boolean;
+    RentalOwnerIds?: number[];
+    WebsiteVisitors?: boolean;
+  };
+  Rental?: {
+    RentalOwners?: boolean;
+    Tenants?: boolean;
+  };
+  RentalUnit?: {
+    RentalOwners?: boolean;
+    Tenants?: boolean;
+  };
+  Lease?: {
+    Tenants?: boolean;
+    RentalOwners?: boolean;
+  };
+  Tenant?: {
+    Tenants?: boolean;
+    RentalOwners?: boolean;
+  };
+  RentalOwner?: {
+    RentalOwner?: boolean;
+  };
+  Association?: {
+    AssociationOwners?: boolean;
+    BoardMembers?: boolean;
+  };
+  AssociationUnit?: {
+    AssociationOwners?: boolean;
+    BoardMembers?: boolean;
+  };
+  OwnershipAccount?: {
+    AssociationOwners?: boolean;
+    BoardMembers?: boolean;
+  };
+  AssociationOwner?: {
+    AssociationOwner?: boolean;
+  };
+  Vendor?: {
+    Vendor?: boolean;
+  };
+  Committee?: {
+    AssociationOwners?: boolean;
+    BoardMembers?: boolean;
+    Committee?: boolean;
+  };
+}
+
+export type BuildiumFileShareSettingsUpdate = Partial<BuildiumFileShareSettings>;
 
 // ============================================================================
 // PROPERTY IMAGE TYPES
@@ -275,18 +447,17 @@ export interface BuildiumFileDownloadMessage {
 // Buildium's property image payload mirrors unit image payload structure.
 // We keep it separate for clarity/forward-compatibility.
 export interface BuildiumPropertyImage {
-  Id: number
-  Name?: string
-  Description?: string
-  FileType?: string
-  FileSize?: number
-  IsPrivate?: boolean
-  CreatedDateTime?: string
-  Href?: string
+  Id: number;
+  Name?: string;
+  Description?: string;
+  FileType?: string;
+  FileSize?: number;
+  IsPrivate?: boolean;
+  CreatedDateTime?: string;
+  Href?: string;
 }
 
-export type BuildiumPropertyImageList = BuildiumPropertyImage[]
-
+export type BuildiumPropertyImageList = BuildiumPropertyImage[];
 
 // ============================================================================
 // OWNER TYPES
@@ -347,6 +518,7 @@ export interface BuildiumOwnerCreate {
   };
   TaxId?: string;
   IsActive?: boolean;
+  PropertyIds?: number[];
 }
 
 export interface BuildiumOwnerUpdate extends Partial<BuildiumOwnerCreate> {}
@@ -775,13 +947,18 @@ export interface BuildiumLeaseTransactionJournal {
 export interface BuildiumLeaseTransaction {
   Id: number;
   Date: string; // ISO 8601
+  TransactionDate?: string; // ISO 8601
+  PostDate?: string; // ISO 8601
   TransactionType?: string;
   TransactionTypeEnum?: 'Bill' | 'Charge' | 'Credit' | 'Payment' | string;
   TotalAmount: number;
+  Amount?: number;
   CheckNumber?: string;
   LeaseId?: number;
   PayeeTenantId?: number;
   PaymentMethod?: string;
+  Memo?: string;
+  Description?: string;
   Journal?: BuildiumLeaseTransactionJournal;
   // Some Lease Transaction responses in v1 place lines at the top level
   Lines?: Array<{
@@ -806,13 +983,23 @@ export interface BuildiumLeaseTransactionCreateLine {
 }
 
 export interface BuildiumLeaseTransactionCreate {
-  TransactionType: 'Charge' | 'Payment' | 'Credit' | 'Adjustment';
+  TransactionType: 'Charge' | 'Payment' | 'Credit' | 'Adjustment' | 'Refund' | 'ApplyDeposit';
   TransactionDate: string; // yyyy-mm-dd
   PostDate?: string; // yyyy-mm-dd
   Amount: number;
   Memo?: string;
   ReferenceNumber?: string;
   Lines?: BuildiumLeaseTransactionCreateLine[];
+  PaymentMethod?: BuildiumPaymentMethod | string;
+  PayeeTenantId?: number;
+  CheckNumber?: string;
+  BankAccountId?: number;
+  QueueForPrinting?: boolean;
+  SendEmailReceipt?: boolean;
+  PrintReceipt?: boolean;
+  AddressOption?: 'Current' | 'Tenant' | 'Forwarding' | 'Custom';
+  CustomAddress?: string;
+  DepositAccountId?: number;
 }
 
 export type BuildiumLeaseTransactionUpdate = Partial<BuildiumLeaseTransactionCreate>;
@@ -821,7 +1008,13 @@ export type BuildiumLeaseTransactionUpdate = Partial<BuildiumLeaseTransactionCre
 // RECURRING TRANSACTIONS (v1)
 // ============================================================================
 
-export type BuildiumRentCycleType = 'None' | 'Monthly' | 'Weekly' | 'BiWeekly' | 'Quarterly' | 'Yearly';
+export type BuildiumRentCycleType =
+  | 'None'
+  | 'Monthly'
+  | 'Weekly'
+  | 'BiWeekly'
+  | 'Quarterly'
+  | 'Yearly';
 
 export interface BuildiumRecurringTransactionCharge {
   Id?: number;
@@ -906,83 +1099,83 @@ export interface BuildiumWebhookPayload {
 // TENANT TYPES
 // ============================================================================
 
-export type BuildiumMailingPreference = 'PrimaryAddress' | 'AlternateAddress'
+export type BuildiumMailingPreference = 'PrimaryAddress' | 'AlternateAddress';
 
 export interface BuildiumTenantPhoneNumbers {
-  Home?: string
-  Work?: string
-  Mobile?: string
+  Home?: string;
+  Work?: string;
+  Mobile?: string;
 }
 
 export interface BuildiumTenantAddress {
-  AddressLine1?: string
-  AddressLine2?: string
-  AddressLine3?: string
-  City?: string
-  State?: string
-  PostalCode?: string
-  Country?: string
+  AddressLine1?: string;
+  AddressLine2?: string;
+  AddressLine3?: string;
+  City?: string;
+  State?: string;
+  PostalCode?: string;
+  Country?: string;
 }
 
 export interface BuildiumTenantEmergencyContact {
-  Name?: string
-  RelationshipDescription?: string
-  Phone?: string
-  Email?: string
+  Name?: string;
+  RelationshipDescription?: string;
+  Phone?: string;
+  Email?: string;
 }
 
 export interface BuildiumTenant {
-  Id: number
-  FirstName?: string
-  LastName?: string
-  IsCompany?: boolean
-  CompanyName?: string
-  DateOfBirth?: string // yyyy-mm-dd
-  Email?: string
-  AlternateEmail?: string
-  PhoneNumbers?: BuildiumTenantPhoneNumbers | Array<{ Type?: string; Number?: string }>
-  PrimaryAddress?: BuildiumTenantAddress
-  AlternateAddress?: BuildiumTenantAddress
-  EmergencyContact?: BuildiumTenantEmergencyContact
-  Comment?: string
-  MailingPreference?: BuildiumMailingPreference
-  TaxId?: string
-  SMSOptInStatus?: boolean
-  CreatedDateTime?: string
-  LastUpdatedDateTime?: string
+  Id: number;
+  FirstName?: string;
+  LastName?: string;
+  IsCompany?: boolean;
+  CompanyName?: string;
+  DateOfBirth?: string; // yyyy-mm-dd
+  Email?: string;
+  AlternateEmail?: string;
+  PhoneNumbers?: BuildiumTenantPhoneNumbers | Array<{ Type?: string; Number?: string }>;
+  PrimaryAddress?: BuildiumTenantAddress;
+  AlternateAddress?: BuildiumTenantAddress;
+  EmergencyContact?: BuildiumTenantEmergencyContact;
+  Comment?: string;
+  MailingPreference?: BuildiumMailingPreference;
+  TaxId?: string;
+  SMSOptInStatus?: boolean;
+  CreatedDateTime?: string;
+  LastUpdatedDateTime?: string;
 }
 
 export interface BuildiumTenantCreate {
-  FirstName?: string
-  LastName?: string
-  IsCompany?: boolean
-  CompanyName?: string
-  DateOfBirth?: string
-  Email?: string
-  AlternateEmail?: string
-  PhoneNumbers?: BuildiumTenantPhoneNumbers
-  PrimaryAddress?: BuildiumTenantAddress
-  AlternateAddress?: BuildiumTenantAddress
-  EmergencyContact?: BuildiumTenantEmergencyContact
-  Comment?: string
-  MailingPreference?: BuildiumMailingPreference
-  TaxId?: string
-  SMSOptInStatus?: boolean
+  FirstName?: string;
+  LastName?: string;
+  IsCompany?: boolean;
+  CompanyName?: string;
+  DateOfBirth?: string;
+  Email?: string;
+  AlternateEmail?: string;
+  PhoneNumbers?: BuildiumTenantPhoneNumbers;
+  PrimaryAddress?: BuildiumTenantAddress;
+  AlternateAddress?: BuildiumTenantAddress;
+  EmergencyContact?: BuildiumTenantEmergencyContact;
+  Comment?: string;
+  MailingPreference?: BuildiumMailingPreference;
+  TaxId?: string;
+  SMSOptInStatus?: boolean;
 }
 
 export interface BuildiumTenantUpdate extends Partial<BuildiumTenantCreate> {}
 
 export interface BuildiumTenantNote {
-  Id: number
-  Subject?: string
-  Note?: string
-  CreatedDateTime?: string
-  LastUpdatedDateTime?: string
+  Id: number;
+  Subject?: string;
+  Note?: string;
+  CreatedDateTime?: string;
+  LastUpdatedDateTime?: string;
 }
 
 export interface BuildiumTenantNoteCreate {
-  Subject: string
-  Note: string
+  Subject: string;
+  Note: string;
 }
 
 export interface BuildiumTenantNoteUpdate extends Partial<BuildiumTenantNoteCreate> {}
@@ -1033,7 +1226,16 @@ export interface LocalToBuildiumMapping<TLocal, TBuildium> {
 // UTILITY TYPES
 // ============================================================================
 
-export type BuildiumEntityType = 'property' | 'unit' | 'owner' | 'lease' | 'vendor' | 'bill' | 'task' | 'bank_account' | 'work_order';
+export type BuildiumEntityType =
+  | 'property'
+  | 'unit'
+  | 'owner'
+  | 'lease'
+  | 'vendor'
+  | 'bill'
+  | 'task'
+  | 'bank_account'
+  | 'work_order';
 
 export interface BuildiumApiConfig {
   baseUrl: string;
@@ -1096,7 +1298,13 @@ export interface BuildiumApplianceCreate {
 
 export interface BuildiumApplianceUpdate extends Partial<BuildiumApplianceCreate> {}
 
-export type BuildiumApplianceServiceType = 'Maintenance' | 'Repair' | 'Replacement' | 'Installation' | 'Inspection' | 'Other';
+export type BuildiumApplianceServiceType =
+  | 'Maintenance'
+  | 'Repair'
+  | 'Replacement'
+  | 'Installation'
+  | 'Inspection'
+  | 'Other';
 
 export interface BuildiumApplianceServiceHistory {
   Id: number;
@@ -1119,4 +1327,5 @@ export interface BuildiumApplianceServiceHistoryCreate {
   Notes?: string | null;
 }
 
-export interface BuildiumApplianceServiceHistoryUpdate extends Partial<BuildiumApplianceServiceHistoryCreate> {}
+export interface BuildiumApplianceServiceHistoryUpdate
+  extends Partial<BuildiumApplianceServiceHistoryCreate> {}

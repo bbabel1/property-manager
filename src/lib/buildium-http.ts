@@ -16,7 +16,8 @@ export async function buildiumFetch(
       if (v !== undefined && v !== null) q.append(k, String(v))
     }
   }
-  const url = `${base}${path}${q.toString() ? `?${q.toString()}` : ''}`
+  const queryString = q.toString().replace(/\+/g, '%20')
+  const url = `${base}${path}${queryString ? `?${queryString}` : ''}`
   try {
     const res = await fetch(url, {
       method,

@@ -67,7 +67,7 @@ interface PropertyRequestBody {
   fee_assignment?: string | null
   fee_type?: string | null
   fee_percentage?: number | string | null
-  management_fee?: number | string | null
+  fee_dollar_amount?: number | string | null
   billing_frequency?: string | null
 }
 
@@ -108,9 +108,16 @@ export async function POST(request: NextRequest) {
       fee_assignment,
       fee_type,
       fee_percentage,
-      management_fee,
+      fee_dollar_amount,
       billing_frequency
     } = body
+
+    const typedBody = body as PropertyRequestBody & {
+      __insertedUnits?: Array<{ id: string; unit_number?: string; buildium_unit_id?: number | null }>
+    }
+    if (!Array.isArray(typedBody.__insertedUnits)) {
+      typedBody.__insertedUnits = []
+    }
 
     // Validate required fields
     if (!propertyType || !name || !addressLine1 || !city || !state || !postalCode || !country) {
@@ -160,6 +167,12 @@ export async function POST(request: NextRequest) {
       : depositTrustAccountId ?? null
 
     const now = new Date().toISOString()
+    const extractOptionalText = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null
+      const trimmed = value.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+
     const propertyData: PropertiesInsert = {
       name,
       structure_description: structureDescription ?? null,
@@ -182,10 +195,12 @@ export async function POST(request: NextRequest) {
       service_assignment: normalizeAssignmentLevel(service_assignment),
       service_plan: normalizeServicePlan(service_plan),
       active_services: normalizedActiveServices,
+      bill_pay_list: extractOptionalText(body?.bill_pay_list ?? body?.billPayList),
+      bill_pay_notes: extractOptionalText(body?.bill_pay_notes ?? body?.billPayNotes),
       fee_assignment: normalizeAssignmentLevelEnum(fee_assignment),
       fee_type: normalizeFeeType(fee_type),
       fee_percentage: toNumberOrNull(fee_percentage),
-      management_fee: toNumberOrNull(management_fee),
+      fee_dollar_amount: toNumberOrNull(fee_dollar_amount),
       billing_frequency: normalizeBillingFrequency(billing_frequency),
       borough: typeof body?.borough === 'string' && body.borough.trim() ? body.borough : null,
       neighborhood: typeof body?.neighborhood === 'string' && body.neighborhood.trim() ? body.neighborhood : null,
@@ -197,12 +212,35 @@ export async function POST(request: NextRequest) {
       updated_at: now,
     }
 
-    // Create the property
-    const { data: property, error: propertyError } = await db
-      .from('properties')
-      .insert(propertyData)
-      .select()
-      .single()
+    const insertPayload: Record<string, unknown> = { ...propertyData }
+    const performInsert = () =>
+      db
+        .from('properties')
+        .insert(insertPayload as PropertiesInsert)
+        .select()
+        .single()
+
+    let attempt = 0
+    let property: PropertyRow | null = null
+    let propertyError: any = null
+    do {
+      attempt += 1
+      ;({ data: property, error: propertyError } = await performInsert())
+      if (propertyError?.code === 'PGRST204') {
+        const message = propertyError.message ?? ''
+        const columnMatch = message.match(/'([^']+)' column/i)
+        const column = columnMatch?.[1]
+        if (column && column in insertPayload) {
+          logger.warn(
+            { column, attempt, error: propertyError },
+            'Property insert retry after removing missing column from payload due to stale schema cache'
+          )
+          delete insertPayload[column]
+          continue
+        }
+      }
+      break
+    } while (attempt < 5)
 
     if (propertyError) {
       logger.error({ error: propertyError, propertyData }, 'Error creating property (DB)')
@@ -212,8 +250,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Record initial sync status for property (local create)
-    try { await recordSyncStatus(db, property.id, null, 'pending') } catch {}
+    const createdProperty = property as PropertyRow
+    const rollbackProperty = async (reason: string) => {
+      const propertyId = createdProperty.id
+      try {
+        await db.from('units').delete().eq('property_id', propertyId)
+      } catch (error) {
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            propertyId,
+            reason
+          },
+          'Rollback units failed after property create error'
+        )
+      }
+      try {
+        await db.from('ownerships').delete().eq('property_id', propertyId)
+      } catch (error) {
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            propertyId,
+            reason
+          },
+          'Rollback ownerships failed after property create error'
+        )
+      }
+      try {
+        await db.from('properties').delete().eq('id', propertyId)
+      } catch (error) {
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            propertyId,
+            reason
+          },
+          'Rollback property failed after property create error'
+        )
+      }
+    }
 
     // Create ownership records if owners are provided
     if (owners && owners.length > 0) {
@@ -231,7 +307,7 @@ export async function POST(request: NextRequest) {
 
       const ownershipRecords: OwnershipInsert[] = owners.map((owner: { id: string; ownershipPercentage?: number; disbursementPercentage?: number; primary?: boolean }) => ({
         owner_id: String(owner.id),
-        property_id: property.id,
+        property_id: createdProperty.id,
         ownership_percentage: toNumberOrDefault(owner.ownershipPercentage, 0),
         disbursement_percentage: toNumberOrDefault(owner.disbursementPercentage, 0),
         primary: Boolean(owner.primary),
@@ -247,7 +323,7 @@ export async function POST(request: NextRequest) {
 
       if (ownershipError) {
         console.error('Error creating ownership records:', ownershipError)
-        // Note: In a production app, you might want to rollback the property creation here
+        await rollbackProperty('ownership insert failure')
         return NextResponse.json(
           { error: 'Failed to create ownership records' },
           { status: 500 }
@@ -267,20 +343,20 @@ export async function POST(request: NextRequest) {
           const bedrooms = normalizeUnitBedrooms(u.unitBedrooms)
           const bathrooms = normalizeUnitBathrooms(u.unitBathrooms)
           return {
-            property_id: property.id,
+            property_id: createdProperty.id,
             unit_number: unitNumber,
             unit_bedrooms: bedrooms,
             unit_bathrooms: bathrooms,
             unit_size: toNumberOrNull(u.unitSize),
             market_rent: toNumberOrNull(u.marketRent),
             description: u.description ?? null,
-            address_line1: property.address_line1,
-            address_line2: property.address_line2 ?? null,
-            address_line3: property.address_line3 ?? null,
-            city: property.city ?? null,
-            state: property.state ?? null,
-            postal_code: property.postal_code,
-            country: property.country,
+            address_line1: createdProperty.address_line1,
+            address_line2: createdProperty.address_line2 ?? null,
+            address_line3: createdProperty.address_line3 ?? null,
+            city: createdProperty.city ?? null,
+            state: createdProperty.state ?? null,
+            postal_code: createdProperty.postal_code,
+            country: createdProperty.country,
             created_at: now,
             updated_at: now,
             org_id: orgId,
@@ -288,7 +364,7 @@ export async function POST(request: NextRequest) {
             fee_type: normalizeFeeType(u.feeType),
             fee_frequency: normalizeFeeFrequency(u.feeFrequency),
             fee_percent: toNumberOrNull(u.feePercent),
-            management_fee: toNumberOrNull(u.managementFee),
+            fee_dollar_amount: toNumberOrNull(u.feeDollarAmount),
             fee_notes: u.feeNotes ?? null,
             unit_type: u.unitType ?? null,
             service_start: u.serviceStart ?? null,
@@ -302,17 +378,80 @@ export async function POST(request: NextRequest) {
           } as UnitsInsert
         })
       if (unitRows.length) {
-        const { data: insertedUnits, error: unitsErr } = await db.from('units').insert(unitRows).select('*')
+        const unitInsertPayloads = unitRows.map(row => ({ ...row } as Record<string, unknown>))
+        let unitInsertAttempt = 0
+        let insertedUnits: UnitsInsert[] | null = null
+        let unitsErr: any = null
+        do {
+          unitInsertAttempt += 1
+          const { data, error } = await db.from('units').insert(unitInsertPayloads as UnitsInsert[]).select('*')
+          if (!error) {
+            insertedUnits = data as UnitsInsert[] | null
+            unitsErr = null
+            break
+          }
+          unitsErr = error
+          const errCode = (error as { code?: string }).code
+          const errMessage = (error as { message?: string }).message ?? ''
+          const errDetails = (error as { details?: string }).details ?? ''
+          const errHint = (error as { hint?: string }).hint ?? ''
+          const columnRegexes = [
+            /'([^']+)' column/gi,
+            /column "([^"]+)"/gi,
+            /column ([a-z0-9_]+)/gi,
+          ]
+          let missingColumn: string | null = null
+          for (const regex of columnRegexes) {
+            let match: RegExpExecArray | null
+            const sources = [errMessage, errDetails, errHint]
+            for (const text of sources) {
+              regex.lastIndex = 0
+              match = regex.exec(text)
+              if (match?.[1]) {
+                missingColumn = match[1]
+                break
+              }
+            }
+            if (missingColumn) break
+          }
+          if ((errCode === 'PGRST204' || errCode === '42703') && missingColumn) {
+            let removed = false
+            for (const payload of unitInsertPayloads) {
+              if (missingColumn in payload) {
+                delete payload[missingColumn]
+                removed = true
+              }
+            }
+            if (removed) {
+              logger.warn(
+                { column: missingColumn, attempt: unitInsertAttempt, error: unitsErr },
+                'Retrying unit insert without missing column due to stale schema cache'
+              )
+              continue
+            }
+          }
+          break
+        } while (unitInsertAttempt < 5)
+
         if (unitsErr) {
           logger.error({ error: unitsErr }, 'Error creating units (DB)')
+          await rollbackProperty('unit insert failure')
           return NextResponse.json({ error: 'Failed to create units' }, { status: 500 })
         }
-        // Replace units with inserted rows (for Buildium sync later)
-        (body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string }> }).__insertedUnits = insertedUnits || []
+        const insertedUnitRows = insertedUnits ?? []
+        typedBody.__insertedUnits = insertedUnitRows as Array<{ id: string; unit_number?: string; buildium_unit_id?: number | null }>
+      }
+    }
 
-        // Mark units pending for sync
+    if (syncToBuildium) {
+      try {
+        await recordSyncStatus(db, createdProperty.id, null, 'pending')
+      } catch {}
+      if (Array.isArray(typedBody.__insertedUnits) && typedBody.__insertedUnits.length > 0) {
         try {
-          await Promise.all(((body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string }> }).__insertedUnits || []).map(u => recordSyncStatus(db, u.id, null, 'pending')))
+          await Promise.all(
+            typedBody.__insertedUnits.map((u) => recordSyncStatus(db, u.id, null, 'pending'))
+          )
         } catch {}
       }
     }
@@ -406,14 +545,14 @@ export async function POST(request: NextRequest) {
           structure_description: structureDescription || undefined,
           is_active: status !== 'Inactive',
           operating_bank_account_id: buildiumOperatingBankAccountId,
-          reserve,
+          reserve: toNumberOrNull(reserve),
           address_line1: addressLine1,
           address_line2: addressLine2,
           city,
           state,
           postal_code: postalCode,
           country,
-          year_built: yearBuilt,
+          year_built: toNumberOrNull(yearBuilt),
           rental_type: 'Rental',
           property_type: propertyType
         } as unknown as PropertyRow)
@@ -494,21 +633,21 @@ export async function POST(request: NextRequest) {
         const propValidation = validateBuildiumPropertyPayload(propertyPayload)
         if (!propValidation.ok) {
           logger.warn({ missing: propValidation.missing }, 'Skipping Buildium property create: missing fields')
-          try { await recordSyncStatus(db, property.id, null, 'failed', `Missing fields: ${propValidation.missing.join(', ')}`) } catch {}
+          try { await recordSyncStatus(db, createdProperty.id, null, 'failed', `Missing fields: ${propValidation.missing.join(', ')}`) } catch {}
         }
 
         // Mark syncing and attempt create
-        try { await recordSyncStatus(db, property.id, null, 'syncing') } catch {}
+        try { await recordSyncStatus(db, createdProperty.id, null, 'syncing') } catch {}
         const _propAttempted = false
         if (propValidation.ok) {
           // Mark syncing and attempt create
-          try { await recordSyncStatus(db, property.id, null, 'syncing') } catch {}
+          try { await recordSyncStatus(db, createdProperty.id, null, 'syncing') } catch {}
           const propRes = await buildiumFetch('POST', '/rentals', undefined, propertyPayload)
           // propAttempted = true
           if (propRes.ok && propRes.json?.Id) {
             const buildiumId = Number(propRes.json.Id)
-            await db.from('properties').update({ buildium_property_id: buildiumId }).eq('id', property.id)
-            try { await recordSyncStatus(db, property.id, buildiumId, 'synced') } catch {}
+            await db.from('properties').update({ buildium_property_id: buildiumId }).eq('id', createdProperty.id)
+            try { await recordSyncStatus(db, createdProperty.id, buildiumId, 'synced') } catch {}
           } else {
             // Structured error logging to surface Buildium validation details (e.g., 422 field errors)
             const errorLog = {
@@ -525,17 +664,17 @@ export async function POST(request: NextRequest) {
               }
             }
             try { logger.warn(errorLog, 'Buildium property sync failed') } catch { console.warn('Buildium property sync failed', errorLog) }
-            try { await recordSyncStatus(db, property.id, null, 'failed', `HTTP ${propRes.status}: ${propRes.errorText || 'unknown'}`) } catch {}
+            try { await recordSyncStatus(db, createdProperty.id, null, 'failed', `HTTP ${propRes.status}: ${propRes.errorText || 'unknown'}`) } catch {}
           }
         }
         const buildiumPropertyId = (await (async()=>{
-          const { data } = await db.from('properties').select('buildium_property_id').eq('id', property.id).single()
+          const { data } = await db.from('properties').select('buildium_property_id').eq('id', createdProperty.id).single()
           return data?.buildium_property_id as number | null
         })())
 
         // 3) Map Units via initial property create: if we included units, fetch them from Buildium and link IDs
         if (buildiumPropertyId) {
-          const insertedUnits: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> = (body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> }).__insertedUnits || []
+          const insertedUnits: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> = typedBody.__insertedUnits || []
           if (includedUnitsInCreate && insertedUnits.length > 0) {
             try { await Promise.all(insertedUnits.map(u => recordSyncStatus(db, u.id, null, 'syncing'))) } catch {}
             // Buildium units listing is property-scoped via query param
@@ -562,7 +701,7 @@ export async function POST(request: NextRequest) {
           }
         } else {
           // Property didn't sync; mark any units as failed
-          const insertedUnits: Array<{ id: string }> = (body as PropertyRequestBody & { __insertedUnits?: Array<{ id: string }> }).__insertedUnits || []
+          const insertedUnits: Array<{ id: string }> = typedBody.__insertedUnits || []
           if (insertedUnits.length > 0) {
             for (const local of insertedUnits) {
               try { await recordSyncStatus(db, local.id, null, 'failed', 'Property did not sync to Buildium') } catch {}
@@ -631,7 +770,7 @@ export async function POST(request: NextRequest) {
       const { error: staffError } = await db
         .from('property_staff')
         .insert({
-          property_id: property.id,
+          property_id: createdProperty.id,
           staff_id: propertyManagerId,
           role: 'PROPERTY_MANAGER'
         })
@@ -668,14 +807,14 @@ async function _searchBuildiumOwnerId(params: {
   buildiumPropertyId?: number
 }): Promise<number | null> {
   const emailLc = (params.email || '').toLowerCase()
-  const ownername = [params.firstName, params.lastName].filter(Boolean).join(' ').trim() || undefined
+  const ownername = [(await params).firstName, (await params).lastName].filter(Boolean).join(' ').trim() || undefined
   const limit = 200
   let offset = 0
   const maxPages = 60 // up to 12,000 owners
 
   for (let page = 0; page < maxPages; page++) {
     const q: Record<string, unknown> = { limit, offset }
-    if (params.buildiumPropertyId) q.propertyids = params.buildiumPropertyId
+    if (params.buildiumPropertyId) q.propertyids = (await params).buildiumPropertyId
     if (ownername) q.ownername = ownername
 
     // Use /v1/rentals/owners with filters
@@ -747,13 +886,18 @@ export async function GET() {
       id,
       name,
       address_line1,
+      city,
+      state,
       property_type,
       status,
       created_at,
       total_vacant_units,
       total_inactive_units,
       total_occupied_units,
-      total_active_units
+      total_active_units,
+      primary_owner,
+      operating_bank_account_id,
+      deposit_trust_account_id
     `
     const withOwners = `${baseCols}, ownerships(id, owners(contacts(first_name, last_name, company_name)))`
 
@@ -784,10 +928,16 @@ export async function GET() {
           else if (c) primaryOwnerName = [c.first_name, c.last_name].filter(Boolean).join(' ').trim()
         }
       }
+      if (!primaryOwnerName && typeof p?.primary_owner === 'string') {
+        const trimmed = p.primary_owner.trim()
+        if (trimmed.length > 0) primaryOwnerName = trimmed
+      }
       return {
         id: p.id,
         name: p.name,
         addressLine1: p.address_line1,
+        city: p.city,
+        state: p.state,
         propertyType: p.property_type,
         status: p.status,
         createdAt: p.created_at,
@@ -797,6 +947,8 @@ export async function GET() {
         totalActiveUnits: p.total_active_units ?? 0,
         ownersCount,
         primaryOwnerName,
+        operatingBankAccountId: p.operating_bank_account_id,
+        depositTrustAccountId: p.deposit_trust_account_id,
       }
     })
 
