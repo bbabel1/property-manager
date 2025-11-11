@@ -11,7 +11,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import { Controller, useFieldArray, useForm, useWatch, type Resolver } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -93,11 +93,9 @@ type GeneralJournalEntryFormProps = {
   layout: LayoutVariant;
   propertyOptions: PropertyOption[];
   unitOptions: UnitOption[];
-  unitsByProperty?: Record<string, UnitOption[]>;
   accountOptions: AccountOption[];
   defaultPropertyId?: string;
   defaultUnitId?: string;
-  autoSelectDefaultProperty?: boolean;
   initialValues?: JournalEntryFormValues;
   transactionId?: string;
   buildiumLocked?: boolean;
@@ -152,7 +150,6 @@ function AccountPicker({
           role="combobox"
           aria-expanded={open}
           aria-label="Select account"
-          title="Select account"
           disabled={disabled}
           className={cn(
             'w-full min-w-[16rem] max-w-[20rem] justify-between truncate',
@@ -172,7 +169,6 @@ function AccountPicker({
         <Command className="h-full w-[min(20rem,80vw)] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl">
           <CommandInput
             placeholder="Search accounts…"
-            aria-label="Search accounts"
             className="border-b border-border px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-0"
           />
           <CommandList
@@ -213,11 +209,9 @@ export function GeneralJournalEntryForm({
   layout,
   propertyOptions,
   unitOptions,
-  unitsByProperty,
   accountOptions,
   defaultPropertyId,
   defaultUnitId,
-  autoSelectDefaultProperty = true,
   initialValues,
   transactionId,
   buildiumLocked = false,
@@ -228,46 +222,6 @@ export function GeneralJournalEntryForm({
   additionalActions,
   onClose,
 }: GeneralJournalEntryFormProps) {
-  const resolvedDefaultPropertyId = useMemo(() => {
-    if (initialValues?.propertyId) {
-      return initialValues.propertyId;
-    }
-    if (defaultPropertyId && defaultPropertyId.length > 0) {
-      return defaultPropertyId;
-    }
-    if (autoSelectDefaultProperty) {
-      return propertyOptions[0]?.id ?? '';
-    }
-    return '';
-  }, [initialValues, defaultPropertyId, autoSelectDefaultProperty, propertyOptions]);
-
-  const initialUnitOptions = useMemo(() => {
-    if (initialValues?.propertyId && unitsByProperty) {
-      return unitsByProperty[initialValues.propertyId] ?? [];
-    }
-    if (unitsByProperty) {
-      return resolvedDefaultPropertyId ? unitsByProperty[resolvedDefaultPropertyId] ?? [] : [];
-    }
-    return unitOptions;
-  }, [initialValues, unitsByProperty, resolvedDefaultPropertyId, unitOptions]);
-
-  const [currentUnitOptions, setCurrentUnitOptions] = useState<UnitOption[]>(initialUnitOptions);
-  const currentUnitCountRef = useRef<number>(initialUnitOptions.length);
-
-  useEffect(() => {
-    currentUnitCountRef.current = currentUnitOptions.length;
-  }, [currentUnitOptions.length]);
-
-  useEffect(() => {
-    if (unitsByProperty) {
-      setCurrentUnitOptions(
-        resolvedDefaultPropertyId ? unitsByProperty[resolvedDefaultPropertyId] ?? [] : [],
-      );
-      return;
-    }
-    setCurrentUnitOptions(unitOptions);
-  }, [unitsByProperty, resolvedDefaultPropertyId, unitOptions]);
-
   const [isSaving, setIsSaving] = useState(false);
   const [formLevelError, setFormLevelError] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
@@ -281,19 +235,17 @@ export function GeneralJournalEntryForm({
     }
     return {
       date: new Date().toISOString().slice(0, 10),
-      propertyId: resolvedDefaultPropertyId,
+      propertyId: defaultPropertyId || (propertyOptions[0]?.id ?? ''),
       unitId: defaultUnitId || '',
       memo: '',
       lines: [createEmptyLine(), createEmptyLine()],
     };
-  }, [initialValues, resolvedDefaultPropertyId, defaultUnitId]);
+  }, [defaultPropertyId, defaultUnitId, propertyOptions, initialValues]);
 
-  const resolver = useCallback<Resolver<JournalEntryFormValues>>(
-    (values, context, options) => {
-      const schema = buildJournalEntrySchema(currentUnitCountRef.current > 0);
-      return zodResolver(schema)(values, context, options);
-    },
-    [],
+  const requiresUnitSelection = unitOptions.length > 0;
+  const resolver = useMemo(
+    () => zodResolver(buildJournalEntrySchema(requiresUnitSelection)),
+    [requiresUnitSelection],
   );
 
   const form = useForm<JournalEntryFormValues>({
@@ -307,20 +259,6 @@ export function GeneralJournalEntryForm({
     control,
     name: 'lines',
   });
-
-  const propertyIdWatch = useWatch({ control, name: 'propertyId' });
-
-  useEffect(() => {
-    if (!unitsByProperty) return;
-    const propertyId = propertyIdWatch || '';
-    const next = propertyId ? unitsByProperty[propertyId] ?? [] : [];
-    setCurrentUnitOptions(next);
-    if (!next.some((option) => option.id === getValues('unitId'))) {
-      setValue('unitId', '', { shouldDirty: true, shouldValidate: true });
-    }
-  }, [propertyIdWatch, unitsByProperty, getValues, setValue]);
-
-  const requiresUnitSelection = currentUnitOptions.length > 0;
 
   useEffect(() => {
     reset(buildDefaultValues());
@@ -574,10 +512,10 @@ export function GeneralJournalEntryForm({
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {currentUnitOptions.length === 0 ? (
+                    {unitOptions.length === 0 ? (
                       <p className="px-3 py-2 text-sm text-muted-foreground">No units available</p>
                     ) : (
-                      currentUnitOptions.map((option) => (
+                      unitOptions.map((option) => (
                         <SelectItem key={option.id} value={option.id}>
                           {option.label}
                         </SelectItem>
@@ -586,6 +524,11 @@ export function GeneralJournalEntryForm({
                   </SelectContent>
                 </Select>
               </FormControl>
+              {!requiresUnitSelection ? (
+                <p className="text-muted-foreground text-xs">
+                  This property does not have units, so this field can be left blank.
+                </p>
+              ) : null}
               <FormMessage />
             </FormItem>
           )}
@@ -645,9 +588,6 @@ export function GeneralJournalEntryForm({
                   return (
                     <TableRow key={fieldItem.id} className="align-top">
                       <TableCell className="space-y-1 py-3">
-                        <label htmlFor={`lines-${index}-account`} className="sr-only">
-                          Account for line {index + 1}
-                        </label>
                         <Controller
                           control={control}
                           name={`lines.${index}.accountId`}
@@ -666,11 +606,7 @@ export function GeneralJournalEntryForm({
                         ) : null}
                       </TableCell>
                       <TableCell className="space-y-1 py-3">
-                        <label htmlFor={`lines-${index}-description`} className="sr-only">
-                          Description for line {index + 1}
-                        </label>
                         <Input
-                          id={`lines-${index}-description`}
                           aria-label="Line description"
                           placeholder="Description"
                           value={line.description || ''}
@@ -687,9 +623,6 @@ export function GeneralJournalEntryForm({
                         ) : null}
                       </TableCell>
                       <TableCell className="space-y-1 py-3">
-                        <label htmlFor={`lines-${index}-debit`} className="sr-only">
-                          Debit amount for line {index + 1}
-                        </label>
                         <Input
                           inputMode="decimal"
                           aria-label="Debit amount"
@@ -711,9 +644,6 @@ export function GeneralJournalEntryForm({
                         ) : null}
                       </TableCell>
                       <TableCell className="space-y-1 py-3">
-                        <label htmlFor={`lines-${index}-credit`} className="sr-only">
-                          Credit amount for line {index + 1}
-                        </label>
                         <Input
                           inputMode="decimal"
                           aria-label="Credit amount"
@@ -740,13 +670,11 @@ export function GeneralJournalEntryForm({
                           variant="ghost"
                           size="icon"
                           aria-label="Remove line"
-                          title="Remove line"
                           className="text-destructive"
                           onClick={() => remove(index)}
                           disabled={buildiumLocked || fields.length <= 2}
                         >
                           <Trash2 className="size-4" />
-                          <span className="sr-only">Remove line</span>
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -814,8 +742,6 @@ export function GeneralJournalEntryForm({
             ref={attachmentInputRef}
             type="file"
             className="hidden"
-            aria-label="Upload supporting document"
-            title="Upload supporting document"
             onChange={(event) => handleAttachmentSelection(event.target.files)}
             disabled={buildiumLocked}
           />
