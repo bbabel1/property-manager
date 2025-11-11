@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await getSupabaseServerClient()
-  const fileId = params.id
+  const fileId = (await params).id
   if (!fileId) return NextResponse.json({ error: 'Missing file id' }, { status: 400 })
 
   // Access check via RLS using regular client
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const expiresIn = 15 * 60
     const { data: signData, error: signErr } = await admin.storage
       .from(String(file.bucket))
-      .createSignedUrl(String(file.storage_key), expiresIn, { download: true })
+      .createSignedUrl(String(file.storage_key), expiresIn)
     if (signErr) return NextResponse.json({ error: 'Failed to presign', details: signErr.message }, { status: 500 })
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
     return NextResponse.json({ getUrl: signData.signedUrl, expiresAt, sha256: file.sha256 || null })
@@ -47,4 +47,3 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   return NextResponse.json({ error: 'Unsupported storage provider' }, { status: 400 })
 }
-

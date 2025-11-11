@@ -3,10 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; moveOutId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; moveOutId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -20,7 +17,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id, moveOutId } = params;
+    const { id, moveOutId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/moveouts/${moveOutId}`;
@@ -66,10 +63,7 @@ export async function GET(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string; moveOutId: string } }
-) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; moveOutId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -83,7 +77,7 @@ export async function DELETE(
     // Require authentication
     const user = await requireUser();
 
-    const { id, moveOutId } = params;
+    const { id, moveOutId } = await params;
 
     // Make request to Buildium API
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/moveouts/${moveOutId}`;

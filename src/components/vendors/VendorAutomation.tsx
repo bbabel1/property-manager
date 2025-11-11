@@ -114,7 +114,7 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
             })}
             {automationSignals.length === 0 ? (
               <div className="flex h-[180px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground">
-                <CheckCircle className="h-5 w-5 text-emerald-500" />
+                <CheckCircle className="h-5 w-5 text-[var(--color-action-500)]" />
                 No automation triggers at this time.
               </div>
             ) : null}

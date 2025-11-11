@@ -25,7 +25,7 @@ const BankAccountUpdateLocalSchema = z.object({
   syncToBuildium: z.boolean().optional().default(false)
 })
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireUser(request)
     const client = getServerSupabaseClient()
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         created_at,
         updated_at
       `)
-      .eq('id', params.id)
+      .eq('id', (await params).id)
       .single()
     if (error) {
       if ((error as any).code === 'PGRST116') return NextResponse.json({ error: 'Bank account not found' }, { status: 404 })
@@ -62,10 +62,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser(request)
-    const id = params.id
+    const id = (await params).id
 
     // Support query param override for sync
     const url = new URL(request.url)

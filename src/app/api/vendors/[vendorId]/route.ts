@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { supabase, supabaseAdmin } from '@/lib/db'
 
-export async function PATCH(request: Request, { params }: { params: { vendorId: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ vendorId: string }> }) {
   const { vendorId } = params
   const payload = await request.json().catch(() => ({}))
 

@@ -5,14 +5,11 @@ import { BuildiumBankAccountUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { buildiumFetch } from '@/lib/buildium-http'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const bankAccountId = params.id;
+    const bankAccountId = (await params).id;
     
     logger.info({ userId: user.id, bankAccountId, action: 'get_buildium_bank_account' }, 'Fetching Buildium bank account details');
 
@@ -34,7 +31,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, bankAccountId: params.id }, 'Error fetching Buildium bank account details');
+    logger.error({ error, bankAccountId: (await params).id }, 'Error fetching Buildium bank account details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium bank account details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -42,14 +39,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const bankAccountId = params.id;
+    const bankAccountId = (await params).id;
     
     logger.info({ userId: user.id, bankAccountId, action: 'update_buildium_bank_account' }, 'Updating Buildium bank account');
 
@@ -75,7 +69,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, bankAccountId: params.id }, 'Error updating Buildium bank account');
+    logger.error({ error, bankAccountId: (await params).id }, 'Error updating Buildium bank account');
     return NextResponse.json(
       { error: 'Failed to update Buildium bank account', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

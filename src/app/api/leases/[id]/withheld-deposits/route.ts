@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getServerSupabaseClient } from '@/lib/supabase-client'
+import { requireAuth } from '@/lib/auth/guards'
+import { hasSupabaseAdmin } from '@/lib/supabase-client'
+import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
+import { LeaseTransactionService } from '@/lib/lease-transaction-service'
+import {
+  buildDepositLines,
+  fetchBuildiumGlAccountMap,
+  fetchLeaseContextById,
+  fetchTransactionWithLines
+} from '@/lib/lease-transaction-helpers'
 
 const WithholdDepositSchema = z.object({
   date: z.string().min(1),
@@ -26,68 +35,76 @@ export async function POST(
     return NextResponse.json({ error: issue?.message ?? 'Invalid payload' }, { status: 400 })
   }
 
-  const supabase = getServerSupabaseClient('withheld-deposits:create')
-  const now = new Date().toISOString()
-  const totalAmount = parsed.data.allocations.reduce((sum, line) => sum + (line?.amount ?? 0), 0)
-
-  // Load lease to enrich header/lines
-  const { data: leaseRow } = await supabase
-    .from('lease')
-    .select('id, org_id, property_id, unit_id, buildium_lease_id, buildium_property_id, buildium_unit_id')
-    .eq('id', leaseId)
-    .maybeSingle()
-
-  const { data: transaction, error: txError } = await supabase
-    .from('transactions')
-    .insert({
-      date: parsed.data.date,
-      transaction_type: 'ApplyDeposit',
-      total_amount: totalAmount,
-      memo: parsed.data.memo ?? null,
-      bank_account_id: parsed.data.deposit_account_id,
-      lease_id: leaseId,
-      org_id: leaseRow?.org_id ?? null,
-      buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-      created_at: now,
-      updated_at: now,
-    })
-    .select()
-    .maybeSingle()
-
-  if (txError || !transaction) {
-    return NextResponse.json({ error: txError?.message || 'Failed to withhold deposit' }, { status: 500 })
-  }
-
-  const linePayloads = parsed.data.allocations
-    .filter((line) => Boolean(line.account_id))
-    .map((line) => ({
-      transaction_id: transaction.id,
-      gl_account_id: line.account_id,
-      amount: line.amount,
-      posting_type: 'Debit',
-      account_entity_type: 'Rental' as any,
-      account_entity_id: leaseRow?.buildium_property_id ?? null,
-      date: parsed.data.date,
-      lease_id: leaseId,
-      property_id: leaseRow?.property_id ?? null,
-      unit_id: leaseRow?.unit_id ?? null,
-      buildium_unit_id: leaseRow?.buildium_unit_id ?? null,
-      buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-      created_at: now,
-      updated_at: now,
-    }))
-
-  let lines: any[] = []
-  if (linePayloads.length) {
-    const { data: insertedLines, error: lineError } = await supabase
-      .from('transaction_lines')
-      .insert(linePayloads)
-      .select()
-    if (lineError) {
-      return NextResponse.json({ error: lineError.message || 'Failed to create deposit lines' }, { status: 500 })
+  try {
+    if (!hasSupabaseAdmin()) {
+      await requireAuth()
     }
-    lines = insertedLines ?? []
-  }
 
-  return NextResponse.json({ data: { transaction, lines } }, { status: 201 })
+    const leaseContext = await fetchLeaseContextById(leaseId)
+    const glAccountMap = await fetchBuildiumGlAccountMap([
+      parsed.data.deposit_account_id,
+      ...parsed.data.allocations.map((line) => line.account_id),
+    ])
+    const { lines, debitTotal, depositBuildiumAccountId } = buildDepositLines({
+      allocations: parsed.data.allocations,
+      depositAccountId: parsed.data.deposit_account_id,
+      glAccountMap,
+      memo: parsed.data.memo ?? null,
+    })
+
+    const payload: BuildiumLeaseTransactionCreate = {
+      TransactionType: 'ApplyDeposit',
+      TransactionDate: parsed.data.date,
+      Amount: debitTotal,
+      Memo: parsed.data.memo ?? undefined,
+      Lines: lines,
+      DepositAccountId: depositBuildiumAccountId,
+    }
+
+    const result = await LeaseTransactionService.createInBuildiumAndDB(
+      leaseContext.buildiumLeaseId,
+      payload
+    )
+
+    let normalized: any = null
+    let responseLines: any[] = []
+    if (result.localId) {
+      const record = await fetchTransactionWithLines(result.localId)
+      if (record) {
+        normalized = record.transaction
+        responseLines = record.lines ?? []
+      }
+    }
+
+    if (!normalized) {
+      normalized = {
+        id: result.localId ?? result.buildium?.Id ?? null,
+        transaction_type: result.buildium?.TransactionTypeEnum || result.buildium?.TransactionType || 'ApplyDeposit',
+        total_amount: result.buildium?.TotalAmount ?? result.buildium?.Amount ?? debitTotal,
+        date: result.buildium?.Date ?? result.buildium?.TransactionDate ?? parsed.data.date,
+        memo: result.buildium?.Memo ?? parsed.data.memo ?? null,
+        lease_id: leaseContext.leaseId,
+        buildium_transaction_id: result.buildium?.Id ?? null,
+      }
+      responseLines = lines
+    }
+
+    return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })
+  } catch (error) {
+    console.error('Error withholding deposit:', error)
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (
+        error.message === 'Lease not found' ||
+        error.message === 'Lease is missing Buildium identifier' ||
+        error.message.includes('Buildium mapping')
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 422 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 502 })
+    }
+    return NextResponse.json({ error: 'Failed to withhold deposit' }, { status: 500 })
+  }
 }

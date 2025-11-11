@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const transactionId = params.id;
+    const transactionId = (await params).id;
     
     logger.info({ userId: user.id, transactionId, action: 'get_buildium_transaction' }, 'Fetching Buildium transaction details');
 
@@ -41,7 +38,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, transactionId: params.id }, 'Error fetching Buildium transaction details');
+    logger.error({ error, transactionId: (await params).id }, 'Error fetching Buildium transaction details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium transaction details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

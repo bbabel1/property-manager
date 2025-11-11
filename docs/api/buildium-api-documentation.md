@@ -509,6 +509,7 @@ Buildium provides webhook testing tools in the admin panel:
 - `POST /api/buildium/leases/{id}/transactions/charges` - Create a charge
 - `GET /api/buildium/leases/{id}/transactions/charges/{chargeId}` - Get charge details
 - `PUT /api/buildium/leases/{id}/transactions/charges/{chargeId}` - Update a charge
+- `POST /api/buildium/leases/{id}/payments` - Create a lease payment
 
 ## Tasks Entity (100% Complete)
 

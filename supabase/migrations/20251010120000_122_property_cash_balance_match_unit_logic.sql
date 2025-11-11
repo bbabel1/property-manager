@@ -231,3 +231,23 @@ end $$;
 comment on function public.fn_recalculate_property_financials(uuid) is 'Recalculates property cash balance using transactions table (matching unit balance logic) for consistency';
 comment on function public.get_property_financials(uuid, date) is 'Returns property financials with cash balance calculated from transactions table (consistent with unit balance calculation)';
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

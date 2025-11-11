@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import EditTenantContactModal from '@/components/tenants/EditTenantContactModal';
 import EditLink from '@/components/ui/EditLink';
 
@@ -30,6 +31,13 @@ export default function EditContactButton({
   initial: ContactValues;
 }) {
   const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState<ContactValues>(initial);
+  const router = useRouter();
+
+  useEffect(() => {
+    setCurrent(initial);
+  }, [initial]);
+
   return (
     <>
       <EditLink onClick={() => setOpen(true)} />
@@ -37,8 +45,11 @@ export default function EditContactButton({
         open={open}
         onOpenChange={setOpen}
         contactId={contactId}
-        initial={initial}
-        onSaved={() => window.location.reload()}
+        initial={current}
+        onSaved={(updated) => {
+          setCurrent(updated);
+          router.refresh();
+        }}
       />
     </>
   );

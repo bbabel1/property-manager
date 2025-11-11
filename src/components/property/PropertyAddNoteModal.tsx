@@ -8,31 +8,31 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 type PropertyNotePayload = {
-  Subject: string
-  Body: string
-  IsPrivate: boolean
+  subject: string
+  body: string
+  is_private: boolean
 }
 
 type PropertyNoteResponse = {
-  Id?: number
-  Subject?: string
-  Body?: string
-  CreatedDate?: string
-  CreatedByName?: string
-  IsPrivate?: boolean
+  id: string
+  subject: string | null
+  body: string | null
+  created_at: string
+  created_by_name: string | null
+  is_private: boolean | null
 }
 
 interface PropertyAddNoteModalProps {
   propertyId: string
-  buildiumPropertyId: number | null
   isOpen: boolean
   onClose: () => void
   onNoteAdded?: (note: PropertyNoteResponse) => void
 }
 
-export default function PropertyAddNoteModal({ propertyId, buildiumPropertyId, isOpen, onClose, onNoteAdded }: PropertyAddNoteModalProps) {
+export default function PropertyAddNoteModal({ propertyId, isOpen, onClose, onNoteAdded }: PropertyAddNoteModalProps) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
@@ -56,20 +56,20 @@ export default function PropertyAddNoteModal({ propertyId, buildiumPropertyId, i
       return
     }
 
-    if (!buildiumPropertyId) {
-      toast.error('This property is not linked to Buildium yet.')
+    if (!propertyId) {
+      toast.error('Property is required before adding notes.')
       return
     }
 
     const payload: PropertyNotePayload = {
-      Subject: subject.trim(),
-      Body: body.trim(),
-      IsPrivate: isPrivate,
+      subject: subject.trim(),
+      body: body.trim(),
+      is_private: isPrivate,
     }
 
     try {
       setSaving(true)
-      const res = await fetch(`/api/buildium/properties/${buildiumPropertyId}/notes`, {
+      const res = await fetchWithSupabaseAuth(`/api/properties/${propertyId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -78,8 +78,10 @@ export default function PropertyAddNoteModal({ propertyId, buildiumPropertyId, i
       if (!res.ok) throw new Error(json?.error || 'Failed to create note')
 
       toast.success('Note added successfully')
-      const created: PropertyNoteResponse = json?.data || payload
-      onNoteAdded?.(created)
+      const created = json?.data as PropertyNoteResponse | undefined
+      if (created) {
+        onNoteAdded?.(created)
+      }
       reset()
       onClose()
     } catch (error) {

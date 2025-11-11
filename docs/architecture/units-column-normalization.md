@@ -21,7 +21,7 @@ The following columns were renamed:
 | `"Service Plan"` | `service_plan` |
 | `"Fee Type"` | `fee_type` |
 | `"Fee Percent"` | `fee_percent` |
-| `"Management Fee"` | `management_fee` |
+| `"Management Fee"` | `fee_dollar_amount` |
 | `"Fee Frequency"` | `fee_frequency` |
 | `"Active Services"` | `active_services` |
 | `"Fee Notes"` | `fee_notes` |
@@ -125,7 +125,7 @@ export type FeeType = 'Percentage' | 'Flat Rate';
 - `servicePlan` / `service_plan`
 - `feeType` / `fee_type`
 - `feePercent` / `fee_percent`
-- `managementFee` / `management_fee`
+- `feeDollarAmount` / `fee_dollar_amount`
 - `feeFrequency` / `fee_frequency`
 - `activeServices` / `active_services`
 - `feeNotes` / `fee_notes`

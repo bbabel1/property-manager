@@ -64,6 +64,14 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 - **Staff Management**: Assign staff to properties with role-based permissions
 
+- **Monthly Logs**: ✨ **NEW** - Complete month-end accounting workflow
+  - 7-stage guided workflow (Charges → Owner Statements)
+  - Automated financial calculations (rent owed, owner draw, net to owner)
+  - Professional PDF statement generation with branded templates
+  - Automated email delivery with multi-recipient support
+  - Complete audit trail for compliance
+  - [Quick Start Guide](docs/MONTHLY_LOG_QUICK_START.md) | [Full Documentation](docs/MONTHLY_LOG_README.md)
+
 - **Financial Calculations**: Track ownership and disbursement percentages
 
 - **Authentication**: Secure authentication with Supabase Auth (email/password, magic links, OAuth)
@@ -144,13 +152,13 @@ src/
 ## Database Schema
 
 ### Schema Documentation
+
 - **[Detailed Schema](docs/database/DETAILED_SCHEMA.md)** - Comprehensive field-level details with constraints, defaults, and enums
 - **[Schema Management Workflow](docs/database/SCHEMA_MANAGEMENT_WORKFLOW.md)** - Workflow guide for managing schema documentation
 - **[Current Schema](docs/database/current_schema.sql)** - Auto-generated current database schema
 - **[TypeScript Types](src/types/database.ts)** - Auto-generated TypeScript types
 - **[Table Relationships](docs/database/table-relationships.md)** - Detailed table relationship documentation
 - **[Buildium Integration](docs/database/buildium-integration-summary.md)** - Buildium API integration documentation
-
 
 The system uses a PostgreSQL database through Supabase with the following main entities:
 

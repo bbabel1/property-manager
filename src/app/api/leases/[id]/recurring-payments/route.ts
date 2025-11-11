@@ -21,8 +21,8 @@ const RecurringPaymentPayloadSchema = z.object({
   ).min(1),
 })
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const leaseIdRaw = params.id
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const leaseIdRaw = (await params).id
   const leaseId = Number(leaseIdRaw)
   if (Number.isNaN(leaseId)) {
     return NextResponse.json({ error: 'Invalid lease id' }, { status: 400 })

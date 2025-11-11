@@ -5,10 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTaskHistoryFileUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; historyId: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; historyId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -22,7 +19,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id, historyId } = params;
+    const { id, historyId } = await params;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -81,10 +78,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string; historyId: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; historyId: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -98,7 +92,7 @@ export async function POST(
     // Require authentication
     const user = await requireUser();
 
-    const { id, historyId } = params;
+    const { id, historyId } = await params;
 
     // Parse and validate request body
     const body = await request.json();

@@ -170,7 +170,7 @@ interface TenantEdgeContactData {
   firstName: string
   lastName: string
   email?: string
-  phoneNumbers: BuildiumLeasePhoneEntry[]
+  phoneNumbers?: PhoneNumbersObject
   primaryAddress: BuildiumLeaseAddress
   moveInDate?: string
   isCompany: boolean
@@ -1168,13 +1168,50 @@ export class BuildiumSyncService {
       let propertyOrgId: string | null = localLease.org_id ?? null
       let propertyAddress: PropertyAddress | null = null
 
-      if (localLease.property_id) {
-        const { data: prop } = await db
+      const ensurePropertyBuildiumId = async (): Promise<void> => {
+        if (propertyId != null && !Number.isNaN(propertyId)) return
+        if (!localLease.property_id) return
+
+        const { data: fullProperty } = await db
           .from('properties')
-          .select('buildium_property_id, address_line1, address_line2, city, state, postal_code, country, org_id')
+          .select('*')
           .eq('id', localLease.property_id)
           .maybeSingle()
 
+        if (!fullProperty) return
+
+        propertyOrgId = propertyOrgId ?? (fullProperty.org_id ?? null)
+        propertyAddress = {
+          address_line1: fullProperty.address_line1,
+          address_line2: fullProperty.address_line2,
+          city: fullProperty.city,
+          state: fullProperty.state,
+          postal_code: fullProperty.postal_code,
+          country: fullProperty.country
+        }
+
+        if (fullProperty.buildium_property_id != null) {
+          const converted = toNumber(fullProperty.buildium_property_id)
+          if (converted != null) {
+            propertyId = converted
+            return
+          }
+        }
+
+        const syncResult = await this.syncPropertyToBuildium(fullProperty as LocalPropertyRecord)
+        if (syncResult.success && syncResult.buildiumId != null) {
+          propertyId = syncResult.buildiumId
+        }
+      }
+
+      await ensurePropertyBuildiumId()
+
+      if (propertyAddress == null && localLease.property_id) {
+        const { data: prop } = await db
+          .from('properties')
+          .select('address_line1, address_line2, city, state, postal_code, country, org_id, buildium_property_id')
+          .eq('id', localLease.property_id)
+          .maybeSingle()
         if (prop) {
           propertyOrgId = propertyOrgId ?? (prop.org_id ?? null)
           propertyAddress = {
@@ -1185,7 +1222,7 @@ export class BuildiumSyncService {
             postal_code: prop.postal_code,
             country: prop.country
           }
-          if (!propertyId && prop.buildium_property_id != null) {
+          if ((!propertyId || Number.isNaN(propertyId)) && prop.buildium_property_id != null) {
             const converted = toNumber(prop.buildium_property_id)
             if (converted != null) propertyId = converted
           }
@@ -1221,19 +1258,55 @@ export class BuildiumSyncService {
       const unitBuildiumIdRaw = toNumber(localLease.buildium_unit_id ?? localLease.UnitId)
       let unitBuildiumId = unitBuildiumIdRaw
       let unitNumber = localLease.unit_number || null
-      if (!unitBuildiumId && localLease.unit_id) {
+
+      const ensureUnitBuildiumId = async (): Promise<void> => {
+        if (unitBuildiumId != null && !Number.isNaN(unitBuildiumId)) return
+        if (!localLease.unit_id) return
+
         const { data: unitRow } = await db
           .from('units')
-          .select('buildium_unit_id, unit_number')
+          .select('*')
           .eq('id', localLease.unit_id)
           .maybeSingle()
 
-        if (unitRow?.buildium_unit_id != null) {
+        if (!unitRow) return
+
+        if (!unitNumber && unitRow.unit_number) unitNumber = unitRow.unit_number
+
+        if (unitRow.buildium_unit_id != null) {
           const converted = toNumber(unitRow.buildium_unit_id)
-          if (converted != null) unitBuildiumId = converted
+          if (converted != null) {
+            unitBuildiumId = converted
+            return
+          }
         }
-        if (!unitNumber && unitRow?.unit_number) unitNumber = unitRow.unit_number
+
+        // Ensure we have a Buildium property ID before attempting unit sync
+        if ((!propertyId || Number.isNaN(propertyId)) && unitRow.buildium_property_id != null) {
+          const converted = toNumber(unitRow.buildium_property_id)
+          if (converted != null) propertyId = converted
+        }
+
+        if (!propertyId || Number.isNaN(propertyId)) {
+          await ensurePropertyBuildiumId()
+        }
+
+        if (!propertyId || Number.isNaN(propertyId)) {
+          throw new Error('Property or Unit Buildium ID required for lease sync')
+        }
+
+        // Make sure the unit row reflects the Buildium property id we resolved
+        if (!unitRow.buildium_property_id && propertyId) {
+          unitRow.buildium_property_id = propertyId
+        }
+
+        const syncResult = await this.syncUnitToBuildium(unitRow as LocalUnitRecord)
+        if (syncResult.success && syncResult.buildiumId != null) {
+          unitBuildiumId = syncResult.buildiumId
+        }
       }
+
+      await ensureUnitBuildiumId()
 
       // Require at least one of PropertyId or UnitId to proceed
       if (propertyId == null && unitBuildiumId == null) {
@@ -1566,6 +1639,25 @@ export class BuildiumSyncService {
 
     if (!leaseContacts?.length) return { tenantIds: [], tenantDetails: [] }
 
+    const resolveRoleConfig = (
+      roleValue: string | null | undefined
+    ): { occupantType: LeaseOccupantType; status: LeaseTenantStatus; isRentResponsible: boolean; isPrimaryTenant: boolean } | null => {
+      const roleLower = (roleValue ?? '').trim().toLowerCase()
+      switch (roleLower) {
+        case 'tenant':
+          return { occupantType: 'Tenant', status: 'Current', isRentResponsible: true, isPrimaryTenant: true }
+        case 'cosigner':
+        case 'co-signer':
+        case 'cosigner/guarantor':
+        case 'guarantor':
+          return { occupantType: 'Cosigner', status: 'Current', isRentResponsible: false, isPrimaryTenant: false }
+        case 'occupant':
+          return { occupantType: 'Occupant', status: 'Current', isRentResponsible: false, isPrimaryTenant: false }
+        default:
+          return null
+      }
+    }
+
     let moveInDate: string | undefined
     const leaseStart = localLease.lease_from_date ?? localLease.StartDate
     if (leaseStart) {
@@ -1578,7 +1670,9 @@ export class BuildiumSyncService {
     const fallback: PropertyAddress = propertyAddress ?? {}
 
     for (const contactRow of leaseContacts) {
-      if ((contactRow?.role || '').toLowerCase() !== 'tenant') continue
+      const roleConfig = resolveRoleConfig(contactRow?.role)
+      if (!roleConfig) continue
+      const { occupantType, status, isRentResponsible, isPrimaryTenant } = roleConfig
 
       const tenantRecord = Array.isArray(contactRow.tenants) ? contactRow.tenants[0] : contactRow.tenants
       if (!tenantRecord) continue
@@ -1597,30 +1691,30 @@ export class BuildiumSyncService {
       const lastName = (contact.last_name || (isCompany ? 'Company' : 'Tenant')).trim()
       const email = contact.primary_email ? String(contact.primary_email).trim() : undefined
 
-      const toE164 = (raw: unknown): string | null => {
+      const formatPhoneForBuildium = (raw: unknown): string | null => {
         if (!raw) return null
-        let s = String(raw)
-        // strip non-digits
-        s = s.replace(/[^0-9+]/g, '')
-        // remove leading + for processing
-        const hasPlus = s.startsWith('+')
-        if (hasPlus) s = s.slice(1)
-        // if starts with 1 and length 11, treat as US country code
-        if (s.length === 11 && s.startsWith('1')) {
-          return `+${s}`
+        const digits = String(raw).replace(/\D+/g, '')
+        let normalized = digits
+        if (digits.length === 11 && digits.startsWith('1')) {
+          normalized = digits.slice(1)
         }
-        // if 10 digits, assume US and prefix +1
-        if (s.length === 10) return `+1${s}`
-        // if already includes country and 8-15 digits, re-add +
-        if (!hasPlus && s.length >= 8 && s.length <= 15) return `+${s}`
+        if (normalized.length === 10) return normalized
+        if (normalized.length >= 7 && normalized.length <= 15) return normalized
         return null
       }
 
-      const primary = toE164(contact.primary_phone)
-      const alt = toE164(contact.alt_phone)
-      const phoneNumbers: BuildiumLeasePhoneEntry[] = []
-      if (primary) phoneNumbers.push({ Number: primary, Type: 'Mobile' })
-      if (alt) phoneNumbers.push({ Number: alt, Type: 'Work' })
+      const primary = formatPhoneForBuildium(contact.primary_phone)
+      const alt = formatPhoneForBuildium(contact.alt_phone)
+      const phoneNumbersForEdge: PhoneNumbersObject = {}
+      const phoneEntries: BuildiumLeasePhoneEntry[] = []
+      if (primary) {
+        phoneNumbersForEdge.Mobile = primary
+        phoneEntries.push({ Number: primary, Type: 'Mobile' })
+      }
+      if (alt) {
+        phoneNumbersForEdge.Work = alt
+        phoneEntries.push({ Number: alt, Type: 'Work' })
+      }
 
       const addressLine1 = contact.primary_address_line_1 || fallback.address_line1 || 'Unknown Address'
       const addressLine2 = contact.primary_address_line_2 || fallback.address_line2 || undefined
@@ -1645,7 +1739,7 @@ export class BuildiumSyncService {
             firstName,
             lastName,
             email,
-            phoneNumbers,
+            phoneNumbers: Object.keys(phoneNumbersForEdge).length ? phoneNumbersForEdge : undefined,
             primaryAddress,
             moveInDate,
             isCompany
@@ -1671,14 +1765,14 @@ export class BuildiumSyncService {
         FirstName: firstName || 'Tenant',
         LastName: lastName || 'Tenant',
         Address: leaseAddress,
-        LeaseTenantStatus: 'Current',
-        IsRentResponsible: true,
-        IsPrimaryTenant: true,
-        OccupantType: 'Tenant'
+        LeaseTenantStatus: status,
+        IsRentResponsible: isRentResponsible,
+        IsPrimaryTenant: isPrimaryTenant,
+        OccupantType: occupantType
       }
 
       if (email) tenantPayload.Email = email
-      if (phoneNumbers.length) tenantPayload.PhoneNumbers = phoneNumbers
+      if (phoneEntries.length) tenantPayload.PhoneNumbers = phoneEntries
       if (moveInDate) tenantPayload.MoveInDate = moveInDate
       if (isCompany) tenantPayload.IsCompany = true
 
@@ -1705,12 +1799,11 @@ export class BuildiumSyncService {
         IsCompany: contactData.isCompany || undefined,
         Email: contactData.email || undefined,
         PhoneNumbers: (() => {
+          if (!contactData.phoneNumbers) return undefined
           const obj: PhoneNumbersObject = {}
-          const get = (i: number) => (contactData.phoneNumbers?.[i]?.Number ? String(contactData.phoneNumbers[i].Number) : null)
-          const mobile = get(0)
-          const other = get(1)
-          if (mobile) obj.Mobile = mobile
-          if (other) obj.Work = other
+          if (contactData.phoneNumbers.Mobile) obj.Mobile = contactData.phoneNumbers.Mobile
+          if (contactData.phoneNumbers.Work) obj.Work = contactData.phoneNumbers.Work
+          if (contactData.phoneNumbers.Home) obj.Home = contactData.phoneNumbers.Home
           return Object.keys(obj).length ? obj : undefined
         })()
       }

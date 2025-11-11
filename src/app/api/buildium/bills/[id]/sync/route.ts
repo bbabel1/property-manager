@@ -7,16 +7,13 @@ import { upsertBillWithLines } from '@/lib/buildium-mappers'
 
 // POST /api/buildium/bills/[id]/sync
 // Fetch a single bill from Buildium by Id and persist to DB
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
     await requireUser()
-    const billId = params.id
+    const billId = (await params).id
     if (!billId) return NextResponse.json({ error: 'Missing billId' }, { status: 400 })
 
     const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${billId}`

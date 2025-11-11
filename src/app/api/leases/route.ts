@@ -183,6 +183,7 @@ async function createLeaseLegacyTransactional(payload: JsonbPayload): Promise<Le
     pushLeaseField('payment_due_day', payload.lease.payment_due_day)
     pushLeaseField('security_deposit', payload.lease.security_deposit)
     pushLeaseField('rent_amount', payload.lease.rent_amount)
+    pushLeaseField('lease_charges', payload.lease.lease_charges)
     pushLeaseField('prorated_first_month_rent', payload.lease.prorated_first_month_rent)
     pushLeaseField('prorated_last_month_rent', payload.lease.prorated_last_month_rent)
     pushLeaseField('renewal_offer_status', payload.lease.renewal_offer_status)
@@ -532,7 +533,86 @@ export async function GET(request: NextRequest) {
         lease_contacts: undefined
       }
     })
-    return NextResponse.json(mapped)
+    const propertyIds = Array.from(
+      new Set(
+        mapped
+          .map((lease) => lease.property_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    )
+    const unitIds = Array.from(
+      new Set(
+        mapped
+          .map((lease) => lease.unit_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    )
+
+    type PropertySummary = {
+      id: string
+      name?: string | null
+      address_line1?: string | null
+      city?: string | null
+      state?: string | null
+      postal_code?: string | null
+    }
+
+    type UnitSummary = {
+      id: string
+      unit_number?: string | null
+      unit_name?: string | null
+    }
+
+    const propertyMap = new Map<string, PropertySummary>()
+    const unitMap = new Map<string, UnitSummary>()
+
+    if (propertyIds.length > 0) {
+      const { data: properties, error: propertyError } = await db
+        .from('properties')
+        .select('id, name, address_line1, city, state, postal_code')
+        .in('id', propertyIds)
+      if (propertyError) {
+        logger.warn(
+          { error: propertyError, propertyIds },
+          'Failed to load properties for lease list'
+        )
+      } else {
+        for (const property of properties || []) {
+          if (property?.id) propertyMap.set(property.id, property)
+        }
+      }
+    }
+
+    if (unitIds.length > 0) {
+      const { data: units, error: unitError } = await db
+        .from('units')
+        .select('id, unit_number, unit_name')
+        .in('id', unitIds)
+      if (unitError) {
+        logger.warn({ error: unitError, unitIds }, 'Failed to load units for lease list')
+      } else {
+        for (const unit of units || []) {
+          if (unit?.id) unitMap.set(unit.id, unit)
+        }
+      }
+    }
+
+    const enriched = mapped.map((lease) => {
+      const property = lease.property_id ? propertyMap.get(lease.property_id) : undefined
+      const unit = lease.unit_id ? unitMap.get(lease.unit_id) : undefined
+      return {
+        ...lease,
+        unit_number: lease.unit_number ?? unit?.unit_number ?? null,
+        property_name: property?.name ?? null,
+        property_address_line1: property?.address_line1 ?? null,
+        property_city: property?.city ?? null,
+        property_state: property?.state ?? null,
+        property_postal_code: property?.postal_code ?? null,
+        unit_name: unit?.unit_name ?? null
+      }
+    })
+
+    return NextResponse.json(enriched)
   } catch (e) {
     logger.error({ error: e }, 'Error listing leases from DB')
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -586,6 +666,7 @@ export async function POST(request: NextRequest) {
         payment_due_day: body.payment_due_day ?? null,
         security_deposit: body.security_deposit ?? null,
         rent_amount: body.rent_amount ?? null,
+        lease_charges: nullIfEmpty(body.lease_charges),
         prorated_first_month_rent: body.prorated_first_month_rent ?? null,
         prorated_last_month_rent: body.prorated_last_month_rent ?? null,
         renewal_offer_status: body.renewal_offer_status ?? null,
@@ -642,16 +723,23 @@ export async function POST(request: NextRequest) {
     let docs: JsonLike[] | null = null
 
     if (fnErr) {
-      const isSchemaMismatch = fnErr.code === '42703' || /does not exist/i.test(fnErr.message ?? '')
-      if (isSchemaMismatch) {
-        logger.warn({ err: fnErr.message }, 'fn_create_lease_aggregate schema mismatch, attempting legacy fallback')
+      const errorMessage = fnErr.message ?? ''
+      const isSchemaMismatch = fnErr.code === '42703' || /does not exist/i.test(errorMessage)
+      const isMissingOrgContext = fnErr.code === 'P0001' && /org_id cannot be null/i.test(errorMessage)
+      if (isSchemaMismatch || isMissingOrgContext) {
+        logger.warn(
+          { err: fnErr.message, code: fnErr.code },
+          isMissingOrgContext
+            ? 'fn_create_lease_aggregate missing org context, attempting legacy fallback'
+            : 'fn_create_lease_aggregate schema mismatch, attempting legacy fallback'
+        )
         const legacyResult = await createLeaseLegacyTransactional(payload)
         lease = legacyResult.lease
         contacts = legacyResult.contacts
         schedules = legacyResult.rent_schedules
         recurs = legacyResult.recurring_transactions
         docs = legacyResult.documents
-        lease_id = legacyResult.lease?.id ?? null
+        lease_id = typeof legacyResult.lease?.id === 'string' || typeof legacyResult.lease?.id === 'number' ? legacyResult.lease.id : null
       } else {
         return NextResponse.json({ error: 'Failed creating lease', details: fnErr.message }, { status: 500 })
       }

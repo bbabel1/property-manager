@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "13.0.4"
+  }
   public: {
     Tables: {
       appliance_service_history: {
@@ -577,73 +582,43 @@ export type Database = {
           },
         ]
       }
-      file_links: {
+      file_categories: {
         Row: {
-          added_at: string
-          added_by: string | null
-          category: string | null
-          entity_int: number | null
-          entity_type: string
-          entity_uuid: string | null
-          file_id: string
+          buildium_category_id: number | null
+          category_name: string
+          created_at: string
+          description: string | null
           id: string
+          is_active: boolean | null
           org_id: string
-          role: string | null
-          sort_index: number | null
+          updated_at: string
         }
         Insert: {
-          added_at?: string
-          added_by?: string | null
-          category?: string | null
-          entity_int?: number | null
-          entity_type: string
-          entity_uuid?: string | null
-          file_id: string
+          buildium_category_id?: number | null
+          category_name: string
+          created_at?: string
+          description?: string | null
           id?: string
+          is_active?: boolean | null
           org_id: string
-          role?: string | null
-          sort_index?: number | null
+          updated_at?: string
         }
         Update: {
-          added_at?: string
-          added_by?: string | null
-          category?: string | null
-          entity_int?: number | null
-          entity_type?: string
-          entity_uuid?: string | null
-          file_id?: string
+          buildium_category_id?: number | null
+          category_name?: string
+          created_at?: string
+          description?: string | null
           id?: string
+          is_active?: boolean | null
           org_id?: string
-          role?: string | null
-          sort_index?: number | null
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "file_links_file_id_fkey"
-            columns: ["file_id"]
+            foreignKeyName: "file_categories_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_links_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "lease_documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_links_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "task_history_files"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "file_links_file_id_fkey"
-            columns: ["file_id"]
-            isOneToOne: false
-            referencedRelation: "work_order_files"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -651,6 +626,7 @@ export type Database = {
       files: {
         Row: {
           bucket: string | null
+          buildium_category_id: number | null
           buildium_entity_id: number | null
           buildium_entity_type: string | null
           buildium_file_id: number | null
@@ -659,6 +635,8 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           description: string | null
+          entity_id: number
+          entity_type: Database["public"]["Enums"]["files_entity_type_enum"]
           external_url: string | null
           file_name: string
           id: string
@@ -667,13 +645,14 @@ export type Database = {
           org_id: string
           sha256: string | null
           size_bytes: number | null
-          source: string | null
           storage_key: string | null
           storage_provider: string | null
+          title: string
           updated_at: string
         }
         Insert: {
           bucket?: string | null
+          buildium_category_id?: number | null
           buildium_entity_id?: number | null
           buildium_entity_type?: string | null
           buildium_file_id?: number | null
@@ -682,6 +661,8 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          entity_id: number
+          entity_type: Database["public"]["Enums"]["files_entity_type_enum"]
           external_url?: string | null
           file_name: string
           id?: string
@@ -690,13 +671,14 @@ export type Database = {
           org_id: string
           sha256?: string | null
           size_bytes?: number | null
-          source?: string | null
           storage_key?: string | null
           storage_provider?: string | null
+          title: string
           updated_at?: string
         }
         Update: {
           bucket?: string | null
+          buildium_category_id?: number | null
           buildium_entity_id?: number | null
           buildium_entity_type?: string | null
           buildium_file_id?: number | null
@@ -705,6 +687,8 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           description?: string | null
+          entity_id?: number
+          entity_type?: Database["public"]["Enums"]["files_entity_type_enum"]
           external_url?: string | null
           file_name?: string
           id?: string
@@ -713,12 +697,50 @@ export type Database = {
           org_id?: string
           sha256?: string | null
           size_bytes?: number | null
-          source?: string | null
           storage_key?: string | null
           storage_provider?: string | null
+          title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gl_account_category: {
+        Row: {
+          category: Database["public"]["Enums"]["gl_category"]
+          gl_account_id: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["gl_category"]
+          gl_account_id: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["gl_category"]
+          gl_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gl_account_category_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: true
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_account_category_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: true
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+        ]
       }
       gl_accounts: {
         Row: {
@@ -929,12 +951,15 @@ export type Database = {
           current_number_of_occupants: number | null
           id: number
           is_eviction_pending: boolean | null
+          lease_charges: string | null
           lease_from_date: string
           lease_to_date: string | null
           lease_type: string | null
           org_id: string | null
           payment_due_day: number | null
           property_id: string
+          prorated_first_month_rent: number | null
+          prorated_last_month_rent: number | null
           renewal_offer_status: string | null
           rent_amount: number | null
           security_deposit: number | null
@@ -956,12 +981,15 @@ export type Database = {
           current_number_of_occupants?: number | null
           id?: number
           is_eviction_pending?: boolean | null
+          lease_charges?: string | null
           lease_from_date: string
           lease_to_date?: string | null
           lease_type?: string | null
           org_id?: string | null
           payment_due_day?: number | null
           property_id: string
+          prorated_first_month_rent?: number | null
+          prorated_last_month_rent?: number | null
           renewal_offer_status?: string | null
           rent_amount?: number | null
           security_deposit?: number | null
@@ -983,12 +1011,15 @@ export type Database = {
           current_number_of_occupants?: number | null
           id?: number
           is_eviction_pending?: boolean | null
+          lease_charges?: string | null
           lease_from_date?: string
           lease_to_date?: string | null
           lease_type?: string | null
           org_id?: string | null
           payment_due_day?: number | null
           property_id?: string
+          prorated_first_month_rent?: number | null
+          prorated_last_month_rent?: number | null
           renewal_offer_status?: string | null
           rent_amount?: number | null
           security_deposit?: number | null
@@ -1046,8 +1077,8 @@ export type Database = {
           move_out_date: string | null
           notice_given_date: string | null
           org_id: string | null
-          role: string
-          status: string
+          role: Database["public"]["Enums"]["lease_contact_role_enum"]
+          status: Database["public"]["Enums"]["lease_contact_status_enum"]
           tenant_id: string
           updated_at: string
         }
@@ -1060,8 +1091,8 @@ export type Database = {
           move_out_date?: string | null
           notice_given_date?: string | null
           org_id?: string | null
-          role?: string
-          status?: string
+          role?: Database["public"]["Enums"]["lease_contact_role_enum"]
+          status?: Database["public"]["Enums"]["lease_contact_status_enum"]
           tenant_id: string
           updated_at: string
         }
@@ -1074,8 +1105,8 @@ export type Database = {
           move_out_date?: string | null
           notice_given_date?: string | null
           org_id?: string | null
-          role?: string
-          status?: string
+          role?: Database["public"]["Enums"]["lease_contact_role_enum"]
+          status?: Database["public"]["Enums"]["lease_contact_status_enum"]
           tenant_id?: string
           updated_at?: string
         }
@@ -1197,6 +1228,160 @@ export type Database = {
           },
         ]
       }
+      monthly_log_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          entry_date: string | null
+          id: string
+          label: string
+          monthly_log_id: string
+          source_reference: string | null
+          source_type: string | null
+          stage: Database["public"]["Enums"]["monthly_log_stage"]
+          status: Database["public"]["Enums"]["monthly_log_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          entry_date?: string | null
+          id?: string
+          label: string
+          monthly_log_id: string
+          source_reference?: string | null
+          source_type?: string | null
+          stage: Database["public"]["Enums"]["monthly_log_stage"]
+          status?: Database["public"]["Enums"]["monthly_log_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          entry_date?: string | null
+          id?: string
+          label?: string
+          monthly_log_id?: string
+          source_reference?: string | null
+          source_type?: string | null
+          stage?: Database["public"]["Enums"]["monthly_log_stage"]
+          status?: Database["public"]["Enums"]["monthly_log_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_log_entries_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_logs: {
+        Row: {
+          bills_amount: number
+          charges_amount: number
+          created_at: string
+          escrow_amount: number
+          id: string
+          management_fees_amount: number
+          notes: string | null
+          org_id: string
+          owner_distribution_amount: number
+          owner_statement_amount: number
+          payments_amount: number
+          pdf_url: string | null
+          period_start: string
+          previous_lease_balance: number
+          property_id: string
+          sort_index: number
+          stage: Database["public"]["Enums"]["monthly_log_stage"]
+          status: Database["public"]["Enums"]["monthly_log_status"]
+          tenant_id: string | null
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          bills_amount?: number
+          charges_amount?: number
+          created_at?: string
+          escrow_amount?: number
+          id?: string
+          management_fees_amount?: number
+          notes?: string | null
+          org_id: string
+          owner_distribution_amount?: number
+          owner_statement_amount?: number
+          payments_amount?: number
+          pdf_url?: string | null
+          period_start: string
+          previous_lease_balance?: number
+          property_id: string
+          sort_index?: number
+          stage?: Database["public"]["Enums"]["monthly_log_stage"]
+          status?: Database["public"]["Enums"]["monthly_log_status"]
+          tenant_id?: string | null
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          bills_amount?: number
+          charges_amount?: number
+          created_at?: string
+          escrow_amount?: number
+          id?: string
+          management_fees_amount?: number
+          notes?: string | null
+          org_id?: string
+          owner_distribution_amount?: number
+          owner_statement_amount?: number
+          payments_amount?: number
+          pdf_url?: string | null
+          period_start?: string
+          previous_lease_balance?: number
+          property_id?: string
+          sort_index?: number
+          stage?: Database["public"]["Enums"]["monthly_log_stage"]
+          status?: Database["public"]["Enums"]["monthly_log_status"]
+          tenant_id?: string | null
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_memberships: {
         Row: {
           created_at: string
@@ -1291,9 +1476,7 @@ export type Database = {
           tax_payer_id: string | null
           tax_payer_name1: string | null
           tax_payer_name2: string | null
-          tax_payer_type:
-            | Database["public"]["Enums"]["tax_payer_type"]
-            | null
+          tax_payer_type: Database["public"]["Enums"]["tax_payer_type"] | null
           tax_postal_code: string | null
           tax_state: string | null
           updated_at: string
@@ -1326,9 +1509,7 @@ export type Database = {
           tax_payer_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?:
-            | Database["public"]["Enums"]["tax_payer_type"]
-            | null
+          tax_payer_type?: Database["public"]["Enums"]["tax_payer_type"] | null
           tax_postal_code?: string | null
           tax_state?: string | null
           updated_at: string
@@ -1361,9 +1542,7 @@ export type Database = {
           tax_payer_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?:
-            | Database["public"]["Enums"]["tax_payer_type"]
-            | null
+          tax_payer_type?: Database["public"]["Enums"]["tax_payer_type"] | null
           tax_postal_code?: string | null
           tax_state?: string | null
           updated_at?: string
@@ -1527,6 +1706,13 @@ export type Database = {
           address_line1: string
           address_line2: string | null
           address_line3: string | null
+          available_balance: number | null
+          bill_administration:
+            | Database["public"]["Enums"]["bill_administration_option"][]
+            | null
+          bill_administration_notes: string | null
+          bill_pay_list: string | null
+          bill_pay_notes: string | null
           billing_frequency:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
@@ -1534,6 +1720,8 @@ export type Database = {
           buildium_created_at: string | null
           buildium_property_id: number | null
           buildium_updated_at: string | null
+          cash_balance: number | null
+          cash_updated_at: string | null
           city: string | null
           country: Database["public"]["Enums"]["countries"]
           created_at: string
@@ -1541,6 +1729,7 @@ export type Database = {
           fee_assignment:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
+          fee_dollar_amount: number | null
           fee_percentage: number | null
           fee_type: Database["public"]["Enums"]["fee_type_enum"] | null
           id: string
@@ -1548,7 +1737,6 @@ export type Database = {
           latitude: number | null
           location_verified: boolean | null
           longitude: number | null
-          management_fee: number | null
           management_scope:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
@@ -1565,11 +1753,13 @@ export type Database = {
           rental_owner_ids: number[] | null
           rental_type: string | null
           reserve: number | null
+          security_deposits: number | null
           service_assignment:
             | Database["public"]["Enums"]["assignment_level"]
             | null
           service_plan: Database["public"]["Enums"]["service_plan_enum"] | null
           state: string | null
+          statement_recipients: Json | null
           status: Database["public"]["Enums"]["property_status"]
           structure_description: string | null
           total_active_units: number
@@ -1587,6 +1777,13 @@ export type Database = {
           address_line1: string
           address_line2?: string | null
           address_line3?: string | null
+          available_balance?: number | null
+          bill_administration?:
+            | Database["public"]["Enums"]["bill_administration_option"][]
+            | null
+          bill_administration_notes?: string | null
+          bill_pay_list?: string | null
+          bill_pay_notes?: string | null
           billing_frequency?:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
@@ -1594,6 +1791,8 @@ export type Database = {
           buildium_created_at?: string | null
           buildium_property_id?: number | null
           buildium_updated_at?: string | null
+          cash_balance?: number | null
+          cash_updated_at?: string | null
           city?: string | null
           country: Database["public"]["Enums"]["countries"]
           created_at?: string
@@ -1601,6 +1800,7 @@ export type Database = {
           fee_assignment?:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
+          fee_dollar_amount?: number | null
           fee_percentage?: number | null
           fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
           id?: string
@@ -1608,7 +1808,6 @@ export type Database = {
           latitude?: number | null
           location_verified?: boolean | null
           longitude?: number | null
-          management_fee?: number | null
           management_scope?:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
@@ -1625,11 +1824,13 @@ export type Database = {
           rental_owner_ids?: number[] | null
           rental_type?: string | null
           reserve?: number | null
+          security_deposits?: number | null
           service_assignment?:
             | Database["public"]["Enums"]["assignment_level"]
             | null
           service_plan?: Database["public"]["Enums"]["service_plan_enum"] | null
           state?: string | null
+          statement_recipients?: Json | null
           status?: Database["public"]["Enums"]["property_status"]
           structure_description?: string | null
           total_active_units?: number
@@ -1647,6 +1848,13 @@ export type Database = {
           address_line1?: string
           address_line2?: string | null
           address_line3?: string | null
+          available_balance?: number | null
+          bill_administration?:
+            | Database["public"]["Enums"]["bill_administration_option"][]
+            | null
+          bill_administration_notes?: string | null
+          bill_pay_list?: string | null
+          bill_pay_notes?: string | null
           billing_frequency?:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
@@ -1654,6 +1862,8 @@ export type Database = {
           buildium_created_at?: string | null
           buildium_property_id?: number | null
           buildium_updated_at?: string | null
+          cash_balance?: number | null
+          cash_updated_at?: string | null
           city?: string | null
           country?: Database["public"]["Enums"]["countries"]
           created_at?: string
@@ -1661,6 +1871,7 @@ export type Database = {
           fee_assignment?:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
+          fee_dollar_amount?: number | null
           fee_percentage?: number | null
           fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
           id?: string
@@ -1668,7 +1879,6 @@ export type Database = {
           latitude?: number | null
           location_verified?: boolean | null
           longitude?: number | null
-          management_fee?: number | null
           management_scope?:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
@@ -1685,11 +1895,13 @@ export type Database = {
           rental_owner_ids?: number[] | null
           rental_type?: string | null
           reserve?: number | null
+          security_deposits?: number | null
           service_assignment?:
             | Database["public"]["Enums"]["assignment_level"]
             | null
           service_plan?: Database["public"]["Enums"]["service_plan_enum"] | null
           state?: string | null
+          statement_recipients?: Json | null
           status?: Database["public"]["Enums"]["property_status"]
           structure_description?: string | null
           total_active_units?: number
@@ -1770,6 +1982,54 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "property_images_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_notes: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          id: string
+          is_private: boolean
+          property_id: string
+          subject: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          is_private?: boolean
+          property_id: string
+          subject: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          is_private?: boolean
+          property_id?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "property_notes_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
@@ -2067,6 +2327,53 @@ export type Database = {
           },
         ]
       }
+      recurring_transactions: {
+        Row: {
+          amount: number
+          buildium_recurring_id: number | null
+          created_at: string | null
+          end_date: string | null
+          frequency: Database["public"]["Enums"]["rent_cycle_enum"]
+          id: string
+          lease_id: number | null
+          memo: string | null
+          start_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          buildium_recurring_id?: number | null
+          created_at?: string | null
+          end_date?: string | null
+          frequency?: Database["public"]["Enums"]["rent_cycle_enum"]
+          id?: string
+          lease_id?: number | null
+          memo?: string | null
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          buildium_recurring_id?: number | null
+          created_at?: string | null
+          end_date?: string | null
+          frequency?: Database["public"]["Enums"]["rent_cycle_enum"]
+          id?: string
+          lease_id?: number | null
+          memo?: string | null
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_transactions_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rent_schedules: {
         Row: {
           backdate_charges: boolean
@@ -2077,6 +2384,7 @@ export type Database = {
           lease_id: number
           rent_cycle: Database["public"]["Enums"]["rent_cycle_enum"]
           start_date: string
+          status: Database["public"]["Enums"]["rent_schedule_status"]
           total_amount: number
           updated_at: string
         }
@@ -2089,6 +2397,7 @@ export type Database = {
           lease_id: number
           rent_cycle: Database["public"]["Enums"]["rent_cycle_enum"]
           start_date: string
+          status?: Database["public"]["Enums"]["rent_schedule_status"]
           total_amount: number
           updated_at: string
         }
@@ -2101,6 +2410,7 @@ export type Database = {
           lease_id?: number
           rent_cycle?: Database["public"]["Enums"]["rent_cycle_enum"]
           start_date?: string
+          status?: Database["public"]["Enums"]["rent_schedule_status"]
           total_amount?: number
           updated_at?: string
         }
@@ -2164,6 +2474,60 @@ export type Database = {
           {
             foreignKeyName: "staff_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      statement_emails: {
+        Row: {
+          created_at: string
+          email_provider_id: string | null
+          error_message: string | null
+          id: string
+          monthly_log_id: string
+          pdf_url: string | null
+          recipients: Json
+          sent_at: string
+          sent_by_user_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          email_provider_id?: string | null
+          error_message?: string | null
+          id?: string
+          monthly_log_id: string
+          pdf_url?: string | null
+          recipients: Json
+          sent_at?: string
+          sent_by_user_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          email_provider_id?: string | null
+          error_message?: string | null
+          id?: string
+          monthly_log_id?: string
+          pdf_url?: string | null
+          recipients?: Json
+          sent_at?: string
+          sent_by_user_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statement_emails_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "statement_emails_sent_by_user_id_fkey"
+            columns: ["sent_by_user_id"]
             isOneToOne: false
             referencedRelation: "users_with_auth"
             referencedColumns: ["user_id"]
@@ -2347,7 +2711,7 @@ export type Database = {
           requested_by_contact_id: number | null
           requested_by_type: string | null
           scheduled_date: string | null
-          status: Database["public"]["Enums"]["transaction_status_enum"]
+          status: string | null
           subject: string
           task_category_id: string | null
           task_kind: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2381,7 +2745,7 @@ export type Database = {
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
           scheduled_date?: string | null
-          status?: Database["public"]["Enums"]["transaction_status_enum"]
+          status?: string | null
           subject: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2415,7 +2779,7 @@ export type Database = {
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
           scheduled_date?: string | null
-          status?: Database["public"]["Enums"]["transaction_status_enum"]
+          status?: string | null
           subject?: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2712,6 +3076,21 @@ export type Database = {
           },
         ]
       }
+      transaction_type_sign: {
+        Row: {
+          sign: number
+          transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
+        }
+        Insert: {
+          sign: number
+          transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
+        }
+        Update: {
+          sign?: number
+          transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           bank_account_id: string | null
@@ -2728,16 +3107,17 @@ export type Database = {
           is_recurring: boolean | null
           lease_id: number | null
           memo: string | null
+          monthly_log_id: string | null
           org_id: string | null
+          paid_date: string | null
           payee_tenant_id: number | null
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt: boolean
-          paid_date: string | null
           recurring_schedule: Json | null
           reference_number: string | null
-          status: string | null
+          status: Database["public"]["Enums"]["transaction_status_enum"]
           total_amount: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at: string
@@ -2758,17 +3138,18 @@ export type Database = {
           is_recurring?: boolean | null
           lease_id?: number | null
           memo?: string | null
+          monthly_log_id?: string | null
           org_id?: string | null
+          paid_date?: string | null
           payee_tenant_id?: number | null
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt?: boolean
-          paid_date?: string | null
           recurring_schedule?: Json | null
           reference_number?: string | null
-          status?: string | null
-          total_amount: number
+          status?: Database["public"]["Enums"]["transaction_status_enum"]
+          total_amount?: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at: string
           vendor_id?: string | null
@@ -2788,16 +3169,17 @@ export type Database = {
           is_recurring?: boolean | null
           lease_id?: number | null
           memo?: string | null
+          monthly_log_id?: string | null
           org_id?: string | null
+          paid_date?: string | null
           payee_tenant_id?: number | null
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
           print_receipt?: boolean
-          paid_date?: string | null
           recurring_schedule?: Json | null
           reference_number?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["transaction_status_enum"]
           total_amount?: number
           transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at?: string
@@ -2826,6 +3208,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transactions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -2843,7 +3232,7 @@ export type Database = {
       }
       unit_images: {
         Row: {
-          buildium_image_id: number
+          buildium_image_id: number | null
           created_at: string
           description: string | null
           file_size: number | null
@@ -2857,7 +3246,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          buildium_image_id: number
+          buildium_image_id?: number | null
           created_at?: string
           description?: string | null
           file_size?: number | null
@@ -2871,7 +3260,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          buildium_image_id?: number
+          buildium_image_id?: number | null
           created_at?: string
           description?: string | null
           file_size?: number | null
@@ -2941,6 +3330,14 @@ export type Database = {
           address_line1: string
           address_line2: string | null
           address_line3: string | null
+          balance: number | null
+          balance_updated_at: string | null
+          bill_administration:
+            | Database["public"]["Enums"]["bill_administration_option"][]
+            | null
+          bill_administration_notes: string | null
+          bill_pay_list: string | null
+          bill_pay_notes: string | null
           building_name: string | null
           buildium_created_at: string | null
           buildium_property_id: number | null
@@ -2949,7 +3346,9 @@ export type Database = {
           city: string | null
           country: Database["public"]["Enums"]["countries"]
           created_at: string
+          deposits_held_balance: number | null
           description: string | null
+          fee_dollar_amount: number | null
           fee_frequency: Database["public"]["Enums"]["FeeFrequency"] | null
           fee_notes: string | null
           fee_percent: number | null
@@ -2957,11 +3356,11 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_inspection_date: string | null
-          management_fee: number | null
           market_rent: number | null
           next_inspection_date: string | null
           org_id: string
           postal_code: string
+          prepayments_balance: number | null
           property_id: string
           service_end: string | null
           service_plan: Database["public"]["Enums"]["ServicePlan"] | null
@@ -2970,8 +3369,8 @@ export type Database = {
           status: Database["public"]["Enums"]["unit_status_enum"]
           unit_bathrooms: Database["public"]["Enums"]["bathroom_enum"] | null
           unit_bedrooms: Database["public"]["Enums"]["bedroom_enum"] | null
+          unit_name: string | null
           unit_number: string
-          unit_name: string
           unit_size: number | null
           unit_type: string | null
           updated_at: string
@@ -2981,6 +3380,14 @@ export type Database = {
           address_line1: string
           address_line2?: string | null
           address_line3?: string | null
+          balance?: number | null
+          balance_updated_at?: string | null
+          bill_administration?:
+            | Database["public"]["Enums"]["bill_administration_option"][]
+            | null
+          bill_administration_notes?: string | null
+          bill_pay_list?: string | null
+          bill_pay_notes?: string | null
           building_name?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
@@ -2989,7 +3396,9 @@ export type Database = {
           city?: string | null
           country: Database["public"]["Enums"]["countries"]
           created_at?: string
+          deposits_held_balance?: number | null
           description?: string | null
+          fee_dollar_amount?: number | null
           fee_frequency?: Database["public"]["Enums"]["FeeFrequency"] | null
           fee_notes?: string | null
           fee_percent?: number | null
@@ -2997,11 +3406,11 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_inspection_date?: string | null
-          management_fee?: number | null
           market_rent?: number | null
           next_inspection_date?: string | null
           org_id: string
           postal_code: string
+          prepayments_balance?: number | null
           property_id: string
           service_end?: string | null
           service_plan?: Database["public"]["Enums"]["ServicePlan"] | null
@@ -3010,8 +3419,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["unit_status_enum"]
           unit_bathrooms?: Database["public"]["Enums"]["bathroom_enum"] | null
           unit_bedrooms?: Database["public"]["Enums"]["bedroom_enum"] | null
+          unit_name?: string | null
           unit_number: string
-          /** unit_name is generated; do not supply on insert */
           unit_size?: number | null
           unit_type?: string | null
           updated_at: string
@@ -3021,6 +3430,14 @@ export type Database = {
           address_line1?: string
           address_line2?: string | null
           address_line3?: string | null
+          balance?: number | null
+          balance_updated_at?: string | null
+          bill_administration?:
+            | Database["public"]["Enums"]["bill_administration_option"][]
+            | null
+          bill_administration_notes?: string | null
+          bill_pay_list?: string | null
+          bill_pay_notes?: string | null
           building_name?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
@@ -3029,7 +3446,9 @@ export type Database = {
           city?: string | null
           country?: Database["public"]["Enums"]["countries"]
           created_at?: string
+          deposits_held_balance?: number | null
           description?: string | null
+          fee_dollar_amount?: number | null
           fee_frequency?: Database["public"]["Enums"]["FeeFrequency"] | null
           fee_notes?: string | null
           fee_percent?: number | null
@@ -3037,11 +3456,11 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_inspection_date?: string | null
-          management_fee?: number | null
           market_rent?: number | null
           next_inspection_date?: string | null
           org_id?: string
           postal_code?: string
+          prepayments_balance?: number | null
           property_id?: string
           service_end?: string | null
           service_plan?: Database["public"]["Enums"]["ServicePlan"] | null
@@ -3050,8 +3469,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["unit_status_enum"]
           unit_bathrooms?: Database["public"]["Enums"]["bathroom_enum"] | null
           unit_bedrooms?: Database["public"]["Enums"]["bedroom_enum"] | null
+          unit_name?: string | null
           unit_number?: string
-          /** unit_name is generated; do not supply on update */
           unit_size?: number | null
           unit_type?: string | null
           updated_at?: string
@@ -3129,9 +3548,7 @@ export type Database = {
           tax_id: string | null
           tax_payer_name1: string | null
           tax_payer_name2: string | null
-          tax_payer_type:
-            | Database["public"]["Enums"]["tax_payer_type"]
-            | null
+          tax_payer_type: Database["public"]["Enums"]["tax_payer_type"] | null
           updated_at: string | null
           vendor_category: string | null
           website: string | null
@@ -3161,9 +3578,7 @@ export type Database = {
           tax_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?:
-            | Database["public"]["Enums"]["tax_payer_type"]
-            | null
+          tax_payer_type?: Database["public"]["Enums"]["tax_payer_type"] | null
           updated_at?: string | null
           vendor_category?: string | null
           website?: string | null
@@ -3193,9 +3608,7 @@ export type Database = {
           tax_id?: string | null
           tax_payer_name1?: string | null
           tax_payer_name2?: string | null
-          tax_payer_type?:
-            | Database["public"]["Enums"]["tax_payer_type"]
-            | null
+          tax_payer_type?: Database["public"]["Enums"]["tax_payer_type"] | null
           updated_at?: string | null
           vendor_category?: string | null
           website?: string | null
@@ -3333,28 +3746,28 @@ export type Database = {
           comment: string | null
           data_type: string | null
           default_value: string | null
-          format: unknown | null
+          format: unknown
           id: string | null
           is_identity: boolean | null
           is_nullable: boolean | null
-          name: unknown | null
+          name: unknown
           ordinal_position: number | null
-          schema: unknown | null
+          schema: unknown
           table_id: number | null
-          table_name: unknown | null
+          table_name: unknown
         }
         Relationships: []
       }
       foreign_key_relationships: {
         Row: {
-          constraint_name: unknown | null
+          constraint_name: unknown
           id: number | null
-          source_column_name: unknown | null
-          source_schema: unknown | null
-          source_table_name: unknown | null
-          target_column_name: unknown | null
-          target_table_name: unknown | null
-          target_table_schema: unknown | null
+          source_column_name: unknown
+          source_schema: unknown
+          source_table_name: unknown
+          target_column_name: unknown
+          target_table_name: unknown
+          target_table_schema: unknown
         }
         Relationships: []
       }
@@ -3363,9 +3776,9 @@ export type Database = {
           idx_scan: number | null
           idx_tup_fetch: number | null
           idx_tup_read: number | null
-          indexname: unknown | null
-          schemaname: unknown | null
-          tablename: unknown | null
+          indexname: unknown
+          schemaname: unknown
+          tablename: unknown
           usage_status: string | null
         }
         Relationships: []
@@ -3379,28 +3792,12 @@ export type Database = {
         }
         Relationships: []
       }
-      lease_documents: {
-        Row: {
-          category: string | null
-          created_at: string | null
-          id: string | null
-          is_private: boolean | null
-          lease_id: number | null
-          mime_type: string | null
-          name: string | null
-          sha256: string | null
-          size_bytes: number | null
-          storage_path: string | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
       primary_keys: {
         Row: {
-          column_name: unknown | null
-          schema: unknown | null
+          column_name: unknown
+          schema: unknown
           table_id: number | null
-          table_name: unknown | null
+          table_name: unknown
         }
         Relationships: []
       }
@@ -3421,10 +3818,10 @@ export type Database = {
           dead_rows_estimate: number | null
           id: number | null
           live_rows_estimate: number | null
-          name: unknown | null
+          name: unknown
           rls_enabled: boolean | null
           rls_forced: boolean | null
-          schema: unknown | null
+          schema: unknown
           size: string | null
         }
         Relationships: []
@@ -3432,25 +3829,10 @@ export type Database = {
       table_sizes: {
         Row: {
           index_size: string | null
-          schemaname: unknown | null
+          schemaname: unknown
           table_size: string | null
-          tablename: unknown | null
+          tablename: unknown
           total_size: string | null
-        }
-        Relationships: []
-      }
-      task_history_files: {
-        Row: {
-          buildium_file_id: number | null
-          created_at: string | null
-          description: string | null
-          file_name: string | null
-          file_size: number | null
-          file_type: string | null
-          file_url: string | null
-          id: string | null
-          task_history_id: string | null
-          updated_at: string | null
         }
         Relationships: []
       }
@@ -3634,19 +4016,22 @@ export type Database = {
           created_at: string | null
           date: string | null
           due_date: string | null
+          email_receipt: boolean | null
           id: string | null
           is_recurring: boolean | null
           lease_id: number | null
           memo: string | null
           org_id: string | null
+          paid_date: string | null
           payee_tenant_id: number | null
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          print_receipt: boolean | null
           recurring_schedule: Json | null
           reference_number: string | null
           rn: number | null
-          status: string | null
+          status: Database["public"]["Enums"]["transaction_status_enum"] | null
           total_amount: number | null
           transaction_type:
             | Database["public"]["Enums"]["transaction_type_enum"]
@@ -3860,21 +4245,6 @@ export type Database = {
           },
         ]
       }
-      work_order_files: {
-        Row: {
-          buildium_file_id: number | null
-          created_at: string | null
-          description: string | null
-          file_name: string | null
-          file_size: number | null
-          file_type: string | null
-          file_url: string | null
-          id: string | null
-          updated_at: string | null
-          work_order_id: string | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       calculate_owner_total_properties: {
@@ -3885,10 +4255,7 @@ export type Database = {
         Args: { owner_uuid: string }
         Returns: number
       }
-      clear_expired_buildium_cache: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
+      clear_expired_buildium_cache: { Args: never; Returns: number }
       count_active_units_for_property: {
         Args: { property_uuid: string }
         Returns: number
@@ -3905,7 +4272,7 @@ export type Database = {
         }[]
       }
       find_duplicate_ownerships: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           count: number
           owner_id: string
@@ -3913,20 +4280,29 @@ export type Database = {
         }[]
       }
       find_duplicate_units: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           count: number
           property_id: string
           unit_number: string
         }[]
       }
-      fn_create_lease_aggregate: {
-        Args: { payload: Json }
-        Returns: Json
+      fn_calculate_transaction_total: {
+        Args: { p_transaction_id: string }
+        Returns: number
       }
+      fn_create_lease_aggregate: { Args: { payload: Json }; Returns: Json }
       fn_create_lease_full: {
         Args: { new_people?: Json; payload: Json }
         Returns: Json
+      }
+      fn_recalculate_property_financials: {
+        Args: { p_property_id: string }
+        Returns: undefined
+      }
+      fn_recalculate_unit_financials: {
+        Args: { p_unit_id: string }
+        Returns: undefined
       }
       generate_display_name: {
         Args: { company_name: string; first_name: string; last_name: string }
@@ -3946,10 +4322,7 @@ export type Database = {
           target_table: string
         }[]
       }
-      get_my_claims: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
+      get_my_claims: { Args: never; Returns: Json }
       get_property_financials: {
         Args: { p_as_of?: string; p_property_id: string }
         Returns: Json
@@ -3974,24 +4347,33 @@ export type Database = {
           total_size: string
         }[]
       }
-      gl_account_activity: {
-        Args:
-          | {
+      gl_account_activity:
+        | {
+            Args: { p_from: string; p_to: string }
+            Returns: {
+              account_number: string
+              credits: number
+              debits: number
+              gl_account_id: string
+              name: string
+              net_change: number
+            }[]
+          }
+        | {
+            Args: {
               p_from: string
               p_gl_account_ids?: string[]
               p_property_id: string
               p_to: string
             }
-          | { p_from: string; p_to: string }
-        Returns: {
-          account_number: string
-          credits: number
-          debits: number
-          gl_account_id: string
-          name: string
-          net_change: number
-        }[]
-      }
+            Returns: {
+              credits: number
+              debits: number
+              gl_account_id: string
+              gl_account_name: string
+              net: number
+            }[]
+          }
       gl_ledger_balance_as_of: {
         Args: {
           p_as_of: string
@@ -4034,60 +4416,44 @@ export type Database = {
         Args: { event_data: Json }
         Returns: undefined
       }
-      is_platform_admin: {
-        Args: { p_user_id?: string }
-        Returns: boolean
-      }
-      is_valid_country: {
-        Args:
-          | { val: Database["public"]["Enums"]["countries"] }
-          | { val: string }
-        Returns: boolean
-      }
-      jwt_custom_claims: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      map_bill_to_buildium: {
-        Args: { p_bill_id: string }
-        Returns: Json
-      }
-      map_owner_to_buildium: {
-        Args: { p_owner_id: string }
-        Returns: Json
-      }
+      is_platform_admin: { Args: { p_user_id?: string }; Returns: boolean }
+      is_valid_country:
+        | {
+            Args: { val: Database["public"]["Enums"]["countries"] }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.is_valid_country(val => text), public.is_valid_country(val => countries). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { val: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.is_valid_country(val => text), public.is_valid_country(val => countries). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+      jwt_custom_claims: { Args: never; Returns: Json }
+      map_bill_to_buildium: { Args: { p_bill_id: string }; Returns: Json }
+      map_owner_to_buildium: { Args: { p_owner_id: string }; Returns: Json }
       map_property_to_buildium: {
         Args: { p_property_id: string }
         Returns: Json
       }
-      map_task_to_buildium: {
-        Args: { p_task_id: string }
-        Returns: Json
-      }
-      map_unit_to_buildium: {
-        Args: { p_unit_id: string }
-        Returns: Json
-      }
-      map_vendor_to_buildium: {
-        Args: { p_vendor_id: string }
-        Returns: Json
-      }
+      map_task_to_buildium: { Args: { p_task_id: string }; Returns: Json }
+      map_unit_to_buildium: { Args: { p_unit_id: string }; Returns: Json }
+      map_vendor_to_buildium: { Args: { p_vendor_id: string }; Returns: Json }
       map_work_order_to_buildium: {
         Args: { p_work_order_id: string }
         Returns: Json
       }
-      normalize_country: {
-        Args: { val: string }
-        Returns: string
-      }
+      normalize_country: { Args: { val: string }; Returns: string }
       process_buildium_webhook_event: {
         Args: { p_event_data: Json; p_event_id: string; p_event_type: string }
         Returns: boolean
       }
-      refresh_schema_cache: {
-        Args: Record<PropertyKey, never>
+      reconcile_monthly_log_balance: {
+        Args: { p_monthly_log_id: string }
         Returns: undefined
       }
+      refresh_schema_cache: { Args: never; Returns: undefined }
       set_buildium_api_cache: {
         Args: {
           p_cache_duration_minutes?: number
@@ -4105,14 +4471,8 @@ export type Database = {
         }
         Returns: undefined
       }
-      update_all_owners_total_fields: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      update_all_properties_total_units: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      update_all_owners_total_fields: { Args: never; Returns: undefined }
+      update_all_properties_total_units: { Args: never; Returns: undefined }
       update_buildium_sync_status: {
         Args: {
           p_buildium_id: number
@@ -4192,19 +4552,18 @@ export type Database = {
         | "7"
         | "8"
         | "9+"
+      bill_administration_option:
+        | "Property Tax"
+        | "Building Charges"
+        | "Insurance"
+        | "Utilities"
+        | "Other"
       billing_frequency_enum: "Annual" | "Monthly"
       buildium_bank_account_type:
         | "Checking"
         | "Savings"
         | "MoneyMarket"
         | "CertificateOfDeposit"
-      transaction_status_enum:
-        | ""
-        | "Overdue"
-        | "Due"
-        | "Partially paid"
-        | "Paid"
-        | "Cancelled"
       buildium_bill_status:
         | "Pending"
         | "Paid"
@@ -4468,14 +4827,34 @@ export type Database = {
         | "Yemen"
         | "Zambia"
         | "Zimbabwe"
+      dr_cr_enum: "DR" | "CR"
       entity_type_enum: "Rental" | "Company"
+      files_entity_type_enum:
+        | "Properties"
+        | "Units"
+        | "Leases"
+        | "Tenants"
+        | "Rental Owners"
+        | "Associations"
+        | "Association Owners"
+        | "Association Units"
+        | "Ownership Accounts"
+        | "Accounts"
+        | "Vendors"
       etf_account_type_enum: "Checking" | "Saving"
       fee_type_enum: "Percentage" | "Flat Rate"
       FeeFrequency: "Monthly" | "Annually"
       FeeType: "Percentage" | "Flat Rate"
+      gl_category:
+        | "receivable"
+        | "prepayment"
+        | "deposit"
+        | "income"
+        | "expense"
+        | "other"
       inspection_status_enum: "Scheduled" | "Completed"
       inspection_type_enum: "Periodic" | "Move-In" | "Move-Out"
-      lease_contact_role_enum: "Tenant" | "Cosigner"
+      lease_contact_role_enum: "Tenant" | "Cosigner" | "Guarantor"
       lease_contact_status_enum: "Future" | "Active" | "Past"
       management_services_enum:
         | "Rent Collection"
@@ -4485,6 +4864,15 @@ export type Database = {
         | "Bill Pay"
         | "Condition Reports"
         | "Renewals"
+      monthly_log_stage:
+        | "charges"
+        | "payments"
+        | "bills"
+        | "escrow"
+        | "management_fees"
+        | "owner_statements"
+        | "owner_distributions"
+      monthly_log_status: "pending" | "complete"
       onboarding_status_enum:
         | "IN_PROGRESS"
         | "PENDING_APPROVAL"
@@ -4521,6 +4909,7 @@ export type Database = {
         | "Daily"
         | "Every6Months"
         | "OneTime"
+      rent_schedule_status: "Past" | "Current" | "Future"
       service_plan_enum: "Full" | "Basic" | "A-la-carte"
       ServicePlan: "Full" | "Basic" | "A-la-carte"
       staff_role:
@@ -4537,14 +4926,42 @@ export type Database = {
         | "Accountant"
         | "Administrator"
       sync_source_enum: "local" | "buildium"
-      tax_payer_type: "SSN" | "EIN"
       task_kind_enum: "owner" | "resident" | "contact" | "todo" | "other"
+      tax_payer_type: "SSN" | "EIN"
+      transaction_status_enum:
+        | ""
+        | "Overdue"
+        | "Due"
+        | "Partially paid"
+        | "Paid"
+        | "Cancelled"
       transaction_type_enum:
         | "Bill"
         | "Charge"
         | "Credit"
         | "Payment"
         | "JournalEntry"
+        | "Check"
+        | "Refund"
+        | "ApplyDeposit"
+        | "ElectronicFundsTransfer"
+        | "Other"
+        | "Deposit"
+        | "GeneralJournalEntry"
+        | "OwnerContribution"
+        | "ReversePayment"
+        | "ReverseElectronicFundsTransfer"
+        | "VendorCredit"
+        | "RentalApplicationFeePayment"
+        | "ReverseRentalApplicationFeePayment"
+        | "ReverseOwnerContribution"
+        | "VendorRefund"
+        | "UnreversedPayment"
+        | "UnreversedElectronicFundsTransfer"
+        | "UnreversedOwnerContribution"
+        | "UnreversedRentalApplicationFeePayment"
+        | "ReversedEftRefund"
+      txn_type_enum: "Charge" | "Payment" | "Adjustment" | "Refund"
       unit_status_enum: "Occupied" | "Vacant" | "Inactive"
     }
     CompositeTypes: {
@@ -4710,6 +5127,13 @@ export const Constants = {
         "5+",
       ],
       bedroom_enum: ["Studio", "1", "2", "3", "4", "5+", "6", "7", "8", "9+"],
+      bill_administration_option: [
+        "Property Tax",
+        "Building Charges",
+        "Insurance",
+        "Utilities",
+        "Other",
+      ],
       billing_frequency_enum: ["Annual", "Monthly"],
       buildium_bank_account_type: [
         "Checking",
@@ -4988,14 +5412,23 @@ export const Constants = {
         "Zambia",
         "Zimbabwe",
       ],
+      dr_cr_enum: ["DR", "CR"],
       entity_type_enum: ["Rental", "Company"],
       etf_account_type_enum: ["Checking", "Saving"],
       fee_type_enum: ["Percentage", "Flat Rate"],
       FeeFrequency: ["Monthly", "Annually"],
       FeeType: ["Percentage", "Flat Rate"],
+      gl_category: [
+        "receivable",
+        "prepayment",
+        "deposit",
+        "income",
+        "expense",
+        "other",
+      ],
       inspection_status_enum: ["Scheduled", "Completed"],
       inspection_type_enum: ["Periodic", "Move-In", "Move-Out"],
-      lease_contact_role_enum: ["Tenant", "Cosigner"],
+      lease_contact_role_enum: ["Tenant", "Cosigner", "Guarantor"],
       lease_contact_status_enum: ["Future", "Active", "Past"],
       management_services_enum: [
         "Rent Collection",
@@ -5006,6 +5439,16 @@ export const Constants = {
         "Condition Reports",
         "Renewals",
       ],
+      monthly_log_stage: [
+        "charges",
+        "payments",
+        "bills",
+        "escrow",
+        "management_fees",
+        "owner_statements",
+        "owner_distributions",
+      ],
+      monthly_log_status: ["pending", "complete"],
       onboarding_status_enum: [
         "IN_PROGRESS",
         "PENDING_APPROVAL",
@@ -5047,6 +5490,7 @@ export const Constants = {
         "Every6Months",
         "OneTime",
       ],
+      rent_schedule_status: ["Past", "Current", "Future"],
       service_plan_enum: ["Full", "Basic", "A-la-carte"],
       ServicePlan: ["Full", "Basic", "A-la-carte"],
       staff_role: [
@@ -5066,13 +5510,43 @@ export const Constants = {
       ],
       sync_source_enum: ["local", "buildium"],
       task_kind_enum: ["owner", "resident", "contact", "todo", "other"],
+      tax_payer_type: ["SSN", "EIN"],
+      transaction_status_enum: [
+        "",
+        "Overdue",
+        "Due",
+        "Partially paid",
+        "Paid",
+        "Cancelled",
+      ],
       transaction_type_enum: [
         "Bill",
         "Charge",
         "Credit",
         "Payment",
         "JournalEntry",
+        "Check",
+        "Refund",
+        "ApplyDeposit",
+        "ElectronicFundsTransfer",
+        "Other",
+        "Deposit",
+        "GeneralJournalEntry",
+        "OwnerContribution",
+        "ReversePayment",
+        "ReverseElectronicFundsTransfer",
+        "VendorCredit",
+        "RentalApplicationFeePayment",
+        "ReverseRentalApplicationFeePayment",
+        "ReverseOwnerContribution",
+        "VendorRefund",
+        "UnreversedPayment",
+        "UnreversedElectronicFundsTransfer",
+        "UnreversedOwnerContribution",
+        "UnreversedRentalApplicationFeePayment",
+        "ReversedEftRefund",
       ],
+      txn_type_enum: ["Charge", "Payment", "Adjustment", "Refund"],
       unit_status_enum: ["Occupied", "Vacant", "Inactive"],
     },
   },

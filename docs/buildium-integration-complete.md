@@ -77,6 +77,7 @@ RESTful conventions:
 - `GET /api/buildium/leases` - List leases
 - `GET /api/buildium/leases/[id]` - Get lease details
 - `GET /api/buildium/leases/[id]/transactions` - Get lease transactions
+- `POST /api/buildium/leases/[id]/payments` - Create lease payment
 
 ### Webhook Endpoints
 

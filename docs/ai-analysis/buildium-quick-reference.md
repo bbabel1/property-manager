@@ -121,6 +121,7 @@ docs/
 - `GET /api/buildium/leases` - List leases
 - `GET /api/buildium/leases/[id]` - Get lease details
 - `GET /api/buildium/leases/[id]/transactions` - Get transactions
+- `POST /api/buildium/leases/[id]/payments` - Create lease payment
 - `POST /api/buildium/leases` - Create lease
 
 ### Bank Accounts

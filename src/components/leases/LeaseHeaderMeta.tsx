@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import InlineEditCard from '@/components/form/InlineEditCard'
 import EditLink from '@/components/ui/EditLink'
+import { DateInput } from '@/components/ui/date-input'
 
 function toInputDate(d?: string | null) {
   if (!d) return ''
@@ -74,11 +75,16 @@ export default function LeaseHeaderMeta({
         headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) },
         body: JSON.stringify(body)
       })
-      if (!res.ok) {
-        const j = await res.json().catch(() => null as any)
-        throw new Error(j?.error || `Failed to update lease: HTTP ${res.status}`)
+      const updated = await res.json().catch(() => null as any)
+      if (!res.ok || !updated) {
+        throw new Error(updated?.error || `Failed to update lease: HTTP ${res.status}`)
       }
-      window.location.reload()
+      setStatus(updated.status ?? status)
+      const nextType = updated.term_type || updated.lease_type || type
+      setType(nextType || '')
+      setFrom(toInputDate(updated.lease_from_date ?? updated.start_date ?? from))
+      setTo(toInputDate(updated.lease_to_date ?? updated.end_date ?? to))
+      setEditing(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save lease')
     } finally {
@@ -147,11 +153,23 @@ export default function LeaseHeaderMeta({
                   </div>
                   <div className="space-y-2 min-w-[10rem] w-40">
                     <label className="block text-[11px] tracking-wide font-semibold text-muted-foreground uppercase mb-1">Start</label>
-                    <input type="date" placeholder="mm/dd/yyyy" value={from} onChange={(e)=>setFrom(e.target.value)} className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" />
+                    <DateInput
+                      value={from}
+                      onChange={setFrom}
+                      placeholder="mm/dd/yyyy"
+                      containerClassName="w-full"
+                      className="text-sm"
+                    />
                   </div>
                   <div className="space-y-2 min-w-[10rem] w-40">
                     <label className="block text-[11px] tracking-wide font-semibold text-muted-foreground uppercase mb-1">End</label>
-                    <input type="date" placeholder="mm/dd/yyyy" value={to} onChange={(e)=>setTo(e.target.value)} className="w-full h-9 px-2 border border-border rounded-md bg-background text-foreground text-sm" />
+                    <DateInput
+                      value={to}
+                      onChange={setTo}
+                      placeholder="mm/dd/yyyy"
+                      containerClassName="w-full"
+                      className="text-sm"
+                    />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">

@@ -98,14 +98,14 @@ export class BuildiumEndpointValidator {
       // Leases - CRITICAL
       {
         name: 'List Leases',
-        endpoint: '/leases',
+        endpoint: '/rentals/leases',
         method: 'GET',
         expectedStatus: [200],
         critical: true
       },
       {
         name: 'Get Lease by ID',
-        endpoint: '/leases/16235', // Use known test lease
+        endpoint: '/rentals/leases/16235', // Use known test lease
         method: 'GET',
         expectedStatus: [200, 404],
         critical: true

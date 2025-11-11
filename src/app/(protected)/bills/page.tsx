@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import BillsFilters from '@/components/financials/BillsFilters';
 import BillRowActions from '@/components/financials/BillRowActions';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +17,7 @@ import { cn } from '@/components/ui/utils';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import BillsTabSwitcher from '@/components/financials/BillsTabSwitcher';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 
 type Option = { id: string; label: string };
 type SearchParams = {
@@ -136,11 +139,7 @@ function formatCurrency(amount?: number | null) {
   return currencyFormatter.format(Number(amount));
 }
 
-export default async function BillsPage({
-  searchParams,
-}: {
-  searchParams?: Promise<SearchParams> | SearchParams;
-}) {
+export default async function BillsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const db = supabaseAdmin || supabase;
   const sp = (await (searchParams || Promise.resolve({}))) as Record<string, string | undefined>;
 
@@ -277,16 +276,17 @@ export default async function BillsPage({
   const defaultStatusSlugsForFilters = statusParamSlugs.length
     ? statusParamSlugs
     : currentTab === 'paid'
-    ? [...paidDefaultStatusSlugs]
-    : unpaidDefaultStatusSlugs;
+      ? [...paidDefaultStatusSlugs]
+      : unpaidDefaultStatusSlugs;
 
   const propertyByTransaction = new Map<string, string>();
+  const amountByTransaction = new Map<string, number>();
   const transactionIds: string[] = [];
 
   if (selectedPropertyIds.length) {
     let qLine = (db as any)
       .from('transaction_lines')
-      .select('transaction_id, property_id, unit_id');
+      .select('transaction_id, property_id, unit_id, amount, posting_type');
     if (propertyFilterIds) qLine = qLine.in('property_id', propertyFilterIds);
     if (unitFilterIds) qLine = qLine.in('unit_id', unitFilterIds);
 
@@ -299,6 +299,12 @@ export default async function BillsPage({
       if (line?.property_id != null && !propertyByTransaction.has(txId)) {
         propertyByTransaction.set(txId, String(line.property_id));
       }
+      const postingType = String(line?.posting_type || '').toLowerCase();
+      if (postingType === 'credit') continue;
+      const rawAmount = Number(line?.amount ?? 0);
+      if (!Number.isFinite(rawAmount)) continue;
+      const amount = Math.abs(rawAmount);
+      amountByTransaction.set(txId, (amountByTransaction.get(txId) ?? 0) + amount);
     }
     transactionIds.push(...txIdSet);
   }
@@ -327,7 +333,16 @@ export default async function BillsPage({
       if (derived !== current) {
         statusUpdates.push({ id: row.id, status: derived });
       }
-      return { ...row, status: derived } as BillRowRecord;
+      const txId = String(row.id);
+      const storedAmount = Number(row.total_amount);
+      const hasStoredAmount = Number.isFinite(storedAmount) && storedAmount > 0;
+      const computedAmount = amountByTransaction.get(txId);
+      const finalAmount = hasStoredAmount
+        ? storedAmount
+        : Number.isFinite(computedAmount) && computedAmount !== undefined
+          ? computedAmount
+          : 0;
+      return { ...row, status: derived, total_amount: finalAmount } as BillRowRecord;
     });
 
     if (statusUpdates.length) {
@@ -342,10 +357,17 @@ export default async function BillsPage({
       }
     }
 
-    rowsWithProperties = enrichedRows.map((row) => ({
-      ...row,
-      property_id: propertyByTransaction.get(String(row.id)) || null,
-    }));
+    rowsWithProperties = enrichedRows.map((row: BillRowRecord) => {
+      const txId = String(row.id);
+      return {
+        ...row,
+        property_id: propertyByTransaction.get(txId) || null,
+        total_amount:
+          row.total_amount ??
+          amountByTransaction.get(txId) ??
+          0,
+      };
+    });
   }
 
   const filteredRows = hasExplicitStatusFilters
@@ -360,22 +382,7 @@ export default async function BillsPage({
 
   const renderTabPanel = (rows: BillRowRecord[]) => (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button">Record bill</Button>
-          <Button type="button" variant="outline">
-            Pay bills
-          </Button>
-          <Button type="button" variant="outline">
-            Request owner contribution
-          </Button>
-          <Button type="button" variant="outline">
-            Approve in bulk
-          </Button>
-        </div>
-      </div>
-
-      <Card className="border border-border shadow-sm">
+      <Card className="border-border/70 border shadow-sm">
         <CardContent className="space-y-4 p-6">
           <div className="flex flex-wrap items-end gap-4">
             <BillsFilters
@@ -391,16 +398,13 @@ export default async function BillsPage({
 
           <div className="border-border overflow-hidden rounded-lg border shadow-sm">
             <Table className="text-sm">
-              <TableHeader className="bg-muted/60">
+              <TableHeader>
                 <TableRow className="border-border border-b">
                   <TableHead className="text-muted-foreground w-[12rem]">Due date</TableHead>
                   <TableHead className="text-muted-foreground w-[16rem]">Property</TableHead>
                   <TableHead className="text-muted-foreground w-[16rem]">Vendors</TableHead>
                   <TableHead className="text-muted-foreground">Memo</TableHead>
                   <TableHead className="text-muted-foreground w-[10rem]">Ref No.</TableHead>
-                  <TableHead className="text-muted-foreground w-[12rem]">
-                    Approval status
-                  </TableHead>
                   <TableHead className="text-muted-foreground w-[10rem] text-right">
                     Amount
                   </TableHead>
@@ -410,7 +414,7 @@ export default async function BillsPage({
               <TableBody className="divide-border divide-y">
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-muted-foreground py-6 text-center">
+                    <TableCell colSpan={7} className="text-muted-foreground py-6 text-center">
                       We didn't find any bills. Maybe you don't have any or maybe you need to clear
                       your filters.
                     </TableCell>
@@ -444,12 +448,15 @@ export default async function BillsPage({
                         </TableCell>
                         <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
                         <TableCell>{row.reference_number || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">—</TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(row.total_amount ? Number(row.total_amount) : 0)}
+                          {formatCurrency(
+                            Number.isFinite(Number(row.total_amount))
+                              ? Number(row.total_amount)
+                              : 0,
+                          )}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <BillRowActions />
+                        <TableCell className="text-right" data-row-link-ignore="true">
+                          <BillRowActions billId={String(row.id)} />
                         </TableCell>
                       </TableRowLink>
                     );
@@ -464,24 +471,31 @@ export default async function BillsPage({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-foreground text-2xl font-semibold">Bills</h1>
-          <p className="text-muted-foreground text-sm">
-            Monitor vendor bills and track outstanding balances.
-          </p>
-        </div>
-      </div>
-
-      <BillsTabSwitcher
-        className="space-y-6"
-        initialTab={currentTab}
-        unpaidDefaults={unpaidDefaultStatusSlugs}
-        paidDefaults={Array.from(paidDefaultStatusSlugs)}
-        unpaidContent={renderTabPanel(unpaidRows)}
-        paidContent={renderTabPanel(paidRows)}
+    <PageShell>
+      <PageHeader
+        title="Bills"
+        description="Monitor vendor bills and track outstanding balances."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" asChild>
+              <Link href="/bills/new">Record bill</Link>
+            </Button>
+            <Button type="button" size="sm" variant="outline">
+              Pay bills
+            </Button>
+          </div>
+        }
       />
-    </div>
+      <PageBody>
+        <BillsTabSwitcher
+          className="space-y-6"
+          initialTab={currentTab}
+          unpaidDefaults={unpaidDefaultStatusSlugs}
+          paidDefaults={Array.from(paidDefaultStatusSlugs)}
+          unpaidContent={renderTabPanel(unpaidRows)}
+          paidContent={renderTabPanel(paidRows)}
+        />
+      </PageBody>
+    </PageShell>
   );
 }

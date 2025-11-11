@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getServerSupabaseClient } from '@/lib/supabase-client'
+import { requireAuth } from '@/lib/auth/guards'
+import { hasSupabaseAdmin } from '@/lib/supabase-client'
 import { PAYMENT_METHOD_VALUES } from '@/lib/enums/payment-method'
+import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
+import { LeaseTransactionService } from '@/lib/lease-transaction-service'
+import {
+  buildLinesFromAllocations,
+  fetchBuildiumGlAccountMap,
+  fetchLeaseContextById,
+  fetchTransactionWithLines,
+  mapPaymentMethodToBuildium,
+  coerceTenantIdentifier,
+  amountsRoughlyEqual
+} from '@/lib/lease-transaction-helpers'
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1),
@@ -31,75 +43,87 @@ export async function POST(
     return NextResponse.json({ error: issue?.message ?? 'Invalid payload' }, { status: 400 })
   }
 
-  const supabase = getServerSupabaseClient('payments:create')
-
-  const now = new Date().toISOString()
-  const tenantIdNumber = parsed.data.resident_id ? Number(parsed.data.resident_id) : null
-  const payeeTenantId = Number.isFinite(tenantIdNumber) ? tenantIdNumber : null
-
-  // Load lease for org + Buildium context
-  const { data: leaseRow } = await supabase
-    .from('lease')
-    .select('id, org_id, property_id, unit_id, buildium_lease_id, buildium_property_id, buildium_unit_id')
-    .eq('id', leaseId)
-    .maybeSingle()
-
-  const transactionInsert = {
-    date: parsed.data.date,
-    transaction_type: 'Payment',
-    total_amount: parsed.data.amount,
-    payment_method: parsed.data.payment_method as any,
-    memo: parsed.data.memo ?? null,
-    lease_id: leaseId,
-    org_id: leaseRow?.org_id ?? null,
-    buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-    payee_tenant_id: payeeTenantId,
-    email_receipt: Boolean(parsed.data.send_email),
-    print_receipt: Boolean(parsed.data.print_receipt),
-    created_at: now,
-    updated_at: now,
-  }
-
-  const { data: transaction, error: transactionError } = await supabase
-    .from('transactions')
-    .insert(transactionInsert as any)
-    .select()
-    .maybeSingle()
-
-  if (transactionError || !transaction) {
-    return NextResponse.json({ error: transactionError?.message || 'Failed to record payment' }, { status: 500 })
-  }
-
-  const linePayloads = parsed.data.allocations
-    .filter((line) => Boolean(line.account_id))
-    .map((line) => ({
-      transaction_id: transaction.id,
-      gl_account_id: line.account_id,
-      amount: line.amount,
-      posting_type: 'Credit',
-      account_entity_type: 'Rental' as any,
-      account_entity_id: leaseRow?.buildium_property_id ?? null,
-      date: parsed.data.date,
-      lease_id: leaseId,
-      property_id: leaseRow?.property_id ?? null,
-      unit_id: leaseRow?.unit_id ?? null,
-      buildium_unit_id: leaseRow?.buildium_unit_id ?? null,
-      buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-      created_at: now,
-      updated_at: now,
-    }))
-
-  let lines = [] as any[]
-  if (linePayloads.length) {
-    const { data: insertedLines, error: lineError } = await supabase
-      .from('transaction_lines')
-      .insert(linePayloads)
-      .select()
-    if (lineError) {
-      return NextResponse.json({ error: lineError.message || 'Failed to record payment lines' }, { status: 500 })
+  try {
+    if (!hasSupabaseAdmin()) {
+      await requireAuth()
     }
-    lines = insertedLines ?? []
-  }
 
-  return NextResponse.json({ data: { transaction, lines } }, { status: 201 })
+    const totalAllocated = parsed.data.allocations.reduce((sum, line) => sum + line.amount, 0)
+    if (!amountsRoughlyEqual(totalAllocated, parsed.data.amount)) {
+      return NextResponse.json({ error: 'Allocated amounts must equal the payment amount' }, { status: 400 })
+    }
+
+    const leaseContext = await fetchLeaseContextById(leaseId)
+    const glAccountMap = await fetchBuildiumGlAccountMap(
+      parsed.data.allocations.map((line) => line.account_id)
+    )
+    const lines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const payeeTenantId = coerceTenantIdentifier(parsed.data.resident_id ?? null)
+    const residentProvided =
+      typeof parsed.data.resident_id === 'string' && parsed.data.resident_id.trim().length > 0
+    if (residentProvided && payeeTenantId == null) {
+      return NextResponse.json(
+        { error: 'Selected tenant is missing a Buildium tenant ID. Update the tenant record before recording a payment.' },
+        { status: 422 }
+      )
+    }
+
+    const buildiumPayload: BuildiumLeaseTransactionCreate = {
+      TransactionType: 'Payment',
+      TransactionDate: parsed.data.date,
+      Amount: parsed.data.amount,
+      Memo: parsed.data.memo ?? undefined,
+      PaymentMethod: mapPaymentMethodToBuildium(parsed.data.payment_method),
+      PayeeTenantId: payeeTenantId,
+      SendEmailReceipt: Boolean(parsed.data.send_email),
+      PrintReceipt: Boolean(parsed.data.print_receipt),
+      Lines: lines,
+    }
+
+    const result = await LeaseTransactionService.createInBuildiumAndDB(
+      leaseContext.buildiumLeaseId,
+      buildiumPayload
+    )
+
+    let normalized: any = null
+    let responseLines: any[] = []
+    if (result.localId) {
+      const record = await fetchTransactionWithLines(result.localId)
+      if (record) {
+        normalized = record.transaction
+        responseLines = record.lines ?? []
+      }
+    }
+
+    if (!normalized) {
+      normalized = {
+        id: result.localId ?? result.buildium?.Id ?? null,
+        transaction_type: result.buildium?.TransactionTypeEnum || result.buildium?.TransactionType || 'Payment',
+        total_amount: result.buildium?.TotalAmount ?? result.buildium?.Amount ?? parsed.data.amount,
+        date: result.buildium?.Date ?? result.buildium?.TransactionDate ?? parsed.data.date,
+        memo: result.buildium?.Memo ?? parsed.data.memo ?? null,
+        lease_id: leaseContext.leaseId,
+        buildium_transaction_id: result.buildium?.Id ?? null,
+      }
+      responseLines = lines
+    }
+
+    return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })
+  } catch (error) {
+    console.error('Error creating lease payment:', error)
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (
+        error.message === 'Lease not found' ||
+        error.message === 'Lease is missing Buildium identifier' ||
+        error.message.includes('Buildium mapping')
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 422 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 502 })
+    }
+    return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 })
+  }
 }

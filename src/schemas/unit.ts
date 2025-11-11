@@ -41,7 +41,7 @@ export const UnitCreateSchema = z.object({
   // Fee management
   feeType: FeeTypeEnum.optional(),
   feePercent: z.number().min(0).max(100).optional(),
-  managementFee: z.number().min(0).optional(),
+  feeDollarAmount: z.number().min(0).optional(),
   feeFrequency: FeeFrequencyEnum.optional(),
   activeServices: z.string().max(500).optional(),
   feeNotes: z.string().max(1000).optional(),

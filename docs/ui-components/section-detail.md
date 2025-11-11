@@ -84,6 +84,16 @@ import { ContactInfoSection } from '@/components/ui/section-detail';
 | `editing`   | `boolean`               | `false` | Edit mode state                                       |
 | `className` | `string`                | `""`    | Additional CSS classes                                |
 
+### AddressObject
+
+| Prop     | Type     | Default | Description                       |
+| -------- | -------- | ------- | --------------------------------- |
+| `line1`  | `string` | -       | Primary address line              |
+| `line2`  | `string` | -       | Secondary address line (optional) |
+| `city`   | `string` | -       | City name                         |
+| `state`  | `string` | -       | State or province                 |
+| `postal` | `string` | -       | Postal or ZIP code                |
+
 ## Examples
 
 ### Different Column Layouts
@@ -217,5 +227,3 @@ The component uses Tailwind CSS classes and follows the design system:
 - Semantic HTML structure with proper headings
 - Keyboard navigation support
 - Screen reader friendly field labels and values
-
-

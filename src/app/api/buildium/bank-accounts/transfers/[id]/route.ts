@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const transferId = params.id;
+    const transferId = (await params).id;
     
     logger.info({ userId: user.id, transferId, action: 'get_buildium_transfer' }, 'Fetching Buildium transfer details');
 
@@ -41,7 +38,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, transferId: params.id }, 'Error fetching Buildium transfer details');
+    logger.error({ error, transferId: (await params).id }, 'Error fetching Buildium transfer details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium transfer details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -49,14 +46,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const transferId = params.id;
+    const transferId = (await params).id;
     
     logger.info({ userId: user.id, transferId, action: 'update_buildium_transfer' }, 'Updating Buildium transfer');
 
@@ -93,7 +87,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, transferId: params.id }, 'Error updating Buildium transfer');
+    logger.error({ error, transferId: (await params).id }, 'Error updating Buildium transfer');
     return NextResponse.json(
       { error: 'Failed to update Buildium transfer', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

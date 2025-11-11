@@ -1,18 +1,32 @@
-'use client'
+'use client';
 
-import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { Briefcase, Mail, Smartphone, type LucideIcon } from 'lucide-react'
+import Link from 'next/link';
+import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Briefcase, Mail, Smartphone, type LucideIcon } from 'lucide-react';
 
-import EditFormPanel from '@/components/form/EditFormPanel'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { NavTabs, NavTabsHeader, NavTabsList, NavTabsTrigger, NavTabsContent } from '@/components/ui/nav-tabs'
+import EditFormPanel from '@/components/form/EditFormPanel';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  NavTabs,
+  NavTabsHeader,
+  NavTabsList,
+  NavTabsTrigger,
+  NavTabsContent,
+} from '@/components/ui/nav-tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -20,119 +34,128 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { cn } from '@/components/ui/utils'
-import type { Database } from '@/types/database'
+} from '@/components/ui/table';
+import { cn } from '@/components/ui/utils';
+import type { Database } from '@/types/database';
 
-type ContactRow = Database['public']['Tables']['contacts']['Row']
-type VendorCategoryRow = Database['public']['Tables']['vendor_categories']['Row']
+type ContactRow = Database['public']['Tables']['contacts']['Row'];
+type VendorCategoryRow = Database['public']['Tables']['vendor_categories']['Row'];
+
+type TaxPayerType = 'SSN' | 'EIN' | '';
+
+const TAX_PAYER_TYPE_OPTIONS = [
+  { value: 'SSN', label: 'SSN (Social Security Number)' },
+  { value: 'EIN', label: 'EIN (Employer Identification Number)' },
+] as const;
+
+const TAXPAYER_TYPE_UNSPECIFIED_OPTION_VALUE = '__taxpayer_type_unspecified__';
 
 type CategoryOption = {
-  id: string
-  name: string
-}
+  id: string;
+  name: string;
+};
 
 type VendorDetails = {
-  id: string
-  buildium_vendor_id: number | null
-  vendor_category: string | null
-  contact_id: number | null
-  is_active: boolean
-  account_number: string | null
-  expense_gl_account_id: number | null
-  website: string | null
-  notes: string | null
-  include_1099: boolean | null
-  tax_id: string | null
-  tax_payer_name1: string | null
-  tax_payer_name2: string | null
-  tax_payer_type: string | null
-  tax_address_line1: string | null
-  tax_address_line2: string | null
-  tax_address_line3: string | null
-  tax_address_city: string | null
-  tax_address_state: string | null
-  tax_address_postal_code: string | null
-  tax_address_country: string | null
-  insurance_provider: string | null
-  insurance_policy_number: string | null
-  insurance_expiration_date: string | null
-  contact: (ContactRow & { is_company?: boolean | null }) | null
-  category: Pick<VendorCategoryRow, 'id' | 'name'> | null
-}
+  id: string;
+  buildium_vendor_id: number | null;
+  vendor_category: string | null;
+  contact_id: number | null;
+  is_active: boolean;
+  account_number: string | null;
+  expense_gl_account_id: number | null;
+  website: string | null;
+  notes: string | null;
+  include_1099: boolean | null;
+  tax_id: string | null;
+  tax_payer_name1: string | null;
+  tax_payer_name2: string | null;
+  tax_payer_type: string | null;
+  tax_address_line1: string | null;
+  tax_address_line2: string | null;
+  tax_address_line3: string | null;
+  tax_address_city: string | null;
+  tax_address_state: string | null;
+  tax_address_postal_code: string | null;
+  tax_address_country: string | null;
+  insurance_provider: string | null;
+  insurance_policy_number: string | null;
+  insurance_expiration_date: string | null;
+  contact: (ContactRow & { is_company?: boolean | null }) | null;
+  category: Pick<VendorCategoryRow, 'id' | 'name'> | null;
+};
 
 type ExpenseAccountOption = {
-  id: number
-  name: string
-  accountNumber: string | null
-}
+  id: number;
+  name: string;
+  accountNumber: string | null;
+};
 
 export type RecentVendorWorkOrder = {
-  id: string
-  subject: string
-  status: string | null
-  priority: string | null
-  scheduledDate: string | null
-  updatedAt: string | null
-  propertyId: string | null
-  propertyName: string | null
-}
+  id: string;
+  subject: string;
+  status: string | null;
+  priority: string | null;
+  scheduledDate: string | null;
+  updatedAt: string | null;
+  propertyId: string | null;
+  propertyName: string | null;
+};
 
 type VendorsDetailsClientProps = {
-  vendor: VendorDetails
-  categories: CategoryOption[]
-  expenseAccounts: ExpenseAccountOption[]
-  recentWorkOrders: RecentVendorWorkOrder[]
-}
+  vendor: VendorDetails;
+  categories: CategoryOption[];
+  expenseAccounts: ExpenseAccountOption[];
+  recentWorkOrders: RecentVendorWorkOrder[];
+};
 
 type EditFormState = {
-  firstName: string
-  lastName: string
-  companyName: string
-  categoryId: string | null
-  accountNumber: string
-  expenseAccountId: string
-  website: string
-  notes: string
-  phone: string
-  workPhone: string
-  email: string
-  addressLine1: string
-  addressLine2: string
-  addressCity: string
-  addressState: string
-  addressPostalCode: string
-}
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  categoryId: string | null;
+  accountNumber: string;
+  expenseAccountId: string;
+  website: string;
+  notes: string;
+  phone: string;
+  workPhone: string;
+  email: string;
+  addressLine1: string;
+  addressLine2: string;
+  addressCity: string;
+  addressState: string;
+  addressPostalCode: string;
+};
 
 type TaxFormState = {
-  taxId: string
-  taxpayerName1: string
-  taxpayerName2: string
-  taxpayerType: string
-  include1099: boolean
-  addressLine1: string
-  addressLine2: string
-  addressLine3: string
-  city: string
-  state: string
-  postalCode: string
-  country: string
-}
+  taxId: string;
+  taxpayerName1: string;
+  taxpayerName2: string;
+  taxpayerType: string;
+  include1099: boolean;
+  addressLine1: string;
+  addressLine2: string;
+  addressLine3: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+};
 
 type InsuranceFormState = {
-  provider: string
-  policyNumber: string
-  expirationDate: string
-}
+  provider: string;
+  policyNumber: string;
+  expirationDate: string;
+};
 
 function toDateInputValue(value: string | null): string {
-  if (!value) return ''
-  const isoCandidate = value.includes('T') ? value : `${value}T00:00:00`
-  const parsed = new Date(isoCandidate)
+  if (!value) return '';
+  const isoCandidate = value.includes('T') ? value : `${value}T00:00:00`;
+  const parsed = new Date(isoCandidate);
   if (Number.isNaN(parsed.getTime())) {
-    return value.slice(0, 10)
+    return value.slice(0, 10);
   }
-  return parsed.toISOString().slice(0, 10)
+  return parsed.toISOString().slice(0, 10);
 }
 
 function toInitialState(vendor: VendorDetails): EditFormState {
@@ -146,7 +169,8 @@ function toInitialState(vendor: VendorDetails): EditFormState {
       '',
     categoryId: vendor.vendor_category,
     accountNumber: vendor.account_number ?? '',
-    expenseAccountId: vendor.expense_gl_account_id != null ? String(vendor.expense_gl_account_id) : '',
+    expenseAccountId:
+      vendor.expense_gl_account_id != null ? String(vendor.expense_gl_account_id) : '',
     website: vendor.website ?? '',
     notes: vendor.notes ?? '',
     phone: vendor.contact?.primary_phone ?? '',
@@ -157,7 +181,7 @@ function toInitialState(vendor: VendorDetails): EditFormState {
     addressCity: vendor.contact?.primary_city ?? '',
     addressState: vendor.contact?.primary_state ?? '',
     addressPostalCode: vendor.contact?.primary_postal_code ?? '',
-  }
+  };
 }
 
 function toInitialTaxState(vendor: VendorDetails): TaxFormState {
@@ -174,7 +198,7 @@ function toInitialTaxState(vendor: VendorDetails): TaxFormState {
     state: vendor.tax_address_state ?? '',
     postalCode: vendor.tax_address_postal_code ?? '',
     country: vendor.tax_address_country ?? '',
-  }
+  };
 }
 
 function toInitialInsuranceState(vendor: VendorDetails): InsuranceFormState {
@@ -182,30 +206,30 @@ function toInitialInsuranceState(vendor: VendorDetails): InsuranceFormState {
     provider: vendor.insurance_provider ?? '',
     policyNumber: vendor.insurance_policy_number ?? '',
     expirationDate: toDateInputValue(vendor.insurance_expiration_date),
-  }
+  };
 }
 
 const workOrderDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
-})
+});
 
 function formatWorkOrderDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return workOrderDateFormatter.format(date)
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return workOrderDateFormatter.format(date);
 }
 
 function formatWorkOrderLabel(value: string | null | undefined): string {
-  if (!value) return '—'
-  const cleaned = value.replace(/_/g, ' ').trim()
-  if (!cleaned) return '—'
+  if (!value) return '—';
+  const cleaned = value.replace(/_/g, ' ').trim();
+  if (!cleaned) return '—';
   return cleaned
     .split(/\s+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ')
+    .join(' ');
 }
 
 function VendorInlineEditCard({
@@ -221,21 +245,21 @@ function VendorInlineEditCard({
   showContactFields = true,
   expenseAccounts = [],
 }: {
-  state: EditFormState
-  onChange: (update: Partial<EditFormState>) => void
-  onCancel: () => void
-  onSave: () => void
-  saving: boolean
-  categories: CategoryOption[]
-  error: string | null
-  showExtendedFields?: boolean
-  showIdentityFields?: boolean
-  showContactFields?: boolean
-  expenseAccounts: ExpenseAccountOption[]
+  state: EditFormState;
+  onChange: (update: Partial<EditFormState>) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+  categories: CategoryOption[];
+  error: string | null;
+  showExtendedFields?: boolean;
+  showIdentityFields?: boolean;
+  showContactFields?: boolean;
+  expenseAccounts: ExpenseAccountOption[];
 }) {
-  const extended = showExtendedFields !== false
-  const showIdentity = showIdentityFields !== false
-  const showContact = showContactFields !== false
+  const extended = showExtendedFields !== false;
+  const showIdentity = showIdentityFields !== false;
+  const showContact = showContactFields !== false;
 
   return (
     <EditFormPanel onClose={onCancel}>
@@ -243,7 +267,9 @@ function VendorInlineEditCard({
         {showIdentity ? (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">First name</div>
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                First name
+              </div>
               <Input
                 value={state.firstName}
                 onChange={(event) => onChange({ firstName: event.target.value })}
@@ -251,7 +277,9 @@ function VendorInlineEditCard({
               />
             </div>
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Last name</div>
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Last name
+              </div>
               <Input
                 value={state.lastName}
                 onChange={(event) => onChange({ lastName: event.target.value })}
@@ -264,11 +292,15 @@ function VendorInlineEditCard({
           {showIdentity ? (
             <>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Category
+                </div>
                 <select
-                  className="h-9 w-full rounded-md border border-border/60 bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  className="border-border/60 bg-background focus-visible:ring-primary h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-1 focus-visible:outline-none"
                   value={state.categoryId ?? ''}
                   onChange={(event) => onChange({ categoryId: event.target.value || null })}
+                  aria-label="Select vendor category"
+                  title="Select vendor category"
                 >
                   <option value="">Uncategorized</option>
                   {categories.map((cat) => (
@@ -279,7 +311,9 @@ function VendorInlineEditCard({
                 </select>
               </div>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company name</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Company name
+                </div>
                 <Input
                   value={state.companyName}
                   onChange={(event) => onChange({ companyName: event.target.value })}
@@ -290,16 +324,21 @@ function VendorInlineEditCard({
           ) : null}
           {extended ? (
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expense account</div>
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Expense account
+              </div>
               <select
-                className="h-9 w-full rounded-md border border-border/60 bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                className="border-border/60 bg-background focus-visible:ring-primary h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-1 focus-visible:outline-none"
                 value={state.expenseAccountId}
                 onChange={(event) => onChange({ expenseAccountId: event.target.value })}
+                aria-label="Select expense account"
+                title="Select expense account"
               >
                 <option value="">No default</option>
                 {expenseAccounts.map((account) => (
                   <option key={account.id} value={String(account.id)}>
-                    {[account.accountNumber, account.name].filter(Boolean).join(' • ') || account.name}
+                    {[account.accountNumber, account.name].filter(Boolean).join(' • ') ||
+                      account.name}
                   </option>
                 ))}
               </select>
@@ -308,7 +347,9 @@ function VendorInlineEditCard({
           {showContact ? (
             <>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cell phone</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Cell phone
+                </div>
                 <Input
                   value={state.phone}
                   onChange={(event) => onChange({ phone: event.target.value })}
@@ -316,7 +357,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Work phone</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Work phone
+                </div>
                 <Input
                   value={state.workPhone}
                   onChange={(event) => onChange({ workPhone: event.target.value })}
@@ -324,7 +367,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Email
+                </div>
                 <Input
                   type="email"
                   value={state.email}
@@ -336,7 +381,9 @@ function VendorInlineEditCard({
           ) : null}
           {extended ? (
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Website</div>
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Website
+              </div>
               <Input
                 value={state.website}
                 onChange={(event) => onChange({ website: event.target.value })}
@@ -348,7 +395,9 @@ function VendorInlineEditCard({
         {showContact ? (
           <div className="space-y-4 lg:col-span-2">
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address line 1</div>
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Address line 1
+              </div>
               <Input
                 value={state.addressLine1}
                 onChange={(event) => onChange({ addressLine1: event.target.value })}
@@ -356,7 +405,9 @@ function VendorInlineEditCard({
               />
             </div>
             <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address line 2</div>
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Address line 2
+              </div>
               <Input
                 value={state.addressLine2}
                 onChange={(event) => onChange({ addressLine2: event.target.value })}
@@ -365,7 +416,9 @@ function VendorInlineEditCard({
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">City</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  City
+                </div>
                 <Input
                   value={state.addressCity}
                   onChange={(event) => onChange({ addressCity: event.target.value })}
@@ -373,7 +426,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">State</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  State
+                </div>
                 <Input
                   value={state.addressState}
                   onChange={(event) => onChange({ addressState: event.target.value })}
@@ -381,7 +436,9 @@ function VendorInlineEditCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Postal code</div>
+                <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Postal code
+                </div>
                 <Input
                   value={state.addressPostalCode}
                   onChange={(event) => onChange({ addressPostalCode: event.target.value })}
@@ -393,7 +450,9 @@ function VendorInlineEditCard({
         ) : null}
         {extended ? (
           <div className="space-y-1.5 lg:col-span-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Notes
+            </div>
             <Textarea
               value={state.notes}
               onChange={(event) => onChange({ notes: event.target.value })}
@@ -403,7 +462,7 @@ function VendorInlineEditCard({
           </div>
         ) : null}
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <div className="flex items-center gap-3">
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
@@ -413,7 +472,7 @@ function VendorInlineEditCard({
         </Button>
       </div>
     </EditFormPanel>
-  )
+  );
 }
 
 export function VendorsDetailsClient({
@@ -422,29 +481,29 @@ export function VendorsDetailsClient({
   expenseAccounts,
   recentWorkOrders,
 }: VendorsDetailsClientProps) {
-  const router = useRouter()
-  const [editing, setEditing] = useState(false)
-  const [formState, setFormState] = useState<EditFormState>(() => toInitialState(vendor))
-  const [headerEditing, setHeaderEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [formState, setFormState] = useState<EditFormState>(() => toInitialState(vendor));
+  const [headerEditing, setHeaderEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [editingTax, setEditingTax] = useState(false)
-  const [taxFormState, setTaxFormState] = useState<TaxFormState>(() => toInitialTaxState(vendor))
-  const [savingTax, setSavingTax] = useState(false)
-  const [taxError, setTaxError] = useState<string | null>(null)
+  const [editingTax, setEditingTax] = useState(false);
+  const [taxFormState, setTaxFormState] = useState<TaxFormState>(() => toInitialTaxState(vendor));
+  const [savingTax, setSavingTax] = useState(false);
+  const [taxError, setTaxError] = useState<string | null>(null);
 
-  const [editingInsurance, setEditingInsurance] = useState(false)
-  const [insuranceFormState, setInsuranceFormState] = useState<InsuranceFormState>(
-    () => toInitialInsuranceState(vendor),
-  )
-  const [savingInsurance, setSavingInsurance] = useState(false)
-  const [insuranceError, setInsuranceError] = useState<string | null>(null)
+  const [editingInsurance, setEditingInsurance] = useState(false);
+  const [insuranceFormState, setInsuranceFormState] = useState<InsuranceFormState>(() =>
+    toInitialInsuranceState(vendor),
+  );
+  const [savingInsurance, setSavingInsurance] = useState(false);
+  const [insuranceError, setInsuranceError] = useState<string | null>(null);
 
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition();
 
-  const contact = vendor.contact
-  const categoryName = vendor.category?.name || 'Uncategorized'
+  const contact = vendor.contact;
+  const categoryName = vendor.category?.name || 'Uncategorized';
 
   const vendorName = useMemo(() => {
     return (
@@ -452,12 +511,12 @@ export function VendorsDetailsClient({
       contact?.company_name ||
       [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') ||
       'Vendor'
-    )
-  }, [contact])
+    );
+  }, [contact]);
 
-  const companyName = contact?.company_name?.trim() || null
+  const companyName = contact?.company_name?.trim() || null;
 
-  const companyLabel = companyName || '—'
+  const companyLabel = companyName || '—';
 
   const addressLine = useMemo(() => {
     const parts = [
@@ -465,22 +524,24 @@ export function VendorsDetailsClient({
       contact?.primary_city,
       contact?.primary_state,
       contact?.primary_postal_code,
-    ].filter(Boolean)
-    return parts.length ? parts.join(', ') : null
-  }, [contact])
+    ].filter(Boolean);
+    return parts.length ? parts.join(', ') : null;
+  }, [contact]);
 
-  const primaryEmail = contact?.primary_email?.trim() || null
-  const alternateEmail = contact?.alt_email?.trim() || null
+  const primaryEmail = contact?.primary_email?.trim() || null;
+  const alternateEmail = contact?.alt_email?.trim() || null;
   const emailList = Array.from(
     new Set([primaryEmail, alternateEmail].filter((value): value is string => Boolean(value))),
-  )
+  );
 
-  const cellPhone = contact?.primary_phone?.trim() || null
-  const workPhoneValue = contact?.alt_phone?.trim() || null
+  const cellPhone = contact?.primary_phone?.trim() || null;
+  const workPhoneValue = contact?.alt_phone?.trim() || null;
   const phoneEntries = [
     workPhoneValue ? { key: 'work', value: workPhoneValue, Icon: Briefcase } : null,
     cellPhone ? { key: 'cell', value: cellPhone, Icon: Smartphone } : null,
-  ].filter((entry): entry is { key: 'work' | 'cell'; value: string; Icon: LucideIcon } => entry !== null)
+  ].filter(
+    (entry): entry is { key: 'work' | 'cell'; value: string; Icon: LucideIcon } => entry !== null,
+  );
 
   const emailDisplay =
     emailList.length > 0 ? (
@@ -489,50 +550,55 @@ export function VendorsDetailsClient({
           <a
             key={item}
             href={`mailto:${item}`}
-            className="flex items-center gap-2 text-primary hover:underline"
+            className="text-primary flex items-center gap-2 hover:underline"
           >
-            <Mail className="h-4 w-4 text-muted-foreground" />
+            <Mail className="text-muted-foreground h-4 w-4" />
             <span>{item}</span>
           </a>
         ))}
       </div>
     ) : (
       '—'
-    )
+    );
 
   const phoneDisplay =
     phoneEntries.length > 0 ? (
       <div className="space-y-2">
         {phoneEntries.map(({ key, value, Icon }) => {
-          const telHref = value.replace(/[^\d+]/g, '')
+          const telHref = value.replace(/[^\d+]/g, '');
           return (
             <a
               key={key}
               href={`tel:${telHref}`}
-              className="flex items-center gap-2 text-foreground hover:text-primary"
+              className="text-foreground hover:text-primary flex items-center gap-2"
             >
-              <Icon className="h-4 w-4 text-muted-foreground" />
+              <Icon className="text-muted-foreground h-4 w-4" />
               <span>{value}</span>
             </a>
-          )
+          );
         })}
       </div>
     ) : (
       '—'
-    )
+    );
 
-  const address = [
-    contact?.primary_address_line_1,
-    contact?.primary_address_line_2,
-    [contact?.primary_city, contact?.primary_state].filter(Boolean).join(', ') || null,
-    contact?.primary_postal_code,
-  ]
-    .filter(Boolean)
-    .join('\n') || '—'
+  const address =
+    [
+      contact?.primary_address_line_1,
+      contact?.primary_address_line_2,
+      [contact?.primary_city, contact?.primary_state].filter(Boolean).join(', ') || null,
+      contact?.primary_postal_code,
+    ]
+      .filter(Boolean)
+      .join('\n') || '—';
 
-  const website = vendor.website || null
+  const website = vendor.website || null;
   const websiteHref =
-    website && /^(http|https):\/\//i.test(website) ? website : website ? `https://${website}` : null
+    website && /^(http|https):\/\//i.test(website)
+      ? website
+      : website
+        ? `https://${website}`
+        : null;
 
   const taxAddressParts = [
     vendor.tax_address_line1,
@@ -541,72 +607,74 @@ export function VendorsDetailsClient({
     [vendor.tax_address_city, vendor.tax_address_state].filter(Boolean).join(', ') || null,
     vendor.tax_address_postal_code,
     vendor.tax_address_country,
-  ].filter(Boolean)
-  const taxAddress = taxAddressParts.join(', ')
+  ].filter(Boolean);
+  const taxAddress = taxAddressParts.join(', ');
   const include1099Label =
-    vendor.include_1099 === true ? 'Yes' : vendor.include_1099 === false ? 'No' : '—'
+    vendor.include_1099 === true ? 'Yes' : vendor.include_1099 === false ? 'No' : '—';
 
   const expenseAccountMap = useMemo(() => {
-    const map = new Map<number, ExpenseAccountOption>()
+    const map = new Map<number, ExpenseAccountOption>();
     for (const account of expenseAccounts) {
-      map.set(account.id, account)
+      map.set(account.id, account);
     }
-    return map
-  }, [expenseAccounts])
+    return map;
+  }, [expenseAccounts]);
 
   const expenseAccountLabel = useMemo(() => {
-    if (vendor.expense_gl_account_id == null) return '—'
-    const option = expenseAccountMap.get(vendor.expense_gl_account_id)
-    if (!option) return '—'
-    return [option.accountNumber, option.name].filter(Boolean).join(' • ') || option.name
-  }, [expenseAccountMap, vendor.expense_gl_account_id])
+    if (vendor.expense_gl_account_id == null) return '—';
+    const option = expenseAccountMap.get(vendor.expense_gl_account_id);
+    if (!option) return '—';
+    return [option.accountNumber, option.name].filter(Boolean).join(' • ') || option.name;
+  }, [expenseAccountMap, vendor.expense_gl_account_id]);
 
   const cancelHeaderEditing = () => {
-    setHeaderEditing(false)
-    setFormState(toInitialState(vendor))
-    setError(null)
-  }
+    setHeaderEditing(false);
+    setFormState(toInitialState(vendor));
+    setError(null);
+  };
 
   const openHeaderEditing = () => {
-    setFormState(toInitialState(vendor))
-    setError(null)
-    setEditing(false)
-    setHeaderEditing(true)
-  }
+    setFormState(toInitialState(vendor));
+    setError(null);
+    setEditing(false);
+    setHeaderEditing(true);
+  };
 
   const handleHeaderEditClick = () => {
     if (headerEditing) {
-      cancelHeaderEditing()
+      cancelHeaderEditing();
     } else {
-      openHeaderEditing()
+      openHeaderEditing();
     }
-  }
+  };
 
   const toggleEditing = () => {
-    setFormState(toInitialState(vendor))
-    setError(null)
-    setHeaderEditing(false)
-    setEditing((prev) => !prev)
-  }
+    setFormState(toInitialState(vendor));
+    setError(null);
+    setHeaderEditing(false);
+    setEditing((prev) => !prev);
+  };
 
   const toggleTaxEditing = () => {
-    setTaxFormState(toInitialTaxState(vendor))
-    setTaxError(null)
-    setEditingTax((prev) => !prev)
-  }
+    setTaxFormState(toInitialTaxState(vendor));
+    setTaxError(null);
+    setEditingTax((prev) => !prev);
+  };
 
   const toggleInsuranceEditing = () => {
-    setInsuranceFormState(toInitialInsuranceState(vendor))
-    setInsuranceError(null)
-    setEditingInsurance((prev) => !prev)
-  }
+    setInsuranceFormState(toInitialInsuranceState(vendor));
+    setInsuranceError(null);
+    setEditingInsurance((prev) => !prev);
+  };
 
   const handleSave = async () => {
     try {
-      setSaving(true)
-      setError(null)
+      setSaving(true);
+      setError(null);
 
-      const expenseAccountId = formState.expenseAccountId ? Number(formState.expenseAccountId) : null
+      const expenseAccountId = formState.expenseAccountId
+        ? Number(formState.expenseAccountId)
+        : null;
 
       const response = await fetch(`/api/vendors/${vendor.id}`, {
         method: 'PATCH',
@@ -630,29 +698,29 @@ export function VendorsDetailsClient({
           addressPostalCode: formState.addressPostalCode.trim() || null,
           expenseAccountId,
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to save vendor')
+        throw new Error(result.error || 'Failed to save vendor');
       }
 
-      setEditing(false)
-      setHeaderEditing(false)
+      setEditing(false);
+      setHeaderEditing(false);
       startTransition(() => {
-        router.refresh()
-      })
+        router.refresh();
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save vendor')
+      setError(err instanceof Error ? err.message : 'Failed to save vendor');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleSaveTax = async () => {
     try {
-      setSavingTax(true)
-      setTaxError(null)
+      setSavingTax(true);
+      setTaxError(null);
 
       const response = await fetch(`/api/vendors/${vendor.id}`, {
         method: 'PATCH',
@@ -671,28 +739,28 @@ export function VendorsDetailsClient({
           taxAddressPostalCode: taxFormState.postalCode.trim() || null,
           taxAddressCountry: taxFormState.country.trim() || null,
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to save tax details')
+        throw new Error(result.error || 'Failed to save tax details');
       }
 
-      setEditingTax(false)
+      setEditingTax(false);
       startTransition(() => {
-        router.refresh()
-      })
+        router.refresh();
+      });
     } catch (err) {
-      setTaxError(err instanceof Error ? err.message : 'Failed to save tax details')
+      setTaxError(err instanceof Error ? err.message : 'Failed to save tax details');
     } finally {
-      setSavingTax(false)
+      setSavingTax(false);
     }
-  }
+  };
 
   const handleSaveInsurance = async () => {
     try {
-      setSavingInsurance(true)
-      setInsuranceError(null)
+      setSavingInsurance(true);
+      setInsuranceError(null);
 
       const response = await fetch(`/api/vendors/${vendor.id}`, {
         method: 'PATCH',
@@ -702,23 +770,23 @@ export function VendorsDetailsClient({
           insurancePolicyNumber: insuranceFormState.policyNumber.trim() || null,
           insuranceExpirationDate: insuranceFormState.expirationDate || null,
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to save insurance details')
+        throw new Error(result.error || 'Failed to save insurance details');
       }
 
-      setEditingInsurance(false)
+      setEditingInsurance(false);
       startTransition(() => {
-        router.refresh()
-      })
+        router.refresh();
+      });
     } catch (err) {
-      setInsuranceError(err instanceof Error ? err.message : 'Failed to save insurance details')
+      setInsuranceError(err instanceof Error ? err.message : 'Failed to save insurance details');
     } finally {
-      setSavingInsurance(false)
+      setSavingInsurance(false);
     }
-  }
+  };
 
   const renderHeader = () => {
     if (headerEditing) {
@@ -735,21 +803,21 @@ export function VendorsDetailsClient({
           showContactFields={false}
           expenseAccounts={expenseAccounts}
         />
-      )
+      );
     }
 
     return (
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">{vendorName}</h1>
+            <h1 className="text-foreground text-2xl font-semibold">{vendorName}</h1>
             {vendor.is_active !== null ? (
               <Badge
                 variant="outline"
                 className={
                   vendor.is_active
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 text-xs'
-                    : 'border-slate-200 bg-slate-100 text-slate-600 text-xs'
+                    ? 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-xs text-[var(--color-action-600)]'
+                    : 'border-slate-200 bg-slate-100 text-xs text-slate-600'
                 }
               >
                 {vendor.is_active ? 'Active' : 'Inactive'}
@@ -765,10 +833,12 @@ export function VendorsDetailsClient({
               </Badge>
             )}
           </div>
-          <div className="text-sm text-muted-foreground space-y-1">
+          <div className="text-muted-foreground space-y-1 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <span>{companyLabel}</span>
-              <span aria-hidden className="text-muted-foreground">|</span>
+              <span aria-hidden className="text-muted-foreground">
+                |
+              </span>
               <span>{categoryName}</span>
               <Button
                 type="button"
@@ -785,8 +855,8 @@ export function VendorsDetailsClient({
           </div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <NavTabs defaultValue="summary" className="space-y-6 p-6">
@@ -842,7 +912,9 @@ export function VendorsDetailsClient({
               ]}
               bottomContent={
                 <div>
-                  <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">Comments</div>
+                  <div className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                    Comments
+                  </div>
                   <div className="text-foreground">{vendor.notes || '—'}</div>
                 </div>
               }
@@ -864,7 +936,10 @@ export function VendorsDetailsClient({
               }
               rows={[
                 { label: 'Tax ID', value: vendor.tax_id || '—' },
-                { label: 'Taxpayer name', value: vendor.tax_payer_name1 || vendor.tax_payer_name2 || '—' },
+                {
+                  label: 'Taxpayer name',
+                  value: vendor.tax_payer_name1 || vendor.tax_payer_name2 || '—',
+                },
                 { label: 'Taxpayer type', value: vendor.tax_payer_type || '—' },
                 { label: 'Include 1099', value: include1099Label },
                 { label: 'Address', value: taxAddress || 'Same as above' },
@@ -901,13 +976,13 @@ export function VendorsDetailsClient({
                 <CardTitle className="text-base font-semibold">Recent work orders</CardTitle>
               </CardHeader>
               {recentWorkOrders.length === 0 ? (
-                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                <CardContent className="text-muted-foreground py-8 text-center text-sm">
                   No work orders linked to this vendor yet.
                 </CardContent>
               ) : (
                 <CardContent className="p-0">
                   <Table className="text-sm">
-                    <TableHeader className="bg-muted/40">
+                    <TableHeader>
                       <TableRow>
                         <TableHead className="w-[34%]">Subject</TableHead>
                         <TableHead className="w-[16%]">Status</TableHead>
@@ -930,7 +1005,10 @@ export function VendorsDetailsClient({
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {workOrder.propertyId ? (
-                              <Link href={`/properties/${workOrder.propertyId}`} className="text-primary hover:underline">
+                              <Link
+                                href={`/properties/${workOrder.propertyId}`}
+                                className="text-primary hover:underline"
+                              >
                                 {workOrder.propertyName || 'View property'}
                               </Link>
                             ) : (
@@ -976,7 +1054,7 @@ export function VendorsDetailsClient({
         <EmptyPanel message="Keep track of vendor notes and follow-ups. Notes support will be added shortly." />
       </NavTabsContent>
     </NavTabs>
-  )
+  );
 }
 
 function VendorTaxEditCard({
@@ -987,23 +1065,27 @@ function VendorTaxEditCard({
   saving,
   error,
 }: {
-  state: TaxFormState
-  onChange: (update: Partial<TaxFormState>) => void
-  onCancel: () => void
-  onSave: () => void
-  saving: boolean
-  error: string | null
+  state: TaxFormState;
+  onChange: (update: Partial<TaxFormState>) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
 }) {
   const handleTaxpayerTypeChange = (value: string) => {
-    onChange({ taxpayerType: (value || '') as TaxPayerType | '' })
-  }
+    onChange({
+      taxpayerType: value === TAXPAYER_TYPE_UNSPECIFIED_OPTION_VALUE ? '' : (value as TaxPayerType),
+    });
+  };
 
   return (
     <EditFormPanel onClose={onCancel}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tax ID</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Tax ID
+            </div>
             <Input
               value={state.taxId}
               onChange={(event) => onChange({ taxId: event.target.value })}
@@ -1011,7 +1093,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Taxpayer name 1</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Taxpayer name 1
+            </div>
             <Input
               value={state.taxpayerName1}
               onChange={(event) => onChange({ taxpayerName1: event.target.value })}
@@ -1019,7 +1103,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Taxpayer name 2</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Taxpayer name 2
+            </div>
             <Input
               value={state.taxpayerName2}
               onChange={(event) => onChange({ taxpayerName2: event.target.value })}
@@ -1029,13 +1115,20 @@ function VendorTaxEditCard({
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Taxpayer type</div>
-            <Select value={state.taxpayerType || ''} onValueChange={handleTaxpayerTypeChange}>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Taxpayer type
+            </div>
+            <Select
+              value={state.taxpayerType || TAXPAYER_TYPE_UNSPECIFIED_OPTION_VALUE}
+              onValueChange={handleTaxpayerTypeChange}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Not specified</SelectItem>
+                <SelectItem value={TAXPAYER_TYPE_UNSPECIFIED_OPTION_VALUE}>
+                  Not specified
+                </SelectItem>
                 {TAX_PAYER_TYPE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -1044,7 +1137,7 @@ function VendorTaxEditCard({
               </SelectContent>
             </Select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-foreground">
+          <label className="text-foreground flex items-center gap-2 text-sm">
             <Checkbox
               checked={state.include1099}
               onCheckedChange={(checked) => onChange({ include1099: Boolean(checked) })}
@@ -1056,7 +1149,9 @@ function VendorTaxEditCard({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address line 1</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Address line 1
+            </div>
             <Input
               value={state.addressLine1}
               onChange={(event) => onChange({ addressLine1: event.target.value })}
@@ -1064,7 +1159,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address line 2</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Address line 2
+            </div>
             <Input
               value={state.addressLine2}
               onChange={(event) => onChange({ addressLine2: event.target.value })}
@@ -1072,7 +1169,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address line 3</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Address line 3
+            </div>
             <Textarea
               value={state.addressLine3}
               onChange={(event) => onChange({ addressLine3: event.target.value })}
@@ -1082,7 +1181,9 @@ function VendorTaxEditCard({
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">City</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              City
+            </div>
             <Input
               value={state.city}
               onChange={(event) => onChange({ city: event.target.value })}
@@ -1090,7 +1191,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">State</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              State
+            </div>
             <Input
               value={state.state}
               onChange={(event) => onChange({ state: event.target.value })}
@@ -1098,7 +1201,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Postal code</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Postal code
+            </div>
             <Input
               value={state.postalCode}
               onChange={(event) => onChange({ postalCode: event.target.value })}
@@ -1106,7 +1211,9 @@ function VendorTaxEditCard({
             />
           </div>
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Country</div>
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              Country
+            </div>
             <Input
               value={state.country}
               onChange={(event) => onChange({ country: event.target.value })}
@@ -1115,7 +1222,7 @@ function VendorTaxEditCard({
           </div>
         </div>
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <div className="flex items-center gap-3">
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
@@ -1125,7 +1232,7 @@ function VendorTaxEditCard({
         </Button>
       </div>
     </EditFormPanel>
-  )
+  );
 }
 function VendorInsuranceEditCard({
   state,
@@ -1135,18 +1242,20 @@ function VendorInsuranceEditCard({
   saving,
   error,
 }: {
-  state: InsuranceFormState
-  onChange: (update: Partial<InsuranceFormState>) => void
-  onCancel: () => void
-  onSave: () => void
-  saving: boolean
-  error: string | null
+  state: InsuranceFormState;
+  onChange: (update: Partial<InsuranceFormState>) => void;
+  onCancel: () => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
 }) {
   return (
     <EditFormPanel onClose={onCancel}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-1.5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provider</div>
+          <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            Provider
+          </div>
           <Input
             value={state.provider}
             onChange={(event) => onChange({ provider: event.target.value })}
@@ -1154,7 +1263,9 @@ function VendorInsuranceEditCard({
           />
         </div>
         <div className="space-y-1.5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Policy number</div>
+          <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            Policy number
+          </div>
           <Input
             value={state.policyNumber}
             onChange={(event) => onChange({ policyNumber: event.target.value })}
@@ -1162,15 +1273,16 @@ function VendorInsuranceEditCard({
           />
         </div>
         <div className="space-y-1.5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expiration</div>
-          <Input
-            type="date"
+          <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            Expiration
+          </div>
+          <DateInput
             value={state.expirationDate}
-            onChange={(event) => onChange({ expirationDate: event.target.value })}
+            onChange={(nextValue) => onChange({ expirationDate: nextValue })}
           />
         </div>
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <div className="flex items-center gap-3">
         <Button onClick={onSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save'}
@@ -1180,7 +1292,7 @@ function VendorInsuranceEditCard({
         </Button>
       </div>
     </EditFormPanel>
-  )
+  );
 }
 
 function SectionCard({
@@ -1193,21 +1305,26 @@ function SectionCard({
   gridClassName = 'sm:grid-cols-3',
   bottomContent,
 }: {
-  title: string
-  actionLabel?: string
-  onAction?: () => void
-  rows: Array<{ label: string; value: React.ReactNode; className?: string }>
-  editing?: boolean
-  editContent?: React.ReactNode
-  gridClassName?: string
-  bottomContent?: React.ReactNode
+  title: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  rows: Array<{ label: string; value: React.ReactNode; className?: string }>;
+  editing?: boolean;
+  editContent?: React.ReactNode;
+  gridClassName?: string;
+  bottomContent?: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-border pb-6">
+    <div className="border-border border-b pb-6">
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+        <h2 className="text-foreground text-lg font-semibold">{title}</h2>
         {actionLabel && !editing && onAction ? (
-          <Button variant="link" size="sm" className="h-auto px-0 text-sm font-medium" onClick={onAction}>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto px-0 text-sm font-medium"
+            onClick={onAction}
+          >
             {actionLabel}
           </Button>
         ) : null}
@@ -1218,7 +1335,9 @@ function SectionCard({
         <div className={cn('grid grid-cols-1 gap-6 text-sm', gridClassName)}>
           {rows.map((row) => (
             <div key={row.label} className={row.className}>
-              <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">{row.label}</div>
+              <div className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                {row.label}
+              </div>
               <div className="text-foreground">{row.value}</div>
             </div>
           ))}
@@ -1226,13 +1345,13 @@ function SectionCard({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function EmptyPanel({ message }: { message: string }) {
   return (
     <Card>
-      <CardContent className="py-6 text-sm text-muted-foreground">{message}</CardContent>
+      <CardContent className="text-muted-foreground py-6 text-sm">{message}</CardContent>
     </Card>
-  )
+  );
 }

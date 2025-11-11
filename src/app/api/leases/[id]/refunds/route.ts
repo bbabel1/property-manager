@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getServerSupabaseClient } from '@/lib/supabase-client'
+import { requireAuth } from '@/lib/auth/guards'
+import { hasSupabaseAdmin } from '@/lib/supabase-client'
+import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
+import { LeaseTransactionService } from '@/lib/lease-transaction-service'
+import {
+  buildLinesFromAllocations,
+  fetchBuildiumGlAccountMap,
+  fetchLeaseContextById,
+  fetchBankAccountBuildiumId,
+  fetchTransactionWithLines,
+  mapRefundMethodToBuildium,
+  coerceTenantIdentifier,
+  amountsRoughlyEqual
+} from '@/lib/lease-transaction-helpers'
 
 const IssueRefundSchema = z.object({
   date: z.string().min(1),
@@ -33,80 +46,101 @@ export async function POST(
     return NextResponse.json({ error: issue?.message ?? 'Invalid payload' }, { status: 400 })
   }
 
-  const supabase = getServerSupabaseClient('refunds:create')
-  const now = new Date().toISOString()
-  const totalAmount = parsed.data.allocations.reduce((sum, line) => sum + (line?.amount ?? 0), 0)
-
-  if (Number(parsed.data.amount.toFixed(2)) !== Number(totalAmount.toFixed(2))) {
-    return NextResponse.json({ error: 'Allocated amounts must equal the refund amount' }, { status: 400 })
-  }
-
-  const partyIdNumber = parsed.data.party_id ? Number(parsed.data.party_id) : null
-  const payeeTenantId = Number.isFinite(partyIdNumber) ? partyIdNumber : null
-
-  const paymentMethod = parsed.data.payment_method === 'eft' ? 'ElectronicPayment' : 'Check'
-
-  // Load lease for org + Buildium context
-  const { data: leaseRow } = await supabase
-    .from('lease')
-    .select('id, org_id, property_id, unit_id, buildium_lease_id, buildium_property_id, buildium_unit_id')
-    .eq('id', leaseId)
-    .maybeSingle()
-
-  const { data: transaction, error: txError } = await supabase
-    .from('transactions')
-    .insert({
-      date: parsed.data.date,
-      transaction_type: 'Refund',
-      total_amount: totalAmount,
-      memo: parsed.data.memo || null,
-      bank_account_id: parsed.data.bank_account_id,
-      lease_id: leaseId,
-      org_id: leaseRow?.org_id ?? null,
-      buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-      payee_tenant_id: payeeTenantId,
-      check_number: parsed.data.check_number || null,
-      payment_method: paymentMethod as any,
-      created_at: now,
-      updated_at: now,
-    })
-    .select()
-    .maybeSingle()
-
-  if (txError || !transaction) {
-    return NextResponse.json({ error: txError?.message || 'Failed to issue refund' }, { status: 500 })
-  }
-
-  const linePayloads = parsed.data.allocations
-    .filter((line) => Boolean(line.account_id))
-    .map((line) => ({
-      transaction_id: transaction.id,
-      gl_account_id: line.account_id,
-      amount: line.amount,
-      posting_type: 'Debit',
-      account_entity_type: 'Rental' as any,
-      account_entity_id: leaseRow?.buildium_property_id ?? null,
-      date: parsed.data.date,
-      lease_id: leaseId,
-      property_id: leaseRow?.property_id ?? null,
-      unit_id: leaseRow?.unit_id ?? null,
-      buildium_unit_id: leaseRow?.buildium_unit_id ?? null,
-      buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-      created_at: now,
-      updated_at: now,
-    }))
-
-  let lines: any[] = []
-  if (linePayloads.length) {
-    const { data: insertedLines, error: lineError } = await supabase
-      .from('transaction_lines')
-      .insert(linePayloads)
-      .select()
-    if (lineError) {
-      return NextResponse.json({ error: lineError.message || 'Failed to create refund lines' }, { status: 500 })
+  try {
+    if (!hasSupabaseAdmin()) {
+      await requireAuth()
     }
-    lines = insertedLines ?? []
-  }
 
-  return NextResponse.json({ data: { transaction, lines } }, { status: 201 })
+    const totalAmount = parsed.data.allocations.reduce((sum, line) => sum + (line?.amount ?? 0), 0)
+    if (!amountsRoughlyEqual(parsed.data.amount, totalAmount)) {
+      return NextResponse.json({ error: 'Allocated amounts must equal the refund amount' }, { status: 400 })
+    }
+
+    const leaseContext = await fetchLeaseContextById(leaseId)
+    const glAccountMap = await fetchBuildiumGlAccountMap(
+      parsed.data.allocations.map((line) => line.account_id)
+    )
+    const lines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const payeeTenantId = coerceTenantIdentifier(parsed.data.party_id ?? null)
+    const partyProvided =
+      typeof parsed.data.party_id === 'string' && parsed.data.party_id.trim().length > 0
+    if (partyProvided && payeeTenantId == null) {
+      return NextResponse.json(
+        { error: 'Selected tenant is missing a Buildium tenant ID. Update the tenant record before issuing a refund.' },
+        { status: 422 }
+      )
+    }
+    const bankAccountBuildiumId = await fetchBankAccountBuildiumId(parsed.data.bank_account_id)
+
+    const addressOptionMap: Record<'current' | 'tenant' | 'forwarding' | 'custom', 'Current' | 'Tenant' | 'Forwarding' | 'Custom'> = {
+      current: 'Current',
+      tenant: 'Tenant',
+      forwarding: 'Forwarding',
+      custom: 'Custom',
+    }
+
+    const payload: BuildiumLeaseTransactionCreate = {
+      TransactionType: 'Refund',
+      TransactionDate: parsed.data.date,
+      Amount: totalAmount,
+      Memo: parsed.data.memo ?? undefined,
+      PaymentMethod: mapRefundMethodToBuildium(parsed.data.payment_method),
+      PayeeTenantId: payeeTenantId,
+      BankAccountId: bankAccountBuildiumId,
+      CheckNumber: parsed.data.check_number || undefined,
+      QueueForPrinting: Boolean(parsed.data.queue_print),
+      AddressOption: addressOptionMap[parsed.data.address_option],
+      CustomAddress:
+        parsed.data.address_option === 'custom' ? parsed.data.custom_address ?? undefined : undefined,
+      Lines: lines,
+    }
+
+    const result = await LeaseTransactionService.createInBuildiumAndDB(
+      leaseContext.buildiumLeaseId,
+      payload
+    )
+
+    let normalized: any = null
+    let responseLines: any[] = []
+    if (result.localId) {
+      const record = await fetchTransactionWithLines(result.localId)
+      if (record) {
+        normalized = record.transaction
+        responseLines = record.lines ?? []
+      }
+    }
+
+    if (!normalized) {
+      normalized = {
+        id: result.localId ?? result.buildium?.Id ?? null,
+        transaction_type: result.buildium?.TransactionTypeEnum || result.buildium?.TransactionType || 'Refund',
+        total_amount: result.buildium?.TotalAmount ?? result.buildium?.Amount ?? totalAmount,
+        date: result.buildium?.Date ?? result.buildium?.TransactionDate ?? parsed.data.date,
+        memo: result.buildium?.Memo ?? parsed.data.memo ?? null,
+        lease_id: leaseContext.leaseId,
+        buildium_transaction_id: result.buildium?.Id ?? null,
+      }
+      responseLines = lines
+    }
+
+    return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })
+  } catch (error) {
+    console.error('Error issuing refund:', error)
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (
+        error.message === 'Lease not found' ||
+        error.message === 'Lease is missing Buildium identifier' ||
+        error.message === 'Bank account not found' ||
+        error.message === 'Bank account is missing a Buildium mapping' ||
+        error.message.includes('Buildium mapping')
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 422 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 502 })
+    }
+    return NextResponse.json({ error: 'Failed to issue refund' }, { status: 500 })
+  }
 }

@@ -10,6 +10,7 @@ import { type PropertyWithDetails } from '@/lib/property-service'
 import EditPropertyModal from '../EditPropertyModal'
 import BankingDetailsModal from '../BankingDetailsModal'
 import PropertyNotes from './PropertyNotes'
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 interface PropertySummaryProps {
   property: PropertyWithDetails
@@ -44,7 +45,7 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
     const fetchBankAccounts = async () => {
       try {
         setIsLoadingBankAccounts(true)
-        const response = await fetch('/api/bank-accounts')
+        const response = await fetchWithSupabaseAuth('/api/bank-accounts')
         
         if (!response.ok) {
           throw new Error('Failed to fetch bank accounts')

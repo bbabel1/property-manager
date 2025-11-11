@@ -863,6 +863,19 @@ CREATE TYPE "public"."task_kind_enum" AS ENUM (
 ALTER TYPE "public"."task_kind_enum" OWNER TO "postgres";
 
 
+CREATE TYPE "public"."transaction_status_enum" AS ENUM (
+    '',
+    'Overdue',
+    'Due',
+    'Partially paid',
+    'Paid',
+    'Cancelled'
+);
+
+
+ALTER TYPE "public"."transaction_status_enum" OWNER TO "postgres";
+
+
 CREATE TYPE "public"."transaction_type_enum" AS ENUM (
     'Bill',
     'Charge',
@@ -3666,10 +3679,12 @@ END) STORED,
     "fee_assignment" "public"."assignment_level_enum",
     "fee_type" "public"."fee_type_enum",
     "fee_percentage" numeric(5,2),
-    "management_fee" numeric(12,2),
+    "fee_dollar_amount" numeric(12,2),
     "billing_frequency" "public"."billing_frequency_enum",
     "service_assignment" "public"."assignment_level",
     "org_id" "uuid" NOT NULL,
+    "bill_pay_list" "text",
+    "bill_pay_notes" "text",
     CONSTRAINT "check_total_active_units_non_negative" CHECK (("total_active_units" >= 0)),
     CONSTRAINT "check_total_active_units_not_exceed_total" CHECK (("total_active_units" <= "total_units")),
     CONSTRAINT "check_total_inactive_units_non_negative" CHECK (("total_inactive_units" >= 0)),
@@ -3678,8 +3693,8 @@ END) STORED,
     CONSTRAINT "check_total_occupied_units_not_exceed_total" CHECK (("total_occupied_units" <= "total_units")),
     CONSTRAINT "check_total_vacant_units_non_negative" CHECK (("total_vacant_units" >= 0)),
     CONSTRAINT "check_total_vacant_units_not_exceed_total" CHECK (("total_vacant_units" <= "total_units")),
-    CONSTRAINT "properties_fee_percentage_check" CHECK ((("fee_percentage" >= (0)::numeric) AND ("fee_percentage" <= (100)::numeric))),
-    CONSTRAINT "properties_management_fee_check" CHECK (("management_fee" >= (0)::numeric))
+    CONSTRAINT "properties_fee_dollar_amount_check" CHECK ((("fee_dollar_amount" IS NULL) OR ("fee_dollar_amount" >= (0)::numeric))),
+    CONSTRAINT "properties_fee_percentage_check" CHECK ((("fee_percentage" >= (0)::numeric) AND ("fee_percentage" <= (100)::numeric)))
 );
 
 
@@ -3790,7 +3805,7 @@ COMMENT ON COLUMN "public"."properties"."fee_percentage" IS 'Management fee perc
 
 
 
-COMMENT ON COLUMN "public"."properties"."management_fee" IS 'Management fee dollar amount.';
+COMMENT ON COLUMN "public"."properties"."fee_dollar_amount" IS 'Management fee dollar amount.';
 
 
 
@@ -3799,6 +3814,14 @@ COMMENT ON COLUMN "public"."properties"."billing_frequency" IS 'Billing frequenc
 
 
 COMMENT ON COLUMN "public"."properties"."service_assignment" IS 'Scope at which services are assigned (Property Level or Unit Level).';
+
+
+
+COMMENT ON COLUMN "public"."properties"."bill_pay_list" IS 'Free-form list of bills to be paid when Bill Pay service is active.';
+
+
+
+COMMENT ON COLUMN "public"."properties"."bill_pay_notes" IS 'Additional notes for handling Bill Pay service at the property level.';
 
 
 
@@ -3828,7 +3851,7 @@ CREATE TABLE IF NOT EXISTS "public"."units" (
     "service_plan" "public"."ServicePlan",
     "fee_type" "public"."FeeType",
     "fee_percent" numeric,
-    "management_fee" numeric,
+    "fee_dollar_amount" numeric,
     "fee_frequency" "public"."FeeFrequency",
     "active_services" "text",
     "fee_notes" "text",
@@ -3839,7 +3862,9 @@ CREATE TABLE IF NOT EXISTS "public"."units" (
     "buildium_created_at" timestamp with time zone,
     "buildium_updated_at" timestamp with time zone,
     "building_name" "text",
-    "org_id" "uuid" NOT NULL
+    "org_id" "uuid" NOT NULL,
+    "bill_pay_list" "text",
+    "bill_pay_notes" "text"
 );
 
 
@@ -3847,6 +3872,10 @@ ALTER TABLE "public"."units" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."units"."country" IS 'Unit address country - uses standardized countries enum';
+
+
+
+COMMENT ON COLUMN "public"."units"."fee_dollar_amount" IS 'Management fee dollar amount.';
 
 
 
@@ -3875,6 +3904,14 @@ COMMENT ON COLUMN "public"."units"."buildium_updated_at" IS 'When the unit was l
 
 
 COMMENT ON COLUMN "public"."units"."building_name" IS 'Building name for units in multi-building properties';
+
+
+
+COMMENT ON COLUMN "public"."units"."bill_pay_list" IS 'Free-form list of bills to be paid when Bill Pay service is active for the unit.';
+
+
+
+COMMENT ON COLUMN "public"."units"."bill_pay_notes" IS 'Additional notes for Bill Pay service at the unit level.';
 
 
 
@@ -4899,7 +4936,7 @@ CREATE TABLE IF NOT EXISTS "public"."transactions" (
     "vendor_id" "uuid",
     "category_id" "uuid",
     "reference_number" character varying(255),
-    "status" character varying(20) DEFAULT 'pending'::character varying,
+    "status" "public"."transaction_status_enum" DEFAULT ''::"public"."transaction_status_enum" NOT NULL,
     "is_recurring" boolean DEFAULT false,
     "recurring_schedule" "jsonb",
     "buildium_lease_id" integer,
@@ -5354,6 +5391,8 @@ CREATE OR REPLACE VIEW "public"."v_recent_transactions_ranked" AS
     "buildium_lease_id",
     "bank_account_id",
     "org_id",
+    "email_receipt",
+    "print_receipt",
     "row_number"() OVER (PARTITION BY "org_id" ORDER BY "date" DESC, "created_at" DESC) AS "rn"
    FROM "public"."transactions" "t";
 
@@ -9131,4 +9170,3 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 
-RESET ALL;

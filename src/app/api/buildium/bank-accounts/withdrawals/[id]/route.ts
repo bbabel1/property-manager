@@ -4,14 +4,11 @@ import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const withdrawalId = params.id;
+    const withdrawalId = (await params).id;
     
     logger.info({ userId: user.id, withdrawalId, action: 'get_buildium_withdrawal' }, 'Fetching Buildium withdrawal details');
 
@@ -43,7 +40,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, withdrawalId: params.id }, 'Error fetching Buildium withdrawal details');
+    logger.error({ error, withdrawalId: (await params).id }, 'Error fetching Buildium withdrawal details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium withdrawal details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -51,14 +48,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const withdrawalId = params.id;
+    const withdrawalId = (await params).id;
     
     logger.info({ userId: user.id, withdrawalId, action: 'update_buildium_withdrawal' }, 'Updating Buildium withdrawal');
 
@@ -96,7 +90,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, withdrawalId: params.id }, 'Error updating Buildium withdrawal');
+    logger.error({ error, withdrawalId: (await params).id }, 'Error updating Buildium withdrawal');
     return NextResponse.json(
       { error: 'Failed to update Buildium withdrawal', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

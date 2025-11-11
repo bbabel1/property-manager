@@ -8,10 +8,7 @@ import { upsertOwnerFromBuildium } from '@/lib/buildium-mappers'
 
 // Sync a single Buildium owner into the local database (contacts + owners)
 // POST /api/buildium/owners/:id/sync
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rate = await checkRateLimit(request)
     if (!rate.success) {
@@ -19,7 +16,8 @@ export async function POST(
     }
 
     const user = await requireUser(request)
-    const buildiumId = Number(params.id)
+    const { id } = await params
+    const buildiumId = Number(id)
     if (!Number.isFinite(buildiumId) || buildiumId <= 0) {
       return NextResponse.json({ error: 'Invalid Buildium owner id' }, { status: 400 })
     }

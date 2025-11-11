@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser(request)
-    const bankAccountId = params.id
+    const bankAccountId = (await params).id
     logger.info({ userId: user.id, bankAccountId, action: 'get_buildium_reconciliations_by_bank' }, 'Fetching Buildium reconciliations by bank account')
 
     const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/${bankAccountId}/reconciliations`, {
@@ -29,7 +26,7 @@ export async function GET(
     const rows = await response.json()
     return NextResponse.json({ success: true, data: rows, count: Array.isArray(rows) ? rows.length : 0 })
   } catch (error) {
-    logger.error({ error, bankAccountId: params.id }, 'Error fetching reconciliations by bank account')
+    logger.error({ error, bankAccountId: (await params).id }, 'Error fetching reconciliations by bank account')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { DateInput } from "@/components/ui/date-input"
 
 export default function StartContinueReconciliation({
   propertyId,
@@ -85,12 +86,12 @@ export default function StartContinueReconciliation({
       <label className="sr-only" htmlFor="reconciliation-statement-date">
         Statement ending date
       </label>
-      <input
+      <DateInput
         id="reconciliation-statement-date"
-        type="date"
         value={statementDate}
-        onChange={(e)=> setStatementDate(e.target.value)}
-        className="border rounded px-2 py-1 text-sm"
+        onChange={setStatementDate}
+        className="text-sm py-1"
+        containerClassName="min-w-[10rem]"
         aria-label="Statement ending date"
       />
       <button onClick={start} disabled={busy !== null} className={`border px-2 py-1 rounded text-sm ${busy==='start'?'opacity-60':''}`}>Start</button>

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge'
 import { X, Edit } from 'lucide-react'
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 type Org = { id: string; name: string }
 type Membership = { org_id: string; org_name?: string; role: string }
 type Contact = { id: string; first_name?: string; last_name?: string; email?: string; phone?: string }
@@ -24,7 +26,7 @@ export default function UsersRolesPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [orgs, setOrgs] = useState<Org[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [pageError, setPageError] = useState<string | null>(null)
 
   // Invite form state and shared org/role pickers
   const [selectedOrg, setSelectedOrg] = useState<string>('')
@@ -33,6 +35,7 @@ export default function UsersRolesPage() {
   const [newOrgName, setNewOrgName] = useState('')
   const [creatingOrg, setCreatingOrg] = useState(false)
   const [createOrgErr, setCreateOrgErr] = useState<string | null>(null)
+  const [createOrgContext, setCreateOrgContext] = useState<'invite' | 'edit' | null>(null)
 
   // Invite state
   const [inviteEmail, setInviteEmail] = useState('')
@@ -45,12 +48,21 @@ export default function UsersRolesPage() {
   const [editSelectedRoles, setEditSelectedRoles] = useState<string[]>([])
   const [editBusy, setEditBusy] = useState(false)
   const [editEmail, setEditEmail] = useState('')
+  const [editOrgRoles, setEditOrgRoles] = useState<Record<string, string[]>>({})
+  const [editError, setEditError] = useState<string | null>(null)
   
   // Edit contact state
   const [editContact, setEditContact] = useState<Contact | null>(null)
   const [editFirstName, setEditFirstName] = useState('')
   const [editLastName, setEditLastName] = useState('')
   const [editPhone, setEditPhone] = useState('')
+
+  const setRolesForOrg = (orgId: string, roles: string[]) => {
+    if (!orgId) return
+    const uniqueRoles = Array.from(new Set(roles.filter(Boolean)))
+    setEditOrgRoles(prev => ({ ...prev, [orgId]: uniqueRoles }))
+    setEditSelectedRoles(uniqueRoles.length ? uniqueRoles : [])
+  }
 
   const handleRoleSelect = (role: string) => {
     if (!selectedRoles.includes(role)) {
@@ -63,26 +75,40 @@ export default function UsersRolesPage() {
   }
 
   const handleEditRoleSelect = (role: string) => {
-    if (!editSelectedRoles.includes(role)) {
-      setEditSelectedRoles(prev => [...prev, role])
-    }
+    if (!editSelectedOrg || editSelectedRoles.includes(role)) return
+    setRolesForOrg(editSelectedOrg, [...editSelectedRoles, role])
   }
 
   const handleEditRoleRemove = (role: string) => {
-    setEditSelectedRoles(prev => prev.filter(r => r !== role))
+    if (!editSelectedOrg) return
+    setRolesForOrg(editSelectedOrg, editSelectedRoles.filter(r => r !== role))
   }
 
   const startEditUser = (user: UserRow) => {
     setEditingUser(user)
-    // Pre-populate with existing memberships
+    setEditError(null)
+    const membershipsByOrg: Record<string, string[]> = {}
     if (user.memberships && user.memberships.length > 0) {
+      user.memberships.forEach((membership) => {
+        if (!membershipsByOrg[membership.org_id]) {
+          membershipsByOrg[membership.org_id] = []
+        }
+        if (membership.role) {
+          membershipsByOrg[membership.org_id].push(membership.role)
+        }
+      })
       const firstMembership = user.memberships[0]
+      let rolesForOrg = membershipsByOrg[firstMembership.org_id] || []
+      if (!rolesForOrg.length) {
+        rolesForOrg = ['org_staff']
+      }
+      const uniqueRoles = Array.from(new Set(rolesForOrg))
+      membershipsByOrg[firstMembership.org_id] = uniqueRoles
+      setEditOrgRoles(membershipsByOrg)
       setEditSelectedOrg(firstMembership.org_id)
-      const uniqueRoles = Array.from(new Set(
-        user.memberships.map(m => m.role).filter((role): role is string => Boolean(role))
-      ))
       setEditSelectedRoles(uniqueRoles)
     } else {
+      setEditOrgRoles({})
       setEditSelectedOrg('')
       setEditSelectedRoles(['org_staff'])
     }
@@ -108,6 +134,8 @@ export default function UsersRolesPage() {
     setEditingUser(null)
     setEditSelectedOrg('')
     setEditSelectedRoles([])
+    setEditOrgRoles({})
+    setEditError(null)
     setEditContact(null)
     setEditFirstName('')
     setEditLastName('')
@@ -115,7 +143,7 @@ export default function UsersRolesPage() {
     setEditEmail('')
   }
 
-  const saveContactDetails = async () => {
+  const saveContactDetails = async (contactEmail: string) => {
     if (!editingUser) return
     
     try {
@@ -123,7 +151,7 @@ export default function UsersRolesPage() {
         first_name: editFirstName.trim(),
         last_name: editLastName.trim(),
         phone: editPhone.trim(),
-        email: editingUser.email
+        email: contactEmail
       }
       
       const res = await fetch('/api/admin/contacts', {
@@ -146,19 +174,31 @@ export default function UsersRolesPage() {
   }
 
   const saveEdit = async () => {
-    if (!editingUser || !editSelectedOrg || editSelectedRoles.length === 0) return
+    if (!editingUser || !editSelectedOrg) return
+    const rolesToSave = Array.from(new Set(editSelectedRoles.filter(Boolean)))
+    if (rolesToSave.length === 0) {
+      setEditError('Select at least one role')
+      return
+    }
+    const trimmedEmail = editEmail.trim()
+    if (trimmedEmail && !EMAIL_REGEX.test(trimmedEmail)) {
+      setEditError('Enter a valid email address')
+      return
+    }
+    const normalizedEmail = trimmedEmail.toLowerCase()
+    const contactEmail = trimmedEmail ? normalizedEmail : editingUser.email
     setEditBusy(true)
-    setError(null)
+    setEditError(null)
     try {
       // Save contact details first
-      await saveContactDetails()
+      await saveContactDetails(contactEmail)
 
       // Update email if changed
-      if (editEmail && editEmail !== editingUser.email) {
+      if (trimmedEmail && normalizedEmail !== editingUser.email) {
         const resEmail = await fetch('/api/admin/users/update-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: editingUser.id, email: editEmail })
+          body: JSON.stringify({ user_id: editingUser.id, email: normalizedEmail })
         })
         const d = await resEmail.json()
         if (!resEmail.ok) throw new Error(d?.error || 'Failed to update email')
@@ -171,7 +211,7 @@ export default function UsersRolesPage() {
         body: JSON.stringify({ 
           user_id: editingUser.id, 
           org_id: editSelectedOrg, 
-          roles: editSelectedRoles 
+          roles: rolesToSave 
         })
       })
       const data = await res.json()
@@ -181,21 +221,34 @@ export default function UsersRolesPage() {
       setUsers(updated.users || [])
       cancelEdit()
     } catch (e: any) {
-      setError(e?.message || 'Failed to update roles')
+      setEditError(e?.message || 'Failed to update roles')
     } finally {
       setEditBusy(false)
     }
   }
 
   const invite = async () => {
-    if (!inviteEmail.trim()) return
+    const trimmedEmail = inviteEmail.trim().toLowerCase()
+    if (!trimmedEmail) {
+      setInviteErr('Enter an email address')
+      return
+    }
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setInviteErr('Enter a valid email address')
+      return
+    }
     setInviting(true)
     setInviteErr(null)
     try {
+      const uniqueRoles = Array.from(new Set(selectedRoles.filter(Boolean)))
       const res = await fetch('/api/admin/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail.trim(), org_id: selectedOrg || undefined, roles: selectedRoles })
+        body: JSON.stringify({ 
+          email: trimmedEmail, 
+          org_id: selectedOrg || undefined, 
+          roles: uniqueRoles.length ? uniqueRoles : ['org_staff'] 
+        })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to invite user')
@@ -203,6 +256,7 @@ export default function UsersRolesPage() {
       const updated = await fetch('/api/admin/users').then(r => r.json())
       setUsers(updated.users || [])
       setInviteEmail('')
+      setSelectedRoles(['org_staff'])
     } catch (e: any) {
       setInviteErr(e?.message || 'Failed to invite user')
     } finally {
@@ -213,7 +267,7 @@ export default function UsersRolesPage() {
   useEffect(() => {
     const run = async () => {
       setLoading(true)
-      setError(null)
+      setPageError(null)
       try {
         const [u, o] = await Promise.all([
           fetch('/api/admin/users').then(r => r.json()),
@@ -224,7 +278,7 @@ export default function UsersRolesPage() {
         setUsers(u.users || [])
         setOrgs(o.organizations || [])
       } catch (e: any) {
-        setError(e?.message || 'Failed to load users')
+        setPageError(e?.message || 'Failed to load users')
       } finally {
         setLoading(false)
       }
@@ -234,25 +288,76 @@ export default function UsersRolesPage() {
 
   // Note: Role/Org assignment is done exclusively in the table edit dialog
 
+  const handleCreateOrgDialogChange = (open: boolean) => {
+    setShowCreateOrg(open)
+    if (!open) {
+      setNewOrgName('')
+      setCreateOrgErr(null)
+      setCreateOrgContext(null)
+    }
+  }
+
+  const openCreateOrgDialog = (context: 'invite' | 'edit') => {
+    setCreateOrgContext(context)
+    setCreateOrgErr(null)
+    setNewOrgName('')
+    setShowCreateOrg(true)
+  }
+
+  const handleInviteOrgChange = (value: string) => {
+    if (value === '__create__') {
+      openCreateOrgDialog('invite')
+      return
+    }
+    setSelectedOrg(value)
+  }
+
+  const handleEditOrgChange = (value: string) => {
+    if (value === '__create__') {
+      openCreateOrgDialog('edit')
+      return
+    }
+    if (!value) return
+    const roles = editOrgRoles[value]
+    const normalizedRoles = roles && roles.length ? Array.from(new Set(roles)) : ['org_staff']
+    setEditOrgRoles(prev => ({ ...prev, [value]: normalizedRoles }))
+    setEditSelectedOrg(value)
+    setEditSelectedRoles(normalizedRoles)
+  }
+
   const createOrg = async () => {
-    if (!newOrgName.trim()) return
+    const name = newOrgName.trim()
+    if (!name) return
     setCreatingOrg(true)
     setCreateOrgErr(null)
     try {
-      const res = await fetch('/api/admin/orgs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newOrgName.trim() }) })
+      const res = await fetch('/api/admin/orgs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to create organization')
-      const o = await fetch('/api/admin/orgs').then(r => r.json())
-      setOrgs(o.organizations || [])
-      setSelectedOrg(data.organization?.id || '')
-      setShowCreateOrg(false)
-      setNewOrgName('')
+      const refreshed = await fetch('/api/admin/orgs').then(r => r.json())
+      setOrgs(refreshed.organizations || [])
+      const createdId = data.organization?.id || ''
+      if (createOrgContext === 'edit') {
+        if (createdId) {
+          setEditOrgRoles(prev => ({ ...prev, [createdId]: ['org_staff'] }))
+          setEditSelectedOrg(createdId)
+          setEditSelectedRoles(['org_staff'])
+        }
+      } else if (createOrgContext === 'invite') {
+        if (createdId) {
+          setSelectedOrg(createdId)
+        }
+      }
+      handleCreateOrgDialogChange(false)
     } catch (e: any) {
       setCreateOrgErr(e?.message || 'Failed to create organization')
     } finally {
       setCreatingOrg(false)
     }
   }
+
+  const inviteEmailTrimmed = inviteEmail.trim()
+  const inviteEmailValid = inviteEmailTrimmed.length > 0 && EMAIL_REGEX.test(inviteEmailTrimmed.toLowerCase())
 
 
   return (
@@ -268,11 +373,18 @@ export default function UsersRolesPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="block text-sm mb-1">Email</label>
-              <Input value={inviteEmail} onChange={(e)=> setInviteEmail(e.target.value)} placeholder="user@example.com" />
+              <Input 
+                value={inviteEmail} 
+                onChange={(e)=> {
+                  setInviteEmail(e.target.value)
+                  if (inviteErr) setInviteErr(null)
+                }} 
+                placeholder="user@example.com" 
+              />
             </div>
             <div>
               <label className="block text-sm mb-1">Organization (optional)</label>
-              <Select value={selectedOrg} onValueChange={(v)=> v==="__create__" ? setShowCreateOrg(true) : setSelectedOrg(v)}>
+              <Select value={selectedOrg} onValueChange={handleInviteOrgChange}>
                 <SelectTrigger aria-label="Select organization"><SelectValue placeholder="Select organization" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__create__">+ Create New</SelectItem>
@@ -324,7 +436,7 @@ export default function UsersRolesPage() {
             </div>
           )}
           <div className="flex items-center gap-3">
-            <Button disabled={inviting || !inviteEmail.trim()} onClick={invite}>
+            <Button disabled={inviting || !inviteEmailValid} onClick={invite}>
               {inviting ? 'Inviting...' : 'Send Invite'}
             </Button>
             {inviteErr && <span className="text-sm text-destructive">{inviteErr}</span>}
@@ -342,6 +454,12 @@ export default function UsersRolesPage() {
         <CardContent>
           {loading ? (
             <div className="text-muted-foreground">Loading...</div>
+          ) : pageError ? (
+            <div className="text-sm text-destructive">{pageError}</div>
+          ) : users.length === 0 ? (
+            <div className="text-sm text-muted-foreground border rounded-md px-4 py-6 text-center">
+              No users yet. Send an invite to get started.
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -407,7 +525,7 @@ export default function UsersRolesPage() {
         </CardContent>
       </Card>
     
-      <Dialog open={showCreateOrg} onOpenChange={setShowCreateOrg}>
+      <Dialog open={showCreateOrg} onOpenChange={handleCreateOrgDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create organization</DialogTitle>
@@ -420,13 +538,13 @@ export default function UsersRolesPage() {
             {createOrgErr && <div className="text-sm text-destructive">{createOrgErr}</div>}
             <div className="flex items-center gap-2">
               <Button onClick={createOrg} disabled={creatingOrg || !newOrgName.trim()}>{creatingOrg ? "Creating..." : "Create"}</Button>
-              <Button variant="cancel" onClick={()=> setShowCreateOrg(false)}>Cancel</Button>
+              <Button variant="cancel" onClick={()=> handleCreateOrgDialogChange(false)}>Cancel</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingUser} onOpenChange={() => cancelEdit()}>
+      <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) cancelEdit() }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit User Details</DialogTitle>
@@ -470,7 +588,10 @@ export default function UsersRolesPage() {
                       <label className="block text-sm mb-1">Email (sign-in)</label>
                       <Input 
                         value={editEmail} 
-                        onChange={(e) => setEditEmail(e.target.value)} 
+                        onChange={(e) => {
+                          setEditEmail(e.target.value)
+                          if (editError) setEditError(null)
+                        }} 
                         placeholder="user@example.com" 
                       />
                     </div>
@@ -483,7 +604,7 @@ export default function UsersRolesPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm mb-1">Organization</label>
-                      <Select value={editSelectedOrg} onValueChange={(v)=> v==="__create__" ? setShowCreateOrg(true) : setEditSelectedOrg(v)}>
+                      <Select value={editSelectedOrg} onValueChange={handleEditOrgChange}>
                         <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__create__">+ Create New</SelectItem>
@@ -539,7 +660,7 @@ export default function UsersRolesPage() {
                   </div>
                 )}
                 
-                {error && <div className="text-sm text-destructive">{error}</div>}
+                {editError && <div className="text-sm text-destructive">{editError}</div>}
                 
                 <div className="flex items-center gap-2 pt-4">
                   <Button 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CheckIcon, ChevronDownIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateInput } from '@/components/ui/date-input';
 import { cn } from '@/components/ui/utils';
 
 type PresetValue =
@@ -246,12 +247,12 @@ export default function DateRangeControls({
         >
           From
         </label>
-        <input
+        <DateInput
           id="from"
-          type="date"
           value={fromValue}
-          onChange={(event) => handleDateChange('from', event.target.value)}
-          className="border-input bg-input-background focus-visible:border-ring focus-visible:ring-ring/50 rounded-md border px-3 py-2 text-sm transition-[color,box-shadow] outline-none focus-visible:ring-1"
+          onChange={(nextValue) => handleDateChange('from', nextValue)}
+          containerClassName="w-full"
+          className="text-sm"
         />
       </div>
       <div className="flex min-w-[14rem] flex-col gap-1">
@@ -261,12 +262,12 @@ export default function DateRangeControls({
         >
           To
         </label>
-        <input
+        <DateInput
           id="to"
-          type="date"
           value={toValue}
-          onChange={(event) => handleDateChange('to', event.target.value)}
-          className="border-input bg-input-background focus-visible:border-ring focus-visible:ring-ring/50 rounded-md border px-3 py-2 text-sm transition-[color,box-shadow] outline-none focus-visible:ring-1"
+          onChange={(nextValue) => handleDateChange('to', nextValue)}
+          containerClassName="w-full"
+          className="text-sm"
         />
       </div>
     </div>

@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'clear_reconciliation_transactions' }, 'Clearing Buildium reconciliation transactions');
 
@@ -46,7 +43,7 @@ export async function POST(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error clearing Buildium reconciliation transactions');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error clearing Buildium reconciliation transactions');
     return NextResponse.json(
       { error: 'Failed to clear Buildium reconciliation transactions', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

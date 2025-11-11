@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const quickDepositId = params.id;
+    const quickDepositId = (await params).id;
     
     logger.info({ userId: user.id, quickDepositId, action: 'get_buildium_quick_deposit' }, 'Fetching Buildium quick deposit details');
 
@@ -41,7 +38,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, quickDepositId: params.id }, 'Error fetching Buildium quick deposit details');
+    logger.error({ error, quickDepositId: (await params).id }, 'Error fetching Buildium quick deposit details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium quick deposit details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -49,14 +46,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const quickDepositId = params.id;
+    const quickDepositId = (await params).id;
     
     logger.info({ userId: user.id, quickDepositId, action: 'update_buildium_quick_deposit' }, 'Updating Buildium quick deposit');
 
@@ -93,7 +87,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, quickDepositId: params.id }, 'Error updating Buildium quick deposit');
+    logger.error({ error, quickDepositId: (await params).id }, 'Error updating Buildium quick deposit');
     return NextResponse.json(
       { error: 'Failed to update Buildium quick deposit', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

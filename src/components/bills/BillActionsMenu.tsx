@@ -1,7 +1,8 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import ActionButton from '@/components/ui/ActionButton';
 import {
   DropdownMenu,
@@ -10,6 +11,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  initiateBuildiumDelete,
+  finalizeBuildiumDelete,
+  BuildiumDeletePrompt,
+} from '@/components/bills/useBuildiumDeleteFlow';
+import { BuildiumDeleteConfirmationDialog } from '@/components/bills/BuildiumDeleteConfirmationDialog';
 
 type BillActionsMenuProps = {
   billId: string;
@@ -18,24 +35,47 @@ type BillActionsMenuProps = {
 export default function BillActionsMenu({ billId }: BillActionsMenuProps) {
   const router = useRouter();
   const [isDeleting, startTransition] = useTransition();
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [buildiumPrompt, setBuildiumPrompt] = useState<BuildiumDeletePrompt | null>(null);
+  const [isConfirmingBuildium, setIsConfirmingBuildium] = useState(false);
 
   const handleDelete = () => {
-    if (!window.confirm('Delete this bill? This cannot be undone.')) return;
+    setIsConfirmOpen(false);
     startTransition(async () => {
       try {
-        const res = await fetch(`/api/bills/${billId}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || 'Failed to delete bill');
+        const result = await initiateBuildiumDelete(billId);
+        if (result.status === 'deleted') {
+          toast.success('Bill deleted');
+          router.push('/bills');
+        } else {
+          setBuildiumPrompt(result.prompt);
         }
-        router.push('/bills');
-        router.refresh();
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to delete bill';
-        alert(message);
+        const message = error instanceof Error ? error.message : 'Failed to delete bill';
+        toast.error('Failed to delete bill', { description: message });
       }
     });
+  };
+
+  const handleConfirmBuildium = async () => {
+    if (!buildiumPrompt) return;
+    setIsConfirmingBuildium(true);
+    try {
+      await finalizeBuildiumDelete(billId, buildiumPrompt.confirmation);
+      toast.success('Bill deleted');
+      setBuildiumPrompt(null);
+      router.push('/bills');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete bill';
+      toast.error('Failed to delete bill', { description: message });
+    } finally {
+      setIsConfirmingBuildium(false);
+    }
+  };
+
+  const handleCancelBuildium = () => {
+    if (isConfirmingBuildium) return;
+    setBuildiumPrompt(null);
   };
 
   return (
@@ -49,7 +89,13 @@ export default function BillActionsMenu({ billId }: BillActionsMenuProps) {
           aria-disabled={isDeleting}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[12rem]" sideOffset={6}>
+      <DropdownMenuContent
+        align="end"
+        className="min-w-[12rem]"
+        sideOffset={6}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
         <DropdownMenuItem disabled title="Coming soon">
           Enter charges
         </DropdownMenuItem>
@@ -64,13 +110,46 @@ export default function BillActionsMenu({ billId }: BillActionsMenuProps) {
           variant="destructive"
           onSelect={(event) => {
             event.preventDefault();
+            event.stopPropagation();
             if (isDeleting) return;
-            handleDelete();
+            setIsConfirmOpen(true);
           }}
         >
           Delete bill
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete bill?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action permanently removes the bill and its line items. You can’t undo it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={(event) => {
+                event.preventDefault();
+                if (isDeleting) return;
+                handleDelete();
+              }}
+            >
+              {isDeleting ? 'Deleting…' : 'Delete bill'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <BuildiumDeleteConfirmationDialog
+        open={Boolean(buildiumPrompt)}
+        buildium={buildiumPrompt?.buildium}
+        expiresAt={buildiumPrompt?.confirmation.expiresAt}
+        onCancel={handleCancelBuildium}
+        onConfirm={handleConfirmBuildium}
+        isConfirming={isConfirmingBuildium}
+      />
     </DropdownMenu>
   );
 }

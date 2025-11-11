@@ -139,6 +139,16 @@ export async function POST(request: NextRequest) {
     if (ownerError) {
       console.error('Database error:', ownerError);
       logger.error({ error: ownerError, userId: user.id }, 'Failed to create owner');
+      try {
+        if (contact?.id) {
+          await db.from('contacts').delete().eq('id', contact.id)
+        }
+      } catch (cleanupError) {
+        logger.warn(
+          { error: cleanupError, contactId: contact?.id, userId: user.id },
+          'Failed to roll back contact after owner creation error'
+        )
+      }
       return NextResponse.json(
         { error: 'Failed to create owner', details: ownerError.message },
         { status: 500 }

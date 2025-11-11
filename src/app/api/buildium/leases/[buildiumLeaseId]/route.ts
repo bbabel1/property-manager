@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
 
-export async function GET(_req: NextRequest, { params }: { params: { buildiumLeaseId: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ buildiumLeaseId: string }> }) {
   try {
-    const id = Number(params.buildiumLeaseId)
+    const { buildiumLeaseId } = await params
+    const id = Number(buildiumLeaseId)
     const res = await buildiumEdgeClient.getLeaseFromBuildium(id)
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to fetch lease' }, { status: 404 })
     return NextResponse.json(res.data)
@@ -14,9 +15,10 @@ export async function GET(_req: NextRequest, { params }: { params: { buildiumLea
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { buildiumLeaseId: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ buildiumLeaseId: string }> }) {
   try {
-    const id = Number(params.buildiumLeaseId)
+    const { buildiumLeaseId } = await params
+    const id = Number(buildiumLeaseId)
     const body = await request.json().catch(() => ({}))
     const res = await buildiumEdgeClient.updateLeaseInBuildium(id, body)
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to update lease in Buildium' }, { status: 400 })

@@ -3,14 +3,11 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'get_buildium_reconciliation_balance' }, 'Fetching Buildium reconciliation balance');
 
@@ -42,7 +39,7 @@ export async function GET(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error fetching Buildium reconciliation balance');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error fetching Buildium reconciliation balance');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium reconciliation balance', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -50,14 +47,11 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'update_buildium_reconciliation_balance' }, 'Updating Buildium reconciliation balance');
 
@@ -111,7 +105,7 @@ export async function PUT(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error updating Buildium reconciliation balance');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error updating Buildium reconciliation balance');
     return NextResponse.json(
       { error: 'Failed to update Buildium reconciliation balance', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

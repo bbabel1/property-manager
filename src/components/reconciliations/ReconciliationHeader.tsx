@@ -24,7 +24,7 @@ export default function ReconciliationHeader({
         {propertyId && (
           <a href={`/properties/${propertyId}/financials`} className="text-sm text-primary underline">Back to Financials</a>
         )}
-        <span className={`text-xs px-2 py-1 rounded border ${status === 'Finished' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+        <span className={`text-xs px-2 py-1 rounded border ${status === 'Finished' ? 'bg-[var(--color-action-50)] border-[var(--color-action-200)] text-[var(--color-action-600)]' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
           {status || 'Pending'}
         </span>
       </div>

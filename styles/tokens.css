@@ -1,99 +1,135 @@
-/* Design Tokens - Property Manager */
+/* Design Tokens - Buildium Theme */
 :root {
   /* === PRIMITIVE COLORS === */
-  /* Gray Scale */
+  /* Slate / Navy Scale */
   --color-white: #ffffff;
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
-  --color-gray-950: #030712;
-  --color-black: #000000;
+  --color-gray-25: #f9fbff;
+  --color-gray-50: #f5f7fa;
+  --color-gray-100: #eef1f4;
+  --color-gray-200: #e1e6eb;
+  --color-gray-300: #ccd3db;
+  --color-gray-400: #a7b4be;
+  --color-gray-500: #8e9dab;
+  --color-gray-600: #738495;
+  --color-gray-700: #3e586d;
+  --color-gray-800: #2d455c;
+  --color-gray-900: #1f3d56;
+  --color-gray-950: #152a3a;
+  --color-black: #0b1724;
 
-  /* Brand Colors - Ora Blue (#164AAC) */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #164AAC; /* Primary brand */
-  --color-brand-600: #1d4ed8;
-  --color-brand-700: #1e40af;
-  --color-brand-800: #1e3a8a;
-  --color-brand-900: #1e3a8a;
-  --color-brand-950: #172554;
+  /* Brand Slate (Buildium shell chrome) */
+  --color-brand-50: #f0f3f7;
+  --color-brand-100: #d8e0e9;
+  --color-brand-200: #bcc7d4;
+  --color-brand-300: #94a5b7;
+  --color-brand-400: #6c849b;
+  --color-brand-500: #1f3d56; /* Primary nav / headings */
+  --color-brand-600: #183345;
+  --color-brand-700: #132a38;
+  --color-brand-800: #0f202c;
+  --color-brand-900: #0a1821;
+  --color-brand-950: #060f15;
 
-  /* Status Colors */
-  --color-success-50: #f0fdf4;
-  --color-success-500: #16a34a;
-  --color-success-600: #15803d;
-  --color-success-700: #166534;
+  /* Action Palette (Brand Blue) */
+  --color-action-50: #E8EDF7;
+  --color-action-100: #D0DBEE;
+  --color-action-200: #A2B7DE;
+  --color-action-300: #7392CD;
+  --color-action-400: #164AAC; /* Brand blue CTA */
+  --color-action-500: #133F92;
+  --color-action-600: #0F3478;
+  --color-action-700: #0C295F;
+  --color-action-800: #091E45;
+  --color-action-900: #06132B;
 
-  --color-warning-50: #fffbeb;
-  --color-warning-500: #f59e0b;
-  --color-warning-600: #d97706;
+  /* Status Colors (aligned with Buildium UI accents) */
+  --color-success-50: #f1f7f3;
+  --color-success-500: #68906a;
+  --color-success-600: #4f7452;
+  --color-success-700: #3f5d42;
+
+  --color-warning-50: #fff6e6;
+  --color-warning-500: #f08f2a;
+  --color-warning-600: #c97220;
 
   --color-danger-50: #fef2f2;
-  --color-danger-500: #ef4444;
-  --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
+  --color-danger-500: #d94841;
+  --color-danger-600: #b53a35;
+  --color-danger-700: #8e2c28;
 
   /* === SEMANTIC TOKENS === */
   /* Backgrounds */
   --background: var(--color-white);
-  --background-muted: var(--color-gray-50);
-  --background-subtle: var(--color-gray-100);
-  
+  --background-muted: var(--color-gray-25);
+  --background-subtle: var(--color-gray-25);
+
   /* Cards & Surfaces */
   --card: var(--color-white);
   --card-background: var(--color-white);
   --card-border: var(--color-gray-200);
   --card-foreground: var(--color-gray-900);
-  
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-gray-900);
+
   /* Text */
   --foreground: var(--color-gray-900);
   --text-primary: var(--color-gray-900);
   --text-secondary: var(--color-gray-700);
-  --text-muted: var(--color-gray-500);
+  --text-muted: var(--color-gray-600);
   --text-placeholder: var(--color-gray-400);
-  --muted-foreground: var(--color-gray-500);
-  
+  --muted-foreground: var(--color-gray-600);
+  --text-inverse: var(--color-white);
+
   /* Brand & Actions */
-  --primary: var(--color-brand-500);
+  --primary: var(--color-action-400);
   --primary-foreground: var(--color-white);
-  --primary-hover: var(--color-brand-600);
-  
+  --primary-hover: var(--color-action-500);
+
   /* Interactive States */
   --border: var(--color-gray-200);
+  --border-subtle: var(--color-gray-200);
+  --border-strong: var(--color-gray-300);
   --border-input: var(--color-gray-300);
-  --border-focus: var(--color-brand-500);
+  --border-focus: var(--color-action-400);
   --input: var(--color-white);
   --input-background: var(--color-white);
-  --accent: var(--color-gray-100);
+  --switch-background: #cfd7e1;
+  --accent: var(--color-gray-25);
   --accent-foreground: var(--color-gray-900);
-  --secondary: var(--color-gray-100);
+  --secondary: #f1f5fb;
   --secondary-foreground: var(--color-gray-900);
-  
+  --muted: #f6f8fc;
+  --surface-panel: var(--color-gray-25);
+  --surface-panel-border: var(--color-gray-100);
+  --surface-highlight: #f0f9ff;
+  --surface-highlight-border: #bfdbfe;
+  --surface-dropdown: var(--color-white);
+  --surface-dropdown-hover: var(--color-gray-100);
+
+  /* Informational Surfaces */
+  --surface-info-bg: #f3f6fb;
+  --surface-info-border: #d3dde8;
+  --surface-primary-soft: rgba(22, 74, 172, 0.12);
+  --surface-primary-soft-border: rgba(22, 74, 172, 0.3);
+  --surface-primary-soft-highlight: rgba(22, 74, 172, 0.08);
+
   /* Focus & Ring States */
-  --ring: var(--color-brand-500);
+  --ring: var(--color-action-400);
   --ring-offset: var(--color-white);
-  
+  --state-hover-overlay: rgba(22, 74, 172, 0.08);
+  --state-active-overlay: rgba(22, 74, 172, 0.16);
+  --state-focus-ring: rgba(22, 74, 172, 0.45);
+
   /* Sidebar */
-  --sidebar: var(--color-gray-800);
-  --sidebar-foreground: var(--color-white);
-  --sidebar-accent: var(--color-gray-700);
+  --sidebar: #102840;
+  --sidebar-foreground: #f5f7fa;
+  --sidebar-accent: var(--color-gray-800);
   --sidebar-accent-foreground: var(--color-white);
-  --sidebar-primary: var(--color-brand-500);
+  --sidebar-primary: var(--color-action-400);
   --sidebar-primary-foreground: var(--color-white);
-  --sidebar-border: rgba(255, 255, 255, 0.2);
-  --sidebar-ring: var(--border-focus);
-  
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+  --sidebar-ring: rgba(130, 180, 133, 0.35);
+
   /* Status */
   --success: var(--color-success-500);
   --success-foreground: var(--color-white);
@@ -108,7 +144,7 @@
   --space-3: 0.75rem;   /* 12px */
   --space-4: 1rem;      /* 16px */
   --space-5: 1.25rem;   /* 20px */
-  --space-6: 1.5rem;    /* 24px - Primary section spacing */
+  --space-6: 1.5rem;    /* 24px */
   --space-8: 2rem;      /* 32px */
   --space-10: 2.5rem;   /* 40px */
   --space-12: 3rem;     /* 48px */
@@ -117,18 +153,21 @@
   --space-24: 6rem;     /* 96px */
 
   /* === TYPOGRAPHY SCALE === */
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-sans: 'Source Sans 3', 'Source Sans Pro', 'Open Sans', system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), 'SF Mono', Monaco, monospace;
 
-  --text-scale-factor: 1.07; /* mild bump for readability */
-  --text-xs: calc(0.75rem * var(--text-scale-factor));     /* ≈11px */
-  --text-sm: calc(0.875rem * var(--text-scale-factor));    /* ≈13px */
-  --text-base: calc(1rem * var(--text-scale-factor));      /* ≈15px */
-  --text-lg: calc(1.125rem * var(--text-scale-factor));    /* ≈17px */
-  --text-xl: calc(1.25rem * var(--text-scale-factor));     /* ≈19px */
-  --text-2xl: calc(1.5rem * var(--text-scale-factor));     /* ≈22px */
-  --text-3xl: calc(1.875rem * var(--text-scale-factor));   /* ≈28px */
-  --text-4xl: calc(2.25rem * var(--text-scale-factor));    /* ≈34px */
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+
+  --text-scale-factor: 1.0;
+  --text-xs: calc(0.75rem * var(--text-scale-factor));
+  --text-sm: calc(0.875rem * var(--text-scale-factor));
+  --text-base: calc(1rem * var(--text-scale-factor));
+  --text-lg: calc(1.125rem * var(--text-scale-factor));
+  --text-xl: calc(1.25rem * var(--text-scale-factor));
+  --text-2xl: calc(1.5rem * var(--text-scale-factor));
+  --text-3xl: calc(1.875rem * var(--text-scale-factor));
+  --text-4xl: calc(2.25rem * var(--text-scale-factor));
 
   --leading-tight: 1.25;
   --leading-normal: 1.5;
@@ -136,17 +175,17 @@
 
   /* === RADIUS SCALE === */
   --radius-sm: 0.25rem;   /* 4px */
-  --radius: 0.625rem;     /* 10px - Default (Figma) */
+  --radius: 0.625rem;     /* 10px */
   --radius-lg: 0.75rem;   /* 12px */
   --radius-xl: 1rem;      /* 16px */
   --radius-2xl: 1.5rem;   /* 24px */
   --radius-full: 9999px;
 
   /* === SHADOWS === */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 2px 0 rgb(31 61 86 / 0.06);
+  --shadow: 0 6px 12px -4px rgb(31 61 86 / 0.08), 0 2px 6px -2px rgb(31 61 86 / 0.05);
+  --shadow-lg: 0 16px 24px -8px rgb(31 61 86 / 0.08), 0 6px 12px -6px rgb(31 61 86 / 0.06);
+  --shadow-xl: 0 24px 40px -12px rgb(31 61 86 / 0.12), 0 10px 18px -10px rgb(31 61 86 / 0.08);
 
   /* === Z-INDEX LAYERS === */
   --z-base: 0;
@@ -159,48 +198,74 @@
   --z-tooltip: 70;
   --z-toast: 80;
 
-  /* === CHART + RING (from SAMPLE) === */
-  /* Keep ring aligned with focus token; override if needed */
-  --ring: var(--border-focus);
-  /* Chart palette (approximate if not in use) */
-  --chart-1: var(--color-brand-500);
-  --chart-2: var(--color-success-500);
-  --chart-3: var(--color-warning-500);
-  --chart-4: var(--color-danger-500);
-  --chart-5: var(--color-brand-700);
+  /* Chart palette aligns to dashboard widgets */
+  --chart-1: var(--color-action-400);
+  --chart-2: #4c5f75;
+  --chart-3: #f08f2a;
+  --chart-4: #d94841;
+  --chart-5: #6c849b;
 }
 
 /* Dark Mode */
 :root.dark {
-  --background: var(--color-gray-950);
-  --background-muted: var(--color-gray-900);
-  --background-subtle: var(--color-gray-800);
-  
-  --card: var(--color-gray-900);
-  --card-background: var(--color-gray-900);
-  --card-border: var(--color-gray-800);
-  --card-foreground: var(--color-gray-50);
-  
-  --foreground: var(--color-gray-50);
-  --text-primary: var(--color-gray-50);
-  --text-secondary: var(--color-gray-300);
-  --text-muted: var(--color-gray-400);
-  --text-placeholder: var(--color-gray-500);
-  --muted-foreground: var(--color-gray-400);
-  
-  --border: var(--color-gray-800);
-  --border-input: var(--color-gray-700);
-  --border-focus: var(--color-brand-400);
-  --input: var(--color-gray-800);
-  --input-background: var(--color-gray-800);
-  --accent: var(--color-gray-800);
-  --accent-foreground: var(--color-gray-50);
-  --secondary: var(--color-gray-800);
-  --secondary-foreground: var(--color-gray-50);
-  
-  --ring: var(--color-brand-400);
-  --ring-offset: var(--color-gray-950);
-  
-  --primary: var(--color-brand-400);
-  --primary-hover: var(--color-brand-300);
+  --background: #101b28;
+  --background-muted: #132231;
+  --background-subtle: #182c3c;
+
+  --card: #1b2a3b;
+  --card-background: #1b2a3b;
+  --card-border: #22354a;
+  --card-foreground: #f1f5fa;
+  --popover: #1b2a3b;
+  --popover-foreground: #f1f5fa;
+
+  --foreground: #f1f5fa;
+  --text-primary: #f1f5fa;
+  --text-secondary: #c5d1dd;
+  --text-muted: #97a6b5;
+  --text-placeholder: #5e7387;
+  --muted-foreground: #97a6b5;
+  --text-inverse: #0b1724;
+
+  --border: #22354a;
+  --border-subtle: #1d2c3e;
+  --border-strong: #2f4760;
+  --border-input: #2b3f55;
+  --border-focus: var(--color-action-300);
+  --input: #172638;
+  --input-background: #172638;
+  --switch-background: #2f455e;
+  --accent: #1d2c3e;
+  --accent-foreground: #f1f5fa;
+  --secondary: #1d2c3e;
+  --secondary-foreground: #f1f5fa;
+  --muted: #1d2c3e;
+  --surface-panel: #172638;
+  --surface-panel-border: #22354a;
+  --surface-highlight: rgba(22, 74, 172, 0.22);
+  --surface-highlight-border: rgba(22, 74, 172, 0.45);
+  --surface-dropdown: #172638;
+  --surface-dropdown-hover: #1d2c3e;
+
+  --ring: var(--color-action-300);
+  --ring-offset: #0b1724;
+  --state-hover-overlay: rgba(22, 74, 172, 0.28);
+  --state-active-overlay: rgba(22, 74, 172, 0.4);
+  --state-focus-ring: rgba(22, 74, 172, 0.65);
+
+  --primary: var(--color-action-400);
+  --primary-hover: var(--color-action-300);
+
+  --surface-primary-soft: rgba(22, 74, 172, 0.22);
+  --surface-primary-soft-border: rgba(22, 74, 172, 0.45);
+  --surface-primary-soft-highlight: rgba(22, 74, 172, 0.14);
+
+  --sidebar: #102840;
+  --sidebar-foreground: #eef3f8;
+  --sidebar-accent: #173049;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-primary: var(--color-action-400);
+  --sidebar-primary-foreground: #0f1a27;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: rgba(130, 180, 133, 0.45);
 }

@@ -55,7 +55,8 @@ function NavTabsTrigger({
       className={cn(
         'flex-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 pb-3 pt-2 text-sm font-medium text-foreground transition-colors',
         'data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:font-semibold data-[state=active]:shadow-none',
-        'hover:border-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-transparent',
+        'hover:border-muted-foreground hover:text-foreground',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:rounded-md focus-visible:bg-primary/5',
         'disabled:pointer-events-none disabled:opacity-50',
         '[&_svg]:pointer-events-none [&_svg]:h-4 [&_svg]:w-4',
         className,

@@ -1,7 +1,9 @@
+import Link from 'next/link'
 import { Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { getVendorDashboardData } from '@/lib/vendor-service'
+import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell'
 
 import { VendorsTable } from './_components/vendor-table'
 
@@ -19,19 +21,22 @@ export default async function VendorsPage() {
   ).sort((a, b) => a.localeCompare(b))
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1.5">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Vendors</h1>
-          <p className="text-muted-foreground">Manage your service providers and contractors.</p>
-        </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Vendor
-        </Button>
-      </div>
-
-      <VendorsTable vendors={data.vendors} categories={categories} />
-    </div>
+    <PageShell>
+      <PageHeader
+        title="Vendors"
+        description="Manage your service providers and contractors."
+        actions={
+          <Button size="sm" className="gap-2" asChild>
+            <Link href="/vendors">
+              <Plus className="h-4 w-4" />
+              Add vendor
+            </Link>
+          </Button>
+        }
+      />
+      <PageBody>
+        <VendorsTable vendors={data.vendors} categories={categories} />
+      </PageBody>
+    </PageShell>
   )
 }

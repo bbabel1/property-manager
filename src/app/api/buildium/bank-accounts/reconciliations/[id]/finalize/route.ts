@@ -3,14 +3,11 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
     const user = await requireUser(request);
-    const reconciliationId = params.id;
+    const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'finalize_reconciliation' }, 'Finalizing Buildium reconciliation');
 
@@ -63,7 +60,7 @@ export async function POST(
     });
 
   } catch (error) {
-    logger.error({ error, reconciliationId: params.id }, 'Error finalizing Buildium reconciliation');
+    logger.error({ error, reconciliationId: (await params).id }, 'Error finalizing Buildium reconciliation');
     return NextResponse.json(
       { error: 'Failed to finalize Buildium reconciliation', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

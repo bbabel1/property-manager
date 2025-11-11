@@ -1,60 +1,53 @@
+import type { DateInputProps } from '@/components/ui/date-input';
+
 /**
- * Global configuration for date picker components
- * 
- * This file defines the standard approach for date input across the application.
- * We use native HTML date inputs for consistency and better user experience.
+ * Centralized configuration for the shared `<DateInput />` component.
+ *
+ * All date entry across the app should use `<DateInput />` so we maintain the
+ * month/day/year dropdown experience and consistent validation.
  */
+
+type DateInputPropOverrides = Omit<DateInputProps, 'value' | 'onChange'>;
 
 export const DATE_PICKER_CONFIG = {
   /**
-   * Use native HTML date inputs instead of custom DatePicker components
-   * This provides:
-   * - Consistent browser-native date picker experience
-   * - Better accessibility
-   * - Simpler implementation
-   * - Mobile-friendly date selection
+   * Flag for feature checks. When true, teams should wire up `<DateInput />`
+   * instead of native `<input type="date">`.
    */
-  useNativeDateInput: true,
-  
+  useDateInputComponent: true,
+
   /**
-   * Standard date input props for consistency
+   * Default props that mirror the global UX requirements (current year plus a
+   * 10-year lookback, allow picking up to 10 years ahead).
    */
   defaultProps: {
-    type: 'date' as const,
-    className: '', // Can be customized per use case
-  },
-  
+    pastYearRange: 10,
+    futureYearRange: 10,
+  } satisfies Partial<DateInputProps>,
+
   /**
-   * Helper function to create standardized date input props
+   * Helper to build `<DateInput />` props with the shared defaults applied.
    */
-  createDateInputProps: (value: string | null, onChange: (value: string) => void, className?: string) => ({
-    type: 'date' as const,
+  createDateInputProps: (
+    value: string | null,
+    onChange: (value: string) => void,
+    overrides?: Partial<DateInputPropOverrides>,
+  ): DateInputProps => ({
     value: value || '',
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value),
-    className: className || '',
+    onChange,
+    ...DATE_PICKER_CONFIG.defaultProps,
+    ...overrides,
   }),
 } as const;
 
 /**
- * Migration guide for developers:
- * 
- * OLD (custom DatePicker):
+ * Usage:
+ *
  * ```tsx
- * import { DatePicker } from '@/components/ui/date-picker'
- * <DatePicker value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
- * ```
- * 
- * NEW (native date input):
- * ```tsx
- * import { Input } from '@/components/ui/input'
- * <Input type="date" value={date || ''} onChange={(e) => setDate(e.target.value)} />
- * ```
- * 
- * Or use the helper:
- * ```tsx
- * import { Input } from '@/components/ui/input'
- * import { DATE_PICKER_CONFIG } from '@/lib/date-picker-config'
- * <Input {...DATE_PICKER_CONFIG.createDateInputProps(date, setDate)} />
+ * import { DateInput } from '@/components/ui/date-input';
+ * import { DATE_PICKER_CONFIG } from '@/lib/date-picker-config';
+ *
+ * <DateInput {...DATE_PICKER_CONFIG.createDateInputProps(date, setDate)} id="start-date" />;
  * ```
  */
 

@@ -9,6 +9,7 @@ import {
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -433,7 +434,7 @@ export default function AddWorkOrderPage() {
                 </div>
                 <div className="space-y-1.5 lg:col-span-12 max-w-xl">
                   <Label htmlFor="due-date">Due date</Label>
-                  <Input id="due-date" type="date" />
+                  <DateInput id="due-date" />
                 </div>
               </div>
             </section>

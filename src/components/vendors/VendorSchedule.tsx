@@ -105,7 +105,7 @@ export function VendorSchedule({ schedule }: VendorScheduleProps) {
 }
 
 function CheckIcon() {
-  return <svg viewBox="0 0 20 20" className="h-5 w-5 text-emerald-500" aria-hidden="true"><path fill="currentColor" d="M16.707 5.293a1 1 0 0 0-1.414 0L8 12.586 4.707 9.293a1 1 0 0 0-1.414 1.414l4 4a1 1 0 0 0 1.414 0l8-8a1 1 0 0 0 0-1.414Z" /></svg>
+  return <svg viewBox="0 0 20 20" className="h-5 w-5 text-[var(--color-action-500)]" aria-hidden="true"><path fill="currentColor" d="M16.707 5.293a1 1 0 0 0-1.414 0L8 12.586 4.707 9.293a1 1 0 0 0-1.414 1.414l4 4a1 1 0 0 0 1.414 0l8-8a1 1 0 0 0 0-1.414Z" /></svg>
 }
 
 export default VendorSchedule

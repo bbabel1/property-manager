@@ -56,25 +56,25 @@ function buildPropertyLabel(map: Map<string, string>, id: string | null): string
 }
 
 function buildUnitLabel(
-  map: Map<string, Pick<UnitRow, 'unit_number' | 'unit_name'>>,
+  map: Map<string, Pick<UnitRow, 'unit_number'>>,
   id: string | null,
 ): string | null {
   if (!id) return null;
   const record = map.get(id);
   if (!record) return null;
-  return record.unit_number || record.unit_name || null;
+  return String(record.unit_number || '') || null;
 }
 
 export default async function TasksPage() {
   const db = supabaseAdmin || supabase;
 
-  const { data: taskRows, error: taskError } = await db
+  const { data: taskRows, error: taskError } = (await db
     .from('tasks')
     .select(
       'id, subject, status, scheduled_date, updated_at, created_at, priority, category, property_id, unit_id, assigned_to',
     )
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(50)) as { data: TaskRow[] | null; error: any };
 
   if (taskError) {
     console.error('Failed to load tasks', taskError);
@@ -84,17 +84,11 @@ export default async function TasksPage() {
 
   const propertyIds = Array.from(
     new Set(
-      tasks
-        .map((task) => task.property_id)
-        .filter((value): value is string => Boolean(value)),
+      tasks.map((task) => task.property_id).filter((value): value is string => Boolean(value)),
     ),
   );
   const unitIds = Array.from(
-    new Set(
-      tasks
-        .map((task) => task.unit_id)
-        .filter((value): value is string => Boolean(value)),
-    ),
+    new Set(tasks.map((task) => task.unit_id).filter((value): value is string => Boolean(value))),
   );
 
   const propertyMap = new Map<string, string>();
@@ -112,17 +106,20 @@ export default async function TasksPage() {
     }
   }
 
-  const unitMap = new Map<string, Pick<UnitRow, 'unit_number' | 'unit_name'>>();
+  const unitMap = new Map<string, Pick<UnitRow, 'unit_number'>>();
   if (unitIds.length > 0) {
-    const { data: unitRows, error: unitError } = await db
+    const { data: unitRows, error: unitError } = (await db
       .from('units')
-      .select('id, unit_number, unit_name')
-      .in('id', unitIds);
+      .select('id, unit_number')
+      .in('id', unitIds)) as {
+      data: Pick<UnitRow, 'id' | 'unit_number'>[] | null;
+      error: any;
+    };
     if (unitError) {
       console.error('Failed to load units for tasks', unitError);
     } else {
-      (unitRows as Pick<UnitRow, 'id' | 'unit_number' | 'unit_name'>[] | null)?.forEach((unit) => {
-        unitMap.set(unit.id, { unit_number: unit.unit_number, unit_name: unit.unit_name });
+      unitRows?.forEach((unit) => {
+        unitMap.set(unit.id, { unit_number: unit.unit_number });
       });
     }
   }

@@ -4,10 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { supabase } from '@/lib/db';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -21,7 +18,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
       body: { method: 'GET', entityType: 'glTransaction', entityId: id }

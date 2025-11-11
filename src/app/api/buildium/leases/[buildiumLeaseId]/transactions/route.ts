@@ -7,10 +7,7 @@ import { BuildiumLeaseTransactionCreateSchema } from '@/schemas/buildium'
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabaseAdmin = requireSupabaseAdmin('lease transactions sync')
     // Check rate limiting
@@ -25,7 +22,7 @@ export async function GET(
     // Require authentication
     const user = await requireUser();
 
-    const { id } = params;
+    const { id } = await params;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -90,10 +87,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
@@ -102,7 +96,7 @@ export async function POST(
 
     const user = await requireUser()
 
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumLeaseTransactionCreateSchema)
 

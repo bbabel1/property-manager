@@ -7,6 +7,7 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 
 type BankAccountOption = {
@@ -231,11 +232,10 @@ export default function PayBillForm({
         <div className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="paymentDate">Payment date</Label>
-            <Input
+            <DateInput
               id="paymentDate"
-              type="date"
               value={form.date}
-              onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))}
+              onChange={(nextDate) => setForm((prev) => ({ ...prev, date: nextDate }))}
               disabled={submitting}
             />
           </div>
