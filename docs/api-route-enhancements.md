@@ -157,6 +157,38 @@ POST /api/buildium/sync
 
 - **Retry Logic**: Automatic retry of failed syncs
 
+#### **6. Journal Entries API Route Updates** ✅
+
+**Files:**  
+- `src/app/api/journal-entries/[transactionId]/route.ts`  
+- `src/lib/auth/org-access.ts`
+
+**Enhancements:**
+
+- Introduced `PUT /api/journal-entries/{transactionId}` to edit unsynced general journal entries safely.
+- Centralized organization access resolution with membership fallbacks via the new `org-access` helpers.
+- Expanded structured logging for both update and delete flows to simplify troubleshooting.
+
+**Usage Example:**
+
+```http
+PUT /api/journal-entries/2e780162-6a3d-48b4-8119-8a05c561a68e
+Content-Type: application/json
+
+{
+  "date": "2025-01-31",
+  "propertyId": "bffa0d21-23cc-404c-a549-e5d53e1b5340",
+  "unitId": null,
+  "memo": "Adjust January accruals",
+  "lines": [
+    { "accountId": "acct-100", "description": "Rent income reversal", "debit": 1200, "credit": 0 },
+    { "accountId": "acct-240", "description": "Accrued rent", "debit": 0, "credit": 1200 }
+  ]
+}
+```
+
+> ℹ️ Requests return `409 Conflict` once an entry has a Buildium GL entry ID to keep Buildium as the system of record.
+
 ## 📊 **API Response Enhancements**
 
 ### **Enhanced Property Creation Response:**

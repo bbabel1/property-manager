@@ -198,6 +198,7 @@ export default async function FinancialsTab({
     transaction_type: string | null;
     transaction_memo: string | null;
     transaction_reference: string | null;
+    transaction_id: string | null;
     created_at: string | null;
   };
 
@@ -205,7 +206,8 @@ export default async function FinancialsTab({
     (db as any)
       .from('transaction_lines')
       .select(
-        `date,
+        `transaction_id,
+         date,
          amount,
          posting_type,
          memo,
@@ -213,7 +215,7 @@ export default async function FinancialsTab({
          created_at,
          gl_accounts(name, account_number, type),
          units(unit_number, unit_name),
-         transactions(transaction_type, memo, reference_number)`,
+         transactions(id, transaction_type, memo, reference_number)`,
       )
       .eq('property_id', id);
 
@@ -230,6 +232,7 @@ export default async function FinancialsTab({
     transaction_type: r.transactions?.transaction_type || null,
     transaction_memo: r.transactions?.memo || null,
     transaction_reference: r.transactions?.reference_number || null,
+    transaction_id: r.transactions?.id ? String(r.transactions.id) : r.transaction_id ? String(r.transaction_id) : null,
     created_at: r.created_at || null,
   });
 
@@ -514,8 +517,16 @@ export default async function FinancialsTab({
                               .filter(Boolean)
                               .join(' ');
                             const memo = line.memo || line.transaction_memo || '—';
+                            const detailHref = line.transaction_id
+                              ? `/properties/${id}/financials/entries/${line.transaction_id}`
+                              : null;
+                            const RowComponent = detailHref ? TableRowLink : TableRow;
                             return (
-                              <TableRow key={`${group.id}-${line.date}-${idx}`}>
+                              <RowComponent
+                                key={`${group.id}-${line.date}-${idx}`}
+                                href={detailHref ?? undefined}
+                                className={detailHref ? 'cursor-pointer hover:bg-muted/60' : undefined}
+                              >
                                 <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
                                 <TableCell>{line.unit_label || '—'}</TableCell>
                                 <TableCell>{txnLabel || '—'}</TableCell>
@@ -528,7 +539,7 @@ export default async function FinancialsTab({
                                 <TableCell className="text-right font-medium">
                                   {fmtSigned(running)}
                                 </TableCell>
-                              </TableRow>
+                              </RowComponent>
                             );
                           })
                         )}

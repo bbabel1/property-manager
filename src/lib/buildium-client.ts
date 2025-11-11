@@ -34,6 +34,7 @@ import type {
   BuildiumApplianceServiceHistoryUpdate,
   BuildiumGLAccount,
   BuildiumGLEntry,
+  BuildiumGeneralJournalEntryInput,
   BuildiumGLTransaction,
   BuildiumGLAccountBalance,
   BuildiumWorkOrder,
@@ -425,6 +426,25 @@ export class BuildiumClient {
   async updateGLEntry(id: number, data: any): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
     return this.makeRequest<BuildiumGLEntry>(`PUT`, `/glentries/${id}`, payload);
+  }
+
+  async createGeneralJournalEntry(
+    data: BuildiumGeneralJournalEntryInput,
+  ): Promise<BuildiumGLEntry> {
+    const payload = sanitizeForBuildium(data);
+    return this.makeRequest<BuildiumGLEntry>(`POST`, `/general-ledger/journal-entries`, payload);
+  }
+
+  async updateGeneralJournalEntry(
+    id: number,
+    data: BuildiumGeneralJournalEntryInput,
+  ): Promise<BuildiumGLEntry> {
+    const payload = sanitizeForBuildium(data);
+    return this.makeRequest<BuildiumGLEntry>(
+      `PUT`,
+      `/general-ledger/journal-entries/${id}`,
+      payload,
+    );
   }
 
   async getGLTransactions(params?: {

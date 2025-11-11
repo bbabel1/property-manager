@@ -148,6 +148,14 @@ export interface BuildiumGLEntry {
   LastUpdatedDateTime?: string; // ISO 8601
 }
 
+export interface BuildiumGeneralJournalEntryInput {
+  Date: string;
+  Memo?: string | null;
+  CheckNumber?: string | null;
+  TotalAmount?: number;
+  Lines: BuildiumGLEntryLine[];
+}
+
 export interface BuildiumGLTransaction {
   Id: number;
   Date: string;
