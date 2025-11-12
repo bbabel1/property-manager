@@ -4,7 +4,11 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supabase-client';
 import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client';
-import type { BuildiumAccountingEntityType, BuildiumGLEntryLine } from '@/types/buildium';
+import type {
+  BuildiumAccountingEntityType,
+  BuildiumGeneralJournalEntryInput,
+  BuildiumGLEntryLine,
+} from '@/types/buildium';
 import { resolveUserOrgId } from '@/lib/auth/org-access';
 import {
   COMPANY_SENTINEL,
@@ -81,19 +85,10 @@ const syncJournalEntryToBuildium = async (options: BuildiumSyncOptions): Promise
         ? line.description.slice(0, 255)
         : line.description || undefined;
 
-    const entity: NonNullable<BuildiumGLEntryLine['AccountingEntity']> = {
-      AccountingEntityType: options.accountingEntityType,
-      Id: options.propertyId,
-    };
-    if (options.unitId) {
-      entity.UnitId = options.unitId;
-    }
-
     const entryLine: BuildiumGLEntryLine = {
       GLAccountId: buildiumGlAccountId,
       Amount: roundJournalCurrency(line.amount),
       PostingType: line.postingType,
-      AccountingEntity: entity,
     };
 
     if (memo) {
@@ -103,7 +98,16 @@ const syncJournalEntryToBuildium = async (options: BuildiumSyncOptions): Promise
     return entryLine;
   });
 
-  const payload = {
+  const accountingEntity: BuildiumGeneralJournalEntryInput['AccountingEntity'] = {
+    AccountingEntityType: options.accountingEntityType,
+    Id: options.propertyId,
+  };
+  if (options.unitId) {
+    accountingEntity.UnitId = options.unitId;
+  }
+
+  const payload: BuildiumGeneralJournalEntryInput = {
+    AccountingEntity: accountingEntity,
     Date: options.date,
     Memo: options.memo ?? undefined,
     TotalAmount: roundJournalCurrency(options.totalAmount),
