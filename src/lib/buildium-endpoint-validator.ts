@@ -153,7 +153,7 @@ export class BuildiumEndpointValidator {
       },
       {
         name: 'List GL Entries',
-        endpoint: '/glentries',
+        endpoint: '/generalledger/journalentries',
         method: 'GET',
         expectedStatus: [200],
         critical: false

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import GeneralJournalEntryModal, { type GeneralJournalEntryModalProps } from './GeneralJournalEntryModal';
 
@@ -15,13 +16,19 @@ export default function RecordGeneralJournalEntryButton({
   ...modalProps
 }: RecordGeneralJournalEntryButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <>
       <Button type="button" className={className} onClick={() => setIsOpen(true)}>
         Record general journal entry
       </Button>
-      <GeneralJournalEntryModal open={isOpen} onOpenChange={setIsOpen} {...modalProps} />
+      <GeneralJournalEntryModal
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        onSuccess={() => router.refresh()}
+        {...modalProps}
+      />
     </>
   );
 }

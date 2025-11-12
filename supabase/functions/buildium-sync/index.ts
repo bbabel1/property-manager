@@ -543,10 +543,16 @@ class BuildiumClient {
 
   async listGLEntries(params?: Record<string, string | number | boolean>): Promise<any[]> {
     const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k,v])=>[k,String(v)]))}` : ''
-    return this.makeRequest<any[]>('GET', `/glentries${qs}`)
+    return this.makeRequest<any[]>(
+      'GET',
+      `/generalledger/journalentries${qs}`
+    )
   }
   async getGLEntry(id: number): Promise<any> {
-    return this.makeRequest<any>('GET', `/glentries/${id}`)
+    return this.makeRequest<any>(
+      'GET',
+      `/generalledger/journalentries/${id}`
+    )
   }
   async listGLTransactions(params?: Record<string, string | number | boolean>): Promise<any[]> {
     const qs = params ? `?${new URLSearchParams(Object.entries(params).map(([k,v])=>[k,String(v)]))}` : ''
@@ -2914,7 +2920,32 @@ serve(async (req) => {
         }
 
         case 'glEntry': {
-          if (operation === 'syncFromBuildium') {
+          if (operation === 'create') {
+            if (!entityData || typeof entityData !== 'object') {
+              throw new Error('entityData is required for glEntry create');
+            }
+
+            const created = await buildiumClient.createGeneralJournalEntry(entityData);
+
+            let hydratedEntry = created;
+            try {
+              if (created?.Id) {
+                hydratedEntry = await buildiumClient.getGLEntry(Number(created.Id));
+              }
+            } catch (err) {
+              console.error('Failed to fetch GL entry after creation', err);
+            }
+
+            if (hydratedEntry?.Id) {
+              try {
+                await upsertGLEntry(supabase, buildiumClient, hydratedEntry);
+              } catch (err) {
+                console.error('Failed to upsert GL entry locally', err);
+              }
+            }
+
+            result = hydratedEntry ?? created;
+          } else if (operation === 'syncFromBuildium') {
             let { dateFrom, dateTo, glAccountId, limit = 100, offset = 0, overlapDays = 7 } = body || {}
             if (!dateFrom || !dateTo) {
               const cursor = await getCursor(supabase, 'gl_entries')
@@ -2956,12 +2987,14 @@ serve(async (req) => {
       }
 
       // Update sync status in database
-      await supabase.rpc('update_buildium_sync_status', {
-        p_entity_type: entityType,
-        p_entity_id: entityData.id,
-        p_buildium_id: result.Id,
-        p_status: 'synced'
-      })
+      if (entityData?.id && result?.Id) {
+        await supabase.rpc('update_buildium_sync_status', {
+          p_entity_type: entityType,
+          p_entity_id: entityData.id,
+          p_buildium_id: result.Id,
+          p_status: 'synced'
+        })
+      }
 
       return new Response(
         JSON.stringify({
