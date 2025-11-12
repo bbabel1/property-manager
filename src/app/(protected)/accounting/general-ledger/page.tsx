@@ -5,7 +5,7 @@ import LedgerFilters from '@/components/financials/LedgerFilters';
 import ClearFiltersButton from '@/components/financials/ClearFiltersButton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableRowLink } from '@/components/ui/table-row-link';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
 import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
@@ -44,7 +44,7 @@ export default async function GeneralLedgerPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  const db = supabaseAdmin || supabase;
+  const db = await getSupabaseServerClient();
   const sp = (await (searchParams || Promise.resolve({}))) as Record<string, string | undefined>;
 
   const today = new Date();
