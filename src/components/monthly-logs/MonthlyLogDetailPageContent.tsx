@@ -69,7 +69,7 @@ const LEASE_TRANSACTION_MODES: TransactionMode[] = [
   'deposit',
 ];
 
-const UNIT_TRANSACTION_MODES: TransactionMode[] = ['bill'];
+const UNIT_TRANSACTION_MODES: TransactionMode[] = ['bill', 'propertyTaxEscrow'];
 
 interface MonthlyLogDetailPageContentProps {
   monthlyLog: {
@@ -200,6 +200,22 @@ export default function MonthlyLogDetailPageContent({
   const [transactionOverlayOpen, setTransactionOverlayOpen] = useState(false);
   const allowedModes =
     transactionScope === 'lease' ? LEASE_TRANSACTION_MODES : UNIT_TRANSACTION_MODES;
+  const propertyId =
+    monthlyLog.property_id != null
+      ? String(monthlyLog.property_id)
+      : monthlyLog.properties?.id != null
+        ? String(monthlyLog.properties.id)
+        : null;
+  const propertyName = monthlyLog.properties?.name ?? null;
+  const unitId =
+    monthlyLog.unit_id != null
+      ? String(monthlyLog.unit_id)
+      : monthlyLog.units?.id != null
+        ? String(monthlyLog.units.id)
+        : null;
+  const unitLabel =
+    monthlyLog.units?.unit_number ?? monthlyLog.units?.unit_name ?? null;
+  const orgId = monthlyLog.org_id != null ? String(monthlyLog.org_id) : null;
 
   useEffect(() => {
     if (!allowedModes.includes(transactionMode)) {
@@ -485,8 +501,8 @@ export default function MonthlyLogDetailPageContent({
   }, [logStatus, monthlyLog.id]);
 
   const unitName = monthlyLog.units?.unit_name || monthlyLog.units?.unit_number || 'Unit';
-  const propertyName = monthlyLog.properties?.name || 'Property';
-  const unitDisplayName = `${propertyName} • ${unitName}`;
+  const propertyDisplayName = propertyName ?? 'Property';
+  const unitDisplayName = `${propertyDisplayName} • ${unitName}`;
 
   const tenantName = monthlyLog.tenants
     ? monthlyLog.tenants.company_name
@@ -598,6 +614,11 @@ export default function MonthlyLogDetailPageContent({
           tenantOptions={tenantOptions}
           hasActiveLease={hasActiveLease}
           monthlyLogId={monthlyLog.id}
+          propertyId={propertyId}
+          propertyName={propertyName}
+          unitId={unitId}
+          unitLabel={unitLabel}
+          orgId={orgId}
           addAssignedTransaction={addAssignedTransaction}
           removeAssignedTransaction={removeAssignedTransaction}
           refetchAssigned={refetchAssigned}

@@ -19,14 +19,25 @@ import IssueCreditForm from '@/components/leases/IssueCreditForm';
 import IssueRefundForm from '@/components/leases/IssueRefundForm';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import CreateBillForm from '@/components/monthly-logs/CreateBillForm';
+import PropertyTaxEscrowForm, {
+  type PropertyTaxEscrowSuccessPayload,
+} from '@/components/monthly-logs/PropertyTaxEscrowForm';
 import type {
   LeaseAccountOption,
   LeaseFormSuccessPayload,
   LeaseTenantOption,
 } from '@/components/leases/types';
 import type { MonthlyLogTransaction } from '@/types/monthly-log';
+import { parseCurrencyInput } from '@/lib/journal-entries';
 
-export type TransactionMode = 'payment' | 'charge' | 'credit' | 'refund' | 'deposit' | 'bill';
+export type TransactionMode =
+  | 'payment'
+  | 'charge'
+  | 'credit'
+  | 'refund'
+  | 'deposit'
+  | 'bill'
+  | 'propertyTaxEscrow';
 
 interface MonthlyLogTransactionOverlayProps {
   isOpen: boolean;
@@ -42,6 +53,11 @@ interface MonthlyLogTransactionOverlayProps {
   tenantOptions: LeaseTenantOption[];
   hasActiveLease: boolean;
   monthlyLogId: string;
+  propertyId: string | null;
+  propertyName: string | null;
+  unitId: string | null;
+  unitLabel: string | null;
+  orgId: string | null;
   addAssignedTransaction: (transaction: MonthlyLogTransaction) => void;
   removeAssignedTransaction: (transactionId: string) => void;
   refetchAssigned: () => Promise<void>;
@@ -84,6 +100,11 @@ export default function MonthlyLogTransactionOverlay({
   tenantOptions,
   hasActiveLease,
   monthlyLogId,
+  propertyId,
+  propertyName,
+  unitId,
+  unitLabel,
+  orgId,
   addAssignedTransaction,
   removeAssignedTransaction,
   refetchAssigned,
@@ -191,6 +212,68 @@ export default function MonthlyLogTransactionOverlay({
     [addAssignedTransaction, leaseId, monthlyLogId, onClose, removeAssignedTransaction, settleData],
   );
 
+  const handlePropertyTaxEscrowSuccess = useCallback(
+    async (payload?: PropertyTaxEscrowSuccessPayload) => {
+      const transactionIdRaw = payload?.transactionId;
+      if (!transactionIdRaw) {
+        await settleData();
+        onClose();
+        return;
+      }
+
+      const transactionId = String(transactionIdRaw);
+      setAssigningTransactionId(transactionId);
+
+      const amount =
+        payload?.amount ??
+        parseCurrencyInput(
+          payload?.values.lines?.[1]?.credit ?? payload?.values.lines?.[0]?.debit ?? '',
+        );
+      const memo = payload?.values.memo ?? null;
+      const date = payload?.values.date ?? new Date().toISOString().slice(0, 10);
+      const accountName = payload?.accountLabel ?? 'Property Tax Escrow';
+
+      addAssignedTransaction({
+        id: transactionId,
+        total_amount: amount,
+        memo,
+        date,
+        transaction_type: 'GeneralJournalEntry',
+        lease_id: null,
+        monthly_log_id: monthlyLogId,
+        reference_number: null,
+        account_name: accountName,
+      });
+
+      try {
+        const response = await fetch(`/api/monthly-logs/${monthlyLogId}/transactions/assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionIds: [transactionId] }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || 'Failed to assign transaction');
+        }
+
+        toast.success('Transaction assigned');
+      } catch (error) {
+        removeAssignedTransaction(transactionId);
+        console.error('Error assigning transaction', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to assign transaction');
+        await settleData();
+        setAssigningTransactionId(null);
+        return;
+      }
+
+      await settleData();
+      setAssigningTransactionId(null);
+      onClose();
+    },
+    [addAssignedTransaction, monthlyLogId, onClose, removeAssignedTransaction, settleData],
+  );
+
   const handleOverlayClose = useCallback(() => {
     if (assigningTransactionId) return;
     onClose();
@@ -252,11 +335,23 @@ export default function MonthlyLogTransactionOverlay({
         disabled: Boolean(billDisabledReason),
         reason: billDisabledReason,
       },
+      {
+        value: 'propertyTaxEscrow',
+        label: 'Property tax escrow',
+        disabled: !propertyId || !orgId,
+        reason: !propertyId
+          ? 'Link this monthly log to a property to record property tax escrow.'
+          : !orgId
+            ? 'Add this property to an organization to record property tax escrow.'
+            : null,
+      },
     ],
     [
       billDisabledReason,
       disabledLeaseReason,
       hasActiveLease,
+      orgId,
+      propertyId,
       leaseOptionsReady,
       refundDisabled,
     ],
@@ -280,7 +375,8 @@ export default function MonthlyLogTransactionOverlay({
   }, [mode, modeOptions, onModeChange]);
 
   const renderForm = () => {
-    if (mode !== 'bill' && !leaseOptionsReady) {
+    const leaseModes: TransactionMode[] = ['payment', 'charge', 'credit', 'refund', 'deposit'];
+    if (leaseModes.includes(mode) && !leaseOptionsReady) {
       return (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
           {loadingFinancialOptions
@@ -298,8 +394,7 @@ export default function MonthlyLogTransactionOverlay({
       );
     }
 
-    const modeRequiresAccounts =
-      mode === 'payment' || mode === 'charge' || mode === 'credit' || mode === 'refund' || mode === 'deposit';
+    const modeRequiresAccounts = leaseModes.includes(mode);
 
     if (modeRequiresAccounts && leaseOptionsReady && leaseAccountOptions.length === 0) {
       return (
@@ -391,6 +486,19 @@ export default function MonthlyLogTransactionOverlay({
             }
             onCancel={handleOverlayClose}
             onSuccess={handleTransactionSuccess}
+          />
+        );
+      case 'propertyTaxEscrow':
+        return (
+          <PropertyTaxEscrowForm
+            key="property-tax-escrow"
+            propertyId={propertyId}
+            propertyName={propertyName}
+            unitId={unitId}
+            unitLabel={unitLabel}
+            orgId={orgId}
+            onCancel={handleOverlayClose}
+            onSuccess={handlePropertyTaxEscrowSuccess}
           />
         );
       default:
