@@ -186,7 +186,7 @@ export const BuildiumBulkBillPaymentCreateSchema = z.object({
   Memo: z.string().optional(),
 });
 
-// Buildium General Ledger Entry Creation Schema (v1 /glentries)
+// Buildium General Ledger Entry Creation Schema (v1 /generalledger/journalentries)
 // See: https://developer.buildium.com/#tag/General-Ledger
 export const BuildiumGeneralLedgerEntryCreateSchema = z.object({
   Date: z.string().datetime('Date must be in ISO 8601 format'),

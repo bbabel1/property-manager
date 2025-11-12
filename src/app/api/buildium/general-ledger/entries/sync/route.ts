@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     qp.append('limit', String(limit));
     qp.append('offset', String(offset));
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/glentries?${qp.toString()}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/journalentries?${qp.toString()}`;
     const response = await fetch(buildiumUrl, {
       method: 'GET',
       headers: {

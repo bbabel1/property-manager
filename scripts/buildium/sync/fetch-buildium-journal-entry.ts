@@ -1,9 +1,5 @@
-import { config } from 'dotenv'
-
-config()
-
 async function fetchJournalEntryFromBuildium(journalEntryId: string) {
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/journalentries/${journalEntryId}`
+  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/journalentries/${journalEntryId}`
 
   const response = await fetch(buildiumUrl, {
     method: 'GET',
@@ -23,7 +19,7 @@ async function fetchJournalEntryFromBuildium(journalEntryId: string) {
 }
 
 async function fetchJournalEntriesFromBuildium() {
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/journalentries`
+  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/journalentries`
 
   const response = await fetch(buildiumUrl, {
     method: 'GET',
