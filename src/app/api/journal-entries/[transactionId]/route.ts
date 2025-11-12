@@ -87,13 +87,23 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
     logIssue('property not found');
     return NextResponse.json({ error: 'Property not found' }, { status: 404 });
   }
+  const propertyOrgId = property.org_id ? String(property.org_id) : null;
+
+  if (!propertyOrgId) {
+    logIssue('property missing org id', { propertyId });
+    return NextResponse.json(
+      { error: 'Unable to verify organization for this property' },
+      { status: 500 },
+    );
+  }
+
   const hasOrgAccess = await userHasOrgAccess({
     supabase,
     user,
-    orgId: property.org_id,
+    orgId: propertyOrgId,
   });
   if (!hasOrgAccess) {
-    logIssue('user lacks org access', { orgId: property.org_id });
+    logIssue('user lacks org access', { orgId: propertyOrgId });
     return NextResponse.json({ error: 'You do not have access to this property' }, { status: 403 });
   }
 
@@ -123,32 +133,38 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
   }
 
   const transactionOrgId = transaction.org_id ? String(transaction.org_id) : null;
-  if (transactionOrgId) {
-    const hasTransactionOrgAccess = await userHasOrgAccess({
-      supabase,
-      user,
-      orgId: transactionOrgId,
+
+  if (!transactionOrgId) {
+    logIssue('transaction missing org id', { transactionId });
+    return NextResponse.json(
+      { error: 'Unable to verify organization for this journal entry' },
+      { status: 403 },
+    );
+  }
+
+  const hasTransactionOrgAccess = await userHasOrgAccess({
+    supabase,
+    user,
+    orgId: transactionOrgId,
+  });
+
+  if (!hasTransactionOrgAccess) {
+    logIssue('user lacks access to transaction org', { orgId: transactionOrgId });
+    return NextResponse.json(
+      { error: 'You do not have access to this journal entry' },
+      { status: 403 },
+    );
+  }
+
+  if (propertyOrgId !== transactionOrgId) {
+    logIssue('transaction belongs to a different organization', {
+      propertyOrgId,
+      transactionOrgId,
     });
-
-    if (!hasTransactionOrgAccess) {
-      logIssue('user lacks access to transaction org', { orgId: transactionOrgId });
-      return NextResponse.json(
-        { error: 'You do not have access to this journal entry' },
-        { status: 403 },
-      );
-    }
-
-    const propertyOrgId = property.org_id ? String(property.org_id) : null;
-    if (propertyOrgId && propertyOrgId !== transactionOrgId) {
-      logIssue('transaction belongs to a different organization', {
-        propertyOrgId,
-        transactionOrgId,
-      });
-      return NextResponse.json(
-        { error: 'This journal entry does not belong to the selected property' },
-        { status: 403 },
-      );
-    }
+    return NextResponse.json(
+      { error: 'This journal entry does not belong to the selected property' },
+      { status: 403 },
+    );
   }
 
   const { data: journalEntry, error: journalError } = await admin
