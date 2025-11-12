@@ -410,29 +410,48 @@ export class BuildiumClient {
     if (params?.dateTo) qp.append('dateTo', params.dateTo);
     if (params?.limit) qp.append('limit', String(params.limit));
     if (params?.offset) qp.append('offset', String(params.offset));
-    return this.makeRequest<BuildiumGLEntry[]>(`GET`, `/glentries?${qp.toString()}`);
+    const suffix = qp.toString() ? `?${qp.toString()}` : '';
+    return this.makeRequest<BuildiumGLEntry[]>(
+      `GET`,
+      `/generalledger/journalentries${suffix}`,
+    );
   }
 
   async getGLEntry(id: number): Promise<BuildiumGLEntry> {
-    return this.makeRequest<BuildiumGLEntry>(`GET`, `/glentries/${id}`);
+    return this.makeRequest<BuildiumGLEntry>(
+      `GET`,
+      `/generalledger/journalentries/${id}`,
+    );
   }
 
   async createGLEntry(data: any): Promise<BuildiumGLEntry> {
     // Assume caller passes GL-ready payload matching schema
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(`POST`, `/glentries`, payload);
+    return this.makeRequest<BuildiumGLEntry>(
+      `POST`,
+      `/generalledger/journalentries`,
+      payload,
+    );
   }
 
   async updateGLEntry(id: number, data: any): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(`PUT`, `/glentries/${id}`, payload);
+    return this.makeRequest<BuildiumGLEntry>(
+      `PUT`,
+      `/generalledger/journalentries/${id}`,
+      payload,
+    );
   }
 
   async createGeneralJournalEntry(
     data: BuildiumGeneralJournalEntryInput,
   ): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(`POST`, `/general-ledger/journal-entries`, payload);
+    return this.makeRequest<BuildiumGLEntry>(
+      `POST`,
+      `/generalledger/journalentries`,
+      payload,
+    );
   }
 
   async updateGeneralJournalEntry(
@@ -442,7 +461,7 @@ export class BuildiumClient {
     const payload = sanitizeForBuildium(data);
     return this.makeRequest<BuildiumGLEntry>(
       `PUT`,
-      `/general-ledger/journal-entries/${id}`,
+      `/generalledger/journalentries/${id}`,
       payload,
     );
   }

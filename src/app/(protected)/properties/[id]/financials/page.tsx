@@ -20,6 +20,7 @@ import { supabase, supabaseAdmin } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/components/ui/utils';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
+import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
@@ -185,28 +186,13 @@ export default async function FinancialsTab({
   const fromStr = from.toISOString().slice(0, 10);
   const toStr = to.toISOString().slice(0, 10);
 
-  type Line = {
-    date: string;
-    amount: number;
-    posting_type: string;
-    memo: string | null;
-    gl_account_id: string;
-    ga_name: string;
-    ga_number: string | null;
-    ga_type: string | null;
-    unit_label: string | null;
-    transaction_type: string | null;
-    transaction_memo: string | null;
-    transaction_reference: string | null;
-    transaction_id: string | null;
-    created_at: string | null;
-  };
-
   const qBase = () =>
     (db as any)
       .from('transaction_lines')
       .select(
         `transaction_id,
+         property_id,
+         unit_id,
          date,
          amount,
          posting_type,
@@ -215,26 +201,19 @@ export default async function FinancialsTab({
          created_at,
          gl_accounts(name, account_number, type),
          units(unit_number, unit_name),
-         transactions(id, transaction_type, memo, reference_number)`,
+         transactions(id, transaction_type, memo, reference_number),
+         properties(id, name)`,
       )
       .eq('property_id', id);
 
-  const mapRow = (r: any): Line => ({
-    date: r.date,
-    amount: Number(r.amount || 0),
-    posting_type: r.posting_type,
-    memo: r.memo || null,
-    gl_account_id: String(r.gl_account_id),
-    ga_name: r.gl_accounts?.name || 'Unknown account',
-    ga_number: r.gl_accounts?.account_number || null,
-    ga_type: r.gl_accounts?.type || null,
-    unit_label: r.units?.unit_number || r.units?.unit_name || null,
-    transaction_type: r.transactions?.transaction_type || null,
-    transaction_memo: r.transactions?.memo || null,
-    transaction_reference: r.transactions?.reference_number || null,
-    transaction_id: r.transactions?.id ? String(r.transactions.id) : r.transaction_id ? String(r.transaction_id) : null,
-    created_at: r.created_at || null,
-  });
+  const mapLine = (row: any): LedgerLine => {
+    const mapped = mapTransactionLine(row);
+    return {
+      ...mapped,
+      propertyId: mapped.propertyId ?? id,
+      propertyLabel: mapped.propertyLabel ?? propertyLabel,
+    };
+  };
 
   interface UnitRecord {
     id: string;
@@ -306,8 +285,8 @@ export default async function FinancialsTab({
   const accountFilterIds =
     selectedAccountIds.length === allAccountIds.length ? null : selectedAccountIds;
 
-  let periodLines: Line[] = [];
-  let priorLines: Line[] = [];
+  let periodLines: LedgerLine[] = [];
+  let priorLines: LedgerLine[] = [];
 
   if (!noUnitsSelected) {
     const periodPromise = (async () => {
@@ -327,60 +306,11 @@ export default async function FinancialsTab({
     const [{ data: periodData, error: periodError }, { data: priorData, error: priorError }] =
       await Promise.all([periodPromise, priorPromise]);
 
-    periodLines = periodError ? [] : (periodData || []).map(mapRow);
-    priorLines = priorError ? [] : (priorData || []).map(mapRow);
+    periodLines = periodError ? [] : (periodData || []).map(mapLine);
+    priorLines = priorError ? [] : (priorData || []).map(mapLine);
   }
 
-  type Group = {
-    id: string;
-    name: string;
-    number: string | null;
-    type: string | null;
-    prior: number;
-    net: number;
-    lines: { line: Line; signed: number }[];
-  };
-
-  const groupMap = new Map<string, Group>();
-  const ensureGroup = (line: Line): Group => {
-    const key = line.gl_account_id;
-    const existing = groupMap.get(key);
-    if (existing) return existing;
-    const created: Group = {
-      id: key,
-      name: line.ga_name,
-      number: line.ga_number,
-      type: line.ga_type,
-      prior: 0,
-      net: 0,
-      lines: [],
-    };
-    groupMap.set(key, created);
-    return created;
-  };
-
-  const signedAmount = (line: Line) =>
-    (line.posting_type || '').toLowerCase() === 'debit' ? line.amount : -line.amount;
-
-  for (const line of priorLines) {
-    const group = ensureGroup(line);
-    group.prior += signedAmount(line);
-  }
-
-  for (const line of periodLines) {
-    const group = ensureGroup(line);
-    const signed = signedAmount(line);
-    group.net += signed;
-    group.lines.push({ line, signed });
-  }
-
-  const groups = Array.from(groupMap.values()).sort((a, b) => {
-    const typeA = a.type || 'Other';
-    const typeB = b.type || 'Other';
-    const typeCmp = typeA.localeCompare(typeB);
-    if (typeCmp !== 0) return typeCmp;
-    return a.name.localeCompare(b.name);
-  });
+  const groups = buildLedgerGroups(priorLines, periodLines);
 
   const fmt = (n: number) =>
     `$${Number(Math.abs(n || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -464,7 +394,7 @@ export default async function FinancialsTab({
                     const detail = group.lines.sort((a, b) => {
                       const dateCmp = a.line.date.localeCompare(b.line.date);
                       if (dateCmp !== 0) return dateCmp;
-                      return (a.line.created_at || '').localeCompare(b.line.created_at || '');
+                      return (a.line.createdAt || '').localeCompare(b.line.createdAt || '');
                     });
 
                     let running = group.prior;
@@ -511,14 +441,14 @@ export default async function FinancialsTab({
                           detail.map(({ line, signed }, idx) => {
                             running += signed;
                             const txnLabel = [
-                              line.transaction_type || 'Transaction',
-                              line.transaction_reference ? `#${line.transaction_reference}` : '',
+                              line.transactionType || 'Transaction',
+                              line.transactionReference ? `#${line.transactionReference}` : '',
                             ]
                               .filter(Boolean)
                               .join(' ');
-                            const memo = line.memo || line.transaction_memo || '—';
-                            const detailHref = line.transaction_id
-                              ? `/properties/${id}/financials/entries/${line.transaction_id}`
+                            const memo = line.memo || line.transactionMemo || '—';
+                            const detailHref = line.transactionId
+                              ? `/properties/${id}/financials/entries/${line.transactionId}`
                               : null;
                             const RowComponent = detailHref ? TableRowLink : TableRow;
                             return (
@@ -528,7 +458,7 @@ export default async function FinancialsTab({
                                 className={detailHref ? 'cursor-pointer hover:bg-muted/60' : undefined}
                               >
                                 <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
-                                <TableCell>{line.unit_label || '—'}</TableCell>
+                                <TableCell>{line.unitLabel || '—'}</TableCell>
                                 <TableCell>{txnLabel || '—'}</TableCell>
                                 <TableCell>{memo}</TableCell>
                                 <TableCell
