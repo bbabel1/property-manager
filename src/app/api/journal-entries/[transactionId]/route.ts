@@ -99,7 +99,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
 
   const { data: transaction, error: transactionError } = await admin
     .from('transactions')
-    .select('id, transaction_type')
+    .select('id, transaction_type, org_id')
     .eq('id', transactionId)
     .maybeSingle();
 
@@ -120,6 +120,35 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
       { error: 'Only general journal entries can be deleted via this endpoint.' },
       { status: 400 },
     );
+  }
+
+  const transactionOrgId = transaction.org_id ? String(transaction.org_id) : null;
+  if (transactionOrgId) {
+    const hasTransactionOrgAccess = await userHasOrgAccess({
+      supabase,
+      user,
+      orgId: transactionOrgId,
+    });
+
+    if (!hasTransactionOrgAccess) {
+      logIssue('user lacks access to transaction org', { orgId: transactionOrgId });
+      return NextResponse.json(
+        { error: 'You do not have access to this journal entry' },
+        { status: 403 },
+      );
+    }
+
+    const propertyOrgId = property.org_id ? String(property.org_id) : null;
+    if (propertyOrgId && propertyOrgId !== transactionOrgId) {
+      logIssue('transaction belongs to a different organization', {
+        propertyOrgId,
+        transactionOrgId,
+      });
+      return NextResponse.json(
+        { error: 'This journal entry does not belong to the selected property' },
+        { status: 403 },
+      );
+    }
   }
 
   const { data: journalEntry, error: journalError } = await admin
