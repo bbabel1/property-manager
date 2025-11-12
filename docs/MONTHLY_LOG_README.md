@@ -76,6 +76,7 @@ The Monthly Log system is a comprehensive property accounting workflow that guid
 - ✅ Optimistic UI updates (no page reloads)
 - ✅ Bulk operations
 - ✅ Transaction filtering
+- ✅ Property tax escrow journal entry option for unit transactions (Owner Draw defaults)
 - ✅ Reference number tracking
 
 ### **Statement Generation**
