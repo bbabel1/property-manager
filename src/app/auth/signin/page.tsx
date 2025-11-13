@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Github } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/providers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,15 +10,17 @@ import { Button } from '@/components/ui/button';
 
 function SignInForm() {
   const router = useRouter();
-  const { user, loading, signIn, signInWithMagicLink } = useAuth();
+  const { user, loading, signIn, signInWithMagicLink, signInWithProvider } = useAuth();
   const search = useSearchParams();
   const nextPath = search?.get('next') || undefined;
+  const errorParam = search?.get('error');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [authMethod, setAuthMethod] = useState<'magic' | 'credentials'>('credentials');
   const [showPassword, setShowPassword] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<null | 'github'>(null);
 
   // Redirect if already authenticated (but not in test mode)
   useEffect(() => {
@@ -26,6 +28,18 @@ function SignInForm() {
       router.replace(nextPath || '/dashboard');
     }
   }, [user, loading, router, nextPath]);
+
+  useEffect(() => {
+    if (!errorParam) {
+      return;
+    }
+    const errorMessages: Record<string, string> = {
+      missing_oauth_code: 'We could not complete the sign-in. Please try again.',
+      oauth_exchange_failed:
+        'There was a problem completing the GitHub sign-in. Please try again.',
+    };
+    setMessage(errorMessages[errorParam] || 'Sign-in failed. Please try again.');
+  }, [errorParam]);
 
   const handleMagicLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +85,23 @@ function SignInForm() {
   };
 
   const handleSubmit = authMethod === 'magic' ? handleMagicLinkSubmit : handleCredentialsSubmit;
+
+  const handleOAuthSignIn = async () => {
+    setOauthLoading('github');
+    setMessage('');
+    try {
+      const { error } = await signInWithProvider('github', nextPath);
+      if (error) {
+        setMessage(error.message || 'GitHub sign-in failed. Please try again.');
+        setOauthLoading(null);
+      }
+      // Successful calls will redirect via Supabase OAuth flow.
+    } catch (err: any) {
+      console.error('GitHub sign-in failed', err);
+      setMessage(err?.message || 'An error occurred. Please try again.');
+      setOauthLoading(null);
+    }
+  };
 
   // Show loading spinner while checking auth state
   if (loading) {
@@ -190,6 +221,28 @@ function SignInForm() {
                     : 'Sign in'}
               </Button>
             </div>
+
+          <div className="bg-muted/50 flex flex-col gap-2 rounded-md p-3">
+            <p className="text-muted-foreground text-center text-xs uppercase tracking-wide">
+              Or continue with
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleOAuthSignIn}
+              disabled={oauthLoading === 'github'}
+            >
+              {oauthLoading === 'github' ? (
+                'Redirecting to GitHub...'
+              ) : (
+                <>
+                  <Github className="mr-2 h-4 w-4" />
+                  GitHub
+                </>
+              )}
+            </Button>
+          </div>
 
             {authMethod === 'credentials' && (
               <div className="space-y-2 text-center">
