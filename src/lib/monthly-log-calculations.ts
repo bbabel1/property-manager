@@ -70,7 +70,15 @@ export async function getOwnerDrawSummary(
         transactions!inner(
           id,
           date,
-          memo
+          memo,
+          transaction_lines(
+            gl_accounts(
+              name,
+              gl_account_category(
+                category
+              )
+            )
+          )
         ),
         gl_accounts!inner(name)
       `,
@@ -83,14 +91,40 @@ export async function getOwnerDrawSummary(
     return { total: 0, transactions: [] };
   }
 
-  const transactions: OwnerDrawTransaction[] =
-    data?.map((row: any) => ({
-      transactionLineId: row.id,
-      transactionId: row.transactions?.id ?? row.id,
-      date: row.transactions?.date ?? '',
-      memo: row.transactions?.memo ?? null,
-      amount: Math.abs(Number(row.amount) ?? 0),
-    })) ?? [];
+  const ownerDrawLines = (data ?? []) as Array<{
+    id: string;
+    amount: number | string | null;
+    transactions: {
+      id: string;
+      date: string;
+      memo: string | null;
+      transaction_lines?: Array<{
+        gl_accounts?: {
+          name?: string | null;
+          gl_account_category?: {
+            category?: string | null;
+          } | null;
+        } | null;
+      }> | null;
+    } | null;
+  }>;
+
+  const filteredLines = ownerDrawLines.filter((row) => {
+    const siblingLines = row.transactions?.transaction_lines ?? [];
+    return !siblingLines.some((sibling) => {
+      const accountName = sibling.gl_accounts?.name?.trim().toLowerCase() ?? '';
+      const category = sibling.gl_accounts?.gl_account_category?.category?.trim().toLowerCase() ?? '';
+      return accountName.includes('tax escrow') || category === 'deposit';
+    });
+  });
+
+  const transactions: OwnerDrawTransaction[] = filteredLines.map((row) => ({
+    transactionLineId: row.id,
+    transactionId: row.transactions?.id ?? row.id,
+    date: row.transactions?.date ?? '',
+    memo: row.transactions?.memo ?? null,
+    amount: Math.abs(Number(row.amount) ?? 0),
+  }));
 
   transactions.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -188,6 +222,7 @@ export async function reconcileMonthlyLogBalance(monthlyLogId: string): Promise<
 type FinancialSummaryOptions = {
   db?: TypedSupabaseClient;
   includeOwnerDrawTransactions?: boolean;
+  unitId?: string | null;
 };
 
 export async function calculateFinancialSummary(
@@ -208,7 +243,32 @@ export async function calculateFinancialSummary(
 }> {
   const db = options.db ?? supabaseAdmin;
 
-  const [transactionsResult, logResult, ownerDrawSummary] = await Promise.all([
+  const unitId = options.unitId ?? null;
+
+  let escrowQuery = db
+    .from('transaction_lines')
+    .select(
+      `
+        amount,
+        posting_type,
+        unit_id,
+        transactions!inner(monthly_log_id),
+        gl_accounts(
+          gl_account_category(
+            category
+          ),
+          name
+        )
+      `,
+    )
+    .eq('transactions.monthly_log_id', monthlyLogId)
+    .or('gl_accounts.gl_account_category.category.eq.deposit,gl_accounts.name.ilike.%tax escrow%');
+
+  if (unitId) {
+    escrowQuery = escrowQuery.or(`unit_id.eq.${unitId},unit_id.is.null`);
+  }
+
+  const [transactionsResult, logResult, ownerDrawSummary, escrowLinesResult] = await Promise.all([
     db
       .from('transactions')
       .select('total_amount, transaction_type')
@@ -219,6 +279,7 @@ export async function calculateFinancialSummary(
       .eq('id', monthlyLogId)
       .maybeSingle(),
     getOwnerDrawSummary(monthlyLogId, db),
+    escrowQuery,
   ]);
 
   if (transactionsResult.error) {
@@ -233,7 +294,31 @@ export async function calculateFinancialSummary(
   let totalCredits = 0;
   let totalPayments = 0;
   let totalBills = 0;
-  const escrowAmount = Number(logResult.data?.escrow_amount ?? 0);
+  if (escrowLinesResult.error) {
+    console.warn('Error fetching escrow transaction lines for summary:', escrowLinesResult.error);
+  }
+
+  const escrowLines = (escrowLinesResult.data ?? []) as Array<{
+    amount: number | null;
+    posting_type: string | null;
+  }>;
+
+  const escrowAmount =
+    escrowLines.length > 0
+      ? escrowLines.reduce((sum, line) => {
+          const amount = Math.abs(Number(line.amount ?? 0));
+          const postingType = (line.posting_type ?? '').toLowerCase();
+          // For escrow accounts: Credit increases escrow (negative in summary),
+          // Debit decreases escrow (positive in summary)
+          if (postingType.includes('credit')) {
+            return sum - amount;
+          }
+          if (postingType.includes('debit')) {
+            return sum + amount;
+          }
+          return sum;
+        }, 0)
+      : Number(logResult.data?.escrow_amount ?? 0);
   const managementFees = Number(logResult.data?.management_fees_amount ?? 0);
 
   transactionsResult.data?.forEach((transaction) => {

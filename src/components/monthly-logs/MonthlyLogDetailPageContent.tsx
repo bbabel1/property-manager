@@ -888,7 +888,13 @@ function TransactionsSection({
                   </TableRow>
                 ) : (
                   assignedTransactions.map((transaction) => {
-                    const amountFormatted = formatCurrency(Math.abs(transaction.total_amount));
+                    // For GeneralJournalEntry (e.g., Tax Escrow), preserve the sign
+                    // For other transaction types, use absolute value with type-based prefix
+                    const isJournalEntry = transaction.transaction_type === 'GeneralJournalEntry';
+                    const displayAmount = isJournalEntry
+                      ? transaction.total_amount
+                      : Math.abs(transaction.total_amount);
+                    const amountFormatted = formatCurrency(displayAmount);
                     const typeLabel = getLeaseTransactionLabel(transaction.transaction_type);
                     const leaseLink = buildLeaseTransactionLink(transaction.lease_id);
                     const isUnitTransaction = transactionScope === 'unit' && !transaction.lease_id;
@@ -938,8 +944,9 @@ function TransactionsSection({
                           )}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-slate-900">
-                          {transaction.transaction_type === 'Charge' ? '+' : '-'}
-                          {amountFormatted}
+                          {isJournalEntry
+                            ? amountFormatted
+                            : `${transaction.transaction_type === 'Charge' ? '+' : '-'}${amountFormatted}`}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
