@@ -159,3 +159,4 @@ $$;
 
 comment on function public.monthly_log_transaction_bundle(uuid) is
 'Aggregates assigned transactions and their financial summary for a monthly log with journal entry support and escrow awareness.';
+
