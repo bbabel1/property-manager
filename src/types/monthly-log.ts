@@ -42,8 +42,8 @@ export const calculateNetToOwnerValue = (input: NetToOwnerInput): number => {
     totalPayments -
     totalBills -
     managementFees -
-    ownerDraw -
-    Math.abs(escrowAmount)
+    ownerDraw +
+    escrowAmount
   );
 };
 
