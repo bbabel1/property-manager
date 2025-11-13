@@ -125,6 +125,8 @@ export default function EnhancedFinancialSummaryCard({
     {
       label: 'Escrow',
       value: escrowAmount,
+      format: (value) => formatCurrency(value),
+      valueClassName: escrowAmount < 0 ? 'text-red-600' : 'text-slate-900',
     },
     {
       label: 'Management Fees',

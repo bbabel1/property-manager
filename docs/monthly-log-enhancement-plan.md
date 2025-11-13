@@ -15,6 +15,7 @@
 5. **Email Sender Verification**: Added SPF/DKIM setup checklist
 6. **Distributed Testing**: Integration tests baked into each phase, not deferred to Phase 6
 7. **Permission Propagation**: Explicit UI update checklist when permissions change
+8. **Journal Entry Amount Normalization**: `monthly_log_transaction_bundle` now derives display amounts and escrow totals from `transaction_lines`, keeping unit-level journal entries (e.g. Tax Escrow) in sync between the grid and financial summary.
 
 ---
 
