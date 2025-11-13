@@ -37,13 +37,14 @@ export type NetToOwnerInput = {
 export const calculateNetToOwnerValue = (input: NetToOwnerInput): number => {
   const { previousBalance, totalPayments, totalBills, escrowAmount, managementFees, ownerDraw } =
     input;
+  const signedEscrowAmount = Number(escrowAmount ?? 0);
   return (
     previousBalance +
     totalPayments -
     totalBills -
     managementFees -
     ownerDraw +
-    escrowAmount
+    signedEscrowAmount
   );
 };
 

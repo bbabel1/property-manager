@@ -28,11 +28,18 @@ export async function GET(request: NextRequest) {
     let leaseId = leaseParam ? Number(leaseParam) : null;
     let unitId = unitParam;
 
-    if (monthlyLogId && (!leaseId || Number.isNaN(leaseId) || !unitId)) {
+    const needsLeaseId = scope === 'lease' && (!leaseId || Number.isNaN(leaseId));
+    const needsUnitId = scope === 'unit' && !unitId;
+
+    if (monthlyLogId && (needsLeaseId || needsUnitId)) {
       try {
         const context = await fetchMonthlyLogContext(monthlyLogId, supabase);
-        leaseId = context.lease?.leaseId ?? leaseId;
-        unitId = context.log?.unit_id ?? unitId;
+        if (needsLeaseId) {
+          leaseId = context.lease?.leaseId ?? leaseId;
+        }
+        if (needsUnitId) {
+          unitId = context.log?.unit_id ?? unitId;
+        }
       } catch (contextError) {
         console.warn(
           'Failed to resolve lease id for unassigned transactions',
