@@ -44,8 +44,8 @@ begin
             or lower(coalesce(ga.name, '')) like '%tax escrow%'
           ) then
             case
-              when lower(coalesce(tl.posting_type, '')) = 'credit' then abs(tl.amount)
-              when lower(coalesce(tl.posting_type, '')) = 'debit' then -abs(tl.amount)
+              when lower(coalesce(tl.posting_type, '')) = 'credit' then -abs(tl.amount)
+              when lower(coalesce(tl.posting_type, '')) = 'debit' then abs(tl.amount)
               else abs(tl.amount)
             end
           else abs(tl.amount)
@@ -56,7 +56,10 @@ begin
       left join public.gl_account_category gac on gac.gl_account_id = ga.id
       where tl.transaction_id = t.id
       order by
-        case when v_unit_id is not null and tl.unit_id = v_unit_id then 0 else 1 end,
+        case
+          when v_unit_id is not null and (tl.unit_id = v_unit_id or tl.unit_id is null) then 0
+          else 1
+        end,
         case
           when gac.category = 'deposit'::public.gl_category
             or lower(coalesce(ga.name, '')) like '%tax escrow%'
@@ -84,8 +87,8 @@ begin
   select
     coalesce(sum(
       case
-        when lower(coalesce(tl.posting_type, '')) = 'credit' then abs(tl.amount)
-        when lower(coalesce(tl.posting_type, '')) = 'debit' then -abs(tl.amount)
+        when lower(coalesce(tl.posting_type, '')) = 'credit' then -abs(tl.amount)
+        when lower(coalesce(tl.posting_type, '')) = 'debit' then abs(tl.amount)
         else 0
       end
     ), 0)
@@ -99,7 +102,11 @@ begin
       gac.category = 'deposit'::public.gl_category
       or lower(coalesce(ga.name, '')) like '%tax escrow%'
     )
-    and (v_unit_id is null or tl.unit_id = v_unit_id);
+    and (
+      v_unit_id is null
+      or tl.unit_id = v_unit_id
+      or tl.unit_id is null
+    );
 
   select
     coalesce(management_fees_amount, 0),
@@ -152,4 +159,3 @@ $$;
 
 comment on function public.monthly_log_transaction_bundle(uuid) is
 'Aggregates assigned transactions and their financial summary for a monthly log with journal entry support and escrow awareness.';
-
