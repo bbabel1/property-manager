@@ -225,6 +225,39 @@ type FinancialSummaryOptions = {
   unitId?: string | null;
 };
 
+type EscrowTransactionLine = {
+  amount: number | null;
+  posting_type: string | null;
+  unit_id: string | null;
+  gl_accounts?: {
+    name?: string | null;
+    gl_account_category?: {
+      category?: string | null;
+    } | null;
+  } | null;
+};
+
+const normalizeEscrowField = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
+
+export const isEscrowTransactionLine = (
+  line: EscrowTransactionLine,
+  unitId: string | null,
+): boolean => {
+  const accountName = normalizeEscrowField(line.gl_accounts?.name);
+  const category = normalizeEscrowField(line.gl_accounts?.gl_account_category?.category);
+  const isEscrowAccount = category === 'deposit' || accountName.includes('tax escrow');
+
+  if (!isEscrowAccount) {
+    return false;
+  }
+
+  if (!unitId) {
+    return true;
+  }
+
+  return line.unit_id === unitId || line.unit_id === null;
+};
+
 export async function calculateFinancialSummary(
   monthlyLogId: string,
   options: FinancialSummaryOptions = {},
@@ -245,7 +278,7 @@ export async function calculateFinancialSummary(
 
   const unitId = options.unitId ?? null;
 
-  let escrowQuery = db
+  const escrowQuery = db
     .from('transaction_lines')
     .select(
       `
@@ -262,20 +295,6 @@ export async function calculateFinancialSummary(
       `,
     )
     .eq('transactions.monthly_log_id', monthlyLogId);
-
-  const depositFilter = 'gl_accounts.gl_account_category.category.eq.deposit';
-  const taxEscrowFilter = 'gl_accounts.name.ilike.%tax escrow%';
-
-  if (unitId) {
-    const unitFilters = [`unit_id.eq.${unitId}`, 'unit_id.is.null'];
-    const groupedFilters = unitFilters
-      .map((unitFilter) => [depositFilter, taxEscrowFilter].map((escrowFilter) => `and(${unitFilter},${escrowFilter})`))
-      .flat()
-      .join(',');
-    escrowQuery = escrowQuery.or(groupedFilters);
-  } else {
-    escrowQuery = escrowQuery.or(`${depositFilter},${taxEscrowFilter}`);
-  }
 
   const [transactionsResult, logResult, ownerDrawSummary, escrowLinesResult] = await Promise.all([
     db
@@ -307,10 +326,8 @@ export async function calculateFinancialSummary(
     console.warn('Error fetching escrow transaction lines for summary:', escrowLinesResult.error);
   }
 
-  const escrowLines = (escrowLinesResult.data ?? []) as Array<{
-    amount: number | null;
-    posting_type: string | null;
-  }>;
+  const rawEscrowLines = (escrowLinesResult.data ?? []) as EscrowTransactionLine[];
+  const escrowLines = rawEscrowLines.filter((line) => isEscrowTransactionLine(line, unitId));
 
   const escrowAmount =
     escrowLines.length > 0
