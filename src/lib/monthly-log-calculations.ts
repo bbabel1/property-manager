@@ -261,11 +261,20 @@ export async function calculateFinancialSummary(
         )
       `,
     )
-    .eq('transactions.monthly_log_id', monthlyLogId)
-    .or('gl_accounts.gl_account_category.category.eq.deposit,gl_accounts.name.ilike.%tax escrow%');
+    .eq('transactions.monthly_log_id', monthlyLogId);
+
+  const depositFilter = 'gl_accounts.gl_account_category.category.eq.deposit';
+  const taxEscrowFilter = 'gl_accounts.name.ilike.%tax escrow%';
 
   if (unitId) {
-    escrowQuery = escrowQuery.or(`unit_id.eq.${unitId},unit_id.is.null`);
+    const unitFilters = [`unit_id.eq.${unitId}`, 'unit_id.is.null'];
+    const groupedFilters = unitFilters
+      .map((unitFilter) => [depositFilter, taxEscrowFilter].map((escrowFilter) => `and(${unitFilter},${escrowFilter})`))
+      .flat()
+      .join(',');
+    escrowQuery = escrowQuery.or(groupedFilters);
+  } else {
+    escrowQuery = escrowQuery.or(`${depositFilter},${taxEscrowFilter}`);
   }
 
   const [transactionsResult, logResult, ownerDrawSummary, escrowLinesResult] = await Promise.all([
