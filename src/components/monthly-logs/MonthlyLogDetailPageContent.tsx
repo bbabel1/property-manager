@@ -31,6 +31,8 @@ import { cn } from '@/components/ui/utils';
 import EnhancedFinancialSummaryCard from '@/components/monthly-logs/EnhancedFinancialSummaryCard';
 import EnhancedHeader from '@/components/monthly-logs/EnhancedHeader';
 import StatementsStage from '@/components/monthly-logs/StatementsStage';
+import TransactionDetailDialog from '@/components/monthly-logs/TransactionDetailDialog';
+import JournalEntryDetailDialog from '@/components/monthly-logs/JournalEntryDetailDialog';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import { useMonthlyLogData } from '@/hooks/useMonthlyLogData';
 import MonthlyLogTransactionOverlay, {
@@ -45,8 +47,7 @@ const LEASE_TRANSACTION_LABELS: Record<string, string> = {
   Credit: 'Lease Credit',
 };
 
-const getLeaseTransactionLabel = (type: string): string =>
-  LEASE_TRANSACTION_LABELS[type] ?? type;
+const getLeaseTransactionLabel = (type: string): string => LEASE_TRANSACTION_LABELS[type] ?? type;
 
 const buildLeaseTransactionLink = (leaseId?: number | string | null): string | null => {
   if (leaseId == null) return null;
@@ -151,10 +152,9 @@ export default function MonthlyLogDetailPageContent({
   const [selectedAssigned, setSelectedAssigned] = useState<Set<string>>(new Set());
   const [selectedUnassigned, setSelectedUnassigned] = useState<Set<string>>(new Set());
   const shouldLoadRelatedLogs = Boolean(monthlyLog.unit_id);
-  const {
-    data: relatedLogsResponse,
-    isLoading: relatedLogsLoading,
-  } = useSWR<{ items: RelatedLogOption[] }>(
+  const { data: relatedLogsResponse, isLoading: relatedLogsLoading } = useSWR<{
+    items: RelatedLogOption[];
+  }>(
     shouldLoadRelatedLogs && monthlyLog.unit_id
       ? `/api/monthly-logs/${monthlyLog.id}/related?unitId=${monthlyLog.unit_id}`
       : null,
@@ -192,12 +192,15 @@ export default function MonthlyLogDetailPageContent({
     unitId: monthlyLog.unit_id ?? null,
   });
   const defaultTransactionMode: TransactionMode = hasActiveLease ? 'payment' : 'bill';
-  const [transactionMode, setTransactionMode] =
-    useState<TransactionMode>(defaultTransactionMode);
+  const [transactionMode, setTransactionMode] = useState<TransactionMode>(defaultTransactionMode);
   const defaultTransactionScope: 'lease' | 'unit' = hasActiveLease ? 'lease' : 'unit';
-  const [transactionScope, setTransactionScope] =
-    useState<'lease' | 'unit'>(defaultTransactionScope);
+  const [transactionScope, setTransactionScope] = useState<'lease' | 'unit'>(
+    defaultTransactionScope,
+  );
   const [transactionOverlayOpen, setTransactionOverlayOpen] = useState(false);
+  const [selectedTransactionDetail, setSelectedTransactionDetail] =
+    useState<MonthlyLogTransaction | null>(null);
+  const [transactionDetailDialogOpen, setTransactionDetailDialogOpen] = useState(false);
   const allowedModes =
     transactionScope === 'lease' ? LEASE_TRANSACTION_MODES : UNIT_TRANSACTION_MODES;
   const propertyId =
@@ -213,8 +216,7 @@ export default function MonthlyLogDetailPageContent({
       : monthlyLog.units?.id != null
         ? String(monthlyLog.units.id)
         : null;
-  const unitLabel =
-    monthlyLog.units?.unit_number ?? monthlyLog.units?.unit_name ?? null;
+  const unitLabel = monthlyLog.units?.unit_number ?? monthlyLog.units?.unit_name ?? null;
   const orgId = monthlyLog.org_id != null ? String(monthlyLog.org_id) : null;
 
   useEffect(() => {
@@ -239,19 +241,25 @@ export default function MonthlyLogDetailPageContent({
     });
   }, []);
 
-
   const filterUnassignedTransactions = useCallback(
     (transactions: MonthlyLogTransaction[]) => {
       if (!transactions.length) return [];
       const search = unassignedSearch.trim().toLowerCase();
       return transactions.filter((transaction) => {
-        if (unassignedTypeFilter !== 'all' && transaction.transaction_type !== unassignedTypeFilter) {
+        if (
+          unassignedTypeFilter !== 'all' &&
+          transaction.transaction_type !== unassignedTypeFilter
+        ) {
           return false;
         }
 
         if (!search) return true;
 
-        const fields = [transaction.memo, transaction.reference_number, transaction.transaction_type]
+        const fields = [
+          transaction.memo,
+          transaction.reference_number,
+          transaction.transaction_type,
+        ]
           .filter((field): field is string => Boolean(field))
           .map((field) => field.toLowerCase());
 
@@ -345,12 +353,7 @@ export default function MonthlyLogDetailPageContent({
         toast.error(error instanceof Error ? error.message : 'Failed to assign transaction');
       }
     },
-    [
-      monthlyLog.id,
-      moveTransactionToAssigned,
-      moveTransactionToUnassigned,
-      filteredUnassigned,
-    ],
+    [monthlyLog.id, moveTransactionToAssigned, moveTransactionToUnassigned, filteredUnassigned],
   );
 
   const handleRelatedLogSelect = useCallback(
@@ -463,7 +466,9 @@ export default function MonthlyLogDetailPageContent({
     } catch (error) {
       revertAssignments();
       console.error('Error bulk assigning transactions', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to assign selected transactions');
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to assign selected transactions',
+      );
     }
   }, [
     monthlyLog.id,
@@ -499,6 +504,11 @@ export default function MonthlyLogDetailPageContent({
       setUpdatingStatus(false);
     }
   }, [logStatus, monthlyLog.id]);
+
+  const handleJournalEntrySaved = useCallback(() => {
+    void refetchAssigned();
+    void refetchFinancial();
+  }, [refetchAssigned, refetchFinancial]);
 
   const unitName = monthlyLog.units?.unit_name || monthlyLog.units?.unit_number || 'Unit';
   const propertyDisplayName = propertyName ?? 'Property';
@@ -585,7 +595,7 @@ export default function MonthlyLogDetailPageContent({
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       <EnhancedHeader
         unitDisplayName={unitDisplayName}
         periodDisplay={periodDisplay}
@@ -626,6 +636,23 @@ export default function MonthlyLogDetailPageContent({
         />
       ) : null}
 
+      {selectedTransactionDetail?.transaction_type === 'GeneralJournalEntry' ? (
+        <JournalEntryDetailDialog
+          open={transactionDetailDialogOpen}
+          onOpenChange={setTransactionDetailDialogOpen}
+          transaction={selectedTransactionDetail}
+          onSaved={handleJournalEntrySaved}
+        />
+      ) : (
+        <TransactionDetailDialog
+          open={transactionDetailDialogOpen}
+          onOpenChange={setTransactionDetailDialogOpen}
+          transaction={selectedTransactionDetail}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+        />
+      )}
+
       <div className="mx-auto w-full max-w-screen-2xl px-6 py-8 lg:px-8">
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,_3fr)_minmax(320px,_1fr)]">
           <div className="space-y-10">
@@ -636,12 +663,12 @@ export default function MonthlyLogDetailPageContent({
                   onValueChange={(value) => setTransactionScope(value as 'lease' | 'unit')}
                   className="flex-1"
                 >
-                  <TabsList className="flex gap-8 border-b border-border bg-transparent p-0">
+                  <TabsList className="border-border flex gap-8 border-b bg-transparent p-0">
                     <TabsTrigger
                       value="lease"
                       disabled={!monthlyLog.activeLease?.id}
                       className={cn(
-                        'rounded-none border-none border-b-2 border-transparent px-1 py-3 text-sm font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                        'text-muted-foreground rounded-none border-b-2 border-none border-transparent px-1 py-3 text-sm font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none',
                         'data-[state=active]:border-primary data-[state=active]:text-primary',
                         'data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:border-muted-foreground',
                         'disabled:cursor-not-allowed disabled:opacity-40',
@@ -652,7 +679,7 @@ export default function MonthlyLogDetailPageContent({
                     <TabsTrigger
                       value="unit"
                       className={cn(
-                        'rounded-none border-none border-b-2 border-transparent px-1 py-3 text-sm font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+                        'text-muted-foreground rounded-none border-b-2 border-none border-transparent px-1 py-3 text-sm font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none',
                         'data-[state=active]:border-primary data-[state=active]:text-primary',
                         'data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:border-muted-foreground',
                         'disabled:cursor-not-allowed disabled:opacity-40',
@@ -703,6 +730,11 @@ export default function MonthlyLogDetailPageContent({
                 onTypeFilterChange={setUnassignedTypeFilter}
                 unassignedSearch={unassignedSearch}
                 onSearchChange={setUnassignedSearch}
+                transactionScope={transactionScope}
+                onTransactionClick={(transaction) => {
+                  setSelectedTransactionDetail(transaction);
+                  setTransactionDetailDialogOpen(true);
+                }}
               />
             </section>
 
@@ -751,6 +783,8 @@ type TransactionsSectionProps = {
   onTypeFilterChange: (value: TransactionTypeFilter) => void;
   unassignedSearch: string;
   onSearchChange: (value: string) => void;
+  transactionScope: 'lease' | 'unit';
+  onTransactionClick: (transaction: Transaction) => void;
 };
 
 function TransactionsSection({
@@ -777,6 +811,8 @@ function TransactionsSection({
   onTypeFilterChange,
   unassignedSearch,
   onSearchChange,
+  transactionScope,
+  onTransactionClick,
 }: TransactionsSectionProps) {
   const toggleAssignedSelection = (transactionId: string) => {
     const next = new Set(selectedAssigned);
@@ -855,8 +891,30 @@ function TransactionsSection({
                     const amountFormatted = formatCurrency(Math.abs(transaction.total_amount));
                     const typeLabel = getLeaseTransactionLabel(transaction.transaction_type);
                     const leaseLink = buildLeaseTransactionLink(transaction.lease_id);
+                    const isUnitTransaction = transactionScope === 'unit' && !transaction.lease_id;
+                    const handleRowClick = (e: React.MouseEvent) => {
+                      // Don't trigger row click if clicking on checkbox, button, or link
+                      const target = e.target as HTMLElement;
+                      if (
+                        target.closest('button') ||
+                        target.closest('input[type="checkbox"]') ||
+                        target.closest('a')
+                      ) {
+                        return;
+                      }
+                      if (isUnitTransaction) {
+                        onTransactionClick(transaction);
+                      }
+                    };
                     return (
-                      <TableRow key={transaction.id} className="text-sm text-slate-700">
+                      <TableRow
+                        key={transaction.id}
+                        className={cn(
+                          'text-sm text-slate-700',
+                          isUnitTransaction && 'cursor-pointer hover:bg-slate-50',
+                        )}
+                        onClick={handleRowClick}
+                      >
                         <TableCell className="text-center">
                           <Checkbox
                             checked={selectedAssigned.has(transaction.id)}
@@ -888,7 +946,10 @@ function TransactionsSection({
                             type="button"
                             size="sm"
                             variant="ghost"
-                            onClick={() => onUnassign(transaction.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUnassign(transaction.id);
+                            }}
                           >
                             Unassign
                           </Button>
@@ -906,9 +967,7 @@ function TransactionsSection({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-900">Unassigned transactions</h3>
-              <p className="text-sm text-slate-500">
-                Assign transactions directly from this list.
-              </p>
+              <p className="text-sm text-slate-500">Assign transactions directly from this list.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {unassignedSelectedCount > 0 ? (
@@ -991,7 +1050,9 @@ function TransactionsSection({
                       <TableCell>{formatDate(transaction.date)}</TableCell>
                       <TableCell>{transaction.account_name ?? '—'}</TableCell>
                       <TableCell>{transaction.memo}</TableCell>
-                      <TableCell>{getLeaseTransactionLabel(transaction.transaction_type)}</TableCell>
+                      <TableCell>
+                        {getLeaseTransactionLabel(transaction.transaction_type)}
+                      </TableCell>
                       <TableCell className="text-right font-semibold text-slate-900">
                         {transaction.transaction_type === 'Charge' ? '+' : '-'}
                         {formatCurrency(Math.abs(transaction.total_amount))}

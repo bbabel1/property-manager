@@ -9,6 +9,13 @@ import {
   normalizeJournalLines,
   cleanJournalMemo,
 } from '@/lib/journal-entries';
+import {
+  BUILDUM_MISSING_CREDS_ERROR,
+  ensureBuildiumConfigured,
+  parseBuildiumNumericId,
+  resolveBuildiumAccountingEntityType,
+  syncJournalEntryToBuildium,
+} from '../buildium-sync';
 
 type RouteParams = {
   transactionId: string;
@@ -31,6 +38,9 @@ const createLogIssue = (
     method(`[api/journal-entries][${action}]`, payload);
   };
 };
+
+const coerceNumber = (value: unknown): number =>
+  typeof value === 'number' ? value : Number(value ?? 0);
 
 export async function DELETE(request: Request, { params }: { params: Promise<RouteParams> }) {
   const { transactionId } = await params;
@@ -102,7 +112,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
 
     if (!propertyOrgId) {
       logIssue('property missing organization id', { propertyId });
-      return NextResponse.json({ error: 'Property is not linked to an organization' }, { status: 409 });
+      return NextResponse.json(
+        { error: 'Property is not linked to an organization' },
+        { status: 409 },
+      );
     }
 
     const hasOrgAccess = await userHasOrgAccess({
@@ -112,13 +125,16 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
     });
     if (!hasOrgAccess) {
       logIssue('user lacks org access', { orgId: propertyOrgId });
-      return NextResponse.json({ error: 'You do not have access to this property' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'You do not have access to this property' },
+        { status: 403 },
+      );
     }
   }
 
   const { data: transaction, error: transactionError } = await admin
     .from('transactions')
-    .select('id, transaction_type, org_id')
+    .select('id, transaction_type, org_id, date, memo, total_amount')
     .eq('id', transactionId)
     .maybeSingle();
 
@@ -144,7 +160,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
   const transactionOrgId = transaction.org_id ? String(transaction.org_id) : null;
   if (!transactionOrgId) {
     logIssue('transaction missing organization id', { transactionId });
-    return NextResponse.json({ error: 'Unable to determine journal entry organization' }, { status: 409 });
+    return NextResponse.json(
+      { error: 'Unable to determine journal entry organization' },
+      { status: 409 },
+    );
   }
 
   const hasTransactionOrgAccess = await userHasOrgAccess({
@@ -201,7 +220,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
 
   const { data: journalEntry, error: journalError } = await admin
     .from('journal_entries')
-    .select('id, transaction_id, buildium_gl_entry_id')
+    .select('id, transaction_id, buildium_gl_entry_id, date, memo, total_amount')
     .eq('transaction_id', transactionId)
     .maybeSingle();
 
@@ -253,7 +272,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
     );
     if (propertyMismatch) {
       logIssue('transaction lines belong to another property', {
-        linePropertyIds: Array.from(new Set(lines.map((line) => line?.property_id).filter(Boolean))),
+        linePropertyIds: Array.from(
+          new Set(lines.map((line) => line?.property_id).filter(Boolean)),
+        ),
       });
       return NextResponse.json(
         { error: 'This journal entry does not belong to the selected property' },
@@ -287,7 +308,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   const parsed = journalEntrySchemaBase.safeParse(rawPayload);
   if (!parsed.success) {
     const issue = parsed.error.issues?.[0];
-    return NextResponse.json({ error: issue?.message || 'Invalid journal entry payload' }, { status: 400 });
+    return NextResponse.json(
+      { error: issue?.message || 'Invalid journal entry payload' },
+      { status: 400 },
+    );
   }
 
   const data = parsed.data as JournalEntryPayload;
@@ -321,14 +345,12 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   const isCompanyLevel = propertyId === COMPANY_SENTINEL;
   const { supabase, user } = auth;
 
-  let propertyRow:
-    | {
-        id: string;
-        org_id?: string | null;
-        buildium_property_id?: number | null;
-        rental_type?: string | null;
-      }
-    | null = null;
+  let propertyRow: {
+    id: string;
+    org_id?: string | null;
+    buildium_property_id?: number | null;
+    rental_type?: string | null;
+  } | null = null;
 
   if (!isCompanyLevel) {
     const { data: property, error: propertyError } = await admin
@@ -358,7 +380,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     });
     if (!hasOrgAccess) {
       logIssue('user lacks org access', { orgId: property.org_id });
-      return NextResponse.json({ error: 'You do not have access to this property' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'You do not have access to this property' },
+        { status: 403 },
+      );
     }
 
     propertyRow = property;
@@ -372,20 +397,28 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
 
   if (journalError || !journalEntry) {
     logIssue('journal entry not found', {
-      supabaseError: journalError ? { message: journalError.message, hint: journalError.hint } : null,
+      supabaseError: journalError
+        ? { message: journalError.message, hint: journalError.hint }
+        : null,
     });
     return NextResponse.json({ error: 'Journal entry not found' }, { status: 404 });
   }
 
-  if (journalEntry.buildium_gl_entry_id) {
-    logIssue('journal entry already synced to Buildium', {
-      buildiumEntryId: journalEntry.buildium_gl_entry_id,
-    });
-    return NextResponse.json(
-      { error: 'This entry has been synced to Buildium and cannot be edited here.' },
-      { status: 409 },
-    );
-  }
+  const journalEntryRecord = journalEntry as {
+    id: string;
+    transaction_id: string;
+    buildium_gl_entry_id: number | string | null;
+    date: string | null;
+    memo: string | null;
+    total_amount: number | string | null;
+  };
+
+  const existingBuildiumEntryId = parseBuildiumNumericId(journalEntryRecord.buildium_gl_entry_id);
+  const originalJournalEntryState = {
+    date: journalEntryRecord.date ?? null,
+    memo: journalEntryRecord.memo ?? null,
+    totalAmount: coerceNumber(journalEntryRecord.total_amount),
+  };
 
   const { data: transaction, error: transactionError } = await admin
     .from('transactions')
@@ -402,9 +435,24 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
   }
 
-  if (transaction.transaction_type !== 'GeneralJournalEntry') {
+  const transactionRecord = transaction as {
+    id: string;
+    transaction_type: string;
+    org_id: string | null;
+    date: string | null;
+    memo: string | null;
+    total_amount: number | string | null;
+  };
+
+  const originalTransactionState = {
+    date: transactionRecord.date ?? null,
+    memo: transactionRecord.memo ?? null,
+    totalAmount: coerceNumber(transactionRecord.total_amount),
+  };
+
+  if (transactionRecord.transaction_type !== 'GeneralJournalEntry') {
     logIssue('transaction is not a general journal entry', {
-      transactionType: transaction.transaction_type,
+      transactionType: transactionRecord.transaction_type,
     });
     return NextResponse.json(
       { error: 'Only general journal entries can be updated via this endpoint.' },
@@ -412,7 +460,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     );
   }
 
-  const transactionOrgId = transaction?.org_id ? String(transaction.org_id) : null;
+  const transactionOrgId = transactionRecord?.org_id ? String(transactionRecord.org_id) : null;
   if (transactionOrgId) {
     const hasTransactionOrgAccess = await userHasOrgAccess({
       supabase,
@@ -473,7 +521,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
       linePropertyIds: originalPropertyIds,
     });
     return NextResponse.json(
-      { error: 'This journal entry is associated with a property and cannot be updated as company-level' },
+      {
+        error:
+          'This journal entry is associated with a property and cannot be updated as company-level',
+      },
       { status: 403 },
     );
   }
@@ -489,19 +540,20 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     );
   }
 
-  let unitRow:
-    | {
-        id: string;
-        property_id?: string | null;
-        buildium_unit_id?: number | null;
-      }
-    | null = null;
+  let unitRow: {
+    id: string;
+    property_id?: string | null;
+    buildium_unit_id?: number | null;
+  } | null = null;
 
   const trimmedUnitId = data.unitId?.trim();
   if (trimmedUnitId) {
     if (isCompanyLevel) {
       logIssue('unit provided for company-level journal entry');
-      return NextResponse.json({ error: 'Units cannot be attached to company-level entries' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Units cannot be attached to company-level entries' },
+        { status: 400 },
+      );
     }
     const { data: unit, error: unitError } = await admin
       .from('units')
@@ -529,7 +581,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
         unitPropertyId: unit.property_id,
         propertyId,
       });
-      return NextResponse.json({ error: 'Selected unit does not belong to this property' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Selected unit does not belong to this property' },
+        { status: 400 },
+      );
     }
 
     unitRow = {
@@ -584,7 +639,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
 
   const buildiumAccountMap = new Map<string, number>();
   typedAccountRows.forEach((row) => {
-    if (typeof row.buildium_gl_account_id === 'number' && Number.isFinite(row.buildium_gl_account_id)) {
+    if (
+      typeof row.buildium_gl_account_id === 'number' &&
+      Number.isFinite(row.buildium_gl_account_id)
+    ) {
       buildiumAccountMap.set(row.id, row.buildium_gl_account_id);
     }
   });
@@ -592,7 +650,9 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   const memoValue = cleanJournalMemo(data.memo);
   const shouldSyncToBuildium = Boolean(propertyRow?.buildium_property_id);
   if (shouldSyncToBuildium) {
-    const missingAccountMapping = normalizedLines.lines.some((line) => !buildiumAccountMap.has(line.accountId));
+    const missingAccountMapping = normalizedLines.lines.some(
+      (line) => !buildiumAccountMap.has(line.accountId),
+    );
     if (missingAccountMapping) {
       logIssue('missing Buildium account mapping', {
         unmappedAccountIds: normalizedLines.lines
@@ -600,7 +660,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
           .map((line) => line.accountId),
       });
       return NextResponse.json(
-        { error: 'Selected GL accounts must be synced with Buildium before posting journal entries.' },
+        {
+          error:
+            'Selected GL accounts must be synced with Buildium before posting journal entries.',
+        },
         { status: 400 },
       );
     }
@@ -632,6 +695,44 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
 
   const nowIso = new Date().toISOString();
 
+  const restoreLocalState = async () => {
+    try {
+      await admin.from('transaction_lines').delete().eq('transaction_id', transactionId);
+      if (Array.isArray(originalLines) && originalLines.length > 0) {
+        await admin.from('transaction_lines').insert(
+          (originalLines as Record<string, unknown>[]).map((line) => ({
+            ...line,
+            updated_at: new Date().toISOString(),
+          })),
+        );
+      }
+      await admin
+        .from('transactions')
+        .update({
+          date: originalTransactionState.date,
+          memo: originalTransactionState.memo,
+          total_amount: originalTransactionState.totalAmount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', transactionId);
+      await admin
+        .from('journal_entries')
+        .update({
+          date: originalJournalEntryState.date,
+          memo: originalJournalEntryState.memo,
+          total_amount: originalJournalEntryState.totalAmount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', journalEntryRecord.id);
+    } catch (restoreError) {
+      logIssue(
+        'failed to restore original journal entry after sync failure',
+        { error: String(restoreError) },
+        'error',
+      );
+    }
+  };
+
   const transactionUpdate = await admin
     .from('transactions')
     .update({
@@ -646,17 +747,30 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   if (transactionUpdate.error) {
     logIssue(
       'failed to update transaction',
-      { supabaseError: { message: transactionUpdate.error.message, hint: transactionUpdate.error.hint } },
+      {
+        supabaseError: {
+          message: transactionUpdate.error.message,
+          hint: transactionUpdate.error.hint,
+        },
+      },
       'error',
     );
     return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
   }
 
-  const deleteLinesResult = await admin.from('transaction_lines').delete().eq('transaction_id', transactionId);
+  const deleteLinesResult = await admin
+    .from('transaction_lines')
+    .delete()
+    .eq('transaction_id', transactionId);
   if (deleteLinesResult.error) {
     logIssue(
       'failed to delete existing lines',
-      { supabaseError: { message: deleteLinesResult.error.message, hint: deleteLinesResult.error.hint } },
+      {
+        supabaseError: {
+          message: deleteLinesResult.error.message,
+          hint: deleteLinesResult.error.hint,
+        },
+      },
       'error',
     );
     return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
@@ -687,7 +801,12 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   if (insertLinesResult.error) {
     logIssue(
       'failed to insert updated lines',
-      { supabaseError: { message: insertLinesResult.error.message, hint: insertLinesResult.error.hint } },
+      {
+        supabaseError: {
+          message: insertLinesResult.error.message,
+          hint: insertLinesResult.error.hint,
+        },
+      },
       'error',
     );
     if (Array.isArray(originalLines) && originalLines.length > 0) {
@@ -718,6 +837,39 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
       'error',
     );
     return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
+  }
+
+  if (shouldSyncToBuildium && propertyRow?.buildium_property_id) {
+    try {
+      ensureBuildiumConfigured();
+      const buildiumId = await syncJournalEntryToBuildium({
+        date: data.date,
+        memo: memoValue,
+        totalAmount: normalizedLines.debitTotal,
+        lines: normalizedLines.lines,
+        propertyId: propertyRow.buildium_property_id,
+        unitId: unitRow?.buildium_unit_id ?? null,
+        accountingEntityType: resolveBuildiumAccountingEntityType(propertyRow.rental_type),
+        accountMap: buildiumAccountMap,
+        existingEntryId: existingBuildiumEntryId ?? null,
+      });
+
+      await admin
+        .from('journal_entries')
+        .update({ buildium_gl_entry_id: buildiumId, updated_at: new Date().toISOString() })
+        .eq('id', journalEntryRecord.id);
+    } catch (error) {
+      logIssue(
+        'failed to sync Buildium journal entry',
+        { error: error instanceof Error ? error.message : String(error) },
+        'error',
+      );
+      await restoreLocalState();
+      const message =
+        error instanceof Error ? error.message : 'Unable to sync journal entry with Buildium.';
+      const status = message === BUILDUM_MISSING_CREDS_ERROR ? 500 : 502;
+      return NextResponse.json({ error: message }, { status });
+    }
   }
 
   logIssue('journal entry updated successfully');

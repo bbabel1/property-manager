@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { supabase, supabaseAdmin } from '@/lib/db';
+import { getSupabaseServerClient } from '@/lib/supabase/server';
 import JournalEntryEditForm from '@/components/financials/JournalEntryEditForm';
 import {
   type AccountOption,
@@ -39,7 +39,7 @@ export default async function JournalEntryDetailsPage({
   params: Promise<{ id: string; transactionId: string }>;
 }) {
   const { id: propertyId, transactionId } = await params;
-  const db = supabaseAdmin || supabase;
+  const db = await getSupabaseServerClient();
 
   const [{ data: property }, { data: transaction }, { data: journal }] = await Promise.all([
     db
