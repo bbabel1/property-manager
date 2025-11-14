@@ -1267,7 +1267,15 @@ export async function mapTransactionBillToBuildium(
 
   // Build Buildium Lines from local lines
   const buildiumLines: NonNullable<BuildiumBillCreate['Lines']> = []
-  for (const line of lines || []) {
+  const excludedAccountIds = new Set<number>()
+  for (const rawLine of lines || []) {
+    const postingType = String(rawLine.posting_type || '').toLowerCase()
+    if (postingType === 'credit') {
+      continue
+    }
+
+    const line = rawLine
+
     if (!line.gl_account_id) {
       throw new Error('Line missing gl_account_id')
     }
@@ -1315,6 +1323,16 @@ export async function mapTransactionBillToBuildium(
       throw new Error('Line GL account missing buildium_gl_account_id and no match found in Buildium')
     }
 
+    const { data: exclusionRow } = await supabase
+      .from('gl_account_exclusions')
+      .select('reason')
+      .eq('buildium_gl_account_id', glId)
+      .maybeSingle()
+    if (exclusionRow) {
+      excludedAccountIds.add(glId)
+      continue
+    }
+
     // Resolve Buildium property/unit IDs
     let accountingEntityId: number | undefined
     let unitId: number | undefined
@@ -1341,13 +1359,23 @@ export async function mapTransactionBillToBuildium(
       if (!unitErr && typeof unit?.buildium_unit_id === 'number') unitId = unit.buildium_unit_id
     }
 
+    const hasProperty = typeof accountingEntityId === 'number' && accountingEntityId > 0
     buildiumLines.push({
-      AccountingEntity: accountingEntityId
-        ? { Id: accountingEntityId, AccountingEntityType: 'Rental', UnitId: unitId }
-        : { Id: 0, AccountingEntityType: 'Rental', UnitId: unitId },
+      AccountingEntity: hasProperty
+        ? {
+            Id: accountingEntityId,
+            AccountingEntityType: 'Rental',
+            UnitId: unitId
+          }
+        : {
+            AccountingEntityType: 'Company',
+            UnitId: unitId
+          },
       GlAccountId: glId,
-      Amount: Number(line.amount ?? 0) * (line.posting_type === 'Credit' ? -1 : 1),
-      Memo: line.memo ?? undefined
+      Amount: Math.abs(Number(line.amount ?? 0)),
+      Memo: line.memo ?? undefined,
+      IsBillable: false,
+      IsExcludedFrom1099Filings: true
     })
   }
 

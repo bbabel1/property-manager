@@ -215,14 +215,16 @@ export default function JournalEntryDetailDialog({
     };
   }, [data?.lines]);
 
-  if (!transaction || transaction.transaction_type !== 'GeneralJournalEntry') {
-    return null;
-  }
-
   const handleSuccess = useCallback(() => {
     onOpenChange(false);
     onSaved?.();
   }, [onOpenChange, onSaved]);
+
+  const isGeneralJournalEntry = transaction?.transaction_type === 'GeneralJournalEntry';
+
+  if (!transaction || !isGeneralJournalEntry) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -379,4 +381,3 @@ function PropertyTaxEscrowDetail({
     />
   );
 }
-

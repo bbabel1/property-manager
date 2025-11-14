@@ -6,10 +6,11 @@ const supabase = getSupabaseBrowserClient();
 
 export async function fetchWithSupabaseAuth(input: RequestInfo, init: RequestInit = {}) {
   // First, try to get the current session (this doesn't validate the token)
-  let {
-    data: { session },
-    error: sessionError,
+  const {
+    data: { session: initialSession },
+    error: _sessionError,
   } = await supabase.auth.getSession();
+  let session = initialSession;
 
   // If we have a session, check if the token needs refreshing
   if (session?.access_token) {

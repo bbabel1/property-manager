@@ -32,7 +32,8 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
       return data;
     });
 
-  let [property, fin] = await Promise.all([propertyPromise, finPromise]);
+  const [initialProperty, fin] = await Promise.all([propertyPromise, finPromise]);
+  let property = initialProperty;
 
   // Fallback: if property still unavailable (e.g., env misconfig), try internal API with revalidation
   if (!property) {

@@ -140,7 +140,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   const billRes = await db
     .from('transactions')
     .select(
-      'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type',
+      'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id',
     )
     .eq('id', billId)
     .maybeSingle();
@@ -207,50 +207,32 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
 
   let billFiles: BillFileRecord[] = [];
   try {
-    // Get org_id from the bill's transaction or property
-    const propertyId = rawLines[0]?.property_id;
-    let orgId: string | null = null;
-
-    if (propertyId) {
-      const { data: property } = await db
-        .from('properties')
-        .select('org_id')
-        .eq('id', propertyId)
-        .maybeSingle();
-      orgId = property?.org_id || null;
-    }
-
-    if (orgId && bill.buildium_bill_id) {
-      // Query files associated with this bill via Buildium bill ID
-      // Note: Files in Buildium may be associated with Vendor entity type
-      // For now, we'll query by buildium_file_id from Buildium's bill files endpoint
-      // or query directly if files are stored with bill context
-      const { data: files } = await db
+    if (bill.org_id) {
+      const { data: files, error: fileError } = await db
         .from('files')
         .select('*')
-        .eq('org_id', orgId)
+        .eq('org_id', bill.org_id)
+        .ilike('storage_key', `bill/${bill.id}/%`)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      // Filter files that might be related to this bill
-      // Since bills aren't a direct entity type, we match by context
-      // TODO: Add a better way to associate files with local bills
-      billFiles = (files || [])
-        .map((file: any) => {
-          const fileRecord: BillFileRecord = {
-            id: file.id,
-            title: file.title || file.file_name || 'File',
-            uploadedAt: file.created_at,
-            uploadedBy: file.created_by || null,
-            buildiumFileId: file.buildium_file_id || null,
-            buildiumHref: file.buildium_href || null,
-            buildiumSyncError: null,
-          };
-          return fileRecord;
-        })
-        .filter((f) => f.uploadedAt) as BillFileRecord[];
-
-      billFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      if (fileError) {
+        console.error('Failed to load bill file attachments', fileError);
+      } else {
+        billFiles =
+          files
+            ?.map((file: any) => ({
+              id: file.id,
+              title: file.title || file.file_name || 'File',
+              uploadedAt: file.created_at,
+              uploadedBy: file.created_by || null,
+              buildiumFileId: file.buildium_file_id || null,
+              buildiumHref: file.buildium_href || null,
+              buildiumSyncError: null,
+            }))
+            .filter((file: BillFileRecord) => file.uploadedAt) ?? [];
+        billFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      }
     }
   } catch (error) {
     console.error('Failed to load bill file attachments', error);
