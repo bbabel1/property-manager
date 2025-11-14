@@ -81,7 +81,7 @@ export default async function GeneralLedgerPage({
 
   const rawProperties = typeof sp?.properties === 'string' ? sp.properties : undefined;
   const propertiesExplicitNone = rawProperties === 'none';
-  let selectedPropertyIds = propertiesExplicitNone
+  const selectedPropertyIds = propertiesExplicitNone
     ? []
     : rawProperties
       ? rawProperties
@@ -475,5 +475,4 @@ export default async function GeneralLedgerPage({
     </PageShell>
   );
 }
-
 
