@@ -22,6 +22,7 @@ import { CheckCircle2, Upload } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import EntityPicker from '@/components/files/upload/EntityPicker';
 
 interface FileUploadDialogProps {
   open: boolean;

@@ -71,18 +71,46 @@ begin
       limit 1
     ) as dl on true
     where t.monthly_log_id = p_monthly_log_id
+  ),
+  aggregates as (
+    select
+      coalesce(sum(case when transaction_type = 'Charge' then abs(effective_amount) end), 0) as total_charges,
+      coalesce(sum(case when transaction_type = 'Credit' then abs(effective_amount) end), 0) as total_credits,
+      coalesce(sum(case when transaction_type = 'Payment' then abs(effective_amount) end), 0) as total_payments,
+      coalesce(sum(case when transaction_type = 'Bill' then abs(effective_amount) end), 0) as total_bills
+    from transaction_amounts
+  ),
+  ordered_transactions as (
+    select
+      id,
+      effective_amount as total_amount,
+      memo,
+      date,
+      transaction_type,
+      lease_id,
+      monthly_log_id,
+      reference_number,
+      account_name
+    from transaction_amounts
+    order by date desc, created_at desc, id desc
+  ),
+  transaction_list as (
+    select coalesce(jsonb_agg(row_to_json(ordered_transactions)), '[]'::jsonb) as transactions
+    from ordered_transactions
   )
   select
-    coalesce(sum(case when transaction_type = 'Charge' then abs(effective_amount) end), 0),
-    coalesce(sum(case when transaction_type = 'Credit' then abs(effective_amount) end), 0),
-    coalesce(sum(case when transaction_type = 'Payment' then abs(effective_amount) end), 0),
-    coalesce(sum(case when transaction_type = 'Bill' then abs(effective_amount) end), 0)
+    aggregates.total_charges,
+    aggregates.total_credits,
+    aggregates.total_payments,
+    aggregates.total_bills,
+    transaction_list.transactions
   into
     total_charges,
     total_credits,
     total_payments,
-    total_bills
-  from transaction_amounts;
+    total_bills,
+    transactions
+  from aggregates, transaction_list;
 
   select
     coalesce(sum(
@@ -122,23 +150,6 @@ begin
     total_charges - total_credits + total_payments - total_bills - management_fees - escrow_amount;
   balance := total_charges - total_credits - total_payments;
 
-  select coalesce(jsonb_agg(row_to_json(row)), '[]'::jsonb)
-    into transactions
-  from (
-    select
-      id,
-      effective_amount as total_amount,
-      memo,
-      date,
-      transaction_type,
-      lease_id,
-      monthly_log_id,
-      reference_number,
-      account_name
-    from transaction_amounts
-    order by date desc, created_at desc, id desc
-  ) as row;
-
   return jsonb_build_object(
     'transactions', transactions,
     'summary', jsonb_build_object(
@@ -159,4 +170,3 @@ $$;
 
 comment on function public.monthly_log_transaction_bundle(uuid) is
 'Aggregates assigned transactions and their financial summary for a monthly log with journal entry support and escrow awareness.';
-
