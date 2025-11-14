@@ -1268,6 +1268,7 @@ export async function mapTransactionBillToBuildium(
   // Build Buildium Lines from local lines
   const buildiumLines: NonNullable<BuildiumBillCreate['Lines']> = []
   const excludedAccountIds = new Set<number>()
+  let excludedLinesTotal = 0
   for (const rawLine of lines || []) {
     const postingType = String(rawLine.posting_type || '').toLowerCase()
     if (postingType === 'credit') {
@@ -1330,6 +1331,7 @@ export async function mapTransactionBillToBuildium(
       .maybeSingle()
     if (exclusionRow) {
       excludedAccountIds.add(glId)
+      excludedLinesTotal += Math.abs(Number(line.amount ?? 0))
       continue
     }
 
@@ -1379,11 +1381,14 @@ export async function mapTransactionBillToBuildium(
     })
   }
 
+  const originalTotal = Number(tx.total_amount ?? 0)
+  const adjustedTotal = Math.max(0, originalTotal - excludedLinesTotal)
+
   const payload: BuildiumBillCreate = {
     VendorId: vendorBuildiumId,
     Date: normalizeDateString(tx.date),
     DueDate: tx.due_date ? normalizeDateString(tx.due_date) : undefined,
-    Amount: Number(tx.total_amount ?? 0),
+    Amount: adjustedTotal,
     Description: tx.memo || '',
     ReferenceNumber: tx.reference_number || undefined,
     CategoryId: billCategoryBuildiumId,
