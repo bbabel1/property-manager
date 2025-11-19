@@ -1014,6 +1014,18 @@ export async function POST(request: NextRequest) {
   // PRIORITY: Always use the entity's org_id if available (this is the most accurate)
   // The entity (property/unit/etc.) belongs to a specific org, and we should use that org
   let orgId = await resolveOrgForEntity(admin, entityType, entityId);
+  if (entityType === 'bill') {
+    const { data: billRow } = await admin
+      .from('transactions')
+      .select('buildium_bill_id, org_id')
+      .eq('id', entityId)
+      .maybeSingle();
+    if (billRow) {
+      if (!orgId && billRow.org_id) {
+        orgId = billRow.org_id;
+      }
+    }
+  }
 
   // If entity doesn't have an org_id, fall back to user context resolution
   // This matches the list route's behavior for consistency
