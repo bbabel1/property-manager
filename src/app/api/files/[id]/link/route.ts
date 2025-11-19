@@ -23,19 +23,81 @@ export async function DELETE(
   const body = await request.json().catch(() => null);
   const { entityType, entityId } = (body || {}) as {
     entityType?: string;
-    entityId?: number;
+    entityId?: number | string;
   };
 
-  if (!entityType || entityId == null) {
+  if (!entityType || entityId === undefined || entityId === null) {
     return NextResponse.json({ error: 'Missing entityType or entityId' }, { status: 400 });
+  }
+
+  const fileId = (await params).id;
+  const normalizedRequestType = entityType.toLowerCase();
+
+  if (normalizedRequestType === 'bill') {
+    const normalizedBillId =
+      typeof entityId === 'number'
+        ? String(entityId)
+        : typeof entityId === 'string'
+          ? entityId.trim()
+          : '';
+    if (!normalizedBillId) {
+      return NextResponse.json({ error: 'Invalid bill identifier' }, { status: 400 });
+    }
+
+    const { data: file, error: fileErr } = await admin
+      .from('files')
+      .select('id, storage_provider, bucket, storage_key')
+      .eq('id', fileId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (fileErr) {
+      return NextResponse.json(
+        { error: 'File lookup failed', details: fileErr.message },
+        { status: 500 },
+      );
+    }
+
+    if (!file) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    const billPrefix = `bill/${normalizedBillId}/`;
+    if (!file.storage_key || !file.storage_key.startsWith(billPrefix)) {
+      return NextResponse.json(
+        { error: 'File is not associated with the specified bill' },
+        { status: 400 },
+      );
+    }
+
+    const deletedAt = new Date().toISOString();
+    const { error: updateErr } = await admin
+      .from('files')
+      .update({ deleted_at: deletedAt })
+      .eq('id', fileId);
+
+    if (updateErr) {
+      return NextResponse.json(
+        { error: 'Unlink failed', details: updateErr.message },
+        { status: 500 },
+      );
+    }
+
+    if (file.storage_provider === 'supabase' && file.bucket && file.storage_key) {
+      try {
+        await admin.storage.from(file.bucket).remove([file.storage_key]);
+      } catch (storageError) {
+        console.error('Failed to remove bill attachment object', storageError);
+      }
+    }
+
+    return NextResponse.json({ ok: true });
   }
 
   const normalizedEntityType = normalizeEntityType(entityType);
   if (!normalizedEntityType) {
     return NextResponse.json({ error: `Unsupported entityType "${entityType}"` }, { status: 400 });
   }
-
-  const fileId = (await params).id;
 
   // Verify the file exists and matches the entity
   const { data: file, error: fileErr } = await admin
@@ -55,7 +117,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'File not found' }, { status: 404 });
   }
 
-  // Verify the file is associated with the specified entity
   if (file.entity_type !== normalizedEntityType || file.entity_id !== entityId) {
     return NextResponse.json(
       { error: 'File is not associated with the specified entity' },
@@ -63,15 +124,11 @@ export async function DELETE(
     );
   }
 
-  // Update file to remove entity association (set to a default/null state)
-  // Note: Since entity_type and entity_id are NOT NULL in new schema,
-  // we need to decide on the approach. For now, we'll require explicit entity to match
-  // In practice, you might want to soft-delete or move to a "unlinked" category
   const { error: updateErr } = await admin
     .from('files')
     .update({
       entity_type: FILE_ENTITY_TYPES.PROPERTIES,
-      entity_id: 0, // Default unlinked ID
+      entity_id: 0,
       updated_at: new Date().toISOString(),
     })
     .eq('id', fileId);
