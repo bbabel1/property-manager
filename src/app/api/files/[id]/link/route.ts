@@ -34,32 +34,61 @@ export async function DELETE(
   const normalizedRequestType = entityType.toLowerCase();
 
   if (normalizedRequestType === 'bill') {
-    const clauses: string[] = [];
-    if (typeof entityId === 'string') {
-      const trimmed = entityId.trim();
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
-        clauses.push(`entity_uuid.eq.${trimmed}`);
-      }
-    } else if (typeof entityId === 'number' && Number.isFinite(entityId)) {
-      clauses.push(`entity_int.eq.${entityId}`);
-    }
-
-    if (!clauses.length) {
+    const normalizedBillId =
+      typeof entityId === 'number'
+        ? String(entityId)
+        : typeof entityId === 'string'
+          ? entityId.trim()
+          : '';
+    if (!normalizedBillId) {
       return NextResponse.json({ error: 'Invalid bill identifier' }, { status: 400 });
     }
 
-    const { error: deleteError } = await admin
-      .from('file_links')
-      .delete()
-      .eq('file_id', fileId)
-      .eq('entity_type', 'bill')
-      .or(clauses.join(','));
+    const { data: file, error: fileErr } = await admin
+      .from('files')
+      .select('id, storage_provider, bucket, storage_key')
+      .eq('id', fileId)
+      .is('deleted_at', null)
+      .maybeSingle();
 
-    if (deleteError) {
+    if (fileErr) {
       return NextResponse.json(
-        { error: 'Unlink failed', details: deleteError.message },
+        { error: 'File lookup failed', details: fileErr.message },
         { status: 500 },
       );
+    }
+
+    if (!file) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    const billPrefix = `bill/${normalizedBillId}/`;
+    if (!file.storage_key || !file.storage_key.startsWith(billPrefix)) {
+      return NextResponse.json(
+        { error: 'File is not associated with the specified bill' },
+        { status: 400 },
+      );
+    }
+
+    const deletedAt = new Date().toISOString();
+    const { error: updateErr } = await admin
+      .from('files')
+      .update({ deleted_at: deletedAt })
+      .eq('id', fileId);
+
+    if (updateErr) {
+      return NextResponse.json(
+        { error: 'Unlink failed', details: updateErr.message },
+        { status: 500 },
+      );
+    }
+
+    if (file.storage_provider === 'supabase' && file.bucket && file.storage_key) {
+      try {
+        await admin.storage.from(file.bucket).remove([file.storage_key]);
+      } catch (storageError) {
+        console.error('Failed to remove bill attachment object', storageError);
+      }
     }
 
     return NextResponse.json({ ok: true });
