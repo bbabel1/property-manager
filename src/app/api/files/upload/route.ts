@@ -1014,7 +1014,6 @@ export async function POST(request: NextRequest) {
   // PRIORITY: Always use the entity's org_id if available (this is the most accurate)
   // The entity (property/unit/etc.) belongs to a specific org, and we should use that org
   let orgId = await resolveOrgForEntity(admin, entityType, entityId);
-  let billLinkMetadata: { buildiumBillId: number | null; orgId: string | null } | null = null;
   if (entityType === 'bill') {
     const { data: billRow } = await admin
       .from('transactions')
@@ -1022,11 +1021,6 @@ export async function POST(request: NextRequest) {
       .eq('id', entityId)
       .maybeSingle();
     if (billRow) {
-      const buildiumBillId =
-        typeof billRow.buildium_bill_id === 'number' && Number.isFinite(billRow.buildium_bill_id)
-          ? billRow.buildium_bill_id
-          : null;
-      billLinkMetadata = { buildiumBillId, orgId: billRow.org_id || null };
       if (!orgId && billRow.org_id) {
         orgId = billRow.org_id;
       }
@@ -1303,32 +1297,6 @@ export async function POST(request: NextRequest) {
     });
     if (buildiumSync?.updatedFile) {
       latestFileRow = buildiumSync.updatedFile;
-    }
-  }
-
-  if (entityType === 'bill') {
-    const entityUuid =
-      typeof entityId === 'string' &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)
-        ? entityId
-        : null;
-    const buildiumBillId = billLinkMetadata?.buildiumBillId ?? null;
-    if ((entityUuid || buildiumBillId != null) && orgId) {
-      const linkPayload: Record<string, unknown> = {
-        file_id: latestFileRow.id,
-        entity_type: 'bill',
-        org_id: orgId,
-        added_by: createdBy,
-        added_at: new Date().toISOString(),
-      };
-      if (entityUuid) linkPayload.entity_uuid = entityUuid;
-      if (buildiumBillId != null) linkPayload.entity_int = buildiumBillId;
-
-      try {
-        await admin.from('file_links').insert(linkPayload);
-      } catch (error) {
-        console.error('Failed to link file to bill', error);
-      }
     }
   }
 
