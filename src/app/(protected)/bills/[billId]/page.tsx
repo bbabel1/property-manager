@@ -207,31 +207,33 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
 
   let billFiles: BillFileRecord[] = [];
   try {
-    if (bill.org_id) {
-      const { data: files, error: fileError } = await db
+    const orgId = bill.org_id;
+    const billIdForLink = bill.id ? String(bill.id) : null;
+
+    if (orgId && billIdForLink) {
+      const { data: filesData, error: filesError } = await db
         .from('files')
-        .select('*')
-        .eq('org_id', bill.org_id)
-        .ilike('storage_key', `bill/${bill.id}/%`)
+        .select('id, title, file_name, created_at, created_by, buildium_file_id, buildium_href')
+        .eq('org_id', orgId)
+        .ilike('storage_key', `bill/${billIdForLink}/%`)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      if (fileError) {
-        console.error('Failed to load bill file attachments', fileError);
-      } else {
-        billFiles =
-          files
-            ?.map((file: any) => ({
-              id: file.id,
-              title: file.title || file.file_name || 'File',
-              uploadedAt: file.created_at,
-              uploadedBy: file.created_by || null,
-              buildiumFileId: file.buildium_file_id || null,
-              buildiumHref: file.buildium_href || null,
-              buildiumSyncError: null,
-            }))
-            .filter((file: BillFileRecord) => file.uploadedAt) ?? [];
-        billFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      if (filesError) {
+        console.error('Failed to load bill files', filesError);
+      } else if (filesData?.length) {
+        billFiles = filesData
+          .map((file: any) => ({
+            id: file.id,
+            title: file.title || file.file_name || 'File',
+            uploadedAt: file.created_at,
+            uploadedBy: file.created_by || null,
+            buildiumFileId: file.buildium_file_id || null,
+            buildiumHref: file.buildium_href || null,
+            buildiumSyncError: null,
+          }))
+          .filter((file: BillFileRecord) => file.uploadedAt)
+          .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
       }
     }
   } catch (error) {
@@ -356,150 +358,157 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
         }
       />
       <PageBody>
-        <PageColumns
-          primary={
-            <>
-              <Card className="border-border/70 shadow-sm">
-                <CardHeader className="border-border/60 bg-muted/30 border-b">
-                  <CardTitle>Bill details</CardTitle>
-                </CardHeader>
-                <CardContent className="py-6">
-                  <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-2">
-                    {detailEntries.map((entry) => (
-                      <div key={entry.name} className="space-y-1">
-                        <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                          {entry.name}
-                        </dt>
-                        <dd
-                          className={cn(
-                            'text-foreground',
-                            entry.multiline ? 'whitespace-pre-wrap' : undefined,
-                          )}
-                        >
-                          {entry.value}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/70 shadow-sm">
-                <CardHeader className="border-border/60 bg-muted/30 border-b">
-                  <CardTitle>Item details</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table className="text-sm">
-                    <TableHeader>
-                      <TableRow className="border-border/60 bg-muted/30 border-b">
-                        <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                          Property or company
-                        </TableHead>
-                        <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                          Unit
-                        </TableHead>
-                        <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                          Account
-                        </TableHead>
-                        <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                          Description
-                        </TableHead>
-                        <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
-                          Amount
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="divide-border/60 divide-y">
-                      {debitLineItems.length === 0 ? (
-                        <TableRow className="hover:bg-transparent">
-                          <TableCell
-                            colSpan={5}
-                            className="text-muted-foreground bg-background px-4 py-8 text-center text-sm"
+        <div className="space-y-8">
+          <PageColumns
+            gap="xl"
+            className="lg:grid-cols-[minmax(0,2fr)_minmax(480px,1.2fr)]"
+            primaryClassName="min-w-0 space-y-6"
+            secondaryClassName="space-y-6"
+            primary={
+              <>
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="border-border/60 bg-muted/30 border-b">
+                    <CardTitle>Bill details</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-6 py-6">
+                    <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-2">
+                      {detailEntries.map((entry) => (
+                        <div key={entry.name} className="space-y-1.5">
+                          <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                            {entry.name}
+                          </dt>
+                          <dd
+                            className={cn(
+                              'text-foreground text-sm',
+                              entry.multiline ? 'whitespace-pre-wrap' : undefined,
+                            )}
                           >
-                            No itemized charges recorded for this bill.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        <>
-                          {debitLineItems.map((item) => (
-                            <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
-                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                {item.propertyName}
-                              </TableCell>
-                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                {item.unitLabel}
-                              </TableCell>
-                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                {item.accountLabel}
-                              </TableCell>
-                              <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3 whitespace-pre-wrap">
-                                {item.description}
-                              </TableCell>
-                              <TableCell className="px-4 py-3 text-right font-medium">
-                                {formatCurrency(item.initialAmount)}
+                            {entry.value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="border-border/60 bg-muted/30 border-b">
+                    <CardTitle>Item details</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-[720px] text-sm">
+                        <TableHeader>
+                          <TableRow className="border-border/60 bg-muted/30 border-b">
+                            <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Property or company
+                            </TableHead>
+                            <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Unit
+                            </TableHead>
+                            <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Account
+                            </TableHead>
+                            <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Description
+                            </TableHead>
+                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
+                              Amount
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-border/60 divide-y">
+                          {debitLineItems.length === 0 ? (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell
+                                colSpan={5}
+                                className="text-muted-foreground bg-background px-4 py-8 text-center text-sm"
+                              >
+                                No itemized charges recorded for this bill.
                               </TableCell>
                             </TableRow>
-                          ))}
-                        </>
-                      )}
-                    </TableBody>
-                    <TableFooter className="bg-background font-semibold">
-                      <TableRow className="border-border/60 border-t">
-                        <TableCell colSpan={4} className="text-foreground px-4 py-3">
-                          Total
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-right">
-                          {formatCurrency(lineItemsInitialTotal || billAmount)}
-                        </TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  </Table>
-                </CardContent>
-              </Card>
+                          ) : (
+                            <>
+                              {debitLineItems.map((item) => (
+                                <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
+                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
+                                    {item.propertyName}
+                                  </TableCell>
+                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
+                                    {item.unitLabel}
+                                  </TableCell>
+                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
+                                    {item.accountLabel}
+                                  </TableCell>
+                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3 whitespace-pre-wrap">
+                                    {item.description}
+                                  </TableCell>
+                                  <TableCell className="px-4 py-3 text-right font-medium">
+                                    {formatCurrency(item.initialAmount)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </>
+                          )}
+                        </TableBody>
+                        <TableFooter className="bg-background font-semibold">
+                          <TableRow className="border-border/60 border-t">
+                            <TableCell colSpan={4} className="text-foreground px-4 py-3">
+                              Total
+                            </TableCell>
+                            <TableCell className="px-4 py-3 text-right">
+                              {formatCurrency(lineItemsInitialTotal || billAmount)}
+                            </TableCell>
+                          </TableRow>
+                        </TableFooter>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <BillFileAttachmentsCard
-                billId={bill.id}
-                uploaderName={vendorName}
-                initialFiles={billFiles}
-              />
-            </>
-          }
-          secondary={
-            <>
-              <Card className="border-border/70 shadow-sm">
-                <CardHeader className="border-border/60 bg-muted/30 border-b">
-                  <CardTitle>Bill amount</CardTitle>
-                </CardHeader>
-                <CardContent className="py-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                      Remaining
-                    </span>
-                    <span className="text-foreground text-xl font-semibold">
-                      {formatCurrency(remainingAmount)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+                <BillFileAttachmentsCard
+                  billId={bill.id}
+                  uploaderName={vendorName}
+                  initialFiles={billFiles}
+                />
+              </>
+            }
+            secondary={
+              <>
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="border-border/60 bg-muted/30 border-b">
+                    <CardTitle>Bill amount</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-6 py-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                        Remaining
+                      </span>
+                      <span className="text-foreground text-xl font-semibold">
+                        {formatCurrency(remainingAmount)}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <Card className="border-border/70 shadow-sm">
-                <CardHeader className="border-border/60 bg-muted/30 border-b">
-                  <CardTitle>Available credits</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 py-6">
-                  <div className="border-border/60 bg-muted/20 rounded-lg border border-dashed p-4 text-center">
-                    <div className="text-foreground text-xl font-semibold">0.00</div>
-                    <div className="text-foreground text-xs">No vendor credits</div>
-                  </div>
-                  <Button type="button" variant="outline" size="sm" disabled title="Coming soon">
-                    Add a credit
-                  </Button>
-                </CardContent>
-              </Card>
-            </>
-          }
-          secondaryClassName="lg:ml-auto lg:max-w-sm"
-        />
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="border-border/60 bg-muted/30 border-b">
+                    <CardTitle>Available credits</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 px-6 py-6">
+                    <div className="border-border/60 bg-muted/20 rounded-lg border border-dashed p-4 text-center">
+                      <div className="text-foreground text-xl font-semibold">0.00</div>
+                      <div className="text-muted-foreground mt-1 text-xs">No vendor credits</div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" disabled title="Coming soon">
+                      Add a credit
+                    </Button>
+                  </CardContent>
+                </Card>
+              </>
+            }
+          />
+        </div>
       </PageBody>
     </PageShell>
   );

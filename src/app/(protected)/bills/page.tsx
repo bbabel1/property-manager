@@ -383,8 +383,8 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
   const renderTabPanel = (rows: BillRowRecord[]) => (
     <div className="space-y-6">
       <Card className="border-border/70 border shadow-sm">
-        <CardContent className="space-y-4 p-6">
-          <div className="flex flex-wrap items-end gap-4">
+        <CardContent className="p-0">
+          <div className="flex flex-wrap items-end gap-4 p-6 pb-4">
             <BillsFilters
               defaultPropertyIds={selectedPropertyIds}
               defaultUnitIds={selectedUnitIds}
@@ -396,7 +396,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
             />
           </div>
 
-          <div className="border-border overflow-hidden rounded-lg border shadow-sm">
+          <div className="border-border/70 border-t">
             <Table className="text-sm">
               <TableHeader>
                 <TableRow className="border-border border-b">
