@@ -2,7 +2,10 @@ import type { PostgrestError } from '@supabase/supabase-js';
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { traceAsync } from '@/lib/metrics/trace';
-import { calculateFinancialSummary, getOwnerDrawSummary } from '@/lib/monthly-log-calculations';
+import {
+  calculateFinancialSummary,
+  getOwnerDrawSummary,
+} from '@/lib/monthly-log-calculations';
 import {
   calculateNetToOwnerValue,
   normalizeFinancialSummary,
@@ -103,13 +106,31 @@ const pickDisplayLine = (
 ): TransactionLineRow | null => {
   if (!lines || lines.length === 0) return null;
 
+  const ownerDrawLine = lines.find((line) => {
+    const name = (line.gl_accounts?.name ?? '').toLowerCase();
+    return name.includes(OWNER_DRAW_KEYWORD);
+  });
+  if (ownerDrawLine) {
+    return ownerDrawLine;
+  }
+
   const unitId = options.unitId ?? null;
+  const postingWeight = (line?: TransactionLineRow | null) => {
+    const posting = (line?.posting_type ?? '').toLowerCase();
+    return posting.includes(CREDIT_KEYWORD) ? 1 : 0;
+  };
 
   const sorted = [...lines].sort((a, b) => {
     const aUnitMatch = unitId && a.unit_id && a.unit_id === unitId ? 0 : 1;
     const bUnitMatch = unitId && b.unit_id && b.unit_id === unitId ? 0 : 1;
     if (aUnitMatch !== bUnitMatch) {
       return aUnitMatch - bUnitMatch;
+    }
+
+    const aPosting = postingWeight(a);
+    const bPosting = postingWeight(b);
+    if (aPosting !== bPosting) {
+      return aPosting - bPosting;
     }
 
     const aCategory = (a.gl_accounts?.gl_account_category?.category ?? '').toLowerCase();
@@ -264,13 +285,12 @@ export async function loadAssignedTransactionsBundle(
         )
       : [];
 
-    const ownerDrawSummary = await getOwnerDrawSummary(monthlyLogId, db);
-    const summary = parsed.summary
-      ? normalizeFinancialSummary({
-          ...(parsed.summary as Partial<MonthlyLogFinancialSummary>),
-          ownerDraw: ownerDrawSummary.total,
-        })
-      : null;
+    // Use admin client for summary so RLS on lines/GL accounts doesn't hide values
+    const computedSummary = await calculateFinancialSummary(monthlyLogId, {
+      db: supabaseAdmin,
+      unitId: normalizeOptions.unitId ?? null,
+    });
+    const summary = normalizeFinancialSummary(computedSummary);
 
     return { transactions, summary: applyEscrowOverride(transactions, summary) };
   } catch (error) {
@@ -328,8 +348,9 @@ async function fallbackAssignedBundle(
 
   const fallbackRows = (Array.isArray(data) ? data : []) as TransactionRow[];
   const transactions = fallbackRows.map((row) => normalizeTransactionRow(row, normalizeOptions));
+  // Use admin client to avoid RLS gaps on GL accounts/lines
   const summary = await calculateFinancialSummary(monthlyLogId, {
-    db,
+    db: supabaseAdmin,
     unitId: normalizeOptions.unitId ?? null,
   });
 

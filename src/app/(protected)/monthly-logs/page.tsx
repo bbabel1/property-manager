@@ -5,6 +5,7 @@ import {
   type MonthlyLogCardRecord,
 } from '@/components/monthly-logs/types';
 import { supabase, supabaseAdmin } from '@/lib/db';
+import { calculateFinancialSummary } from '@/lib/monthly-log-calculations';
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'long',
@@ -304,6 +305,22 @@ export default async function MonthlyLogsPage({
     ? (logsRes.data as unknown as MonthlyLogQueryRow[])
     : [];
 
+  const summaryEntries = await Promise.all(
+    rows.map(async (row) => {
+      try {
+        const summary = await calculateFinancialSummary(row.id, { db });
+        return [row.id, summary] as const;
+      } catch (error) {
+        console.error('Failed to calculate financial summary for monthly log', {
+          logId: row.id,
+          error,
+        });
+        return [row.id, null] as const;
+      }
+    }),
+  );
+  const summaries = new Map(summaryEntries);
+
   const { data: propertyRows, error: propertyError } = await db
     .from('properties')
     .select('id, name, status, is_active')
@@ -346,6 +363,16 @@ export default async function MonthlyLogsPage({
     const unitTitle = unitName;
     const unitSubtitle = primaryOwnerName || propertyName;
 
+    const summary = summaries.get(row.id);
+    const chargesAmount = summary?.totalCharges ?? Number(row.charges_amount ?? 0);
+    const paymentsAmount = summary?.totalPayments ?? Number(row.payments_amount ?? 0);
+    const billsAmount = summary?.totalBills ?? Number(row.bills_amount ?? 0);
+    const escrowAmount = summary?.escrowAmount ?? Number(row.escrow_amount ?? 0);
+    const managementFeesAmount =
+      summary?.managementFees ?? Number(row.management_fees_amount ?? 0);
+    const ownerDistributionAmount =
+      summary?.ownerDraw ?? Number(row.owner_distribution_amount ?? 0);
+
     return {
       id: row.id,
       periodStart: row.period_start,
@@ -357,13 +384,13 @@ export default async function MonthlyLogsPage({
       unitTitle,
       unitSubtitle,
       tenantName,
-      chargesAmount: Number(row.charges_amount ?? 0),
-      paymentsAmount: Number(row.payments_amount ?? 0),
-      billsAmount: Number(row.bills_amount ?? 0),
-      escrowAmount: Number(row.escrow_amount ?? 0),
-      managementFeesAmount: Number(row.management_fees_amount ?? 0),
+      chargesAmount,
+      paymentsAmount,
+      billsAmount,
+      escrowAmount,
+      managementFeesAmount,
       ownerStatementAmount: Number(row.owner_statement_amount ?? 0),
-      ownerDistributionAmount: Number(row.owner_distribution_amount ?? 0),
+      ownerDistributionAmount,
       sortIndex: Number.isFinite(row.sort_index) ? Number(row.sort_index) : 0,
       notes: row.notes,
     };

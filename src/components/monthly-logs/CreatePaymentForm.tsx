@@ -55,6 +55,8 @@ export default function CreatePaymentForm({
 }: CreatePaymentFormProps) {
   const [loading, setLoading] = useState(false);
   const [glAccounts, setGlAccounts] = useState<GLAccount[]>([]);
+  const [glLoading, setGlLoading] = useState(false);
+  const [glError, setGlError] = useState<string | null>(null);
   const [formData, setFormData] = useState<PaymentFormData>({
     date: new Date().toISOString().split('T')[0],
     amount: '',
@@ -72,15 +74,22 @@ export default function CreatePaymentForm({
   }, [isOpen]);
 
   const loadGLAccounts = async () => {
+    setGlLoading(true);
+    setGlError(null);
     try {
       const response = await fetch('/api/gl-accounts?type=asset&subtype=receivable');
       if (response.ok) {
         const data = await response.json();
         setGlAccounts(data.accounts || []);
+      } else {
+        setGlError('Unable to load GL accounts. Please try again.');
       }
     } catch (error) {
       console.error('Failed to load GL accounts:', error);
+      setGlError('Failed to load accounts');
       toast.error('Failed to load accounts');
+    } finally {
+      setGlLoading(false);
     }
   };
 
@@ -119,6 +128,26 @@ export default function CreatePaymentForm({
     });
 
     setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
+      const focusKey = Object.keys(newErrors)[0];
+      let focusId: string | null = null;
+      if (focusKey === 'payment_method') focusId = 'payment_method';
+      else if (focusKey === 'date') focusId = 'date';
+      else if (focusKey === 'amount') focusId = 'amount';
+      else if (focusKey.startsWith('allocation_')) {
+        const match = focusKey.match(/allocation_(\d+)_(account|amount)/);
+        if (match) {
+          const [, index, field] = match;
+          focusId = `${field === 'account' ? 'account' : 'amount'}_${index}`;
+        }
+      }
+      if (focusId) {
+        setTimeout(() => {
+          const el = document.getElementById(focusId);
+          el?.focus();
+        }, 0);
+      }
+    }
     return Object.keys(newErrors).length === 0;
   };
 
@@ -203,12 +232,19 @@ export default function CreatePaymentForm({
   const autoAllocateAmount = () => {
     const amount = parseFloat(formData.amount) || 0;
     if (amount > 0 && formData.allocations.length === 1) {
-      setFormData((prev) => ({
-        ...prev,
-        allocations: [{ ...prev.allocations[0], amount: amount.toString() }],
-      }));
+      setFormData((prev) => {
+        const current = prev.allocations[0]?.amount ?? '';
+        const nextValue = amount.toString();
+        if (current === nextValue) return prev;
+        return { ...prev, allocations: [{ ...prev.allocations[0], amount: nextValue }] };
+      });
     }
   };
+
+  useEffect(() => {
+    autoAllocateAmount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.amount, formData.allocations.length]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -278,7 +314,10 @@ export default function CreatePaymentForm({
                     setFormData((prev) => ({ ...prev, payment_method: value }))
                   }
                 >
-                  <SelectTrigger className={errors.payment_method ? 'border-red-500' : ''}>
+                  <SelectTrigger
+                    id="payment_method"
+                    className={errors.payment_method ? 'border-red-500' : ''}
+                  >
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
@@ -328,18 +367,30 @@ export default function CreatePaymentForm({
                       onValueChange={(value) => updateAllocation(index, 'account_id', value)}
                     >
                       <SelectTrigger
+                        id={`account_${index}`}
                         className={errors[`allocation_${index}_account`] ? 'border-red-500' : ''}
                       >
                         <SelectValue placeholder="Select account" />
                       </SelectTrigger>
                       <SelectContent>
-                        {glAccounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.account_number} - {account.name}
+                        {glLoading ? (
+                          <SelectItem disabled value="loading">
+                            Loading accounts…
                           </SelectItem>
-                        ))}
+                        ) : glAccounts.length === 0 ? (
+                          <SelectItem disabled value="empty">
+                            No GL accounts available
+                          </SelectItem>
+                        ) : (
+                          glAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.account_number} - {account.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    {glError ? <p className="text-sm text-red-600">{glError}</p> : null}
                     {errors[`allocation_${index}_account`] && (
                       <p className="text-sm text-red-600">
                         {errors[`allocation_${index}_account`]}

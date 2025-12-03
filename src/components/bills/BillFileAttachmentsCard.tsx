@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import ActionButton from '@/components/ui/ActionButton';
-import { Eye, Trash2 } from 'lucide-react';
+import { ChevronDown, Eye, Trash2 } from 'lucide-react';
 import BillFileUploadDialog from './BillFileUploadDialog';
 import BillFileViewDialog from './BillFileViewDialog';
 import type { BillFileRecord } from './types';
@@ -46,6 +46,7 @@ export default function BillFileAttachmentsCard({
   initialFiles = [],
 }: BillFileAttachmentsCardProps) {
   const [files, setFiles] = useState<BillFileRecord[]>(initialFiles);
+  const [collapsed, setCollapsed] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerFile, setViewerFile] = useState<BillFileRecord | null>(null);
@@ -59,111 +60,158 @@ export default function BillFileAttachmentsCard({
     setViewerOpen(true);
   };
 
+  const fileCount = files.length;
+
   return (
     <>
-      <div className="border-border overflow-hidden rounded-lg border shadow-sm">
-        <div className="border-border bg-muted/40 flex items-center justify-between border-b px-4 py-4">
-          <h2 className="text-foreground text-base font-semibold">File attachments</h2>
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="!h-auto !min-h-0 px-0 !py-0 text-sm font-medium"
-            onClick={() => setDialogOpen(true)}
-          >
-            Add files
-          </Button>
-        </div>
-
-        {files.length === 0 ? (
-          <div className="text-foreground flex flex-col items-center justify-center gap-3 px-6 py-12 text-center text-sm">
-            <div className="text-foreground text-base font-medium">No files yet</div>
-            <p className="max-w-sm">Upload and view your attachments here.</p>
+      <div className="border-border/70 overflow-hidden rounded-lg border shadow-sm">
+        <div className="border-border/60 bg-muted/30 flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-foreground text-base font-semibold">File attachments</h2>
+              <span className="border-border/60 text-muted-foreground inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
+                {fileCount} file{fileCount === 1 ? '' : 's'}
+              </span>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Keep invoices, receipts, and photos together. Add or drop files to attach.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => setCollapsed((prev) => !prev)}
+              aria-expanded={!collapsed}
+              aria-controls="bill-files-panel"
+            >
+              <ChevronDown
+                className={`mr-2 h-4 w-4 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+                aria-hidden
+              />
+              {collapsed ? 'Show' : 'Hide'}
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
-              Upload your first file
+              Add files
             </Button>
           </div>
-        ) : (
-          <div className="border-border border-t">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Uploaded</TableHead>
-                  <TableHead className="w-[56px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {files.map((file) => (
-                  <TableRow
-                    key={file.id}
-                    className="group hover:bg-muted/40 cursor-pointer align-middle transition-colors"
-                    onClick={() => openViewer(file)}
-                  >
-                    <TableCell className="text-foreground group-hover:text-primary font-medium">
-                      {file.title}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      <div>{formatDateTime(file.uploadedAt)}</div>
-                      <div className="text-muted-foreground text-xs">
-                        by {file.uploadedBy || uploaderName || 'Team member'}
-                      </div>
-                      {file.buildiumSyncError ? (
-                        <div className="text-destructive text-xs">
-                          Buildium sync failed: {file.buildiumSyncError}
-                        </div>
-                      ) : file.buildiumFileId ? (
-                        <div className="text-muted-foreground text-xs">
-                          Buildium #{file.buildiumFileId}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-amber-600">Buildium sync pending</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <ActionButton
-                            aria-label="File actions"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36">
-                          <DropdownMenuItem onSelect={() => openViewer(file)}>
-                            <Eye className="mr-2 h-4 w-4" /> View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`/api/files/${file.id}/link`, {
-                                  method: 'DELETE',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ entityType: 'bill', entityId: billId }),
-                                });
-                                if (!res.ok) return;
-                                setFiles((prev) => prev.filter((f) => f.id !== file.id));
-                                setViewerFile((prev) => {
-                                  if (prev?.id === file.id) {
-                                    setViewerOpen(false);
-                                    return null;
-                                  }
-                                  return prev;
-                                });
-                              } catch {}
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+        </div>
+
+        {!collapsed ? (
+          files.length === 0 ? (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setDialogOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setDialogOpen(true);
+                }
+              }}
+              className="border-border/60 bg-muted/10 hover:bg-muted/20 focus-visible:ring-primary/40 flex w-full flex-col items-center justify-center gap-3 px-6 py-14 text-center outline-none transition-colors focus-visible:ring-2"
+            >
+              <div className="text-foreground text-base font-semibold">Drop files or click to upload</div>
+              <p className="text-muted-foreground max-w-sm text-sm">
+                Upload invoices, receipts, and supporting documents. You can also use the Add files button
+                to launch the uploader.
+              </p>
+              <Button type="button" variant="secondary" size="sm">
+                Upload your first file
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto" id="bill-files-panel">
+              <div className="text-muted-foreground flex items-center justify-between gap-3 px-6 py-3 text-xs">
+                <span>All files</span>
+                <span>Newest first</span>
+              </div>
+              <Table className="min-w-[560px]">
+                <TableHeader>
+                  <TableRow className="border-border/60 bg-muted/30 border-b hover:bg-transparent">
+                    <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                      Title
+                    </TableHead>
+                    <TableHead className="text-foreground px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                      Uploaded
+                    </TableHead>
+                    <TableHead className="w-[56px] px-4 py-3"></TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                </TableHeader>
+                <TableBody className="divide-border/60 divide-y">
+                  {files.map((file) => (
+                    <TableRow
+                      key={file.id}
+                      className="group hover:bg-muted/20 cursor-pointer align-middle transition-colors"
+                      onClick={() => openViewer(file)}
+                    >
+                      <TableCell className="text-foreground border-border/60 group-hover:text-primary px-4 py-3 font-medium">
+                        {file.title}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-sm">
+                        <div>{formatDateTime(file.uploadedAt)}</div>
+                        <div className="text-muted-foreground text-xs">
+                          by {file.uploadedBy || uploaderName || 'Team member'}
+                        </div>
+                        {file.buildiumSyncError ? (
+                          <div className="text-destructive text-xs">
+                            Buildium sync failed: {file.buildiumSyncError}
+                          </div>
+                        ) : file.buildiumFileId ? (
+                          <div className="text-muted-foreground text-xs">
+                            Buildium #{file.buildiumFileId}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-amber-600">Buildium sync pending</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <ActionButton
+                              aria-label="File actions"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            <DropdownMenuItem onSelect={() => openViewer(file)}>
+                              <Eye className="mr-2 h-4 w-4" /> View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`/api/files/${file.id}/link`, {
+                                    method: 'DELETE',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ entityType: 'bill', entityId: billId }),
+                                  });
+                                  if (!res.ok) return;
+                                  setFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                  setViewerFile((prev) => {
+                                    if (prev?.id === file.id) {
+                                      setViewerOpen(false);
+                                      return null;
+                                    }
+                                    return prev;
+                                  });
+                                } catch {}
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )
+        ) : null}
       </div>
 
       <BillFileUploadDialog

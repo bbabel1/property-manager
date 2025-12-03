@@ -28,6 +28,8 @@ type LineItem = {
   propertyName: string;
   unitLabel: string;
   accountLabel: string;
+  accountNumber: string | null;
+  accountType: string | null;
   description: string;
   initialAmount: number;
   remainingAmount: number;
@@ -249,6 +251,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     bill.due_date ?? null,
     bill.paid_date ?? null,
   );
+  const paidDateLabel = formatDate(bill.paid_date);
 
   // First, calculate line items and totals
   const mappedLineItems = rawLines
@@ -273,6 +276,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
           : null;
       const accountName = account?.name || null;
       const accountNumber = account?.account_number || null;
+      const accountType = account?.type || null;
       const normalizedAccountName = (accountName || '').trim().toLowerCase();
 
       const amountRaw = Number(line?.amount ?? 0);
@@ -286,6 +290,8 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
           propertyName,
           unitLabel: unitNumber ? String(unitNumber) : 'Property level',
           accountLabel: accountName || (accountNumber ? String(accountNumber) : 'Account'),
+          accountNumber: accountNumber ? String(accountNumber) : null,
+          accountType: accountType ? String(accountType) : null,
           description: line?.memo || bill.memo || '—',
           initialAmount,
           remainingAmount,
@@ -322,43 +328,52 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     { name: 'Due', value: billDueLabel },
     { name: 'Reference number', value: bill.reference_number || '—' },
     { name: 'Work order', value: '—' },
-    { name: 'Memo', value: bill.memo || '—', multiline: true },
     { name: 'Pay to', value: vendorName || '—' },
+    { name: 'Memo', value: bill.memo || 'Add a memo', multiline: true },
   ];
-
-  const headerMetaParts = [
-    `Bill ${formatCurrency(lineItemsInitialTotal || billAmount)}`,
-    `Remaining: ${formatCurrency(lineItemsRemainingTotal)}`,
-    `Due: ${billDueLabel}`,
-  ];
-  if (bill.reference_number) headerMetaParts.push(`Ref: ${bill.reference_number}`);
 
   return (
     <PageShell>
       <PageHeader
         title={
           <div className="flex flex-wrap items-center gap-3">
-            <span>{vendorName}</span>
+            <span className="text-foreground text-2xl font-semibold">{vendorName}</span>
             {statusLabel ? (
-              <Badge variant={statusToVariant(statusLabel)}>{statusLabel}</Badge>
+              <Badge
+                variant={statusToVariant(statusLabel)}
+                className={cn(
+                  'uppercase',
+                  statusLabel === 'Overdue' && 'border-destructive/40 bg-destructive/10 text-destructive',
+                  statusLabel === 'Due' && 'border-amber-300 bg-amber-50 text-amber-700',
+                )}
+              >
+                {statusLabel}
+              </Badge>
             ) : null}
           </div>
         }
-        description={headerMetaParts.join(' • ')}
+        description={`Bill ${formatCurrency(lineItemsInitialTotal || billAmount)} | Due: ${billDueLabel}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/bills/${bill.id}/edit`}>Edit</Link>
-            </Button>
             <Button size="sm" asChild>
               <Link href={`/bills/${bill.id}/pay`}>Pay bill</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/bills/${bill.id}/edit`}>Enter charges</Link>
             </Button>
             <BillActionsMenu billId={bill.id} />
           </div>
         }
       />
       <PageBody>
-        <div className="space-y-8">
+        <div className="space-y-6">
+          <Link
+            href="/bills"
+            className="text-muted-foreground inline-flex items-center gap-2 text-sm hover:text-primary"
+          >
+            <span aria-hidden>←</span>
+            Back to bills
+          </Link>
           <PageColumns
             gap="xl"
             className="lg:grid-cols-[minmax(0,2fr)_minmax(480px,1.2fr)]"
@@ -371,7 +386,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                     <CardTitle>Bill details</CardTitle>
                   </CardHeader>
                   <CardContent className="px-6 py-6">
-                    <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-2">
+                    <dl className="grid gap-x-12 gap-y-6 text-sm md:grid-cols-3">
                       {detailEntries.map((entry) => (
                         <div key={entry.name} className="space-y-1.5">
                           <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -392,14 +407,14 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                 </Card>
 
                 <Card className="border-border/70 shadow-sm">
-                  <CardHeader className="border-border/60 bg-muted/30 border-b">
+                  <CardHeader className="border-border/60 bg-muted/30 flex flex-wrap items-center justify-between gap-3 border-b">
                     <CardTitle>Item details</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
-                    <div className="overflow-x-auto">
+                    <div className="relative overflow-x-auto">
                       <Table className="min-w-[720px] text-sm">
                         <TableHeader>
-                          <TableRow className="border-border/60 bg-muted/30 border-b">
+                          <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
                             <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
                               Property or company
                             </TableHead>
@@ -429,8 +444,14 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                             </TableRow>
                           ) : (
                             <>
-                              {debitLineItems.map((item) => (
-                                <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
+                              {debitLineItems.map((item, index) => (
+                                <TableRow
+                                  key={item.id}
+                                  className={cn(
+                                    'hover:bg-muted/20 transition-colors',
+                                    index % 2 === 1 ? 'bg-muted/10' : undefined,
+                                  )}
+                                >
                                   <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
                                     {item.propertyName}
                                   </TableCell>
@@ -438,12 +459,21 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                                     {item.unitLabel}
                                   </TableCell>
                                   <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                    {item.accountLabel}
+                                    <div className="font-medium">{item.accountLabel}</div>
+                                    {(item.accountNumber || item.accountType) && (
+                                      <div className="text-muted-foreground text-xs">
+                                        {item.accountNumber ? `#${item.accountNumber}` : ''}
+                                        {item.accountNumber && item.accountType ? ' • ' : ''}
+                                        {item.accountType
+                                          ? item.accountType.replace(/_/g, ' ').toLowerCase()
+                                          : ''}
+                                      </div>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3 whitespace-pre-wrap">
                                     {item.description}
                                   </TableCell>
-                                  <TableCell className="px-4 py-3 text-right font-medium">
+                                  <TableCell className="sticky right-0 px-4 py-3 text-right font-semibold backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                     {formatCurrency(item.initialAmount)}
                                   </TableCell>
                                 </TableRow>
@@ -463,6 +493,18 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                         </TableFooter>
                       </Table>
                     </div>
+                    <div className="border-border/60 bg-muted/10 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground uppercase tracking-wide">Remaining</span>
+                        <span className="font-semibold">{formatCurrency(remainingAmount)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground uppercase tracking-wide">Total</span>
+                        <span className="font-semibold">
+                          {formatCurrency(lineItemsInitialTotal || billAmount)}
+                        </span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -479,28 +521,28 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                   <CardHeader className="border-border/60 bg-muted/30 border-b">
                     <CardTitle>Bill amount</CardTitle>
                   </CardHeader>
-                  <CardContent className="px-6 py-6">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                        Remaining
-                      </span>
-                      <span className="text-foreground text-xl font-semibold">
-                        {formatCurrency(remainingAmount)}
-                      </span>
+                  <CardContent className="space-y-4 px-6 py-6">
+                    <div className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                      Remaining
+                    </div>
+                    <div className="text-foreground text-2xl font-semibold">
+                      {formatCurrency(remainingAmount)}
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="border-border/70 shadow-sm">
                   <CardHeader className="border-border/60 bg-muted/30 border-b">
-                    <CardTitle>Available credits</CardTitle>
+                    <CardTitle>
+                      Available credits <span className="text-muted-foreground text-xs">(i)</span>
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4 px-6 py-6">
-                    <div className="border-border/60 bg-muted/20 rounded-lg border border-dashed p-4 text-center">
-                      <div className="text-foreground text-xl font-semibold">0.00</div>
-                      <div className="text-muted-foreground mt-1 text-xs">No vendor credits</div>
+                  <CardContent className="space-y-4 px-6 py-6 text-sm">
+                    <div className="border-border/60 bg-muted/20 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center">
+                      <div className="text-foreground text-lg font-semibold">0.00</div>
+                      <div className="text-muted-foreground text-xs">No vendor credits</div>
                     </div>
-                    <Button type="button" variant="outline" size="sm" disabled title="Coming soon">
+                    <Button type="button" variant="outline" size="sm">
                       Add a credit
                     </Button>
                   </CardContent>

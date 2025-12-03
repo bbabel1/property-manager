@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Download, Eye, Mail, AlertCircle, CheckCircle } from 'lucide-react';
+import { Eye, Mail, AlertCircle, CheckCircle, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import StatementRecipientsManager from './StatementRecipientsManager';
 import StatementEmailHistory from './StatementEmailHistory';
+import StatementPreviewDialog from './StatementPreviewDialog';
 
 interface StatementsStageProps {
   monthlyLogId: string;
@@ -17,6 +18,8 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
   const [generating, setGenerating] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const hasProperty = Boolean(propertyId);
 
   // Fetch existing PDF URL on mount
@@ -38,39 +41,46 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
     fetchPdfUrl();
   }, [monthlyLogId]);
 
-  const handleGeneratePDF = async () => {
-    try {
-      setGenerating(true);
-
-      const response = await fetch(`/api/monthly-logs/${monthlyLogId}/generate-pdf`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to generate PDF');
-      }
-
-      const data = await response.json();
-      setPdfUrl(data.pdfUrl);
-      toast.success('Statement PDF generated successfully');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate PDF';
-      console.error('Error generating PDF:', error);
-      toast.error(errorMessage);
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   const handlePreview = () => {
-    window.open(`/api/monthly-logs/${monthlyLogId}/preview-statement`, '_blank');
-  };
-
-  const handleDownload = () => {
     if (pdfUrl) {
-      window.open(pdfUrl, '_blank');
+      setPreviewOpen(true);
+      return;
     }
+
+    // If no PDF yet, generate then open
+    const generateAndPreview = async () => {
+      try {
+        setGenerating(true);
+        setPreviewLoading(true);
+
+        const response = await fetch(`/api/monthly-logs/${monthlyLogId}/generate-pdf`, {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            toast.error('Insufficient permissions to generate the statement PDF.');
+            return;
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || 'Failed to generate PDF');
+        }
+
+        const data = await response.json();
+        setPdfUrl(data.pdfUrl);
+        setPreviewOpen(true);
+        toast.success('Statement PDF generated. Opening preview...');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate PDF';
+        console.error('Error generating PDF for preview:', error);
+        toast.error(errorMessage);
+      } finally {
+        setGenerating(false);
+        setPreviewLoading(false);
+      }
+    };
+
+    void generateAndPreview();
   };
 
   const handleSendStatement = async () => {
@@ -123,40 +133,27 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-3">
-              <Button onClick={handlePreview} variant="outline" size="sm" className="gap-2">
-                <Eye className="h-4 w-4" />
-                Preview HTML
-              </Button>
-
               <Button
-                onClick={handleGeneratePDF}
-                disabled={generating}
-                variant="default"
+                onClick={handlePreview}
+                variant="outline"
                 size="sm"
                 className="gap-2"
+                disabled={previewLoading || generating}
               >
-                <FileText className="h-4 w-4" />
-                {generating ? 'Generating...' : 'Generate PDF'}
+                <Eye className="h-4 w-4" />
+                {previewLoading ? 'Loading…' : 'View'}
               </Button>
-
               {pdfUrl && (
-                <>
-                  <Button onClick={handleDownload} variant="outline" size="sm" className="gap-2">
-                    <Download className="h-4 w-4" />
-                    Download PDF
-                  </Button>
-
-                  <Button
-                    onClick={handleSendStatement}
-                    disabled={sending}
-                    variant="default"
-                    size="sm"
-                    className="gap-2 bg-green-600 hover:bg-green-700"
-                  >
-                    <Mail className="h-4 w-4" />
-                    {sending ? 'Sending...' : 'Send via Email'}
-                  </Button>
-                </>
+                <Button
+                  onClick={handleSendStatement}
+                  disabled={sending}
+                  variant="default"
+                  size="sm"
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  <Mail className="h-4 w-4" />
+                  {sending ? 'Sending...' : 'Send via Email'}
+                </Button>
               )}
             </div>
 
@@ -183,6 +180,14 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
           </div>
         </CardContent>
       </Card>
+
+      <StatementPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        monthlyLogId={monthlyLogId}
+        pdfUrl={pdfUrl}
+        onPdfGenerated={setPdfUrl}
+      />
 
       {/* Statement Recipients Management */}
       {hasProperty ? (

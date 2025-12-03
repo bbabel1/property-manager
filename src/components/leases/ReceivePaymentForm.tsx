@@ -388,13 +388,12 @@ export default function ReceivePaymentForm({
             </section>
 
             <section className={cn('space-y-4', isCompact && 'space-y-3')}>
-              <h2 className="text-foreground text-sm font-semibold">Apply payment to balances</h2>
+              <h2 className="text-foreground text-sm font-semibold">Apply to accounts</h2>
               <div className="border-border overflow-hidden rounded-lg border">
                 <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Account</TableHead>
-                      <TableHead className="w-32 text-right">Balance</TableHead>
                       <TableHead className="w-32 text-right">Amount</TableHead>
                       <TableHead className="w-12 text-right">Remove</TableHead>
                     </TableRow>
@@ -409,9 +408,6 @@ export default function ReceivePaymentForm({
                             options={accountDropdownOptions}
                             placeholder="Select account"
                           />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-right text-sm">
-                          $0.00
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
@@ -439,9 +435,6 @@ export default function ReceivePaymentForm({
                     ))}
                     <TableRow className="bg-muted/30 font-medium">
                       <TableCell>Total</TableCell>
-                      <TableCell className="text-muted-foreground text-right text-sm">
-                        $0.00
-                      </TableCell>
                       <TableCell className="text-right text-sm">
                         ${allocationsTotal.toFixed(2)}
                       </TableCell>
@@ -457,27 +450,6 @@ export default function ReceivePaymentForm({
                 <p className="text-destructive text-xs">{errors.allocations}</p>
               ) : null}
             </section>
-
-            <div className={cn('flex flex-wrap items-center gap-4', isCompact && 'gap-3')}>
-              <label className="text-foreground flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.print_receipt}
-                  onChange={(event) => updateField('print_receipt', event.target.checked)}
-                  className="h-4 w-4"
-                />
-                Print receipt
-              </label>
-              <label className="text-foreground flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.send_email}
-                  onChange={(event) => updateField('send_email', event.target.checked)}
-                  className="h-4 w-4"
-                />
-                Email receipt
-              </label>
-            </div>
 
             {formError ? (
               <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">

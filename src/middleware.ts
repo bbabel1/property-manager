@@ -3,8 +3,53 @@ import { createServerClient } from '@supabase/ssr';
 import type { AppRole } from '@/lib/auth/roles';
 import { requiredRolesFor, userHasRequiredRoles } from '@/lib/rbac';
 
+type LooseRecord = Record<string, unknown>;
+type MiddlewareUser = {
+  id?: string;
+  email?: string | null;
+  user_metadata?: LooseRecord | null;
+  app_metadata?: LooseRecord | null;
+};
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const normalizeArray = (value: unknown) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string' || typeof value === 'number') return [String(value)];
+  return [];
+};
+
+const extractRoles = (user: MiddlewareUser): AppRole[] => {
+  const appMeta = (user?.app_metadata ?? {}) as LooseRecord;
+  const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const claimsRoles = normalizeArray(claims.roles);
+  const legacyRoles = normalizeArray(appMeta.roles);
+  return [...claimsRoles, ...legacyRoles] as AppRole[];
+};
+
+const extractOrgIds = (user: MiddlewareUser): string[] => {
+  const candidates = [
+    (user?.app_metadata as LooseRecord)?.claims,
+    (user?.app_metadata as LooseRecord)?.org_ids,
+    (user?.app_metadata as LooseRecord)?.default_org_id,
+    (user?.user_metadata as LooseRecord)?.org_ids,
+    (user?.user_metadata as LooseRecord)?.default_org_id,
+  ];
+  const orgs = new Set<string>();
+  candidates.forEach((candidate) => {
+    const values =
+      candidate && typeof candidate === 'object' && 'org_ids' in (candidate as LooseRecord)
+        ? (candidate as LooseRecord).org_ids
+        : candidate;
+    normalizeArray(values).forEach((org) => {
+      const trimmed = String(org).trim();
+      if (trimmed) orgs.add(trimmed);
+    });
+  });
+  return Array.from(orgs);
+};
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
@@ -15,10 +60,10 @@ export async function middleware(req: NextRequest) {
       get(name: string) {
         return req.cookies.get(name)?.value;
       },
-      set(name: string, value: string, options: any) {
+      set(name: string, value: string, options: Record<string, unknown>) {
         res.cookies.set({ name, value, ...options });
       },
-      remove(name: string, options: any) {
+      remove(name: string, options: Record<string, unknown>) {
         res.cookies.set({ name, value: '', ...options });
       },
     },
@@ -46,8 +91,8 @@ export async function middleware(req: NextRequest) {
 
   // API RBAC + org membership enforcement
   if (pathname.startsWith('/api')) {
-    let user: any = null;
-    let getUserError: any = null;
+    let user: MiddlewareUser | null = null;
+    let getUserError: unknown = null;
 
     // Check Bearer token FIRST (it's usually refreshed by fetchWithSupabaseAuth)
     const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
@@ -72,10 +117,10 @@ export async function middleware(req: NextRequest) {
               email: userData.email ?? undefined,
               user_metadata: userData.user_metadata,
               app_metadata: userData.app_metadata,
-            } as any;
+            };
           }
         }
-      } catch (e) {
+      } catch {
         // Bearer token validation failed, will try cookies below
       }
     }
@@ -83,7 +128,7 @@ export async function middleware(req: NextRequest) {
     // If Bearer token didn't work, try cookies (might be expired but worth trying)
     if (!user) {
       const { data, error } = await supabase.auth.getUser();
-      user = data?.user;
+      user = (data?.user as MiddlewareUser) ?? null;
       getUserError = error;
     }
 
@@ -107,9 +152,34 @@ export async function middleware(req: NextRequest) {
       );
     }
 
-    const claims = (user.app_metadata as any)?.claims ?? {};
-    const roles = (claims?.roles ?? []) as AppRole[];
-    const orgIds = (claims?.org_ids ?? []) as string[];
+    let roles = extractRoles(user);
+    let orgIds = extractOrgIds(user);
+
+    // If roles/orgIds missing from claims (stale token), hydrate from memberships
+    if ((!roles.length || !orgIds.length) && user.id) {
+      try {
+        const { data, error } = await supabase
+          .from('org_memberships')
+          .select('org_id, role')
+          .eq('user_id', user.id);
+
+        if (!error && Array.isArray(data)) {
+          if (!roles.length) {
+            roles = data
+              .map((row) => (typeof row?.role === 'string' ? (row.role as AppRole) : null))
+              .filter(Boolean) as AppRole[];
+          }
+          if (!orgIds.length) {
+            orgIds = data
+              .map((row) => (row?.org_id ? String(row.org_id) : null))
+              .filter(Boolean)
+              .map((org) => String(org));
+          }
+        }
+      } catch (membershipError) {
+        console.warn('[Middleware] Failed to load memberships for RBAC fallback', membershipError);
+      }
+    }
 
     const required = requiredRolesFor(pathname);
     const isProd = process.env.NODE_ENV === 'production';

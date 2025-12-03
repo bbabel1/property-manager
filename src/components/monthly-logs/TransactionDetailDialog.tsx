@@ -1,7 +1,13 @@
 'use client';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import { Dialog } from '@/components/ui/dialog';
+import TransactionDetailShell from '@/components/transactions/TransactionDetailShell';
+import TransactionModalContent from '@/components/transactions/TransactionModalContent';
+import {
+  getTransactionAmountDisplay,
+  getTransactionScopeLabel,
+  getTransactionTypeLabel,
+} from '@/lib/transactions/formatting';
 import type { MonthlyLogTransaction } from '@/types/monthly-log';
 
 type TransactionDetailDialogProps = {
@@ -10,15 +16,10 @@ type TransactionDetailDialogProps = {
   transaction: MonthlyLogTransaction | null;
   formatCurrency: (value: number) => string;
   formatDate: (value: string) => string;
+  onEdit?: (transaction: MonthlyLogTransaction) => void;
+  onDelete?: (transaction: MonthlyLogTransaction) => void;
+  editDisabledReason?: string | null;
 };
-
-const LEASE_TRANSACTION_LABELS: Record<string, string> = {
-  Charge: 'Lease Charge',
-  Payment: 'Lease Payment',
-  Credit: 'Lease Credit',
-};
-
-const getTransactionLabel = (type: string): string => LEASE_TRANSACTION_LABELS[type] ?? type;
 
 export default function TransactionDetailDialog({
   open,
@@ -26,92 +27,67 @@ export default function TransactionDetailDialog({
   transaction,
   formatCurrency,
   formatDate,
+  onEdit,
+  onDelete,
+  editDisabledReason,
 }: TransactionDetailDialogProps) {
   if (!transaction) return null;
 
-  const typeLabel = getTransactionLabel(transaction.transaction_type);
-  const amountFormatted = formatCurrency(Math.abs(transaction.total_amount));
-  const isCharge = transaction.transaction_type === 'Charge';
+  const typeLabel = getTransactionTypeLabel(transaction.transaction_type);
+  const amountDisplay = getTransactionAmountDisplay(transaction, formatCurrency);
+  const scopeLabel = getTransactionScopeLabel(transaction);
+  const editButtonLabel =
+    transaction.transaction_type === 'Bill'
+      ? 'Edit bill'
+      : transaction.lease_id
+        ? 'Edit in lease'
+        : 'Edit';
+  const actionHint =
+    editDisabledReason ??
+    (transaction.transaction_type === 'Bill'
+      ? 'Opens this bill in the Bills workspace to edit.'
+      : transaction.lease_id
+        ? 'Opens lease financials so you can edit or void this entry.'
+        : 'Edit this transaction from the workspace that created it.');
+  const detailItems = [
+    { label: 'Date', value: formatDate(transaction.date) },
+    { label: 'Account', value: transaction.account_name ?? '—' },
+    { label: 'Memo', value: transaction.memo ?? '—' },
+    {
+      label: 'Reference #',
+      value: transaction.reference_number ?? '—',
+      mono: true,
+    },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">Transaction Details</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6 py-4">
-          {/* Transaction Type Badge */}
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-sm">
-              {typeLabel}
-            </Badge>
-            {transaction.lease_id ? (
-              <span className="text-sm text-slate-500">Lease Transaction</span>
-            ) : (
-              <span className="text-sm text-slate-500">Unit Transaction</span>
-            )}
-          </div>
-
-          {/* Amount */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Amount
-            </label>
-            <div className="text-2xl font-semibold text-slate-900">
-              {isCharge ? '+' : '-'}
-              {amountFormatted}
-            </div>
-          </div>
-
-          {/* Date */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Date
-            </label>
-            <div className="text-sm text-slate-700">{formatDate(transaction.date)}</div>
-          </div>
-
-          {/* Account */}
-          {transaction.account_name ? (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Account
-              </label>
-              <div className="text-sm text-slate-700">{transaction.account_name}</div>
-            </div>
-          ) : null}
-
-          {/* Memo */}
-          {transaction.memo ? (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Memo
-              </label>
-              <div className="text-sm text-slate-700">{transaction.memo}</div>
-            </div>
-          ) : null}
-
-          {/* Reference Number */}
-          {transaction.reference_number ? (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Reference Number
-              </label>
-              <div className="text-sm text-slate-700 font-mono">{transaction.reference_number}</div>
-            </div>
-          ) : null}
-
-          {/* Transaction ID */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Transaction ID
-            </label>
-            <div className="text-sm text-slate-500 font-mono">{transaction.id}</div>
-          </div>
-        </div>
-      </DialogContent>
+      <TransactionModalContent>
+        <TransactionDetailShell
+          title="Transaction Details"
+          typeLabel={typeLabel}
+          scopeLabel={scopeLabel}
+          dateLabel={formatDate(transaction.date)}
+          amountLabel={amountDisplay.formatted}
+          amountPrefix={amountDisplay.prefix}
+          amountTone={amountDisplay.tone}
+          transactionId={transaction.id}
+          referenceNumber={transaction.reference_number}
+          detailItems={detailItems}
+          actions={
+            onEdit || onDelete
+              ? {
+                  hint: actionHint,
+                  onEdit: onEdit ? () => onEdit(transaction) : undefined,
+                  onDelete: onDelete ? () => onDelete(transaction) : undefined,
+                  editDisabledReason,
+                  editLabel: editButtonLabel,
+                  deleteLabel: 'Delete',
+                }
+              : undefined
+          }
+        />
+      </TransactionModalContent>
     </Dialog>
   );
 }
-

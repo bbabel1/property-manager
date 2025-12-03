@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
+import { refreshMonthlyLogTotals } from '@/lib/monthly-log-calculations';
 
 export async function DELETE(
   request: NextRequest,
@@ -25,6 +26,8 @@ export async function DELETE(
       console.error('Error unassigning transaction:', error);
       return NextResponse.json({ error: 'Failed to unassign transaction' }, { status: 500 });
     }
+
+    await refreshMonthlyLogTotals(logId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

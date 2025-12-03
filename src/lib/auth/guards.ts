@@ -2,6 +2,28 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { AppRole, hasRole } from './roles';
 
+type LooseRecord = Record<string, unknown>;
+type SupabaseUser = {
+  app_metadata?: LooseRecord;
+  user_metadata?: LooseRecord;
+  id: string;
+};
+
+const normalizeArray = (value: unknown) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string' || typeof value === 'number') return [String(value)];
+  return [];
+};
+
+const extractRoles = (user: SupabaseUser): AppRole[] => {
+  const appMeta = (user.app_metadata ?? {}) as LooseRecord;
+  const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const claimsRoles = normalizeArray(claims.roles);
+  const legacyRoles = normalizeArray(appMeta.roles);
+  return [...claimsRoles, ...legacyRoles] as AppRole[];
+};
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -27,7 +49,27 @@ export async function requireAuth() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('UNAUTHENTICATED');
-  const roles = ((user.app_metadata as any)?.claims?.roles ?? []) as AppRole[];
+
+  let roles = extractRoles(user as SupabaseUser);
+
+  // Fallback: if roles are missing from claims/metadata, fetch memberships
+  if (!roles.length) {
+    try {
+      const { data, error } = await supabase
+        .from('org_memberships')
+        .select('role')
+        .eq('user_id', user.id);
+
+      if (!error && Array.isArray(data)) {
+        roles = data
+          .map((row) => (typeof row?.role === 'string' ? (row.role as AppRole) : null))
+          .filter(Boolean) as AppRole[];
+      }
+    } catch (membershipError) {
+      console.warn('Failed to load roles from org_memberships', membershipError);
+    }
+  }
+
   return { supabase, user, roles };
 }
 
@@ -39,7 +81,9 @@ export async function requireRole(required: AppRole | AppRole[]) {
 
 export async function requireOrg(orgId: string) {
   const { supabase, user } = await requireAuth();
-  const orgs = ((user.app_metadata as any)?.claims?.org_ids ?? []) as string[];
+  const appMeta = (user.app_metadata ?? {}) as LooseRecord;
+  const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const orgs = normalizeArray(claims.org_ids) as string[];
   if (!orgs.includes(orgId)) throw new Error('ORG_FORBIDDEN');
   return { supabase, user, orgId };
 }

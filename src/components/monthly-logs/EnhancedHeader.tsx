@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Calendar,
-  ChevronLeft,
   ChevronDown,
   ChevronRight,
   DollarSign,
@@ -16,12 +15,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -51,6 +44,8 @@ interface EnhancedHeaderProps {
   managementDetails: ManagementDetail[];
   leaseSummary: string;
   status: MonthlyLogStatus;
+  periodStartDisplay?: string;
+  periodEndDisplay?: string;
   onBackToOverview: () => void;
   actions?: React.ReactNode;
   relatedLogs?: RelatedLogOption[];
@@ -80,6 +75,8 @@ export default function EnhancedHeader({
   managementDetails,
   leaseSummary,
   status,
+  periodStartDisplay,
+  periodEndDisplay,
   onBackToOverview,
   actions,
   relatedLogs,
@@ -98,15 +95,12 @@ export default function EnhancedHeader({
     [managementDetails],
   );
   const hasManagementItems = managementItems.length > 0;
-  const managementMenuItems = hasManagementItems
-    ? managementItems
-    : [{ label: 'Management services', value: 'No management services configured' }];
   const detailButtonClass =
     'mt-1 inline-flex items-center gap-2 text-slate-600 hover:text-slate-900';
 
   return (
     <div className="border-b border-slate-200 bg-white">
-      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 lg:px-8">
+      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 lg:px-8 lg:py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1 space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -119,9 +113,6 @@ export default function EnhancedHeader({
                 <ArrowLeft className="h-4 w-4" />
                 Back to overview
               </Button>
-              <Badge className={cn('rounded-full px-3 py-1 text-xs font-medium', statusBadgeClass)}>
-                {statusLabel}
-              </Badge>
             </div>
 
             <div className="flex items-start gap-4">
@@ -130,15 +121,22 @@ export default function EnhancedHeader({
               </div>
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-slate-900">{unitDisplayName}</h1>
-                <p className="mt-1 text-slate-600">
-                  Monthly log for {periodDisplay}
-                  {tenantName && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-sm">
-                      <User className="h-3 w-3" />
-                      {tenantName}
-                    </span>
-                  )}
-                </p>
+                <div className="mt-1 text-slate-600">
+                  <p>
+                    Monthly log for {periodDisplay}
+                    {tenantName && (
+                      <span className="ml-2 inline-flex items-center gap-1 text-sm">
+                        <User className="h-3 w-3" />
+                        {tenantName}
+                      </span>
+                    )}
+                  </p>
+                  {periodStartDisplay && periodEndDisplay ? (
+                    <p className="text-xs text-slate-500">
+                      Period: {periodStartDisplay} – {periodEndDisplay}
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
 
@@ -197,25 +195,6 @@ export default function EnhancedHeader({
                   </div>
                 </CollapsibleContent>
               </Collapsible>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={detailButtonClass}>
-                    View management services
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="max-w-xs whitespace-normal">
-                  {managementMenuItems.map((item) => (
-                    <DropdownMenuItem
-                      key={`${item.label}-${item.value}`}
-                      disabled={!hasManagementItems}
-                    >
-                      <span className="font-medium text-slate-700">{item.label}:</span> {item.value}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
 
             {currentLogId ? (
@@ -243,11 +222,17 @@ export default function EnhancedHeader({
                             value={log.id}
                             disabled={log.id === currentLogId}
                           >
-                            <div className="flex flex-col">
-                              <span>{log.label}</span>
-                              <span className="text-xs text-slate-500">
-                                {formatStatusLabel(log.status as MonthlyLogStatus)}
-                              </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate">{log.label}</span>
+                              <Badge
+                                className={cn(
+                                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                                  STATUS_BADGE_STYLES[log.status as MonthlyLogStatus] ??
+                                    'border border-slate-200 bg-slate-50 text-slate-700',
+                                )}
+                              >
+                                {formatStatusLabel(log.status)}
+                              </Badge>
                             </div>
                           </SelectItem>
                         ))}

@@ -87,10 +87,11 @@ export async function POST(
 
     let normalized: any = null
     let responseLines: any[] = []
+    const memoValue = parsed.data.memo ?? null
     if (result.localId) {
       const record = await fetchTransactionWithLines(result.localId)
       if (record) {
-        normalized = record.transaction
+        normalized = { ...record.transaction, memo: memoValue }
         responseLines = record.lines ?? []
       }
     }
@@ -101,7 +102,7 @@ export async function POST(
         transaction_type: result.buildium?.TransactionTypeEnum || result.buildium?.TransactionType || 'Payment',
         total_amount: result.buildium?.TotalAmount ?? result.buildium?.Amount ?? parsed.data.amount,
         date: result.buildium?.Date ?? result.buildium?.TransactionDate ?? parsed.data.date,
-        memo: result.buildium?.Memo ?? parsed.data.memo ?? null,
+        memo: memoValue,
         lease_id: leaseContext.leaseId,
         buildium_transaction_id: result.buildium?.Id ?? null,
       }

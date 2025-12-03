@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, ArrowUpRight, ArrowDownRight, Minus, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Minus, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/components/ui/utils';
@@ -126,7 +126,8 @@ export default function EnhancedFinancialSummaryCard({
       label: 'Escrow',
       value: escrowAmount,
       format: (value) => formatCurrency(value),
-      valueClassName: escrowAmount < 0 ? 'text-red-600' : 'text-slate-900',
+      // Keep escrow value neutral (always black) per design request
+      valueClassName: 'text-slate-900',
     },
     {
       label: 'Management Fees',
@@ -136,8 +137,8 @@ export default function EnhancedFinancialSummaryCard({
     },
     {
       label: 'Owner Draw',
-      value: ownerDraw ?? totalPayments - totalBills - escrowAmount,
-      format: (value) => formatCurrency(value),
+      value: Math.abs(ownerDraw ?? totalPayments - totalBills - escrowAmount),
+      isNegative: true,
       valueClassName: 'text-slate-900',
     },
   ];
@@ -147,24 +148,7 @@ export default function EnhancedFinancialSummaryCard({
   return (
     <Card className={stickyCardClass}>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Financial Summary</CardTitle>
-          {onRefresh ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1"
-              onClick={() => void onRefresh()}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Refresh
-            </Button>
-          ) : (
-            <Button variant="ghost" size="sm" className="gap-1">
-              <Download className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
+        <CardTitle>Financial Summary</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1">

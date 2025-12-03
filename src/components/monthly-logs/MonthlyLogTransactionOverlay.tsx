@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 
-import { Dialog, DialogHeader, DialogTitle, LargeDialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -19,6 +20,8 @@ import IssueCreditForm from '@/components/leases/IssueCreditForm';
 import IssueRefundForm from '@/components/leases/IssueRefundForm';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import CreateBillForm from '@/components/monthly-logs/CreateBillForm';
+import ManagementFeeForm from '@/components/monthly-logs/ManagementFeeForm';
+import OwnerDrawForm, { type OwnerDrawSuccessPayload } from '@/components/monthly-logs/OwnerDrawForm';
 import PropertyTaxEscrowForm, {
   type PropertyTaxEscrowSuccessPayload,
 } from '@/components/monthly-logs/PropertyTaxEscrowForm';
@@ -27,8 +30,9 @@ import type {
   LeaseFormSuccessPayload,
   LeaseTenantOption,
 } from '@/components/leases/types';
-import type { MonthlyLogTransaction } from '@/types/monthly-log';
+import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
 import { parseCurrencyInput } from '@/lib/journal-entries';
+import TransactionModalContent from '@/components/transactions/TransactionModalContent';
 
 export type TransactionMode =
   | 'payment'
@@ -37,7 +41,9 @@ export type TransactionMode =
   | 'refund'
   | 'deposit'
   | 'bill'
-  | 'propertyTaxEscrow';
+  | 'managementFee'
+  | 'propertyTaxEscrow'
+  | 'ownerDraw';
 
 interface MonthlyLogTransactionOverlayProps {
   isOpen: boolean;
@@ -62,6 +68,9 @@ interface MonthlyLogTransactionOverlayProps {
   removeAssignedTransaction: (transactionId: string) => void;
   refetchAssigned: () => Promise<void>;
   refetchFinancial: () => Promise<void>;
+  financialSummary?: MonthlyLogFinancialSummary | null;
+  periodStart: string | null;
+  activeLease?: { rent_amount: number | null } | null;
 }
 
 const toNumber = (value: number | string): number => {
@@ -89,6 +98,64 @@ type BillOptionsResponse = {
   unmappedAccountCount?: number;
 };
 
+type OwnerDrawOptionsResponse = {
+  owners: Array<{
+    id: string;
+    name: string;
+    buildiumOwnerId: number;
+    disbursementPercentage: number | null;
+  }>;
+  bankAccount: {
+    id: string;
+    name: string | null;
+    buildiumBankId: number | null;
+    glAccountId: string | null;
+    glAccountBuildiumId: number | null;
+  } | null;
+  ownerDrawAccount: {
+    id: string;
+    name: string;
+    buildiumGlAccountId: number | null;
+  } | null;
+  propertyContext: {
+    propertyId: string | null;
+    unitId: string | null;
+    buildiumPropertyId: number | null;
+    buildiumUnitId: number | null;
+  };
+};
+
+type ManagementFeeOptionsResponse = {
+  servicePlan: string | null;
+  activeServices: string[];
+  feeType: string | null;
+  feePercentage: number | null;
+  feeDollarAmount: number | null;
+  billingFrequency: string | null;
+  serviceAssignment?: string | null;
+  feeAssignment?: string | null;
+  sources?: { service?: 'property' | 'unit'; fee?: 'property' | 'unit' };
+  propertyContext?: {
+    feeType: string | null;
+    feePercentage: number | null;
+    feeDollarAmount: number | null;
+    billingFrequency: string | null;
+    servicePlan: string | null;
+    activeServices: string[];
+  };
+  unitContext?: {
+    feeType: string | null;
+    feePercent: number | null;
+    feeDollarAmount: number | null;
+    billingFrequency: string | null;
+    servicePlan: string | null;
+    activeServices: string[];
+  };
+  periodStart?: string | null;
+};
+
+const LEASE_MODE_VALUES: TransactionMode[] = ['payment', 'charge', 'credit', 'refund', 'deposit'];
+
 export default function MonthlyLogTransactionOverlay({
   isOpen,
   mode,
@@ -109,23 +176,49 @@ export default function MonthlyLogTransactionOverlay({
   removeAssignedTransaction,
   refetchAssigned,
   refetchFinancial,
+  financialSummary,
+  periodStart,
+  activeLease,
 }: MonthlyLogTransactionOverlayProps) {
   const [assigningTransactionId, setAssigningTransactionId] = useState<string | null>(null);
   const leaseResourceId = encodeURIComponent(String(leaseId));
-  const shouldLoadFinancialOptions = isOpen && Boolean(leaseId);
+  const isLeaseMode = LEASE_MODE_VALUES.includes(mode);
+  const shouldLoadFinancialOptions = isOpen && Boolean(leaseId) && isLeaseMode;
   const {
     data: financialOptions,
     isLoading: loadingFinancialOptions,
+    error: financialOptionsError,
+    mutate: reloadFinancialOptions,
   } = useSWR<FinancialOptionsResponse>(
     shouldLoadFinancialOptions ? `/api/leases/${leaseResourceId}/financial-options` : null,
   );
 
-  const shouldLoadBillOptions = isOpen;
+  const shouldLoadBillOptions = isOpen && (mode === 'bill' || mode === 'managementFee');
   const {
     data: billOptions,
     isLoading: loadingBillOptions,
+    error: billOptionsError,
+    mutate: reloadBillOptions,
   } = useSWR<BillOptionsResponse>(
     shouldLoadBillOptions ? `/api/monthly-logs/${monthlyLogId}/bill-options` : null,
+  );
+
+  const shouldLoadOwnerDrawOptions = isOpen && mode === 'ownerDraw';
+  const {
+    data: ownerDrawOptions,
+    isLoading: loadingOwnerDrawOptions,
+    error: ownerDrawOptionsError,
+  } = useSWR<OwnerDrawOptionsResponse>(
+    shouldLoadOwnerDrawOptions ? `/api/monthly-logs/${monthlyLogId}/owner-draw-options` : null,
+  );
+
+  const shouldLoadManagementFees = isOpen && mode === 'managementFee';
+  const {
+    data: managementFeeOptions,
+    isLoading: loadingManagementFees,
+    error: managementFeesError,
+  } = useSWR<ManagementFeeOptionsResponse>(
+    shouldLoadManagementFees ? `/api/monthly-logs/${monthlyLogId}/management-fees` : null,
   );
 
   const leaseAccountOptions = useMemo(
@@ -135,15 +228,33 @@ export default function MonthlyLogTransactionOverlay({
       ),
     [financialOptions?.accountOptions],
   );
-  const billAccountOptions = useMemo(
-    () =>
-      (billOptions?.accountOptions ?? []).filter(
-        (option) => option.buildiumGlAccountId != null,
-      ),
-    [billOptions?.accountOptions],
+  const billAccountOptions = billOptions?.accountOptions ?? [];
+  const mappedBillAccounts = billAccountOptions.filter(
+    (option) => option.buildiumGlAccountId != null,
   );
+  const hasMappedBillAccounts = mappedBillAccounts.length > 0;
   const accountOptions =
-    leaseAccountOptions.length > 0 ? leaseAccountOptions : billAccountOptions;
+    leaseAccountOptions.length > 0 ? leaseAccountOptions : mappedBillAccounts;
+  const managementAccountNames = useMemo(
+    () =>
+      new Set(
+        ['Management Fees', 'Lease Generation', 'Lease Renewal', 'Condition Report', 'Rent Collection'].map(
+          (name) => name.toLowerCase(),
+        ),
+      ),
+    [],
+  );
+  const managementAccountOptions = useMemo(
+    () =>
+      billAccountOptions.filter((option) =>
+        managementAccountNames.has((option.name ?? '').toLowerCase()),
+      ),
+    [billAccountOptions, managementAccountNames],
+  );
+  const mappedManagementAccounts = useMemo(
+    () => managementAccountOptions.filter((option) => option.buildiumGlAccountId != null),
+    [managementAccountOptions],
+  );
   const bankAccountOptions = financialOptions?.bankAccountOptions ?? [];
   const leaseOptionsReady = Boolean(financialOptions);
   const billOptionsReady = Boolean(billOptions);
@@ -231,7 +342,7 @@ export default function MonthlyLogTransactionOverlay({
         );
       const memo = payload?.values.memo ?? null;
       const date = payload?.values.date ?? new Date().toISOString().slice(0, 10);
-      const accountName = payload?.accountLabel ?? 'Property Tax Escrow';
+      const accountName = payload?.accountLabel ?? 'Escrow';
 
       addAssignedTransaction({
         id: transactionId,
@@ -274,6 +385,77 @@ export default function MonthlyLogTransactionOverlay({
     [addAssignedTransaction, monthlyLogId, onClose, removeAssignedTransaction, settleData],
   );
 
+  const handleOwnerDrawSuccess = useCallback(
+    async (payload?: OwnerDrawSuccessPayload) => {
+      const transactionIdRaw =
+        payload?.transactionId ??
+        payload?.transaction?.id ??
+        (payload?.transaction as any)?.transaction_id ??
+        null;
+
+      if (!transactionIdRaw) {
+        await settleData();
+        onClose();
+        return;
+      }
+
+      const transactionId = String(transactionIdRaw);
+      setAssigningTransactionId(transactionId);
+
+      const amount =
+        payload?.amount ??
+        parseCurrencyInput(
+          payload?.transaction?.total_amount ??
+            (payload?.transaction as any)?.TotalAmount ??
+            payload?.values?.amount ??
+            '',
+        );
+      const memo = payload?.memo ?? payload?.transaction?.memo ?? null;
+      const date =
+        payload?.date ??
+        payload?.transaction?.date ??
+        (payload?.transaction as any)?.Date ??
+        new Date().toISOString().slice(0, 10);
+      const referenceNumber =
+        payload?.referenceNumber ??
+        payload?.transaction?.reference_number ??
+        (payload?.transaction as any)?.ReferenceNumber ??
+        null;
+      const accountName =
+        payload?.accountName ??
+        payload?.transaction?.account_name ??
+        ownerDrawOptions?.ownerDrawAccount?.name ??
+        'Owner Draw';
+      const transactionType =
+        payload?.transactionType ??
+        payload?.transaction?.transaction_type ??
+        'GeneralJournalEntry';
+
+      addAssignedTransaction({
+        id: transactionId,
+        total_amount: amount,
+        memo,
+        date,
+        transaction_type: transactionType,
+        lease_id: null,
+        monthly_log_id: monthlyLogId,
+        reference_number: referenceNumber ?? null,
+        account_name: accountName,
+      });
+
+      await settleData();
+      setAssigningTransactionId(null);
+      onClose();
+    },
+    [
+      addAssignedTransaction,
+      monthlyLogId,
+      onClose,
+      ownerDrawOptions?.ownerDrawAccount?.name,
+      settleData,
+    ],
+  );
+
   const handleOverlayClose = useCallback(() => {
     if (assigningTransactionId) return;
     onClose();
@@ -283,11 +465,28 @@ export default function MonthlyLogTransactionOverlay({
     !hasActiveLease || !leaseOptionsReady || bankAccountOptions.length === 0 || leaseAccountOptions.length === 0;
 
   const billDisabledReason = (() => {
-    if (!billOptionsReady) return loadingBillOptions ? 'Loading bill settings…' : 'Unable to load bill options.';
+    if (!shouldLoadBillOptions && !billOptions && !billOptionsError) return null;
+    if (loadingBillOptions) return 'Loading bill settings…';
+    if (billOptionsError) return 'Unable to load bill options.';
     if (!billOptions?.vendors?.length)
       return 'Add a vendor with a Buildium mapping before creating bills.';
-    if (!accountOptions.length)
-      return 'Map at least one expense account in Settings before creating bills.';
+    if (!billAccountOptions.length) return 'Add GL expense accounts before creating bills.';
+    return null;
+  })();
+
+  const managementFeeDisabledReason = (() => {
+    if (!propertyId || !unitId)
+      return 'Link this monthly log to a property and unit to record management fees.';
+    if (!shouldLoadBillOptions && !billOptions && !billOptionsError && !managementFeesError)
+      return null;
+    if (loadingBillOptions || loadingManagementFees)
+      return 'Loading management fee options…';
+    if (billOptionsError) return 'Unable to load bill options.';
+    if (managementFeesError) return 'Unable to load management fee configuration.';
+    if (!billOptions?.vendors?.length)
+      return 'Add a vendor with a Buildium mapping before creating management fees.';
+    if (!managementAccountOptions.length)
+      return 'Add Management Fees accounts before creating management fees.';
     return null;
   })();
 
@@ -331,29 +530,47 @@ export default function MonthlyLogTransactionOverlay({
       },
       {
         value: 'bill',
-        label: 'Bill (unit)',
+        label: 'Bill',
         disabled: Boolean(billDisabledReason),
         reason: billDisabledReason,
       },
       {
+        value: 'managementFee',
+        label: 'Management fee',
+        disabled: Boolean(managementFeeDisabledReason),
+        reason: managementFeeDisabledReason,
+      },
+      {
         value: 'propertyTaxEscrow',
-        label: 'Property tax escrow',
+        label: 'Escrow',
         disabled: !propertyId || !orgId,
         reason: !propertyId
-          ? 'Link this monthly log to a property to record property tax escrow.'
+          ? 'Link this monthly log to a property to record escrow.'
           : !orgId
-            ? 'Add this property to an organization to record property tax escrow.'
+            ? 'Add this property to an organization to record escrow.'
+            : null,
+      },
+      {
+        value: 'ownerDraw',
+        label: 'Owner Draw',
+        disabled: !propertyId || !unitId,
+        reason: !propertyId
+          ? 'Link this monthly log to a property and unit to record owner draw.'
+          : !unitId
+            ? 'Link this monthly log to a unit to record owner draw.'
             : null,
       },
     ],
     [
       billDisabledReason,
+      managementFeeDisabledReason,
       disabledLeaseReason,
       hasActiveLease,
       orgId,
       propertyId,
       leaseOptionsReady,
       refundDisabled,
+      unitId,
     ],
   );
 
@@ -375,13 +592,25 @@ export default function MonthlyLogTransactionOverlay({
   }, [mode, modeOptions, onModeChange]);
 
   const renderForm = () => {
-    const leaseModes: TransactionMode[] = ['payment', 'charge', 'credit', 'refund', 'deposit'];
-    if (leaseModes.includes(mode) && !leaseOptionsReady) {
+    if (LEASE_MODE_VALUES.includes(mode) && !leaseOptionsReady) {
       return (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
-          {loadingFinancialOptions
-            ? 'Loading lease accounts…'
-            : 'Unable to load lease accounts for this lease.'}
+          <div className="flex flex-col items-center gap-2">
+            <span>
+              {loadingFinancialOptions
+                ? 'Loading lease accounts…'
+                : 'Unable to load lease accounts for this lease.'}
+            </span>
+            {!loadingFinancialOptions && financialOptionsError ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void reloadFinancialOptions()}
+              >
+                Retry
+              </Button>
+            ) : null}
+          </div>
         </div>
       );
     }
@@ -389,12 +618,29 @@ export default function MonthlyLogTransactionOverlay({
     if (mode === 'bill' && !billOptionsReady) {
       return (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
-          {loadingBillOptions ? 'Loading bill settings…' : 'Unable to load bill configuration.'}
+          <div className="flex flex-col items-center gap-2">
+            <span>
+              {loadingBillOptions ? 'Loading bill settings…' : 'Unable to load bill configuration.'}
+            </span>
+            {!loadingBillOptions && billOptionsError ? (
+              <Button size="sm" variant="outline" onClick={() => void reloadBillOptions()}>
+                Retry
+              </Button>
+            ) : null}
+          </div>
         </div>
       );
     }
 
-    const modeRequiresAccounts = leaseModes.includes(mode);
+    if (mode === 'ownerDraw' && loadingOwnerDrawOptions) {
+      return (
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+          Loading owner draw options…
+        </div>
+      );
+    }
+
+    const modeRequiresAccounts = LEASE_MODE_VALUES.includes(mode);
 
     if (modeRequiresAccounts && leaseOptionsReady && leaseAccountOptions.length === 0) {
       return (
@@ -437,6 +683,7 @@ export default function MonthlyLogTransactionOverlay({
             accounts={accountOptions}
             onCancel={handleOverlayClose}
             onSuccess={handleTransactionSuccess}
+            hideTitle
           />
         );
       case 'credit':
@@ -480,10 +727,72 @@ export default function MonthlyLogTransactionOverlay({
             key="bill"
             monthlyLogId={monthlyLogId}
             vendors={billOptions?.vendors ?? []}
-            categories={billOptions?.categories ?? []}
-            accounts={
-              billAccountOptions.length > 0 ? billAccountOptions : leaseAccountOptions
-            }
+            accounts={billAccountOptions}
+            mappedAccountCount={mappedBillAccounts.length}
+            onCancel={handleOverlayClose}
+            onSuccess={handleTransactionSuccess}
+          />
+        );
+      case 'managementFee':
+        if (!billOptionsReady || !managementFeeOptions) {
+          return (
+            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+              {loadingBillOptions || loadingManagementFees
+                ? 'Loading management fee options…'
+                : 'Unable to load management fee options.'}
+            </div>
+          );
+        }
+        return (
+          <ManagementFeeForm
+            key="management-fee"
+            monthlyLogId={monthlyLogId}
+            vendors={billOptions?.vendors ?? []}
+            accounts={managementAccountOptions}
+            mappedAccountCount={mappedManagementAccounts.length}
+            managementServices={{
+              assignmentLevel:
+                managementFeeOptions.serviceAssignment ??
+                (managementFeeOptions.sources?.service === 'unit'
+                  ? 'Unit Level'
+                  : managementFeeOptions.sources?.service === 'property'
+                    ? 'Property Level'
+                    : null),
+              servicePlan:
+                managementFeeOptions.servicePlan ??
+                managementFeeOptions.unitContext?.servicePlan ??
+                managementFeeOptions.propertyContext?.servicePlan ??
+                null,
+              activeServices:
+                managementFeeOptions.activeServices ??
+                managementFeeOptions.unitContext?.activeServices ??
+                managementFeeOptions.propertyContext?.activeServices ??
+                [],
+            }}
+            managementFees={{
+              assignmentLevel:
+                managementFeeOptions.feeAssignment ??
+                (managementFeeOptions.sources?.fee === 'unit'
+                  ? 'Unit Level'
+                  : managementFeeOptions.sources?.fee === 'property'
+                    ? 'Property Level'
+                    : null),
+              feeType: managementFeeOptions.feeType,
+              feePercent:
+                managementFeeOptions.unitContext?.feePercent ??
+                managementFeeOptions.feePercentage ??
+                null,
+              feePercentage: managementFeeOptions.feePercentage ?? null,
+              feeAmount: managementFeeOptions.feeDollarAmount ?? null,
+              billingFrequency: managementFeeOptions.billingFrequency ?? null,
+              propertyFeeType: managementFeeOptions.propertyContext?.feeType ?? null,
+              propertyFeePercent:
+                managementFeeOptions.propertyContext?.feePercentage ?? null,
+              unitFeeType: managementFeeOptions.unitContext?.feeType ?? null,
+              unitFeePercent: managementFeeOptions.unitContext?.feePercent ?? null,
+            }}
+            periodStart={periodStart ?? managementFeeOptions.periodStart ?? null}
+            activeLeaseRent={activeLease?.rent_amount ?? null}
             onCancel={handleOverlayClose}
             onSuccess={handleTransactionSuccess}
           />
@@ -501,6 +810,23 @@ export default function MonthlyLogTransactionOverlay({
             onSuccess={handlePropertyTaxEscrowSuccess}
           />
         );
+      case 'ownerDraw':
+        return (
+          <OwnerDrawForm
+            key="owner-draw"
+            monthlyLogId={monthlyLogId}
+            propertyId={propertyId}
+            unitId={unitId}
+            propertyName={propertyName}
+            unitLabel={unitLabel}
+            options={ownerDrawOptions}
+            loading={loadingOwnerDrawOptions}
+            error={ownerDrawOptionsError}
+            defaultAmount={financialSummary?.netToOwner ?? null}
+            onCancel={handleOverlayClose}
+            onSuccess={handleOwnerDrawSuccess}
+          />
+        );
       default:
         return null;
     }
@@ -515,7 +841,7 @@ export default function MonthlyLogTransactionOverlay({
         }
       }}
     >
-      <LargeDialogContent>
+      <TransactionModalContent className="max-w-4xl">
         <div className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-start gap-3">
             <DialogHeader className="items-start space-y-1 text-left">
@@ -554,7 +880,7 @@ export default function MonthlyLogTransactionOverlay({
 
           <div>{renderForm()}</div>
         </div>
-      </LargeDialogContent>
+      </TransactionModalContent>
     </Dialog>
   );
 }

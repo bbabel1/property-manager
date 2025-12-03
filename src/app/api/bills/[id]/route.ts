@@ -13,6 +13,7 @@ export async function PATCH(
   if (!payload) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
 
   const admin = requireSupabaseAdmin('update bill')
+  const nowIso = new Date().toISOString()
 
   const update: Record<string, unknown> = {}
   if ('date' in payload) update.date = payload.date || null
@@ -20,7 +21,7 @@ export async function PATCH(
   if ('vendor_id' in payload) update.vendor_id = payload.vendor_id || null
   if ('reference_number' in payload) update.reference_number = payload.reference_number || null
   if ('memo' in payload) update.memo = payload.memo || null
-  update.updated_at = new Date().toISOString()
+  update.updated_at = nowIso
 
   const { data: header, error } = await admin
     .from('transactions')
@@ -31,6 +32,7 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  let debitTotal: number | null = null
   if (Array.isArray(payload?.lines)) {
     const { data: existingCredit } = await admin
       .from('transaction_lines')
@@ -41,7 +43,6 @@ export async function PATCH(
 
     await admin.from('transaction_lines').delete().eq('transaction_id', id)
 
-    const nowIso = new Date().toISOString()
     const txDate = payload?.date || header?.date || new Date().toISOString().slice(0, 10)
     const debitRows = payload.lines.map((l: any) => ({
       transaction_id: id,
@@ -64,7 +65,7 @@ export async function PATCH(
       await admin.from('transaction_lines').insert(debitRows)
     }
 
-    const debitTotal = debitRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0)
+    debitTotal = debitRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0)
     const template = existingCredit?.[0] || null
     if (debitTotal > 0 && template) {
       await admin.from('transaction_lines').insert({
@@ -85,6 +86,13 @@ export async function PATCH(
         buildium_lease_id: null,
       })
     }
+  }
+
+  if (typeof debitTotal === 'number') {
+    await admin
+      .from('transactions')
+      .update({ total_amount: debitTotal, updated_at: nowIso })
+      .eq('id', id)
   }
 
   const { data: billSnapshot, error: billSnapshotError } = await admin
@@ -126,7 +134,10 @@ export async function PATCH(
   }
 
   const isUpdate = typeof billSnapshot.buildium_bill_id === 'number' && billSnapshot.buildium_bill_id > 0
-  const buildiumBaseUrl = process.env.BUILDIUM_BASE_URL as string
+  const buildiumBaseUrl = (process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1').replace(
+    /\/$/,
+    ''
+  )
   const buildiumUrl = isUpdate
     ? `${buildiumBaseUrl}/bills/${billSnapshot.buildium_bill_id}`
     : `${buildiumBaseUrl}/bills`
@@ -142,6 +153,7 @@ export async function PATCH(
   let buildiumStatus = 0
   try {
     const buildiumResponse = await fetch(buildiumUrl, {
+      // Buildium's UpdateBill endpoint expects a full document via PUT (PATCH uses JSON Patch format).
       method: isUpdate ? 'PUT' : 'POST',
       headers: buildiumHeaders,
       body: JSON.stringify(buildiumPayload),

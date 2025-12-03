@@ -209,7 +209,7 @@ export default function PropertyTaxEscrowForm({
 
   const propertyTaxEscrowLabel = fallbackLabel(
     propertyTaxEscrowAccount?.name ?? null,
-    'Property Tax Escrow',
+    'Escrow',
   );
 
   const renderLines = useCallback(
@@ -376,4 +376,3 @@ export default function PropertyTaxEscrowForm({
     />
   );
 }
-

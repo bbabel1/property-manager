@@ -809,6 +809,7 @@ export interface BuildiumBill {
   Date: string; // ISO 8601
   DueDate?: string; // ISO 8601
   Amount: number;
+  Memo?: string | null;
   Description: string;
   ReferenceNumber?: string;
   CategoryId?: number;
@@ -847,6 +848,8 @@ export interface BuildiumBillCreate {
   DueDate?: string; // ISO 8601
   Amount: number;
   Description: string;
+   // Memo appears in the Buildium UI; include explicitly so updates can flow to the memo field.
+  Memo?: string;
   ReferenceNumber?: string;
   CategoryId?: number;
   IsRecurring?: boolean;

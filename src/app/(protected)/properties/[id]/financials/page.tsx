@@ -153,7 +153,9 @@ export default async function FinancialsTab({
 
   const unitsParam =
     typeof sp?.units === 'string' ? sp.units : typeof sp?.unit === 'string' ? sp.unit : '';
-  const glParam = typeof sp?.gl === 'string' ? sp.gl : '';
+  const glParamRaw = typeof sp?.gl === 'string' ? sp.gl : '';
+  const accountsExplicitNone = glParamRaw === 'none';
+  const glParam = accountsExplicitNone ? '' : glParamRaw;
 
   const propertyPromise = (db as any)
     .from('properties')
@@ -275,20 +277,28 @@ export default async function FinancialsTab({
     !noUnitsSelected && selectedUnitIds.length === 1 ? selectedUnitIds[0] : '';
 
   const allAccountIds = accountOptions.map((opt) => opt.value);
-  let selectedAccountIds = glParam
-    ? glParam
-        .split(',')
-        .map((id: string) => id.trim())
-        .filter((id: string) => allAccountIds.includes(id))
-    : [...allAccountIds];
-  if (selectedAccountIds.length === 0) selectedAccountIds = [...allAccountIds];
+  let selectedAccountIds = accountsExplicitNone
+    ? []
+    : glParam
+      ? glParam
+          .split(',')
+          .map((id: string) => id.trim())
+          .filter((id: string) => allAccountIds.includes(id))
+      : [...allAccountIds];
+  if (!accountsExplicitNone && selectedAccountIds.length === 0 && allAccountIds.length) {
+    selectedAccountIds = [...allAccountIds];
+  }
   const accountFilterIds =
-    selectedAccountIds.length === allAccountIds.length ? null : selectedAccountIds;
+    accountsExplicitNone || selectedAccountIds.length === allAccountIds.length
+      ? null
+      : selectedAccountIds;
 
   let periodLines: LedgerLine[] = [];
   let priorLines: LedgerLine[] = [];
 
-  if (!noUnitsSelected) {
+  const shouldQueryLedger = !noUnitsSelected && !accountsExplicitNone;
+
+  if (shouldQueryLedger) {
     const periodPromise = (async () => {
       let query = qBase().gte('date', fromStr).lte('date', toStr);
       if (unitFilterIds) query = query.in('unit_id', unitFilterIds);
@@ -323,7 +333,9 @@ export default async function FinancialsTab({
 
   const emptyStateMessage = noUnitsSelected
     ? 'Select at least one unit to view ledger activity.'
-    : 'No activity for the selected period.';
+    : accountsExplicitNone
+      ? 'Select at least one account to view ledger activity.'
+      : 'No activity for the selected period.';
 
   return (
     <div id="panel-financials" role="tabpanel" aria-labelledby="financials" className="space-y-6">
