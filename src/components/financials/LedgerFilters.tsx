@@ -78,9 +78,7 @@ export default function LedgerFilters({
   const [unitPlaceholder, setUnitPlaceholder] = useState<string>(() =>
     deriveUnitsPlaceholder(defaultUnitIds, noUnitsSelected)
   )
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
-    defaultGlIds.length ? defaultGlIds : allAccountIds
-  )
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(defaultGlIds)
 
   const router = useRouter()
   const pathname = usePathname()
@@ -107,8 +105,8 @@ export default function LedgerFilters({
   }, [defaultUnitIds, noUnitsSelected, deriveUnitsPlaceholder])
 
   useEffect(() => {
-    setSelectedAccounts(defaultGlIds.length ? defaultGlIds : allAccountIds)
-  }, [allAccountIds, defaultGlIds])
+    setSelectedAccounts(defaultGlIds)
+  }, [defaultGlIds])
 
   const updateSearch = useCallback((mutator: (params: URLSearchParams) => void) => {
     const base = searchParams ? searchParams.toString() : ''
@@ -156,15 +154,20 @@ export default function LedgerFilters({
   }
 
   function handleAccountsChange(ids: string[]) {
-    setSelectedAccounts(ids)
+    const next = ids.length ? ids : []
+    setSelectedAccounts(next)
     updateSearch((params) => {
-      if (!ids.length || ids.length === allAccountIds.length) {
+      if (next.length === 0) {
+        params.set("gl", "none")
+      } else if (next.length === allAccountIds.length) {
         params.delete("gl")
       } else {
-        params.set("gl", ids.join(","))
+        params.set("gl", next.join(","))
       }
     })
   }
+
+  const accountsPlaceholder = selectedAccounts.length === 0 ? "No accounts selected" : "All accounts"
 
   return (
     <div className="flex flex-wrap items-end gap-4">
@@ -202,7 +205,7 @@ export default function LedgerFilters({
           value={selectedAccounts}
           onChange={handleAccountsChange}
           options={accountOptions}
-          placeholder="All accounts"
+          placeholder={accountsPlaceholder}
           className="min-w-[16rem]"
         />
       </div>

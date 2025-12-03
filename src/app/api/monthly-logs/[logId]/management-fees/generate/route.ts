@@ -11,7 +11,7 @@ import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 import { format } from 'date-fns';
 
-export async function POST(request: Request, { params }: { params: Promise<{ logId: string }> }) {
+export async function POST(request: Request, { params }: { params: { logId: string } }) {
   try {
     // Auth check
     const auth = await requireAuth();
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     }
 
     // Parse parameters
-    const { logId } = await params;
+    const { logId } = params;
 
     // Fetch monthly log to get unit and period
     const { data: monthlyLog, error: logError } = await supabaseAdmin
@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     // Fetch property with service_assignment to determine data source
     const { data: property, error: propertyError } = await supabaseAdmin
       .from('properties')
-      .select('service_assignment, service_plan, fee_type, fee_percentage, management_fee')
+      .select('service_assignment, service_plan, fee_type, fee_percentage, fee_dollar_amount')
       .eq('id', monthlyLog.property_id)
       .single();
 
@@ -64,7 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
 
     if (usePropertyLevel) {
       // Use property-level data
-      feeDollarAmount = property?.management_fee || null;
+      feeDollarAmount = property?.fee_dollar_amount || null;
       servicePlan = property?.service_plan || null;
     } else {
       // Use unit-level data

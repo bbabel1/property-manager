@@ -31,6 +31,8 @@ interface UseMonthlyLogDataOptions {
   initialUnitUnassignedCursor?: string | null;
   leaseId?: number | null;
   unitId?: string | null;
+  loadLeaseUnassigned?: boolean;
+  loadUnitUnassigned?: boolean;
 }
 
 interface UseMonthlyLogDataReturn {
@@ -66,6 +68,9 @@ interface UseMonthlyLogDataReturn {
 }
 
 const UNASSIGNED_PAGE_SIZE = 50;
+const TAX_ESCROW_KEYWORD = 'tax escrow';
+const OWNER_DRAW_KEYWORD = 'owner draw';
+const EXCLUDED_BILL_KEYWORDS = ['management fee', 'property tax'];
 
 const buildAssignedFallback = (
   transactions?: MonthlyLogTransaction[],
@@ -108,7 +113,7 @@ const deriveLocalSummary = (
   let totalCredits = 0;
   let totalPayments = 0;
   let totalBills = 0;
-  const escrowAmount = 0;
+  let escrowAmount = 0;
   const managementFees = 0;
   let ownerDraw = 0;
 
@@ -116,6 +121,9 @@ const deriveLocalSummary = (
 
   transactions.forEach((transaction) => {
     const amount = Math.abs(transaction.total_amount);
+    const accountName = transaction.account_name?.trim().toLowerCase() ?? '';
+    const isExcludedBill = EXCLUDED_BILL_KEYWORDS.some((keyword) => accountName.includes(keyword));
+
     switch (transaction.transaction_type) {
       case 'Charge':
         totalCharges += amount;
@@ -127,14 +135,20 @@ const deriveLocalSummary = (
         totalPayments += amount;
         break;
       case 'Bill':
-        totalBills += amount;
+        if (!isExcludedBill) {
+          totalBills += amount;
+        }
         break;
       default:
         break;
     }
 
-    if (transaction.account_name?.trim().toLowerCase() === OWNER_DRAW_ACCOUNT_NAME) {
+    if (accountName.includes(OWNER_DRAW_KEYWORD)) {
       ownerDraw += amount;
+    }
+
+    if (accountName.includes(TAX_ESCROW_KEYWORD)) {
+      escrowAmount += amount;
     }
   });
 
@@ -212,8 +226,10 @@ export function useMonthlyLogData(
     [options.initialUnitUnassigned, options.initialUnitUnassignedCursor],
   );
 
-  const shouldLoadLeaseUnassigned = Boolean(options.leaseId);
-  const shouldLoadUnitUnassigned = Boolean(options.unitId);
+  const shouldLoadLeaseUnassigned =
+    Boolean(options.leaseId) && options.loadLeaseUnassigned !== false;
+  const shouldLoadUnitUnassigned =
+    Boolean(options.unitId) && options.loadUnitUnassigned !== false;
 
   const {
     data: unassignedPages,
@@ -390,6 +406,22 @@ export function useMonthlyLogData(
     [mutateAssigned],
   );
 
+  const removeUnassignedTransaction = useCallback(
+    (transactionId: string) => {
+      const removeFromPages = (pages: UnassignedPage[] | undefined): UnassignedPage[] | undefined => {
+        if (!pages) return pages;
+        return pages.map((page) => ({
+          ...page,
+          items: page.items.filter((item) => item.id !== transactionId),
+        }));
+      };
+
+      mutateUnassigned((pages) => removeFromPages(pages), { revalidate: false });
+      mutateUnitUnassigned((pages) => removeFromPages(pages), { revalidate: false });
+    },
+    [mutateUnassigned, mutateUnitUnassigned],
+  );
+
   const moveTransactionToAssigned = useCallback(
     (transaction: MonthlyLogTransaction) => {
       const removeFromPages = (pages: UnassignedPage[] | undefined): UnassignedPage[] | undefined => {
@@ -514,6 +546,7 @@ export function useMonthlyLogData(
     loadMoreUnitUnassigned,
     addAssignedTransaction,
     removeAssignedTransaction,
+    removeUnassignedTransaction,
     moveTransactionToAssigned,
     moveTransactionToUnassigned,
   };

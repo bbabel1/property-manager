@@ -36,12 +36,28 @@ export const BuildiumBankAccountUpdateSchema = z.object({
 
 // Buildium Check Creation Schema
 export const BuildiumCheckCreateSchema = z.object({
-  BankAccountId: z.number().int().positive('Bank account ID must be a positive integer'),
-  Amount: z.number().positive('Amount must be positive'),
-  PayeeName: z.string().min(1, 'Payee name is required'),
-  Memo: z.string().optional(),
-  CheckNumber: z.string().optional(),
-  Date: z.string().datetime().optional(), // ISO 8601 format
+  Payee: z.object({
+    Id: z.number().int().positive('Payee ID is required'),
+    Type: z.string().min(1, 'Payee type is required'),
+  }),
+  EntryDate: z.string().min(1, 'Entry date is required'),
+  CheckNumber: z.string().nullable().optional(),
+  Memo: z.string().nullable().optional(),
+  Lines: z
+    .array(
+      z.object({
+        GLAccountId: z.number().int().positive('GLAccountId is required'),
+        AccountingEntity: z.object({
+          Id: z.number().int().positive('Property ID is required'),
+          AccountingEntityType: z.enum(['Association', 'Rental', 'Commercial']),
+          UnitId: z.number().int().positive().nullable().optional(),
+        }),
+        Amount: z.number().positive('Amount must be positive'),
+        Memo: z.string().nullable().optional(),
+        ReferenceNumber: z.string().nullable().optional(),
+      }),
+    )
+    .min(1, 'At least one line is required'),
 });
 
 // Buildium Deposit Creation Schema
@@ -105,6 +121,7 @@ export const BuildiumBillCreateSchema = z.object({
       EndDate: z.string().datetime().optional(),
     })
     .optional(),
+  Memo: z.string().optional(),
 });
 
 // Buildium Bill Update Schema
@@ -125,6 +142,7 @@ export const BuildiumBillUpdateSchema = z.object({
       EndDate: z.string().datetime().optional(),
     })
     .optional(),
+  Memo: z.string().optional(),
 });
 
 // Buildium Bill Patch Schema (for partial updates)
@@ -145,6 +163,7 @@ export const BuildiumBillPatchSchema = z.object({
       EndDate: z.string().datetime().optional(),
     })
     .optional(),
+  Memo: z.string().optional(),
 });
 
 // Buildium Bill File Upload Schema

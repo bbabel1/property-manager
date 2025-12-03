@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
+import { refreshMonthlyLogTotals } from '@/lib/monthly-log-calculations';
 
 export async function POST(
   request: NextRequest,
@@ -29,6 +30,8 @@ export async function POST(
       console.error('Error assigning transactions:', error);
       return NextResponse.json({ error: 'Failed to assign transactions' }, { status: 500 });
     }
+
+    await refreshMonthlyLogTotals(logId);
 
     return NextResponse.json({ success: true, assigned: transactionIds.length });
   } catch (error) {

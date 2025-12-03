@@ -98,7 +98,14 @@ export function mapTransactionLine(row: TransactionLineRow): LedgerLine {
 }
 
 export function signedAmount(line: LedgerLine): number {
-  return line.postingType === 'Debit' ? line.amount : -line.amount;
+  const type = (line.glAccountType || '').toLowerCase();
+  const creditNormal =
+    type === 'liability' || type === 'equity' || type === 'income';
+  const isDebit = line.postingType === 'Debit';
+  if (creditNormal) {
+    return isDebit ? -line.amount : line.amount;
+  }
+  return isDebit ? line.amount : -line.amount;
 }
 
 export function buildLedgerGroups(
@@ -148,5 +155,4 @@ export function buildLedgerGroups(
 
 export type SupabaseTransactionLine =
   Database['public']['Tables']['transaction_lines']['Row'];
-
 

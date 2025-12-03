@@ -456,7 +456,9 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
         <tbody className="bg-card">
           {records.map((record) => {
             const status = statusStyles[record.status];
-            const ownerDraw = record.paymentsAmount - record.billsAmount - record.escrowAmount;
+            const ownerDraw =
+              record.ownerDistributionAmount ??
+              record.paymentsAmount - record.billsAmount - record.escrowAmount;
             const navigateToLog = () => router.push(`/monthly-logs/${record.id}`);
             const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
               if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {

@@ -15,7 +15,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     // Auth check
     const auth = await requireAuth();
 
-    if (!hasPermission(auth.roles, 'monthly_logs.write')) {
+    // Allow either write or read to generate/refresh a statement PDF
+    if (!hasPermission(auth.roles, 'monthly_logs.write') && !hasPermission(auth.roles, 'monthly_logs.read')) {
       return NextResponse.json(
         { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 },

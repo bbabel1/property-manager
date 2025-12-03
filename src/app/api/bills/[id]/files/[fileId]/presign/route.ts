@@ -37,15 +37,69 @@ export async function GET(
     throw error;
   }
 
-  // Get the transaction/bill to find its Buildium ID
+  // Get the transaction/bill to find its Buildium ID and resolve org_id
   const { data: transaction } = await admin
     .from('transactions')
-    .select('buildium_bill_id, org_id')
+    .select('buildium_bill_id, org_id, lease_id, vendor_id')
     .eq('id', billId)
     .maybeSingle();
 
   if (!transaction) {
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+  }
+
+  // Resolve org_id from transaction or related entities (same pattern as file upload)
+  let resolvedOrgId = transaction.org_id;
+
+  if (!resolvedOrgId && transaction.lease_id) {
+    const { data: lease } = await admin
+      .from('lease')
+      .select('org_id, property_id')
+      .eq('id', transaction.lease_id)
+      .maybeSingle();
+    if (lease?.org_id) {
+      resolvedOrgId = lease.org_id;
+    } else if (lease?.property_id) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('id', lease.property_id)
+        .maybeSingle();
+      if (property?.org_id) {
+        resolvedOrgId = property.org_id;
+      }
+    }
+  }
+
+  if (!resolvedOrgId) {
+    // Try resolving from transaction_lines property
+    const { data: txnLine } = await admin
+      .from('transaction_lines')
+      .select('property_id')
+      .eq('transaction_id', billId)
+      .not('property_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (txnLine?.property_id) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('id', txnLine.property_id)
+        .maybeSingle();
+      if (property?.org_id) {
+        resolvedOrgId = property.org_id;
+      }
+    }
+  }
+
+  // Validate org_id exists (required for RLS filtering)
+  if (!resolvedOrgId) {
+    console.error('[bill-file-presign] unable to resolve org_id', { billId, fileId });
+    return NextResponse.json(
+      { error: 'Bill missing organization context' },
+      { status: 400 },
+    );
   }
 
   // Look up the file directly
@@ -58,7 +112,7 @@ export async function GET(
       'id, storage_provider, bucket, storage_key, sha256, buildium_file_id, entity_type, entity_id',
     )
     .eq('id', fileId)
-    .eq('org_id', transaction.org_id)
+    .eq('org_id', resolvedOrgId)
     .is('deleted_at', null)
     .maybeSingle();
 

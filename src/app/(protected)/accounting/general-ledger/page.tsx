@@ -5,7 +5,7 @@ import LedgerFilters from '@/components/financials/LedgerFilters';
 import ClearFiltersButton from '@/components/financials/ClearFiltersButton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableRowLink } from '@/components/ui/table-row-link';
-import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/db';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
 import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
@@ -44,7 +44,7 @@ export default async function GeneralLedgerPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  const db = await getSupabaseServerClient();
+  const db = supabaseAdmin;
   const sp = (await (searchParams || Promise.resolve({}))) as Record<string, string | undefined>;
 
   const today = new Date();
@@ -96,7 +96,9 @@ export default async function GeneralLedgerPage({
       : selectedPropertyIds;
 
   const unitsParam = typeof sp?.units === 'string' ? sp.units : '';
-  const glParam = typeof sp?.gl === 'string' ? sp.gl : '';
+  const glParamRaw = typeof sp?.gl === 'string' ? sp.gl : '';
+  const accountsExplicitNone = glParamRaw === 'none';
+  const glParam = accountsExplicitNone ? '' : glParamRaw;
   const noUnitsSelected = unitsParam === 'none';
 
   let unitsData: UnitRecord[] = [];
@@ -199,20 +201,25 @@ export default async function GeneralLedgerPage({
     );
 
   const allAccountIds = accountOptions.map((option) => option.value);
-  let selectedAccountIds = glParam
-    ? glParam
-        .split(',')
-        .map((value) => value.trim())
-        .filter((value) => allAccountIds.includes(value))
-    : [...allAccountIds];
-  if (selectedAccountIds.length === 0 && allAccountIds.length) {
+  let selectedAccountIds = accountsExplicitNone
+    ? []
+    : glParam
+      ? glParam
+          .split(',')
+          .map((value) => value.trim())
+          .filter((value) => allAccountIds.includes(value))
+      : [...allAccountIds];
+  if (!accountsExplicitNone && selectedAccountIds.length === 0 && allAccountIds.length) {
     selectedAccountIds = [...allAccountIds];
   }
 
   const accountFilterIds =
-    selectedAccountIds.length === allAccountIds.length ? null : selectedAccountIds;
+    accountsExplicitNone || selectedAccountIds.length === allAccountIds.length
+      ? null
+      : selectedAccountIds;
 
-  const shouldQueryLedger = selectedPropertyIds.length > 0 && !noUnitsSelected;
+  const shouldQueryLedger =
+    selectedPropertyIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
   const qBase = () =>
     (db as any)
@@ -287,7 +294,9 @@ export default async function GeneralLedgerPage({
       ? 'Select a property to view ledger activity.'
       : noUnitsSelected
         ? 'Select at least one unit to view ledger activity.'
-        : 'No activity for the selected filters.';
+        : accountsExplicitNone
+          ? 'Select at least one account to view ledger activity.'
+          : 'No activity for the selected filters.';
 
   const modalDefaultPropertyId =
     selectedPropertyIds.length === 1 ? selectedPropertyIds[0] : undefined;
@@ -475,4 +484,3 @@ export default async function GeneralLedgerPage({
     </PageShell>
   );
 }
-

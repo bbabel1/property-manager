@@ -12,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardAction,
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
@@ -348,13 +347,11 @@ export default async function TaskDetailsPage({ params }: PageProps) {
               </Card>
 
               <Card className="border-border/70 border shadow-sm">
-                <CardHeader className="pb-0">
+                <CardHeader className="pb-0 flex flex-row items-start justify-between">
                   <CardTitle>Custom fields</CardTitle>
-                  <CardAction>
-                    <Button variant="ghost" size="sm" className="gap-1 px-2">
-                      Add custom field
-                    </Button>
-                  </CardAction>
+                  <Button variant="ghost" size="sm" className="gap-1 px-2">
+                    Add custom field
+                  </Button>
                 </CardHeader>
                 <CardContent className="py-6">
                   <p className="text-muted-foreground text-sm">
@@ -365,13 +362,11 @@ export default async function TaskDetailsPage({ params }: PageProps) {
               </Card>
 
               <Card className="border-border/70 border shadow-sm">
-                <CardHeader className="pb-0">
+                <CardHeader className="pb-0 flex flex-row items-start justify-between">
                   <CardTitle>Files</CardTitle>
-                  <CardAction>
-                    <Button variant="ghost" size="sm" className="gap-1 px-2">
-                      Add attachments
-                    </Button>
-                  </CardAction>
+                  <Button variant="ghost" size="sm" className="gap-1 px-2">
+                    Add attachments
+                  </Button>
                 </CardHeader>
                 <CardContent className="py-6">
                   {hasFiles ? (
@@ -383,13 +378,11 @@ export default async function TaskDetailsPage({ params }: PageProps) {
               </Card>
 
               <Card className="border-border/70 border shadow-sm">
-                <CardHeader className="pb-0">
+                <CardHeader className="pb-0 flex flex-row items-start justify-between">
                   <CardTitle>Linked tasks</CardTitle>
-                  <CardAction>
-                    <Button variant="ghost" size="sm" className="gap-1 px-2">
-                      Link tasks
-                    </Button>
-                  </CardAction>
+                  <Button variant="ghost" size="sm" className="gap-1 px-2">
+                    Link tasks
+                  </Button>
                 </CardHeader>
                 <CardContent className="py-6">
                   {hasLinkedTasks ? (

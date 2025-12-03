@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { describeBuildiumPayload } from '@/lib/buildium-response';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,13 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ChevronDown, Trash2, X } from 'lucide-react';
 
 type VendorOption = { id: string; label: string };
@@ -62,6 +69,7 @@ export default function BillEditForm({
   lines,
 }: BillEditFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -89,6 +97,8 @@ export default function BillEditForm({
 
   const update = (key: keyof typeof form, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const returnTo = searchParams.get('returnTo') || null;
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -124,7 +134,7 @@ export default function BillEditForm({
       }
       const successDescription = extractBuildiumSuccessDescription(body);
       toast.success('Bill updated in Buildium', successDescription ? { description: successDescription } : undefined);
-      router.push(`/bills/${billId}`);
+      router.push(returnTo || `/bills/${billId}`);
       router.refresh();
     });
   };
@@ -191,83 +201,97 @@ export default function BillEditForm({
 
   return (
     <div className="w-full space-y-6 p-0">
-      <div className="flex items-center justify-between">
+      <div className="mx-auto flex w-full max-w-8xl items-center justify-between px-4 pt-6 sm:px-8 lg:px-12 lg:pt-8">
         <h1 className="text-foreground text-2xl font-semibold">Edit bill</h1>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="h-9 w-9"
-          onClick={() => router.push(`/bills/${billId}`)}
+          onClick={() => router.push(returnTo || `/bills/${billId}`)}
           aria-label="Close edit form"
         >
           <X className="h-5 w-5" />
         </Button>
       </div>
       {error ? (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">
+        <div className="border-destructive/30 bg-destructive/10 text-destructive mx-auto w-full max-w-8xl rounded-md border px-3 py-2 text-sm">
           {error}
         </div>
       ) : null}
 
       <form className="space-y-6 pb-24" onSubmit={onSubmit}>
-        <Card className="border-border border shadow-sm">
-          <CardContent className="space-y-8 px-6 py-6">
-            <div className="space-y-4">
-              <label className="block space-y-1">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Date *
-                </span>
-                <DateInput
-                  value={form.date}
-                  onChange={(nextDate) => update('date', nextDate)}
-                  className="w-40"
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Due *
-                </span>
-                <DateInput
-                  value={form.due_date || ''}
-                  onChange={(nextDate) => update('due_date', nextDate)}
-                  className="w-40"
-                />
-              </label>
-            </div>
-            <div className="space-y-4">
-              <label className="block space-y-1">
+        <Card className="mx-auto w-full max-w-8xl rounded-xl border border-border/60 bg-background shadow-md">
+          <CardContent className="space-y-8 px-4 py-6 sm:px-8 lg:px-10">
+            <div className="space-y-6">
+              <div className="grid gap-6 sm:grid-cols-2 sm:items-end sm:max-w-4xl">
+                <label className="block space-y-1">
+                  <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    Date *
+                  </span>
+                  <DateInput
+                    value={form.date}
+                    onChange={(nextDate) => update('date', nextDate)}
+                    className="h-11 w-full"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    Due *
+                  </span>
+                  <DateInput
+                    value={form.due_date || ''}
+                    onChange={(nextDate) => update('due_date', nextDate)}
+                    className="h-11 w-full"
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-2">
                 <span className="text-muted-foreground block text-xs font-medium tracking-wide uppercase">
                   Pay to *
                 </span>
-                <div className="relative w-64">
-                  <select
-                    value={form.vendor_id || ''}
-                    onChange={(e) => update('vendor_id', e.target.value)}
-                    className="border-border/60 bg-background focus-visible:ring-primary block h-9 w-full appearance-none rounded-md border px-3 pr-9 text-sm leading-tight focus-visible:ring-2 focus-visible:outline-none"
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="relative min-w-[16rem] sm:w-[36rem]">
+                    <select
+                      value={form.vendor_id || ''}
+                      onChange={(e) => update('vendor_id', e.target.value)}
+                      className="border-border/60 bg-background focus-visible:ring-primary block h-11 w-full appearance-none rounded-md border px-3 pr-10 text-base leading-tight focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                      <option value="">Select vendor</option>
+                      {vendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2" />
+                  </div>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline text-sm font-semibold"
+                    onClick={() => {
+                      toast.info('Work order linking coming soon');
+                    }}
                   >
-                    <option value="">Select vendor</option>
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
+                    + Add work order
+                  </button>
                 </div>
               </label>
-              <label className="block space-y-1">
+
+              <label className="block space-y-2 max-w-3xl">
                 <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                   Reference number
                 </span>
                 <Input
                   value={form.reference_number || ''}
                   onChange={(e) => update('reference_number', e.target.value)}
-                  className="w-48"
+                  className="h-11 w-full text-base"
                 />
               </label>
             </div>
-            <label className="block space-y-1">
+
+            <label className="block space-y-2 max-w-5xl">
               <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 Memo
               </span>
@@ -275,48 +299,51 @@ export default function BillEditForm({
                 rows={3}
                 value={form.memo || ''}
                 onChange={(e) => update('memo', e.target.value)}
-                className="w-full max-w-2xl"
+                className="w-full text-base"
               />
             </label>
-            <div className="space-y-3">
-              <h3 className="text-foreground text-sm font-semibold">Item details</h3>
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <input
-                  id="apply-markups"
-                  type="checkbox"
-                  className="border-border text-primary h-4 w-4 rounded"
-                  disabled
-                />
-                <label htmlFor="apply-markups" className="select-none">
-                  Apply bill markups
-                </label>
+
+            <div className="space-y-4 border-t border-border/60 pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-foreground text-sm font-semibold">Item details</h3>
+                  <p className="text-muted-foreground text-xs">
+                    Keep line details tidy to mirror what Buildium shows.
+                  </p>
+                </div>
               </div>
-              <div className="relative pr-12">
-                <div className="border-border/70 rounded-lg border">
-                  <Table className="text-sm">
+
+              <div className="relative overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+                <div className="w-full overflow-auto px-0">
+                  <Table className="min-w-full text-sm border-collapse">
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="border-border/60 w-[18rem] border-r border-dotted">
+                      <TableRow className="bg-muted/40 divide-x divide-border border-b border-border/70">
+                        <TableHead className="w-[30%] min-w-[11rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
                           Property or company
                         </TableHead>
-                        <TableHead className="border-border/60 w-[12rem] border-r border-dotted">
+                        <TableHead className="w-[9%] min-w-[6rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
                           Unit
                         </TableHead>
-                        <TableHead className="border-border/60 w-[18rem] border-r border-dotted">
+                        <TableHead className="w-[14%] min-w-[8rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
                           Account
                         </TableHead>
-                        <TableHead className="border-border/60 border-r border-dotted">
+                        <TableHead className="w-[25%] min-w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase text-foreground text-left">
                           Description
                         </TableHead>
-                        <TableHead className="w-[10rem] text-right">Initial amount</TableHead>
-                        <TableHead className="w-[10rem] text-right">Amount paid</TableHead>
+                        <TableHead className="w-[10%] min-w-[7rem] px-3.5 py-3 text-right text-xs font-semibold tracking-wide uppercase text-foreground tabular-nums">
+                          Initial amount
+                        </TableHead>
+                        <TableHead className="w-[10%] min-w-[7rem] px-3.5 py-3 text-right text-xs font-semibold tracking-wide uppercase text-foreground tabular-nums">
+                          Amount paid
+                        </TableHead>
+                        <TableHead className="w-[44px] px-0 py-0 bg-transparent" />
                       </TableRow>
                     </TableHeader>
-                    <TableBody className="divide-border divide-y">
+                    <TableBody className="divide-y divide-border">
                       {rows.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={6}
+                            colSpan={7}
                             className="text-muted-foreground py-6 text-center text-sm"
                           >
                             No line items to edit.
@@ -335,35 +362,36 @@ export default function BillEditForm({
                                 : null;
 
                             return (
-                              <TableRow key={l.id} className="relative align-middle">
-                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                  <div className="px-4 py-2.5">
+                              <TableRow
+                                key={l.id}
+                                className="relative align-middle divide-x divide-border border-b border-border/60 transition-colors hover:bg-muted/20 [&>td:last-child]:border-l-0"
+                              >
+                                <TableCell className="text-foreground min-w-0 px-0 align-middle">
+                                  <div className="px-4 py-2">
                                     {editing?.id === l.id &&
                                     editing.field === 'property' &&
                                     l.posting_type !== 'Credit' ? (
-                                      <div className="relative">
-                                        <select
-                                          autoFocus
-                                          value={l.property_id || ''}
-                                          onBlur={() => setEditing(null)}
-                                          onChange={(e) => {
-                                            setRow(l.id, {
-                                              property_id: e.target.value || null,
-                                              unit_id: null,
-                                            });
-                                            setEditing(null);
-                                          }}
-                                          className={cellSelectClass}
-                                          aria-label="Select property"
-                                        >
+                                      <Select
+                                        value={l.property_id || ''}
+                                        onValueChange={(value) => {
+                                          setRow(l.id, {
+                                            property_id: value || null,
+                                            unit_id: null,
+                                          });
+                                          setEditing(null);
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-10 w-full justify-between border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-muted/30">
+                                          <SelectValue placeholder="Select property" className="w-full truncate" />
+                                        </SelectTrigger>
+                                        <SelectContent>
                                           {propertyOptions.map((p) => (
-                                            <option key={p.id} value={p.id}>
+                                            <SelectItem key={p.id} value={p.id}>
                                               {p.label}
-                                            </option>
+                                            </SelectItem>
                                           ))}
-                                        </select>
-                                        <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
-                                      </div>
+                                        </SelectContent>
+                                      </Select>
                                     ) : (
                                       <button
                                         type="button"
@@ -378,37 +406,35 @@ export default function BillEditForm({
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                  <div className="px-4 py-2.5">
+                                <TableCell className="text-foreground min-w-0 px-0 align-middle">
+                                  <div className="px-4 py-2">
                                     {editing?.id === l.id &&
                                     editing.field === 'unit' &&
                                     l.posting_type !== 'Credit' ? (
-                                      <div className="relative">
-                                        <select
-                                          autoFocus
-                                          value={l.unit_id || ''}
-                                          onBlur={() => setEditing(null)}
-                                          onChange={(e) => {
-                                            setRow(l.id, { unit_id: e.target.value || null });
-                                            setEditing(null);
-                                          }}
-                                          className={cellSelectClass}
-                                          aria-label="Select unit"
-                                        >
-                                          <option value="">Property level</option>
+                                      <Select
+                                        value={l.unit_id || ''}
+                                        onValueChange={(value) => {
+                                          setRow(l.id, { unit_id: value || null });
+                                          setEditing(null);
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-10 w-full justify-between border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-muted/30">
+                                          <SelectValue placeholder="Property level" className="w-full truncate" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="">Property level</SelectItem>
                                           {units
                                             .filter(
                                               (u) =>
                                                 !l.property_id || u.property_id === l.property_id,
                                             )
                                             .map((u) => (
-                                              <option key={u.id} value={u.id}>
+                                              <SelectItem key={u.id} value={u.id}>
                                                 {u.label}
-                                              </option>
+                                              </SelectItem>
                                             ))}
-                                        </select>
-                                        <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
-                                      </div>
+                                        </SelectContent>
+                                      </Select>
                                     ) : (
                                       <button
                                         type="button"
@@ -423,42 +449,40 @@ export default function BillEditForm({
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                  <div className="px-4 py-2.5">
+                                <TableCell className="text-foreground min-w-0 px-0 align-middle">
+                                  <div className="px-4 py-2">
                                     {editing?.id === l.id &&
                                     editing.field === 'account' &&
                                     l.posting_type !== 'Credit' ? (
-                                      <div className="relative">
-                                        <select
-                                          autoFocus
-                                          value={l.gl_account_id}
-                                          onBlur={() => setEditing(null)}
-                                          onChange={(e) => {
-                                            setRow(l.id, { gl_account_id: e.target.value });
-                                            setEditing(null);
-                                          }}
-                                          className={cellSelectClass}
-                                          aria-label="Select account"
-                                        >
+                                      <Select
+                                        value={l.gl_account_id}
+                                        onValueChange={(value) => {
+                                          setRow(l.id, { gl_account_id: value });
+                                          setEditing(null);
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-10 w-full justify-between border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:bg-muted/30">
+                                          <SelectValue placeholder="Select account" className="w-full truncate" />
+                                        </SelectTrigger>
+                                        <SelectContent>
                                           {currentAccountOption ? (
-                                            <option value={currentAccountOption.id} disabled>
+                                            <SelectItem value={currentAccountOption.id} disabled>
                                               {currentAccountOption.label}
-                                            </option>
+                                            </SelectItem>
                                           ) : null}
                                           {expenseAccountOptions.length > 0 ? (
                                             expenseAccountOptions.map((a) => (
-                                              <option key={a.id} value={a.id}>
+                                              <SelectItem key={a.id} value={a.id}>
                                                 {a.label}
-                                              </option>
+                                              </SelectItem>
                                             ))
                                           ) : (
-                                            <option value="" disabled>
+                                            <SelectItem value="__none" disabled>
                                               No expense accounts available
-                                            </option>
+                                            </SelectItem>
                                           )}
-                                        </select>
-                                        <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />
-                                      </div>
+                                        </SelectContent>
+                                      </Select>
                                     ) : (
                                       <button
                                         type="button"
@@ -475,8 +499,8 @@ export default function BillEditForm({
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-foreground border-border/60 min-w-0 border-r border-dotted px-0 align-middle">
-                                  <div className="px-4 py-2.5">
+                                <TableCell className="text-foreground min-w-0 px-0 align-middle">
+                                  <div className="px-4 py-2">
                                     {editing?.id === l.id &&
                                     editing.field === 'description' &&
                                     l.posting_type !== 'Credit' ? (
@@ -503,8 +527,8 @@ export default function BillEditForm({
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell className="border-border/60 border-r border-dotted px-0 text-right align-middle font-medium">
-                                  <div className="px-4 py-2.5">
+                                <TableCell className="px-0 text-right align-middle font-medium tabular-nums">
+                                  <div className="px-4 py-2">
                                     {l.posting_type === 'Credit' ? (
                                       new Intl.NumberFormat('en-US', {
                                         style: 'currency',
@@ -543,8 +567,8 @@ export default function BillEditForm({
                                     )}
                                   </div>
                                 </TableCell>
-                                <TableCell className="px-0 text-right align-middle font-medium">
-                                  <div className="px-4 py-2.5">
+                                <TableCell className="px-0 text-right align-middle font-medium tabular-nums">
+                                  <div className="px-4 py-2">
                                     <button
                                       type="button"
                                       className={cellAmountPaidButtonClass}
@@ -557,52 +581,50 @@ export default function BillEditForm({
                                     </button>
                                   </div>
                                 </TableCell>
+                                <TableCell className="w-[44px] px-0 text-center align-middle border-l-0">
+                                  <button
+                                    type="button"
+                                    aria-label="Remove line"
+                                    className="text-destructive hover:text-destructive/80 inline-flex h-8 w-8 items-center justify-center transition-colors"
+                                    onClick={() => l.posting_type !== 'Credit' && removeLine(l.id)}
+                                    disabled={l.posting_type === 'Credit'}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </TableCell>
                               </TableRow>
                             );
                           })}
-                          <TableRow className="bg-muted/30">
+                          <TableRow className="bg-muted/30 divide-x divide-border">
                             <TableCell
-                              colSpan={4}
-                              className="text-muted-foreground px-4 py-2.5 text-right text-xs font-semibold tracking-wide uppercase"
-                            >
+                              colSpan={3}
+                              className="text-muted-foreground px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase"
+                            />
+                            <TableCell className="text-foreground px-4 py-3 text-right text-xs font-semibold uppercase">
                               Total
                             </TableCell>
-                            <TableCell className="px-4 py-2.5 text-right font-semibold">
+                            <TableCell className="px-4 py-3 text-right font-semibold tabular-nums">
                               {new Intl.NumberFormat('en-US', {
                                 style: 'currency',
                                 currency: 'USD',
                               }).format(Math.abs(Number(total || 0)))}
                             </TableCell>
-                            <TableCell className="px-4 py-2.5 text-right font-semibold">
+                            <TableCell className="px-4 py-3 text-right font-semibold tabular-nums">
                               {new Intl.NumberFormat('en-US', {
                                 style: 'currency',
                                 currency: 'USD',
                               }).format(0)}
                             </TableCell>
+                            <TableCell className="w-[40px]" />
                           </TableRow>
                         </>
                       )}
                     </TableBody>
                   </Table>
                 </div>
-                {/* Trash bins positioned outside table border */}
-                <div className="bill-trash-container">
-                  {rows
-                    .filter((l) => l.posting_type !== 'Credit')
-                    .map((l, index) => (
-                      <button
-                        key={`remove-${l.id}`}
-                        type="button"
-                        aria-label="Remove line"
-                        className="text-destructive hover:bg-destructive/10 trash-button-positioned absolute right-0 inline-flex h-8 w-8 items-center justify-center rounded transition-colors"
-                        onClick={() => removeLine(l.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ))}
-                </div>
               </div>
-              <div className="py-4 text-sm">
+
+              <div className="pt-2 text-sm">
                 <button type="button" className="text-primary hover:underline" onClick={addLine}>
                   Add line
                 </button>
@@ -611,26 +633,28 @@ export default function BillEditForm({
           </CardContent>
         </Card>
 
-        <div className="border-primary bg-primary text-primary-foreground sticky bottom-0 z-10 mt-2 flex items-center justify-between border-t px-4 py-3">
-          <div className="text-sm">
-            Total bill amount:{' '}
-            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-              Math.abs(Number(total || 0)),
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button type="submit" variant="secondary" disabled={isPending}>
-              Save
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-primary-foreground/90 hover:text-primary-foreground"
-              onClick={() => router.push(`/bills/${billId}`)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
+        <div className="border-primary bg-primary text-primary-foreground sticky bottom-0 z-10 mt-2 border-t">
+          <div className="mx-auto flex w-full max-w-8xl items-center justify-between px-4 py-3 sm:px-8 lg:px-12">
+            <div className="flex items-center gap-2">
+              <Button type="submit" variant="secondary" disabled={isPending}>
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-primary-foreground/90 hover:text-primary-foreground"
+                onClick={() => router.push(`/bills/${billId}`)}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+            <div className="text-sm font-medium">
+              Total bill amount:{' '}
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                Math.abs(Number(total || 0)),
+              )}
+            </div>
           </div>
         </div>
       </form>

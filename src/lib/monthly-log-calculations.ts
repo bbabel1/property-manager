@@ -258,6 +258,166 @@ export const isEscrowTransactionLine = (
   return line.unit_id === unitId || line.unit_id === null;
 };
 
+type SummaryTransactionLine = {
+  amount?: number | string | null;
+  posting_type?: string | null;
+  unit_id?: string | null;
+  created_at?: string | null;
+  gl_accounts?: {
+    name?: string | null;
+    account_number?: string | null;
+    default_account_name?: string | null;
+    gl_account_category?: {
+      category?: string | null;
+    } | null;
+  } | null;
+};
+
+type SummaryTransactionRow = {
+  id: string;
+  total_amount: number | string | null;
+  transaction_type: string;
+  transaction_lines?: SummaryTransactionLine[] | null;
+};
+
+const normalizeNumber = (value: unknown): number => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const MANAGEMENT_FEE_KEYWORD = 'management fee';
+const PROPERTY_TAX_KEYWORD = 'property tax';
+const OWNER_DRAW_KEYWORD = 'owner draw';
+
+const computeLineAmount = (
+  line: SummaryTransactionLine | null | undefined,
+): number | null => {
+  if (!line) return null;
+
+  const amount = normalizeNumber(line.amount);
+  if (!Number.isFinite(amount)) return null;
+
+  const postingType = (line.posting_type ?? '').toLowerCase();
+  const category = normalizeEscrowField(line.gl_accounts?.gl_account_category?.category);
+  const accountName = normalizeEscrowField(line.gl_accounts?.name);
+  const isDepositAccount = category === 'deposit' || accountName.includes('tax escrow');
+
+  if (isDepositAccount) {
+    if (postingType.includes('credit')) {
+      return -Math.abs(amount);
+    }
+    if (postingType.includes('debit')) {
+      return Math.abs(amount);
+    }
+  }
+
+  return Math.abs(amount);
+};
+
+const pickDisplayLineForAmount = (
+  lines: SummaryTransactionLine[] | null | undefined,
+  unitId: string | null,
+): SummaryTransactionLine | null => {
+  if (!lines || lines.length === 0) return null;
+
+  const ownerDrawLine = lines.find((line) => {
+    const name = normalizeEscrowField(line.gl_accounts?.name);
+    return name.includes(OWNER_DRAW_KEYWORD);
+  });
+  if (ownerDrawLine) {
+    return ownerDrawLine;
+  }
+
+  const postingWeight = (line?: SummaryTransactionLine | null) => {
+    const posting = (line?.posting_type ?? '').toLowerCase();
+    return posting.includes('credit') ? 1 : 0;
+  };
+
+  const sorted = [...lines].sort((a, b) => {
+    const aUnitMatch = unitId && a.unit_id && a.unit_id === unitId ? 0 : 1;
+    const bUnitMatch = unitId && b.unit_id && b.unit_id === unitId ? 0 : 1;
+    if (aUnitMatch !== bUnitMatch) {
+      return aUnitMatch - bUnitMatch;
+    }
+
+    const aPosting = postingWeight(a);
+    const bPosting = postingWeight(b);
+    if (aPosting !== bPosting) {
+      return aPosting - bPosting;
+    }
+
+    const aCategory = normalizeEscrowField(a.gl_accounts?.gl_account_category?.category);
+    const bCategory = normalizeEscrowField(b.gl_accounts?.gl_account_category?.category);
+    const aName = normalizeEscrowField(a.gl_accounts?.name);
+    const bName = normalizeEscrowField(b.gl_accounts?.name);
+    const aIsDeposit = aCategory === 'deposit' || aName.includes('tax escrow') ? 0 : 1;
+    const bIsDeposit = bCategory === 'deposit' || bName.includes('tax escrow') ? 0 : 1;
+    if (aIsDeposit !== bIsDeposit) {
+      return aIsDeposit - bIsDeposit;
+    }
+
+    const aCreated = a.created_at ?? '';
+    const bCreated = b.created_at ?? '';
+    if (aCreated !== bCreated) {
+      return aCreated.localeCompare(bCreated);
+    }
+
+    return 0;
+  });
+
+  return sorted[0] ?? null;
+};
+
+const getTransactionEffectiveAmount = (
+  transaction: SummaryTransactionRow,
+  unitId: string | null,
+): number => {
+  const displayLine = pickDisplayLineForAmount(transaction.transaction_lines, unitId);
+  const lineAmount = computeLineAmount(displayLine);
+  if (lineAmount != null) {
+    return lineAmount;
+  }
+
+  return normalizeNumber(transaction.total_amount ?? 0);
+};
+
+const isManagementFeeLine = (line: SummaryTransactionLine | null | undefined): boolean => {
+  if (!line) return false;
+  const accountName = normalizeEscrowField(line.gl_accounts?.name);
+  const defaultName = normalizeEscrowField(line.gl_accounts?.default_account_name);
+  return (
+    accountName.includes(MANAGEMENT_FEE_KEYWORD) || defaultName.includes(MANAGEMENT_FEE_KEYWORD)
+  );
+};
+
+const isPropertyTaxLine = (line: SummaryTransactionLine | null | undefined): boolean => {
+  if (!line) return false;
+  const accountName = normalizeEscrowField(line.gl_accounts?.name);
+  const defaultName = normalizeEscrowField(line.gl_accounts?.default_account_name);
+  return accountName.includes(PROPERTY_TAX_KEYWORD) || defaultName.includes(PROPERTY_TAX_KEYWORD);
+};
+
+const shouldExcludeBillTransaction = (transaction: SummaryTransactionRow): boolean => {
+  const lines = transaction.transaction_lines ?? [];
+  return lines.some((line) => isManagementFeeLine(line) || isPropertyTaxLine(line));
+};
+
+const deriveManagementFeesFromTransactions = (
+  transactions: SummaryTransactionRow[],
+): number => {
+  return transactions.reduce((sum, transaction) => {
+    const lines = transaction.transaction_lines ?? [];
+    const lineTotal = lines.reduce((lineSum, line) => {
+      if (!isManagementFeeLine(line)) return lineSum;
+      return lineSum + Math.abs(normalizeNumber(line.amount));
+    }, 0);
+    return sum + lineTotal;
+  }, 0);
+};
+
 export async function calculateFinancialSummary(
   monthlyLogId: string,
   options: FinancialSummaryOptions = {},
@@ -296,10 +456,50 @@ export async function calculateFinancialSummary(
     )
     .eq('transactions.monthly_log_id', monthlyLogId);
 
-  const [transactionsResult, logResult, ownerDrawSummary, escrowLinesResult] = await Promise.all([
+  const managementFeeLinesQuery = db
+    .from('transaction_lines')
+    .select(
+      `
+        amount,
+        transactions!inner(monthly_log_id),
+        gl_accounts!inner(
+          name,
+          default_account_name
+        )
+      `,
+    )
+    .eq('transactions.monthly_log_id', monthlyLogId);
+
+  const [
+    transactionsResult,
+    logResult,
+    ownerDrawSummary,
+    escrowLinesResult,
+    managementFeeLinesResult,
+  ] = await Promise.all([
     db
       .from('transactions')
-      .select('total_amount, transaction_type')
+      .select(
+        `
+          id,
+          total_amount,
+          transaction_type,
+          transaction_lines(
+            amount,
+            posting_type,
+            unit_id,
+            created_at,
+            gl_accounts(
+              name,
+              account_number,
+              default_account_name,
+              gl_account_category(
+                category
+              )
+            )
+          )
+        `,
+      )
       .eq('monthly_log_id', monthlyLogId),
     db
       .from('monthly_logs')
@@ -308,7 +508,10 @@ export async function calculateFinancialSummary(
       .maybeSingle(),
     getOwnerDrawSummary(monthlyLogId, db),
     escrowQuery,
+    managementFeeLinesQuery,
   ]);
+
+  const transactionRows = (transactionsResult.data ?? []) as SummaryTransactionRow[];
 
   if (transactionsResult.error) {
     throw transactionsResult.error;
@@ -324,6 +527,12 @@ export async function calculateFinancialSummary(
   let totalBills = 0;
   if (escrowLinesResult.error) {
     console.warn('Error fetching escrow transaction lines for summary:', escrowLinesResult.error);
+  }
+  if (managementFeeLinesResult.error) {
+    console.warn(
+      'Error fetching management fee transaction lines for summary:',
+      managementFeeLinesResult.error,
+    );
   }
 
   const rawEscrowLines = (escrowLinesResult.data ?? []) as EscrowTransactionLine[];
@@ -345,10 +554,23 @@ export async function calculateFinancialSummary(
           return sum;
         }, 0)
       : Number(logResult.data?.escrow_amount ?? 0);
-  const managementFees = Number(logResult.data?.management_fees_amount ?? 0);
+  const managementFeeLinesRaw = (managementFeeLinesResult.data ?? []) as Array<{
+    amount?: number | string | null;
+    gl_accounts?: { name?: string | null; default_account_name?: string | null } | null;
+  }>;
+  const managementFeeLines = managementFeeLinesRaw.filter((line) => isManagementFeeLine(line));
+  const calculatedManagementFees =
+    managementFeeLines.length > 0
+      ? managementFeeLines.reduce((sum, line) => sum + Math.abs(Number(line.amount ?? 0)), 0)
+      : 0;
+  const derivedManagementFees = deriveManagementFeesFromTransactions(transactionRows);
+  const denormalizedManagementFees = Number(logResult.data?.management_fees_amount ?? 0);
+  const managementFees =
+    calculatedManagementFees || derivedManagementFees || denormalizedManagementFees;
 
-  transactionsResult.data?.forEach((transaction) => {
-    const amount = Math.abs(transaction.total_amount);
+  transactionRows.forEach((transaction) => {
+    const amount = Math.abs(getTransactionEffectiveAmount(transaction, unitId));
+    const isExcludedBill = shouldExcludeBillTransaction(transaction);
 
     switch (transaction.transaction_type) {
       case 'Charge':
@@ -361,7 +583,9 @@ export async function calculateFinancialSummary(
         totalPayments += amount;
         break;
       case 'Bill':
-        totalBills += amount;
+        if (!isExcludedBill) {
+          totalBills += amount;
+        }
         break;
       default:
         break;
@@ -411,3 +635,40 @@ export async function calculateFinancialSummary(
 
   return result;
 }
+
+/**
+ * Persist denormalized monthly log totals so the list view stays in sync
+ * with the detailed financial summary calculations.
+ *
+ * @param monthlyLogId - UUID of the monthly log to refresh
+ * @param db - Optional Supabase client (defaults to admin)
+ */
+export async function refreshMonthlyLogTotals(
+  monthlyLogId: string,
+  db: TypedSupabaseClient = supabaseAdmin,
+): Promise<void> {
+  const summary = await calculateFinancialSummary(monthlyLogId, { db });
+
+  const { error } = await db
+    .from('monthly_logs')
+    .update({
+      charges_amount: summary.totalCharges,
+      payments_amount: summary.totalPayments,
+      bills_amount: summary.totalBills,
+      escrow_amount: summary.escrowAmount,
+      management_fees_amount: summary.managementFees,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', monthlyLogId);
+
+  if (error) {
+    console.error('[monthly-log] Failed to refresh denormalized totals', error);
+    throw new Error(error.message || 'Failed to refresh monthly log totals');
+  }
+}
+
+export const __test__ = {
+  isManagementFeeLine,
+  isPropertyTaxLine,
+  shouldExcludeBillTransaction,
+};

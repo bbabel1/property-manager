@@ -1,22 +1,153 @@
+import 'server-only';
 /**
  * Monthly Statement Service
  *
  * Handles data fetching, PDF generation, and storage for monthly statements.
  */
 
+import React from 'react';
+import fs from 'fs';
+import path from 'path';
 import { supabaseAdmin } from '@/lib/db';
 import { generatePDFFromHTML } from '@/lib/pdf-generator';
-import MonthlyStatementTemplate from '@/components/monthly-logs/MonthlyStatementTemplate';
-import React from 'react';
-import { designTokens } from '@/lib/design-tokens';
+import MonthlyStatementTemplate, {
+  type StatementData,
+} from '@/components/monthly-logs/MonthlyStatementTemplate';
 import { getOwnerDrawSummary } from '@/lib/monthly-log-calculations';
 import { calculateNetToOwnerValue } from '@/types/monthly-log';
 
+const STATEMENT_BUCKET = process.env.STATEMENT_PDF_BUCKET || 'documents';
+
+const DEPOSIT_ACCOUNT_MATCHERS: Array<{ label: string; predicate: (name: string) => boolean }> = [
+  { label: 'Reserve', predicate: (name) => name.includes('reserve') },
+  { label: 'Property Tax Escrow', predicate: (name) => name.includes('tax escrow') || (name.includes('escrow') && !name.includes('security')) },
+  { label: 'Tenant Security Deposit', predicate: (name) => (name.includes('security') && name.includes('deposit')) || name.includes('tenant security') },
+];
+
+const normalizeString = (value?: string | null) => value?.toLowerCase().trim() ?? '';
+
+const signedAmountForGlType = (
+  amount: number,
+  postingType?: string | null,
+  glType?: string | null,
+) => {
+  const isCredit = normalizeString(postingType).includes('credit');
+  const normalizedType = normalizeString(glType);
+
+  // Assets/expenses grow with debits; income/liabilities/equity grow with credits.
+  const debitPositive =
+    normalizedType === 'asset' ||
+    normalizedType === 'expense' ||
+    normalizedType === 'receivable' ||
+    normalizedType === 'prepayment';
+
+  if (debitPositive) {
+    return isCredit ? -amount : amount;
+  }
+
+  return isCredit ? amount : -amount;
+};
+
+const isEscrowAccount = (category?: string | null, name?: string | null) => {
+  const normalizedCategory = normalizeString(category);
+  const normalizedName = normalizeString(name);
+  return (
+    normalizedCategory === 'deposit' ||
+    normalizedName.includes('escrow') ||
+    normalizedName.includes('reserve') ||
+    normalizedName.includes('security deposit')
+  );
+};
+
+type EscrowRow = {
+  date: string;
+  memo: string | null;
+  amount: number;
+  posting_type: 'Credit' | 'Debit' | string;
+  gl_accounts?: {
+    name?: string | null;
+    type?: string | null;
+    gl_account_category?: {
+      category?: string | null;
+    } | null;
+  } | null;
+};
+
+type PropertyRecord = {
+  name?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+} | null;
+
+type UnitRecord = {
+  unit_number?: string | null;
+  unit_name?: string | null;
+} | null;
+
+function resolveLogoUrl(rawLogo?: string | null): string | undefined {
+  if (!rawLogo) return undefined;
+  if (/^https?:\/\//i.test(rawLogo) || rawLogo.startsWith('data:')) return rawLogo;
+
+  // Treat relative paths as files under /public for PDF generation where no host is present
+  const trimmed = rawLogo.replace(/^\/+/, '');
+  const publicPath = path.join(process.cwd(), 'public', trimmed);
+  try {
+    const fileBuffer = fs.readFileSync(publicPath);
+    const ext = path.extname(trimmed).toLowerCase();
+    const mime =
+      ext === '.svg'
+        ? 'image/svg+xml'
+        : ext === '.jpg' || ext === '.jpeg'
+          ? 'image/jpeg'
+          : 'image/png';
+    return `data:${mime};base64,${fileBuffer.toString('base64')}`;
+  } catch {
+    // Fallback to the raw value; better a broken logo than blocking statement generation
+    return rawLogo;
+  }
+}
+
 interface StatementDataFetchResult {
   success: boolean;
-  data?: any;
+  data?: StatementData;
   error?: string;
 }
+
+const STATEMENT_LOGO_URL = process.env.STATEMENT_LOGO_URL || '/ora-statement-logo.svg';
+
+const computeDepositAccountTotals = (
+  escrowMovements: EscrowRow[] | null | undefined,
+): Array<{ label: string; balance: number }> => {
+  const totals: Record<string, number> = {};
+
+  const safeNormalize = (value?: string | null) => value?.toLowerCase().trim() ?? '';
+
+  (escrowMovements ?? []).forEach((movement) => {
+    const name = safeNormalize(movement.gl_accounts?.name);
+    if (!name) return;
+
+    const matcher = DEPOSIT_ACCOUNT_MATCHERS.find(({ predicate }) => predicate(name));
+    if (!matcher) return;
+
+    const amount = Math.abs(Number(movement.amount) || 0);
+    if (amount === 0) return;
+
+    const signedAmount = signedAmountForGlType(
+      amount,
+      movement.posting_type,
+      movement.gl_accounts?.type,
+    );
+
+    totals[matcher.label] = (totals[matcher.label] ?? 0) + signedAmount;
+  });
+
+  return DEPOSIT_ACCOUNT_MATCHERS.map(({ label }) => ({
+    label,
+    balance: totals[label] ?? 0,
+  }));
+};
 
 /**
  * Fetch all data needed for monthly statement generation
@@ -58,6 +189,10 @@ export async function fetchMonthlyStatementData(
       return { success: false, error: 'Monthly log not found' };
     }
 
+    const statementGeneratedAt = new Date();
+    const statementDateISO = statementGeneratedAt.toISOString();
+    const statementDate = statementDateISO.slice(0, 10);
+
     // Fetch financial summary
     const { data: financialData } = await supabaseAdmin
       .from('monthly_logs')
@@ -67,15 +202,8 @@ export async function fetchMonthlyStatementData(
       .eq('id', monthlyLogId)
       .single();
 
-    // Fetch all transactions for this monthly log
-    const { data: transactions } = await supabaseAdmin
-      .from('transactions')
-      .select('id, date, memo, total_amount, transaction_type, payment_method, reference_number')
-      .eq('monthly_log_id', monthlyLogId)
-      .order('date', { ascending: true });
-
-    // Fetch escrow movements
-    const { data: escrowMovements } = await supabaseAdmin
+    // Fetch all transaction lines with GL account information for categorization
+    const { data: transactionLines } = await supabaseAdmin
       .from('transaction_lines')
       .select(
         `
@@ -84,14 +212,72 @@ export async function fetchMonthlyStatementData(
         memo,
         amount,
         posting_type,
-        gl_accounts!inner(
-          gl_account_category!inner(category)
+        unit_id,
+        property_id,
+        transactions!inner(
+          id,
+          date,
+          memo,
+          transaction_type
+        ),
+        gl_accounts(
+          id,
+          name,
+          default_account_name,
+          type,
+          gl_account_category(
+            category
+          )
         )
       `,
       )
-      .eq('monthly_log_id', monthlyLogId)
-      .eq('gl_accounts.gl_account_category.category', 'deposit')
+      .eq('transactions.monthly_log_id', monthlyLogId)
       .order('date', { ascending: true });
+
+    // Fetch holding-related lines for the unit up to the statement date
+    let holdingLines: EscrowRow[] | null = null;
+    let holdingLinesError: any = null;
+
+    if (monthlyLog.unit_id != null || monthlyLog.property_id) {
+      const holdingQuery = supabaseAdmin
+        .from('transaction_lines')
+        .select(
+          `
+          id,
+          date,
+          memo,
+          amount,
+          posting_type,
+          unit_id,
+          property_id,
+          gl_accounts!inner(
+            name,
+            type,
+            gl_account_category!inner(category)
+          )
+        `,
+        )
+        .lte('date', statementDate)
+        .order('date', { ascending: true });
+
+      if (monthlyLog.unit_id && monthlyLog.property_id) {
+        holdingQuery.or(
+          `unit_id.eq.${monthlyLog.unit_id},and(unit_id.is.null,property_id.eq.${monthlyLog.property_id})`,
+        );
+      } else if (monthlyLog.unit_id) {
+        holdingQuery.eq('unit_id', monthlyLog.unit_id);
+      } else if (monthlyLog.property_id) {
+        holdingQuery.eq('property_id', monthlyLog.property_id);
+      }
+
+      const { data, error } = await holdingQuery;
+      holdingLines = (data as EscrowRow[] | null) ?? null;
+      holdingLinesError = error;
+    }
+
+    if (holdingLinesError) {
+      console.warn('Failed to fetch holding transaction lines for statement', holdingLinesError);
+    }
 
     // Fetch tenant info if available
     let tenantName = null;
@@ -102,50 +288,209 @@ export async function fetchMonthlyStatementData(
         .eq('id', monthlyLog.tenant_id)
         .single();
 
-      if (tenant) {
-        if (tenant.company_name) {
-          tenantName = tenant.company_name;
-        } else if (tenant.first_name || tenant.last_name) {
-          tenantName = `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim();
+    if (tenant) {
+      if (tenant.company_name) {
+        tenantName = tenant.company_name;
+      } else if (tenant.first_name || tenant.last_name) {
+        tenantName = `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim();
         } else if (tenant.contacts && Array.isArray(tenant.contacts) && tenant.contacts[0]) {
           tenantName = tenant.contacts[0].display_name;
         }
       }
     }
 
-    // Organize transactions by type
-    const charges = (transactions || [])
-      .filter((t) => t.transaction_type === 'Charge')
-      .map((t) => ({
-        date: t.date,
-        description: t.memo || 'Charge',
-        amount: Math.abs(t.total_amount),
-      }));
+    // Fetch property owners (optional)
+    let ownerNames: string[] = [];
+    if (monthlyLog.property_id) {
+      const fetchOwners = async (propertyId: string | number) => {
+        try {
+          const { data: ownerships, error: ownershipError } = await supabaseAdmin
+            .from('ownerships')
+            .select(
+              `
+              owners!inner(
+                company_name,
+                contacts (
+                  display_name,
+                  first_name,
+                  last_name,
+                  company_name
+                )
+              )
+            `,
+            )
+            .eq('property_id', propertyId);
 
-    const payments = (transactions || [])
-      .filter((t) => t.transaction_type === 'Payment' || t.transaction_type === 'Credit')
-      .map((t) => ({
-        date: t.date,
-        description: t.memo || 'Payment',
-        amount: Math.abs(t.total_amount),
-        paymentMethod: t.payment_method || undefined,
-      }));
+          if (!ownershipError && ownerships) {
+            ownerNames = ownerships
+              .map((row: any) => {
+                const owner = row.owners || {};
+                const contact = Array.isArray(owner.contacts) ? owner.contacts[0] : owner.contacts;
+                const contactName =
+                  (contact?.company_name as string | undefined) ||
+                  [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+                  (contact?.display_name as string | undefined);
+                const directName = owner.company_name as string | undefined;
+                const finalName = (directName || contactName || '').trim();
+                return finalName || null;
+              })
+              .filter(Boolean) as string[];
 
-    const bills = (transactions || [])
-      .filter((t) => t.transaction_type === 'Bill')
-      .map((t) => ({
-        date: t.date,
-        description: t.memo || 'Bill',
-        vendor: undefined, // TODO: Fetch vendor name from vendor_id
-        amount: Math.abs(t.total_amount),
-      }));
+            ownerNames = ownerNames.filter((name, idx) => ownerNames.indexOf(name) === idx);
+          }
+        } catch (ownershipError) {
+          console.warn('Failed to fetch property owners for statement', ownershipError);
+        }
+      };
 
-    const escrow = (escrowMovements || []).map((m: any) => ({
-      date: m.date,
-      description: m.memo || (m.posting_type === 'Credit' ? 'Escrow Deposit' : 'Escrow Withdrawal'),
-      type: m.posting_type === 'Credit' ? ('deposit' as const) : ('withdrawal' as const),
-      amount: Math.abs(m.amount),
-    }));
+      await fetchOwners(monthlyLog.property_id);
+      if (!ownerNames.length) {
+        const numericId = Number(monthlyLog.property_id);
+        if (!Number.isNaN(numericId)) {
+          await fetchOwners(numericId);
+        }
+      }
+    }
+
+    // Categorize transaction lines by GL account type/category
+    type CategorizedLine = {
+      label: string;
+      amount: number;
+      date: string;
+    };
+
+    const incomeItems: CategorizedLine[] = [];
+    const expenseItems: CategorizedLine[] = [];
+    const escrowItems: CategorizedLine[] = [];
+
+    (transactionLines || []).forEach((line: any) => {
+      const glAccount = line.gl_accounts;
+      const category = glAccount?.gl_account_category?.category || '';
+      const glType = glAccount?.type || '';
+      const accountNameRaw = glAccount?.name || '';
+      const defaultAccountNameRaw = glAccount?.default_account_name || '';
+      const accountName = normalizeString(accountNameRaw);
+      const postingType = line.posting_type || '';
+      const amount = Math.abs(Number(line.amount) || 0);
+      const transaction = line.transactions || {};
+      const memo = (line.memo || transaction.memo || '').trim();
+      const transactionType = normalizeString(transaction.transaction_type);
+      const accountLabel = (accountNameRaw || '').trim();
+      const defaultAccountLabel = (defaultAccountNameRaw || '').trim();
+      const label =
+        (accountLabel && accountLabel !== '-' ? accountLabel : '') ||
+        (defaultAccountLabel && defaultAccountLabel !== '-' ? defaultAccountLabel : '') ||
+        memo ||
+        (transaction.memo || '').trim() ||
+        'Transaction';
+      const isCharge = transactionType === 'charge';
+
+      if (!amount) return;
+      if (accountName.includes('owner draw')) return; // handled separately
+
+      const signedAmount = signedAmountForGlType(amount, postingType, glType);
+
+      if (isEscrowAccount(category, accountNameRaw)) {
+        // Escrow/Deposit activity shown as negative in summary
+        const displayAmount = -Math.abs(signedAmount);
+        escrowItems.push({
+          label,
+          amount: displayAmount,
+          date: line.date || transaction.date || '',
+        });
+        return;
+      }
+
+      const normalizedType = normalizeString(glType);
+
+      if (!isCharge && (normalizedType === 'income' || normalizedType === 'revenue')) {
+        incomeItems.push({
+          label,
+          amount: Math.abs(signedAmount),
+          date: line.date || transaction.date || '',
+        });
+        return;
+      }
+
+      if (normalizedType === 'expense') {
+        expenseItems.push({
+          label,
+          amount: -Math.abs(signedAmount),
+          date: line.date || transaction.date || '',
+        });
+        return;
+      }
+
+      // Fallback: infer from transaction type if GL type is missing
+      if (!isCharge && (transactionType === 'payment' || transactionType === 'credit')) {
+        incomeItems.push({
+          label,
+          amount: Math.abs(signedAmount),
+          date: line.date || transaction.date || '',
+        });
+        return;
+      }
+
+      const disallowedExpenseTypes = ['asset', 'liability', 'equity', 'deposit', 'other'];
+      if (transactionType === 'bill' && !disallowedExpenseTypes.includes(normalizedType)) {
+        expenseItems.push({
+          label,
+          amount: -Math.abs(signedAmount),
+          date: line.date || transaction.date || '',
+        });
+        return;
+      }
+    });
+
+    if (incomeItems.length === 0) {
+      incomeItems.push({
+        label: 'Rent Income',
+        amount: Math.abs(Number(financialData?.payments_amount ?? 0)),
+        date: '',
+      });
+    }
+
+    if (expenseItems.length === 0) {
+      const billsAmount = Math.abs(Number(financialData?.bills_amount ?? 0));
+      const managementFeesAmount = Math.abs(Number(financialData?.management_fees_amount ?? 0));
+
+      if (billsAmount > 0) {
+        expenseItems.push({ label: 'Bills Paid', amount: -billsAmount, date: '' });
+      }
+
+      if (managementFeesAmount > 0) {
+        expenseItems.push({ label: 'Management Fee', amount: -managementFeesAmount, date: '' });
+      }
+    }
+
+    if (escrowItems.length === 0 && Number(financialData?.escrow_amount ?? 0) !== 0) {
+      escrowItems.push({
+        label: 'Property Tax Escrow',
+        amount: -Math.abs(Number(financialData?.escrow_amount ?? 0)),
+        date: '',
+      });
+    }
+
+    if (escrowItems.length === 0) {
+      escrowItems.push({
+        label: 'Property Tax Escrow',
+        amount: 0,
+        date: '',
+      });
+    }
+
+    // Legacy format for compatibility
+    const charges: Array<{ date: string; description: string; amount: number }> = [];
+    const payments: Array<{ date: string; description: string; amount: number; paymentMethod?: string }> = [];
+    const bills: Array<{ date: string; description: string; vendor?: string; amount: number }> = [];
+    const escrow: Array<{
+      date: string;
+      description: string;
+      type: 'deposit' | 'withdrawal';
+      amount: number;
+    }> = [];
+
+    const accountTotals = computeDepositAccountTotals(holdingLines as EscrowRow[] | null | undefined);
 
     // Calculate financial summary
     const totalCharges = financialData?.charges_amount || 0;
@@ -169,22 +514,23 @@ export async function fetchMonthlyStatementData(
     const balance = totalCharges - totalCredits - totalPayments;
 
     // Compile complete statement data
-    const statementData = {
+    const statementData: StatementData = {
       monthlyLogId: monthlyLog.id,
       periodStart: monthlyLog.period_start,
-      generatedAt: new Date().toISOString(),
+      generatedAt: statementDateISO,
       property: {
-        name: (monthlyLog.properties as any)?.name || 'Unknown Property',
-        address: (monthlyLog.properties as any)?.address_line1 || '',
-        city: (monthlyLog.properties as any)?.city || '',
-        state: (monthlyLog.properties as any)?.state || '',
-        zipCode: (monthlyLog.properties as any)?.postal_code || '',
+        name: ((monthlyLog.properties as PropertyRecord)?.name) || 'Unknown Property',
+        address: ((monthlyLog.properties as PropertyRecord)?.address_line1) || '',
+        city: ((monthlyLog.properties as PropertyRecord)?.city) || '',
+        state: ((monthlyLog.properties as PropertyRecord)?.state) || '',
+        zipCode: ((monthlyLog.properties as PropertyRecord)?.postal_code) || '',
       },
       unit: {
-        unitNumber: (monthlyLog.units as any)?.unit_number || '',
-        unitName: (monthlyLog.units as any)?.unit_name || null,
+        unitNumber: ((monthlyLog.units as UnitRecord)?.unit_number) || '',
+        unitName: ((monthlyLog.units as UnitRecord)?.unit_name) || null,
       },
       tenant: tenantName ? { name: tenantName } : null,
+      propertyOwners: ownerNames,
       financialSummary: {
         totalCharges,
         totalCredits,
@@ -201,12 +547,16 @@ export async function fetchMonthlyStatementData(
       payments,
       bills,
       escrowMovements: escrow,
+      accountTotals,
+      incomeItems,
+      expenseItems,
+      escrowItems,
       company: {
         name: process.env.COMPANY_NAME || 'Property Management Company',
         address: process.env.COMPANY_ADDRESS,
         phone: process.env.COMPANY_PHONE,
         email: process.env.COMPANY_EMAIL,
-        logo: process.env.COMPANY_LOGO_URL,
+        logo: resolveLogoUrl(STATEMENT_LOGO_URL),
       },
     };
 
@@ -218,6 +568,15 @@ export async function fetchMonthlyStatementData(
       error: error instanceof Error ? error.message : 'Failed to fetch statement data',
     };
   }
+}
+
+/**
+ * Render the monthly statement HTML using the shared template.
+ */
+export async function renderMonthlyStatementHTML(data: StatementData): Promise<string> {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const markup = renderToStaticMarkup(React.createElement(MonthlyStatementTemplate, { data }));
+  return '<!DOCTYPE html>' + markup;
 }
 
 /**
@@ -236,127 +595,7 @@ export async function generateMonthlyStatementPDF(
       return { success: false, error: dataResult.error };
     }
 
-    // Render React component to HTML string (placeholder until serialization is wired up)
-    const htmlString = React.createElement(MonthlyStatementTemplate, { data: dataResult.data });
-
-    const palette = designTokens.colors;
-    const typography = designTokens.typography;
-    const spacing = designTokens.spacing;
-
-    // For now, we'll use a simple HTML template approach
-    // TODO: Implement proper React-to-HTML rendering
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Monthly Statement</title>
-          <style>
-            body { font-family: ${typography.body}; margin: ${spacing.lg}; background: ${palette.surfaceDefault}; color: ${palette.textPrimary}; }
-            .header { text-align: center; margin-bottom: ${spacing.xl}; }
-            .section { margin-bottom: ${spacing.lg}; }
-            .financial-summary { background: ${palette.surfaceHighlight}; padding: ${spacing.md}; border-radius: 8px; border: 1px solid ${palette.borderAccent}; }
-            table { width: 100%; border-collapse: collapse; margin-top: ${spacing.sm}; }
-            th, td { border: 1px solid ${palette.borderStrong}; padding: ${spacing.xs}; text-align: left; }
-            th { background-color: ${palette.surfacePanel}; }
-            .amount { text-align: right; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Monthly Statement</h1>
-            <p>${dataResult.data.property.name}</p>
-            <p>${dataResult.data.property.address}, ${dataResult.data.property.city}, ${dataResult.data.property.state} ${dataResult.data.property.zipCode}</p>
-            <p>Period: ${new Date(dataResult.data.periodStart).toLocaleDateString()}</p>
-          </div>
-          
-          <div class="section financial-summary">
-            <h2>Financial Summary</h2>
-            <table>
-              <tr><td>Total Charges:</td><td class="amount">$${dataResult.data.financialSummary.totalCharges.toFixed(2)}</td></tr>
-              <tr><td>Total Credits:</td><td class="amount">-$${dataResult.data.financialSummary.totalCredits.toFixed(2)}</td></tr>
-              <tr><td>Total Payments:</td><td class="amount">$${dataResult.data.financialSummary.totalPayments.toFixed(2)}</td></tr>
-              <tr><td>Total Bills:</td><td class="amount">$${dataResult.data.financialSummary.totalBills.toFixed(2)}</td></tr>
-              <tr><td>Escrow Amount:</td><td class="amount">$${dataResult.data.financialSummary.escrowAmount.toFixed(2)}</td></tr>
-              <tr><td>Management Fees:</td><td class="amount">$${dataResult.data.financialSummary.managementFees.toFixed(2)}</td></tr>
-              <tr><td>Balance:</td><td class="amount">$${dataResult.data.financialSummary.balance.toFixed(2)}</td></tr>
-            </table>
-          </div>
-          
-          <div class="section">
-            <h2>Charges</h2>
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
-              </thead>
-              <tbody>
-                ${dataResult.data.charges
-                  .map(
-                    (charge: any) =>
-                      `<tr><td>${new Date(charge.date).toLocaleDateString()}</td><td>${charge.description}</td><td class="amount">$${charge.amount.toFixed(2)}</td></tr>`,
-                  )
-                  .join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="section">
-            <h2>Payments</h2>
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
-              </thead>
-              <tbody>
-                ${dataResult.data.payments
-                  .map(
-                    (payment: any) =>
-                      `<tr><td>${new Date(payment.date).toLocaleDateString()}</td><td>${payment.description}</td><td class="amount">$${payment.amount.toFixed(2)}</td></tr>`,
-                  )
-                  .join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="section">
-            <h2>Bills</h2>
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Description</th><th>Amount</th></tr>
-              </thead>
-              <tbody>
-                ${dataResult.data.bills
-                  .map(
-                    (bill: any) =>
-                      `<tr><td>${new Date(bill.date).toLocaleDateString()}</td><td>${bill.description}</td><td class="amount">$${bill.amount.toFixed(2)}</td></tr>`,
-                  )
-                  .join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="section">
-            <h2>Escrow Movements</h2>
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Description</th><th>Type</th><th>Amount</th></tr>
-              </thead>
-              <tbody>
-                ${dataResult.data.escrowMovements
-                  .map(
-                    (movement: any) =>
-                      `<tr><td>${new Date(movement.date).toLocaleDateString()}</td><td>${movement.description}</td><td>${movement.type}</td><td class="amount">$${movement.amount.toFixed(2)}</td></tr>`,
-                  )
-                  .join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="section">
-            <p><em>Generated on ${new Date().toLocaleDateString()}</em></p>
-          </div>
-        </body>
-      </html>
-    `;
+    const html = await renderMonthlyStatementHTML(dataResult.data);
 
     // Generate PDF from HTML
     const pdfBuffer = await generatePDFFromHTML(html, {
@@ -389,11 +628,26 @@ export async function uploadStatementPDF(
   try {
     const fileName = `monthly-statements/${monthlyLogId}.pdf`;
 
+    // Ensure bucket exists before upload (handles freshly provisioned environments)
+    try {
+      const { error: bucketError } = await supabaseAdmin.storage.createBucket(STATEMENT_BUCKET, {
+        public: true,
+      });
+      if (bucketError && bucketError.message && !bucketError.message.includes('already exists')) {
+        console.warn('Error creating bucket for statements', bucketError);
+      }
+    } catch (bucketException) {
+      console.warn('Unexpected error creating statement bucket', bucketException);
+      // Continue; upload will fail below with a clearer message
+    }
+
     // Upload to Supabase storage
-    const { error } = await supabaseAdmin.storage.from('documents').upload(fileName, pdfBuffer, {
-      contentType: 'application/pdf',
-      upsert: true, // Replace if exists
-    });
+    const { error } = await supabaseAdmin.storage
+      .from(STATEMENT_BUCKET)
+      .upload(fileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true, // Replace if exists
+      });
 
     if (error) {
       console.error('Error uploading PDF to storage:', error);
@@ -401,7 +655,7 @@ export async function uploadStatementPDF(
     }
 
     // Get public URL
-    const { data: urlData } = supabaseAdmin.storage.from('documents').getPublicUrl(fileName);
+    const { data: urlData } = supabaseAdmin.storage.from(STATEMENT_BUCKET).getPublicUrl(fileName);
 
     if (!urlData?.publicUrl) {
       return { success: false, error: 'Failed to get public URL' };

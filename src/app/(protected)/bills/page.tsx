@@ -434,7 +434,9 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                                 variant={statusVariant(row.status)}
                                 className={cn(
                                   'uppercase',
-                                  row.status === 'Overdue' && 'bg-destructive/10 text-destructive',
+                                  row.status === 'Overdue' &&
+                                    'border-destructive/40 bg-destructive/10 text-destructive',
+                                  row.status === 'Due' && 'border-amber-300 bg-amber-50 text-amber-700',
                                 )}
                               >
                                 {row.status}

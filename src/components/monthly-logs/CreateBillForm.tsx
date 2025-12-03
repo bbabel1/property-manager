@@ -18,18 +18,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { LeaseAccountOption, LeaseFormSuccessPayload } from '@/components/leases/types';
+import {
+  extractLeaseTransactionFromResponse,
+  type LeaseAccountOption,
+  type LeaseFormSuccessPayload,
+} from '@/components/leases/types';
 
 type VendorOption = {
   id: string;
   name: string;
   buildiumVendorId?: number | null;
-};
-
-type BillCategoryOption = {
-  id: string;
-  name: string;
-  buildiumCategoryId?: number | null;
 };
 
 type AllocationRow = {
@@ -45,7 +43,6 @@ const BillFormSchema = z.object({
   due_date: z.string().optional(),
   reference_number: z.string().optional(),
   memo: z.string().optional(),
-  category_id: z.string().optional(),
   allocations: z
     .array(
       z.object({
@@ -67,8 +64,8 @@ const createId = () =>
 interface CreateBillFormProps {
   monthlyLogId: string;
   vendors: VendorOption[];
-  categories: BillCategoryOption[];
   accounts: LeaseAccountOption[];
+  mappedAccountCount?: number;
   onCancel?: () => void;
   onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
 }
@@ -76,8 +73,8 @@ interface CreateBillFormProps {
 export default function CreateBillForm({
   monthlyLogId,
   vendors,
-  categories,
   accounts,
+  mappedAccountCount = 0,
   onCancel,
   onSuccess,
 }: CreateBillFormProps) {
@@ -88,7 +85,6 @@ export default function CreateBillForm({
     due_date: '',
     reference_number: '',
     memo: '',
-    category_id: '',
     allocations: [
       {
         id: createId(),
@@ -111,31 +107,55 @@ export default function CreateBillForm({
     [vendors],
   );
 
-  const expenseAccounts = useMemo(
-    () =>
-      accounts.filter((account) => (account.type ?? '').toLowerCase() === 'expense').length > 0
-        ? accounts.filter((account) => (account.type ?? '').toLowerCase() === 'expense')
-        : accounts,
-    [accounts],
-  );
+  const expenseAccounts = useMemo(() => {
+    const expense = accounts.filter(
+      (account) => (account.type ?? '').toLowerCase() === 'expense',
+    );
+    return expense.length > 0 ? expense : accounts;
+  }, [accounts]);
 
-  const accountDropdownOptions = useMemo(
-    () =>
-      expenseAccounts.map((account) => ({
-        value: account.id,
-        label: account.name,
-      })),
+  const accountById = useMemo(
+    () => new Map(expenseAccounts.map((account) => [account.id, account])),
     [expenseAccounts],
   );
 
-  const categoryDropdownOptions = useMemo(
-    () =>
-      categories.map((category) => ({
-        value: category.id,
-        label: category.name,
-      })),
-    [categories],
+  const mappedExpenseAccounts = useMemo(
+    () => expenseAccounts.filter((account) => account.buildiumGlAccountId != null),
+    [expenseAccounts],
   );
+
+  const unmappedExpenseAccounts = useMemo(
+    () => expenseAccounts.filter((account) => account.buildiumGlAccountId == null),
+    [expenseAccounts],
+  );
+
+  const accountDropdownOptions = useMemo(() => {
+    const readyOptions = mappedExpenseAccounts.map((account) => ({
+      value: account.id,
+      label: account.name,
+    }));
+    const needsMappingOptions = unmappedExpenseAccounts.map((account) => ({
+      value: account.id,
+      label: `${account.name} (map to Buildium)`,
+    }));
+
+    if (readyOptions.length && needsMappingOptions.length) {
+      return [
+        { label: 'Ready to sync', options: readyOptions },
+        { label: 'Needs Buildium mapping', options: needsMappingOptions },
+      ];
+    }
+
+    if (readyOptions.length) {
+      return readyOptions;
+    }
+
+    if (needsMappingOptions.length) {
+      return [{ label: 'Needs Buildium mapping', options: needsMappingOptions }];
+    }
+
+    return [];
+  }, [mappedExpenseAccounts, unmappedExpenseAccounts]);
 
   const allocationTotal = useMemo(
     () => form.allocations.reduce((sum, row) => sum + Number(row.amount || '0'), 0),
@@ -185,7 +205,7 @@ export default function CreateBillForm({
 
     const parseResult = BillFormSchema.safeParse(form);
     if (!parseResult.success) {
-      const fieldIssues = parseResult.error.formErrors.fieldErrors;
+      const fieldIssues = parseResult.error.flatten().fieldErrors;
       const nextErrors: Record<string, string> = {};
       if (fieldIssues.vendor_id?.[0]) nextErrors.vendor_id = fieldIssues.vendor_id[0];
       if (fieldIssues.date?.[0]) nextErrors.date = fieldIssues.date[0];
@@ -199,12 +219,25 @@ export default function CreateBillForm({
       return;
     }
 
-    if (!expenseAccounts.length) {
+    if (!mappedAccountCount) {
       setFormError('Map at least one expense account before creating a bill.');
       return;
     }
 
     try {
+      const allocationWithMissingMapping = form.allocations.find((row) => {
+        if (!row.account_id) return false;
+        const account = accountById.get(row.account_id);
+        return !account || account.buildiumGlAccountId == null;
+      });
+
+      if (allocationWithMissingMapping) {
+        setFormError(
+          'One or more selected accounts still need a Buildium mapping before you can create a bill.',
+        );
+        return;
+      }
+
       setSubmitting(true);
       const response = await fetch(`/api/monthly-logs/${monthlyLogId}/bills`, {
         method: 'POST',
@@ -215,7 +248,6 @@ export default function CreateBillForm({
           due_date: form.due_date || null,
           reference_number: form.reference_number || null,
           memo: form.memo || null,
-          category_id: form.category_id || null,
           allocations: form.allocations.map((row) => ({
             account_id: row.account_id,
             amount: Number(row.amount || '0'),
@@ -235,7 +267,12 @@ export default function CreateBillForm({
       }
 
       const payload = await response.json().catch(() => ({}));
-      onSuccess?.(payload);
+      const transaction = extractLeaseTransactionFromResponse(payload);
+      if (transaction) {
+        onSuccess?.({ transaction });
+      } else {
+        onSuccess?.();
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to create bill right now.';
@@ -244,6 +281,8 @@ export default function CreateBillForm({
       setSubmitting(false);
     }
   };
+
+  const submitDisabled = submitting || !vendors.length || !accounts.length || !mappedAccountCount;
 
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
@@ -257,42 +296,7 @@ export default function CreateBillForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
               <span className="text-muted-foreground block text-xs font-semibold uppercase">
-                Vendor *
-              </span>
-              <Dropdown
-                value={form.vendor_id}
-                onChange={(value) => updateField('vendor_id', value)}
-                options={vendorOptions}
-                placeholder={
-                  vendorOptions.length
-                    ? 'Select vendor'
-                    : 'Add a vendor with a Buildium ID to begin'
-                }
-                className="w-full"
-              />
-              {errors.vendor_id ? (
-                <span className="text-destructive text-xs">{errors.vendor_id}</span>
-              ) : null}
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
-                Expense category
-              </span>
-              <Dropdown
-                value={form.category_id}
-                onChange={(value) => updateField('category_id', value)}
-                options={categoryDropdownOptions}
-                placeholder={
-                  categories.length ? 'Optional category' : 'Sync bill categories to enable'
-                }
-                className="w-full"
-              />
-            </label>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
-                Bill date *
+                Date *
               </span>
               <DateInput
                 value={form.date}
@@ -317,6 +321,25 @@ export default function CreateBillForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
               <span className="text-muted-foreground block text-xs font-semibold uppercase">
+                Pay to *
+              </span>
+              <Dropdown
+                value={form.vendor_id}
+                onChange={(value) => updateField('vendor_id', value)}
+                options={vendorOptions}
+                placeholder={
+                  vendorOptions.length
+                    ? 'Select vendor'
+                    : 'Add a vendor with a Buildium ID to begin'
+                }
+                className="w-full"
+              />
+              {errors.vendor_id ? (
+                <span className="text-destructive text-xs">{errors.vendor_id}</span>
+              ) : null}
+            </label>
+            <label className="space-y-1 text-sm">
+              <span className="text-muted-foreground block text-xs font-semibold uppercase">
                 Reference number
               </span>
               <Input
@@ -325,17 +348,18 @@ export default function CreateBillForm({
                 placeholder="INV-12345"
               />
             </label>
-            <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground block text-xs font-semibold uppercase">
-                Description
-              </span>
-              <Input
-                value={form.memo}
-                onChange={(event) => updateField('memo', event.target.value)}
-                placeholder="e.g. Plumbing repair"
-              />
-            </label>
           </div>
+          <label className="space-y-1 text-sm">
+            <span className="text-muted-foreground block text-xs font-semibold uppercase">
+              Memo
+            </span>
+            <Textarea
+              value={form.memo}
+              onChange={(event) => updateField('memo', event.target.value)}
+              placeholder="Add a memo for this entry"
+              rows={3}
+            />
+          </label>
         </CardContent>
       </Card>
 
@@ -353,6 +377,12 @@ export default function CreateBillForm({
               Add row
             </Button>
           </div>
+          {!mappedAccountCount ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Map at least one GL expense account to a Buildium account before saving. You can still
+              view all accounts here.
+            </div>
+          ) : null}
           {errors.allocations ? (
             <div className="text-destructive text-xs">{errors.allocations}</div>
           ) : null}
@@ -425,9 +455,16 @@ export default function CreateBillForm({
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
           Cancel
         </Button>
-        <Button type="submit" disabled={submitting || !vendors.length || !accounts.length}>
+        <div className="flex flex-col items-end gap-1">
+          <Button type="submit" disabled={submitDisabled}>
           {submitting ? 'Saving…' : 'Save bill'}
         </Button>
+          {submitDisabled && !submitting ? (
+            <span className="text-xs text-muted-foreground">
+              Add vendors and mapped expense accounts to enable saving.
+            </span>
+          ) : null}
+        </div>
       </div>
     </form>
   );

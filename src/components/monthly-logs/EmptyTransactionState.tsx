@@ -1,0 +1,29 @@
+'use client';
+
+'use client';
+
+import type { ReactNode } from 'react';
+import { Info } from 'lucide-react';
+
+type EmptyTransactionStateProps = {
+  title?: string;
+  description?: string;
+  children?: ReactNode;
+};
+
+export default function EmptyTransactionState({
+  title = 'No transactions to show',
+  description = 'Add or assign transactions to see them here.',
+  children,
+}: EmptyTransactionStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-center">
+      <Info className="h-5 w-5 text-slate-400" aria-hidden />
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
+        <p className="text-xs text-slate-500">{description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}

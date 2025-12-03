@@ -1389,7 +1389,10 @@ export async function mapTransactionBillToBuildium(
     Date: normalizeDateString(tx.date),
     DueDate: tx.due_date ? normalizeDateString(tx.due_date) : undefined,
     Amount: adjustedTotal,
+    // Buildium displays the bill "Memo" separately from line item memos; send both Description and Memo.
     Description: tx.memo || '',
+    // Some Buildium endpoints expect Memo for the header note field shown in the UI.
+    Memo: tx.memo || undefined,
     ReferenceNumber: tx.reference_number || undefined,
     CategoryId: billCategoryBuildiumId,
     Lines: buildiumLines.length > 0 ? buildiumLines : undefined

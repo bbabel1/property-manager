@@ -50,7 +50,10 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
   }
 
   const activeLeaseContext = monthlyLog.unit_id
-    ? await loadActiveLeaseSummary(supabase, monthlyLog.unit_id)
+    ? await loadActiveLeaseSummary(supabase, {
+        unitId: monthlyLog.unit_id,
+        leaseId: monthlyLog.lease_id ?? null,
+      })
     : { summary: null, tenantOptions: [] };
 
   const [assignedBundle, unassignedPage] = await Promise.all([
@@ -100,6 +103,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 
   const monthlyLogWithRelations = {
     ...monthlyLog,
+    lease_id: monthlyLog.lease_id != null ? Number(monthlyLog.lease_id) : null,
     units: unitData,
     tenants: tenantData,
     activeLease: activeLeaseContext.summary,
@@ -119,46 +123,60 @@ async function fetchMonthlyLogRecord(
   logId: string,
   supabase: TypedSupabaseClient,
 ) {
-  const { data, error } = await traceAsync('monthlyLog.fetch.record', () =>
-    supabase
-      .from('monthly_logs')
-      .select(
-        `
-        id,
-        period_start,
-        stage,
-        status,
-        notes,
-        property_id,
-        unit_id,
-        tenant_id,
-        org_id,
-        properties:properties (
-          id,
-          name
-        ),
-        units:units (
-          id,
-          unit_number,
-          unit_name,
-          service_plan,
-          active_services,
-          fee_dollar_amount
-        ),
-        tenants:tenants (
-          id,
-          contact:contacts (
-            display_name,
-            first_name,
-            last_name,
-            company_name
-          )
-        )
-      `,
+  const baseSelect = `
+    id,
+    period_start,
+    stage,
+    status,
+    notes,
+    property_id,
+    unit_id,
+    tenant_id,
+    org_id,
+    properties:properties (
+      id,
+      name
+    ),
+    units:units (
+      id,
+      unit_number,
+      unit_name,
+      service_plan,
+      active_services,
+      fee_dollar_amount
+    ),
+    tenants:tenants (
+      id,
+      contact:contacts (
+        display_name,
+        first_name,
+        last_name,
+        company_name
       )
-      .eq('id', logId)
-      .maybeSingle(),
+    )
+  `;
+
+  const selectWithLeaseId = `
+    lease_id,
+    ${baseSelect}
+  `;
+
+  const runSelect = (selectFields: string) =>
+    supabase.from('monthly_logs').select(selectFields).eq('id', logId).maybeSingle();
+
+  const primaryResult = await traceAsync('monthlyLog.fetch.record', () =>
+    runSelect(selectWithLeaseId),
   );
+
+  const isMissingLeaseColumn = (err: unknown) => {
+    const message = (err as any)?.message?.toLowerCase?.() ?? '';
+    return message.includes('lease_id') && message.includes('column');
+  };
+
+  const { data, error } =
+    primaryResult.error && isMissingLeaseColumn(primaryResult.error)
+      ? await traceAsync('monthlyLog.fetch.record.fallback', () => runSelect(baseSelect))
+      : primaryResult;
 
   if (error) {
     console.error('[monthly-log] Failed to load log', { logId, error });
@@ -172,41 +190,55 @@ async function fetchMonthlyLogRecord(
 
 async function loadActiveLeaseSummary(
   supabase: TypedSupabaseClient,
-  unitId: string,
+  params: { unitId: string; leaseId?: number | null },
 ): Promise<{ summary: ActiveLeaseRow & { tenant_names: string[]; total_charges: number } | null; tenantOptions: TenantOption[] }> {
-  const { data: leaseRow } = await traceAsync('monthlyLog.activeLease.row', () =>
+  const { unitId, leaseId } = params;
+
+  const leaseSelect = `
+    id,
+    lease_from_date,
+    lease_to_date,
+    rent_amount,
+    status,
+    lease_contacts(
+      role,
+      tenant_id,
+      tenants(
+        id,
+        buildium_tenant_id,
+        contact:contacts(
+          display_name,
+          first_name,
+          last_name,
+          company_name,
+          is_company
+        )
+      )
+    )
+  `;
+
+  const buildBaseQuery = () =>
     supabase
       .from('lease')
-      .select(
-        `
-        id,
-        lease_from_date,
-        lease_to_date,
-        rent_amount,
-        status,
-        lease_contacts(
-          role,
-          tenant_id,
-          tenants(
-            id,
-            buildium_tenant_id,
-            contact:contacts(
-              display_name,
-              first_name,
-              last_name,
-              company_name,
-              is_company
-            )
-          )
-        )
-      `,
-      )
-      .eq('unit_id', unitId)
+      .select(leaseSelect)
       .eq('status', 'active')
-      .order('lease_from_date', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  );
+      .eq('unit_id', unitId);
+
+  let leaseRow: ActiveLeaseRow | null = null;
+
+  if (leaseId) {
+    const { data } = await traceAsync('monthlyLog.activeLease.row', () =>
+      buildBaseQuery().eq('id', leaseId).limit(1).maybeSingle(),
+    );
+    leaseRow = (data as ActiveLeaseRow | null) ?? null;
+  }
+
+  if (!leaseRow) {
+    const { data } = await traceAsync('monthlyLog.activeLease.row.fallback', () =>
+      buildBaseQuery().order('lease_from_date', { ascending: false }).limit(1).maybeSingle(),
+    );
+    leaseRow = (data as ActiveLeaseRow | null) ?? null;
+  }
 
   if (!leaseRow) {
     return { summary: null, tenantOptions: [] };

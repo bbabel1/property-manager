@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react'
 import { SectionDetail, ContactInfoSection } from '@/components/ui/section-detail'
 
@@ -96,8 +98,6 @@ export function SectionDetailExample() {
     </div>
   )
 }
-
-
 
 
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogHeader, DialogTitle, LargeDialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import GeneralJournalEntryForm, {
   type GeneralJournalEntryFormProps,
   type AccountOption,
@@ -18,6 +18,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import TransactionModalContent from '@/components/transactions/TransactionModalContent';
 import { sanitizeCurrencyInput } from '@/lib/journal-entries';
 import type { MonthlyLogTransaction } from '@/types/monthly-log';
 
@@ -211,7 +212,7 @@ export default function JournalEntryDetailDialog({
     );
     if (!ownerLine || !escrowLine) return null;
     return {
-      propertyTaxEscrowLabel: escrowLine.gl_accounts?.name || 'Property Tax Escrow',
+      propertyTaxEscrowLabel: escrowLine.gl_accounts?.name || 'Escrow',
     };
   }, [data?.lines]);
 
@@ -228,7 +229,7 @@ export default function JournalEntryDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <LargeDialogContent className="max-h-[90vh] overflow-hidden p-0">
+      <TransactionModalContent className="max-h-[90vh]">
         <DialogHeader className="sr-only">
           <DialogTitle>Journal Entry Details</DialogTitle>
         </DialogHeader>
@@ -296,7 +297,7 @@ export default function JournalEntryDetailDialog({
             </div>
           </div>
         ) : null}
-      </LargeDialogContent>
+      </TransactionModalContent>
     </Dialog>
   );
 }

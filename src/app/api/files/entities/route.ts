@@ -105,7 +105,7 @@ function mapTenant(record: any): EntityItem {
 
   return {
     id,
-    label: fullName ?? composedName || email ?? `Tenant ${id}`,
+    label: fullName ?? composedName ?? email ?? `Tenant ${id}`,
     description: email ?? null,
   };
 }
@@ -130,7 +130,7 @@ function mapOwner(record: any): EntityItem {
 
   return {
     id,
-    label: companyName ?? personName || email ?? `Owner ${id}`,
+    label: companyName ?? personName ?? email ?? `Owner ${id}`,
     description: email ?? companyName ?? null,
   };
 }
@@ -325,4 +325,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load entities' }, { status: 500 });
   }
 }
-

@@ -43,7 +43,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     const { data: property, error: propertyError } = await supabaseAdmin
       .from('properties')
       .select(
-        'service_assignment, service_plan, active_services, fee_type, fee_percentage, management_fee, billing_frequency',
+        'service_assignment, service_plan, active_services, fee_assignment, fee_type, fee_percentage, fee_dollar_amount, billing_frequency',
       )
       .eq('id', monthlyLog.property_id)
       .single();
@@ -56,63 +56,70 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       );
     }
 
+    const { data: unit, error: unitError } = monthlyLog.unit_id
+      ? await supabaseAdmin
+          .from('units')
+          .select(
+            'service_plan, active_services, fee_type, fee_percent, fee_dollar_amount, fee_frequency',
+          )
+          .eq('id', monthlyLog.unit_id)
+          .maybeSingle()
+      : { data: null, error: null };
+
+    if (unitError) {
+      console.error('Error fetching unit:', unitError);
+      return NextResponse.json(
+        { error: { code: 'QUERY_ERROR', message: 'Failed to fetch unit data' } },
+        { status: 500 },
+      );
+    }
+
     // Determine data source based on service_assignment
     const serviceAssignment = property?.service_assignment;
-    const usePropertyLevel = serviceAssignment === 'Property Level' || serviceAssignment === null;
+    const isServicePropertyLevel =
+      serviceAssignment === 'Property Level' ||
+      serviceAssignment === 'Building' ||
+      serviceAssignment === null;
 
-    let servicePlan: string | null = null;
-    let activeServices: string[] = [];
-    let feeType: string | null = null;
-    let feePercentage: number | null = null;
-    let feeDollarAmount: number | null = null;
-    let billingFrequency: string | null = null;
+    const feeAssignment = (property as any)?.fee_assignment ?? null;
+    const isFeePropertyLevel =
+      feeAssignment === 'Property Level' || feeAssignment === 'Building' || feeAssignment === null;
 
-    if (usePropertyLevel) {
-      // Use property-level data
-      servicePlan = property?.service_plan || null;
-      activeServices = Array.isArray(property?.active_services) ? property.active_services : [];
-      feeType = property?.fee_type || null;
-      feePercentage = property?.fee_percentage || null;
-      feeDollarAmount = property?.management_fee || null;
-      billingFrequency = property?.billing_frequency || null;
-    } else {
-      // Use unit-level data
-      const { data: unit, error: unitError } = await supabaseAdmin
-        .from('units')
-        .select(
-          'service_plan, active_services, fee_type, fee_percent, fee_dollar_amount, fee_frequency',
-        )
-        .eq('id', monthlyLog.unit_id)
-        .single();
-
-      if (unitError) {
-        console.error('Error fetching unit:', unitError);
-        return NextResponse.json(
-          { error: { code: 'QUERY_ERROR', message: 'Failed to fetch unit data' } },
-          { status: 500 },
-        );
-      }
-
-      servicePlan = unit?.service_plan || null;
-      feeType = unit?.fee_type || null;
-      feePercentage = unit?.fee_percent || null;
-      feeDollarAmount = unit?.fee_dollar_amount || null;
-      billingFrequency = unit?.fee_frequency || null;
-
-      // Parse active_services from text field
-      if (unit?.active_services) {
+    const parseActiveServices = (value: unknown): string[] => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value.map((v) => String(v));
+      if (typeof value === 'string') {
         try {
-          // Try to parse as JSON first
-          activeServices = JSON.parse(unit.active_services);
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) return parsed.map((v) => String(v));
         } catch {
-          // If not JSON, try comma-separated values
-          activeServices = unit.active_services
-            .split(',')
-            .map((s: string) => s.trim())
-            .filter((s: string) => s.length > 0);
+          // noop
         }
+        return value
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean);
       }
-    }
+      return [];
+    };
+
+    const servicePlan = isServicePropertyLevel
+      ? property?.service_plan || null
+      : unit?.service_plan || null;
+    const activeServices = isServicePropertyLevel
+      ? parseActiveServices(property?.active_services)
+      : parseActiveServices(unit?.active_services);
+
+    const feeType = isFeePropertyLevel ? property?.fee_type || null : unit?.fee_type || null;
+    const feePercentage = isFeePropertyLevel
+      ? property?.fee_percentage || null
+      : unit?.fee_percent || null;
+    const feeDollarAmount = isFeePropertyLevel
+      ? property?.fee_dollar_amount ?? null
+      : unit?.fee_dollar_amount ?? null;
+    const billingFrequency = isFeePropertyLevel
+      ? property?.billing_frequency || null
+      : unit?.fee_frequency || null;
 
     // Fetch assigned management fee transactions
     const { data: assignedFees, error: feesError } = await supabaseAdmin
@@ -142,6 +149,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       billingFrequency,
       assignedFees: assignedFees || [],
       totalFees,
+      serviceAssignment,
+      feeAssignment,
+      sources: {
+        service: isServicePropertyLevel ? 'property' : 'unit',
+        fee: isFeePropertyLevel ? 'property' : 'unit',
+      },
+      propertyContext: {
+        feeType: property?.fee_type ?? null,
+        feePercentage: property?.fee_percentage ?? null,
+        feeDollarAmount: property?.management_fee ?? property?.fee_dollar_amount ?? null,
+        billingFrequency: property?.billing_frequency ?? null,
+        servicePlan: property?.service_plan ?? null,
+        activeServices: parseActiveServices(property?.active_services),
+      },
+      unitContext: {
+        feeType: unit?.fee_type ?? null,
+        feePercent: unit?.fee_percent ?? null,
+        feeDollarAmount: unit?.fee_dollar_amount ?? null,
+        billingFrequency: unit?.fee_frequency ?? null,
+        servicePlan: unit?.service_plan ?? null,
+        activeServices: parseActiveServices(unit?.active_services),
+      },
+      periodStart: monthlyLog?.period_start ?? null,
     });
   } catch (error) {
     console.error('Error in GET /api/monthly-logs/[logId]/management-fees:', error);

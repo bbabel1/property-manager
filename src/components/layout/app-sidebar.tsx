@@ -89,8 +89,6 @@ const NAV_ITEMS: NavItem[] = [
         label: 'Recurring transactions',
         href: '/accounting/recurring-transactions',
       },
-      { id: 'accounting-eft-approvals', label: 'EFT approvals', href: '/accounting/eft-approvals' },
-      { id: 'accounting-budgets', label: 'Budgets', href: '/accounting/budgets' },
       {
         id: 'accounting-chart-of-accounts',
         label: 'Chart of accounts',
@@ -319,7 +317,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                               }
                             }}
                             className={cn(
-                              'sidebar-submenu border-border bg-popover text-popover-foreground fixed z-[9999] min-w-[15.5rem] rounded-lg border p-3 shadow-md',
+                              'sidebar-submenu border-border bg-popover text-popover-foreground fixed z-[9999] min-w-[15.5rem] max-h-[calc(100vh-32px)] overflow-y-auto rounded-lg border p-3 shadow-md',
                               isOpen
                                 ? 'pointer-events-auto visible opacity-100 transition-opacity duration-150'
                                 : 'pointer-events-none invisible opacity-0',
@@ -337,14 +335,14 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                               }, 120);
                             }}
                           >
-                            <SidebarMenuSub className="mx-0 flex flex-col border-0 p-0">
+                            <SidebarMenuSub className="mx-0 flex w-full flex-col gap-1.5 border-0 p-0">
                               {children.map((child) => {
                                 const childActive = matchesPath(child.href);
                                 return (
                                   <SidebarMenuSubItem key={child.id}>
                                     <SidebarMenuSubButton
                                       isActive={childActive}
-                                      className="flex h-10 w-full items-center gap-2 rounded-none px-4 text-base leading-5 font-normal whitespace-nowrap text-black transition-colors hover:bg-gray-100 hover:text-black data-[active=true]:bg-gray-100 data-[active=true]:text-black"
+                                      className="flex h-auto min-h-11 w-full items-center gap-2 rounded-md px-4 py-2.5 text-left text-base leading-6 font-normal whitespace-nowrap text-black transition-colors hover:bg-gray-100 hover:text-black data-[active=true]:bg-gray-100 data-[active=true]:text-black"
                                       href={child.href}
                                       onClick={(event) => {
                                         event.preventDefault();

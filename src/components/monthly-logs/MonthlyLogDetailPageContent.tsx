@@ -1,58 +1,50 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useId } from 'react';
 import useSWR from 'swr';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ClipboardList, Clock, Search, UserCheck } from 'lucide-react';
+import {
+  ClipboardList,
+  Clock,
+  Search,
+  UserCheck,
+  ChevronDown,
+  Check,
+  Info,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/components/ui/utils';
+import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 import EnhancedFinancialSummaryCard from '@/components/monthly-logs/EnhancedFinancialSummaryCard';
 import EnhancedHeader from '@/components/monthly-logs/EnhancedHeader';
 import StatementsStage from '@/components/monthly-logs/StatementsStage';
 import TransactionDetailDialog from '@/components/monthly-logs/TransactionDetailDialog';
 import JournalEntryDetailDialog from '@/components/monthly-logs/JournalEntryDetailDialog';
+import TransactionTable from '@/components/monthly-logs/TransactionTable';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import { useMonthlyLogData } from '@/hooks/useMonthlyLogData';
 import MonthlyLogTransactionOverlay, {
   type TransactionMode,
 } from '@/components/monthly-logs/MonthlyLogTransactionOverlay';
 import type { LeaseTenantOption } from '@/components/leases/types';
+import {
+  formatCurrency,
+  formatDate,
+} from '@/lib/transactions/formatting';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
-
-const LEASE_TRANSACTION_LABELS: Record<string, string> = {
-  Charge: 'Lease Charge',
-  Payment: 'Lease Payment',
-  Credit: 'Lease Credit',
-};
-
-const getLeaseTransactionLabel = (type: string): string => LEASE_TRANSACTION_LABELS[type] ?? type;
-
-const buildLeaseTransactionLink = (leaseId?: number | string | null): string | null => {
-  if (leaseId == null) return null;
-  return `/leases/${leaseId}?tab=financials`;
-};
+import { addMonths, subDays } from 'date-fns';
 
 type RelatedLogOption = {
   id: string;
@@ -70,7 +62,24 @@ const LEASE_TRANSACTION_MODES: TransactionMode[] = [
   'deposit',
 ];
 
-const UNIT_TRANSACTION_MODES: TransactionMode[] = ['bill', 'propertyTaxEscrow'];
+const UNIT_TRANSACTION_MODES: TransactionMode[] = [
+  'bill',
+  'managementFee',
+  'propertyTaxEscrow',
+  'ownerDraw',
+];
+
+const TRANSACTION_MODE_LABELS: Record<TransactionMode, string> = {
+  payment: 'Payment',
+  charge: 'Charge',
+  credit: 'Credit',
+  refund: 'Refund',
+  deposit: 'Deposit',
+  bill: 'Bill',
+  managementFee: 'Management fee',
+  propertyTaxEscrow: 'Escrow',
+  ownerDraw: 'Owner draw',
+};
 
 interface MonthlyLogDetailPageContentProps {
   monthlyLog: {
@@ -79,6 +88,7 @@ interface MonthlyLogDetailPageContentProps {
     stage: string;
     status: MonthlyLogStatus;
     notes: string | null;
+    lease_id: number | null;
     property_id: string | null;
     unit_id: string | null;
     tenant_id: string | null;
@@ -120,8 +130,6 @@ interface MonthlyLogDetailPageContentProps {
   };
 }
 
-type TransactionTypeFilter = 'all' | Transaction['transaction_type'];
-
 const TASK_STATUS_BADGE: Record<MonthlyLogTaskSummary['statusKey'], string> = {
   new: 'bg-amber-50 text-amber-700 border border-amber-200',
   in_progress: 'bg-blue-50 text-blue-700 border border-blue-200',
@@ -145,9 +153,9 @@ export default function MonthlyLogDetailPageContent({
   initialData,
 }: MonthlyLogDetailPageContentProps) {
   const router = useRouter();
+  const scopeFieldId = useId();
   const [logStatus, setLogStatus] = useState<MonthlyLogStatus>(monthlyLog.status);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [unassignedTypeFilter, setUnassignedTypeFilter] = useState<TransactionTypeFilter>('all');
   const [unassignedSearch, setUnassignedSearch] = useState('');
   const [selectedAssigned, setSelectedAssigned] = useState<Set<string>>(new Set());
   const [selectedUnassigned, setSelectedUnassigned] = useState<Set<string>>(new Set());
@@ -161,7 +169,27 @@ export default function MonthlyLogDetailPageContent({
   );
   const relatedLogs = relatedLogsResponse?.items ?? [];
 
-  const hasActiveLease = Boolean(monthlyLog.activeLease?.id);
+  const activeLeaseId = monthlyLog.activeLease?.id ?? monthlyLog.lease_id ?? null;
+  const hasActiveLease = Boolean(activeLeaseId);
+  const supportsUnitTransactions = Boolean(monthlyLog.unit_id);
+  const defaultTransactionScope: 'lease' | 'unit' = hasActiveLease ? 'lease' : 'unit';
+  const [transactionScope, setTransactionScope] = useState<'lease' | 'unit'>(
+    defaultTransactionScope,
+  );
+  const [loadLeaseUnassigned, setLoadLeaseUnassigned] = useState<boolean>(Boolean(activeLeaseId));
+  const [loadUnitUnassigned, setLoadUnitUnassigned] = useState<boolean>(
+    defaultTransactionScope === 'unit' && supportsUnitTransactions,
+  );
+
+  useEffect(() => {
+    if (transactionScope === 'lease' && hasActiveLease && !loadLeaseUnassigned) {
+      setLoadLeaseUnassigned(true);
+    }
+    if (transactionScope === 'unit' && supportsUnitTransactions && !loadUnitUnassigned) {
+      setLoadUnitUnassigned(true);
+    }
+  }, [transactionScope, hasActiveLease, supportsUnitTransactions, loadLeaseUnassigned, loadUnitUnassigned]);
+
   const {
     assignedTransactions,
     unassignedTransactions: leaseUnassignedTransactions,
@@ -179,6 +207,7 @@ export default function MonthlyLogDetailPageContent({
     moveTransactionToUnassigned,
     addAssignedTransaction,
     removeAssignedTransaction,
+    removeUnassignedTransaction,
     refetchAssigned,
     refetchFinancial,
     loadMoreUnassigned: loadMoreLeaseUnassigned,
@@ -188,19 +217,28 @@ export default function MonthlyLogDetailPageContent({
     initialSummary: initialData?.financialSummary,
     initialUnassigned: initialData?.unassignedTransactions,
     initialUnassignedCursor: initialData?.unassignedCursor ?? null,
-    leaseId: monthlyLog.activeLease?.id ?? null,
+    leaseId: activeLeaseId,
     unitId: monthlyLog.unit_id ?? null,
+    loadLeaseUnassigned,
+    loadUnitUnassigned,
   });
   const defaultTransactionMode: TransactionMode = hasActiveLease ? 'payment' : 'bill';
   const [transactionMode, setTransactionMode] = useState<TransactionMode>(defaultTransactionMode);
-  const defaultTransactionScope: 'lease' | 'unit' = hasActiveLease ? 'lease' : 'unit';
-  const [transactionScope, setTransactionScope] = useState<'lease' | 'unit'>(
-    defaultTransactionScope,
-  );
+  const [transactionModeMenuOpen, setTransactionModeMenuOpen] = useState(false);
   const [transactionOverlayOpen, setTransactionOverlayOpen] = useState(false);
   const [selectedTransactionDetail, setSelectedTransactionDetail] =
     useState<MonthlyLogTransaction | null>(null);
+  const [selectedTransactionScope, setSelectedTransactionScope] =
+    useState<'assigned' | 'unassigned' | null>(null);
   const [transactionDetailDialogOpen, setTransactionDetailDialogOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    ids: string[];
+    scope: 'assigned' | 'unassigned';
+    title: string;
+    description: string;
+  }>({ open: false, ids: [], scope: 'assigned', title: '', description: '' });
+  const [confirmProcessing, setConfirmProcessing] = useState(false);
   const allowedModes =
     transactionScope === 'lease' ? LEASE_TRANSACTION_MODES : UNIT_TRANSACTION_MODES;
   const propertyId =
@@ -225,34 +263,11 @@ export default function MonthlyLogDetailPageContent({
     }
   }, [allowedModes, transactionMode]);
 
-  const formatCurrency = useCallback((value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(value);
-  }, []);
-
-  const formatDate = useCallback((value: string) => {
-    return new Date(value).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  }, []);
-
   const filterUnassignedTransactions = useCallback(
     (transactions: MonthlyLogTransaction[]) => {
       if (!transactions.length) return [];
       const search = unassignedSearch.trim().toLowerCase();
       return transactions.filter((transaction) => {
-        if (
-          unassignedTypeFilter !== 'all' &&
-          transaction.transaction_type !== unassignedTypeFilter
-        ) {
-          return false;
-        }
-
         if (!search) return true;
 
         const fields = [
@@ -266,7 +281,7 @@ export default function MonthlyLogDetailPageContent({
         return fields.some((field) => field.includes(search));
       });
     },
-    [unassignedSearch, unassignedTypeFilter],
+    [unassignedSearch],
   );
 
   const filteredLeaseUnassigned = useMemo(
@@ -297,11 +312,9 @@ export default function MonthlyLogDetailPageContent({
     transactionScope === 'lease' ? loadMoreLeaseUnassigned : loadMoreUnitUnassigned;
 
   const leaseAssignedTransactions = useMemo(() => {
-    if (!monthlyLog.activeLease?.id) return assignedTransactions;
-    return assignedTransactions.filter(
-      (transaction) => transaction.lease_id === monthlyLog.activeLease?.id,
-    );
-  }, [assignedTransactions, monthlyLog.activeLease?.id]);
+    if (!activeLeaseId) return assignedTransactions;
+    return assignedTransactions.filter((transaction) => transaction.lease_id === activeLeaseId);
+  }, [activeLeaseId, assignedTransactions]);
 
   const unitAssignedTransactions = useMemo(
     () => assignedTransactions.filter((transaction) => !transaction.lease_id),
@@ -315,46 +328,6 @@ export default function MonthlyLogDetailPageContent({
     setSelectedAssigned(new Set());
     setSelectedUnassigned(new Set());
   }, [transactionScope]);
-
-  const handleAssignTransaction = useCallback(
-    async (transactionId: string) => {
-      const transactionToAssign = filteredUnassigned.find(
-        (transaction) => transaction.id === transactionId,
-      );
-      if (!transactionToAssign) {
-        toast.error('Transaction not found');
-        return;
-      }
-
-      moveTransactionToAssigned(transactionToAssign);
-
-      try {
-        const response = await fetch(`/api/monthly-logs/${monthlyLog.id}/transactions/assign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transactionIds: [transactionId] }),
-        });
-
-        if (!response.ok) {
-          moveTransactionToUnassigned(transactionId);
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error?.message || 'Failed to assign transaction');
-        }
-
-        setSelectedUnassigned((prev) => {
-          if (!prev.has(transactionId)) return prev;
-          const next = new Set(prev);
-          next.delete(transactionId);
-          return next;
-        });
-        toast.success('Transaction assigned');
-      } catch (error) {
-        console.error('Error assigning transaction', error);
-        toast.error(error instanceof Error ? error.message : 'Failed to assign transaction');
-      }
-    },
-    [monthlyLog.id, moveTransactionToAssigned, moveTransactionToUnassigned, filteredUnassigned],
-  );
 
   const handleRelatedLogSelect = useCallback(
     (logId: string) => {
@@ -389,6 +362,7 @@ export default function MonthlyLogDetailPageContent({
           throw new Error('Failed to unassign transaction');
         }
 
+        await refetchFinancial();
         toast.success('Transaction unassigned');
       } catch (error) {
         console.error('Error unassigning transaction', error);
@@ -416,6 +390,7 @@ export default function MonthlyLogDetailPageContent({
           }),
         ),
       );
+      await refetchFinancial();
       toast.success(`Unassigned ${ids.length} transaction${ids.length === 1 ? '' : 's'}`);
       setSelectedAssigned(new Set());
     } catch (error) {
@@ -478,6 +453,123 @@ export default function MonthlyLogDetailPageContent({
     activeUnassignedRaw,
   ]);
 
+  const openDeleteConfirmation = useCallback(
+    (ids: string[], scope: 'assigned' | 'unassigned') => {
+      if (!ids.length) return;
+      setConfirmState({
+        open: true,
+        ids,
+        scope,
+        title: ids.length === 1 ? 'Delete transaction?' : 'Delete selected transactions?',
+        description:
+          'This action cannot be undone and will remove the transaction from this monthly log.',
+      });
+    },
+    [],
+  );
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!confirmState.open || !confirmState.ids.length) return;
+    setConfirmProcessing(true);
+    const { ids, scope } = confirmState;
+    try {
+      await Promise.all(
+        ids.map((transactionId) =>
+          fetch(`/api/monthly-logs/${monthlyLog.id}/transactions/${transactionId}`, {
+            method: 'DELETE',
+          }),
+        ),
+      );
+
+      ids.forEach((id) => {
+        if (scope === 'assigned') {
+          removeAssignedTransaction(id);
+        } else {
+          removeUnassignedTransaction(id);
+        }
+      });
+
+      if (scope === 'assigned') {
+        setSelectedAssigned((current) => {
+          const next = new Set(current);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        });
+      } else {
+        setSelectedUnassigned(new Set());
+      }
+
+      await refetchFinancial();
+      toast.success(`Deleted ${ids.length} transaction${ids.length === 1 ? '' : 's'}`);
+    } catch (error) {
+      console.error('Error deleting transaction', error);
+      toast.error('Failed to delete transaction');
+    } finally {
+      setConfirmProcessing(false);
+      setConfirmState((prev) => ({ ...prev, open: false, ids: [] }));
+    }
+  }, [
+    confirmState,
+    monthlyLog.id,
+    refetchFinancial,
+    removeAssignedTransaction,
+    removeUnassignedTransaction,
+  ]);
+
+  const resolveEditTarget = useCallback(
+    (
+      transaction: MonthlyLogTransaction | null,
+    ): { href: string | null; reason: string | null } => {
+      if (!transaction) {
+        return { href: null, reason: null };
+      }
+
+      const returnToParam = new URLSearchParams({
+        returnTo: `/monthly-logs/${monthlyLog.id}`,
+      }).toString();
+
+      if (transaction.transaction_type === 'Bill') {
+        return {
+          href: `/bills/${transaction.id}/edit?${returnToParam}`,
+          reason: null,
+        };
+      }
+
+      if (transaction.lease_id) {
+        return {
+          href: `/leases/${transaction.lease_id}?tab=financials&${returnToParam}`,
+          reason: null,
+        };
+      }
+
+      return {
+        href: null,
+        reason:
+          'Edit this transaction from its source workspace (e.g., bills, management fees, or journal entries).',
+      };
+    },
+    [monthlyLog.id],
+  );
+
+  const handleEditTransaction = useCallback(
+    (transaction: MonthlyLogTransaction | null) => {
+      if (!transaction) return;
+      const target = resolveEditTarget(transaction);
+
+      if (target.href) {
+        router.push(target.href);
+        setTransactionDetailDialogOpen(false);
+        return;
+      }
+
+      toast.info(
+        target.reason ??
+          'Editing for this transaction type is managed in its source workspace.',
+      );
+    },
+    [resolveEditTarget, router],
+  );
+
   const handleStatusToggle = useCallback(async () => {
     const nextStatus: MonthlyLogStatus = logStatus === 'complete' ? 'in_progress' : 'complete';
     setUpdatingStatus(true);
@@ -528,8 +620,28 @@ export default function MonthlyLogDetailPageContent({
     [tenantName, unitDisplayName],
   );
 
-  const periodStart = new Date(monthlyLog.period_start);
+  const toLocalDate = (value: string) => {
+    const [year, month, day] = value.split('-').map((part) => parseInt(part, 10));
+    if (
+      Number.isFinite(year) &&
+      Number.isFinite(month) &&
+      Number.isFinite(day) &&
+      year > 0 &&
+      month > 0 &&
+      day > 0
+    ) {
+      return new Date(year, month - 1, day);
+    }
+    return new Date(value);
+  };
+
+  const periodStart = toLocalDate(monthlyLog.period_start);
   const periodDisplay = periodStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const periodEnd = subDays(addMonths(periodStart, 1), 1);
+  const formatAsShortDate = (date: Date) =>
+    date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+  const periodStartDisplay = formatAsShortDate(periodStart);
+  const periodEndDisplay = formatAsShortDate(periodEnd);
 
   type ManagementDetail = { label: string; value: string };
   const managementDetails: ManagementDetail[] = [
@@ -567,7 +679,6 @@ export default function MonthlyLogDetailPageContent({
   const statusActionLabel =
     logStatus === 'complete' ? 'Reopen monthly log' : 'Mark monthly log complete';
 
-  const supportsUnitTransactions = Boolean(monthlyLog.unit_id);
   const addTransactionDisabled =
     transactionScope === 'lease' ? !hasActiveLease : !supportsUnitTransactions;
   const addTransactionDisabledReason = addTransactionDisabled
@@ -575,6 +686,11 @@ export default function MonthlyLogDetailPageContent({
       ? 'Link an active lease to this monthly log to add lease transactions.'
       : 'Unit information is required before adding unit transactions.'
     : null;
+  const transactionModeLabel = TRANSACTION_MODE_LABELS[transactionMode] ?? 'Transaction';
+  const selectedEditIntent = useMemo(
+    () => resolveEditTarget(selectedTransactionDetail),
+    [resolveEditTarget, selectedTransactionDetail],
+  );
 
   const assignedSelectedCount = selectedAssigned.size;
   const unassignedSelectedCount = selectedUnassigned.size;
@@ -604,6 +720,8 @@ export default function MonthlyLogDetailPageContent({
         managementDetails={managementDetails}
         leaseSummary={leaseSummaryParts.join(' • ')}
         status={logStatus}
+        periodStartDisplay={periodStartDisplay}
+        periodEndDisplay={periodEndDisplay}
         onBackToOverview={() => router.push('/monthly-logs')}
         actions={headerActions}
         relatedLogs={relatedLogs}
@@ -619,7 +737,7 @@ export default function MonthlyLogDetailPageContent({
           onModeChange={setTransactionMode}
           onClose={() => setTransactionOverlayOpen(false)}
           allowedModes={allowedModes}
-          leaseId={monthlyLog.activeLease?.id ?? ''}
+          leaseId={activeLeaseId ? String(activeLeaseId) : ''}
           leaseSummary={leaseSummaryDetails}
           tenantOptions={tenantOptions}
           hasActiveLease={hasActiveLease}
@@ -633,6 +751,9 @@ export default function MonthlyLogDetailPageContent({
           removeAssignedTransaction={removeAssignedTransaction}
           refetchAssigned={refetchAssigned}
           refetchFinancial={refetchFinancial}
+          financialSummary={financialSummary}
+          periodStart={monthlyLog.period_start}
+          activeLease={activeLease}
         />
       ) : null}
 
@@ -650,92 +771,283 @@ export default function MonthlyLogDetailPageContent({
           transaction={selectedTransactionDetail}
           formatCurrency={formatCurrency}
           formatDate={formatDate}
+          onEdit={handleEditTransaction}
+          onDelete={
+            selectedTransactionScope && selectedTransactionDetail
+              ? () => {
+                  openDeleteConfirmation([selectedTransactionDetail.id], selectedTransactionScope);
+                  setTransactionDetailDialogOpen(false);
+                }
+              : undefined
+          }
+          editDisabledReason={selectedEditIntent.reason}
         />
       )}
 
-      <div className="mx-auto w-full max-w-screen-2xl px-6 py-8 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,_3fr)_minmax(320px,_1fr)]">
+      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 lg:px-8 lg:py-8">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,_3fr)_minmax(320px,_1fr)]">
           <div className="space-y-10">
             <section className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <Tabs
-                  value={transactionScope}
-                  onValueChange={(value) => setTransactionScope(value as 'lease' | 'unit')}
-                  className="flex-1"
+              <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
+                <div className="flex items-center gap-3 text-sm font-semibold text-slate-700 min-w-[220px]">
+                  <span className="text-sm font-semibold text-slate-800">Scope:</span>
+                  <RadioGroup
+                    value={transactionScope}
+                    onValueChange={(value) => setTransactionScope(value as 'lease' | 'unit')}
+                    className="flex items-center gap-4 min-w-[160px]"
+                    aria-label="Transaction scope"
+                  >
+                    {hasActiveLease ? (
+                      <Label htmlFor={`${scopeFieldId}-lease`} className="text-slate-700">
+                        <RadioGroupItem value="lease" id={`${scopeFieldId}-lease`} className="peer" />
+                        <span>Lease</span>
+                      </Label>
+                    ) : null}
+                    {supportsUnitTransactions ? (
+                      <Label htmlFor={`${scopeFieldId}-unit`} className="text-slate-700">
+                        <RadioGroupItem value="unit" id={`${scopeFieldId}-unit`} className="peer" />
+                        <span>Unit</span>
+                      </Label>
+                    ) : null}
+                  </RadioGroup>
+                  {!hasActiveLease && !supportsUnitTransactions ? (
+                    <span className="text-slate-400">Unavailable</span>
+                  ) : null}
+                </div>
+                <DropdownMenu
+                  open={transactionModeMenuOpen}
+                  onOpenChange={(open) => setTransactionModeMenuOpen(open)}
                 >
-                  <TabsList className="border-border flex gap-8 border-b bg-transparent p-0">
-                    <TabsTrigger
-                      value="lease"
-                      disabled={!monthlyLog.activeLease?.id}
-                      className={cn(
-                        'text-muted-foreground rounded-none border-b-2 border-none border-transparent px-1 py-3 text-sm font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none',
-                        'data-[state=active]:border-primary data-[state=active]:text-primary',
-                        'data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:border-muted-foreground',
-                        'disabled:cursor-not-allowed disabled:opacity-40',
-                      )}
-                    >
-                      Lease Transactions
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="unit"
-                      className={cn(
-                        'text-muted-foreground rounded-none border-b-2 border-none border-transparent px-1 py-3 text-sm font-medium transition-colors focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none',
-                        'data-[state=active]:border-primary data-[state=active]:text-primary',
-                        'data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:border-muted-foreground',
-                        'disabled:cursor-not-allowed disabled:opacity-40',
-                      )}
-                      disabled={!supportsUnitTransactions}
-                    >
-                      Unit Transactions
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="ml-auto gap-2"
-                  onClick={() => {
-                    if (addTransactionDisabled) return;
-                    setTransactionMode(allowedModes[0]);
-                    setTransactionOverlayOpen(true);
-                  }}
-                  disabled={addTransactionDisabled}
-                  title={addTransactionDisabledReason ?? undefined}
-                >
-                  Add transaction
-                </Button>
+                  <div className="inline-flex min-w-[180px] justify-start">
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-2 justify-between"
+                        disabled={addTransactionDisabled}
+                      >
+                        {transactionModeLabel}
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </div>
+                  <DropdownMenuContent align="end">
+                    {allowedModes.map((mode) => {
+                      const label = TRANSACTION_MODE_LABELS[mode] ?? mode;
+                      return (
+                        <DropdownMenuItem
+                          key={mode}
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            setTransactionMode(mode);
+                            setTransactionModeMenuOpen(false);
+                          }}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <span>{label}</span>
+                            {mode === transactionMode ? <Check className="h-4 w-4 text-green-600" /> : null}
+                          </div>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="inline-flex min-w-[180px] justify-start">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full gap-2 justify-center"
+                    onClick={() => {
+                      if (addTransactionDisabled) return;
+                      setTransactionOverlayOpen(true);
+                    }}
+                    disabled={addTransactionDisabled}
+                  >
+                    Add {transactionModeLabel.toLowerCase()}
+                  </Button>
+                </div>
               </div>
 
-              <TransactionsSection
-                assignedTransactions={visibleAssignedTransactions}
-                unassignedTransactions={filteredUnassigned}
-                loadingAssigned={loadingAssigned}
-                loadingUnassigned={activeLoadingUnassigned}
-                loadingMoreUnassigned={activeLoadingMoreUnassigned}
-                hasMoreUnassigned={activeHasMoreUnassigned}
-                onAssign={handleAssignTransaction}
-                onUnassign={handleUnassignTransaction}
-                onBulkUnassign={handleBulkUnassign}
-                onBulkAssign={handleBulkAssign}
-                onLoadMoreUnassigned={activeLoadMoreUnassigned}
-                selectedAssigned={selectedAssigned}
-                setSelectedAssigned={setSelectedAssigned}
-                selectedUnassigned={selectedUnassigned}
-                setSelectedUnassigned={setSelectedUnassigned}
-                formatCurrency={formatCurrency}
-                formatDate={formatDate}
-                assignedSelectedCount={assignedSelectedCount}
-                unassignedSelectedCount={unassignedSelectedCount}
-                unassignedTypeFilter={unassignedTypeFilter}
-                onTypeFilterChange={setUnassignedTypeFilter}
-                unassignedSearch={unassignedSearch}
-                onSearchChange={setUnassignedSearch}
-                transactionScope={transactionScope}
-                onTransactionClick={(transaction) => {
-                  setSelectedTransactionDetail(transaction);
-                  setTransactionDetailDialogOpen(true);
-                }}
-              />
+              {addTransactionDisabledReason ? (
+                <p className="text-xs text-slate-500">{addTransactionDisabledReason}</p>
+              ) : null}
+
+              {(!hasActiveLease || !supportsUnitTransactions) ? (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <div className="space-y-1.5">
+                    {!hasActiveLease ? (
+                      <p className="leading-snug">
+                        Lease transactions are disabled until you link an active lease to this monthly log.
+                        You can attach a lease from the unit’s lease workspace.
+                      </p>
+                    ) : null}
+                    {!supportsUnitTransactions ? (
+                      <p className="leading-snug">
+                        Unit transactions require this monthly log to be linked to a unit. Add the unit to the log to enable unit transactions.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              <section className="space-y-10">
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Assigned transactions</h3>
+                      <p className="text-sm text-slate-500">
+                        Review current assignments and unassign if needed.
+                      </p>
+                    </div>
+                  </div>
+                  <TransactionTable
+                    transactions={visibleAssignedTransactions}
+                    loading={loadingAssigned}
+                    selectedIds={selectedAssigned}
+                    onToggleSelection={(id) =>
+                      setSelectedAssigned((current) => {
+                        const next = new Set(current);
+                        if (next.has(id)) {
+                          next.delete(id);
+                        } else {
+                          next.add(id);
+                        }
+                        return next;
+                      })
+                    }
+                    onToggleAll={(checked) =>
+                      setSelectedAssigned(
+                        checked
+                          ? new Set(visibleAssignedTransactions.map((transaction) => transaction.id))
+                          : new Set(),
+                      )
+                    }
+                    onRowClick={(transaction) => {
+                      setSelectedTransactionDetail(transaction);
+                      setSelectedTransactionScope('assigned');
+                      setTransactionDetailDialogOpen(true);
+                    }}
+                    stickyActions={
+                      assignedSelectedCount > 0 ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Badge
+                            variant="outline"
+                            className="border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700"
+                          >
+                            {assignedSelectedCount} selected
+                          </Badge>
+                          <Button type="button" size="sm" variant="outline" onClick={handleBulkUnassign}>
+                            Unassign
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Assigned
+                        </div>
+                      )
+                    }
+                    emptyTitle="No transactions assigned yet."
+                    emptyDescription="Assign or create transactions to see them in this list."
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900">Unassigned transactions</h3>
+                      <p className="text-sm text-slate-500">Assign transactions directly from this list.</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="relative w-full sm:w-[200px] md:w-[240px]">
+                        <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          value={unassignedSearch}
+                          onChange={(event) => setUnassignedSearch(event.target.value)}
+                          placeholder="Search memo or reference"
+                          className="h-10 w-full rounded-xl pl-9 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <TransactionTable
+                    transactions={filteredUnassigned}
+                    loading={activeLoadingUnassigned}
+                    selectedIds={selectedUnassigned}
+                    onToggleSelection={(id) =>
+                      setSelectedUnassigned((current) => {
+                        const next = new Set(current);
+                        if (next.has(id)) {
+                          next.delete(id);
+                        } else {
+                          next.add(id);
+                        }
+                        return next;
+                      })
+                    }
+                    onToggleAll={(checked) =>
+                      setSelectedUnassigned(
+                        checked
+                          ? new Set(filteredUnassigned.map((transaction) => transaction.id))
+                          : new Set(),
+                      )
+                    }
+                    onRowClick={(transaction) => {
+                      setSelectedTransactionDetail(transaction);
+                      setSelectedTransactionScope('unassigned');
+                      setTransactionDetailDialogOpen(true);
+                    }}
+                    stickyActions={
+                      unassignedSelectedCount > 0 ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Badge
+                            variant="outline"
+                            className="border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700"
+                          >
+                            {unassignedSelectedCount} selected
+                          </Badge>
+                          <Button type="button" size="sm" variant="outline" onClick={handleBulkAssign}>
+                            Assign
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive"
+                            onClick={() =>
+                              openDeleteConfirmation(Array.from(selectedUnassigned), 'unassigned')
+                            }
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Unassigned
+                        </div>
+                      )
+                    }
+                    emptyTitle="No transactions available."
+                    emptyDescription="New transactions will appear here when they match this scope."
+                  />
+
+                  {activeHasMoreUnassigned ? (
+                    <div className="flex justify-center border-t border-slate-100 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void activeLoadMoreUnassigned()}
+                        disabled={activeLoadingMoreUnassigned}
+                      >
+                        {activeLoadingMoreUnassigned ? 'Loading…' : 'Load more transactions'}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
             </section>
 
             <TasksPanel tasks={tasks} />
@@ -755,344 +1067,17 @@ export default function MonthlyLogDetailPageContent({
           </div>
         </div>
       </div>
+
+      <DestructiveActionModal
+        open={confirmState.open}
+        onOpenChange={(open) => setConfirmState((prev) => ({ ...prev, open }))}
+        title={confirmState.title}
+        description={confirmState.description}
+        confirmLabel="Delete"
+        isProcessing={confirmProcessing}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
-  );
-}
-
-type TransactionsSectionProps = {
-  assignedTransactions: Transaction[];
-  unassignedTransactions: Transaction[];
-  loadingAssigned: boolean;
-  loadingUnassigned: boolean;
-  loadingMoreUnassigned: boolean;
-  hasMoreUnassigned: boolean;
-  onAssign: (transactionId: string) => Promise<void>;
-  onUnassign: (transactionId: string) => Promise<void>;
-  onBulkUnassign: () => void | Promise<void>;
-  onBulkAssign: () => void | Promise<void>;
-  onLoadMoreUnassigned: () => Promise<void>;
-  selectedAssigned: Set<string>;
-  setSelectedAssigned: (value: Set<string>) => void;
-  selectedUnassigned: Set<string>;
-  setSelectedUnassigned: (value: Set<string>) => void;
-  formatCurrency: (value: number) => string;
-  formatDate: (value: string) => string;
-  assignedSelectedCount: number;
-  unassignedSelectedCount: number;
-  unassignedTypeFilter: TransactionTypeFilter;
-  onTypeFilterChange: (value: TransactionTypeFilter) => void;
-  unassignedSearch: string;
-  onSearchChange: (value: string) => void;
-  transactionScope: 'lease' | 'unit';
-  onTransactionClick: (transaction: Transaction) => void;
-};
-
-function TransactionsSection({
-  assignedTransactions,
-  unassignedTransactions,
-  loadingAssigned,
-  loadingUnassigned,
-  loadingMoreUnassigned,
-  hasMoreUnassigned,
-  onAssign,
-  onUnassign,
-  onBulkUnassign,
-  onBulkAssign,
-  onLoadMoreUnassigned,
-  selectedAssigned,
-  setSelectedAssigned,
-  selectedUnassigned,
-  setSelectedUnassigned,
-  formatCurrency,
-  formatDate,
-  assignedSelectedCount,
-  unassignedSelectedCount,
-  unassignedTypeFilter,
-  onTypeFilterChange,
-  unassignedSearch,
-  onSearchChange,
-  transactionScope,
-  onTransactionClick,
-}: TransactionsSectionProps) {
-  const toggleAssignedSelection = (transactionId: string) => {
-    const next = new Set(selectedAssigned);
-    if (next.has(transactionId)) {
-      next.delete(transactionId);
-    } else {
-      next.add(transactionId);
-    }
-    setSelectedAssigned(next);
-  };
-
-  const toggleUnassignedSelection = (transactionId: string) => {
-    const next = new Set(selectedUnassigned);
-    if (next.has(transactionId)) {
-      next.delete(transactionId);
-    } else {
-      next.add(transactionId);
-    }
-    setSelectedUnassigned(next);
-  };
-
-  return (
-    <section className="space-y-8">
-      <div className="space-y-12">
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Assigned transactions</h3>
-              <p className="text-sm text-slate-500">
-                Review current assignments and unassign if needed.
-              </p>
-            </div>
-            {assignedSelectedCount > 0 ? (
-              <div className="flex items-center gap-3">
-                <Badge
-                  variant="outline"
-                  className="border-blue-200 bg-blue-50 text-xs text-blue-700"
-                >
-                  {assignedSelectedCount} selected
-                </Badge>
-                <Button type="button" size="sm" variant="outline" onClick={onBulkUnassign}>
-                  Unassign selected
-                </Button>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="max-h-[360px] overflow-auto">
-            <Table className="min-w-[880px]">
-              <TableHeader>
-                <TableRow className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
-                  <TableHead className="w-10" />
-                  <TableHead className="w-36">Date</TableHead>
-                  <TableHead className="w-48">Account</TableHead>
-                  <TableHead className="w-64">Memo</TableHead>
-                  <TableHead className="w-28">Type</TableHead>
-                  <TableHead className="w-32 text-right">Amount</TableHead>
-                  <TableHead className="w-32 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingAssigned ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-sm text-slate-500">
-                      Loading assigned transactions…
-                    </TableCell>
-                  </TableRow>
-                ) : assignedTransactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-sm text-slate-500">
-                      No transactions assigned yet.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  assignedTransactions.map((transaction) => {
-                    // For GeneralJournalEntry (e.g., Tax Escrow), preserve the sign
-                    // For other transaction types, use absolute value with type-based prefix
-                    const isJournalEntry = transaction.transaction_type === 'GeneralJournalEntry';
-                    const displayAmount = isJournalEntry
-                      ? transaction.total_amount
-                      : Math.abs(transaction.total_amount);
-                    const amountFormatted = formatCurrency(displayAmount);
-                    const typeLabel = getLeaseTransactionLabel(transaction.transaction_type);
-                    const leaseLink = buildLeaseTransactionLink(transaction.lease_id);
-                    const isUnitTransaction = transactionScope === 'unit' && !transaction.lease_id;
-                    const handleRowClick = (e: React.MouseEvent) => {
-                      // Don't trigger row click if clicking on checkbox, button, or link
-                      const target = e.target as HTMLElement;
-                      if (
-                        target.closest('button') ||
-                        target.closest('input[type="checkbox"]') ||
-                        target.closest('a')
-                      ) {
-                        return;
-                      }
-                      if (isUnitTransaction) {
-                        onTransactionClick(transaction);
-                      }
-                    };
-                    return (
-                      <TableRow
-                        key={transaction.id}
-                        className={cn(
-                          'text-sm text-slate-700',
-                          isUnitTransaction && 'cursor-pointer hover:bg-slate-50',
-                        )}
-                        onClick={handleRowClick}
-                      >
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={selectedAssigned.has(transaction.id)}
-                            onCheckedChange={() => toggleAssignedSelection(transaction.id)}
-                            aria-label={`Select transaction ${transaction.memo || transaction.id}`}
-                          />
-                        </TableCell>
-                        <TableCell>{formatDate(transaction.date)}</TableCell>
-                        <TableCell>{transaction.account_name ?? '—'}</TableCell>
-                        <TableCell>{transaction.memo}</TableCell>
-                        <TableCell>
-                          {leaseLink ? (
-                            <Link
-                              href={leaseLink}
-                              className="text-blue-600 underline-offset-2 hover:underline"
-                            >
-                              {typeLabel}
-                            </Link>
-                          ) : (
-                            typeLabel
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-slate-900">
-                          {isJournalEntry
-                            ? amountFormatted
-                            : `${transaction.transaction_type === 'Charge' ? '+' : '-'}${amountFormatted}`}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onUnassign(transaction.id);
-                            }}
-                          >
-                            Unassign
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900">Unassigned transactions</h3>
-              <p className="text-sm text-slate-500">Assign transactions directly from this list.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {unassignedSelectedCount > 0 ? (
-                <>
-                  <Badge
-                    variant="outline"
-                    className="border-blue-200 bg-blue-50 text-xs text-blue-700"
-                  >
-                    {unassignedSelectedCount} selected
-                  </Badge>
-                  <Button type="button" size="sm" variant="outline" onClick={onBulkAssign}>
-                    Assign selected
-                  </Button>
-                </>
-              ) : null}
-              <Select
-                value={unassignedTypeFilter}
-                onValueChange={(value: TransactionTypeFilter) => onTypeFilterChange(value)}
-              >
-                <SelectTrigger className="h-10 w-[180px] text-sm">
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  <SelectItem value="Charge">Charges</SelectItem>
-                  <SelectItem value="Credit">Credits</SelectItem>
-                  <SelectItem value="Payment">Payments</SelectItem>
-                  <SelectItem value="Bill">Bills</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={unassignedSearch}
-                  onChange={(event) => onSearchChange(event.target.value)}
-                  placeholder="Search memo or reference"
-                  className="h-10 w-[240px] rounded-xl pl-9 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="max-h-[320px] overflow-auto">
-            <Table className="min-w-[880px]">
-              <TableHeader>
-                <TableRow className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
-                  <TableHead className="w-10" />
-                  <TableHead className="w-36">Date</TableHead>
-                  <TableHead className="w-48">Account</TableHead>
-                  <TableHead className="w-64">Memo</TableHead>
-                  <TableHead className="w-28">Type</TableHead>
-                  <TableHead className="w-32 text-right">Amount</TableHead>
-                  <TableHead className="w-40">Reference</TableHead>
-                  <TableHead className="w-28 text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingUnassigned ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-sm text-slate-500">
-                      Loading unassigned transactions…
-                    </TableCell>
-                  </TableRow>
-                ) : unassignedTransactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-sm text-slate-500">
-                      No transactions available.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  unassignedTransactions.map((transaction) => (
-                    <TableRow key={transaction.id} className="text-sm text-slate-700">
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={selectedUnassigned.has(transaction.id)}
-                          onCheckedChange={() => toggleUnassignedSelection(transaction.id)}
-                          aria-label={`Select transaction ${transaction.memo || transaction.id}`}
-                        />
-                      </TableCell>
-                      <TableCell>{formatDate(transaction.date)}</TableCell>
-                      <TableCell>{transaction.account_name ?? '—'}</TableCell>
-                      <TableCell>{transaction.memo}</TableCell>
-                      <TableCell>
-                        {getLeaseTransactionLabel(transaction.transaction_type)}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-slate-900">
-                        {transaction.transaction_type === 'Charge' ? '+' : '-'}
-                        {formatCurrency(Math.abs(transaction.total_amount))}
-                      </TableCell>
-                      <TableCell>{transaction.reference_number ?? '—'}</TableCell>
-                      <TableCell className="text-right">
-                        <Button type="button" size="sm" onClick={() => onAssign(transaction.id)}>
-                          Assign
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {hasMoreUnassigned ? (
-            <div className="flex justify-center border-t border-slate-100 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void onLoadMoreUnassigned()}
-                disabled={loadingMoreUnassigned}
-              >
-                {loadingMoreUnassigned ? 'Loading…' : 'Load more transactions'}
-              </Button>
-            </div>
-          ) : null}
-        </section>
-      </div>
-    </section>
   );
 }
 
@@ -1102,7 +1087,7 @@ type TasksPanelProps = {
 
 function TasksPanel({ tasks }: TasksPanelProps) {
   return (
-    <section className="bg-white px-8 py-8 ring-1 ring-slate-200">
+    <section className="bg-white px-4 py-6 ring-1 ring-slate-200 sm:px-6 lg:px-8 lg:py-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">

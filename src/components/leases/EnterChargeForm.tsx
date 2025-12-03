@@ -69,6 +69,7 @@ export interface EnterChargeFormProps {
   };
   layout?: 'standalone' | 'embedded';
   footerRenderer?: (context: { submitting: boolean; onCancel?: () => void }) => ReactNode;
+  hideTitle?: boolean;
 }
 
 export default function EnterChargeForm({
@@ -82,6 +83,7 @@ export default function EnterChargeForm({
   initialValues,
   layout = 'standalone',
   footerRenderer,
+  hideTitle = false,
 }: EnterChargeFormProps) {
   const createId = () =>
     typeof globalThis !== 'undefined' &&
@@ -312,20 +314,11 @@ export default function EnterChargeForm({
 
   return (
     <div className={layout === 'embedded' ? 'space-y-6' : 'mx-auto w-full max-w-5xl space-y-8'}>
-      {layout === 'standalone' ? (
+      {layout === 'standalone' && !hideTitle ? (
         <div className="space-y-1">
           <h1 className="text-foreground text-2xl font-semibold">
             {mode === 'edit' ? 'Edit charge' : 'Enter charge'}
-            {leaseSummary?.propertyUnit ? ` for ${leaseSummary.propertyUnit}` : ''}
-            {leaseSummary?.tenants ? ` • ${leaseSummary.tenants}` : ''}
           </h1>
-          <div className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-            <Info className="h-4 w-4 flex-none" />
-            <span>
-              Charges post immediately to the ledger. Use this form to add ad-hoc fees or
-              adjustments.
-            </span>
-          </div>
         </div>
       ) : null}
 
