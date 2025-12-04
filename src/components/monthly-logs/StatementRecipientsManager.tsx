@@ -7,21 +7,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, Info, Mail, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-
-interface Recipient {
-  email: string;
-  name: string;
-  role: string;
-}
+import {
+  getStatementRecipients,
+  isValidRecipientEmail,
+  updateStatementRecipients,
+  type StatementRecipient,
+} from '@/lib/services/statement-recipients';
 
 interface StatementRecipientsManagerProps {
   propertyId: string;
-  onRecipientsChange?: (recipients: Recipient[]) => void;
+  onRecipientsChange?: (recipients: StatementRecipient[]) => void;
   onLoadingChange?: (loading: boolean) => void;
 }
 
@@ -30,7 +30,7 @@ export default function StatementRecipientsManager({
   onRecipientsChange,
   onLoadingChange,
 }: StatementRecipientsManagerProps) {
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [recipients, setRecipients] = useState<StatementRecipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -50,7 +50,7 @@ export default function StatementRecipientsManager({
     onLoadingChange?.(loading);
   }, [loading, onLoadingChange]);
 
-  const pushRecipientsChange = (nextRecipients: Recipient[]) => {
+  const pushRecipientsChange = (nextRecipients: StatementRecipient[]) => {
     setRecipients(nextRecipients);
     onRecipientsChange?.(nextRecipients);
   };
@@ -58,20 +58,7 @@ export default function StatementRecipientsManager({
   const fetchRecipients = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/properties/${propertyId}/statement-recipients`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch recipients');
-      }
-
-      const text = await response.text();
-      let data: { recipients?: Recipient[] } = {};
-      try {
-        data = text ? (JSON.parse(text) as { recipients?: Recipient[] }) : {};
-      } catch {
-        throw new Error('Invalid response while fetching recipients');
-      }
-      const nextRecipients = data.recipients || [];
+      const nextRecipients = await getStatementRecipients(propertyId);
       setRecipients(nextRecipients);
       onRecipientsChange?.(nextRecipients);
     } catch (error) {
@@ -86,25 +73,7 @@ export default function StatementRecipientsManager({
     try {
       setSaving(true);
 
-      const response = await fetch(`/api/properties/${propertyId}/statement-recipients`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ recipients }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        let errorData: any = {};
-        try {
-          errorData = text ? JSON.parse(text) : {};
-        } catch {
-          errorData = {};
-        }
-        throw new Error(errorData.error?.message || 'Failed to save recipients');
-      }
-
+      await updateStatementRecipients(propertyId, recipients);
       toast.success('Recipients updated successfully');
       setEditing(false);
     } catch (error) {
@@ -122,9 +91,7 @@ export default function StatementRecipientsManager({
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newEmail)) {
+    if (!isValidRecipientEmail(newEmail)) {
       toast.error('Please enter a valid email address');
       return;
     }
