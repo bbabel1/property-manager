@@ -11,12 +11,14 @@ import {
   ChevronDown,
   Check,
   Info,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +27,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/components/ui/utils';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 import EnhancedFinancialSummaryCard from '@/components/monthly-logs/EnhancedFinancialSummaryCard';
@@ -33,6 +42,7 @@ import StatementsStage from '@/components/monthly-logs/StatementsStage';
 import TransactionDetailDialog from '@/components/monthly-logs/TransactionDetailDialog';
 import JournalEntryDetailDialog from '@/components/monthly-logs/JournalEntryDetailDialog';
 import TransactionTable from '@/components/monthly-logs/TransactionTable';
+import RecurringTasksForUnit from '@/components/monthly-logs/RecurringTasksForUnit';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import { useMonthlyLogData } from '@/hooks/useMonthlyLogData';
 import MonthlyLogTransactionOverlay, {
@@ -44,6 +54,7 @@ import {
   formatDate,
 } from '@/lib/transactions/formatting';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
+import { type TaskPriorityKey, type TaskStatusKey } from '@/lib/tasks/utils';
 import { addMonths, subDays } from 'date-fns';
 
 type RelatedLogOption = {
@@ -432,7 +443,13 @@ export default function MonthlyLogDetailPageContent({
 
       if (!response.ok) {
         revertAssignments();
-        const errorData = await response.json().catch(() => ({}));
+        const text = await response.text();
+        let errorData: { error?: { message?: string } } = {};
+        try {
+          errorData = text ? JSON.parse(text) : {};
+        } catch {
+          errorData = { error: { message: `Request failed with status ${response.status}` } };
+        }
         throw new Error(errorData.error?.message || 'Failed to assign transactions');
       }
 
@@ -581,7 +598,13 @@ export default function MonthlyLogDetailPageContent({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const text = await response.text();
+        let errorData: { error?: { message?: string } } = {};
+        try {
+          errorData = text ? JSON.parse(text) : {};
+        } catch {
+          errorData = { error: { message: `Request failed with status ${response.status}` } };
+        }
         throw new Error(errorData.error?.message || 'Failed to update status');
       }
 
@@ -1050,7 +1073,15 @@ export default function MonthlyLogDetailPageContent({
               </section>
             </section>
 
-            <TasksPanel tasks={tasks} />
+            <TasksPanel
+              tasks={tasks}
+              monthlyLogId={monthlyLog.id}
+              periodStart={monthlyLog.period_start}
+              propertyId={monthlyLog.property_id}
+              unitId={monthlyLog.unit_id}
+              propertyName={monthlyLog.properties?.name ?? null}
+              unitLabel={monthlyLog.units?.unit_name ?? monthlyLog.units?.unit_number ?? null}
+            />
 
             <StatementsStage
               monthlyLogId={monthlyLog.id}
@@ -1081,11 +1112,127 @@ export default function MonthlyLogDetailPageContent({
   );
 }
 
-type TasksPanelProps = {
-  tasks: MonthlyLogTaskSummary[];
+type TaskFormState = {
+  subject: string;
+  description: string;
+  dueDate: string;
+  priority: TaskPriorityKey;
+  status: TaskStatusKey;
+  category: string;
+  assignedTo: string;
 };
 
-function TasksPanel({ tasks }: TasksPanelProps) {
+type TasksPanelProps = {
+  tasks: MonthlyLogTaskSummary[];
+  monthlyLogId: string;
+  periodStart: string;
+  propertyId: string | null;
+  unitId: string | null;
+  propertyName?: string | null;
+  unitLabel?: string | null;
+};
+
+function TasksPanel({
+  tasks,
+  monthlyLogId,
+  periodStart,
+  propertyId,
+  unitId,
+  propertyName,
+  unitLabel,
+}: TasksPanelProps) {
+  const initialDueDate = useMemo(() => {
+    if (!periodStart) return '';
+    const parsed = new Date(periodStart);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+  }, [periodStart]);
+
+  const [items, setItems] = useState<MonthlyLogTaskSummary[]>(tasks);
+  const [formOpen, setFormOpen] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [formState, setFormState] = useState<TaskFormState>({
+    subject: '',
+    description: '',
+    dueDate: initialDueDate,
+    priority: 'normal',
+    status: 'new',
+    category: '',
+    assignedTo: '',
+  });
+
+  useEffect(() => {
+    setItems(tasks);
+  }, [tasks]);
+
+  const updateField = <K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) => {
+    setFormState((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleCreateTask = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!formState.subject.trim()) {
+        toast.error('Subject is required.');
+        return;
+      }
+      setSaving(true);
+      try {
+        let dueDateIso: string | null = null;
+        if (formState.dueDate && formState.dueDate.trim()) {
+          const parsedDate = new Date(formState.dueDate);
+          dueDateIso = Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString();
+        }
+
+        const response = await fetch(`/api/monthly-logs/${monthlyLogId}/tasks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            subject: formState.subject,
+            description: formState.description || null,
+            dueDate: dueDateIso,
+            priority: formState.priority,
+            status: formState.status,
+            category: formState.category || null,
+            assignedTo: formState.assignedTo || null,
+          }),
+        });
+
+        const bodyText = await response.text();
+        let parsed: any = {};
+        try {
+          parsed = bodyText ? JSON.parse(bodyText) : {};
+        } catch {
+          parsed = {};
+        }
+        if (!response.ok) {
+          throw new Error(parsed?.error || 'Failed to create task');
+        }
+
+        const created = parsed as MonthlyLogTaskSummary;
+        setItems((prev) => [created, ...prev]);
+        toast.success('Task created');
+        setFormState({
+          subject: '',
+          description: '',
+          dueDate: initialDueDate,
+          priority: 'normal',
+          status: 'new',
+          category: '',
+          assignedTo: '',
+        });
+        setFormOpen(false);
+      } catch (error) {
+        console.error('Failed to create monthly log task', error);
+        toast.error((error as Error)?.message || 'Could not create task');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [formState, initialDueDate, monthlyLogId],
+  );
+
   return (
     <section className="bg-white px-4 py-6 ring-1 ring-slate-200 sm:px-6 lg:px-8 lg:py-8">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
@@ -1098,23 +1245,170 @@ function TasksPanel({ tasks }: TasksPanelProps) {
             <p className="text-sm text-slate-500">Track outstanding follow-ups and assignments.</p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => window.open('/tasks', '_blank')}
-        >
-          Open tasks workspace
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('/tasks', '_blank')}
+          >
+            Open tasks workspace
+          </Button>
+        </div>
       </header>
 
-      {tasks.length === 0 ? (
+      <div className="mb-6">
+        <RecurringTasksForUnit
+          propertyId={propertyId}
+          unitId={unitId}
+          propertyName={propertyName ?? undefined}
+          unitLabel={unitLabel ?? undefined}
+        />
+      </div>
+
+      <div className="mb-6 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-4">
+        <button
+          type="button"
+          onClick={() => setFormOpen((prev) => !prev)}
+          className="flex w-full items-center justify-between text-left text-sm font-medium text-slate-700"
+        >
+          <span className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Add a task to this log
+          </span>
+          <span className="text-xs text-slate-500">{formOpen ? 'Hide' : 'Show'}</span>
+        </button>
+        {formOpen ? (
+          <form onSubmit={handleCreateTask} className="mt-4 space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Subject <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={formState.subject}
+                  onChange={(event) => updateField('subject', event.target.value)}
+                  placeholder="Summarize the task"
+                  disabled={saving}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Due date
+                </Label>
+                <Input
+                  type="date"
+                  value={formState.dueDate}
+                  onChange={(event) => updateField('dueDate', event.target.value)}
+                  disabled={saving}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Priority
+                </Label>
+                <Select
+                  value={formState.priority}
+                  onValueChange={(value) => updateField('priority', value as TaskPriorityKey)}
+                  disabled={saving}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Status
+                </Label>
+                <Select
+                  value={formState.status}
+                  onValueChange={(value) => updateField('status', value as TaskStatusKey)}
+                  disabled={saving}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="in_progress">In progress</SelectItem>
+                    <SelectItem value="on_hold">On hold</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Category
+                </Label>
+                <Input
+                  value={formState.category}
+                  onChange={(event) => updateField('category', event.target.value)}
+                  placeholder="Optional category"
+                  disabled={saving}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Assigned to
+              </Label>
+              <Input
+                value={formState.assignedTo}
+                onChange={(event) => updateField('assignedTo', event.target.value)}
+                placeholder="Name or email"
+                disabled={saving}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Description
+              </Label>
+              <Textarea
+                value={formState.description}
+                onChange={(event) => updateField('description', event.target.value)}
+                placeholder="Add context or instructions..."
+                className="min-h-[100px]"
+                disabled={saving}
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={saving}>
+                {saving ? 'Saving…' : 'Create task'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setFormOpen(false)}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
+
+      {items.length === 0 ? (
         <div className="border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-500">
           No tasks linked to this monthly log yet.
         </div>
       ) : (
         <div className="space-y-4">
-          {tasks.map((task) => (
+          {items.map((task) => (
             <div
               key={task.id}
               className="flex flex-col gap-3 border border-slate-200 bg-white p-5 transition hover:border-slate-300"
@@ -1149,7 +1443,9 @@ function TasksPanel({ tasks }: TasksPanelProps) {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-slate-900">{task.subject}</div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <span>{task.subject}</span>
+                </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
                   <span>Due {task.dueDateLabel}</span>
                   {task.assignedToLabel ? (

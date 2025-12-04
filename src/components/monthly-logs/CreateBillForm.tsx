@@ -257,7 +257,13 @@ export default function CreateBillForm({
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
+        const text = await response.text();
+        let payload: any = {};
+        try {
+          payload = text ? JSON.parse(text) : {};
+        } catch {
+          payload = {};
+        }
         const message =
           payload?.error?.message ||
           payload?.error ||
@@ -266,7 +272,13 @@ export default function CreateBillForm({
         return;
       }
 
-      const payload = await response.json().catch(() => ({}));
+      const text = await response.text();
+      let payload: any = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        payload = {};
+      }
       const transaction = extractLeaseTransactionFromResponse(payload);
       if (transaction) {
         onSuccess?.({ transaction });

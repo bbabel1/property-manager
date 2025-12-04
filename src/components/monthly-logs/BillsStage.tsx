@@ -39,7 +39,13 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
           throw new Error(`Failed to fetch bills data: ${response.status}`);
         }
 
-        const result = await response.json();
+        const text = await response.text();
+        let result: BillsData | null = null;
+        try {
+          result = text ? JSON.parse(text) : null;
+        } catch {
+          throw new Error('Invalid response from server');
+        }
         setData(result);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to fetch bills data';

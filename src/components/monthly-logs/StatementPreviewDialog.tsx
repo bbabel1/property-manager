@@ -44,10 +44,22 @@ export default function StatementPreviewDialog({
         method: 'POST',
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorText = await response.text();
+        let errorData: any = {};
+        try {
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch {
+          errorData = {};
+        }
         throw new Error(errorData.error?.message || 'Failed to generate statement');
       }
-      const data = await response.json();
+      const text = await response.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
       if (data.pdfUrl) {
         // Bust cache by appending a timestamp so the iframe refreshes immediately
         const bust = `${data.pdfUrl}?t=${Date.now()}`;

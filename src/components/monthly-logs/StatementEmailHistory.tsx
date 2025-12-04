@@ -50,7 +50,13 @@ export default function StatementEmailHistory({ monthlyLogId }: StatementEmailHi
         throw new Error('Failed to fetch email history');
       }
 
-      const data = await response.json();
+      const text = await response.text();
+      let data: { history?: EmailHistoryRecord[] } = {};
+      try {
+        data = text ? (JSON.parse(text) as { history?: EmailHistoryRecord[] }) : {};
+      } catch {
+        throw new Error('Invalid response while fetching email history');
+      }
       setHistory(data.history || []);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load email history';

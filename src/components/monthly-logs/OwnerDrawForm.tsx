@@ -292,7 +292,13 @@ export default function OwnerDrawForm({
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
+        const text = await response.text();
+        let payload: any = {};
+        try {
+          payload = text ? JSON.parse(text) : {};
+        } catch {
+          payload = {};
+        }
         const message =
           payload?.error?.message ||
           payload?.error ||
@@ -301,7 +307,13 @@ export default function OwnerDrawForm({
         return;
       }
 
-      const payload = await response.json().catch(() => ({}));
+      const text = await response.text();
+      let payload: any = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        payload = {};
+      }
       const transaction =
         payload?.data?.transaction ?? payload?.transaction ?? payload ?? undefined;
       const transactionId: string | undefined =

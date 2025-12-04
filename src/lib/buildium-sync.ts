@@ -863,6 +863,13 @@ export class BuildiumSyncService {
       return { success: true }
     }
 
+    const source = (localTask as { source?: string }).source
+    const syncFlag = (localTask as { sync_to_buildium?: boolean }).sync_to_buildium
+    if (source === 'monthly_log' || syncFlag === false) {
+      logger.info({ taskId: localTask.id }, 'Skipping Buildium sync for monthly-log task')
+      return { success: true }
+    }
+
     try {
       await this.updateSyncStatus('task', localTask.id, null, 'syncing')
 

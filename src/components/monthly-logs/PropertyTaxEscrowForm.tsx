@@ -43,7 +43,8 @@ const fetchGlAccounts = async (url: string): Promise<GlAccountRow[]> => {
 
   let payload: GlAccountApiResponse | null = null;
   try {
-    payload = (await response.json()) as GlAccountApiResponse;
+    const text = await response.text();
+    payload = text ? (JSON.parse(text) as GlAccountApiResponse) : null;
   } catch {
     payload = null;
   }

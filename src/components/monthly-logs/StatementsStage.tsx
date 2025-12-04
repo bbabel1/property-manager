@@ -28,7 +28,13 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
       try {
         const response = await fetch(`/api/monthly-logs/${monthlyLogId}`);
         if (response.ok) {
-          const data = await response.json();
+          const text = await response.text();
+          let data: { pdf_url?: string | null } = {};
+          try {
+            data = text ? (JSON.parse(text) as { pdf_url?: string | null }) : {};
+          } catch {
+            data = {};
+          }
           if (data.pdf_url) {
             setPdfUrl(data.pdf_url);
           }
@@ -62,11 +68,23 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
             toast.error('Insufficient permissions to generate the statement PDF.');
             return;
           }
-          const errorData = await response.json().catch(() => ({}));
+          const errorText = await response.text();
+          let errorData: any = {};
+          try {
+            errorData = errorText ? JSON.parse(errorText) : {};
+          } catch {
+            errorData = {};
+          }
           throw new Error(errorData.error?.message || 'Failed to generate PDF');
         }
 
-        const data = await response.json();
+        const text = await response.text();
+        let data: any = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
         setPdfUrl(data.pdfUrl);
         setPreviewOpen(true);
         toast.success('Statement PDF generated. Opening preview...');
@@ -84,24 +102,36 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
   };
 
   const handleSendStatement = async () => {
-    try {
-      setSending(true);
+      try {
+        setSending(true);
 
-      const response = await fetch(`/api/monthly-logs/${monthlyLogId}/send-statement`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to send statement');
-      }
-
-      const data = await response.json();
-
-      if (data.failedCount > 0) {
-        toast.warning(`Sent to ${data.sentCount} recipient(s), ${data.failedCount} failed`, {
-          description: 'Some emails could not be delivered. Check the email history for details.',
+        const response = await fetch(`/api/monthly-logs/${monthlyLogId}/send-statement`, {
+          method: 'POST',
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData: any = {};
+          try {
+            errorData = errorText ? JSON.parse(errorText) : {};
+          } catch {
+            errorData = {};
+          }
+          throw new Error(errorData.error?.message || 'Failed to send statement');
+        }
+
+        const text = await response.text();
+        let data: any = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          data = {};
+        }
+
+        if (data.failedCount > 0) {
+          toast.warning(`Sent to ${data.sentCount} recipient(s), ${data.failedCount} failed`, {
+            description: 'Some emails could not be delivered. Check the email history for details.',
+          });
       } else {
         toast.success(`Statement sent to ${data.sentCount} recipient(s)`);
       }

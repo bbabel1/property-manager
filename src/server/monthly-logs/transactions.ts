@@ -261,41 +261,8 @@ export async function loadAssignedTransactionsBundle(
     unitId: monthlyLogContext?.unit_id ?? null,
   };
 
-  try {
-    const rpcResult = await traceAsync('monthlyLog.rpc.bundle', async () => {
-      return await db.rpc('monthly_log_transaction_bundle', {
-        p_monthly_log_id: monthlyLogId,
-      });
-    });
-
-    const { data, error } = rpcResult as { data: unknown; error: PostgrestError | null };
-
-    if (error) {
-      return fallbackAssignedBundle(monthlyLogId, db, error, normalizeOptions);
-    }
-
-    const parsed =
-      data && typeof data === 'string'
-        ? (JSON.parse(data) as { transactions?: unknown; summary?: unknown })
-        : ((data ?? {}) as { transactions?: unknown; summary?: unknown });
-
-    const transactions = Array.isArray(parsed.transactions)
-      ? parsed.transactions.map((row) =>
-          normalizeTransactionRow(row as TransactionRow, normalizeOptions),
-        )
-      : [];
-
-    // Use admin client for summary so RLS on lines/GL accounts doesn't hide values
-    const computedSummary = await calculateFinancialSummary(monthlyLogId, {
-      db: supabaseAdmin,
-      unitId: normalizeOptions.unitId ?? null,
-    });
-    const summary = normalizeFinancialSummary(computedSummary);
-
-    return { transactions, summary: applyEscrowOverride(transactions, summary) };
-  } catch (error) {
-    return fallbackAssignedBundle(monthlyLogId, db, error, normalizeOptions);
-  }
+  // Disable RPC path due to missing supporting view in some environments; rely on fallback query.
+  return fallbackAssignedBundle(monthlyLogId, db, undefined, normalizeOptions);
 }
 
 async function fallbackAssignedBundle(
@@ -308,58 +275,69 @@ async function fallbackAssignedBundle(
     console.warn('[monthly-log] RPC bundle unavailable, falling back to manual query.', cause);
   }
 
-  const fallbackResult = await traceAsync('monthlyLog.bundle.fallback', async () => {
-    return await db
-      .from('transactions')
-      .select(
-        `
-        id,
-        total_amount,
-        memo,
-        date,
-        transaction_type,
-        lease_id,
-        monthly_log_id,
-        reference_number,
-        transaction_lines(
-          amount,
-          posting_type,
-          unit_id,
-          created_at,
-          gl_accounts(
-            name,
-            account_number,
-            gl_account_category(
-              category
+  try {
+    const fallbackResult = await traceAsync('monthlyLog.bundle.fallback', async () => {
+      return await db
+        .from('transactions')
+        .select(
+          `
+          id,
+          total_amount,
+          memo,
+          date,
+          transaction_type,
+          lease_id,
+          monthly_log_id,
+          reference_number,
+          transaction_lines(
+            amount,
+            posting_type,
+            unit_id,
+            created_at,
+            gl_accounts(
+              name,
+              account_number,
+              gl_account_category(
+                category
+              )
             )
           )
+        `,
         )
-      `,
-      )
-      .eq('monthly_log_id', monthlyLogId)
-      .order('date', { ascending: false });
-  });
+        .eq('monthly_log_id', monthlyLogId)
+        .order('date', { ascending: false });
+    });
 
-  const { data, error } = fallbackResult as { data: unknown; error: PostgrestError | null };
+    const { data, error } = fallbackResult as { data: unknown; error: PostgrestError | null };
 
-  if (error) {
-    throw error;
+    if (error) {
+      throw error;
+    }
+
+    const fallbackRows = (Array.isArray(data) ? data : []) as TransactionRow[];
+    const transactions = fallbackRows.map((row) => normalizeTransactionRow(row, normalizeOptions));
+    // Use admin client to avoid RLS gaps on GL accounts/lines
+    const summary = await calculateFinancialSummary(monthlyLogId, {
+      db: supabaseAdmin,
+      unitId: normalizeOptions.unitId ?? null,
+    });
+
+    const normalizedSummary = normalizeFinancialSummary(summary);
+
+    return {
+      transactions,
+      summary: applyEscrowOverride(transactions, normalizedSummary),
+    };
+  } catch (error) {
+    console.error('[monthly-log] Failed to load assigned transactions via fallback.', {
+      monthlyLogId,
+      error,
+    });
+    return {
+      transactions: [],
+      summary: null,
+    };
   }
-
-  const fallbackRows = (Array.isArray(data) ? data : []) as TransactionRow[];
-  const transactions = fallbackRows.map((row) => normalizeTransactionRow(row, normalizeOptions));
-  // Use admin client to avoid RLS gaps on GL accounts/lines
-  const summary = await calculateFinancialSummary(monthlyLogId, {
-    db: supabaseAdmin,
-    unitId: normalizeOptions.unitId ?? null,
-  });
-
-  const normalizedSummary = normalizeFinancialSummary(summary);
-
-  return {
-    transactions,
-    summary: applyEscrowOverride(transactions, normalizedSummary),
-  };
 }
 
 export async function loadUnassignedTransactionsPage(

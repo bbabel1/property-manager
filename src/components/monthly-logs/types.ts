@@ -57,3 +57,21 @@ export type MonthlyLogTaskSummary = {
   assignedToInitials: string | null;
   updatedRelativeLabel: string;
 };
+
+export type RecurringTaskTemplate = {
+  id: string;
+  title: string;
+  description: string | null;
+  dueAnchor: 'period_start' | 'period_end';
+  dueOffsetDays: number;
+  frequency: string;
+  interval: number;
+  isActive: boolean;
+  propertyId: string;
+  unitId: string;
+  updatedAt: string | null;
+  assignedStaffId: number | null;
+  additionalStaffIds: number[];
+  autoAssignManager: boolean;
+  reminders: number[];
+};

@@ -146,8 +146,9 @@ export default function CreateMonthlyLogButton({
       if (!response.ok) {
         let message = 'Failed to create monthly log. Please try again.'
         try {
-          const payload = await response.json()
-          if (payload?.error) message = payload.error
+          const text = await response.text();
+          const payload = text ? JSON.parse(text) : {};
+          if (payload?.error) message = payload.error;
         } catch {
           // Ignore JSON parse issues; fall back to default message
         }

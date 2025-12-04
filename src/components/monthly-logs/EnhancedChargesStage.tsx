@@ -87,11 +87,23 @@ export default function EnhancedChargesStage({
           // Revert optimistic update on error
           moveTransactionToUnassigned(transactionId);
 
-          const errorData = await response.json().catch(() => ({}));
+          const text = await response.text();
+          let errorData: { error?: string } = {};
+          try {
+            errorData = text ? JSON.parse(text) : {};
+          } catch {
+            errorData = { error: `Request failed with status ${response.status}` };
+          }
           throw new Error(errorData.error || `Request failed with status ${response.status}`);
         }
 
-        const _result = await response.json();
+        const text = await response.text();
+        let _result: any = null;
+        try {
+          _result = text ? JSON.parse(text) : null;
+        } catch {
+          // Ignore parse errors for success responses
+        }
         toast.success(`Transaction assigned successfully`);
 
         // No need to refetch - optimistic update already handled it

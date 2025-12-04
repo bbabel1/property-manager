@@ -162,7 +162,8 @@ export default function CreateMonthlyLogDialog({ properties, units, defaultPerio
       if (!response.ok) {
         let message = 'Unable to create monthly log.';
         try {
-          const payload = await response.json();
+          const text = await response.text();
+          const payload = text ? JSON.parse(text) : {};
           if (payload?.error) message = payload.error;
         } catch {
           // ignore parse issues

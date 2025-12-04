@@ -28,7 +28,14 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
       try {
         const response = await fetch(`/api/monthly-logs/${monthlyLogId}/financial-summary`);
         if (response.ok) {
-          const data = await response.json();
+          const text = await response.text();
+          let data: FinancialSummary | null = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch {
+            console.error('Failed to parse financial summary response');
+            data = null;
+          }
           setSummary(data);
         } else {
           console.error('Failed to fetch financial summary:', response.status, response.statusText);

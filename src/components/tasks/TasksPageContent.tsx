@@ -113,9 +113,6 @@ export default function TasksPageContent({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button type="button" variant="outline" className="border-border/80 shadow-sm">
-            Add recurring task
-          </Button>
           <Button
             type="button"
             variant="outline"

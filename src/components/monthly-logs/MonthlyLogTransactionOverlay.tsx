@@ -302,7 +302,13 @@ export default function MonthlyLogTransactionOverlay({
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const text = await response.text();
+          let errorData: { error?: { message?: string } } = {};
+          try {
+            errorData = text ? JSON.parse(text) : {};
+          } catch {
+            errorData = { error: { message: `Request failed with status ${response.status}` } };
+          }
           throw new Error(errorData.error?.message || 'Failed to assign transaction');
         }
 
@@ -364,7 +370,13 @@ export default function MonthlyLogTransactionOverlay({
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const text = await response.text();
+          let errorData: { error?: { message?: string } } = {};
+          try {
+            errorData = text ? JSON.parse(text) : {};
+          } catch {
+            errorData = { error: { message: `Request failed with status ${response.status}` } };
+          }
           throw new Error(errorData.error?.message || 'Failed to assign transaction');
         }
 

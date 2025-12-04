@@ -50,7 +50,13 @@ export default function StatementRecipientsManager({
         throw new Error('Failed to fetch recipients');
       }
 
-      const data = await response.json();
+      const text = await response.text();
+      let data: { recipients?: Recipient[] } = {};
+      try {
+        data = text ? (JSON.parse(text) as { recipients?: Recipient[] }) : {};
+      } catch {
+        throw new Error('Invalid response while fetching recipients');
+      }
       setRecipients(data.recipients || []);
     } catch (error) {
       console.warn('Error fetching recipients:', error);
@@ -73,7 +79,13 @@ export default function StatementRecipientsManager({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const text = await response.text();
+        let errorData: any = {};
+        try {
+          errorData = text ? JSON.parse(text) : {};
+        } catch {
+          errorData = {};
+        }
         throw new Error(errorData.error?.message || 'Failed to save recipients');
       }
 

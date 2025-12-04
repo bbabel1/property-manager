@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Building2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Building2, CalendarClock, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { cn } from '@/components/ui/utils';
 import type { MonthlyLogCardRecord, MonthlyLogStatus } from '@/components/monthly-logs/types';
 import CreateMonthlyLogDialog from '@/components/monthly-logs/CreateMonthlyLogDialog';
 import { Cluster, PageBody, PageHeader, PageShell, Stack } from '@/components/layout/page-shell';
+import RecurringTaskManagerDialog from '@/components/monthly-logs/RecurringTaskManagerDialog';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -90,6 +91,7 @@ export default function MonthlyLogsPageContent({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [recurringManagerOpen, setRecurringManagerOpen] = useState(false);
 
   const [propertyFilter, setPropertyFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -260,11 +262,22 @@ export default function MonthlyLogsPageContent({
         title="Monthly Logs"
         description={monthLabel}
         actions={
-          <CreateMonthlyLogDialog
-            properties={availableProperties}
-            units={availableUnits}
-            defaultPeriodStart={periodStartIso}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setRecurringManagerOpen(true)}
+            >
+              <CalendarClock className="h-4 w-4" />
+              Recurring tasks
+            </Button>
+            <CreateMonthlyLogDialog
+              properties={availableProperties}
+              units={availableUnits}
+              defaultPeriodStart={periodStartIso}
+            />
+          </div>
         }
       />
 
@@ -410,6 +423,13 @@ export default function MonthlyLogsPageContent({
           </CardContent>
         </Card>
       </PageBody>
+
+      <RecurringTaskManagerDialog
+        open={recurringManagerOpen}
+        onOpenChange={setRecurringManagerOpen}
+        properties={availableProperties}
+        units={availableUnits}
+      />
     </PageShell>
   );
 }
