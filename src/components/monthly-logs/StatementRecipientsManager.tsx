@@ -17,7 +17,7 @@ import {
   isValidRecipientEmail,
   updateStatementRecipients,
   type StatementRecipient,
-} from '@/lib/services/statement-recipients';
+} from '@/modules/monthly-logs/services/statement-recipients';
 
 interface StatementRecipientsManagerProps {
   propertyId: string;
