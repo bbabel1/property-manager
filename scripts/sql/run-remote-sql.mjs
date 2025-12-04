@@ -52,7 +52,7 @@ async function run(file) {
 async function main() {
   const files = process.argv.slice(2)
   if (files.length === 0) {
-    console.error('Usage: node scripts/run-remote-sql.mjs <sql-file> [<sql-file> ...]')
+    console.error('Usage: node scripts/sql/run-remote-sql.mjs <sql-file> [<sql-file> ...]')
     process.exit(1)
   }
   for (const f of files) {
@@ -64,4 +64,3 @@ main().catch((e) => {
   console.error(e)
   process.exit(1)
 })
-

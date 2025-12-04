@@ -8,34 +8,18 @@
 
 ```
 scripts/
-├── README.md                           # This file - Main documentation
-├── doc-monitoring-system.ts            # Documentation monitoring system
-├── show-organization.ts                # Shows current organization structure
-├── setup/                              # Initial setup and configuration
-│   ├── README.md                       # Setup scripts documentation
-│   ├── setup-environment.ts            # Environment validation
-│   ├── setup-database.ts               # Database initialization
-│   └── setup-buildium-connection.ts    # Buildium connection test
-├── workflows/                          # Complete workflow demonstrations
-│   ├── README.md                       # Workflow scripts documentation
-│   └── add-new-property-workflow.ts    # Complete property addition workflow
-├── buildium/                           # Buildium integration scripts
-│   ├── README.md                       # Buildium scripts documentation
-│   ├── create/                         # Entity creation scripts
-│   ├── sync/                           # Data synchronization scripts
-│   └── verify/                         # Data verification scripts
-├── maintenance/                        # Database maintenance and cleanup
-│   ├── README.md                       # Maintenance scripts documentation
-│   ├── cleanup-orphaned-records.ts     # Clean up orphaned data
-│   ├── optimize-database.ts            # Database optimization
-│   ├── backup-database.ts              # Database backup
-│   ├── restore-database.ts             # Database restore
-│   └── verify-data-integrity.ts        # Data integrity verification
-├── api/                                # API testing and development
-├── database/                           # Database management scripts
-├── sql/                                # SQL utility scripts
-├── utils/                              # Utility scripts
-└── deprecated/                         # Deprecated scripts (for reference)
+├── README.md                        # This file - main documentation
+├── buildium/                        # Buildium integration (create/sync/verify)
+├── cron/                            # Scheduled job runners
+├── database/                        # Schema helpers and tooling
+├── db/                              # Local DB backup/reset helpers
+├── diagnostics/                     # Read-only checks, verifications, debug utilities
+├── maintenance/                     # Mutating fixes, seeds, sync jobs
+├── migrations/                      # Migration utilities
+├── setup/                           # Environment setup/validation
+├── sql/                             # SQL utilities and raw scripts
+├── utils/                           # Shared helpers
+└── workflows/                       # End-to-end workflows
 ```
 
 ## 🚀 Quick Start for New Users
@@ -87,26 +71,27 @@ npx tsx scripts/buildium/verify/verify-relationships.ts
 - **When to Use**: Adding entities, syncing data, verifying relationships
 - **Categories**: Create, Sync, Verify
 
+### **Diagnostics Scripts** (`diagnostics/`)
+- **Purpose**: Read-only checks, verifications, performance analysis, debugging
+- **When to Use**: Investigations, data validation, troubleshooting
+- **Examples**: `check-*`, `verify-*`, `debug-*`, `analyze-*`
+
 ### **Maintenance Scripts** (`maintenance/`)
-- **Purpose**: Database maintenance and optimization
-- **When to Use**: Regular maintenance, cleanup, performance optimization
-- **Key Scripts**: Data cleanup, database optimization, backup/restore
+- **Purpose**: Mutating fixes, seeds, and one-off repair/sync jobs
+- **When to Use**: Data fixes, schema refreshes, seeding, migrations support
+- **Examples**: `fix-*`, `seed*.ts`, `import-buildium.ts`, `reset-db.ts`
 
-### **API Scripts** (`api/`)
-- **Purpose**: API testing and development
-- **When to Use**: Testing endpoints, development, performance testing
-
-### **Database Scripts** (`database/`)
-- **Purpose**: Database management operations
-- **When to Use**: Schema updates, data migration, database operations
+### **Database & DB Scripts** (`database/`, `db/`)
+- **Purpose**: Schema helpers, backups, restores, and local DB workflows
+- **When to Use**: Inspecting schema, backing up/restoring local databases
 
 ### **SQL Scripts** (`sql/`)
-- **Purpose**: Direct SQL operations
-- **When to Use**: Complex queries, data analysis, one-time operations
+- **Purpose**: Direct SQL operations and helpers (`apply_sql.ts`, `run-remote-sql.*`)
+- **When to Use**: Applying SQL files locally or remotely, running raw queries
 
 ### **Utility Scripts** (`utils/`)
-- **Purpose**: General utility functions
-- **When to Use**: Data processing, file operations, system utilities
+- **Purpose**: General utilities and shared helpers
+- **When to Use**: Data processing, file operations, common helpers
 
 ## 🎯 Common Workflows
 

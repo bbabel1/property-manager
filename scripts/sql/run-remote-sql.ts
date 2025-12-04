@@ -51,7 +51,7 @@ async function run(file: string) {
 async function main() {
   const files = process.argv.slice(2)
   if (files.length === 0) {
-    console.error('Usage: tsx scripts/run-remote-sql.ts <sql-file> [<sql-file> ...]')
+    console.error('Usage: tsx scripts/sql/run-remote-sql.ts <sql-file> [<sql-file> ...]')
     process.exit(1)
   }
   for (const f of files) {
@@ -63,4 +63,3 @@ main().catch((e) => {
   console.error(e)
   process.exit(1)
 })
-
