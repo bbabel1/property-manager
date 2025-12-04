@@ -1,203 +1,35 @@
-# Supabase Migrations
+# Supabase Guide
 
-This directory contains SQL migrations for the Ora Property Management database schema.
+This folder contains Supabase config, migrations, and helpers.
 
-## Migration Files
+## Migrations Workflow
+- **Apply (linked project)**: `npx supabase db push --linked`
+- **Diff remote**: `npx supabase db diff --linked --schema public`
+- **Reset (linked)**: `npx supabase db reset --linked` (dangerous; confirm target)
+- **Local dev**: `npx supabase start` to run local stack, then `npx supabase db reset --local`
 
-### `001_create_properties_table.sql`
+See `supabase/migrations/` for ordered SQL files. Apply in order if running manually in the dashboard.
 
-Creates the main Properties table with comprehensive schema including:
+## Types & Schema Docs
+- Generate local types: `npm run types:local` → `src/types/database.ts`
+- Generate remote types: `npm run types:remote`
+- Update schema doc: `npm run db:schema` (writes `docs/database/current_schema.sql`)
 
-- **Enums**: `countries` and `property_type_enum`
+## Environment
+Ensure these are set when using CLI:
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
 
-- **Primary Key**: UUID with `gen_random_uuid()` default
+For linked environments, Supabase CLI will also read `.env.local` if present.
 
-- **Address Fields**: Complete address structure with validation
-
-- **Business Fields**: Integration with Buildium, bank accounts, reserves
-
-- **Constraints**: Data validation and business rules
-
-- **Indexes**: Performance optimization for common queries
-
-- **Triggers**: Automatic `updated_at` timestamp management
-
-- **RLS**: Row Level Security enabled
-
-## How to Apply Migrations
-
-### Option 1: Supabase Dashboard (Recommended)
-
-1. Go to your [Supabase Dashboard](https://supabase.com/dashboard/project/cidfgplknvueaivsxiqa)
-2. Navigate to **SQL Editor**
-
-3. Copy and paste the migration SQL
-4. Click **Run** to execute
-
-### Option 2: Supabase CLI
-
-```bash
-
-# Install Supabase CLI
-
-npm install -g supabase
-
-# Link your project
-
-supabase link --project-ref cidfgplknvueaivsxiqa
-
-# Apply migrations
-
-supabase db push
-
-```
-
-### Option 3: Direct Database Connection
-
-```bash
-
-# Connect to your Supabase database and run the SQL
-
-psql "postgresql://postgres:[YOUR-PASSWORD]@db.cidfgplknvueaivsxiqa.supabase.co:5432/postgres"
-
-```
-
-## Schema Overview
-
-### Properties Table
-
-```sql
-
-CREATE TABLE properties (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    name VARCHAR(127) NOT NULL,
-    structure_description TEXT,
-    address_line1 VARCHAR(100) NOT NULL,
-    address_line2 VARCHAR(100),
-    address_line3 VARCHAR(100),
-    city VARCHAR(100),
-    state VARCHAR(100),
-    postal_code VARCHAR(20) NOT NULL,
-    country country_enum NOT NULL,
-    buildium_property_id INTEGER,
-    property_type property_type_enum,
-    rental_owner_ids INTEGER[],
-    operating_bank_account_id INTEGER NOT NULL,
-    reserve NUMERIC(12,2),
-    year_built INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-
-```
-
-### Enums
-
-#### Country Enum
-
-Contains 200+ countries for international property support.
-
-#### Rental Sub Type Enum
-
-- `CondoTownhome` - Condominiums and townhomes
-- `MultiFamily` - Multi-family residential properties
-- `SingleFamily` - Single-family homes
-- `Industrial` - Industrial properties
-- `Office` - Office buildings
-- `Retail` - Retail properties
-- `ShoppingCenter` - Shopping centers and malls
-- `Storage` - Storage facilities
-- `ParkingSpace` - Parking spaces and lots
-
-## Constraints and Validation
-
-### Data Validation
-
-- **Name**: Required, non-empty string, max 127 characters
-
-- **Address**: Required address line 1 and postal code
-
-- **Country**: Must match predefined enum values
-
-- **Year Built**: Must be between 1000 and current year
-
-- **Reserve**: Must be non-negative
-
-- **Rental Sub Type**: Must match predefined enum values
-
-### Business Rules
-
-- **Operating Bank Account**: Required for financial operations
-
-- **Buildium Integration**: Optional field for external system integration
-
-- **Owner IDs**: Array of integers for multiple property owners
-
-## Performance Optimizations
-
-### Indexes Created
-
-- Primary key index (automatic)
-- Name search index
-- Country filter index
-- Rental sub-type filter index
-- Address search composite index
-- GIN index for owner IDs array
-- Timestamp indexes for sorting
-
-### Query Optimization
-
-The schema is optimized for common property management queries:
-
-- Property search by name
-- Geographic filtering (city, state, country)
-- Type-based filtering
-- Owner relationship queries
-- Date-based sorting and filtering
-
-## Security
-
-### Row Level Security (RLS)
-
-- Enabled on all tables
-- Basic policy allows all operations (customize based on auth requirements)
-- Ready for user-based access control implementation
-
-### Data Protection
-
-- UUID primary keys for security
-- Proper data types and constraints
-- Input validation at database level
-
-## TypeScript Integration
-
-The schema is fully typed with TypeScript interfaces in `src/types/properties.ts`:
-
-```typescript
-
-import { Property, CountryEnum, RentalSubTypeEnum } from '@/types/properties';
-
-```
-
-## Next Steps
-
-1. **Apply the migration** using one of the methods above
-
-2. **Test the connection** using the test page at `/test-supabase`
-
-3. **Create additional tables** as needed (Units, Tenants, Leases, etc.)
-
-4. **Implement authentication** and customize RLS policies
-
-5. **Add real-time subscriptions** for live updates
+## Tests & Seeds
+- Seeds: `supabase/seed.sql` is loaded on reset when enabled.
+- Supabase tests (if any) live under `supabase/tests/`.
 
 ## Troubleshooting
-
-### Common Issues
-
-- **Enum values**: Ensure exact case matching for enum values
-
-- **UUID generation**: Requires `uuid-ossp` extension (included in Supabase)
+- CLI auth issues: run `npx supabase login` and verify project ref.
+- Migrations failing: check for breaking changes vs remote schema (`db diff`).
+- Types out of date: re-run `npm run types:local` after schema changes.
 
 - **Array columns**: Use proper array syntax for `rental_owner_ids`
 
