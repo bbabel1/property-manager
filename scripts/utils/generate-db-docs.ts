@@ -23,7 +23,7 @@ class DatabaseDocGenerator {
     logger.info('🔍 Reading database schema...');
     
     const schemaFiles = [
-      './supabase-schema.sql',
+      './docs/database/current_schema.sql',
       './supabase/schema.sql',
       './migrations/*.sql'
     ];

@@ -157,7 +157,7 @@ web3 = 30
 [auth.email]
 enable_signup = true
 double_confirm_changes = true
-enable_confirmations = true       # OK for email link auth; harmless if you use NextAuth
+enable_confirmations = true       # Enable email link confirmations for Supabase Auth
 secure_password_change = false
 max_frequency = "1m0s"            # rate-limit for emails
 otp_length = 6

@@ -37,8 +37,9 @@ BUILDIUM_WEBHOOK_SECRET="your-sandbox-webhook-secret"
 
 # App Configuration (Local Development)
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-local-secret-key-here"
+
+# Client Integrations
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="your-google-maps-api-key-1234567890"
 ```
 
 ### Step 3: Create Production Environment (When Ready)
@@ -109,11 +110,10 @@ npm run dev
 - [ ] `BUILDIUM_CLIENT_SECRET`
 - [ ] `BUILDIUM_WEBHOOK_SECRET`
 
-### App (Required):
+### App & Client (Required):
 
-- [ ] `NEXTAUTH_URL`
-- [ ] `NEXTAUTH_SECRET`
 - [ ] `NEXT_PUBLIC_APP_URL`
+- [ ] `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
 
 ## 🆘 Troubleshooting
 
