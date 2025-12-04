@@ -140,7 +140,7 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <p className="text-sm font-medium text-slate-600">Total Rent Owed</p>
-                <p className="mt-1 text-xs text-slate-500">Previous Balance + Charges – Credits</p>
+                <p className="mt-1 text-xs text-slate-600">Previous Balance + Charges – Credits</p>
               </div>
               <div className="text-right">
                 <p className="text-lg font-semibold text-slate-900">
@@ -195,7 +195,7 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
             >
               <div>
                 <p className="text-sm font-medium text-slate-700">Remaining Balance</p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-600">
                   {isBalancePositive ? 'Amount owed by tenant' : 'Overpayment/credit'}
                 </p>
               </div>

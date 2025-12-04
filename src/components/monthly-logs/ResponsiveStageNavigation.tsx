@@ -111,7 +111,7 @@ export default function ResponsiveStageNavigation({
           <div className="text-sm font-medium text-slate-700">
             Progress: {completedStages} of {stages.length} stages
           </div>
-          <div className="text-sm text-slate-500">{progressPercentage}%</div>
+          <div className="text-sm text-slate-600">{progressPercentage}%</div>
         </div>
         <ProgressBar percentage={progressPercentage} />
 
@@ -158,7 +158,7 @@ export default function ResponsiveStageNavigation({
                       <span className="font-medium">{config.label}</span>
                       {isCompleted && <Check className="h-3.5 w-3.5 text-[var(--color-action-600)]" />}
                     </div>
-                    <div className="text-xs text-slate-500">{config.description}</div>
+                    <div className="text-xs text-slate-600">{config.description}</div>
                   </div>
                 </DropdownMenuItem>
               );
@@ -177,7 +177,7 @@ export default function ResponsiveStageNavigation({
         <div className="text-sm font-medium text-slate-700">
           Progress: {completedStages} of {stages.length} stages complete
         </div>
-        <div className="text-sm text-slate-500">{progressPercentage}%</div>
+        <div className="text-sm text-slate-600">{progressPercentage}%</div>
       </div>
       <ProgressBar percentage={progressPercentage} />
 
@@ -203,7 +203,7 @@ export default function ResponsiveStageNavigation({
                 'flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
                 isActive
                   ? 'border border-blue-200 bg-blue-50 text-blue-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
                 isCompleted && !isActive && 'text-green-600',
                 isCurrent && !isActive && 'text-blue-600',
               )}

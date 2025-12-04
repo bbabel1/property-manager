@@ -282,8 +282,8 @@ export default function MonthlyLogsPageContent({
       />
 
       <PageBody>
-        <Card className="overflow-hidden border-border/70 border shadow-sm">
-          <div className="border-border/80 flex flex-col gap-4 border-b bg-card px-4 py-4 sm:px-6">
+        <Card className="border-border/70 overflow-hidden border shadow-sm">
+          <div className="border-border/80 bg-card flex flex-col gap-4 border-b px-4 py-4 sm:px-6">
             <Stack gap="md" className="lg:flex-row lg:items-center lg:justify-between">
               <Cluster gap="sm" className="w-full flex-1 flex-wrap">
                 <Select value={propertyFilter} onValueChange={setPropertyFilter}>
@@ -299,7 +299,7 @@ export default function MonthlyLogsPageContent({
                   </SelectContent>
                 </Select>
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                     Month
                   </span>
                   <Select value={selectedMonth} onValueChange={handleMonthFilterChange}>
@@ -316,7 +316,7 @@ export default function MonthlyLogsPageContent({
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                     Year
                   </span>
                   <Select value={selectedYear} onValueChange={handleYearFilterChange}>
@@ -335,7 +335,7 @@ export default function MonthlyLogsPageContent({
               </Cluster>
               <div className="relative w-full max-w-sm">
                 <Search
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
                   aria-hidden
                 />
                 <Input
@@ -350,7 +350,7 @@ export default function MonthlyLogsPageContent({
             </Stack>
           </div>
 
-          <div className="border-border/80 flex flex-col gap-4 border-b bg-card px-4 py-3 sm:flex-row sm:items-center sm:px-6">
+          <div className="border-border/80 bg-card flex flex-col gap-4 border-b px-4 py-3 sm:flex-row sm:items-center sm:px-6">
             <div className="flex items-center gap-3">
               <Button
                 type="button"
@@ -362,8 +362,8 @@ export default function MonthlyLogsPageContent({
                 <ChevronLeft className="h-4 w-4" aria-hidden />
               </Button>
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">Period starting</span>
-                <span className="text-xs text-muted-foreground">{periodStartIso}</span>
+                <span className="text-foreground text-sm font-medium">Period starting</span>
+                <span className="text-muted-foreground text-xs">{periodStartIso}</span>
               </div>
               <Button
                 type="button"
@@ -383,24 +383,24 @@ export default function MonthlyLogsPageContent({
               onValueChange={(value) => setActiveTab(value as TabKey)}
               className="w-full gap-0"
             >
-              <div className="border-border/80 border-b bg-card px-4 py-3 sm:px-6">
+              <div className="border-border/80 bg-card border-b px-4 py-3 sm:px-6">
                 <TabsList className="flex w-full max-w-md gap-3 bg-transparent p-0">
                   <TabsTrigger
                     value="incomplete"
-                    className="rounded-full bg-gray-100 px-6 py-2 text-sm font-medium text-muted-foreground data-[state=active]:bg-white data-[state=active]:text-foreground"
+                    className="data-[state=active]:text-foreground rounded-full bg-white px-6 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 data-[state=active]:bg-slate-200 data-[state=active]:shadow-sm"
                   >
                     Incomplete ({countsForTabs.incomplete})
                   </TabsTrigger>
                   <TabsTrigger
                     value="complete"
-                    className="rounded-full bg-gray-100 px-6 py-2 text-sm font-medium text-muted-foreground data-[state=active]:bg-white data-[state=active]:text-foreground"
+                    className="data-[state=active]:text-foreground rounded-full bg-white px-6 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 data-[state=active]:bg-slate-200 data-[state=active]:shadow-sm"
                   >
                     Complete ({countsForTabs.complete})
                   </TabsTrigger>
                 </TabsList>
               </div>
 
-              <TabsContent value="incomplete" className="px-4 pb-6 pt-0 sm:px-6">
+              <TabsContent value="incomplete" className="px-4 pt-0 pb-6 sm:px-6">
                 <MonthlyLogTable
                   records={segmentedRecords.incomplete}
                   emptyState={{
@@ -410,7 +410,7 @@ export default function MonthlyLogsPageContent({
                 />
               </TabsContent>
 
-              <TabsContent value="complete" className="px-4 pb-6 pt-0 sm:px-6">
+              <TabsContent value="complete" className="px-4 pt-0 pb-6 sm:px-6">
                 <MonthlyLogTable
                   records={segmentedRecords.complete}
                   emptyState={{
@@ -447,11 +447,11 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
 
   if (records.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border/70 bg-card py-16 text-center">
-        <Building2 className="h-12 w-12 text-muted-foreground" aria-hidden />
+      <div className="border-border/70 bg-card flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center">
+        <Building2 className="text-muted-foreground h-12 w-12" aria-hidden />
         <div>
-          <h3 className="text-base font-semibold text-foreground">{emptyState.title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{emptyState.description}</p>
+          <h3 className="text-foreground text-base font-semibold">{emptyState.title}</h3>
+          <p className="text-muted-foreground mt-1 text-sm">{emptyState.description}</p>
         </div>
       </div>
     );
@@ -460,16 +460,16 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
-        <thead className="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <thead className="text-muted-foreground bg-gray-100 text-left text-xs font-semibold tracking-wide uppercase">
           <tr>
             <th className="px-6 py-3 font-semibold">Unit</th>
             <th className="px-6 py-3 font-semibold">Tenant</th>
-            <th className="px-6 py-3 font-semibold text-right">Charges</th>
-            <th className="px-6 py-3 font-semibold text-right">Payments</th>
-            <th className="px-6 py-3 font-semibold text-right">Bills</th>
-            <th className="px-6 py-3 font-semibold text-right">Escrow</th>
-            <th className="px-6 py-3 font-semibold text-right">Mgmt Fees</th>
-            <th className="px-6 py-3 font-semibold text-right">Owner Draw</th>
+            <th className="px-6 py-3 text-right font-semibold">Charges</th>
+            <th className="px-6 py-3 text-right font-semibold">Payments</th>
+            <th className="px-6 py-3 text-right font-semibold">Bills</th>
+            <th className="px-6 py-3 text-right font-semibold">Escrow</th>
+            <th className="px-6 py-3 text-right font-semibold">Mgmt Fees</th>
+            <th className="px-6 py-3 text-right font-semibold">Owner Draw</th>
             <th className="px-6 py-3 font-semibold">Status</th>
           </tr>
         </thead>
@@ -494,38 +494,38 @@ function MonthlyLogTable({ records, emptyState }: MonthlyLogTableProps) {
                 tabIndex={0}
                 onClick={navigateToLog}
                 onKeyDown={handleRowKeyDown}
-                className="border-b border-border/80 last:border-0 cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--ring)]"
+                className="border-border/80 hover:bg-muted/40 cursor-pointer border-b transition-colors last:border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--ring)]"
               >
                 <td className="px-6 py-5 align-top">
                   <Stack gap="xs" className="min-w-0">
-                    <span className="text-sm font-semibold text-primary">
+                    <span className="text-primary text-sm font-semibold">
                       {record.unitTitle || 'Unit'}
                     </span>
-                    <span className="text-xs text-muted-foreground">{record.propertyName}</span>
+                    <span className="text-muted-foreground text-xs">{record.propertyName}</span>
                     {record.notes ? (
-                      <span className="text-xs text-muted-foreground">{record.notes}</span>
+                      <span className="text-muted-foreground text-xs">{record.notes}</span>
                     ) : null}
                   </Stack>
                 </td>
-                <td className="px-6 py-5 align-top text-sm text-muted-foreground">
+                <td className="text-muted-foreground px-6 py-5 align-top text-sm">
                   {record.tenantName ?? '—'}
                 </td>
-                <td className="px-6 py-5 align-top text-right font-semibold text-foreground">
+                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
                   {currencyFormatter.format(record.chargesAmount)}
                 </td>
-                <td className="px-6 py-5 align-top text-right font-semibold text-foreground">
+                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
                   {currencyFormatter.format(record.paymentsAmount)}
                 </td>
-                <td className="px-6 py-5 align-top text-right font-semibold text-foreground">
+                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
                   {currencyFormatter.format(record.billsAmount)}
                 </td>
-                <td className="px-6 py-5 align-top text-right font-semibold text-foreground">
+                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
                   {currencyFormatter.format(record.escrowAmount)}
                 </td>
-                <td className="px-6 py-5 align-top text-right font-semibold text-foreground">
+                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
                   {currencyFormatter.format(record.managementFeesAmount)}
                 </td>
-                <td className="px-6 py-5 align-top text-right font-semibold text-foreground">
+                <td className="text-foreground px-6 py-5 text-right align-top font-semibold">
                   {currencyFormatter.format(ownerDraw)}
                 </td>
                 <td className="px-6 py-5 align-top">

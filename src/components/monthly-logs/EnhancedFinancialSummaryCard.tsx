@@ -40,7 +40,7 @@ export default function EnhancedFinancialSummaryCard({
       case 'down':
         return <ArrowDownRight className="h-3 w-3 text-red-600" />;
       case 'stable':
-        return <Minus className="h-3 w-3 text-slate-500" />;
+        return <Minus className="h-3 w-3 text-slate-600" />;
       default:
         return null;
     }
@@ -78,7 +78,7 @@ export default function EnhancedFinancialSummaryCard({
           <CardTitle>Financial Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="py-4 text-center text-slate-500">
+          <div className="py-4 text-center text-slate-600">
             <p>Unable to load financial summary</p>
             <p className="mt-1 text-sm">Please check your connection and try again</p>
           </div>
@@ -152,10 +152,10 @@ export default function EnhancedFinancialSummaryCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
             Lease Ledger
           </p>
-          <div className="border-b border-slate-200" />
+          <div className="border-b border-slate-300" />
         </div>
 
         {/* Ledger Metrics */}
@@ -181,10 +181,10 @@ export default function EnhancedFinancialSummaryCard({
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
             Unit Transactions
           </p>
-          <div className="border-b border-slate-200" />
+          <div className="border-b border-slate-300" />
         </div>
 
         <div className="space-y-3">
@@ -209,7 +209,7 @@ export default function EnhancedFinancialSummaryCard({
         </div>
 
         {/* Previous Balance */}
-        <div className="flex items-center justify-between text-sm text-slate-600 border-t border-slate-200 pt-4">
+        <div className="flex items-center justify-between text-sm text-slate-600 border-t border-slate-300 pt-4">
           <span>Previous Net to Owner</span>
           <span
             className={cn(

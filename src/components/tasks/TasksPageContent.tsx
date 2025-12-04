@@ -39,8 +39,9 @@ import type { TaskPriorityKey, TaskStatusKey } from '@/lib/tasks/utils';
 const STATUS_BADGE_STYLES: Record<TaskStatusKey, string> = {
   new: 'border-amber-200 bg-amber-50 text-amber-700',
   in_progress: 'border-sky-200 bg-sky-50 text-sky-700',
-  completed: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-600)]',
-  on_hold: 'border-slate-200 bg-slate-100 text-slate-700',
+  completed:
+    'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-600)]',
+  on_hold: 'border-slate-300 bg-slate-100 text-slate-700',
   cancelled: 'border-border bg-muted/60 text-muted-foreground',
 };
 
@@ -94,7 +95,10 @@ export default function TasksPageContent({
         <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
+              <Button
+                type="button"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              >
                 Add task
                 <ChevronDown className="ml-2 size-4" aria-hidden />
               </Button>
@@ -128,12 +132,12 @@ export default function TasksPageContent({
       </div>
 
       <Tabs defaultValue="tasks" className="space-y-4">
-        <div className="border-b border-border/70">
+        <div className="border-border/70 border-b">
           <TabsList className="bg-transparent p-0">
             <TabsTrigger
               value="tasks"
               className={cn(
-                'rounded-none border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-medium transition-colors data-[state=inactive]:text-muted-foreground',
+                'data-[state=inactive]:text-muted-foreground rounded-none border-b-2 border-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors',
                 'data-[state=active]:border-primary data-[state=active]:text-foreground',
               )}
             >
@@ -143,7 +147,7 @@ export default function TasksPageContent({
               value="analytics"
               disabled
               className={cn(
-                'rounded-none border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-medium text-muted-foreground',
+                'text-muted-foreground rounded-none border-b-2 border-transparent px-1 pt-2 pb-3 text-sm font-medium',
                 'data-[state=active]:border-primary data-[state=active]:text-foreground',
               )}
             >
@@ -153,9 +157,9 @@ export default function TasksPageContent({
         </div>
 
         <TabsContent value="tasks" className="space-y-4 focus-visible:outline-none">
-          <Card className="border border-border/70 shadow-sm">
+          <Card className="border-border/70 border shadow-sm">
             <CardContent className="flex flex-col gap-0 p-0">
-              <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-6 py-4">
+              <div className="border-border/70 flex flex-wrap items-center gap-3 border-b px-6 py-4">
                 <Select defaultValue={defaultPropertyValue}>
                   <SelectTrigger className="min-w-[200px] sm:w-[220px]">
                     <SelectValue placeholder="All properties" />
@@ -193,7 +197,7 @@ export default function TasksPageContent({
                 </Button>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-6 py-3 text-sm text-muted-foreground">
+              <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
                 <span>
                   {tasks.length} {matchLabel}
                 </span>
@@ -208,44 +212,44 @@ export default function TasksPageContent({
                 </Button>
               </div>
 
-              <div className="overflow-auto px-2 pb-2 pt-4 sm:px-4 md:px-6">
+              <div className="overflow-auto px-2 pt-4 pb-2 sm:px-4 md:px-6">
                 <Table className="min-w-[1024px]">
                   <TableHeader>
-                    <TableRow className="border-b border-border/70 bg-muted/40 text-xs uppercase tracking-widest text-muted-foreground">
+                    <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs tracking-widest uppercase">
                       <TableHead className="w-12 pl-2">
                         <Checkbox aria-label="Select all tasks" />
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Status
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Due
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Task
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Unit
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Updated
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Age
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Priority
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Category
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Vendors
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Assignees
                       </TableHead>
-                      <TableHead className="text-xs font-semibold tracking-wide text-muted-foreground">
+                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
                         Action
                       </TableHead>
                     </TableRow>
@@ -255,7 +259,7 @@ export default function TasksPageContent({
                       <TableRow>
                         <TableCell
                           colSpan={12}
-                          className="py-12 text-center text-sm text-muted-foreground"
+                          className="text-muted-foreground py-12 text-center text-sm"
                         >
                           No tasks found.
                         </TableCell>
@@ -265,7 +269,7 @@ export default function TasksPageContent({
                         <TableRowLink
                           key={task.id}
                           href={`/tasks/${task.id}`}
-                          className="border-b border-border/70 bg-background transition-colors hover:bg-muted/40 last:border-0"
+                          className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
                         >
                           <TableCell className="w-12 px-2 py-4 align-top">
                             <Checkbox
@@ -290,7 +294,7 @@ export default function TasksPageContent({
                           </TableCell>
                           <TableCell className="py-4 align-top">
                             <div className="flex flex-col gap-1">
-                              <span className="text-primary font-medium leading-5">
+                              <span className="text-primary leading-5 font-medium">
                                 {task.subject}
                               </span>
                               <span className="text-muted-foreground text-xs">
@@ -302,7 +306,7 @@ export default function TasksPageContent({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm text-muted-foreground">
+                          <TableCell className="text-muted-foreground py-4 align-top text-sm">
                             {task.unitLabel || '—'}
                           </TableCell>
                           <TableCell className="py-4 align-top text-sm">
@@ -311,9 +315,7 @@ export default function TasksPageContent({
                               {task.updatedRelativeLabel}
                             </p>
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">
-                            {task.ageLabel}
-                          </TableCell>
+                          <TableCell className="py-4 align-top text-sm">{task.ageLabel}</TableCell>
                           <TableCell className="py-4 align-top text-sm">
                             <div className="flex items-center gap-2">
                               <span
@@ -335,23 +337,23 @@ export default function TasksPageContent({
                           <TableCell className="py-4 align-top">
                             {task.assignedToLabel ? (
                               <div className="flex items-center gap-2">
-                                <Avatar className="size-8 border border-border/60">
-                                  <AvatarFallback className="bg-orange-100 text-orange-700 text-xs font-medium">
+                                <Avatar className="border-border/60 size-8 border">
+                                  <AvatarFallback className="bg-orange-100 text-xs font-medium text-orange-700">
                                     {task.assignedToInitials || '??'}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="text-sm text-muted-foreground">
+                                <span className="text-muted-foreground text-sm">
                                   {task.assignedToLabel}
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
+                              <span className="text-muted-foreground text-sm">—</span>
                             )}
                           </TableCell>
                           <TableCell className="py-4 align-top text-sm">
                             <button
                               type="button"
-                              className="text-primary hover:underline font-medium"
+                              className="text-primary font-medium hover:underline"
                               onClick={preventRowNavigation}
                             >
                               Update

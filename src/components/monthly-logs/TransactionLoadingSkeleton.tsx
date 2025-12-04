@@ -12,7 +12,7 @@ export default function TransactionLoadingSkeleton({
   const gridStyle = { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` };
 
   return (
-    <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4">
+    <div className="space-y-2 rounded-lg border border-slate-300 bg-white p-4">
       {[...Array(rows)].map((_, rowIndex) => (
         <div key={rowIndex} className="grid animate-pulse gap-3" style={gridStyle}>
           {[...Array(columns)].map((__, colIndex) => (

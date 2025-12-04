@@ -266,7 +266,7 @@ export default function JournalEntryDetailDialog({
         </DialogHeader>
         {loading ? (
           <div className="flex items-center justify-center p-12">
-            <div className="text-sm text-slate-500">Loading journal entry details…</div>
+            <div className="text-sm text-slate-600">Loading journal entry details…</div>
           </div>
         ) : error ? (
           <div className="space-y-4 p-6">
@@ -314,7 +314,7 @@ export default function JournalEntryDetailDialog({
           )
         ) : data ? (
           <div className="space-y-4 p-6">
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+            <div className="rounded-md border border-slate-300 bg-slate-100 px-4 py-6 text-sm text-slate-600">
               This journal entry does not have any lines stored locally. It may not have synced yet or was created externally.
             </div>
             <div className="flex justify-end">

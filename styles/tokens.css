@@ -66,7 +66,7 @@
   /* Cards & Surfaces */
   --card: var(--color-white);
   --card-background: var(--color-white);
-  --card-border: var(--color-gray-200);
+  --card-border: var(--color-gray-300); /* Enhanced: was gray-200 */
   --card-foreground: var(--color-gray-900);
   --popover: var(--color-white);
   --popover-foreground: var(--color-gray-900);
@@ -75,9 +75,9 @@
   --foreground: var(--color-gray-900);
   --text-primary: var(--color-gray-900);
   --text-secondary: var(--color-gray-700);
-  --text-muted: var(--color-gray-600);
-  --text-placeholder: var(--color-gray-400);
-  --muted-foreground: var(--color-gray-600);
+  --text-muted: var(--color-gray-600); /* Enhanced: was gray-500 */
+  --text-placeholder: var(--color-gray-500); /* Enhanced: was gray-400 */
+  --muted-foreground: var(--color-gray-600); /* Enhanced: was gray-500 */
   --text-inverse: var(--color-white);
 
   /* Brand & Actions */
@@ -86,9 +86,9 @@
   --primary-hover: var(--color-action-500);
 
   /* Interactive States */
-  --border: var(--color-gray-200);
-  --border-subtle: var(--color-gray-200);
-  --border-strong: var(--color-gray-300);
+  --border: var(--color-gray-300); /* Enhanced: was gray-200 */
+  --border-subtle: var(--color-gray-300); /* Enhanced: was gray-200 */
+  --border-strong: var(--color-gray-400); /* Enhanced: was gray-300 */
   --border-input: var(--color-gray-300);
   --border-focus: var(--color-action-400);
   --input: var(--color-white);
@@ -98,9 +98,9 @@
   --accent-foreground: var(--color-gray-900);
   --secondary: #f1f5fb;
   --secondary-foreground: var(--color-gray-900);
-  --muted: #f6f8fc;
+  --muted: #f1f5f9; /* Enhanced: was #f6f8fc, more visible */
   --surface-panel: var(--color-gray-25);
-  --surface-panel-border: var(--color-gray-100);
+  --surface-panel-border: var(--color-gray-200); /* Enhanced: was gray-100 */
   --surface-highlight: #f0f9ff;
   --surface-highlight-border: #bfdbfe;
   --surface-dropdown: var(--color-white);

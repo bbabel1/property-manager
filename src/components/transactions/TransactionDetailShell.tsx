@@ -64,20 +64,20 @@ export default function TransactionDetailShell({
   return (
     <div className="space-y-6">
       <DialogTitle className="sr-only">{title}</DialogTitle>
-      <div className="border-b border-slate-100 px-6 pb-4 pt-6 pr-12">
+      <div className="border-b border-slate-100 px-6 pt-6 pr-12 pb-4">
         <div className="space-y-1">
-          <p className="text-xl font-semibold leading-tight" aria-hidden>
+          <p className="text-xl leading-tight font-semibold" aria-hidden>
             {title}
           </p>
           {scopeLabel || dateLabel ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-600">
               {[scopeLabel, dateLabel].filter(Boolean).join(' • ')}
             </p>
           ) : null}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {typeLabel ? (
-            <Badge variant="outline" className="bg-slate-50 text-slate-700">
+            <Badge variant="outline" className="bg-slate-100 text-slate-700">
               {typeLabel}
             </Badge>
           ) : null}
@@ -90,35 +90,31 @@ export default function TransactionDetailShell({
       </div>
 
       <div className="space-y-6 px-6 pb-6">
-        <div className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-lg border border-slate-300 bg-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Amount
-            </p>
+            <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">Amount</p>
             <div className={amountClass}>
               {amountPrefix}
               {amountLabel}
             </div>
-            {dateLabel ? (
-              <p className="text-xs text-slate-500">Posted {dateLabel}</p>
-            ) : null}
+            {dateLabel ? <p className="text-xs text-slate-600">Posted {dateLabel}</p> : null}
           </div>
           {(transactionId || referenceNumber) && (
-            <div className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 sm:w-auto">
+            <div className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 sm:w-auto">
               {transactionId ? (
                 <>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
                     Transaction ID
                   </p>
-                  <p className="font-mono text-sm text-slate-700 break-words">{transactionId}</p>
+                  <p className="font-mono text-sm break-words text-slate-700">{transactionId}</p>
                 </>
               ) : null}
               {referenceNumber ? (
                 <>
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <p className="mt-3 text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
                     Reference #
                   </p>
-                  <p className="font-mono text-sm text-slate-700 break-words">{referenceNumber}</p>
+                  <p className="font-mono text-sm break-words text-slate-700">{referenceNumber}</p>
                 </>
               ) : null}
             </div>
@@ -130,15 +126,15 @@ export default function TransactionDetailShell({
             {detailItems.map((item) => (
               <div
                 key={item.label}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-3"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-3"
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
                   {item.label}
                 </p>
                 <p
                   className={cn(
                     'mt-1 text-sm text-slate-800',
-                    item.mono ? 'break-words font-mono text-slate-700' : '',
+                    item.mono ? 'font-mono break-words text-slate-700' : '',
                   )}
                 >
                   {item.value}
@@ -149,9 +145,9 @@ export default function TransactionDetailShell({
         ) : null}
 
         {showActions ? (
-          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
                 Actions
               </p>
               {effectiveHint ? <p className="text-sm text-slate-600">{effectiveHint}</p> : null}

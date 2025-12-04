@@ -606,7 +606,7 @@ export default function MonthlyLogTransactionOverlay({
   const renderForm = () => {
     if (LEASE_MODE_VALUES.includes(mode) && !leaseOptionsReady) {
       return (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
           <div className="flex flex-col items-center gap-2">
             <span>
               {loadingFinancialOptions
@@ -629,7 +629,7 @@ export default function MonthlyLogTransactionOverlay({
 
     if (mode === 'bill' && !billOptionsReady) {
       return (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
           <div className="flex flex-col items-center gap-2">
             <span>
               {loadingBillOptions ? 'Loading bill settings…' : 'Unable to load bill configuration.'}
@@ -646,7 +646,7 @@ export default function MonthlyLogTransactionOverlay({
 
     if (mode === 'ownerDraw' && loadingOwnerDrawOptions) {
       return (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
           Loading owner draw options…
         </div>
       );
@@ -748,7 +748,7 @@ export default function MonthlyLogTransactionOverlay({
       case 'managementFee':
         if (!billOptionsReady || !managementFeeOptions) {
           return (
-            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
               {loadingBillOptions || loadingManagementFees
                 ? 'Loading management fee options…'
                 : 'Unable to load management fee options.'}

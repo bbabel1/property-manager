@@ -84,7 +84,7 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
         <CardContent>
           <div className="animate-pulse space-y-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex justify-between rounded-lg border border-slate-200 p-4">
+              <div key={i} className="flex justify-between rounded-lg border border-slate-300 p-4">
                 <div className="space-y-2">
                   <div className="h-4 w-32 rounded bg-slate-200"></div>
                   <div className="h-3 w-24 rounded bg-slate-200"></div>
@@ -136,7 +136,7 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
               {data.assignedBills.map((bill) => (
                 <div
                   key={bill.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 transition-all duration-200 hover:border-slate-300 hover:shadow-sm"
+                  className="flex items-center justify-between rounded-lg border border-slate-300 bg-white p-4 transition-all duration-200 hover:border-slate-400 hover:shadow-sm"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 text-sm text-slate-500">{formatDate(bill.date)}</div>
+                    <div className="mt-1 text-sm text-slate-600">{formatDate(bill.date)}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-red-600">
@@ -163,7 +163,7 @@ export default function BillsStage({ monthlyLogId }: BillsStageProps) {
                 <Receipt className="h-6 w-6 text-slate-400" />
               </div>
               <h3 className="mt-4 text-sm font-medium text-slate-900">No bills found</h3>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-600">
                 No bills have been assigned to this monthly log yet.
               </p>
             </div>

@@ -276,7 +276,7 @@ export default function EnhancedChargesStage({
               <div className="text-2xl font-bold text-slate-900">
                 {formatCurrency(totalCharges)}
               </div>
-              <div className="text-sm text-slate-500">
+              <div className="text-sm text-slate-600">
                 {assignedTransactions.length} transaction(s)
               </div>
             </div>
@@ -327,7 +327,7 @@ export default function EnhancedChargesStage({
                     'flex items-center justify-between rounded-lg border p-4 transition-all duration-200 hover:shadow-sm',
                     selectedAssigned.has(transaction.id)
                       ? 'border-blue-200 bg-blue-50 shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
+                      : 'border-slate-300 bg-white hover:border-slate-300 hover:bg-slate-100',
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -341,7 +341,7 @@ export default function EnhancedChargesStage({
                           <span className="font-medium text-slate-900">{transaction.memo}</span>
                         </div>
                       </div>
-                      <div className="mt-1 text-sm text-slate-500">
+                      <div className="mt-1 text-sm text-slate-600">
                         {formatDate(transaction.date)}
                       </div>
                     </div>
@@ -384,7 +384,7 @@ export default function EnhancedChargesStage({
                 <AlertCircle className="h-6 w-6 text-slate-400" />
               </div>
               <h3 className="mt-4 text-sm font-medium text-slate-900">No charges found</h3>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-600">
                 No charges have been assigned to this monthly log yet.
               </p>
             </div>
@@ -404,7 +404,7 @@ export default function EnhancedChargesStage({
                 <div
                   key={transaction.id}
                   className={cn(
-                    'flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 transition-all duration-200 hover:border-slate-300 hover:shadow-sm',
+                    'flex items-center justify-between rounded-lg border border-slate-300 bg-white p-3 transition-all duration-200 hover:border-slate-300 hover:shadow-sm',
                     assigningTransaction === transaction.id && 'opacity-50',
                   )}
                 >
@@ -416,7 +416,7 @@ export default function EnhancedChargesStage({
                     />
                     <div>
                       <div className="font-medium text-slate-900">{transaction.memo}</div>
-                      <div className="text-sm text-slate-500">{formatDate(transaction.date)}</div>
+                      <div className="text-sm text-slate-600">{formatDate(transaction.date)}</div>
                     </div>
                   </div>
                   <div className="font-semibold text-slate-900">
@@ -427,7 +427,7 @@ export default function EnhancedChargesStage({
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-slate-500">No unassigned transactions found.</div>
+            <div className="py-8 text-center text-slate-600">No unassigned transactions found.</div>
           )}
         </CardContent>
       </Card>

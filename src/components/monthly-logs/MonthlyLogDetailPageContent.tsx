@@ -3,37 +3,12 @@
 import { useCallback, useEffect, useMemo, useState, useId } from 'react';
 import useSWR from 'swr';
 import { useRouter } from 'next/navigation';
-import {
-  ClipboardList,
-  Clock,
-  Search,
-  UserCheck,
-  ChevronDown,
-  Check,
-  Info,
-  Plus,
-} from 'lucide-react';
+import { ClipboardList, Clock, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { cn } from '@/components/ui/utils';
 import DestructiveActionModal from '@/components/common/DestructiveActionModal';
 import EnhancedFinancialSummaryCard from '@/components/monthly-logs/EnhancedFinancialSummaryCard';
@@ -41,20 +16,18 @@ import EnhancedHeader from '@/components/monthly-logs/EnhancedHeader';
 import StatementsStage from '@/components/monthly-logs/StatementsStage';
 import TransactionDetailDialog from '@/components/monthly-logs/TransactionDetailDialog';
 import JournalEntryDetailDialog from '@/components/monthly-logs/JournalEntryDetailDialog';
-import TransactionTable from '@/components/monthly-logs/TransactionTable';
 import RecurringTasksForUnit from '@/components/monthly-logs/RecurringTasksForUnit';
+import TransactionActionBar from '@/components/monthly-logs/TransactionActionBar';
+import TransactionTabs from '@/components/monthly-logs/TransactionTabs';
+import TaskCreateDialog from '@/components/monthly-logs/TaskCreateDialog';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import { useMonthlyLogData } from '@/hooks/useMonthlyLogData';
 import MonthlyLogTransactionOverlay, {
   type TransactionMode,
 } from '@/components/monthly-logs/MonthlyLogTransactionOverlay';
 import type { LeaseTenantOption } from '@/components/leases/types';
-import {
-  formatCurrency,
-  formatDate,
-} from '@/lib/transactions/formatting';
+import { formatCurrency, formatDate } from '@/lib/transactions/formatting';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
-import { type TaskPriorityKey, type TaskStatusKey } from '@/lib/tasks/utils';
 import { addMonths, subDays } from 'date-fns';
 
 type RelatedLogOption = {
@@ -62,8 +35,6 @@ type RelatedLogOption = {
   label: string;
   status: MonthlyLogStatus | string;
 };
-
-type Transaction = MonthlyLogTransaction;
 
 const LEASE_TRANSACTION_MODES: TransactionMode[] = [
   'payment',
@@ -146,8 +117,8 @@ const TASK_STATUS_BADGE: Record<MonthlyLogTaskSummary['statusKey'], string> = {
   in_progress: 'bg-blue-50 text-blue-700 border border-blue-200',
   completed:
     'bg-[var(--color-action-50)] text-[var(--color-action-700)] border border-[var(--color-action-200)]',
-  on_hold: 'bg-slate-100 text-slate-700 border border-slate-200',
-  cancelled: 'bg-slate-100 text-slate-500 border border-slate-200',
+  on_hold: 'bg-slate-100 text-slate-700 border border-slate-300',
+  cancelled: 'bg-slate-100 text-slate-600 border border-slate-300',
 };
 
 const TASK_PRIORITY_DOT: Record<MonthlyLogTaskSummary['priorityKey'], string> = {
@@ -167,6 +138,7 @@ export default function MonthlyLogDetailPageContent({
   const scopeFieldId = useId();
   const [logStatus, setLogStatus] = useState<MonthlyLogStatus>(monthlyLog.status);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [assignedSearch, setAssignedSearch] = useState('');
   const [unassignedSearch, setUnassignedSearch] = useState('');
   const [selectedAssigned, setSelectedAssigned] = useState<Set<string>>(new Set());
   const [selectedUnassigned, setSelectedUnassigned] = useState<Set<string>>(new Set());
@@ -199,7 +171,13 @@ export default function MonthlyLogDetailPageContent({
     if (transactionScope === 'unit' && supportsUnitTransactions && !loadUnitUnassigned) {
       setLoadUnitUnassigned(true);
     }
-  }, [transactionScope, hasActiveLease, supportsUnitTransactions, loadLeaseUnassigned, loadUnitUnassigned]);
+  }, [
+    transactionScope,
+    hasActiveLease,
+    supportsUnitTransactions,
+    loadLeaseUnassigned,
+    loadUnitUnassigned,
+  ]);
 
   const {
     assignedTransactions,
@@ -239,8 +217,9 @@ export default function MonthlyLogDetailPageContent({
   const [transactionOverlayOpen, setTransactionOverlayOpen] = useState(false);
   const [selectedTransactionDetail, setSelectedTransactionDetail] =
     useState<MonthlyLogTransaction | null>(null);
-  const [selectedTransactionScope, setSelectedTransactionScope] =
-    useState<'assigned' | 'unassigned' | null>(null);
+  const [selectedTransactionScope, setSelectedTransactionScope] = useState<
+    'assigned' | 'unassigned' | null
+  >(null);
   const [transactionDetailDialogOpen, setTransactionDetailDialogOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
@@ -303,11 +282,6 @@ export default function MonthlyLogDetailPageContent({
   const filteredUnitUnassigned = useMemo(
     () => filterUnassignedTransactions(unitUnassignedTransactions),
     [filterUnassignedTransactions, unitUnassignedTransactions],
-  );
-
-  const filteredUnassigned = useMemo(
-    () => (transactionScope === 'lease' ? filteredLeaseUnassigned : filteredUnitUnassigned),
-    [transactionScope, filteredLeaseUnassigned, filteredUnitUnassigned],
   );
 
   const activeUnassignedRaw =
@@ -470,20 +444,17 @@ export default function MonthlyLogDetailPageContent({
     activeUnassignedRaw,
   ]);
 
-  const openDeleteConfirmation = useCallback(
-    (ids: string[], scope: 'assigned' | 'unassigned') => {
-      if (!ids.length) return;
-      setConfirmState({
-        open: true,
-        ids,
-        scope,
-        title: ids.length === 1 ? 'Delete transaction?' : 'Delete selected transactions?',
-        description:
-          'This action cannot be undone and will remove the transaction from this monthly log.',
-      });
-    },
-    [],
-  );
+  const openDeleteConfirmation = useCallback((ids: string[], scope: 'assigned' | 'unassigned') => {
+    if (!ids.length) return;
+    setConfirmState({
+      open: true,
+      ids,
+      scope,
+      title: ids.length === 1 ? 'Delete transaction?' : 'Delete selected transactions?',
+      description:
+        'This action cannot be undone and will remove the transaction from this monthly log.',
+    });
+  }, []);
 
   const handleConfirmDelete = useCallback(async () => {
     if (!confirmState.open || !confirmState.ids.length) return;
@@ -534,9 +505,7 @@ export default function MonthlyLogDetailPageContent({
   ]);
 
   const resolveEditTarget = useCallback(
-    (
-      transaction: MonthlyLogTransaction | null,
-    ): { href: string | null; reason: string | null } => {
+    (transaction: MonthlyLogTransaction | null): { href: string | null; reason: string | null } => {
       if (!transaction) {
         return { href: null, reason: null };
       }
@@ -580,8 +549,7 @@ export default function MonthlyLogDetailPageContent({
       }
 
       toast.info(
-        target.reason ??
-          'Editing for this transaction type is managed in its source workspace.',
+        target.reason ?? 'Editing for this transaction type is managed in its source workspace.',
       );
     },
     [resolveEditTarget, router],
@@ -709,7 +677,6 @@ export default function MonthlyLogDetailPageContent({
       ? 'Link an active lease to this monthly log to add lease transactions.'
       : 'Unit information is required before adding unit transactions.'
     : null;
-  const transactionModeLabel = TRANSACTION_MODE_LABELS[transactionMode] ?? 'Transaction';
   const selectedEditIntent = useMemo(
     () => resolveEditTarget(selectedTransactionDetail),
     [resolveEditTarget, selectedTransactionDetail],
@@ -807,270 +774,145 @@ export default function MonthlyLogDetailPageContent({
         />
       )}
 
-      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 lg:px-8 lg:py-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,_3fr)_minmax(320px,_1fr)]">
-          <div className="space-y-10">
-            <section className="space-y-4">
-              <div className="flex flex-wrap items-center justify-end gap-4 sm:gap-6">
-                <div className="flex items-center gap-3 text-sm font-semibold text-slate-700 min-w-[220px]">
-                  <span className="text-sm font-semibold text-slate-800">Scope:</span>
-                  <RadioGroup
-                    value={transactionScope}
-                    onValueChange={(value) => setTransactionScope(value as 'lease' | 'unit')}
-                    className="flex items-center gap-4 min-w-[160px]"
-                    aria-label="Transaction scope"
-                  >
-                    {hasActiveLease ? (
-                      <Label htmlFor={`${scopeFieldId}-lease`} className="text-slate-700">
-                        <RadioGroupItem value="lease" id={`${scopeFieldId}-lease`} className="peer" />
-                        <span>Lease</span>
-                      </Label>
-                    ) : null}
-                    {supportsUnitTransactions ? (
-                      <Label htmlFor={`${scopeFieldId}-unit`} className="text-slate-700">
-                        <RadioGroupItem value="unit" id={`${scopeFieldId}-unit`} className="peer" />
-                        <span>Unit</span>
-                      </Label>
-                    ) : null}
-                  </RadioGroup>
-                  {!hasActiveLease && !supportsUnitTransactions ? (
-                    <span className="text-slate-400">Unavailable</span>
-                  ) : null}
-                </div>
-                <DropdownMenu
-                  open={transactionModeMenuOpen}
-                  onOpenChange={(open) => setTransactionModeMenuOpen(open)}
-                >
-                  <div className="inline-flex min-w-[180px] justify-start">
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-2 justify-between"
-                        disabled={addTransactionDisabled}
-                      >
-                        {transactionModeLabel}
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                  </div>
-                  <DropdownMenuContent align="end">
-                    {allowedModes.map((mode) => {
-                      const label = TRANSACTION_MODE_LABELS[mode] ?? mode;
-                      return (
-                        <DropdownMenuItem
-                          key={mode}
-                          onSelect={(event) => {
-                            event.preventDefault();
-                            setTransactionMode(mode);
-                            setTransactionModeMenuOpen(false);
-                          }}
-                        >
-                          <div className="flex w-full items-center justify-between">
-                            <span>{label}</span>
-                            {mode === transactionMode ? <Check className="h-4 w-4 text-green-600" /> : null}
-                          </div>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <div className="inline-flex min-w-[180px] justify-start">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="w-full gap-2 justify-center"
-                    onClick={() => {
-                      if (addTransactionDisabled) return;
-                      setTransactionOverlayOpen(true);
-                    }}
-                    disabled={addTransactionDisabled}
-                  >
-                    Add {transactionModeLabel.toLowerCase()}
-                  </Button>
-                </div>
-              </div>
+      <div className="mx-auto w-full max-w-screen-2xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,_3fr)_minmax(320px,_1fr)] lg:gap-10">
+          <div className="space-y-6">
+            {/* Transaction Controls and Tables */}
+            <section className="space-y-6">
+              <TransactionActionBar
+                scopeFieldId={scopeFieldId}
+                transactionScope={transactionScope}
+                onScopeChange={setTransactionScope}
+                hasActiveLease={hasActiveLease}
+                supportsUnitTransactions={supportsUnitTransactions}
+                transactionMode={transactionMode}
+                onTransactionModeChange={setTransactionMode}
+                transactionModeMenuOpen={transactionModeMenuOpen}
+                onTransactionModeMenuOpenChange={setTransactionModeMenuOpen}
+                allowedModes={allowedModes}
+                onAddTransaction={() => {
+                  if (addTransactionDisabled) return;
+                  setTransactionOverlayOpen(true);
+                }}
+                addTransactionDisabled={addTransactionDisabled}
+                addTransactionDisabledReason={addTransactionDisabledReason}
+              />
 
-              {addTransactionDisabledReason ? (
-                <p className="text-xs text-slate-500">{addTransactionDisabledReason}</p>
-              ) : null}
-
-              {(!hasActiveLease || !supportsUnitTransactions) ? (
-                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <div className="space-y-1.5">
-                    {!hasActiveLease ? (
-                      <p className="leading-snug">
-                        Lease transactions are disabled until you link an active lease to this monthly log.
-                        You can attach a lease from the unit’s lease workspace.
-                      </p>
-                    ) : null}
-                    {!supportsUnitTransactions ? (
-                      <p className="leading-snug">
-                        Unit transactions require this monthly log to be linked to a unit. Add the unit to the log to enable unit transactions.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              <section className="space-y-10">
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Assigned transactions</h3>
-                      <p className="text-sm text-slate-500">
-                        Review current assignments and unassign if needed.
-                      </p>
-                    </div>
-                  </div>
-                  <TransactionTable
-                    transactions={visibleAssignedTransactions}
-                    loading={loadingAssigned}
-                    selectedIds={selectedAssigned}
-                    onToggleSelection={(id) =>
-                      setSelectedAssigned((current) => {
-                        const next = new Set(current);
-                        if (next.has(id)) {
-                          next.delete(id);
-                        } else {
-                          next.add(id);
-                        }
-                        return next;
-                      })
+              <TransactionTabs
+                assignedTransactions={visibleAssignedTransactions}
+                unassignedTransactions={activeUnassignedRaw}
+                assignedSearch={assignedSearch}
+                onAssignedSearchChange={setAssignedSearch}
+                unassignedSearch={unassignedSearch}
+                onUnassignedSearchChange={setUnassignedSearch}
+                loadingAssigned={loadingAssigned}
+                loadingUnassigned={activeLoadingUnassigned}
+                selectedAssigned={selectedAssigned}
+                selectedUnassigned={selectedUnassigned}
+                onToggleAssignedSelection={(id) =>
+                  setSelectedAssigned((current) => {
+                    const next = new Set(current);
+                    if (next.has(id)) {
+                      next.delete(id);
+                    } else {
+                      next.add(id);
                     }
-                    onToggleAll={(checked) =>
-                      setSelectedAssigned(
-                        checked
-                          ? new Set(visibleAssignedTransactions.map((transaction) => transaction.id))
-                          : new Set(),
-                      )
+                    return next;
+                  })
+                }
+                onToggleAllAssigned={(checked) =>
+                  setSelectedAssigned(
+                    checked
+                      ? new Set(visibleAssignedTransactions.map((transaction) => transaction.id))
+                      : new Set(),
+                  )
+                }
+                onToggleUnassignedSelection={(id) =>
+                  setSelectedUnassigned((current) => {
+                    const next = new Set(current);
+                    if (next.has(id)) {
+                      next.delete(id);
+                    } else {
+                      next.add(id);
                     }
-                    onRowClick={(transaction) => {
-                      setSelectedTransactionDetail(transaction);
-                      setSelectedTransactionScope('assigned');
-                      setTransactionDetailDialogOpen(true);
-                    }}
-                    stickyActions={
-                      assignedSelectedCount > 0 ? (
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Badge
-                            variant="outline"
-                            className="border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700"
-                          >
-                            {assignedSelectedCount} selected
-                          </Badge>
-                          <Button type="button" size="sm" variant="outline" onClick={handleBulkUnassign}>
-                            Unassign
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Assigned
-                        </div>
-                      )
-                    }
-                    emptyTitle="No transactions assigned yet."
-                    emptyDescription="Assign or create transactions to see them in this list."
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Unassigned transactions</h3>
-                      <p className="text-sm text-slate-500">Assign transactions directly from this list.</p>
-                    </div>
+                    return next;
+                  })
+                }
+                onToggleAllUnassigned={(checked) =>
+                  setSelectedUnassigned(
+                    checked
+                      ? new Set(activeUnassignedRaw.map((transaction) => transaction.id))
+                      : new Set(),
+                  )
+                }
+                onAssignedRowClick={(transaction) => {
+                  setSelectedTransactionDetail(transaction);
+                  setSelectedTransactionScope('assigned');
+                  setTransactionDetailDialogOpen(true);
+                }}
+                onUnassignedRowClick={(transaction) => {
+                  setSelectedTransactionDetail(transaction);
+                  setSelectedTransactionScope('unassigned');
+                  setTransactionDetailDialogOpen(true);
+                }}
+                assignedStickyActions={
+                  assignedSelectedCount > 0 ? (
                     <div className="flex flex-wrap items-center gap-3">
-                      <div className="relative w-full sm:w-[200px] md:w-[240px]">
-                        <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          value={unassignedSearch}
-                          onChange={(event) => setUnassignedSearch(event.target.value)}
-                          placeholder="Search memo or reference"
-                          className="h-10 w-full rounded-xl pl-9 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <TransactionTable
-                    transactions={filteredUnassigned}
-                    loading={activeLoadingUnassigned}
-                    selectedIds={selectedUnassigned}
-                    onToggleSelection={(id) =>
-                      setSelectedUnassigned((current) => {
-                        const next = new Set(current);
-                        if (next.has(id)) {
-                          next.delete(id);
-                        } else {
-                          next.add(id);
-                        }
-                        return next;
-                      })
-                    }
-                    onToggleAll={(checked) =>
-                      setSelectedUnassigned(
-                        checked
-                          ? new Set(filteredUnassigned.map((transaction) => transaction.id))
-                          : new Set(),
-                      )
-                    }
-                    onRowClick={(transaction) => {
-                      setSelectedTransactionDetail(transaction);
-                      setSelectedTransactionScope('unassigned');
-                      setTransactionDetailDialogOpen(true);
-                    }}
-                    stickyActions={
-                      unassignedSelectedCount > 0 ? (
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Badge
-                            variant="outline"
-                            className="border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700"
-                          >
-                            {unassignedSelectedCount} selected
-                          </Badge>
-                          <Button type="button" size="sm" variant="outline" onClick={handleBulkAssign}>
-                            Assign
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() =>
-                              openDeleteConfirmation(Array.from(selectedUnassigned), 'unassigned')
-                            }
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Unassigned
-                        </div>
-                      )
-                    }
-                    emptyTitle="No transactions available."
-                    emptyDescription="New transactions will appear here when they match this scope."
-                  />
-
-                  {activeHasMoreUnassigned ? (
-                    <div className="flex justify-center border-t border-slate-100 pt-4">
+                      <Badge
+                        variant="outline"
+                        className="border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700"
+                      >
+                        {assignedSelectedCount} selected
+                      </Badge>
                       <Button
                         type="button"
-                        variant="outline"
                         size="sm"
-                        onClick={() => void activeLoadMoreUnassigned()}
-                        disabled={activeLoadingMoreUnassigned}
+                        variant="outline"
+                        onClick={handleBulkUnassign}
                       >
-                        {activeLoadingMoreUnassigned ? 'Loading…' : 'Load more transactions'}
+                        Unassign
                       </Button>
                     </div>
-                  ) : null}
-                </div>
-              </section>
+                  ) : (
+                    <div className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      Assigned
+                    </div>
+                  )
+                }
+                unassignedStickyActions={
+                  unassignedSelectedCount > 0 ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Badge
+                        variant="outline"
+                        className="border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700"
+                      >
+                        {unassignedSelectedCount} selected
+                      </Badge>
+                      <Button type="button" size="sm" variant="outline" onClick={handleBulkAssign}>
+                        Assign
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() =>
+                          openDeleteConfirmation(Array.from(selectedUnassigned), 'unassigned')
+                        }
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
+                      Unassigned
+                    </div>
+                  )
+                }
+                hasMoreUnassigned={activeHasMoreUnassigned}
+                onLoadMoreUnassigned={activeLoadMoreUnassigned}
+                loadingMoreUnassigned={activeLoadingMoreUnassigned}
+              />
             </section>
 
             <TasksPanel
@@ -1112,16 +954,6 @@ export default function MonthlyLogDetailPageContent({
   );
 }
 
-type TaskFormState = {
-  subject: string;
-  description: string;
-  dueDate: string;
-  priority: TaskPriorityKey;
-  status: TaskStatusKey;
-  category: string;
-  assignedTo: string;
-};
-
 type TasksPanelProps = {
   tasks: MonthlyLogTaskSummary[];
   monthlyLogId: string;
@@ -1148,38 +980,27 @@ function TasksPanel({
   }, [periodStart]);
 
   const [items, setItems] = useState<MonthlyLogTaskSummary[]>(tasks);
-  const [formOpen, setFormOpen] = useState<boolean>(false);
+  const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [quickSubject, setQuickSubject] = useState('');
+  const [quickDueDate, setQuickDueDate] = useState(initialDueDate);
   const [saving, setSaving] = useState<boolean>(false);
-  const [formState, setFormState] = useState<TaskFormState>({
-    subject: '',
-    description: '',
-    dueDate: initialDueDate,
-    priority: 'normal',
-    status: 'new',
-    category: '',
-    assignedTo: '',
-  });
 
   useEffect(() => {
     setItems(tasks);
   }, [tasks]);
 
-  const updateField = <K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) => {
-    setFormState((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleCreateTask = useCallback(
+  const handleQuickAdd = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!formState.subject.trim()) {
+      if (!quickSubject.trim()) {
         toast.error('Subject is required.');
         return;
       }
       setSaving(true);
       try {
         let dueDateIso: string | null = null;
-        if (formState.dueDate && formState.dueDate.trim()) {
-          const parsedDate = new Date(formState.dueDate);
+        if (quickDueDate && quickDueDate.trim()) {
+          const parsedDate = new Date(quickDueDate);
           dueDateIso = Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString();
         }
 
@@ -1189,40 +1010,35 @@ function TasksPanel({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            subject: formState.subject,
-            description: formState.description || null,
+            subject: quickSubject,
+            description: null,
             dueDate: dueDateIso,
-            priority: formState.priority,
-            status: formState.status,
-            category: formState.category || null,
-            assignedTo: formState.assignedTo || null,
+            priority: 'normal',
+            status: 'new',
+            category: null,
+            assignedTo: null,
           }),
         });
 
         const bodyText = await response.text();
-        let parsed: any = {};
+        let parsed: { error?: string } | MonthlyLogTaskSummary = {};
         try {
           parsed = bodyText ? JSON.parse(bodyText) : {};
         } catch {
           parsed = {};
         }
         if (!response.ok) {
-          throw new Error(parsed?.error || 'Failed to create task');
+          throw new Error(
+            (parsed && typeof parsed === 'object' && 'error' in parsed && parsed.error) ||
+              'Failed to create task',
+          );
         }
 
         const created = parsed as MonthlyLogTaskSummary;
         setItems((prev) => [created, ...prev]);
         toast.success('Task created');
-        setFormState({
-          subject: '',
-          description: '',
-          dueDate: initialDueDate,
-          priority: 'normal',
-          status: 'new',
-          category: '',
-          assignedTo: '',
-        });
-        setFormOpen(false);
+        setQuickSubject('');
+        setQuickDueDate(initialDueDate);
       } catch (error) {
         console.error('Failed to create monthly log task', error);
         toast.error((error as Error)?.message || 'Could not create task');
@@ -1230,34 +1046,44 @@ function TasksPanel({
         setSaving(false);
       }
     },
-    [formState, initialDueDate, monthlyLogId],
+    [quickSubject, quickDueDate, initialDueDate, monthlyLogId],
   );
 
-  return (
-    <section className="bg-white px-4 py-6 ring-1 ring-slate-200 sm:px-6 lg:px-8 lg:py-8">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <ClipboardList className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Tasks linked to this log</h2>
-            <p className="text-sm text-slate-500">Track outstanding follow-ups and assignments.</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => window.open('/tasks', '_blank')}
-          >
-            Open tasks workspace
-          </Button>
-        </div>
-      </header>
+  const handleTaskCreated = useCallback((task: MonthlyLogTaskSummary) => {
+    setItems((prev) => [task, ...prev]);
+  }, []);
 
-      <div className="mb-6">
+  return (
+    <section className="bg-white px-4 py-4 ring-1 ring-slate-300 sm:px-6 sm:py-5">
+      {/* Compact Header */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-slate-700" />
+          <h2 className="text-base font-semibold text-slate-900">
+            Tasks
+            {items.length > 0 && (
+              <Badge
+                variant="outline"
+                className="ml-2 rounded-full border-slate-400 bg-slate-200 px-1.5 py-0 text-xs font-medium"
+              >
+                {items.length}
+              </Badge>
+            )}
+          </h2>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => window.open('/tasks', '_blank')}
+          className="h-8 text-xs text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+        >
+          Open workspace
+        </Button>
+      </div>
+
+      {/* Recurring Tasks - Compact */}
+      <div className="mb-4">
         <RecurringTasksForUnit
           propertyId={propertyId}
           unitId={unitId}
@@ -1266,194 +1092,104 @@ function TasksPanel({
         />
       </div>
 
-      <div className="mb-6 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-4">
-        <button
-          type="button"
-          onClick={() => setFormOpen((prev) => !prev)}
-          className="flex w-full items-center justify-between text-left text-sm font-medium text-slate-700"
-        >
-          <span className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add a task to this log
-          </span>
-          <span className="text-xs text-slate-500">{formOpen ? 'Hide' : 'Show'}</span>
-        </button>
-        {formOpen ? (
-          <form onSubmit={handleCreateTask} className="mt-4 space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Subject <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  value={formState.subject}
-                  onChange={(event) => updateField('subject', event.target.value)}
-                  placeholder="Summarize the task"
-                  disabled={saving}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Due date
-                </Label>
-                <Input
-                  type="date"
-                  value={formState.dueDate}
-                  onChange={(event) => updateField('dueDate', event.target.value)}
-                  disabled={saving}
-                />
-              </div>
-            </div>
+      {/* Streamlined Quick Add Form */}
+      <form
+        onSubmit={handleQuickAdd}
+        className="mb-4 flex flex-wrap items-end gap-2 rounded-lg border border-slate-300 bg-slate-100 p-2.5 sm:flex-nowrap"
+      >
+        <div className="min-w-0 flex-1">
+          <Input
+            id="quick-subject"
+            value={quickSubject}
+            onChange={(event) => setQuickSubject(event.target.value)}
+            placeholder="Quick add task..."
+            disabled={saving}
+            required
+            className="h-9 bg-white text-sm"
+          />
+        </div>
+        <div className="w-full sm:w-[140px]">
+          <Input
+            id="quick-due-date"
+            type="date"
+            value={quickDueDate}
+            onChange={(event) => setQuickDueDate(event.target.value)}
+            disabled={saving}
+            className="h-9 bg-white text-sm"
+          />
+        </div>
+        <div className="flex w-full gap-1.5 sm:w-auto">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={saving || !quickSubject.trim()}
+            className="h-9 flex-1 px-3 sm:flex-initial"
+          >
+            {saving ? 'Adding…' : 'Add'}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setDialogOpen(true)}
+            disabled={saving}
+            className="h-9 px-2 text-xs"
+          >
+            More
+          </Button>
+        </div>
+      </form>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Priority
-                </Label>
-                <Select
-                  value={formState.priority}
-                  onValueChange={(value) => updateField('priority', value as TaskPriorityKey)}
-                  disabled={saving}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Status
-                </Label>
-                <Select
-                  value={formState.status}
-                  onValueChange={(value) => updateField('status', value as TaskStatusKey)}
-                  disabled={saving}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in_progress">In progress</SelectItem>
-                    <SelectItem value="on_hold">On hold</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Category
-                </Label>
-                <Input
-                  value={formState.category}
-                  onChange={(event) => updateField('category', event.target.value)}
-                  placeholder="Optional category"
-                  disabled={saving}
-                />
-              </div>
-            </div>
+      <TaskCreateDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        monthlyLogId={monthlyLogId}
+        initialDueDate={initialDueDate}
+        onTaskCreated={handleTaskCreated}
+      />
 
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Assigned to
-              </Label>
-              <Input
-                value={formState.assignedTo}
-                onChange={(event) => updateField('assignedTo', event.target.value)}
-                placeholder="Name or email"
-                disabled={saving}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Description
-              </Label>
-              <Textarea
-                value={formState.description}
-                onChange={(event) => updateField('description', event.target.value)}
-                placeholder="Add context or instructions..."
-                className="min-h-[100px]"
-                disabled={saving}
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Create task'}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setFormOpen(false)}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </div>
-
+      {/* Task List */}
       {items.length === 0 ? (
-        <div className="border border-dashed border-slate-300 bg-slate-50/80 p-8 text-center text-sm text-slate-500">
+        <div className="border border-dashed border-slate-400 bg-slate-100 p-6 text-center text-sm text-slate-600">
           No tasks linked to this monthly log yet.
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {items.map((task) => (
             <div
               key={task.id}
-              className="flex flex-col gap-3 border border-slate-200 bg-white p-5 transition hover:border-slate-300"
+              className="group flex items-start justify-between gap-3 rounded-lg border border-slate-300 bg-white p-3 transition hover:border-slate-400 hover:bg-slate-100 hover:shadow-sm"
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     className={cn(
-                      'rounded-full px-3 py-1 text-xs font-medium',
+                      'rounded-full px-2 py-0.5 text-[11px] font-medium',
                       TASK_STATUS_BADGE[task.statusKey],
                     )}
                   >
                     {task.statusLabel}
                   </Badge>
-                  <span className="flex items-center gap-2 text-xs text-slate-500">
-                    <Clock className="h-3.5 w-3.5" />
-                    Updated {task.updatedRelativeLabel}
+                  <span
+                    className={cn('h-1.5 w-1.5 rounded-full', TASK_PRIORITY_DOT[task.priorityKey])}
+                  />
+                  {task.categoryLabel && (
+                    <span className="text-xs text-slate-600">{task.categoryLabel}</span>
+                  )}
+                </div>
+                <div className="text-sm font-medium text-slate-900">{task.subject}</div>
+                <div className="flex items-center gap-3 text-xs text-slate-600">
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Due {task.dueDateLabel}
                   </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        'h-2.5 w-2.5 rounded-full',
-                        TASK_PRIORITY_DOT[task.priorityKey],
-                      )}
-                    />
-                    {task.priorityLabel}
-                  </span>
-                  {task.categoryLabel ? <span>• {task.categoryLabel}</span> : null}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <span>{task.subject}</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span>Due {task.dueDateLabel}</span>
-                  {task.assignedToLabel ? (
-                    <span className="flex items-center gap-2">
-                      <UserCheck className="h-3.5 w-3.5" />
+                  {task.assignedToLabel && (
+                    <span className="flex items-center gap-1">
+                      <UserCheck className="h-3 w-3" />
                       {task.assignedToLabel}
                     </span>
-                  ) : null}
+                  )}
+                  <span>Updated {task.updatedRelativeLabel}</span>
                 </div>
               </div>
             </div>

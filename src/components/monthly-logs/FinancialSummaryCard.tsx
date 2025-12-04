@@ -89,7 +89,7 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
           <CardTitle>Financial Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="py-4 text-center text-slate-500">
+          <div className="py-4 text-center text-slate-600">
             <p>Unable to load financial summary</p>
             <p className="mt-1 text-sm">Please check your connection and try again</p>
           </div>
@@ -105,10 +105,10 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
             Lease Ledger
           </p>
-          <div className="border-b border-slate-200" />
+          <div className="border-b border-slate-300" />
         </div>
 
         <div className="flex items-center justify-between">
@@ -133,10 +133,10 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
             Unit Transactions
           </p>
-          <div className="border-b border-slate-200" />
+          <div className="border-b border-slate-300" />
         </div>
 
         <div className="flex items-center justify-between">
@@ -158,7 +158,7 @@ export default function FinancialSummaryCard({ monthlyLogId }: FinancialSummaryC
           </span>
         </div>
 
-        <div className="border-t border-slate-200 pt-4">
+        <div className="border-t border-slate-300 pt-4">
           <div className="flex items-center justify-between text-sm text-slate-600">
             <span>Previous Balance</span>
             <span className="font-semibold text-slate-900">

@@ -63,6 +63,7 @@ interface UseMonthlyLogDataReturn {
 
   addAssignedTransaction: (transaction: MonthlyLogTransaction) => void;
   removeAssignedTransaction: (transactionId: string) => void;
+  removeUnassignedTransaction: (transactionId: string) => void;
   moveTransactionToAssigned: (transaction: MonthlyLogTransaction) => void;
   moveTransactionToUnassigned: (transactionId: string) => void;
 }
@@ -206,15 +207,19 @@ export function useMonthlyLogData(
     [options.initialAssigned, options.initialSummary],
   );
 
-  const { data: assignedData, error: assignedError, isLoading: loadingAssigned, mutate: mutateAssigned } =
-    useSWR<AssignedResponse>(
-      monthlyLogId ? `/api/monthly-logs/${monthlyLogId}/transactions` : null,
-      undefined,
-      {
-        fallbackData: assignedFallback,
-        revalidateOnFocus: false,
-      },
-    );
+  const {
+    data: assignedData,
+    error: assignedError,
+    isLoading: loadingAssigned,
+    mutate: mutateAssigned,
+  } = useSWR<AssignedResponse>(
+    monthlyLogId ? `/api/monthly-logs/${monthlyLogId}/transactions` : null,
+    undefined,
+    {
+      fallbackData: assignedFallback,
+      revalidateOnFocus: false,
+    },
+  );
 
   const leaseUnassignedFallback = useMemo(
     () => buildUnassignedFallback(options.initialUnassigned, options.initialUnassignedCursor),
@@ -222,14 +227,14 @@ export function useMonthlyLogData(
   );
 
   const unitUnassignedFallback = useMemo(
-    () => buildUnassignedFallback(options.initialUnitUnassigned, options.initialUnitUnassignedCursor),
+    () =>
+      buildUnassignedFallback(options.initialUnitUnassigned, options.initialUnitUnassignedCursor),
     [options.initialUnitUnassigned, options.initialUnitUnassignedCursor],
   );
 
   const shouldLoadLeaseUnassigned =
     Boolean(options.leaseId) && options.loadLeaseUnassigned !== false;
-  const shouldLoadUnitUnassigned =
-    Boolean(options.unitId) && options.loadUnitUnassigned !== false;
+  const shouldLoadUnitUnassigned = Boolean(options.unitId) && options.loadUnitUnassigned !== false;
 
   const {
     data: unassignedPages,
@@ -313,29 +318,19 @@ export function useMonthlyLogData(
 
   const flattenedUnassigned = useMemo(() => {
     if (!shouldLoadLeaseUnassigned) return [];
-    const pages =
-      unassignedPages ??
-      (leaseUnassignedFallback
-        ? leaseUnassignedFallback
-        : []);
+    const pages = unassignedPages ?? (leaseUnassignedFallback ? leaseUnassignedFallback : []);
     return pages.flatMap((page) => page.items);
   }, [shouldLoadLeaseUnassigned, unassignedPages, leaseUnassignedFallback]);
 
   const flattenedUnitUnassigned = useMemo(() => {
     if (!shouldLoadUnitUnassigned) return [];
-    const pages =
-      unitUnassignedPages ??
-      (unitUnassignedFallback
-        ? unitUnassignedFallback
-        : []);
+    const pages = unitUnassignedPages ?? (unitUnassignedFallback ? unitUnassignedFallback : []);
     return pages.flatMap((page) => page.items);
   }, [shouldLoadUnitUnassigned, unitUnassignedPages, unitUnassignedFallback]);
 
   const hasMoreUnassigned =
     shouldLoadLeaseUnassigned &&
-    Boolean(
-      (unassignedPages ?? leaseUnassignedFallback)?.at(-1)?.nextCursor,
-    );
+    Boolean((unassignedPages ?? leaseUnassignedFallback)?.at(-1)?.nextCursor);
 
   const hasMoreUnitUnassigned =
     shouldLoadUnitUnassigned &&
@@ -385,8 +380,7 @@ export function useMonthlyLogData(
   const addAssignedTransaction = useCallback(
     (transaction: MonthlyLogTransaction) => {
       mutateAssigned(
-        (current) =>
-          applyAssignedUpdate(current, (transactions) => [...transactions, transaction]),
+        (current) => applyAssignedUpdate(current, (transactions) => [...transactions, transaction]),
         { revalidate: false },
       );
     },
@@ -408,7 +402,9 @@ export function useMonthlyLogData(
 
   const removeUnassignedTransaction = useCallback(
     (transactionId: string) => {
-      const removeFromPages = (pages: UnassignedPage[] | undefined): UnassignedPage[] | undefined => {
+      const removeFromPages = (
+        pages: UnassignedPage[] | undefined,
+      ): UnassignedPage[] | undefined => {
         if (!pages) return pages;
         return pages.map((page) => ({
           ...page,
@@ -424,7 +420,9 @@ export function useMonthlyLogData(
 
   const moveTransactionToAssigned = useCallback(
     (transaction: MonthlyLogTransaction) => {
-      const removeFromPages = (pages: UnassignedPage[] | undefined): UnassignedPage[] | undefined => {
+      const removeFromPages = (
+        pages: UnassignedPage[] | undefined,
+      ): UnassignedPage[] | undefined => {
         if (!pages) return pages;
         return pages.map((page) => ({
           ...page,
@@ -432,15 +430,9 @@ export function useMonthlyLogData(
         }));
       };
 
-      mutateUnassigned(
-        (pages) => removeFromPages(pages),
-        { revalidate: false },
-      );
+      mutateUnassigned((pages) => removeFromPages(pages), { revalidate: false });
 
-      mutateUnitUnassigned(
-        (pages) => removeFromPages(pages),
-        { revalidate: false },
-      );
+      mutateUnitUnassigned((pages) => removeFromPages(pages), { revalidate: false });
 
       mutateAssigned(
         (current) => {

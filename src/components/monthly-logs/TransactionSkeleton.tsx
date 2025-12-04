@@ -12,7 +12,7 @@ export default function TransactionSkeleton({ count = 3 }: TransactionSkeletonPr
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4"
+          className="flex items-center justify-between rounded-lg border border-slate-300 bg-white p-4"
         >
           <div className="flex items-center gap-3">
             <Skeleton className="h-4 w-4 rounded-full" />

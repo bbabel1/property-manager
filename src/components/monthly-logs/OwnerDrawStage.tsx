@@ -150,7 +150,7 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            <div className="rounded-lg bg-slate-50 p-4">
+            <div className="rounded-lg bg-slate-100 p-4">
               <p className="text-sm font-medium text-slate-700">
                 Total of transactions coded to the &ldquo;Owner Draw&rdquo; GL account.
               </p>
@@ -164,7 +164,7 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-700">Owner Draw</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-600">
                     {isPositiveDraw
                       ? 'Amount available for distribution'
                       : 'Additional funds needed'}
@@ -191,16 +191,16 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
             {/* Transactions */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <ListChecks className="h-4 w-4 text-slate-500" />
+                <ListChecks className="h-4 w-4 text-slate-600" />
                 <h4 className="text-sm font-semibold text-slate-700">Owner Draw Transactions</h4>
               </div>
 
               {data.transactions.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+                <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-600">
                   No owner draw transactions have been assigned to this log.
                 </div>
               ) : (
-                <div className="divide-y rounded-lg border border-slate-200">
+                <div className="divide-y rounded-lg border border-slate-300">
                   {data.transactions.map((transaction) => (
                     <div
                       key={transaction.transactionLineId}
@@ -210,7 +210,7 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
                         <p className="font-medium text-slate-700">
                           {formatDate(transaction.date)}
                         </p>
-                        <p className="truncate text-xs text-slate-500">
+                        <p className="truncate text-xs text-slate-600">
                           {transaction.memo || 'Owner Draw'}
                         </p>
                       </div>
@@ -241,11 +241,11 @@ export default function OwnerDrawStage({ monthlyLogId }: OwnerDrawStageProps) {
               </span>
             </p>
 
-            <div className="rounded-lg bg-slate-50 p-4">
+            <div className="rounded-lg bg-slate-100 p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-700">Net to Owner</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-600">
                     Reflects prior balance plus this month&apos;s activity.
                   </p>
                 </div>
