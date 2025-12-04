@@ -158,7 +158,7 @@ class CursorAIAgent {
     
     this.analysisResults.push({
       type: 'database',
-      file: 'supabase-schema.sql',
+      file: 'docs/database/current_schema.sql',
       insights: [
         'Database follows normalized design principles',
         'Foreign key relationships are properly defined',

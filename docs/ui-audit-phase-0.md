@@ -52,7 +52,7 @@ Phase 0 establishes a single baseline for tokens, typography, and UI entry point
 
 | Module | Location(s) | Description & Styling Approach | Design Alignment |
 | --- | --- | --- | --- |
-| Legacy properties modal | `components/properties/NewPropertyModal.tsx` | Older component (pre `@/components` migration); mixes Tailwind + inline styles | Determine if still referenced; if deprecated, migrate to new modal system |
+| Legacy properties modal (removed) | _deleted_ | Superseded by `src/components/properties/NewPropertyModal.tsx` | ✅ Removed to avoid confusion |
 | Global modals & autocomplete | `src/components/AddPropertyModal.tsx`, `GooglePlacesAutocomplete.tsx`, etc. | Compose `Dialog`, `Form`, and Tailwind utilities; some components duplicate functionality present in new UI kit | Evaluate for consolidation into canonical primitives before Phase 2 |
 | `src/components/ui/**` | `button.tsx`, `card.tsx`, `input.tsx`, etc. | Shadcn-style primitives parameterized via `class-variance-authority`; rely purely on semantic Tailwind classes | Treat as source of truth for component states; ensure tokens cover every variant (badge, tabs, table, nav tabs, sidebar) |
 | Layout system | `src/components/layout/PageHeader.tsx`, `app-sidebar.tsx`, `DataTable.tsx` | Establish page scaffolding, navs, meta stats; heavy use of `Card`, `Tabs`, icons | Align with Buildium shell chrome spec (sidebar width, typography) defined in tokens/globals |
@@ -86,4 +86,3 @@ Phase 0 establishes a single baseline for tokens, typography, and UI entry point
 1. Circulate this document for async comments (Design/Product/Eng) and capture outstanding Figma links/owners.
 2. Update Tailwind `content` globs and Storybook coverage plan as part of Phase 1 kick-off so analyzers reflect the true surface area.
 3. Stand up a shared tracking board (Notion/Jira) that mirrors the inventory above, tagging each surface with severity, owner, and planned remediation phase.
-

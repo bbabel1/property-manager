@@ -110,7 +110,14 @@ Required environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for server-side operations)
-  (NextAuth variables removed)
+- `BUILDIUM_BASE_URL`, `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_WEBHOOK_SECRET` - Buildium API access
+- `NEXT_PUBLIC_APP_URL` - Base app URL
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` - Google Maps key (required by client env validation)
+
+Optional (but supported):
+
+- `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` - Email delivery for statements
+- `COMPANY_*` fields and `COMPANY_LOGO_URL` - Company info for PDFs
 
 ## Project Structure
 
