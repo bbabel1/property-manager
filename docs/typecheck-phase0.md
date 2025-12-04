@@ -2,7 +2,7 @@
 
 ## Command run
 - `npm run typecheck -- --pretty false`
-- Raw output captured in [`scripts/typecheck-report.md`](../scripts/typecheck-report.md).
+- Raw output captured in [`docs/reports/typecheck-report.md`](reports/typecheck-report.md).
 
 ## TypeScript error inventory
 | Module tag | Files (examples) | Count | Notes |
@@ -41,7 +41,7 @@
 - Replace top `any` clusters with generated SDK types to shrink future triage scope.
 
 ## Phase 1 snapshot (2025-09-23)
-- `npm run typecheck -- --pretty false` captured in [`scripts/typecheck-report.md`](../scripts/typecheck-report.md) for reproducibility.
+- `npm run typecheck -- --pretty false` captured in [`docs/reports/typecheck-report.md`](reports/typecheck-report.md) for reproducibility.
 - Supabase client guard lives at `src/lib/supabase-client.ts`; only `src/app/api/staff/route.ts` is refactored so far, the remaining 50+ optionality errors highlight where the guard still needs to be applied.
 - `src/lib/buildium-mappers.ts` now uses concrete Buildium domain models via `src/lib/types/buildium.ts`. Removing the 130+ `any` usages surfaced ~35 real type gaps (countries defaulting to enums, GL account payload shape, sync-status conversions) that will need follow-up fixes.
 - Buildium property image API routes still assume missing tables/types; typecheck now fails fast with `property_images` table lookups and missing `BuildiumPropertyImage` imports, confirming the need for product direction before wiring those endpoints.

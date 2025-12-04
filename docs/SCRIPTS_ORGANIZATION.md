@@ -8,17 +8,18 @@
 
 ```
 scripts/
-├── README.md                           # Main scripts documentation
-├── doc-monitoring-system.ts            # Documentation monitoring system
-├── show-organization.ts                # Shows current organization structure
-├── api/                                # API-related scripts
-├── buildium/                           # Buildium integration scripts
-│   ├── create/                         # Entity creation scripts
-│   ├── sync/                           # Data synchronization scripts
-│   └── verify/                         # Data verification scripts
-├── database/                           # Database management scripts
-├── sql/                                # SQL utility scripts
-└── utils/                              # Utility scripts
+├── README.md                        # Main scripts documentation
+├── buildium/                       # Buildium integration (create/sync)
+├── cron/                           # Scheduled job runners
+├── database/                       # Schema helpers and tooling
+├── db/                             # Local DB backup/reset helpers
+├── diagnostics/                    # Read-only checks, verifications, debug utilities
+├── maintenance/                    # Mutating fixes, seeds, sync helpers
+├── migrations/                     # Migration utilities
+├── setup/                          # Environment setup/validation
+├── sql/                            # SQL utilities and raw scripts
+├── utils/                          # Shared helpers
+└── workflows/                      # End-to-end workflows
 ```
 
 ## 🎯 Script Categories and Usage
@@ -29,172 +30,104 @@ scripts/
 **When to Use**:
 - First-time project setup
 - Environment configuration
-- Database initialization
+- Connectivity checks
 
 **Key Scripts**:
 - `setup-environment.ts` - Configure environment variables
-- `setup-database.ts` - Initialize database schema
 - `setup-buildium-connection.ts` - Test Buildium API connection
 
 ### 2. **Buildium Integration Scripts** (`scripts/buildium/`)
-
-#### **Creation Scripts** (`scripts/buildium/create/`)
-**Purpose**: Create entities in Buildium and sync to local database
+**Purpose**: Buildium API integration and data synchronization
 
 **When to Use**:
-- Adding new properties, units, owners, leases
-- Bulk data import from other systems
-- Testing Buildium API integration
+- Adding properties/leases/units to Buildium
+- Importing or syncing Buildium data into Supabase
+- Reconciling Buildium records
 
-**Key Scripts**:
-- `add-buildium-property.ts` - Create property in Buildium
-- `create-buildium-lease-records.ts` - Create lease records
-- `create-buildium-charge-records.ts` - Create charge records
-- `create-buildium-journal-entries.ts` - Create journal entries
-- `create-buildium-transaction-lines.ts` - Create transaction lines
-- `create-buildium-rent-schedule-record.ts` - Create rent schedules
-- `create-buildium-gl-accounts.ts` - Create general ledger accounts
+**Key Paths**:
+- `create/` - Creation helpers (e.g., `add-buildium-property.ts`, `create-buildium-lease-records.ts`)
+- `sync/` - Sync helpers (e.g., `sync-buildium-bank-accounts.ts`, `fetch-all-lease-transactions.ts`, `populate-relationships.ts`)
+- Root helpers (e.g., `fetch-and-insert-bill.ts`, `ingest-lease-transactions.ts`)
 
-**Usage Example**:
-```bash
-# Create a new property in Buildium
-npx tsx scripts/buildium/create/add-buildium-property.ts
-
-# Create lease records
-npx tsx scripts/buildium/create/create-buildium-lease-records.ts
-```
-
-#### **Sync Scripts** (`scripts/buildium/sync/`)
-**Purpose**: Synchronize data between Buildium and local database
+### 3. **Diagnostics Scripts** (`scripts/diagnostics/`)
+**Purpose**: Read-only checks, verifications, performance analysis, debugging
 
 **When to Use**:
-- Initial data import from Buildium
-- Regular data synchronization
-- Resolving sync conflicts
+- Investigations and audits
+- Validating migrations or data changes
+- Troubleshooting production issues
 
-**Key Scripts**:
-- `sync-buildium-bank-accounts.ts` - Sync bank accounts
-- `fetch-all-lease-transactions.ts` - Fetch lease transactions
-- `fetch-buildium-lease.ts` - Fetch specific lease
-- `fetch-buildium-leases-list.ts` - Fetch all leases
-- `fetch-buildium-rent-schedule.ts` - Fetch rent schedules
-- `fetch-buildium-journal-entry.ts` - Fetch journal entries
-- `populate-relationships.ts` - Populate entity relationships
-- `populate-lease-relationship-to-transaction-lines.ts` - Link leases to transactions
+**Examples**:
+- `check-unit-balances.ts`, `check-bank-gl-transactions.ts`
+- `debug-monthly-log-structure.ts`, `debug-api-endpoint.ts`
+- `verify-transaction-totals-migration.ts`, `analyze-monthly-log-performance.ts`
 
-**Usage Example**:
-```bash
-# Sync all bank accounts from Buildium
-npx tsx scripts/buildium/sync/sync-buildium-bank-accounts.ts
-
-# Fetch all lease transactions
-npx tsx scripts/buildium/sync/fetch-all-lease-transactions.ts
-```
-
-#### **Verification Scripts** (`scripts/buildium/verify/`)
-**Purpose**: Verify data integrity and relationships
+### 4. **Maintenance Scripts** (`scripts/maintenance/`)
+**Purpose**: Mutating fixes, seeds, and one-off repair/sync jobs
 
 **When to Use**:
-- After data creation or sync operations
-- Troubleshooting data issues
-- Quality assurance
+- Data fixes or targeted adjustments
+- Seeding or resetting environments
+- Schema/cache refreshes
 
-**Key Scripts**:
-- `verify-relationships.ts` - Verify entity relationships
-- `verify-buildium-transaction-lines.ts` - Verify transaction lines
-- `verify-lease-creation.ts` - Verify lease creation
-- `verify-owner-created.ts` - Verify owner creation
-- `verify-buildium-charge-records.ts` - Verify charge records
-- `verify-rent-schedule-creation.ts` - Verify rent schedule creation
-- `verify-complete-relationships-with-transaction-lines.ts` - Verify complete relationships
-- `check-property-fields.ts` - Check property field completeness
-- `check-local-property.ts` - Check local property data
-- `check-charge-data.ts` - Check charge data integrity
-- `check-gl-accounts.ts` - Check general ledger accounts
-- `check-unit-created.ts` - Check unit creation
-- `check-property-unit-exist.ts` - Check property-unit relationships
+**Examples**:
+- `fix-monthly-log-schema.ts`, `fix-property-cash-calculation.ts`
+- `seed.ts`, `seed_org.ts`, `reset-db.ts`
+- `import-buildium.ts`, `manual-lease-sync.ts`, `refresh-schema-cache.ts`
 
-**Usage Example**:
-```bash
-# Verify all relationships
-npx tsx scripts/buildium/verify/verify-relationships.ts
-
-# Check property data integrity
-npx tsx scripts/buildium/verify/check-property-fields.ts
-```
-
-### 3. **Database Scripts** (`scripts/database/`)
-**Purpose**: Database management and maintenance
+### 5. **Database / DB Scripts** (`scripts/database/`, `scripts/db/`, `scripts/migrations/`)
+**Purpose**: Schema helpers, backups, migrations support, and local DB workflows
 
 **When to Use**:
-- Database schema updates
-- Data migration
-- Database maintenance
-
-**Key Scripts**:
-- `backup-database.ts` - Create database backup
-- `restore-database.ts` - Restore from backup
-- `cleanup-orphaned-records.ts` - Clean up orphaned data
-- `optimize-database.ts` - Database optimization
-
-### 4. **API Scripts** (`scripts/api/`)
-**Purpose**: API testing and development
-
-**When to Use**:
-- Testing API endpoints
-- API development
-- Performance testing
-
-**Key Scripts**:
-- `test-api-endpoints.ts` - Test all API endpoints
-- `load-test-api.ts` - Load testing
-- `api-performance-test.ts` - Performance testing
-
-### 5. **Utility Scripts** (`scripts/utils/`)
-**Purpose**: General utility functions
-
-**When to Use**:
-- Data processing
-- File operations
-- System utilities
-
-**Key Scripts**:
-- `data-export.ts` - Export data to various formats
-- `data-import.ts` - Import data from various formats
-- `file-cleanup.ts` - Clean up temporary files
-- `log-analysis.ts` - Analyze system logs
+- Inspecting schema snapshots (`database/current-schema.json`, `database/get-table-schema.ts`)
+- Local backup/reset workflows (`db/backup-local.ts`, `db/reset-preserve-local.ts`)
+- Migration utilities (`migrations/*.sh`, `migrations/*.ts`, `migrations/push-migration.ts`)
 
 ### 6. **SQL Scripts** (`scripts/sql/`)
-**Purpose**: Direct SQL operations
+**Purpose**: Direct SQL operations and helpers
 
 **When to Use**:
-- Complex database queries
-- Data analysis
-- One-time data operations
+- Applying SQL files locally or remotely
+- Running raw SQL patches
 
 **Key Scripts**:
-- `add_bill_id_to_transaction_lines.sql` - Add bill IDs to transaction lines
-- `fix_generate_display_name.sql` - Fix display name generation
-- `fix_ownerships_triggers.sql` - Fix ownership triggers
+- `apply_sql.ts` - Apply a SQL file via DSN
+- `run-remote-sql.ts` / `.mjs` - Apply SQL against remote Supabase
+- SQL patches like `add_bill_id_to_transaction_lines.sql`, `fix_ownerships_triggers.sql`
+
+### 7. **Utility Scripts** (`scripts/utils/`)
+**Purpose**: General utilities and documentation helpers
+
+**When to Use**:
+- Generating docs (`generate-api-docs.ts`, `generate-db-docs.ts`, `generate-component-docs.ts`)
+- Buildium helpers (`buildium-api-reference.ts`, `gl-account-manager.ts`)
+- Automation/helpers (`doc-watcher.ts`, `logger.ts`)
+
+### 8. **Cron and Workflows** (`scripts/cron/`, `scripts/workflows/`)
+**Purpose**: Scheduled jobs and end-to-end examples
+
+**When to Use**:
+- Running scheduled tasks (`cron/late-fees.ts`, `cron/recurring.ts`)
+- Following guided flows (`workflows/add-new-property-workflow.ts`)
 
 ## 🚀 Common Workflows
 
-### **Workflow 1: Adding a New Property**
+### **Adding a New Property (Buildium + Supabase)**
 ```bash
-# 1. Create property in Buildium
+# 1. Create the property in Buildium
 npx tsx scripts/buildium/create/add-buildium-property.ts
 
-# 2. Verify property creation
-npx tsx scripts/buildium/verify/check-local-property.ts
+# 2. Create lease records (if applicable)
+npx tsx scripts/buildium/create/create-buildium-lease-records.ts
 
-# 3. Add units
-npx tsx scripts/buildium/create/add-buildium-property.ts [property-id]
+# 3. Populate relationships in Supabase
+npx tsx scripts/buildium/sync/populate-relationships.ts
 
-# 4. Verify units
-npx tsx scripts/buildium/verify/check-unit-created.ts
+# 4. Validate balances and relationships
+npx tsx scripts/diagnostics/check-unit-balances.ts
 ```
 
-### **Workflow 2: Data Synchronization**
+### **Data Synchronization**
 ```bash
 # 1. Sync bank accounts
 npx tsx scripts/buildium/sync/sync-buildium-bank-accounts.ts
@@ -202,44 +135,22 @@ npx tsx scripts/buildium/sync/sync-buildium-bank-accounts.ts
 # 2. Fetch lease transactions
 npx tsx scripts/buildium/sync/fetch-all-lease-transactions.ts
 
-# 3. Verify relationships
-npx tsx scripts/buildium/verify/verify-relationships.ts
+# 3. Rebuild relationships
+npx tsx scripts/buildium/sync/populate-relationships.ts
+
+# 4. Run diagnostics
+npx tsx scripts/diagnostics/verify-transaction-totals-migration.ts
 ```
 
-### **Workflow 3: Data Verification**
-```bash
-# 1. Check property data
-npx tsx scripts/buildium/verify/check-property-fields.ts
-
-# 2. Verify relationships
-npx tsx scripts/buildium/verify/verify-relationships.ts
-
-# 3. Check transaction lines
-npx tsx scripts/buildium/verify/verify-buildium-transaction-lines.ts
-```
+### **Data Verification & Troubleshooting**
+- Quick health check: `npx tsx scripts/diagnostics/health-check.ts`
+- Monthly log review: `npx tsx scripts/diagnostics/debug-monthly-log-structure.ts`
+- GL/transaction validation: `npx tsx scripts/diagnostics/check-bank-gl-transactions.ts`
 
 ## 📋 Script Execution Order
-
-### **Initial Setup**
-1. `scripts/setup/setup-environment.ts`
-2. `scripts/setup/setup-database.ts`
-3. `scripts/buildium/create/test-buildium-connection.ts`
-
-### **Adding New Property**
-1. `scripts/buildium/create/add-buildium-property.ts`
-2. `scripts/buildium/verify/check-local-property.ts`
-3. `scripts/buildium/create/add-buildium-property.ts [property-id]`
-4. `scripts/buildium/verify/check-unit-created.ts`
-
-### **Data Synchronization**
-1. `scripts/buildium/sync/sync-buildium-bank-accounts.ts`
-2. `scripts/buildium/sync/fetch-all-lease-transactions.ts`
-3. `scripts/buildium/verify/verify-relationships.ts`
-
-### **Troubleshooting**
-1. `scripts/buildium/verify/check-property-fields.ts`
-2. `scripts/buildium/verify/verify-relationships.ts`
-3. `scripts/buildium/verify/verify-buildium-transaction-lines.ts`
+- **Environment checks**: `scripts/setup/setup-environment.ts`, `scripts/setup/setup-buildium-connection.ts`
+- **Choose a workflow**: run the relevant sequence above (property add, sync, or diagnostics).
+- **Post-checks**: rerun targeted diagnostics (balances, GL checks) to confirm expected results.
 
 ## 🔧 Script Configuration
 
@@ -309,6 +220,6 @@ npx tsx scripts/buildium/sync/fetch-all-lease-transactions.ts --start-date 2025-
 
 ### **Deprecating Scripts**
 1. Mark as deprecated in documentation
-2. Move to `scripts/deprecated/` directory
+2. Move to a `scripts/deprecated/` directory (create it if needed)
 3. Update references in other scripts
 4. Remove after appropriate grace period

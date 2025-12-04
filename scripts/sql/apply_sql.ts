@@ -4,14 +4,14 @@ import { Client } from 'pg'
 /**
  * Apply a SQL file to a Postgres database using DSN.
  * Usage:
- *   npx tsx scripts/apply_sql.ts --dsn "postgresql://..." --file "path/to/file.sql"
+ *   npx tsx scripts/sql/apply_sql.ts --dsn "postgresql://..." --file "path/to/file.sql"
  */
 async function main() {
   const args = process.argv.slice(2)
   const dsnIdx = args.indexOf('--dsn')
   const fileIdx = args.indexOf('--file')
   if (dsnIdx === -1 || fileIdx === -1) {
-    console.error('Usage: tsx scripts/apply_sql.ts --dsn <connection-string> --file <sql-file>')
+    console.error('Usage: tsx scripts/sql/apply_sql.ts --dsn <connection-string> --file <sql-file>')
     process.exit(1)
   }
   const dsn = args[dsnIdx + 1]
