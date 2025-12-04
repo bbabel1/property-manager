@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Building, Plus, Search, Filter, Bed, Bath, Ruler, DollarSign, Calendar, MapPin, Users } from 'lucide-react'
-import { Button } from '../ui/button'
+import { Button } from '@/components/ui/button'
 import { Unit } from '@/types/units'
 import AddUnitModal from '../AddUnitModal'
 
