@@ -25,57 +25,59 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       .from('monthly_logs')
       .select(
         `
-        id,
-        period_start,
-        stage,
-        status,
-        notes,
-        pdf_url,
-        created_at,
-        updated_at,
-        properties:property_id (
           id,
-          name,
-          address_line_1,
-          address_line_2,
-          city,
-          state,
-          postal_code
-        ),
-        units:unit_id (
-          id,
-          unit_number,
-          unit_name,
-          service_plan,
-          active_services,
-          fee_dollar_amount,
-          billing_frequency
-        ),
-        tenants:tenant_id (
-          id,
-          contacts:contact_id (
-            display_name,
-            first_name,
-            last_name,
-            company_name,
-            email,
-            phone
+          period_start,
+          stage,
+          status,
+          notes,
+          pdf_url,
+          created_at,
+          updated_at,
+          property_id,
+          unit_id,
+          tenant_id,
+          org_id,
+          properties:properties (
+            id,
+            name,
+            address_line1,
+            address_line2,
+            address_line3,
+            city,
+            state,
+            postal_code
+          ),
+          units:units (
+            id,
+            unit_number,
+            unit_name,
+            service_plan,
+            active_services,
+            fee_dollar_amount
+          ),
+          tenants:tenants (
+            id,
+            contact:contacts (
+              display_name,
+              first_name,
+              last_name,
+              company_name
+            )
           )
-        ),
-        activeLease:lease_id (
-          id,
-          lease_from_date,
-          lease_to_date,
-          rent_amount,
-          tenant_names,
-          total_charges
-        )
-      `,
+        `,
       )
       .eq('id', logId)
-      .single();
+      .maybeSingle();
 
-    if (logError || !monthlyLog) {
+    if (logError) {
+      console.error('[api][monthly-logs] Failed to fetch monthly log', { logId, error: logError });
+      return NextResponse.json(
+        { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch monthly log' } },
+        { status: 500 },
+      );
+    }
+
+    if (!monthlyLog) {
       return NextResponse.json(
         { error: { code: 'NOT_FOUND', message: 'Monthly log not found' } },
         { status: 404 },

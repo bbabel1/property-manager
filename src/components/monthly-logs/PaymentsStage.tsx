@@ -58,7 +58,13 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
         throw new Error(`Failed to fetch payments data: ${response.status}`);
       }
 
-      const result = await response.json();
+      const text = await response.text();
+      let result: PaymentsData | null = null;
+      try {
+        result = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error('Invalid response from server');
+      }
       setData(result);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch payments data';

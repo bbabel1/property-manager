@@ -44,7 +44,13 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
         throw new Error(`Failed to fetch management fees data: ${response.status}`);
       }
 
-      const result = await response.json();
+      const text = await response.text();
+      let result: ManagementFeesData | null = null;
+      try {
+        result = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error('Invalid response from server');
+      }
       setData(result);
     } catch (err) {
       const errorMessage =
@@ -71,7 +77,13 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const text = await response.text();
+        let errorData: { error?: { message?: string } } = {};
+        try {
+          errorData = text ? JSON.parse(text) : {};
+        } catch {
+          errorData = { error: { message: `Request failed with status ${response.status}` } };
+        }
         throw new Error(errorData.error?.message || 'Failed to generate management fee');
       }
 

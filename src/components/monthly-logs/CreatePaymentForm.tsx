@@ -79,7 +79,14 @@ export default function CreatePaymentForm({
     try {
       const response = await fetch('/api/gl-accounts?type=asset&subtype=receivable');
       if (response.ok) {
-        const data = await response.json();
+        const text = await response.text();
+        let data: { accounts?: any[] } = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          setGlError('Invalid response from server');
+          return;
+        }
         setGlAccounts(data.accounts || []);
       } else {
         setGlError('Unable to load GL accounts. Please try again.');
@@ -179,7 +186,13 @@ export default function CreatePaymentForm({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const text = await response.text();
+        let errorData: { error?: { message?: string } } = {};
+        try {
+          errorData = text ? JSON.parse(text) : {};
+        } catch {
+          errorData = { error: { message: `Request failed with status ${response.status}` } };
+        }
         throw new Error(errorData.error?.message || 'Failed to create payment');
       }
 

@@ -36,7 +36,14 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
       // Fetch assigned transactions for this monthly log
       const assignedResponse = await fetch(`/api/monthly-logs/${monthlyLogId}/transactions`);
       if (assignedResponse.ok) {
-        const assigned = await assignedResponse.json();
+        const text = await assignedResponse.text();
+        let assigned: Transaction[] = [];
+        try {
+          assigned = text ? JSON.parse(text) : [];
+        } catch {
+          console.error('Failed to parse assigned transactions response');
+          assigned = [];
+        }
         setAssignedTransactions(assigned);
       } else {
         console.error(
@@ -50,7 +57,14 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
       // Fetch unassigned transactions
       const unassignedResponse = await fetch('/api/transactions/unassigned');
       if (unassignedResponse.ok) {
-        const unassigned = await unassignedResponse.json();
+        const text = await unassignedResponse.text();
+        let unassigned: Transaction[] = [];
+        try {
+          unassigned = text ? JSON.parse(text) : [];
+        } catch {
+          console.error('Failed to parse unassigned transactions response');
+          unassigned = [];
+        }
         setUnassignedTransactions(unassigned);
       } else {
         console.error(

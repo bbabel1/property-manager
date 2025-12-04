@@ -1382,6 +1382,158 @@ export type Database = {
           },
         ]
       }
+      monthly_log_task_rule_runs: {
+        Row: {
+          evaluated_at: string | null
+          id: string
+          matched: boolean | null
+          monthly_log_id: string
+          next_evaluation_at: string | null
+          reason: string | null
+          rule_id: string
+          task_id: string | null
+        }
+        Insert: {
+          evaluated_at?: string | null
+          id?: string
+          matched?: boolean | null
+          monthly_log_id: string
+          next_evaluation_at?: string | null
+          reason?: string | null
+          rule_id: string
+          task_id?: string | null
+        }
+        Update: {
+          evaluated_at?: string | null
+          id?: string
+          matched?: boolean | null
+          monthly_log_id?: string
+          next_evaluation_at?: string | null
+          reason?: string | null
+          rule_id?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_log_task_rule_runs_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_log_task_rule_runs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_log_task_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_log_task_rule_runs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_log_task_rules: {
+        Row: {
+          assigned_to_staff_id: number | null
+          category_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description_template: string | null
+          due_anchor: string | null
+          due_offset_days: number | null
+          frequency: string | null
+          id: string
+          interval: number | null
+          is_active: boolean | null
+          last_run_at: string | null
+          name: string
+          next_run_at: string | null
+          org_id: string
+          priority: string | null
+          property_conditions: Json | null
+          stage_trigger: Database["public"]["Enums"]["monthly_log_stage"] | null
+          status_default: string | null
+          subject_template: string
+          unit_conditions: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to_staff_id?: number | null
+          category_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description_template?: string | null
+          due_anchor?: string | null
+          due_offset_days?: number | null
+          frequency?: string | null
+          id?: string
+          interval?: number | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name: string
+          next_run_at?: string | null
+          org_id: string
+          priority?: string | null
+          property_conditions?: Json | null
+          stage_trigger?: Database["public"]["Enums"]["monthly_log_stage"] | null
+          status_default?: string | null
+          subject_template: string
+          unit_conditions?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to_staff_id?: number | null
+          category_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description_template?: string | null
+          due_anchor?: string | null
+          due_offset_days?: number | null
+          frequency?: string | null
+          id?: string
+          interval?: number | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name?: string
+          next_run_at?: string | null
+          org_id?: string
+          priority?: string | null
+          property_conditions?: Json | null
+          stage_trigger?: Database["public"]["Enums"]["monthly_log_stage"] | null
+          status_default?: string | null
+          subject_template?: string
+          unit_conditions?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_log_task_rules_assigned_to_staff_id_fkey"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_log_task_rules_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_log_task_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_memberships: {
         Row: {
           created_at: string
@@ -2697,12 +2849,15 @@ export type Database = {
           buildium_tenant_id: number | null
           buildium_unit_id: number | null
           category: string | null
+          condition_snapshot: Json | null
           completed_date: string | null
           created_at: string | null
           description: string | null
           estimated_cost: number | null
           id: string
           lease_id: number | null
+          monthly_log_id: string | null
+          monthly_log_rule_id: string | null
           notes: string | null
           owner_id: string | null
           priority: string | null
@@ -2712,6 +2867,7 @@ export type Database = {
           requested_by_type: string | null
           scheduled_date: string | null
           status: string | null
+          source: Database["public"]["Enums"]["task_source_enum"] | null
           subject: string
           task_category_id: string | null
           task_kind: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2731,12 +2887,15 @@ export type Database = {
           buildium_tenant_id?: number | null
           buildium_unit_id?: number | null
           category?: string | null
+          condition_snapshot?: Json | null
           completed_date?: string | null
           created_at?: string | null
           description?: string | null
           estimated_cost?: number | null
           id?: string
           lease_id?: number | null
+          monthly_log_id?: string | null
+          monthly_log_rule_id?: string | null
           notes?: string | null
           owner_id?: string | null
           priority?: string | null
@@ -2746,6 +2905,7 @@ export type Database = {
           requested_by_type?: string | null
           scheduled_date?: string | null
           status?: string | null
+          source?: Database["public"]["Enums"]["task_source_enum"] | null
           subject: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2765,12 +2925,15 @@ export type Database = {
           buildium_tenant_id?: number | null
           buildium_unit_id?: number | null
           category?: string | null
+          condition_snapshot?: Json | null
           completed_date?: string | null
           created_at?: string | null
           description?: string | null
           estimated_cost?: number | null
           id?: string
           lease_id?: number | null
+          monthly_log_id?: string | null
+          monthly_log_rule_id?: string | null
           notes?: string | null
           owner_id?: string | null
           priority?: string | null
@@ -2780,6 +2943,7 @@ export type Database = {
           requested_by_type?: string | null
           scheduled_date?: string | null
           status?: string | null
+          source?: Database["public"]["Enums"]["task_source_enum"] | null
           subject?: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2842,6 +3006,20 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_monthly_log_rule_id_fkey"
+            columns: ["monthly_log_rule_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_log_task_rules"
             referencedColumns: ["id"]
           },
         ]
@@ -4927,6 +5105,7 @@ export type Database = {
         | "Administrator"
       sync_source_enum: "local" | "buildium"
       task_kind_enum: "owner" | "resident" | "contact" | "todo" | "other"
+      task_source_enum: "buildium" | "manual" | "monthly_log"
       tax_payer_type: "SSN" | "EIN"
       transaction_status_enum:
         | ""
@@ -5510,6 +5689,7 @@ export const Constants = {
       ],
       sync_source_enum: ["local", "buildium"],
       task_kind_enum: ["owner", "resident", "contact", "todo", "other"],
+      task_source_enum: ["buildium", "manual", "monthly_log"],
       tax_payer_type: ["SSN", "EIN"],
       transaction_status_enum: [
         "",

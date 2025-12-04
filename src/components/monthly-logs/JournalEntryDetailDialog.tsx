@@ -95,11 +95,42 @@ export default function JournalEntryDetailDialog({
       setError(null);
       try {
         const response = await fetch(`/api/journal-entries/${transaction.id}/details`);
+        
+        // Check content type to ensure we're getting JSON
+        const contentType = response.headers.get('content-type') ?? '';
+        const isJson = contentType.includes('application/json');
+        const isHtml = contentType.includes('text/html');
+        
+        if (isHtml) {
+          throw new Error('Received HTML response instead of JSON. The server may have encountered an error.');
+        }
+        
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const text = await response.text();
+          let errorData: { error?: string } = {};
+          try {
+            errorData = text ? JSON.parse(text) : {};
+          } catch {
+            // If we can't parse the error response, use the status text
+            errorData = { error: `Request failed with status ${response.status}` };
+          }
           throw new Error(errorData.error || 'Failed to fetch journal entry details');
         }
-        const responseData = await response.json();
+        
+        const text = await response.text();
+        let responseData: JournalEntryData;
+        try {
+          responseData = text ? JSON.parse(text) : null;
+        } catch (parseError) {
+          throw new Error(
+            `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+          );
+        }
+        
+        if (!responseData) {
+          throw new Error('Received empty response from server');
+        }
+        
         setData(responseData);
       } catch (err) {
         console.error('Error fetching journal entry data:', err);

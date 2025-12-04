@@ -98,7 +98,8 @@ export default function TransactionTable({
                       ? 'text-emerald-700'
                       : 'text-slate-900';
                 const leaseLink = buildLeaseTransactionLink(transaction.lease_id);
-                const typeLabel = transaction.transaction_type || '—';
+                const rawType = transaction.transaction_type || '';
+                const typeLabel = rawType === 'GeneralJournalEntry' ? 'Journal Entry' : rawType || '—';
                 const isSelected = selectedIds.has(transaction.id);
 
                 return (
