@@ -12,7 +12,7 @@ This app is organized around clear layers and domain modules to keep UI, data ac
 ## Data Flow
 1) UI triggers action (form submit, button) in `src/app` or a domain component.
 2) API route/server action calls a domain service under `src/modules/<domain>/services`.
-3) Domain service validates input with Zod schemas and queries Supabase (or Buildium).
+3) Domain service validates input with Zod schemas and queries Supabase.
 4) Responses are normalized and passed back to the UI via SWR/fetch.
 
 ## Domain Modules

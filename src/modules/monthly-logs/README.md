@@ -11,5 +11,5 @@ Key entrypoints:
 - UI: `./components` (re-export of monthly log components).
 
 Conventions:
-- Keep Supabase/Buildium access inside services.
+- Keep Supabase access inside services.
 - Validate inputs/outputs with Zod before hitting API routes.
