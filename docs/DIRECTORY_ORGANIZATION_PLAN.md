@@ -34,7 +34,7 @@
    - Update any package.json/README references after moves.
 3) **Domain consolidation**
    - Move domain components from `src/components/{leases,monthly-logs,management,properties,transactions,reconciliations,tenants,vendors,units}` into corresponding `src/modules/{domain}/components`.
-   - Move root-level domain modals/autocompletes (e.g., `src/AddUnitModal.tsx`, `src/EditPropertyModal.tsx`, `src/CreateOwnerModal.tsx`, `src/*AddressAutocomplete.tsx`) into domain module folders; export from module index if needed.
+   - ✅ Relocate root-level domain modals/autocompletes (e.g., `src/AddUnitModal.tsx`, `src/EditPropertyModal.tsx`, `src/CreateOwnerModal.tsx`, `src/*AddressAutocomplete.tsx`) out of `src/` (now in `src/components/legacy/` for safe keep). Next: fold into domain module components where appropriate and update imports.
    - Keep only design-system primitives in `src/components/ui`; move cross-domain helpers to `src/components/common`.
    - ✅ Add `services/` (and `schemas/` where present) READMEs inside each module for discoverability.
 4) **Imports and aliases**

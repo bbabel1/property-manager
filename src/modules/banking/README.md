@@ -2,7 +2,7 @@
 
 Responsibilities:
 - Bank account services and GL alignment helpers.
-- Integration points for Buildium syncing when relevant.
+- Supabase-backed queries for accounts/GL alignment (external sync handled elsewhere).
 
 Key entrypoints:
 - Services: `./services` (exports from `@/lib/bank-account-service`).
