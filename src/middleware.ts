@@ -73,17 +73,19 @@ export async function middleware(req: NextRequest) {
   const isAuthRoute = pathname.startsWith('/auth');
   const isDebugApi = pathname.startsWith('/api/debug');
   const isCsrfApi = pathname === '/api/csrf';
+  const isWebhookApi = pathname.startsWith('/api/webhooks');
   const isDevBypassApi =
     pathname.startsWith('/api/transactions') ||
     pathname.startsWith('/api/monthly-logs') ||
     pathname.startsWith('/api/leases');
   // NOTE: TEST_AUTH_BYPASS is disabled - it was causing issues with invalid UUIDs
 
-  // Allow diagnostic endpoints, CSRF endpoint, transactions API in dev, CORS preflight
+  // Allow diagnostic endpoints, CSRF endpoint, webhook endpoints, transactions API in dev, CORS preflight
   if (
     req.method === 'OPTIONS' ||
     isDebugApi ||
     isCsrfApi ||
+    isWebhookApi ||
     (isDevBypassApi && process.env.NODE_ENV === 'development')
   ) {
     return NextResponse.next();

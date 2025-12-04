@@ -71,7 +71,6 @@ export default function EnhancedHeader({
   unitDisplayName,
   periodDisplay,
   tenantName,
-  managementSummary,
   managementDetails,
   leaseSummary,
   status,
@@ -85,9 +84,6 @@ export default function EnhancedHeader({
   onRelatedLogSelect,
 }: EnhancedHeaderProps) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-
-  const statusLabel = formatStatusLabel(status);
-  const statusBadgeClass = STATUS_BADGE_STYLES[status] ?? STATUS_BADGE_STYLES.pending;
   const hasRelatedLogs =
     Array.isArray(relatedLogs) && relatedLogs.length > 0 && currentLogId != null;
   const managementItems = useMemo(
@@ -96,10 +92,10 @@ export default function EnhancedHeader({
   );
   const hasManagementItems = managementItems.length > 0;
   const detailButtonClass =
-    'mt-1 inline-flex items-center gap-2 text-slate-600 hover:text-slate-900';
+    'mt-1 inline-flex items-center gap-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900';
 
   return (
-    <div className="border-b border-slate-200 bg-white">
+    <div className="border-b border-slate-300 bg-white">
       <div className="mx-auto w-full max-w-screen-2xl px-6 py-6 lg:px-8 lg:py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex-1 space-y-4">
@@ -108,7 +104,7 @@ export default function EnhancedHeader({
                 variant="ghost"
                 size="sm"
                 onClick={onBackToOverview}
-                className="gap-2 text-slate-600 hover:text-slate-900"
+                className="gap-2 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to overview
@@ -121,98 +117,68 @@ export default function EnhancedHeader({
               </div>
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-slate-900">{unitDisplayName}</h1>
-                <div className="mt-1 text-slate-600">
-                  <p>
-                    Monthly log for {periodDisplay}
-                    {tenantName && (
-                      <span className="ml-2 inline-flex items-center gap-1 text-sm">
-                        <User className="h-3 w-3" />
-                        {tenantName}
-                      </span>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-slate-700">
+                  <span>Monthly log for {periodDisplay}</span>
+                  <Badge
+                    className={cn(
+                      'rounded-full px-2.5 py-0.5 text-xs font-medium',
+                      STATUS_BADGE_STYLES[status] ?? STATUS_BADGE_STYLES.pending,
                     )}
-                  </p>
-                  {periodStartDisplay && periodEndDisplay ? (
-                    <p className="text-xs text-slate-500">
-                      Period: {periodStartDisplay} – {periodEndDisplay}
-                    </p>
-                  ) : null}
+                  >
+                    {formatStatusLabel(status)}
+                  </Badge>
+                  {tenantName && (
+                    <span className="inline-flex items-center gap-1 text-sm">
+                      <User className="h-3 w-3" />
+                      {tenantName}
+                    </span>
+                  )}
                 </div>
+                {periodStartDisplay && periodEndDisplay ? (
+                  <p className="mt-1 text-xs text-slate-600">
+                    Period: {periodStartDisplay} – {periodEndDisplay}
+                  </p>
+                ) : null}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Collapsible open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className={detailButtonClass}>
-                    {isDetailsOpen ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    View lease details
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {hasManagementItems && (
-                      <Card className="border-slate-200 shadow-sm">
-                        <CardContent className="flex items-start gap-3 p-4">
-                          <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-100 shadow-sm">
-                            <DollarSign className="h-4 w-4 text-slate-600" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-sm font-medium text-slate-900">
-                              Management services
-                            </h3>
-                            <ul className="mt-1 space-y-1 text-sm text-slate-600">
-                              {managementItems.map((item) => (
-                                <li key={`${item.label}-${item.value}`}>
-                                  <span className="font-medium text-slate-700">{item.label}:</span>{' '}
-                                  {item.value}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {leaseSummary && (
-                      <Card className="border-slate-200 shadow-sm">
-                        <CardContent className="flex items-start gap-3 p-4">
-                          <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-100 shadow-sm">
-                            <Calendar className="h-4 w-4 text-slate-600" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-sm font-medium text-slate-900">
-                              Lease information
-                            </h3>
-                            <p className="mt-1 text-sm text-slate-600">{leaseSummary}</p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+            {/* Compact Info Badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              {hasManagementItems && (
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 border-slate-400 bg-slate-200 px-2.5 py-1"
+                >
+                  <DollarSign className="h-3 w-3 text-slate-700" />
+                  <span className="text-xs font-medium text-slate-800">
+                    {managementItems.length} service{managementItems.length !== 1 ? 's' : ''}
+                  </span>
+                </Badge>
+              )}
+              {leaseSummary && (
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 border-slate-400 bg-slate-200 px-2.5 py-1"
+                >
+                  <Calendar className="h-3 w-3 text-slate-700" />
+                  <span className="text-xs font-medium text-slate-800">Lease active</span>
+                </Badge>
+              )}
             </div>
 
+            {/* Related Logs Selector - More Prominent */}
             {currentLogId ? (
-              <div className="max-w-sm">
-                <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                  Other logs for this unit
-                </div>
-                <div className="mt-2">
-                  {relatedLogsLoading ? (
-                    <div className="rounded-lg border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-                      Loading related logs…
-                    </div>
-                  ) : hasRelatedLogs ? (
+              <div className="flex flex-wrap items-center gap-3">
+                {relatedLogsLoading ? (
+                  <div className="text-sm text-slate-600">Loading related logs…</div>
+                ) : hasRelatedLogs ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-800">Switch to:</span>
                     <Select
                       value={currentLogId}
                       onValueChange={(value) => onRelatedLogSelect?.(value)}
                     >
-                      <SelectTrigger className="h-10 rounded-xl bg-white text-sm">
+                      <SelectTrigger className="h-9 w-[200px] rounded-lg bg-white text-sm">
                         <SelectValue placeholder="Select monthly log" />
                       </SelectTrigger>
                       <SelectContent>
@@ -222,30 +188,77 @@ export default function EnhancedHeader({
                             value={log.id}
                             disabled={log.id === currentLogId}
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate">{log.label}</span>
-                              <Badge
-                                className={cn(
-                                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                                  STATUS_BADGE_STYLES[log.status as MonthlyLogStatus] ??
-                                    'border border-slate-200 bg-slate-50 text-slate-700',
-                                )}
-                              >
-                                {formatStatusLabel(log.status)}
-                              </Badge>
-                            </div>
+                            <span className="truncate">{log.label}</span>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">
-                      No other monthly logs exist for this unit yet.
-                    </div>
-                  )}
-                </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
+
+            {/* Collapsible Details */}
+            {(hasManagementItems || leaseSummary) && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Collapsible open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className={detailButtonClass}>
+                      {isDetailsOpen ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      View details
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {hasManagementItems && (
+                        <Card className="border-slate-300 shadow-sm">
+                          <CardContent className="flex items-start gap-3 p-4">
+                            <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 shadow-sm">
+                              <DollarSign className="h-4 w-4 text-slate-700" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="text-sm font-medium text-slate-900">
+                                Management services
+                              </h3>
+                              <ul className="mt-1 space-y-1 text-sm text-slate-700">
+                                {managementItems.map((item) => (
+                                  <li key={`${item.label}-${item.value}`}>
+                                    <span className="font-medium text-slate-800">
+                                      {item.label}:
+                                    </span>{' '}
+                                    {item.value}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {leaseSummary && (
+                        <Card className="border-slate-300 shadow-sm">
+                          <CardContent className="flex items-start gap-3 p-4">
+                            <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-200 shadow-sm">
+                              <Calendar className="h-4 w-4 text-slate-700" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="text-sm font-medium text-slate-900">
+                                Lease information
+                              </h3>
+                              <p className="mt-1 text-sm text-slate-700">{leaseSummary}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )}
           </div>
 
           {actions ? <div className="flex items-center gap-3">{actions}</div> : null}

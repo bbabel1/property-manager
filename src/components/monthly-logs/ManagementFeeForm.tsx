@@ -472,7 +472,7 @@ export default function ManagementFeeForm({
       <Card className="border-border border shadow-none">
         <CardContent className="space-y-6 px-4 py-5">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase text-slate-500">Management Services</p>
+            <p className="text-xs font-semibold uppercase text-slate-600">Management Services</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase">Assignment Level</p>
@@ -498,7 +498,7 @@ export default function ManagementFeeForm({
           </div>
 
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase text-slate-500">Management Fees</p>
+            <p className="text-xs font-semibold uppercase text-slate-600">Management Fees</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase">Fee Assignment</p>

@@ -51,16 +51,16 @@ export default function TransactionTable({
   const someSelected = selectedIds.size > 0 && !allSelected;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white/70">
+    <div className="rounded-lg border border-slate-300 bg-white/70">
       {stickyActions ? (
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200/80 bg-white/90 px-4 py-3">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-300/80 bg-white/90 px-4 py-3">
           {stickyActions}
         </div>
       ) : null}
       <div className="max-h-[60vh] overflow-auto">
         <Table className="min-w-full">
-          <TableHeader className="sticky top-0 z-10 bg-slate-50">
-            <TableRow className="text-xs uppercase tracking-wide text-slate-500">
+          <TableHeader className="sticky top-0 z-10 bg-slate-100">
+            <TableRow className="text-xs uppercase tracking-wide text-slate-600">
               <TableHead className="w-10 text-center">
                 <Checkbox
                   checked={allSelected ? true : someSelected ? 'indeterminate' : false}
@@ -105,7 +105,7 @@ export default function TransactionTable({
                 return (
                   <TableRow
                     key={transaction.id}
-                    className="cursor-pointer text-sm text-slate-700 transition hover:bg-slate-50"
+                    className="cursor-pointer text-sm text-slate-700 transition hover:bg-slate-100"
                     onClick={(event) => {
                       const target = event.target as HTMLElement;
                       if (target.closest('button') || target.closest('input') || target.closest('a')) {

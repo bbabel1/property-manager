@@ -93,16 +93,18 @@ export default function MonthlyLogStageNavigation({
             className={cn(
               'flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
               isActive
-                ? 'border border-blue-200 bg-blue-50 text-blue-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
-              isCompleted && !isActive && 'text-green-600',
-              isCurrent && !isActive && 'text-blue-600',
+                ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900',
+              isCompleted && !isActive && 'text-green-700',
+              isCurrent && !isActive && 'text-blue-700',
             )}
           >
             <Icon className="h-4 w-4" />
             <span className="flex items-center gap-1">
               {config.label}
-              {isCompleted ? <Check className="h-3.5 w-3.5 text-[var(--color-action-600)]" /> : null}
+              {isCompleted ? (
+                <Check className="h-3.5 w-3.5 text-[var(--color-action-600)]" />
+              ) : null}
             </span>
           </Button>
         );

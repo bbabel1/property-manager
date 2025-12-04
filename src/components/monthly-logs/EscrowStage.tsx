@@ -86,12 +86,12 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-4">
-            <div className="flex justify-between rounded-lg border border-slate-200 p-4">
+            <div className="flex justify-between rounded-lg border border-slate-300 p-4">
               <div className="h-4 w-32 rounded bg-slate-200"></div>
               <div className="h-4 w-24 rounded bg-slate-200"></div>
             </div>
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex justify-between rounded-lg border border-slate-200 p-3">
+              <div key={i} className="flex justify-between rounded-lg border border-slate-300 p-3">
                 <div className="space-y-2">
                   <div className="h-3 w-24 rounded bg-slate-200"></div>
                   <div className="h-3 w-20 rounded bg-slate-200"></div>
@@ -171,7 +171,7 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
 
             {/* Breakdown */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="rounded-lg border border-slate-300 bg-white p-3">
                 <div className="flex items-center gap-2 text-green-600">
                   <TrendingUp className="h-4 w-4" />
                   <span className="text-xs font-medium tracking-wide uppercase">Deposits</span>
@@ -180,7 +180,7 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
                   {formatCurrency(data.deposits)}
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="rounded-lg border border-slate-300 bg-white p-3">
                 <div className="flex items-center gap-2 text-red-600">
                   <TrendingDown className="h-4 w-4" />
                   <span className="text-xs font-medium tracking-wide uppercase">Withdrawals</span>
@@ -224,7 +224,7 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
                     )}
                     <div>
                       <p className="text-sm font-medium text-slate-900">{movement.memo}</p>
-                      <p className="text-xs text-slate-500">{formatDate(movement.date)}</p>
+                      <p className="text-xs text-slate-600">{formatDate(movement.date)}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -247,7 +247,7 @@ export default function EscrowStage({ monthlyLogId }: EscrowStageProps) {
                 <Shield className="h-6 w-6 text-slate-400" />
               </div>
               <h3 className="mt-4 text-sm font-medium text-slate-900">No movements found</h3>
-              <p className="mt-2 text-sm text-slate-500">No escrow transactions for this period.</p>
+              <p className="mt-2 text-sm text-slate-600">No escrow transactions for this period.</p>
             </div>
           )}
         </CardContent>

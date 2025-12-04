@@ -7,10 +7,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail, Plus, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertCircle, CheckCircle, Info, Mail, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 
 interface Recipient {
@@ -21,15 +21,20 @@ interface Recipient {
 
 interface StatementRecipientsManagerProps {
   propertyId: string;
+  onRecipientsChange?: (recipients: Recipient[]) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export default function StatementRecipientsManager({
   propertyId,
+  onRecipientsChange,
+  onLoadingChange,
 }: StatementRecipientsManagerProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showAddRow, setShowAddRow] = useState(false);
 
   // New recipient form state
   const [newEmail, setNewEmail] = useState('');
@@ -40,6 +45,15 @@ export default function StatementRecipientsManager({
     fetchRecipients();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId]);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
+
+  const pushRecipientsChange = (nextRecipients: Recipient[]) => {
+    setRecipients(nextRecipients);
+    onRecipientsChange?.(nextRecipients);
+  };
 
   const fetchRecipients = async () => {
     try {
@@ -57,7 +71,9 @@ export default function StatementRecipientsManager({
       } catch {
         throw new Error('Invalid response while fetching recipients');
       }
-      setRecipients(data.recipients || []);
+      const nextRecipients = data.recipients || [];
+      setRecipients(nextRecipients);
+      onRecipientsChange?.(nextRecipients);
     } catch (error) {
       console.warn('Error fetching recipients:', error);
       toast.error('Failed to load recipients');
@@ -119,7 +135,8 @@ export default function StatementRecipientsManager({
       return;
     }
 
-    setRecipients([...recipients, { email: newEmail, name: newName, role: newRole }]);
+    const nextRecipients = [...recipients, { email: newEmail, name: newName, role: newRole }];
+    pushRecipientsChange(nextRecipients);
     setNewEmail('');
     setNewName('');
     setNewRole('Owner');
@@ -127,130 +144,133 @@ export default function StatementRecipientsManager({
   };
 
   const handleRemoveRecipient = (email: string) => {
-    setRecipients(recipients.filter((r) => r.email !== email));
+    const nextRecipients = recipients.filter((r) => r.email !== email);
+    pushRecipientsChange(nextRecipients);
     setEditing(true);
   };
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Email Recipients</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-2">
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="h-12 rounded bg-slate-200"></div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-3">
+        <div className="animate-pulse space-y-2">
+          {[...Array(2)].map((_, i) => (
+            <div key={i} className="h-11 rounded-md bg-slate-200/70"></div>
+          ))}
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2 text-base">
-            <Mail className="h-4 w-4" />
-            Email Recipients
-          </span>
-          {editing && (
-            <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
-              <CheckCircle className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {/* Existing Recipients */}
-          {recipients.length > 0 ? (
-            <div className="space-y-2">
-              {recipients.map((recipient) => (
-                <div
-                  key={recipient.email}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3"
-                >
-                  <div className="flex-1">
-                    <div className="font-medium text-slate-900">{recipient.name}</div>
-                    <div className="text-sm text-slate-500">{recipient.email}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-                      {recipient.role}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveRecipient(recipient.email)}
-                      className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg bg-amber-50 p-4 text-amber-700">
+    <div className="space-y-3">
+      {editing && (
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
+            <CheckCircle className="h-4 w-4" />
+            {saving ? 'Saving...' : 'Save changes'}
+          </Button>
+        </div>
+      )}
+
+      {/* Existing Recipients */}
+      {recipients.length > 0 ? (
+        <div className="overflow-hidden rounded-md border border-slate-100">
+          {recipients.map((recipient, index) => (
+            <div
+              key={recipient.email}
+              className={`flex items-center justify-between gap-3 px-3 py-2 ${index < recipients.length - 1 ? 'border-b border-slate-100' : ''}`}
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-900">{recipient.name}</div>
+                <div className="text-xs text-slate-600">{recipient.email}</div>
+              </div>
               <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" />
-                <div>
-                  <p className="font-medium">No recipients configured</p>
-                  <p className="text-sm">
-                    Add at least one recipient to send statements via email.
-                  </p>
-                </div>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700">
+                  {recipient.role}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveRecipient(recipient.email)}
+                  className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          )}
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <AlertCircle className="h-4 w-4 text-slate-400" />
+          <span>No recipients added yet.</span>
+        </div>
+      )}
 
-          {/* Add New Recipient Form */}
-          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <h4 className="text-sm font-semibold text-slate-700">Add Recipient</h4>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* Add New Recipient Form */}
+      {showAddRow ? (
+        <div className="space-y-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
               <Input
                 type="email"
                 placeholder="email@example.com"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                className="text-sm"
+                className="h-9 text-sm"
               />
               <Input
                 type="text"
-                placeholder="Full Name"
+                placeholder="Full name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="text-sm"
+                className="h-9 text-sm"
               />
               <Input
                 type="text"
                 placeholder="Role (e.g., Owner)"
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
-                className="text-sm"
+                className="h-9 text-sm"
               />
             </div>
-            <Button onClick={handleAddRecipient} size="sm" className="w-full gap-2 sm:w-auto">
+            <Button onClick={handleAddRecipient} size="sm" className="h-9 w-full gap-2 sm:w-auto">
               <Plus className="h-4 w-4" />
-              Add Recipient
+              Add recipient
             </Button>
           </div>
-
-          {/* Info */}
-          <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
-            <p className="font-medium">Recipients will receive:</p>
-            <ul className="mt-1 ml-4 list-disc text-xs">
-              <li>Monthly statement PDF as attachment</li>
-              <li>Financial summary in email body</li>
-              <li>Download link for online access</li>
-            </ul>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex cursor-default items-center gap-1">
+                  <Info className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="underline decoration-dotted underline-offset-2">What gets sent</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                <p>Latest generated statement PDF with a summary in the email body.</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-3 text-slate-700 hover:bg-slate-100"
+            onClick={() => setShowAddRow(true)}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Add recipient
+          </Button>
+          <div className="flex items-center gap-1 text-xs text-slate-500">
+            <Info className="h-3.5 w-3.5 text-slate-400" />
+            <span>Send latest PDF</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -126,7 +126,7 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-4">
-            <div className="flex justify-between rounded-lg border border-slate-200 p-4">
+            <div className="flex justify-between rounded-lg border border-slate-300 p-4">
               <div className="h-4 w-32 rounded bg-slate-200"></div>
               <div className="h-4 w-24 rounded bg-slate-200"></div>
             </div>
@@ -260,7 +260,7 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
                 >
                   <div className="flex-1">
                     <div className="font-medium text-slate-900">{fee.memo}</div>
-                    <div className="mt-1 text-sm text-slate-500">{formatDate(fee.date)}</div>
+                    <div className="mt-1 text-sm text-slate-600">{formatDate(fee.date)}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-lg font-semibold text-purple-600">
@@ -270,7 +270,7 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
                 </div>
               ))}
 
-              <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+              <div className="flex items-center justify-between border-t border-slate-300 pt-3">
                 <span className="font-medium text-slate-700">Total Management Fees</span>
                 <span className="text-xl font-bold text-purple-600">
                   {formatCurrency(data.totalFees)}
@@ -283,7 +283,7 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
                 <Briefcase className="h-6 w-6 text-slate-400" />
               </div>
               <h3 className="mt-4 text-sm font-medium text-slate-900">No fees assigned</h3>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-2 text-sm text-slate-600">
                 {hasConfiguredFee
                   ? 'Click "Generate Fee" to create a management fee for this period.'
                   : 'Configure a management fee for this unit first.'}

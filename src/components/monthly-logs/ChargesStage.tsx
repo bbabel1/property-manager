@@ -201,7 +201,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
               <div className="text-2xl font-bold text-slate-900">
                 {formatCurrency(totalCharges)}
               </div>
-              <div className="text-sm text-slate-500">
+              <div className="text-sm text-slate-600">
                 {assignedTransactions.length} transaction(s)
               </div>
             </div>
@@ -222,7 +222,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
               {assignedTransactions.map((transaction) => (
                 <div
                   key={transaction.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4"
+                  className="flex items-center justify-between rounded-lg border border-slate-300 bg-white p-4"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
@@ -238,7 +238,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                         {transaction.reference_number || 'No Ref'}
                       </Badge>
                     </div>
-                    <div className="mt-1 text-sm text-slate-500">
+                    <div className="mt-1 text-sm text-slate-600">
                       {formatDate(transaction.date)}
                     </div>
                   </div>
@@ -269,7 +269,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-slate-500">
+            <div className="py-8 text-center text-slate-600">
               No charges assigned to this monthly log yet.
             </div>
           )}
@@ -297,7 +297,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                     'flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors',
                     selectedUnassigned.has(transaction.id)
                       ? 'border-blue-200 bg-blue-50'
-                      : 'border-slate-200 bg-white hover:bg-slate-50',
+                      : 'border-slate-300 bg-white hover:bg-slate-100',
                   )}
                   onClick={() => handleToggleUnassigned(transaction.id)}
                 >
@@ -316,7 +316,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
                     </div>
                     <div>
                       <div className="font-medium text-slate-900">{transaction.memo}</div>
-                      <div className="text-sm text-slate-500">{formatDate(transaction.date)}</div>
+                      <div className="text-sm text-slate-600">{formatDate(transaction.date)}</div>
                     </div>
                   </div>
                   <div
@@ -334,7 +334,7 @@ export default function ChargesStage({ monthlyLogId }: ChargesStageProps) {
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-slate-500">No unassigned transactions found.</div>
+            <div className="py-8 text-center text-slate-600">No unassigned transactions found.</div>
           )}
         </CardContent>
       </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { Bell, CalendarClock, ChevronDown, ChevronRight, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -79,9 +79,9 @@ const FREQUENCY_OPTIONS = [
 export default function RecurringTasksForUnit({
   propertyId,
   unitId,
-  propertyName,
-  unitLabel,
-  onOpenManager,
+  propertyName: _propertyName,
+  unitLabel: _unitLabel,
+  onOpenManager: _onOpenManager,
 }: Props) {
   const [formState, setFormState] = useState<RecurringTaskFormState>(defaultFormState);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,13 +92,9 @@ export default function RecurringTasksForUnit({
 
   const canManage = Boolean(propertyId && unitId);
 
-  const {
-    data: staffData,
-    isLoading: staffLoading,
-  } = useSWR<{ id: number; displayName?: string; email?: string }[]>(
-    canManage ? '/api/staff?isActive=true' : null,
-    fetcher,
-  );
+  const { data: staffData, isLoading: staffLoading } = useSWR<
+    { id: number; displayName?: string; email?: string }[]
+  >(canManage ? '/api/staff?isActive=true' : null, fetcher);
 
   const staffOptions: StaffOption[] = useMemo(() => {
     return (staffData || []).map((member) => ({
@@ -107,11 +103,7 @@ export default function RecurringTasksForUnit({
     }));
   }, [staffData]);
 
-  const {
-    data,
-    isLoading,
-    mutate,
-  } = useSWR<{ items?: RecurringTaskTemplate[] }>(
+  const { data, isLoading, mutate } = useSWR<{ items?: RecurringTaskTemplate[] }>(
     canManage
       ? `/api/monthly-logs/recurring-tasks?propertyId=${propertyId}&unitId=${unitId}`
       : null,
@@ -120,13 +112,6 @@ export default function RecurringTasksForUnit({
   );
 
   const tasks = data?.items ?? [];
-
-  const headerLabel = useMemo(() => {
-    if (unitLabel && propertyName) return `${unitLabel} • ${propertyName}`;
-    if (unitLabel) return unitLabel;
-    if (propertyName) return propertyName;
-    return 'Recurring tasks';
-  }, [propertyName, unitLabel]);
 
   const resetForm = () => {
     setFormState(defaultFormState);
@@ -286,355 +271,246 @@ export default function RecurringTasksForUnit({
   );
 
   return (
-    <section className="space-y-4 rounded-xl border border-border/80 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <CalendarClock className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-foreground">Recurring tasks</h3>
-            <p className="text-xs text-muted-foreground">{headerLabel}</p>
-          </div>
+    <section className="rounded-lg border border-slate-300 bg-slate-100 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-3.5 w-3.5 text-slate-700" />
+          <h3 className="text-sm font-medium text-slate-900">Recurring tasks</h3>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {onOpenManager ? (
-            <Button type="button" variant="outline" size="sm" onClick={onOpenManager} className="gap-2">
-              Manage
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            {expanded ? 'Hide' : 'Show'}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="flex h-7 items-center gap-1 text-xs text-slate-700 hover:bg-slate-200 hover:text-slate-900"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          {expanded ? 'Hide' : 'Show'}
+        </Button>
       </div>
 
-      {!canManage ? (
-        <div className="rounded-lg border border-dashed border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
-          Assign a property and unit to this monthly log to start managing recurring tasks.
-        </div>
-      ) : null}
-
-      {!expanded ? null : (
-        <div className="grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
-          <div className="space-y-3">
-          {tasks.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
-              No recurring tasks yet for this unit.
-            </div>
-          ) : (
-            tasks.map((task) => (
-              <div
-                key={task.id}
-                className="rounded-lg border border-border/80 bg-background px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.08)]"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">{task.title}</span>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'rounded-full text-[11px] font-semibold',
-                        task.isActive
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : 'border-border bg-muted/80 text-muted-foreground',
+      {expanded && (
+        <>
+          <div className="mt-3 space-y-2">
+            {!canManage ? (
+              <div className="rounded border border-dashed border-slate-400 bg-slate-100 p-3 text-xs text-slate-600">
+                Assign a property and unit to manage recurring tasks.
+              </div>
+            ) : tasks.length === 0 ? (
+              <div className="rounded border border-dashed border-slate-400 bg-slate-100 p-3 text-xs text-slate-600">
+                No recurring tasks yet for this unit.
+              </div>
+            ) : (
+              tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="rounded border border-slate-300 bg-white p-2.5 transition hover:border-slate-400 hover:bg-slate-100"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium text-slate-900">{task.title}</span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'rounded-full px-1.5 py-0 text-[10px] font-medium',
+                            task.isActive
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-slate-300 bg-slate-100 text-slate-600',
+                          )}
+                        >
+                          {task.isActive ? 'Active' : 'Paused'}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-600">
+                        {task.frequency ? `${task.frequency} • ` : ''}
+                        Due {task.dueAnchor.replace('_', ' ')}
+                        {task.dueOffsetDays ? ` • Offset ${task.dueOffsetDays}d` : ''}
+                      </div>
+                      {task.description && (
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-700">
+                          {task.description}
+                        </p>
                       )}
-                    >
-                      {task.isActive ? 'Active' : 'Paused'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => startEditing(task)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(task.id)}
-                      disabled={deletingId === task.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {task.frequency ? `${task.frequency} • ` : ''}
-                  Due {task.dueAnchor.replace('_', ' ')}
-                  {task.dueOffsetDays ? ` • Offset ${task.dueOffsetDays}d` : ''}
-                </div>
-                {task.description ? (
-                  <p className="mt-2 text-sm text-foreground/80">{task.description}</p>
-                ) : null}
-                {task.reminders.length ? (
-                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                    <Bell className="h-3.5 w-3.5" />
-                    Reminders: {task.reminders.map((r) => `${r}d before`).join(', ')}
-                  </div>
-                ) : null}
-              </div>
-            ))
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border/70 bg-muted/30 p-4">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            <div>
-              <div className="text-sm font-semibold text-foreground">
-                {editingId ? 'Edit recurring task' : 'Create recurring task'}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Configure cadence, reminders, and assignment.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Subject
-            </Label>
-            <Input
-              value={formState.title}
-              onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
-              placeholder="e.g., Reconcile bank statement"
-              required
-              disabled={!canManage}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Body
-            </Label>
-            <Textarea
-              value={formState.description}
-              onChange={(event) =>
-                setFormState((prev) => ({ ...prev, description: event.target.value }))
-              }
-              placeholder="Optional checklist or notes"
-              className="min-h-[90px]"
-              disabled={!canManage}
-            />
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Frequency
-              </Label>
-              <Select
-                value={formState.frequency}
-                onValueChange={(value) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    frequency: value as RecurringTaskFormState['frequency'],
-                  }))
-                }
-                disabled={!canManage}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose frequency" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FREQUENCY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Interval
-              </Label>
-              <Input
-                type="number"
-                min={1}
-                value={formState.interval}
-                onChange={(event) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    interval: Number(event.target.value) || 1,
-                  }))
-                }
-                disabled={!canManage}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Active
-              </Label>
-              <div className="flex h-10 items-center gap-3 rounded-lg border border-border/70 bg-white px-3">
-                <Switch
-                  checked={formState.isActive}
-                  onCheckedChange={(checked) =>
-                    setFormState((prev) => ({ ...prev, isActive: checked }))
-                  }
-                  id="recurring-inline-active"
-                  disabled={!canManage}
-                />
-                <Label htmlFor="recurring-inline-active" className="text-sm font-medium text-foreground">
-                  {formState.isActive ? 'Enabled' : 'Paused'}
-                </Label>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Due anchor
-              </Label>
-              <Select
-                value={formState.dueAnchor}
-                onValueChange={(value) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    dueAnchor: value as RecurringTaskFormState['dueAnchor'],
-                  }))
-                }
-                disabled={!canManage}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose anchor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="period_start">Period start</SelectItem>
-                  <SelectItem value="period_end">Period end</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Offset (days)
-              </Label>
-              <Input
-                type="number"
-                value={formState.dueOffsetDays}
-                onChange={(event) =>
-                  setFormState((prev) => ({ ...prev, dueOffsetDays: Number(event.target.value) }))
-                }
-                disabled={!canManage}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Reminders
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  placeholder="Days before"
-                  value={reminderDraft}
-                  onChange={(event) => setReminderDraft(event.target.value)}
-                  disabled={!canManage}
-                />
-                <Button type="button" variant="outline" size="sm" onClick={addReminder} disabled={!canManage}>
-                  Add
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {formState.reminders.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">No reminders added.</span>
-                ) : (
-                  formState.reminders.map((value) => (
-                    <Badge
-                      key={value}
-                      variant="outline"
-                      className="flex items-center gap-2 rounded-full border-border/80 text-[11px]"
-                    >
-                      {value}d before
-                      <button
+                      {task.reminders.length > 0 && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+                          <Bell className="h-3 w-3" />
+                          {task.reminders.map((r) => `${r}d before`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
                         type="button"
-                        className="text-destructive"
-                        onClick={() => removeReminder(value)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                        onClick={() => startEditing(task)}
                       >
-                        ×
-                      </button>
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </div>
+                        <span className="text-xs">Edit</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive h-7 w-7 p-0 hover:bg-red-50"
+                        onClick={() => handleDelete(task.id)}
+                        disabled={deletingId === task.id}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Assigned staff
-              </Label>
-              <StaffSelect
-                value={formState.assignedStaffId}
-                onChange={(id) => setFormState((prev) => ({ ...prev, assignedStaffId: id }))}
-                placeholder={staffLoading ? 'Loading staff...' : 'Choose staff'}
-              />
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Switch
-                  id="inline-auto-assign-pm"
-                  checked={formState.autoAssignManager}
-                  onCheckedChange={(checked) =>
-                    setFormState((prev) => ({ ...prev, autoAssignManager: checked }))
+          {canManage && (
+            <form
+              onSubmit={handleSubmit}
+              className="mt-3 space-y-3 rounded-lg border border-slate-300 bg-white p-3"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 text-slate-600" />
+                <div className="text-xs font-medium text-slate-900">
+                  {editingId ? 'Edit recurring task' : 'Create recurring task'}
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs font-medium text-slate-700">Subject</Label>
+                  <Input
+                    value={formState.title}
+                    onChange={(event) =>
+                      setFormState((prev) => ({ ...prev, title: event.target.value }))
+                    }
+                    placeholder="e.g., Reconcile bank statement"
+                    required
+                    disabled={!canManage}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-slate-700">Frequency</Label>
+                  <Select
+                    value={formState.frequency}
+                    onValueChange={(value) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        frequency: value as RecurringTaskFormState['frequency'],
+                      }))
+                    }
+                    disabled={!canManage}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Choose frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FREQUENCY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-slate-700">Description</Label>
+                <Textarea
+                  value={formState.description}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, description: event.target.value }))
                   }
+                  placeholder="Optional checklist or notes"
+                  className="min-h-[60px] text-sm"
                   disabled={!canManage}
                 />
-                <Label htmlFor="inline-auto-assign-pm">Auto-assign property manager</Label>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Additional staff
-              </Label>
-              <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border/70 bg-white p-2">
-                {staffOptions.length === 0 ? (
-                  <div className="text-xs text-muted-foreground">No staff available.</div>
-                ) : (
-                  staffOptions.map((staff) => (
-                    <label
-                      key={staff.id}
-                      className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted/60"
-                    >
-                      <span>{staff.name}</span>
-                      <input
-                        type="checkbox"
-                        checked={formState.additionalStaffIds.includes(staff.id)}
-                        onChange={() => toggleAdditionalStaff(staff.id)}
-                        className="accent-primary"
-                        disabled={!canManage}
-                      />
-                    </label>
-                  ))
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div>
+                  <Label className="text-xs font-medium text-slate-700">Due anchor</Label>
+                  <Select
+                    value={formState.dueAnchor}
+                    onValueChange={(value) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        dueAnchor: value as RecurringTaskFormState['dueAnchor'],
+                      }))
+                    }
+                    disabled={!canManage}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Choose anchor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="period_start">Period start</SelectItem>
+                      <SelectItem value="period_end">Period end</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-slate-700">Offset (days)</Label>
+                  <Input
+                    type="number"
+                    value={formState.dueOffsetDays}
+                    onChange={(event) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        dueOffsetDays: Number(event.target.value),
+                      }))
+                    }
+                    disabled={!canManage}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-6">
+                  <Switch
+                    checked={formState.isActive}
+                    onCheckedChange={(checked) =>
+                      setFormState((prev) => ({ ...prev, isActive: checked }))
+                    }
+                    id="recurring-inline-active"
+                    disabled={!canManage}
+                  />
+                  <Label
+                    htmlFor="recurring-inline-active"
+                    className="text-xs font-medium text-slate-700"
+                  >
+                    {formState.isActive ? 'Active' : 'Paused'}
+                  </Label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!canManage || saving}
+                  className="h-8 text-xs"
+                >
+                  {saving ? 'Saving…' : editingId ? 'Save' : 'Add'}
+                </Button>
+                {editingId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetForm}
+                    disabled={saving}
+                    className="h-8 text-xs"
+                  >
+                    Cancel
+                  </Button>
                 )}
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={!canManage || saving}>
-              {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add recurring task'}
-            </Button>
-            {editingId ? (
-              <Button type="button" variant="ghost" onClick={resetForm} disabled={saving}>
-                Cancel
-              </Button>
-            ) : null}
-          </div>
-        </form>
-        </div>
+            </form>
+          )}
+        </>
       )}
     </section>
   );
