@@ -13,13 +13,12 @@ import {
   Banknote,
 } from 'lucide-react';
 import EditLink from '@/components/ui/EditLink';
-import { Button } from '../ui/button';
+import { Button } from '@/components/ui/button';
 import type { BankAccountSummary } from '@/components/forms/types';
-
+import EditPropertyModal from '@/components/EditPropertyModal';
+import BankingDetailsModal from '@/components/BankingDetailsModal';
+import PropertyNotes from '@/components/property/PropertyNotes';
 import { type PropertyWithDetails } from '@/lib/property-service';
-import PropertyNotes from '@/property/PropertyNotes';
-import EditPropertyModal from '../EditPropertyModal';
-import BankingDetailsModal from '../BankingDetailsModal';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 interface PropertySummaryProps {
