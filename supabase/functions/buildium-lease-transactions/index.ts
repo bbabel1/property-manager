@@ -5,7 +5,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 interface BuildiumWebhookEvent {
   Id: string
   EventType: string
+  EventName?: string
   EntityId: number
+  TransactionId?: number
+  LeaseId?: number
   EntityType: string
   EventDate: string
   Data: any
@@ -13,6 +16,11 @@ interface BuildiumWebhookEvent {
 
 interface BuildiumWebhookPayload {
   Events: BuildiumWebhookEvent[]
+  credentials?: {
+    baseUrl?: string
+    clientId?: string
+    clientSecret?: string
+  }
 }
 
 // Buildium API Client for lease transactions
@@ -21,10 +29,10 @@ class BuildiumClient {
   private clientId: string
   private clientSecret: string
 
-  constructor() {
-    this.baseUrl = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1'
-    this.clientId = Deno.env.get('BUILDIUM_CLIENT_ID') || ''
-    this.clientSecret = Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
+  constructor(opts?: { baseUrl?: string; clientId?: string; clientSecret?: string }) {
+    this.baseUrl = opts?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1'
+    this.clientId = opts?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || ''
+    this.clientSecret = opts?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {
@@ -48,6 +56,10 @@ class BuildiumClient {
   async getLeaseTransaction(leaseId: number, id: number): Promise<any> {
     return this.makeRequest('GET', `/leases/${leaseId}/transactions/${id}`)
   }
+
+  async getGLAccount(id: number): Promise<any> {
+    return this.makeRequest('GET', `/glaccounts/${id}`)
+  }
 }
 
 // Data mapping function for lease transactions -> transactions table
@@ -69,6 +81,200 @@ function mapLeaseTransactionFromBuildium(buildiumTransaction: any): any {
     payment_method: null,
     updated_at: new Date().toISOString(),
   }
+}
+
+function normalizeDate(d?: string | null): string | null {
+  if (!d) return null
+  // Avoid timezone shifts: prefer direct string slicing
+  const s = String(d)
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  if (s.includes('T')) return s.slice(0, 10)
+  return null
+}
+
+async function resolveLocalPropertyId(
+  supabase: any,
+  buildiumPropertyId: number | null | undefined
+): Promise<string | null> {
+  if (!buildiumPropertyId) return null
+  const { data, error } = await supabase
+    .from('properties')
+    .select('id')
+    .eq('buildium_property_id', buildiumPropertyId)
+    .single()
+  if (error && error.code !== 'PGRST116') throw error
+  return data?.id ?? null
+}
+
+async function resolveLocalUnitId(
+  supabase: any,
+  buildiumUnitId: number | null | undefined
+): Promise<string | null> {
+  if (!buildiumUnitId) return null
+  const { data, error } = await supabase
+    .from('units')
+    .select('id')
+    .eq('buildium_unit_id', buildiumUnitId)
+    .single()
+  if (error && error.code !== 'PGRST116') throw error
+  return data?.id ?? null
+}
+
+async function resolveLocalLeaseId(
+  supabase: any,
+  buildiumLeaseId: number | null | undefined
+): Promise<number | null> {
+  if (!buildiumLeaseId) return null
+  const { data, error } = await supabase
+    .from('lease')
+    .select('id')
+    .eq('buildium_lease_id', buildiumLeaseId)
+    .single()
+  if (error && error.code !== 'PGRST116') throw error
+  return data?.id ?? null
+}
+
+async function resolveGLAccountId(
+  supabase: any,
+  buildiumClient: BuildiumClient,
+  buildiumGLAccountId: number | null | undefined
+): Promise<string | null> {
+  if (!buildiumGLAccountId) return null
+
+  const { data: existing, error: findErr } = await supabase
+    .from('gl_accounts')
+    .select('id')
+    .eq('buildium_gl_account_id', buildiumGLAccountId)
+    .single()
+  if (findErr && findErr.code !== 'PGRST116') throw findErr
+  if (existing) return existing.id
+
+  // Fetch from Buildium and insert minimal row
+  const remote = await buildiumClient.getGLAccount(buildiumGLAccountId)
+  const now = new Date().toISOString()
+  const row = {
+    buildium_gl_account_id: remote.Id,
+    account_number: remote.AccountNumber ?? null,
+    name: remote.Name,
+    description: remote.Description ?? null,
+    type: remote.Type,
+    sub_type: remote.SubType ?? null,
+    is_default_gl_account: !!remote.IsDefaultGLAccount,
+    default_account_name: remote.DefaultAccountName ?? null,
+    is_contra_account: !!remote.IsContraAccount,
+    is_bank_account: !!remote.IsBankAccount,
+    cash_flow_classification: remote.CashFlowClassification ?? null,
+    exclude_from_cash_balances: !!remote.ExcludeFromCashBalances,
+    is_active: remote.IsActive ?? true,
+    buildium_parent_gl_account_id: remote.ParentGLAccountId ?? null,
+    is_credit_card_account: !!remote.IsCreditCardAccount,
+    sub_accounts: null,
+    created_at: now,
+    updated_at: now
+  }
+  const { data: inserted, error: insErr } = await supabase
+    .from('gl_accounts')
+    .insert(row)
+    .select('id')
+    .single()
+  if (insErr) throw insErr
+  return inserted.id
+}
+
+async function upsertLeaseTransactionWithLines(
+  supabase: any,
+  buildiumClient: BuildiumClient,
+  leaseTx: any
+): Promise<string> {
+  const now = new Date().toISOString()
+  const transactionHeader = {
+    buildium_transaction_id: leaseTx.Id,
+    date: normalizeDate(leaseTx.Date),
+    transaction_type: leaseTx.TransactionType || leaseTx.TransactionTypeEnum || 'Lease',
+    total_amount: typeof leaseTx.TotalAmount === 'number' ? leaseTx.TotalAmount : Number(leaseTx.Amount ?? 0),
+    check_number: leaseTx.CheckNumber ?? null,
+    buildium_lease_id: leaseTx.LeaseId ?? null,
+    memo: leaseTx?.Journal?.Memo ?? leaseTx?.Memo ?? null,
+    payment_method: leaseTx.PaymentMethod ?? null,
+    updated_at: now
+  }
+
+  // Upsert transaction header
+  const { data: existing, error: findErr } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('buildium_transaction_id', leaseTx.Id)
+    .single()
+  if (findErr && findErr.code !== 'PGRST116') throw findErr
+
+  const leaseIdLocal = await resolveLocalLeaseId(supabase, leaseTx.LeaseId ?? null)
+  let transactionId: string
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({ ...transactionHeader, lease_id: leaseIdLocal })
+      .eq('id', existing.id)
+      .select('id')
+      .single()
+    if (error) throw error
+    transactionId = data.id
+  } else {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({ ...transactionHeader, lease_id: leaseIdLocal, created_at: now })
+      .select('id')
+      .single()
+    if (error) throw error
+    transactionId = data.id
+  }
+
+  // Replace lines
+  await supabase.from('transaction_lines').delete().eq('transaction_id', transactionId)
+
+  const lines = Array.isArray(leaseTx?.Journal?.Lines) ? leaseTx.Journal.Lines : Array.isArray(leaseTx?.Lines) ? leaseTx.Lines : []
+  let debit = 0, credit = 0
+
+  for (const line of lines) {
+    const amount = Number(line?.Amount ?? 0)
+    const posting = amount >= 0 ? 'Credit' : 'Debit'
+    const glBuildiumId = typeof line?.GLAccount === 'number'
+      ? line?.GLAccount
+      : (line?.GLAccount?.Id ?? line?.GLAccountId ?? null)
+    const glId = await resolveGLAccountId(supabase, buildiumClient, glBuildiumId)
+    if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`)
+
+    const buildiumPropertyId = line?.PropertyId ?? null
+    const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? null
+    const propertyIdLocal = await resolveLocalPropertyId(supabase, buildiumPropertyId)
+    const unitIdLocal = await resolveLocalUnitId(supabase, buildiumUnitId)
+
+    await supabase.from('transaction_lines').insert({
+      transaction_id: transactionId,
+      gl_account_id: glId,
+      amount: Math.abs(amount),
+      posting_type: posting,
+      memo: line?.Memo ?? null,
+      account_entity_type: 'Rental',
+      account_entity_id: buildiumPropertyId,
+      date: normalizeDate(leaseTx.Date),
+      created_at: now,
+      updated_at: now,
+      buildium_property_id: buildiumPropertyId,
+      buildium_unit_id: buildiumUnitId,
+      buildium_lease_id: leaseTx.LeaseId ?? null,
+      property_id: propertyIdLocal,
+      unit_id: unitIdLocal
+    })
+
+    if (posting === 'Debit') debit += Math.abs(amount)
+    else credit += Math.abs(amount)
+  }
+
+  if (debit > 0 && credit > 0 && Math.abs(debit - credit) > 0.0001) {
+    throw new Error(`Double-entry integrity violation: debits (${debit}) != credits (${credit})`)
+  }
+
+  return transactionId
 }
 
 // Main handler
@@ -125,8 +331,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Initialize Buildium client
-    const buildiumClient = new BuildiumClient()
+    // Initialize Buildium client (allow per-request override for testing/local)
+    const buildiumClient = new BuildiumClient(payload.credentials)
 
     // Log webhook event
     console.log('Received lease transaction webhook with', payload.Events.length, 'events')
@@ -153,7 +359,8 @@ serve(async (req) => {
     for (const event of payload.Events) {
       try {
         // Only process lease transaction events
-        if (event.EventType.includes('LeaseTransaction')) {
+        const eventType = event.EventType || (event as any)?.EventName || ''
+        if (eventType.includes('LeaseTransaction')) {
           const result = await processLeaseTransactionEvent(event, buildiumClient, supabase)
           results.push({ eventId: event.Id, success: result.success, error: result.error })
         } else {
@@ -231,70 +438,44 @@ async function processLeaseTransactionEvent(
   supabase: any
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log('Processing lease transaction event:', event.EventType, 'for entity:', event.EntityId)
+    const eventType = event.EventType || (event as any)?.EventName || ''
+    console.log('Processing lease transaction event:', eventType, 'for entity:', event.EntityId)
     
-    if (event.EventType === 'LeaseTransactionDeleted') {
-      // Handle deletion - no hard delete; cannot reliably map without more info
-      // Leave a breadcrumb in transactions (optional: set memo)
+    if (eventType === 'LeaseTransactionDeleted' || eventType === 'LeaseTransaction.Deleted') {
+      const transactionId = (event as any)?.Data?.TransactionId ?? (event as any)?.TransactionId ?? event.EntityId
       const { data: existingTransaction } = await supabase
         .from('transactions')
         .select('id')
-        .eq('buildium_transaction_id', event.EntityId)
+        .eq('buildium_transaction_id', transactionId)
         .single()
 
-      if (existingTransaction) {
-        await supabase
-          .from('transactions')
-          .update({ memo: 'Buildium LeaseTransactionDeleted', updated_at: new Date().toISOString() })
-          .eq('id', existingTransaction.id)
-
-        console.log('Lease transaction flagged as deleted:', existingTransaction.id)
-        return { success: true }
+      if (existingTransaction?.id) {
+        await supabase.from('transaction_lines').delete().eq('transaction_id', existingTransaction.id)
+        await supabase.from('transactions').delete().eq('id', existingTransaction.id)
+        console.log('Lease transaction deleted locally:', existingTransaction.id)
+      } else {
+        console.log('Lease transaction delete received but not found locally:', transactionId)
       }
-      
-      return { success: true } // Transaction not found locally, nothing to do
+      return { success: true }
     }
 
-    // Fetch the full transaction data from Buildium
-    const leaseId = (event as any)?.Data?.LeaseId
-    if (!leaseId) {
-      console.warn('LeaseId missing on webhook event; cannot fetch transaction', event)
-      return { success: false, error: 'LeaseId missing on webhook event' }
+    // Use provided transaction (if forwarded) or fetch from Buildium
+    const leaseId = (event as any)?.Data?.LeaseId ?? (event as any)?.LeaseId ?? null
+    const transactionId = (event as any)?.Data?.TransactionId ?? (event as any)?.TransactionId ?? event.EntityId
+    const forwardedTx = (event as any)?.Data?.FullTransaction || (event as any)?.Data?.Transaction
+    let transaction = forwardedTx
+    if (!transaction) {
+      if (!leaseId) {
+        console.warn('LeaseId missing on webhook event; cannot fetch transaction', event)
+        return { success: false, error: 'LeaseId missing on webhook event' }
+      }
+      transaction = await buildiumClient.getLeaseTransaction(leaseId, transactionId)
     }
-    const transaction = await buildiumClient.getLeaseTransaction(leaseId, event.EntityId)
     
-    // Map to local format
-    const localData = mapLeaseTransactionFromBuildium(transaction)
-
-    // Check if transaction already exists locally
-    const { data: existingTransaction } = await supabase
-      .from('transactions')
-      .select('id')
-      .eq('buildium_transaction_id', transaction.Id)
-      .single()
-
-    if (existingTransaction) {
-      // Update existing transaction
-      await supabase
-        .from('transactions')
-        .update(localData)
-        .eq('id', existingTransaction.id)
-
-      console.log('Lease transaction updated from Buildium:', existingTransaction.id)
-      return { success: true }
-    } else {
-      // Create new transaction
-      const { data: newTransaction, error } = await supabase
-        .from('transactions')
-        .insert({ ...localData, created_at: new Date().toISOString() })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      console.log('Lease transaction created from Buildium:', newTransaction.id)
-      return { success: true }
-    }
+    // Map + upsert transaction header and lines
+    await upsertLeaseTransactionWithLines(supabase, buildiumClient, transaction)
+    console.log('Lease transaction synced from Buildium with lines:', transaction.Id)
+    return { success: true }
   } catch (error) {
     const errorMessage = error.message || 'Unknown error'
     console.error('Error processing lease transaction event:', errorMessage)

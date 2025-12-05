@@ -56,6 +56,23 @@ const formatDateRange = (from: string | null | undefined, to: string | null | un
   return `${start} – ${end}`;
 };
 
+const statusBadgeClass = (status: string | null | undefined) => {
+  const normalized = normalizeStatusLabel(status).toLowerCase();
+  if (normalized === 'active') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+  if (normalized === 'future' || normalized === 'renewal') {
+    return 'border-sky-200 bg-sky-50 text-sky-700';
+  }
+  if (normalized === 'past' || normalized === 'expired') {
+    return 'border-slate-300 bg-slate-100 text-slate-700';
+  }
+  if (normalized === 'cancelled' || normalized === 'terminated') {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
+  }
+  return 'border-amber-200 bg-amber-50 text-amber-700';
+};
+
 const normalizeStatusLabel = (status: string | null | undefined) => {
   if (!status) return 'Unknown';
   return status
@@ -269,7 +286,9 @@ export default function LeasesPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{normalizeStatusLabel(lease.status)}</Badge>
+                          <Badge variant="outline" className={statusBadgeClass(lease.status)}>
+                            {normalizeStatusLabel(lease.status)}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {formatDateRange(lease.lease_from_date, lease.lease_to_date)}

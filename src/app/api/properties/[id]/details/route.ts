@@ -62,12 +62,47 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }))
       owners.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0))
     } catch {}
+
+    // Fallback: derive owners from ownerships → owners → contacts if cache is empty
+    if (!owners.length) {
+      try {
+        const { data: ownerships } = await db
+          .from('ownerships')
+          .select(
+            'owner_id, primary, ownership_percentage, disbursement_percentage, owners ( id, contact_id, contacts ( display_name, company_name, first_name, last_name ) )',
+          )
+          .eq('property_id', id)
+        const list = Array.isArray(ownerships) ? ownerships : []
+        owners = list.map((o: any) => {
+          const contact = (o?.owners as any)?.contacts as any
+          const displayName =
+            contact?.display_name ||
+            contact?.company_name ||
+            [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+            undefined
+          return {
+            id: o?.owner_id,
+            owner_id: o?.owner_id,
+            contact_id: (o?.owners as any)?.contact_id ?? null,
+            display_name: displayName,
+            ownership_percentage: o?.ownership_percentage,
+            disbursement_percentage: o?.disbursement_percentage,
+            primary: !!o?.primary,
+          }
+        })
+        owners.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0))
+      } catch {}
+    }
     const total_owners = owners.length
 
     let primary_owner_name: string | undefined
     if (owners.length) {
       const po = owners.find((o: any) => o.primary) || owners[0]
-      primary_owner_name = po?.company_name || [po?.first_name, po?.last_name].filter(Boolean).join(' ').trim() || undefined
+      primary_owner_name =
+        po?.display_name ||
+        po?.company_name ||
+        [po?.first_name, po?.last_name].filter(Boolean).join(' ').trim() ||
+        undefined
     }
 
     // Banking names and units in parallel

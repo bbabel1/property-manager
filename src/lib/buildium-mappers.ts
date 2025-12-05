@@ -819,7 +819,7 @@ export async function resolveGLAccountId(
     // Step 2: GL account not found, fetch from Buildium API
     console.log(`GL account ${buildiumGLAccountId} not found, fetching from Buildium...`);
     
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/glaccounts/${buildiumGLAccountId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'}/glaccounts/${buildiumGLAccountId}`;
     const response = await fetch(buildiumUrl, {
       headers: {
         'Accept': 'application/json',
@@ -3088,7 +3088,7 @@ export async function resolveLocalVendorIdFromBuildium(
     if (findErr && findErr.code !== 'PGRST116') throw findErr
 
     // Fetch vendor from Buildium and create
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/vendors/${buildiumVendorId}`
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'}/vendors/${buildiumVendorId}`
     const resp = await fetch(buildiumUrl, {
       headers: {
         'Accept': 'application/json',
@@ -3208,6 +3208,13 @@ export async function mapBillTransactionFromBuildium(
   const nowIso = new Date().toISOString()
   const vendorId = await resolveLocalVendorIdFromBuildium(buildiumBill?.VendorId ?? null, supabase)
   const categoryId = await resolveBillCategoryIdFromBuildium(buildiumBill?.CategoryId ?? null, supabase)
+  const totalAmountFromLines = Array.isArray(buildiumBill?.Lines)
+    ? buildiumBill.Lines.reduce((sum: number, line: any) => sum + Number(line?.Amount ?? 0), 0)
+    : 0
+  const headerAmount = Number(buildiumBill?.Amount ?? NaN)
+  const totalAmount = Number.isFinite(headerAmount) && headerAmount !== 0
+    ? headerAmount
+    : totalAmountFromLines
 
   const normalizedDueDate = buildiumBill?.DueDate ? normalizeDateString(buildiumBill?.DueDate) : null
   const normalizedPaidDate = buildiumBill?.PaidDate ? normalizeDateString(buildiumBill?.PaidDate) : null
@@ -3219,9 +3226,9 @@ export async function mapBillTransactionFromBuildium(
     date: normalizeDateString(buildiumBill?.Date),
     due_date: normalizedDueDate,
     paid_date: normalizedPaidDate,
-    total_amount: Number(buildiumBill?.Amount ?? 0),
+    total_amount: totalAmount,
     reference_number: buildiumBill?.ReferenceNumber ?? null,
-    memo: buildiumBill?.Description ?? null,
+    memo: buildiumBill?.Description ?? buildiumBill?.Memo ?? null,
     transaction_type: 'Bill',
     status: localStatus,
     vendor_id: vendorId,

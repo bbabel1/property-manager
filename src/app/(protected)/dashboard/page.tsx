@@ -97,10 +97,10 @@ export default function DashboardPage() {
                   <Badge variant="secondary" className="text-xs">
                     {isLoading ? '—' : `${k?.total_units ?? 0} units`}
                   </Badge>
-                  {typeof k?.growth_rate_pct === 'number' && (
+                  {typeof k?.growth_rate === 'number' && (
                     <span className="text-muted-foreground text-xs">
-                      {k.growth_rate_pct >= 0 ? '+' : ''}
-                      {k.growth_rate_pct}%
+                      {k.growth_rate >= 0 ? '+' : ''}
+                      {k.growth_rate}%
                     </span>
                   )}
                 </div>
@@ -118,7 +118,7 @@ export default function DashboardPage() {
               <div className="space-y-1">
                 <p className="text-muted-foreground text-sm font-medium">Occupancy Rate</p>
                 <p className="text-foreground text-2xl font-bold">
-                  {isLoading ? '—' : `${k?.occupancy_rate_pct ?? 0}%`}
+                  {isLoading ? '—' : `${k?.occupancy_rate ?? 0}%`}
                 </p>
                 <div className="flex items-center gap-2">
                   <Badge variant="default" className="bg-success text-xs text-white">
@@ -148,10 +148,10 @@ export default function DashboardPage() {
                   <Badge variant="secondary" className="text-xs">
                     {isLoading ? '—' : `${k?.active_leases ?? 0} active leases`}
                   </Badge>
-                  {typeof k?.growth_rate_pct === 'number' && (
+                  {typeof k?.growth_rate === 'number' && (
                     <span className="text-success text-xs">
-                      {k.growth_rate_pct >= 0 ? '+' : ''}
-                      {k.growth_rate_pct}%
+                      {k.growth_rate >= 0 ? '+' : ''}
+                      {k.growth_rate}%
                     </span>
                   )}
                 </div>

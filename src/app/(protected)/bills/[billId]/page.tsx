@@ -414,12 +414,12 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                     <div className="relative overflow-x-auto">
                       <Table className="min-w-[720px] text-sm">
                         <TableHeader>
-                          <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
-                            <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Property or company
-                            </TableHead>
-                            <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
-                              Unit
+                            <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
+                              <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                                Property or company
+                              </TableHead>
+                              <TableHead className="text-foreground w-[12rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                                Unit
                             </TableHead>
                             <TableHead className="text-foreground w-[18rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
                               Account
@@ -452,30 +452,30 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                                     index % 2 === 1 ? 'bg-muted/10' : undefined,
                                   )}
                                 >
-                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                    {item.propertyName}
-                                  </TableCell>
-                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                    {item.unitLabel}
-                                  </TableCell>
-                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3">
-                                    <div className="font-medium">{item.accountLabel}</div>
-                                    {(item.accountNumber || item.accountType) && (
-                                      <div className="text-muted-foreground text-xs">
-                                        {item.accountNumber ? `#${item.accountNumber}` : ''}
-                                        {item.accountNumber && item.accountType ? ' • ' : ''}
-                                        {item.accountType
-                                          ? item.accountType.replace(/_/g, ' ').toLowerCase()
-                                          : ''}
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-foreground border-border/60 border-r border-dashed px-4 py-3 whitespace-pre-wrap">
-                                    {item.description}
-                                  </TableCell>
-                                  <TableCell className="sticky right-0 px-4 py-3 text-right font-semibold backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                    {formatCurrency(item.initialAmount)}
-                                  </TableCell>
+                                <TableCell className="text-foreground px-4 py-3">
+                                  {item.propertyName}
+                                </TableCell>
+                                <TableCell className="text-foreground px-4 py-3">
+                                  {item.unitLabel}
+                                </TableCell>
+                                <TableCell className="text-foreground px-4 py-3">
+                                  <div className="font-medium">{item.accountLabel}</div>
+                                  {(item.accountNumber || item.accountType) && (
+                                    <div className="text-muted-foreground text-xs">
+                                      {item.accountNumber ? `#${item.accountNumber}` : ''}
+                                      {item.accountNumber && item.accountType ? ' • ' : ''}
+                                      {item.accountType
+                                        ? item.accountType.replace(/_/g, ' ').toLowerCase()
+                                        : ''}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-foreground px-4 py-3 whitespace-pre-wrap">
+                                  {item.description}
+                                </TableCell>
+                                <TableCell className="sticky right-0 px-4 py-3 text-right font-semibold backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                  {formatCurrency(item.initialAmount)}
+                                </TableCell>
                                 </TableRow>
                               ))}
                             </>

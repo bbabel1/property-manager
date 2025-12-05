@@ -11,7 +11,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
       supabase
         .from('v_dashboard_kpis')
         .select(
-          'org_id,total_properties,total_units,occupied_units,available_units,occupancy_rate_pct,monthly_rent_roll,active_leases,growth_rate_pct,open_work_orders,urgent_work_orders'
+          'org_id,total_properties,total_units,occupied_units,available_units,occupancy_rate,monthly_rent_roll,active_leases,growth_rate,open_work_orders,urgent_work_orders'
         )
         .eq('org_id', orgId)
         .maybeSingle(),
@@ -65,4 +65,3 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
     return NextResponse.json({ error: msg }, { status })
   }
 }
-

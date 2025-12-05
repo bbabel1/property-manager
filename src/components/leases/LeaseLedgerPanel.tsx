@@ -1,8 +1,27 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
+import TransactionDetailShell from '@/components/transactions/TransactionDetailShell';
+import ReceivePaymentForm from '@/components/leases/ReceivePaymentForm';
+import EnterChargeForm from '@/components/leases/EnterChargeForm';
+import IssueCreditForm from '@/components/leases/IssueCreditForm';
+import IssueRefundForm from '@/components/leases/IssueRefundForm';
+import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
+import EditTransactionForm from '@/components/leases/EditTransactionForm';
+import ActionButton from '@/components/ui/ActionButton';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import DynamicOverlay from '@/components/ui/DynamicOverlay';
+import TransactionModalContent from '@/components/transactions/TransactionModalContent';
 import {
   Table,
   TableBody,
@@ -11,23 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { ArrowRight } from 'lucide-react';
-import ActionButton from '@/components/ui/ActionButton';
-import DynamicOverlay from '@/components/ui/DynamicOverlay';
-import ReceivePaymentForm from '@/components/leases/ReceivePaymentForm';
-import EnterChargeForm from '@/components/leases/EnterChargeForm';
-import IssueCreditForm from '@/components/leases/IssueCreditForm';
-import IssueRefundForm from '@/components/leases/IssueRefundForm';
-import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
-import EditTransactionForm from '@/components/leases/EditTransactionForm';
+import { formatCurrency, getTransactionTypeLabel } from '@/lib/transactions/formatting';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
+import type { BuildiumLeaseTransaction } from '@/types/buildium';
 
 type LedgerRow = {
   id: string;
@@ -39,6 +44,8 @@ type LedgerRow = {
   displayAmount: string;
   balance: string;
   transactionId?: string | number;
+  amountRaw?: number;
+  signedAmount?: number;
 };
 
 type LeaseLedgerPanelProps = {
@@ -72,6 +79,7 @@ export default function LeaseLedgerPanel({
   bankAccountOptions,
 }: LeaseLedgerPanelProps) {
   const router = useRouter();
+  const detailRequestIdRef = useRef(0);
   const [mode, setMode] = useState<
     'none' | 'payment' | 'charge' | 'credit' | 'refund' | 'deposit' | 'edit'
   >('none');
@@ -81,8 +89,15 @@ export default function LeaseLedgerPanel({
     id: number;
     typeLabel?: string | null;
   } | null>(null);
+  const [detailState, setDetailState] = useState<
+    | { status: 'idle'; row: null }
+    | { status: 'loading'; row: LedgerRow }
+    | { status: 'error'; row: LedgerRow | null; message: string }
+    | { status: 'ready'; row: LedgerRow; detail: BuildiumLeaseTransaction }
+  >({ status: 'idle', row: null });
 
   const overlayActive = mode !== 'none';
+  const detailOpen = detailState.status !== 'idle';
 
   useLayoutEffect(() => {
     if (!overlayActive) return;
@@ -136,6 +151,223 @@ export default function LeaseLedgerPanel({
   const closeOverlay = () => {
     setMode('none');
     setEditingTransaction(null);
+  };
+
+  const closeDetailDialog = () => {
+    detailRequestIdRef.current += 1; // cancel in-flight responses
+    setDetailState({ status: 'idle', row: null });
+  };
+
+  const getTransactionReference = (row: LedgerRow) =>
+    (row.transactionId ?? row.id ?? '').toString();
+
+  const getNumericTransactionId = (row: LedgerRow) => {
+    const ref = row.transactionId ?? row.id;
+    const numeric = Number(ref);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const rowIsCharge = (row: LedgerRow) => String(row.type || '').toLowerCase().includes('charge');
+
+  const handleDeleteTransaction = async (row: LedgerRow) => {
+    const txParam = getTransactionReference(row);
+    if (!txParam) return;
+    const confirmed =
+      typeof window !== 'undefined'
+        ? window.confirm('Delete this transaction? This cannot be undone.')
+        : true;
+    if (!confirmed) return;
+    try {
+      const res = await fetch(
+        `/api/leases/${leaseId}/transactions/${encodeURIComponent(txParam)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to delete transaction');
+      }
+      closeDetailDialog();
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to delete transaction');
+    }
+  };
+
+  const handleEditTransaction = (row: LedgerRow) => {
+    const typeLabel = typeof row.type === 'string' ? row.type : '';
+    const transactionIdRaw = getNumericTransactionId(row);
+    if (!rowIsCharge(row) || !Number.isFinite(transactionIdRaw)) return;
+    closeDetailDialog();
+    setEditingTransaction({ id: Number(transactionIdRaw), typeLabel });
+    setMode('edit');
+  };
+
+  const openDetailDialog = (row: LedgerRow) => {
+    const txParam = getTransactionReference(row);
+    if (!txParam) return;
+    const requestId = detailRequestIdRef.current + 1;
+    detailRequestIdRef.current = requestId;
+    setDetailState({ status: 'loading', row });
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/leases/${leaseId}/transactions/${encodeURIComponent(txParam)}`,
+          { cache: 'no-store' },
+        );
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload?.error || 'Unable to load transaction');
+        }
+        const detail = (payload?.data ?? payload) as BuildiumLeaseTransaction;
+        if (detailRequestIdRef.current !== requestId) return;
+        setDetailState({ status: 'ready', row, detail });
+      } catch (error) {
+        if (detailRequestIdRef.current !== requestId) return;
+        setDetailState({
+          status: 'error',
+          row,
+          message: error instanceof Error ? error.message : 'Failed to load transaction',
+        });
+      }
+    })();
+  };
+
+  const deriveSignedAmount = (row: LedgerRow | null, detail?: BuildiumLeaseTransaction | null) => {
+    if (row?.signedAmount != null) return row.signedAmount;
+    const raw = Number(detail?.TotalAmount ?? detail?.Amount ?? row?.amountRaw ?? 0) || 0;
+    const type = String(
+      detail?.TransactionTypeEnum ?? detail?.TransactionType ?? row?.type ?? '',
+    ).toLowerCase();
+    if (!raw) return 0;
+    if (
+      type.includes('payment') ||
+      type.includes('credit') ||
+      type.includes('refund') ||
+      type.includes('adjustment')
+    ) {
+      return raw * -1;
+    }
+    return raw;
+  };
+
+  const renderDetailContent = () => {
+    const AccessibleTitle = () => (
+      <DialogTitle className="sr-only">Transaction details</DialogTitle>
+    );
+
+    if (detailState.status === 'loading' || detailState.status === 'idle') {
+      return (
+        <div className="space-y-3 px-6 py-8 text-sm text-muted-foreground">
+          <AccessibleTitle />
+          <p className="font-medium text-foreground">Loading transaction…</p>
+          <p>This will only take a moment.</p>
+        </div>
+      );
+    }
+
+    if (detailState.status === 'error') {
+      return (
+        <div className="space-y-4 px-6 py-8">
+          <AccessibleTitle />
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {detailState.message}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" variant="ghost" onClick={closeDetailDialog}>
+              Close
+            </Button>
+            {detailState.row ? (
+              <Button type="button" onClick={() => openDetailDialog(detailState.row!)}>
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    const { row, detail } = detailState;
+    const normalizedType = (value?: string | null) =>
+      (value || '').replace(/^Lease\s*/i, '').trim() || 'Transaction';
+    const typeLabel = getTransactionTypeLabel(
+      normalizedType(detail?.TransactionTypeEnum ?? detail?.TransactionType ?? row.type),
+    );
+
+    const signedAmount = deriveSignedAmount(row, detail);
+    const amountTone = signedAmount < 0 ? 'negative' : signedAmount > 0 ? 'positive' : 'neutral';
+    const amountLabel = formatCurrency(Math.abs(signedAmount || 0));
+    const memo = detail?.Memo ?? detail?.Description ?? row.memo ?? '—';
+    const referenceNumber =
+      detail?.CheckNumber ?? (detail as any)?.ReferenceNumber ?? row.invoice || null;
+    const transactionId = detail?.Id ?? row.transactionId ?? row.id;
+    const allocations =
+      (Array.isArray(detail?.Lines) && detail?.Lines?.length ? detail.Lines : detail?.Journal?.Lines) ||
+      [];
+    const allocationList =
+      allocations && allocations.length
+        ? allocations
+            .map((line, idx) => {
+              const amount = Number(line?.Amount ?? 0);
+              if (!Number.isFinite(amount) || amount === 0) return null;
+              const glName =
+                typeof line?.GLAccount === 'object' && line?.GLAccount
+                  ? line.GLAccount?.Name
+                  : row.account || 'Account';
+              return (
+                <div
+                  key={line?.Id ?? idx}
+                  className="flex items-center justify-between gap-2 text-xs text-slate-700"
+                >
+                  <span className="truncate">{glName || 'Account'}</span>
+                  <span className="font-mono">{formatCurrency(Math.abs(amount))}</span>
+                </div>
+              );
+            })
+            .filter(Boolean)
+        : null;
+
+    const detailItems = [
+      { label: 'Date', value: row.date },
+      { label: 'Account', value: row.account || '—' },
+      { label: 'Memo', value: memo || '—' },
+      {
+        label: 'Reference #',
+        value: referenceNumber || '—',
+        mono: true,
+      },
+    ];
+
+    if (allocationList && allocationList.length) {
+      detailItems.push({
+        label: 'Allocations',
+        value: <div className="space-y-1">{allocationList}</div>,
+      });
+    }
+
+    const canEdit = rowIsCharge(row) && Number.isFinite(getNumericTransactionId(row));
+
+    return (
+      <TransactionDetailShell
+        title="Transaction Details"
+        typeLabel={typeLabel}
+        scopeLabel={[leaseSummary.propertyUnit, leaseSummary.tenants].filter(Boolean).join(' • ')}
+        dateLabel={row.date}
+        amountLabel={amountLabel}
+        amountPrefix={amountTone === 'negative' ? '-' : amountTone === 'positive' ? '+' : ''}
+        amountTone={amountTone}
+        transactionId={transactionId ? String(transactionId) : undefined}
+        referenceNumber={referenceNumber}
+        detailItems={detailItems}
+        actions={{
+          hint: canEdit ? 'Edit or delete this transaction.' : 'Only charge transactions can be edited here.',
+          onEdit: canEdit ? () => handleEditTransaction(row) : undefined,
+          onDelete: () => handleDeleteTransaction(row),
+          editDisabledReason: canEdit ? null : 'Only charge transactions can be edited here.',
+          editLabel: 'Edit',
+          deleteLabel: 'Delete',
+        }}
+      />
+    );
   };
 
   const renderOverlayContent = () => {
@@ -312,12 +544,24 @@ export default function LeaseLedgerPanel({
             ) : rows.length ? (
               rows.map((row) => {
                 const typeLabel = typeof row.type === 'string' ? row.type : '';
-                const canEdit = typeLabel.toLowerCase().includes('charge');
-                const transactionIdRaw = row.transactionId
-                  ? Number(row.transactionId)
-                  : Number(row.id);
+                const canEdit = rowIsCharge(row) && Number.isFinite(getNumericTransactionId(row));
+                const transactionIdRaw = getNumericTransactionId(row);
                 return (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    className="cursor-pointer hover:bg-muted/60"
+                    onClick={(event) => {
+                      const target = event.target as HTMLElement | null;
+                      if (
+                        target?.closest('button') ||
+                        target?.closest('[role=\"menuitem\"]') ||
+                        target?.closest('[data-row-link-ignore=\"true\"]')
+                      ) {
+                        return;
+                      }
+                      openDetailDialog(row);
+                    }}
+                  >
                     <TableCell className="text-foreground text-sm">{row.date}</TableCell>
                     <TableCell className="text-primary text-sm">{row.invoice}</TableCell>
                     <TableCell className="text-foreground text-sm">{row.account}</TableCell>
@@ -341,7 +585,11 @@ export default function LeaseLedgerPanel({
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <ActionButton aria-label="Ledger actions" />
+                          <ActionButton
+                            aria-label="Ledger actions"
+                            data-row-link-ignore="true"
+                            onClick={(event) => event.stopPropagation()}
+                          />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
@@ -351,36 +599,7 @@ export default function LeaseLedgerPanel({
                         >
                           <DropdownMenuItem
                             className="text-destructive cursor-pointer"
-                            onSelect={async () => {
-                              const isBuildiumId =
-                                row.transactionId != null &&
-                                Number.isFinite(Number(row.transactionId));
-                              const txParam = isBuildiumId
-                                ? String(row.transactionId)
-                                : String(row.id);
-                              const confirmed =
-                                typeof window !== 'undefined'
-                                  ? window.confirm(
-                                      'Delete this transaction? This cannot be undone.',
-                                    )
-                                  : true;
-                              if (!confirmed) return;
-                              try {
-                                const res = await fetch(
-                                  `/api/leases/${leaseId}/transactions/${encodeURIComponent(txParam)}`,
-                                  { method: 'DELETE' },
-                                );
-                                if (!res.ok && res.status !== 204) {
-                                  const body = await res.json().catch(() => ({}));
-                                  throw new Error(body?.error || 'Failed to delete transaction');
-                                }
-                                router.refresh();
-                              } catch (e) {
-                                alert(
-                                  e instanceof Error ? e.message : 'Failed to delete transaction',
-                                );
-                              }
-                            }}
+                            onSelect={() => handleDeleteTransaction(row)}
                           >
                             Delete
                           </DropdownMenuItem>
@@ -391,11 +610,7 @@ export default function LeaseLedgerPanel({
                             title={
                               !canEdit ? 'Only charge transactions can be edited here.' : undefined
                             }
-                            onSelect={() => {
-                              if (!canEdit || !Number.isFinite(transactionIdRaw)) return;
-                              setEditingTransaction({ id: Number(transactionIdRaw), typeLabel });
-                              setMode('edit');
-                            }}
+                            onSelect={() => handleEditTransaction(row)}
                           >
                             Edit
                           </DropdownMenuItem>
@@ -418,6 +633,9 @@ export default function LeaseLedgerPanel({
           </TableBody>
         </Table>
       </div>
+      <Dialog open={detailOpen} onOpenChange={(open) => (!open ? closeDetailDialog() : undefined)}>
+        <TransactionModalContent>{renderDetailContent()}</TransactionModalContent>
+      </Dialog>
     </div>
   );
 }
