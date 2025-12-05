@@ -20,9 +20,7 @@ import MonthlyLogTransactionsSection from '@/components/monthly-logs/MonthlyLogT
 import TaskCreateDialog from '@/components/monthly-logs/TaskCreateDialog';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import { useMonthlyLogDetail } from '@/hooks/useMonthlyLogDetail';
-import MonthlyLogTransactionOverlay, {
-  type TransactionMode,
-} from '@/components/monthly-logs';
+import MonthlyLogTransactionOverlay, { type TransactionMode } from '@/components/monthly-logs';
 import type { LeaseTenantOption } from '@/components/leases/types';
 import { formatCurrency, formatDate } from '@/lib/transactions/formatting';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
@@ -112,11 +110,13 @@ interface MonthlyLogDetailPageContentProps {
 
 const TASK_STATUS_BADGE: Record<MonthlyLogTaskSummary['statusKey'], string> = {
   new: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-  in_progress: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
+  in_progress:
+    'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
   completed:
     'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
   on_hold: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-700)]',
-  cancelled: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
+  cancelled:
+    'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
 };
 
 const TASK_PRIORITY_DOT: Record<MonthlyLogTaskSummary['priorityKey'], string> = {
@@ -311,7 +311,9 @@ export default function MonthlyLogDetailPageContent({
   const handleToggleAllAssigned = useCallback(
     (checked: boolean) => {
       setSelectedAssigned(
-        checked ? new Set(visibleAssignedTransactions.map((transaction) => transaction.id)) : new Set(),
+        checked
+          ? new Set(visibleAssignedTransactions.map((transaction) => transaction.id))
+          : new Set(),
       );
     },
     [visibleAssignedTransactions],
