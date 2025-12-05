@@ -49,17 +49,17 @@ type UIWorkOrder = {
 };
 
 const STATUS_BADGE_STYLES: Record<WorkOrderStatus, string> = {
-  New: 'border-amber-200 bg-amber-50 text-amber-700',
-  'In progress': 'border-sky-200 bg-sky-50 text-sky-700',
-  Completed: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-600)]',
-  Cancelled: 'border-border bg-muted/60 text-muted-foreground',
+  New: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
+  'In progress': 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
+  Completed: 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
+  Cancelled: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
 };
 
 const PRIORITY_DOT_STYLES: Record<WorkOrderPriority, string> = {
-  High: 'bg-rose-500',
-  Normal: 'bg-amber-400',
-  Low: 'bg-slate-400',
-  Urgent: 'bg-rose-600',
+  High: 'bg-[var(--color-danger-500)]',
+  Normal: 'bg-[var(--color-warning-600)]',
+  Low: 'bg-[var(--color-gray-400)]',
+  Urgent: 'bg-[var(--color-danger-700)]',
 };
 
 const TASK_KIND_LABELS: Record<NonNullable<TaskRow['task_kind']>, string> = {

@@ -7,17 +7,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, Info, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, Info, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import {
-  getStatementRecipients,
-  isValidRecipientEmail,
-  updateStatementRecipients,
-  type StatementRecipient,
-} from '@/modules/monthly-logs/services/statement-recipients';
+import { isValidRecipientEmail, type StatementRecipient } from '@/modules/monthly-logs/services/statement-recipients';
+import useStatementRecipients from '@/features/monthly-logs/hooks/useStatementRecipients';
 
 interface StatementRecipientsManagerProps {
   propertyId: string;
@@ -30,62 +26,30 @@ export default function StatementRecipientsManager({
   onRecipientsChange,
   onLoadingChange,
 }: StatementRecipientsManagerProps) {
-  const [recipients, setRecipients] = useState<StatementRecipient[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const {
+    recipients,
+    isLoading,
+    isValidating,
+    addRecipient,
+    removeRecipient,
+    error,
+  } = useStatementRecipients(propertyId);
   const [showAddRow, setShowAddRow] = useState(false);
-
-  // New recipient form state
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('Owner');
+  const [isMutating, setIsMutating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchRecipients();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyId]);
+    onRecipientsChange?.(recipients);
+  }, [onRecipientsChange, recipients]);
 
   useEffect(() => {
-    onLoadingChange?.(loading);
-  }, [loading, onLoadingChange]);
+    onLoadingChange?.(isLoading || isValidating);
+  }, [isLoading, isValidating, onLoadingChange]);
 
-  const pushRecipientsChange = (nextRecipients: StatementRecipient[]) => {
-    setRecipients(nextRecipients);
-    onRecipientsChange?.(nextRecipients);
-  };
-
-  const fetchRecipients = async () => {
-    try {
-      setLoading(true);
-      const nextRecipients = await getStatementRecipients(propertyId);
-      setRecipients(nextRecipients);
-      onRecipientsChange?.(nextRecipients);
-    } catch (error) {
-      console.warn('Error fetching recipients:', error);
-      toast.error('Failed to load recipients');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-
-      await updateStatementRecipients(propertyId, recipients);
-      toast.success('Recipients updated successfully');
-      setEditing(false);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save recipients';
-      console.warn('Error saving recipients:', error);
-      toast.error(errorMessage);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAddRecipient = () => {
+  const handleAddRecipient = async () => {
     if (!newEmail || !newName) {
       toast.error('Email and name are required');
       return;
@@ -96,27 +60,46 @@ export default function StatementRecipientsManager({
       return;
     }
 
-    // Check for duplicates
     if (recipients.some((r) => r.email.toLowerCase() === newEmail.toLowerCase())) {
       toast.error('This email is already in the recipient list');
       return;
     }
 
-    const nextRecipients = [...recipients, { email: newEmail, name: newName, role: newRole }];
-    pushRecipientsChange(nextRecipients);
-    setNewEmail('');
-    setNewName('');
-    setNewRole('Owner');
-    setEditing(true);
+    const nextRecipient = { email: newEmail, name: newName, role: newRole };
+
+    try {
+      setIsMutating(true);
+      setActionError(null);
+      await addRecipient(nextRecipient);
+      setNewEmail('');
+      setNewName('');
+      setNewRole('Owner');
+      toast.success('Recipient added');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add recipient';
+      setActionError(message);
+      toast.error(message);
+    } finally {
+      setIsMutating(false);
+    }
   };
 
-  const handleRemoveRecipient = (email: string) => {
-    const nextRecipients = recipients.filter((r) => r.email !== email);
-    pushRecipientsChange(nextRecipients);
-    setEditing(true);
+  const handleRemoveRecipient = async (email: string) => {
+    try {
+      setIsMutating(true);
+      setActionError(null);
+      await removeRecipient(email);
+      toast.success('Recipient removed');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to remove recipient';
+      setActionError(message);
+      toast.error(message);
+    } finally {
+      setIsMutating(false);
+    }
   };
 
-  if (loading) {
+  if (isLoading && recipients.length === 0) {
     return (
       <div className="space-y-3">
         <div className="animate-pulse space-y-2">
@@ -130,12 +113,13 @@ export default function StatementRecipientsManager({
 
   return (
     <div className="space-y-3">
-      {editing && (
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
-            <CheckCircle className="h-4 w-4" />
-            {saving ? 'Saving...' : 'Save changes'}
-          </Button>
+      {(error || actionError) && (
+        <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <AlertCircle className="mt-0.5 h-4 w-4" />
+          <div className="space-y-1">
+            {error && <p>{error}</p>}
+            {actionError && !error && <p>{actionError}</p>}
+          </div>
         </div>
       )}
 
@@ -160,6 +144,7 @@ export default function StatementRecipientsManager({
                   size="sm"
                   onClick={() => handleRemoveRecipient(recipient.email)}
                   className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  disabled={isMutating}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -185,6 +170,7 @@ export default function StatementRecipientsManager({
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 className="h-9 text-sm"
+                disabled={isMutating}
               />
               <Input
                 type="text"
@@ -192,6 +178,7 @@ export default function StatementRecipientsManager({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 className="h-9 text-sm"
+                disabled={isMutating}
               />
               <Input
                 type="text"
@@ -199,11 +186,12 @@ export default function StatementRecipientsManager({
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
                 className="h-9 text-sm"
+                disabled={isMutating}
               />
             </div>
-            <Button onClick={handleAddRecipient} size="sm" className="h-9 w-full gap-2 sm:w-auto">
+            <Button onClick={handleAddRecipient} size="sm" className="h-9 w-full gap-2 sm:w-auto" disabled={isMutating}>
               <Plus className="h-4 w-4" />
-              Add recipient
+              {isMutating ? 'Adding...' : 'Add recipient'}
             </Button>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -228,6 +216,7 @@ export default function StatementRecipientsManager({
             size="sm"
             className="h-8 px-3 text-slate-700 hover:bg-slate-100"
             onClick={() => setShowAddRow(true)}
+            disabled={isMutating}
           >
             <Plus className="mr-1 h-4 w-4" />
             Add recipient

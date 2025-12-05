@@ -82,8 +82,27 @@ export async function requireRole(required: AppRole | AppRole[]) {
 export async function requireOrg(orgId: string) {
   const { supabase, user } = await requireAuth();
   const appMeta = (user.app_metadata ?? {}) as LooseRecord;
+  const userMeta = (user.user_metadata ?? {}) as LooseRecord;
   const claims = (appMeta.claims ?? {}) as LooseRecord;
-  const orgs = normalizeArray(claims.org_ids) as string[];
-  if (!orgs.includes(orgId)) throw new Error('ORG_FORBIDDEN');
+
+  const orgs = new Set<string>();
+  normalizeArray(claims.org_ids).forEach((o) => orgs.add(o));
+  normalizeArray(appMeta.org_ids).forEach((o) => orgs.add(o));
+  normalizeArray(userMeta.org_ids).forEach((o) => orgs.add(o));
+
+  if (!orgs.has(orgId)) {
+    try {
+      const { data, error } = await supabase.from('org_memberships').select('org_id').eq('user_id', user.id);
+      if (!error) {
+        (data ?? []).forEach((row) => {
+          if (row?.org_id) orgs.add(String(row.org_id));
+        });
+      }
+    } catch (e) {
+      // fall through; we still enforce membership below
+    }
+  }
+
+  if (!orgs.has(orgId)) throw new Error('ORG_FORBIDDEN');
   return { supabase, user, orgId };
 }

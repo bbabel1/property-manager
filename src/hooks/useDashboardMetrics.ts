@@ -19,8 +19,25 @@ export type DashboardData = {
   } | null
   renewals: { critical_30: number; upcoming_60: number; future_90: number } | null
   onboarding: { in_progress: number; pending_approval: number; overdue: number } | null
-  transactions: { id: string; date: string; amount: number; memo: string | null; property_name: string | null }[]
-  workOrders: { id: string; title: string; description: string | null; priority: string; status: string; created_at: string; property_name: string | null }[]
+  transactions: {
+    id: string
+    date: string
+    created_at?: string
+    amount: number
+    memo: string | null
+    property_name: string | null
+    type?: string | null
+  }[]
+  workOrders: {
+    id: string
+    title: string
+    description: string | null
+    priority: string | null
+    status: string | null
+    created_at: string
+    property_name: string | null
+    scheduled_date?: string | null
+  }[]
 }
 
 async function fetchDashboard(orgId: string): Promise<DashboardData> {
@@ -46,12 +63,34 @@ export function useDashboardMetrics(orgId?: string) {
     }
     ;(async () => {
       try {
+        setIsLoading(true)
         const { data } = await supabase.auth.getUser()
         const claims = (data?.user?.app_metadata as any)?.claims
         const first = (claims?.org_ids ?? [])[0] as string | undefined
-        if (mounted) setResolvedOrgId(first ?? null)
+        if (first) {
+          if (mounted) setResolvedOrgId(first)
+          return
+        }
+
+        // Fallback to org_memberships when token claims don't include org_ids
+        const userId = data?.user?.id
+        if (userId) {
+          const { data: memberships } = await supabase
+            .from('org_memberships')
+            .select('org_id')
+            .eq('user_id', userId)
+            .limit(1)
+
+          const fallback = memberships?.[0]?.org_id ? String(memberships[0].org_id) : null
+          if (mounted) setResolvedOrgId(fallback)
+          return
+        }
+
+        if (mounted) setResolvedOrgId(null)
       } catch (e) {
         if (mounted) setResolvedOrgId(null)
+      } finally {
+        if (mounted) setIsLoading(false)
       }
     })()
     return () => {

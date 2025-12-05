@@ -8,7 +8,14 @@ export async function GET() {
       .from('webhook_event_flags')
       .select('event_type, enabled')
       .order('event_type')
-    if (error) throw error
+    if (error) {
+      // If table is missing or schema cache not yet refreshed, return empty list gracefully
+      const msg = error?.message || ''
+      if (msg.includes('webhook_event_flags') || msg.toLowerCase().includes('schema')) {
+        return NextResponse.json({ events: [] })
+      }
+      throw error
+    }
     return NextResponse.json({ events: data || [] })
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Failed to load webhook settings' }, { status: 500 })

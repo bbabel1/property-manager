@@ -10,9 +10,35 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 - Opinionated monthly log workflow with PDF statements and multi-recipient delivery.
 
 ## Tech Stack & Architecture Snapshot
-- Next.js App Router, TypeScript (strict), SWR for data fetching, React Hook Form + Zod for forms.
-- Supabase (PostgreSQL, RLS), Buildium integration, Sentry/OTel optional observability.
-- Domain modules live in `src/modules/<domain>/` with services, schemas, and UI entrypoints.
+- **Frontend:** Next.js 15 App Router + React 18, TypeScript (strict), SWR, React Hook Form + Zod, Tailwind CSS.
+- **Backend/data:** Supabase (PostgreSQL with RLS) for auth + persistence; Buildium integration for external sync; edge-friendly API routes.
+- **Observability & quality:** Sentry/OTel hooks, ESLint/Prettier, typecheck and env validation gates.
+- **Domain layout:** Domain modules live in `src/modules/<domain>/` with services, schemas, and UI entrypoints.
+
+## Routes & Feature Map
+- **Pages**
+  - `/` – Marketing/entry splash.
+  - `/(protected)/dashboard` – Org-level overview cards and metrics.
+  - `/(protected)/properties`, `/(protected)/owners`, `/(protected)/units`, `/(protected)/tenants` – Core portfolio management lists and detail pages.
+  - `/(protected)/leases` – Lease workflows and contacts.
+  - `/(protected)/bank-accounts`, `/(protected)/reconciliations` – Banking, imports, and reconciliation flows.
+  - `/(protected)/monthly-logs` – Monthly log review, statements, and recurring tasks.
+  - `/(protected)/files` – File library, uploads, and entity attachments.
+  - `/(protected)/maintenance` & `/(protected)/tasks` – Work orders and task queues.
+  - `/(protected)/settings` – Organization and profile settings.
+
+- **API endpoints (selected)**
+  - Health/metrics: `/api/health`, `/api/metrics`, `/api/metrics/rum`.
+  - Core CRUD: `/api/properties`, `/api/owners`, `/api/units`, `/api/leases`, `/api/tenants`, `/api/vendors`, `/api/bills`, `/api/bank-accounts`.
+  - Files: `/api/files/*` for listing, upload, categories, and attachments.
+  - Monthly logs & accounting: `/api/monthly-logs/*`, `/api/journal-entries/*`, `/api/reconciliations/*`.
+  - Buildium integration: `/api/buildium/*` (accounting lock periods, properties, leases, bank accounts, tasks, sync, etc.).
+  - Admin/operations: `/api/admin/*`, `/api/debug/*`, `/api/work-orders/*`, `/api/webhooks/*`.
+
+## Architecture & Domain References
+- [Architecture guide](docs/architecture.md) – Layering, data flow, and integration patterns.
+- [Domain model](docs/domain-model.md) – Key entities, relationships, and module boundaries.
+- [Performance strategy](docs/performance-strategy.md) – Rendering budget, data-fetching choices, and caching approaches.
 
 ## Quick Start
 1) Install: `npm install`  
@@ -89,7 +115,7 @@ tests/                   # Test docs/config (see tests/README.md)
 - Styling issues: run `npm run format` to apply Prettier/Tailwind sorting.
 
 ## Documentation Index
-- Full docs live in `docs/` (see `docs/README.md`), plus new summaries:
-  - `docs/architecture.md` – Layering, data flow, domain modules
-  - `docs/features.md` – Feature map → routes/modules
-  - `docs/decisions.md` – Key architecture decisions (Supabase auth, SWR, styling, telemetry)
+- Full index: [`docs/README.md`](docs/README.md) lists every file under `docs/`.
+- Overview docs: [`architecture.md`](docs/architecture.md), [`domain-model.md`](docs/domain-model.md), [`performance-strategy.md`](docs/performance-strategy.md), [`features.md`](docs/features.md), [`decisions.md`](docs/decisions.md).
+- Category directories: [`architecture/`](docs/architecture/), [`api/`](docs/api/), [`database/`](docs/database/), [`design-system/`](docs/design-system/), [`observability/`](docs/observability/), [`security/`](docs/security/), [`runbooks/`](docs/runbooks/), [`reports/`](docs/reports/), [`ai-analysis/`](docs/ai-analysis/), [`ui-components/`](docs/ui-components/).
+- Additional top-level guides: onboarding and operational notes such as [`QUICK_START_GUIDE.md`](docs/QUICK_START_GUIDE.md), Buildium guides (e.g., [`buildium-integration-guide.md`](docs/buildium-integration-guide.md)), monthly log references (e.g., [`MONTHLY_LOG_README.md`](docs/MONTHLY_LOG_README.md)), and safety/process docs (e.g., [`DATABASE_SAFETY_GUIDE.md`](docs/DATABASE_SAFETY_GUIDE.md)).

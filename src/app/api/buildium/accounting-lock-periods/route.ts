@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { config } from '@/config';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -18,14 +19,14 @@ export async function GET(request: NextRequest) {
     const user = await requireUser();
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/accountinglockperiods`;
-    
+    const buildiumUrl = `${config.BUILDIUM_BASE_URL}/accountinglockperiods`;
+
     const response = await fetch(buildiumUrl, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+        'x-buildium-client-id': config.BUILDIUM_CLIENT_ID,
+        'x-buildium-client-secret': config.BUILDIUM_CLIENT_SECRET,
       },
     });
 
