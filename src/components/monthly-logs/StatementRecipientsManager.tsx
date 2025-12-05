@@ -12,7 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { isValidRecipientEmail, type StatementRecipient } from '@/modules/monthly-logs/services/statement-recipients';
+import {
+  isValidRecipientEmail,
+  type StatementRecipient,
+} from '@/modules/monthly-logs/services/statement-recipients';
 import useStatementRecipients from '@/features/monthly-logs/hooks/useStatementRecipients';
 
 interface StatementRecipientsManagerProps {
@@ -26,14 +29,8 @@ export default function StatementRecipientsManager({
   onRecipientsChange,
   onLoadingChange,
 }: StatementRecipientsManagerProps) {
-  const {
-    recipients,
-    isLoading,
-    isValidating,
-    addRecipient,
-    removeRecipient,
-    error,
-  } = useStatementRecipients(propertyId);
+  const { recipients, isLoading, isValidating, addRecipient, removeRecipient, error } =
+    useStatementRecipients(propertyId);
   const [showAddRow, setShowAddRow] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
@@ -189,7 +186,12 @@ export default function StatementRecipientsManager({
                 disabled={isMutating}
               />
             </div>
-            <Button onClick={handleAddRecipient} size="sm" className="h-9 w-full gap-2 sm:w-auto" disabled={isMutating}>
+            <Button
+              onClick={handleAddRecipient}
+              size="sm"
+              className="h-9 w-full gap-2 sm:w-auto"
+              disabled={isMutating}
+            >
               <Plus className="h-4 w-4" />
               {isMutating ? 'Adding...' : 'Add recipient'}
             </Button>
@@ -199,7 +201,9 @@ export default function StatementRecipientsManager({
               <TooltipTrigger asChild>
                 <div className="flex cursor-default items-center gap-1">
                   <Info className="h-3.5 w-3.5 text-slate-400" />
-                  <span className="underline decoration-dotted underline-offset-2">What gets sent</span>
+                  <span className="underline decoration-dotted underline-offset-2">
+                    What gets sent
+                  </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs text-xs">
