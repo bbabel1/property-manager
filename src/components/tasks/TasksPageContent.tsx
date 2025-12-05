@@ -37,19 +37,19 @@ import type { FilterOption, SerializedTask } from '@/app/(protected)/tasks/page'
 import type { TaskPriorityKey, TaskStatusKey } from '@/lib/tasks/utils';
 
 const STATUS_BADGE_STYLES: Record<TaskStatusKey, string> = {
-  new: 'border-amber-200 bg-amber-50 text-amber-700',
-  in_progress: 'border-sky-200 bg-sky-50 text-sky-700',
+  new: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
+  in_progress: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
   completed:
-    'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-600)]',
-  on_hold: 'border-slate-300 bg-slate-100 text-slate-700',
-  cancelled: 'border-border bg-muted/60 text-muted-foreground',
+    'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
+  on_hold: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-700)]',
+  cancelled: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
 };
 
 const PRIORITY_DOT_STYLES: Record<TaskPriorityKey, string> = {
-  low: 'bg-slate-400',
-  normal: 'bg-amber-400',
-  high: 'bg-orange-500',
-  urgent: 'bg-rose-600',
+  low: 'bg-[var(--color-gray-400)]',
+  normal: 'bg-[var(--color-warning-600)]',
+  high: 'bg-[var(--color-danger-500)]',
+  urgent: 'bg-[var(--color-danger-700)]',
 };
 
 type TasksPageContentProps = {

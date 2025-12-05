@@ -906,10 +906,11 @@ export async function resolveGLAccountId(
 /**
  * Normalizes a date string from Buildium to YYYY-MM-DD
  */
-function normalizeDateString(input: string | null | undefined): string {
+function normalizeDateString(input: string | null | undefined, toNoonUtc?: boolean): string {
   if (!input) return new Date().toISOString().slice(0, 10)
-  // Buildium typically returns ISO date strings; keep only the date part
-  return input.slice(0, 10)
+  const datePart = input.slice(0, 10)
+  if (toNoonUtc) return `${datePart}T12:00:00Z`
+  return datePart
 }
 
 /**
@@ -2604,7 +2605,7 @@ export function mapTaskFromBuildium(buildiumTask: BuildiumTaskLike): Partial<Tas
     priority,
     status,
     assigned_to: assignedTo,
-    scheduled_date: isV1 ? (buildiumTask.DueDate ? normalizeDateString(buildiumTask.DueDate) : undefined) : undefined,
+    scheduled_date: isV1 ? (buildiumTask.DueDate ? normalizeDateString(buildiumTask.DueDate, true) : undefined) : undefined,
     completed_date: undefined, // Not available in BuildiumTaskLike
     buildium_task_id: buildiumTask.Id
   }) as Partial<TaskInsert>
@@ -2619,8 +2620,17 @@ export async function mapTaskFromBuildiumWithRelations(
   options?: { taskKind?: 'owner' | 'resident' | 'contact' | 'todo' | 'other'; requireCategory?: boolean; defaultCategoryName?: string }
 ): Promise<Partial<TaskInsert>> {
   const base = mapTaskFromBuildium(buildiumTask)
+  const subCategoryName = typeof (buildiumTask as any)?.Category?.SubCategory?.Name === 'string'
+    ? (buildiumTask as any).Category.SubCategory.Name
+    : null
+  const subCategoryIdNum = Number((buildiumTask as any)?.Category?.SubCategory?.Id)
+  const subCategoryBuildiumId = Number.isFinite(subCategoryIdNum) ? subCategoryIdNum : null
   const buildiumPropertyId = getBuildiumPropertyIdFromTask(buildiumTask)
-  const buildiumUnitId = getBuildiumUnitIdFromTask(buildiumTask)
+  const buildiumUnitId =
+    getBuildiumUnitIdFromTask(buildiumTask) ??
+    (buildiumTask as any)?.UnitId ??
+    (buildiumTask as any)?.Unit?.Id ??
+    null
 
   const [localPropertyId, localUnitId] = await Promise.all([
     resolveLocalPropertyId(buildiumPropertyId, supabase),
@@ -2645,6 +2655,7 @@ export async function mapTaskFromBuildiumWithRelations(
     property_id: localPropertyId || undefined,
     unit_id: localUnitId || undefined,
     task_category_id: taskCategoryId || undefined,
+    category: subCategoryName || base.category,
     assigned_to_staff_id: assignedToStaffId || undefined,
     requested_by_contact_id: requested.requested_by_contact_id || undefined,
     requested_by_type: requested.requested_by_type || undefined,
@@ -2655,7 +2666,8 @@ export async function mapTaskFromBuildiumWithRelations(
     buildium_unit_id: buildiumUnitId || undefined,
     buildium_owner_id: requested.buildium_owner_id || undefined,
     buildium_tenant_id: requested.buildium_tenant_id || undefined,
-    buildium_lease_id: undefined // Not available in BuildiumTaskLike
+    buildium_lease_id: undefined, // Not available in BuildiumTaskLike
+    buildium_subcategory_id: subCategoryBuildiumId || undefined
   }) as Partial<TaskInsert>
 }
 

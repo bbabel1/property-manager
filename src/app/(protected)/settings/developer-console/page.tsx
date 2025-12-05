@@ -27,6 +27,7 @@ const WEBHOOK_EVENTS: WebhookRow[] = [
   { name: 'TaskCategory.Created' },
   { name: 'TaskCategory.Updated' },
   { name: 'TaskCategory.Deleted' },
+  { name: 'Task.Created' },
   { name: 'LeaseTransaction.*' },
   { name: 'Lease.*' },
   { name: 'LeaseTenant.*' },
@@ -37,6 +38,7 @@ export default function DeveloperConsolePage() {
   const [states, setStates] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tableError, setTableError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -53,8 +55,10 @@ export default function DeveloperConsolePage() {
           return acc
         }, {} as Record<string, boolean>)
         setStates(merged)
+        setTableError(null)
       } catch (e: any) {
         setError(e?.message || 'Failed to load settings')
+        setTableError(e?.message || 'Failed to load settings')
       } finally {
         setLoading(false)
       }
@@ -75,7 +79,7 @@ export default function DeveloperConsolePage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-foreground">Developer Console</h1>
         <div className="flex items-center gap-2">
@@ -94,25 +98,28 @@ export default function DeveloperConsolePage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="relative overflow-x-auto">
-            <Table className="min-w-[720px]">
+            <Table className="min-w-[640px]">
               <TableHeader>
                 <TableRow className="border-border/60 bg-muted/30">
                   <TableHead className="text-xs font-semibold uppercase tracking-wide px-4 py-3">
                     Event name
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide px-4 py-3">
-                    Status
-                  </TableHead>
                   <TableHead className="text-right text-xs font-semibold uppercase tracking-wide px-4 py-3">
-                    Toggle
+                    Status
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border/60 divide-y">
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="px-4 py-6 text-center text-muted-foreground">
+                    <TableCell colSpan={2} className="px-4 py-6 text-center text-muted-foreground">
                       Loading...
+                    </TableCell>
+                  </TableRow>
+                ) : tableError ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="px-4 py-6 text-center text-destructive">
+                      {tableError}
                     </TableCell>
                   </TableRow>
                 ) : WEBHOOK_EVENTS.map((evt, idx) => {
@@ -120,11 +127,12 @@ export default function DeveloperConsolePage() {
                   return (
                     <TableRow key={evt.name} className={idx % 2 === 1 ? 'bg-muted/10' : undefined}>
                       <TableCell className="px-4 py-3 font-medium text-foreground">{evt.name}</TableCell>
-                      <TableCell className="px-4 py-3 text-muted-foreground">
-                        {active ? 'Active' : 'Inactive'}
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-right">
-                        <Switch checked={active} onCheckedChange={() => toggle(evt.name)} />
+                      <TableCell className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-xs text-muted-foreground">Off</span>
+                          <Switch checked={active} onCheckedChange={() => toggle(evt.name)} />
+                          <span className="text-xs text-muted-foreground">On</span>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -132,9 +140,6 @@ export default function DeveloperConsolePage() {
               </TableBody>
             </Table>
           </div>
-          <p className="text-muted-foreground px-4 py-3 text-xs">
-            Note: toggles are client-side only right now—wire them to saved settings and webhook processing guards to actually enable/disable handlers.
-          </p>
         </CardContent>
       </Card>
     </div>

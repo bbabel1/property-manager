@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Plus,
   Building,
@@ -13,6 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   PageBody,
   PageGrid,
@@ -26,6 +27,12 @@ import { supabase } from '@/lib/db';
 export default function DashboardPage() {
   const { data, error, isLoading, refresh, orgId } = useDashboardMetrics();
   const k = data?.kpis;
+  const [txPage, setTxPage] = useState(1);
+  const TX_PAGE_SIZE = 5;
+  const transactions = data?.transactions ?? [];
+  const txTotalPages = transactions.length ? Math.ceil(transactions.length / TX_PAGE_SIZE) : 1;
+  const currentTxPage = Math.min(txPage, txTotalPages);
+  const txSlice = transactions.slice((currentTxPage - 1) * TX_PAGE_SIZE, currentTxPage * TX_PAGE_SIZE);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -61,6 +68,10 @@ export default function DashboardPage() {
       supabase.removeChannel(channel);
     };
   }, [orgId, refresh]);
+
+  useEffect(() => {
+    setTxPage(1);
+  }, [transactions.length]);
 
   return (
     <PageShell>
@@ -287,47 +298,82 @@ export default function DashboardPage() {
               <DollarSign className="text-primary mr-2 h-5 w-5" />
               <CardTitle>Recent Transactions</CardTitle>
             </div>
+            <p className="text-muted-foreground text-xs">Last 24 hours</p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {(data?.transactions ?? []).map((t) => {
-                const isDebit = t.amount < 0;
-                const abs = Math.abs(t.amount);
-                return (
-                  <div
-                    key={t.id}
-                    className="bg-muted/30 flex items-center justify-between rounded-lg p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`h-8 w-8 rounded-full ${isDebit ? 'bg-destructive/10' : 'bg-success/10'} flex items-center justify-center`}
-                      >
-                        <DollarSign
-                          className={`h-4 w-4 ${isDebit ? 'text-destructive' : 'text-success'}`}
-                        />
-                      </div>
-                      <div>
-                        <p className="text-foreground text-sm font-medium">
-                          {t.memo ?? 'Transaction'}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {t.property_name ?? '—'} • {new Date(t.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge
-                      variant={isDebit ? 'destructive' : 'default'}
-                      className={`text-xs ${isDebit ? '' : 'bg-success text-white'}`}
-                    >
-                      {isDebit ? '-' : '+'}
-                      {formatCurrency(abs)}
-                    </Badge>
-                  </div>
-                );
-              })}
-              {!isLoading && (data?.transactions?.length ?? 0) === 0 && (
-                <div className="text-muted-foreground text-sm">No recent transactions.</div>
+            <div className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {txSlice.map((t) => {
+                    const isDebit = t.amount < 0;
+                    const abs = Math.abs(t.amount);
+                    const ts = t.created_at || t.date;
+                    const dateLabel = ts ? new Date(ts).toLocaleString() : '—';
+                    return (
+                      <TableRow key={t.id}>
+                        <TableCell className="text-sm">{dateLabel}</TableCell>
+                        <TableCell className="text-sm">
+                          {t.memo || 'Transaction'}
+                        </TableCell>
+                        <TableCell className="text-sm capitalize">
+                          {t.type ? t.type.toLowerCase() : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge
+                            variant={isDebit ? 'destructive' : 'default'}
+                            className={`text-xs ${isDebit ? '' : 'bg-success text-white'}`}
+                          >
+                            {isDebit ? '-' : '+'}
+                            {formatCurrency(abs)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              {!isLoading && txSlice.length === 0 && (
+                <div className="text-muted-foreground text-sm">
+                  No transactions in the last 24 hours.
+                </div>
               )}
+              {isLoading && txSlice.length === 0 && (
+                <div className="text-muted-foreground text-sm">Loading transactions…</div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-xs">
+                  {transactions.length} in last 24 hours
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentTxPage <= 1 || transactions.length === 0}
+                    onClick={() => setTxPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-muted-foreground text-xs">
+                    Page {currentTxPage} of {txTotalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={transactions.length === 0 || currentTxPage >= txTotalPages}
+                    onClick={() => setTxPage((p) => Math.min(txTotalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

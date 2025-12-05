@@ -2,12 +2,13 @@ import {
   StatementRecipientsResponseSchema,
   type StatementRecipient,
 } from '@/modules/monthly-logs/schemas/statement-recipient';
+import { logWarn, type LogContext } from '@/shared/lib/logger';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const isValidRecipientEmail = (email: string) => EMAIL_REGEX.test(email);
 
-const parseRecipients = (text: string): StatementRecipient[] => {
+const parseRecipients = (text: string, context?: LogContext): StatementRecipient[] => {
   if (!text) return [];
   try {
     const json = JSON.parse(text);
@@ -15,15 +16,18 @@ const parseRecipients = (text: string): StatementRecipient[] => {
     if (parsed.success) {
       return parsed.data.recipients || [];
     }
-    console.warn('Invalid recipients payload', parsed.error.format());
+    logWarn('Invalid recipients payload', { ...context, details: parsed.error.format() });
     return [];
   } catch (error) {
-    console.warn('Invalid recipients response', error);
+    logWarn('Invalid recipients response', { ...context, error });
     return [];
   }
 };
 
-export async function getStatementRecipients(propertyId: string): Promise<StatementRecipient[]> {
+export async function getStatementRecipients(
+  propertyId: string,
+  context?: LogContext,
+): Promise<StatementRecipient[]> {
   const response = await fetch(`/api/properties/${propertyId}/statement-recipients`);
   const text = await response.text();
 
@@ -31,7 +35,7 @@ export async function getStatementRecipients(propertyId: string): Promise<Statem
     throw new Error('Failed to fetch recipients');
   }
 
-  return parseRecipients(text);
+  return parseRecipients(text, { ...context, propertyId });
 }
 
 export async function updateStatementRecipients(

@@ -2,7 +2,7 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
-import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount } from '@/lib/buildium-mappers'
+import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 
 function computeHmac(raw: string, secret: string) {
@@ -526,6 +526,72 @@ export async function POST(req: NextRequest) {
       await admin
         .from('property_staff')
         .insert({ property_id: propertyIdLocal, staff_id: staffId, role: 'PROPERTY_MANAGER', created_at: now, updated_at: now })
+    }
+  }
+
+  async function fetchTask(taskId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/tasks/${taskId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch task', { status: res.status, body: txt, taskId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function upsertTaskFromBuildium(buildiumTask: any, buildiumAccountId?: number | null) {
+    const now = new Date().toISOString()
+    const taskKind = (() => {
+      const t = (buildiumTask?.TaskType || '').toString().toLowerCase()
+      if (t === 'todo') return 'todo'
+      if (t === 'owner') return 'owner'
+      if (t === 'resident') return 'resident'
+      if (t === 'contact') return 'contact'
+      return 'other'
+    })()
+    const mapped = await mapTaskFromBuildiumWithRelations(buildiumTask, admin, {
+      taskKind,
+      requireCategory: true,
+      defaultCategoryName: 'To-Do',
+    })
+    const payload = {
+      ...mapped,
+      buildium_task_id: buildiumTask?.Id ?? mapped.buildium_task_id ?? null,
+      buildium_assigned_to_user_id: buildiumTask?.AssignedToUserId ?? mapped.buildium_assigned_to_user_id ?? null,
+      buildium_property_id: buildiumTask?.Property?.Id ?? mapped.buildium_property_id ?? null,
+      buildium_unit_id: buildiumTask?.UnitId ?? mapped.buildium_unit_id ?? null,
+      buildium_owner_id: mapped.buildium_owner_id ?? null,
+      buildium_tenant_id: mapped.buildium_tenant_id ?? null,
+      source: 'buildium',
+      updated_at: now,
+      created_at: mapped.created_at || now,
+    }
+
+    const { data: existing, error: findErr } = await admin
+      .from('tasks')
+      .select('id, created_at')
+      .eq('buildium_task_id', payload.buildium_task_id)
+      .maybeSingle()
+    if (findErr && findErr.code !== 'PGRST116') throw findErr
+    if (existing?.id) {
+      await admin.from('tasks').update(payload).eq('id', existing.id)
+      return existing.id
+    } else {
+      const { data: inserted, error: insErr } = await admin
+        .from('tasks')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (insErr) throw insErr
+      return inserted?.id ?? null
     }
   }
 
@@ -1724,6 +1790,30 @@ export async function POST(req: NextRequest) {
         } else {
           console.warn('[buildium-webhook] TaskCategory event missing TaskCategoryId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
         }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('task')) {
+        const taskId = event?.TaskId ?? event?.Data?.TaskId ?? event?.EntityId ?? null
+        const taskType = event?.TaskType ?? event?.Data?.TaskType ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        // Only handle Todo tasks for now
+        const taskTypeNormalized = typeof taskType === 'string' ? taskType.toLowerCase() : ''
+        if (taskTypeNormalized && taskTypeNormalized !== 'todo') {
+          results.push({ eventId, status: 'processed' })
+          continue
+        }
+        if (taskId) {
+          const task = await fetchTask(Number(taskId))
+          if (task) {
+            try {
+              await upsertTaskFromBuildium(task, buildiumAccountId)
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to upsert task locally', err)
+            }
+          } else {
+            console.warn('[buildium-webhook] Could not fetch task for event', { taskId, taskType, type })
+          }
+        } else {
+          console.warn('[buildium-webhook] Task event missing TaskId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
       }
 
       // Placeholder for downstream processing; currently mark as processed
@@ -1780,6 +1870,14 @@ export async function POST(req: NextRequest) {
           disabledEvents.add(row.event_type)
         }
       })
+    } else if (error) {
+      const msg = error?.message || ''
+      if (msg.includes('webhook_event_flags') || msg.toLowerCase().includes('schema')) {
+        // Gracefully skip toggles if table/cache missing
+        console.warn('[buildium-webhook] webhook_event_flags table missing; proceeding with all enabled')
+      } else {
+        console.warn('[buildium-webhook] Could not load webhook toggles; proceeding as enabled', error)
+      }
     }
   } catch (err) {
     console.warn('[buildium-webhook] Could not load webhook toggles; proceeding as enabled', err)
