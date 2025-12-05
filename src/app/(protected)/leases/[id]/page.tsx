@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { randomUUID } from 'crypto';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import LeaseFilesTable from '@/components/leases/LeaseFilesTable';
 import {
   Table,
@@ -33,8 +34,18 @@ import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/
 type LeaseDetailsPageParams = { id: string };
 
 const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
+const normalizeCurrency = (value?: number | null) => {
+  const num = Number(value ?? 0);
+  if (!Number.isFinite(num)) return 0;
+  const rounded = Math.round(num * 100) / 100;
+  if (Object.is(rounded, -0)) return 0;
+  if (Math.abs(rounded) < 1e-9) return 0;
+  return rounded;
+};
 const fmtUsd = (n?: number | null) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+    normalizeCurrency(n),
+  );
 
 export default async function LeaseDetailsPage({
   params,
@@ -250,7 +261,7 @@ export default async function LeaseDetailsPage({
     const { data: lc } = await (supabase as any)
       .from('lease_contacts')
       .select(
-        'id, role, status, move_in_date, tenant_id, tenants( id, buildium_tenant_id, contact:contacts(display_name, first_name, last_name, company_name, is_company, primary_email, alt_email, primary_phone, alt_phone) )',
+        'id, role, status, move_in_date, move_out_date, notice_given_date, tenant_id, tenants( id, buildium_tenant_id, contact:contacts(display_name, first_name, last_name, company_name, is_company, primary_email, alt_email, primary_phone, alt_phone) )',
       )
       .eq('lease_id', lease.id);
     contacts = Array.isArray(lc) ? lc : [];
@@ -533,6 +544,10 @@ export default async function LeaseDetailsPage({
           const email = contact.primary_email || contact.alt_email || null;
           const role = toTitleCase(lc?.role) || 'Tenant';
           const moveIn = fmtDate(lc?.move_in_date || undefined);
+          const moveOutRaw = lc?.move_out_date || null;
+          const moveOut = fmtDate(moveOutRaw || undefined);
+          const noticeRaw = lc?.notice_given_date || null;
+          const notice = fmtDate(noticeRaw || undefined);
           const phones = [contact.primary_phone, contact.alt_phone]
             .map((phone) => normalizePhone(phone))
             .filter(Boolean)
@@ -552,6 +567,10 @@ export default async function LeaseDetailsPage({
             role,
             email,
             moveIn,
+            moveOut,
+            moveOutRaw,
+            notice,
+            noticeRaw,
             tenantId: tenantId,
             buildiumTenantId,
             initials: computeInitials(name),
@@ -592,26 +611,43 @@ export default async function LeaseDetailsPage({
     name: string;
     initials: string;
     moveIn: string | null;
+    moveOut: string | null;
+    moveOutRaw: string | null;
+    notice: string | null;
+    noticeRaw: string | null;
     email: string | null;
     phones: { number: string; action?: { label: string; href: string } }[];
     roleLabel: string;
     tenantId: string | null;
+    moveOutBadge: string | null;
   };
 
   const tenantsByRole = contactRows
     .filter((row): row is NonNullable<typeof row> => row !== null)
-    .reduce(
-      (acc, row) => {
-        const info: TenantCardInfo = {
-          id: String(row.id),
-          name: row.name,
-          initials: row.initials,
-          moveIn: row.moveIn && row.moveIn !== '—' ? row.moveIn : null,
-          email: row.email,
-          phones: row.phones,
-          roleLabel: row.role,
-          tenantId: row.tenantId ? String(row.tenantId) : null,
-        };
+      .reduce(
+        (acc, row) => {
+          const moveOutDateObj = row.moveOutRaw ? new Date(row.moveOutRaw) : null;
+          const moveOutBadge =
+            row.moveOutRaw && moveOutDateObj
+              ? moveOutDateObj < new Date()
+                ? 'Moved out'
+                : 'Moving out'
+              : null;
+          const info: TenantCardInfo = {
+            id: String(row.id),
+            name: row.name,
+            initials: row.initials,
+            moveIn: row.moveIn && row.moveIn !== '—' ? row.moveIn : null,
+            moveOut: row.moveOut && row.moveOut !== '—' ? row.moveOut : null,
+            moveOutRaw: row.moveOutRaw || null,
+            notice: row.notice && row.notice !== '—' ? row.notice : null,
+            noticeRaw: row.noticeRaw || null,
+            email: row.email,
+            phones: row.phones,
+            roleLabel: row.role,
+            tenantId: row.tenantId ? String(row.tenantId) : null,
+            moveOutBadge,
+          };
         const bucket = row.roleKey.includes('cosigner') ? 'cosigners' : 'tenants';
         acc[bucket].push(info);
         return acc;
@@ -789,7 +825,8 @@ export default async function LeaseDetailsPage({
   };
 
   const determineSignedAmount = (tx: any) => {
-    const amount = Number(tx?.TotalAmount ?? tx?.total_amount ?? 0) || 0;
+    const rawAmount = Number(tx?.TotalAmount ?? tx?.total_amount ?? 0) || 0;
+    const amount = Math.abs(rawAmount);
     const type: string = String(
       tx?.TransactionTypeEnum || tx?.TransactionType || tx?.transaction_type || '',
     ).toLowerCase();
@@ -869,13 +906,14 @@ export default async function LeaseDetailsPage({
     : [];
 
   // Compute running balance (newest first, assume charges increase balance)
-  let runningBalance = Number(balances.balance ?? 0) || 0;
+  let runningBalance = normalizeCurrency(balances.balance ?? 0);
   const ledgerRowsWithBalance = ledgerRows.map((row) => {
+    const signed = normalizeCurrency(row.signedAmount);
     const balanceForRow = fmtUsd(runningBalance);
-    const amountAbs = Math.abs(row.signedAmount);
+    const amountAbs = Math.abs(signed);
     const amountFormatted = fmtUsd(amountAbs);
-    const displayAmount = row.signedAmount < 0 ? `-${amountFormatted}` : amountFormatted;
-    runningBalance -= row.signedAmount;
+    const displayAmount = signed < 0 ? `-${amountFormatted}` : amountFormatted;
+    runningBalance = normalizeCurrency(runningBalance - signed);
     return {
       ...row,
       displayAmount,
@@ -1289,8 +1327,21 @@ export default async function LeaseDetailsPage({
                           ) : (
                             <p className="text-foreground text-base font-medium">{tenant.name}</p>
                           )}
-                          <div className="mt-1">
+                          <div className="flex items-center gap-2">
+                            {tenant.moveOutRaw ? (
+                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
+                                {new Date(tenant.moveOutRaw) < new Date() ? 'Moved out' : 'Moving out'}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 space-y-1">
                             <TenantMoveInEditor contactId={tenant.id} value={tenant.moveIn} />
+                            {tenant.moveOut ? (
+                              <div className="text-muted-foreground text-xs">Move-out: {tenant.moveOut}</div>
+                            ) : null}
+                            {tenant.notice ? (
+                              <div className="text-muted-foreground text-xs">Notice given: {tenant.notice}</div>
+                            ) : null}
                           </div>
                           <div className="text-muted-foreground mt-4 flex flex-col gap-2 text-sm">
                             {tenant.phones.map((phone, idx) => (
@@ -1320,7 +1371,7 @@ export default async function LeaseDetailsPage({
                           className="text-muted-foreground hover:text-foreground gap-1"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
-                          Move out
+                          {tenant.moveOut ? 'Undo move out' : 'Move out'}
                         </Button>
                         <RemoveLeaseContactButton
                           contactId={tenant.id}

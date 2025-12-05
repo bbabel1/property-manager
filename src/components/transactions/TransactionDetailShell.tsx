@@ -131,14 +131,14 @@ export default function TransactionDetailShell({
                 <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
                   {item.label}
                 </p>
-                <p
+                <div
                   className={cn(
                     'mt-1 text-sm text-slate-800',
                     item.mono ? 'font-mono break-words text-slate-700' : '',
                   )}
                 >
                   {item.value}
-                </p>
+                </div>
               </div>
             ))}
           </div>

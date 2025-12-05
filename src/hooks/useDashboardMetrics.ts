@@ -10,10 +10,10 @@ export type DashboardData = {
     total_units: number
     occupied_units: number
     available_units: number
-    occupancy_rate_pct: number
+    occupancy_rate: number
     monthly_rent_roll: number
     active_leases: number
-    growth_rate_pct: number | null
+    growth_rate: number | null
     open_work_orders: number
     urgent_work_orders: number
   } | null
@@ -89,4 +89,3 @@ export function useDashboardMetrics(orgId?: string) {
 
   return { data, error, isLoading, refresh, orgId: resolvedOrgId }
 }
-

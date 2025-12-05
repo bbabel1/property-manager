@@ -31,6 +31,22 @@ export async function GET(
   }
 
   try {
+    let buildiumLeaseId: number | null = null
+    try {
+      const db = supabaseAdmin || (await getServerSupabaseClient())
+      if (db) {
+        const { data: leaseRow } = await (db as any)
+          .from('lease')
+          .select('buildium_lease_id')
+          .eq('id', leaseId)
+          .maybeSingle()
+        const raw = leaseRow?.buildium_lease_id
+        if (raw != null && !Number.isNaN(Number(raw))) {
+          buildiumLeaseId = Number(raw)
+        }
+      }
+    } catch {}
+
     if (supabaseAdmin) {
       const { data: localTx } = await supabaseAdmin
         .from('transactions')
@@ -55,7 +71,13 @@ export async function GET(
       }
     }
 
-    const tx = isNumeric ? await LeaseTransactionService.getFromBuildium(leaseId, txNumeric, false) : null
+    const tx = isNumeric
+      ? await LeaseTransactionService.getFromBuildium(
+          buildiumLeaseId != null && Number.isFinite(buildiumLeaseId) ? buildiumLeaseId : leaseId,
+          txNumeric,
+          false,
+        )
+      : null
     if (!tx) {
       return NextResponse.json({ error: `Transaction not found for lease ${leaseId} and reference ${txIdRaw}` }, { status: 404 })
     }
