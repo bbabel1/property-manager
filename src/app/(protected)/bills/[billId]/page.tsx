@@ -157,7 +157,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     notFound();
   }
 
-  const [linesRes, vendorRes] = await Promise.all([
+  const [linesRes, vendorRes, paymentsRes] = await Promise.all([
     db
       .from('transaction_lines')
       .select(
@@ -182,6 +182,14 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
           .eq('id', bill.vendor_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    db
+      .from('transactions')
+      .select(
+        'id, date, paid_date, total_amount, bank_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
+      )
+      .eq('transaction_type', 'Payment')
+      .eq('buildium_bill_id', bill.buildium_bill_id)
+      .order('date', { ascending: false }),
   ]);
 
   if (linesRes?.error) {
@@ -190,6 +198,9 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
 
   if (vendorRes?.error) {
     console.error('Failed to load vendor for bill', vendorRes.error);
+  }
+  if (paymentsRes?.error) {
+    console.error('Failed to load bill payments', paymentsRes.error);
   }
 
   const rawLines = Array.isArray(linesRes?.data)
@@ -242,15 +253,71 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     console.error('Failed to load bill file attachments', error);
   }
 
+  const payments = Array.isArray(paymentsRes?.data) ? paymentsRes.data : [];
+  const bankAccountIds = payments
+    .map((p) => p.bank_account_id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  let bankAccountMap = new Map<string, { name: string | null }>();
+  if (bankAccountIds.length) {
+    const { data: banks, error: bankErr } = await db
+      .from('bank_accounts')
+      .select('id, name')
+      .in('id', bankAccountIds);
+    if (bankErr) {
+      console.error('Failed to load bank accounts for payments', bankErr);
+    } else if (banks?.length) {
+      bankAccountMap = new Map(banks.map((b: any) => [b.id, { name: b.name ?? null }]));
+    }
+  }
+  // Fetch payment lines to derive amounts if total_amount is missing
+  const paymentIds = payments.map((p) => p.id).filter(Boolean);
+  let paymentLineSums = new Map<string, number>();
+  if (paymentIds.length) {
+    const { data: paymentLines, error: payLineErr } = await db
+      .from('transaction_lines')
+      .select('transaction_id, posting_type, amount')
+      .in('transaction_id', paymentIds);
+    if (payLineErr) {
+      console.error('Failed to load payment lines', payLineErr);
+    } else if (paymentLines) {
+      paymentLineSums = paymentLines.reduce((map, line: any) => {
+        const amt = Number(line?.amount ?? 0);
+        const key = line?.transaction_id as string;
+        const prev = map.get(key) ?? 0;
+        // Sum debits as amount paid; if none, fall back to absolute total
+        const isDebit = String(line?.posting_type || '').toLowerCase() === 'debit';
+        const add = isDebit ? amt : 0;
+        map.set(key, prev + add);
+        return map;
+      }, new Map<string, number>());
+    }
+  }
+
+  const paymentsWithDisplay = payments.map((p) => {
+    const debitSum = paymentLineSums.get(p.id) ?? 0;
+    const displayAmount = Number(p.total_amount ?? 0) || debitSum || 0;
+    return {
+      ...p,
+      bankName: bankAccountMap.get(p.bank_account_id || '')?.name ?? '—',
+      displayDate: formatDate(p.paid_date || p.date),
+      displayAmount,
+      displayMethod: p.payment_method || (p.check_number ? 'Check' : '—'),
+    };
+  });
+  const paymentsTotal = paymentsWithDisplay.reduce(
+    (sum, p) => sum + (Number.isFinite(p.displayAmount) ? p.displayAmount : 0),
+    0,
+  );
+
   const billAmount = Number(bill.total_amount ?? 0) || 0;
   const billDateLabel = formatDate(bill.date);
   const billDueLabel = formatDate(bill.due_date);
-  const statusNormalized = normalizeBillStatus(bill.status);
-  const statusLabel = deriveBillStatusFromDates(
-    statusNormalized,
-    bill.due_date ?? null,
-    bill.paid_date ?? null,
-  );
+  const statusNormalized = (() => {
+    if (paymentsTotal > 0 && paymentsTotal < billAmount) return 'Partially paid' as BillStatusLabel;
+    if (paymentsTotal >= billAmount && billAmount > 0) return 'Paid' as BillStatusLabel;
+    return normalizeBillStatus(bill.status);
+  })();
+  const statusLabel = deriveBillStatusFromDates(statusNormalized, bill.due_date ?? null, bill.paid_date ?? null);
   const paidDateLabel = formatDate(bill.paid_date);
 
   // First, calculate line items and totals
@@ -321,7 +388,9 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   );
 
   // Now calculate derived values that depend on the totals
-  const remainingAmount = statusLabel === 'Paid' ? 0 : lineItemsRemainingTotal;
+  const baseDue = lineItemsInitialTotal || billAmount;
+  const remainingAmount =
+    statusLabel === 'Paid' ? 0 : Math.max(baseDue - paymentsTotal, 0);
 
   const detailEntries: DetailEntry[] = [
     { name: 'Date', value: billDateLabel },
@@ -473,7 +542,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                                 <TableCell className="text-foreground px-4 py-3 whitespace-pre-wrap">
                                   {item.description}
                                 </TableCell>
-                                <TableCell className="sticky right-0 px-4 py-3 text-right font-semibold backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                <TableCell className="sticky right-0 border-b border-border/60 px-4 py-3 text-right font-semibold backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                   {formatCurrency(item.initialAmount)}
                                 </TableCell>
                                 </TableRow>
@@ -504,6 +573,63 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
                           {formatCurrency(lineItemsInitialTotal || billAmount)}
                         </span>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="border-border/60 bg-muted/30 border-b">
+                    <CardTitle>Payment history</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="relative overflow-x-auto">
+                      <Table className="min-w-[640px] text-sm">
+                        <TableHeader>
+                          <TableRow className="border-border/60 bg-muted/30 sticky top-0 z-10 border-b">
+                            <TableHead className="text-foreground w-[14rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Bank account
+                            </TableHead>
+                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Date
+                            </TableHead>
+                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-xs font-semibold tracking-wide uppercase">
+                              Method
+                            </TableHead>
+                            <TableHead className="text-foreground w-[10rem] px-4 py-3 text-right text-xs font-semibold tracking-wide uppercase">
+                              Amount paid
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-border/60 divide-y">
+                          {paymentsWithDisplay.length === 0 ? (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell
+                                colSpan={4}
+                                className="text-muted-foreground bg-background px-4 py-6 text-center text-sm"
+                              >
+                                No payments recorded for this bill.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            paymentsWithDisplay.map((p) => (
+                              <TableRow key={p.id} className="hover:bg-muted/20 transition-colors">
+                                <TableCell className="text-primary px-4 py-3">
+                                  {p.bankName || '—'}
+                                </TableCell>
+                                <TableCell className="text-foreground px-4 py-3">
+                                  {p.displayDate}
+                                </TableCell>
+                                <TableCell className="text-foreground px-4 py-3">
+                                  {p.displayMethod || '—'}
+                                </TableCell>
+                                <TableCell className="text-foreground px-4 py-3 text-right font-medium">
+                                  {formatCurrency(p.displayAmount)}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
                   </CardContent>
                 </Card>

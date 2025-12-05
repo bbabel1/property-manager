@@ -1653,7 +1653,7 @@ export async function resolveBankAccountId(
     // Step 2: Bank account not found, fetch from Buildium API
     console.log(`Bank account ${buildiumOperatingBankAccountId} not found, fetching from Buildium...`);
     
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bankaccounts/${buildiumOperatingBankAccountId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'}/bankaccounts/${buildiumOperatingBankAccountId}`;
     const response = await fetch(buildiumUrl, {
       headers: {
         'Accept': 'application/json',
@@ -1816,19 +1816,37 @@ export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): Pro
     showDeprecationWarning('mapPropertyFromBuildium', 'mapPropertyFromBuildiumWithBankAccount')
   }
   
+  const mapPropertyType = (rentalSubType?: string | null, rentalType?: string | null) => {
+    const sub = (rentalSubType || '').toLowerCase()
+    if (sub.includes('condo')) return 'Condo'
+    if (sub.includes('town')) return 'Townhouse'
+    if (sub.includes('multi')) return 'Mult-Family'
+    if (sub.includes('coop')) return 'Co-op'
+    if (sub.includes('condop')) return 'Condop'
+    const type = (rentalType || '').toLowerCase()
+    if (type.includes('multi')) return 'Mult-Family'
+    if (type.includes('rental')) return 'Rental Building'
+    return 'Rental Building'
+  }
+
   return {
     name: buildiumProperty.Name,
-    rental_type: buildiumProperty.RentalType,
-    // property_type UX label mapping: MultiFamily => Rental Building, otherwise default
-    property_type: (String(buildiumProperty.RentalSubType || '').toLowerCase() === 'multifamily') ? 'Rental Building' : 'Single Family',
+    structure_description: buildiumProperty.StructureDescription ?? null,
+    rental_type: buildiumProperty.RentalType ?? null,
+    property_type: mapPropertyType(buildiumProperty.RentalSubType, buildiumProperty.RentalType),
     address_line1: buildiumProperty.Address.AddressLine1,
     address_line2: buildiumProperty.Address.AddressLine2 ?? null,
+    address_line3: buildiumProperty.Address.AddressLine3 ?? null,
     city: buildiumProperty.Address.City,
     state: buildiumProperty.Address.State,
     postal_code: buildiumProperty.Address.PostalCode,
     country: mapCountryFromBuildium(buildiumProperty.Address.Country) || 'United States',
     // Note: Description field doesn't exist in BuildiumProperty
     buildium_property_id: buildiumProperty.Id,
+    reserve: buildiumProperty.Reserve != null ? Number(buildiumProperty.Reserve) : null,
+    year_built: buildiumProperty.YearBuilt != null ? Number(buildiumProperty.YearBuilt) : null,
+    total_units: buildiumProperty.NumberUnits != null ? Number(buildiumProperty.NumberUnits) : null,
+    is_active: buildiumProperty.IsActive ?? true,
     operating_bank_account_id: null,
     reserve_bank_account_id: null,
     sync_status: { 
@@ -1899,13 +1917,19 @@ export function mapUnitToBuildium(localUnit: UnitRow): BuildiumUnitCreate {
 }
 
 export function mapUnitFromBuildium(buildiumUnit: BuildiumUnit): UnitData {
+  const resolveIsActive = () => {
+    if (typeof buildiumUnit.IsUnitOccupied === 'boolean') return buildiumUnit.IsUnitOccupied
+    if (typeof buildiumUnit.IsUnitListed === 'boolean') return buildiumUnit.IsUnitListed
+    return null
+  }
+
   return {
     buildium_unit_id: buildiumUnit.Id,
     buildium_property_id: buildiumUnit.PropertyId,
-    building_name: buildiumUnit.BuildingName,
-    unit_number: buildiumUnit.UnitNumber,
-    description: buildiumUnit.Description,
-    market_rent: buildiumUnit.MarketRent,
+    building_name: buildiumUnit.BuildingName ?? null,
+    unit_number: buildiumUnit.UnitNumber ?? null,
+    description: buildiumUnit.Description ?? null,
+    market_rent: buildiumUnit.MarketRent != null ? Number(buildiumUnit.MarketRent) : 0,
     address_line1: buildiumUnit.Address?.AddressLine1,
     address_line2: buildiumUnit.Address?.AddressLine2,
     address_line3: buildiumUnit.Address?.AddressLine3,
@@ -1915,7 +1939,8 @@ export function mapUnitFromBuildium(buildiumUnit: BuildiumUnit): UnitData {
     country: mapCountryFromBuildium(buildiumUnit.Address?.Country),
     unit_bedrooms: mapBedroomsFromBuildium(buildiumUnit.UnitBedrooms),
     unit_bathrooms: mapBathroomsFromBuildium(buildiumUnit.UnitBathrooms),
-    unit_size: buildiumUnit.UnitSize
+    unit_size: buildiumUnit.UnitSize != null ? Number(buildiumUnit.UnitSize) : null,
+    is_active: resolveIsActive()
   }
 }
 
