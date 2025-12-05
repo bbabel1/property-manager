@@ -8,6 +8,7 @@ import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import {
   Table,
   TableBody,
@@ -144,105 +145,104 @@ export default function ManageTaskCategoriesForm({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-6 pb-12">
-      <div className="space-y-2">
-        <h1 className="text-foreground text-3xl font-semibold">Manage task categories</h1>
-        <p className="text-muted-foreground text-sm">
-          Organize tasks by editing existing categories or adding new ones.
-        </p>
-      </div>
+    <PageShell className="pb-12">
+      <PageHeader
+        title="Manage task categories"
+        description="Organize tasks by editing existing categories or adding new ones."
+      />
 
-      <Card className="border-border/70 border shadow-sm">
-        <CardContent className="space-y-4 p-0">
-          <Table className="text-sm">
-            <TableHeader>
-              <TableRow className="border-border border-b">
-                <TableHead className="text-muted-foreground w-2/5 text-xs tracking-wide uppercase">
-                  Category name
-                </TableHead>
-                <TableHead className="text-muted-foreground text-xs tracking-wide uppercase">
-                  Details
-                </TableHead>
-                <TableHead className="w-12">
-                  <span className="sr-only">Remove</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleDrafts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-muted-foreground py-6 text-center text-sm">
-                    No categories yet. Add one below to get started.
-                  </TableCell>
+      <PageBody>
+        <Card className="border-border/70 border shadow-sm">
+          <CardContent className="space-y-0 p-0">
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-border bg-muted/30 sticky top-0 z-10 border-b">
+                  <TableHead className="text-muted-foreground w-2/5 px-4 py-3 text-xs tracking-wide uppercase">
+                    Category name
+                  </TableHead>
+                  <TableHead className="text-muted-foreground px-4 py-3 text-xs tracking-wide uppercase">
+                    Details
+                  </TableHead>
+                  <TableHead className="w-12 px-4 py-3">
+                    <span className="sr-only">Remove</span>
+                  </TableHead>
                 </TableRow>
-              ) : (
-                visibleDrafts.map((draft) => {
-                  const isRemovable = !draft.isUnassigned && draft.taskCount === 0;
-                  return (
-                    <TableRow key={draft.localId} className="border-border/70 border-b">
-                      <TableCell className="py-4 align-middle">
-                        <Input
-                          value={draft.draftName}
-                          onChange={(event) => handleNameChange(draft.localId, event.target.value)}
-                          disabled={saving || draft.isUnassigned}
-                          placeholder="Category name"
-                          className="focus:border-primary border-transparent bg-transparent px-0 text-base font-medium shadow-none focus:bg-white"
-                        />
-                      </TableCell>
-                      <TableCell className="text-muted-foreground py-4 align-middle text-sm">
-                        {draft.isUnassigned
-                          ? 'Tasks without a category are listed here.'
-                          : taskCountLabel(draft.taskCount)}
-                      </TableCell>
-                      <TableCell className="py-4 text-right align-middle">
-                        {isRemovable ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemove(draft.localId)}
-                            disabled={saving}
-                            aria-label={`Remove ${draft.draftName || 'category'}`}
-                          >
-                            <X className="text-muted-foreground size-4" />
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody className="divide-border/70 divide-y">
+                {visibleDrafts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-muted-foreground bg-background px-4 py-8 text-center text-sm">
+                      No categories yet. Add one below to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  visibleDrafts.map((draft) => {
+                    const isRemovable = !draft.isUnassigned && draft.taskCount === 0;
+                    return (
+                      <TableRow key={draft.localId} className="hover:bg-muted/20 transition-colors">
+                        <TableCell className="px-4 py-3 align-middle">
+                          <Input
+                            value={draft.draftName}
+                            onChange={(event) => handleNameChange(draft.localId, event.target.value)}
+                            disabled={saving || draft.isUnassigned}
+                            placeholder="Category name"
+                            className="focus:border-primary border-transparent bg-transparent px-0 text-base font-medium shadow-none focus:bg-white"
+                          />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground px-4 py-3 align-middle text-sm">
+                          {draft.isUnassigned
+                            ? 'Tasks without a category are listed here.'
+                            : taskCountLabel(draft.taskCount)}
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-right align-middle">
+                          {isRemovable ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemove(draft.localId)}
+                              disabled={saving}
+                              aria-label={`Remove ${draft.draftName || 'category'}`}
+                            >
+                              <X className="text-muted-foreground size-4" />
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
 
-          <div className="px-6 pb-6">
-            <Button
-              type="button"
-              variant="link"
-              className="px-0 text-sm font-medium"
-              onClick={handleAdd}
-              disabled={saving}
-            >
-              <Plus className="mr-2 size-4" />
-              Add a new category
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={handleSave} disabled={saving || !hasChanges}>
-          {saving ? 'Saving...' : 'Save'}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => router.push('/tasks')}
-          disabled={saving}
-        >
-          Cancel
-        </Button>
-      </div>
-    </div>
+            <div className="border-border/70 flex items-center justify-between border-t px-5 py-4 sm:px-6">
+              <Button
+                type="button"
+                variant="link"
+                className="px-0 text-sm font-medium"
+                onClick={handleAdd}
+                disabled={saving}
+              >
+                <Plus className="mr-2 size-4" />
+                Add a new category
+              </Button>
+              <div className="flex items-center gap-3">
+                <Button type="button" onClick={handleSave} disabled={saving || !hasChanges}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => router.push('/tasks')}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </PageBody>
+    </PageShell>
   );
 }

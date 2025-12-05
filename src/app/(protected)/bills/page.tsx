@@ -420,12 +420,14 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rows.map((row) => {
+                  rows.map((row, index) => {
                     const propertyName = row.property_id
                       ? propertyLabelMap.get(String(row.property_id)) || '—'
                       : '—';
+                    const rowKey =
+                      row.id ?? row.reference_number ?? `${row.property_id ?? 'row'}-${index}`;
                     return (
-                      <TableRowLink key={row.id} href={`/bills/${row.id}`}>
+                      <TableRowLink key={rowKey} href={`/bills/${row.id}`}>
                         <TableCell>
                           <span className="flex items-center gap-2">
                             <span>{row.due_date ? formatDate(row.due_date) : '—'}</span>

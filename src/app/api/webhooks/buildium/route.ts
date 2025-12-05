@@ -2,7 +2,8 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
-import { upsertBillWithLines } from '@/lib/buildium-mappers'
+import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount } from '@/lib/buildium-mappers'
+import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 
 function computeHmac(raw: string, secret: string) {
   const buf = createHmac('sha256', secret).update(raw).digest()
@@ -291,6 +292,307 @@ export async function POST(req: NextRequest) {
       return null
     }
     return res.json()
+  }
+
+  async function fetchBillPayment(billId: number, paymentId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/bills/${billId}/payments/${paymentId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch bill payment', { status: res.status, body: txt, billId, paymentId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function fetchGLAccountRemote(glAccountId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/glaccounts/${glAccountId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch GL account', { status: res.status, body: txt, glAccountId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function upsertGLAccountWithOrg(gl: any, buildiumAccountId?: number | null) {
+    const mapped = await mapGLAccountFromBuildiumWithSubAccounts(gl, admin)
+    const now = new Date().toISOString()
+    const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+    const { data: existing, error: findErr } = await admin
+      .from('gl_accounts')
+      .select('id, created_at')
+      .eq('buildium_gl_account_id', mapped.buildium_gl_account_id)
+      .maybeSingle()
+    if (findErr && findErr.code !== 'PGRST116') throw findErr
+    if (existing?.id) {
+      await admin
+        .from('gl_accounts')
+        .update({ ...mapped, org_id: orgId ?? mapped.org_id ?? null, updated_at: now })
+        .eq('id', existing.id)
+    } else {
+      await admin
+        .from('gl_accounts')
+        .insert({ ...mapped, org_id: orgId ?? mapped.org_id ?? null, created_at: now, updated_at: now })
+    }
+  }
+
+  async function fetchRentalProperty(propertyId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/${propertyId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch rental property', { status: res.status, body: txt, propertyId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function fetchRentalUnit(unitId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/units/${unitId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch rental unit', { status: res.status, body: txt, unitId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function upsertPropertyFromBuildium(buildiumProperty: any, buildiumAccountId?: number | null) {
+    const now = new Date().toISOString()
+    const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+    const mapped = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, admin)
+    const payload = { ...mapped, org_id: orgId ?? mapped.org_id ?? null, updated_at: now }
+    const { data: existing, error: findErr } = await admin
+      .from('properties')
+      .select('id')
+      .eq('buildium_property_id', buildiumProperty?.Id)
+      .maybeSingle()
+    if (findErr && findErr.code !== 'PGRST116') throw findErr
+    if (existing?.id) {
+      await admin.from('properties').update(payload).eq('id', existing.id)
+      return existing.id
+    } else {
+      const { data: inserted, error: insErr } = await admin.from('properties').insert({ ...payload, created_at: now }).select('id').single()
+      if (insErr) throw insErr
+      return inserted?.id ?? null
+    }
+  }
+
+  async function upsertUnitFromBuildium(buildiumUnit: any, buildiumAccountId?: number | null) {
+    const now = new Date().toISOString()
+    const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+    const mapped = mapUnitFromBuildium(buildiumUnit)
+    const payload = { ...mapped, org_id: orgId ?? mapped.org_id ?? null, updated_at: now }
+    // Resolve local property_id to link unit
+    const propertyIdLocal = await (async () => {
+      if (!buildiumUnit?.PropertyId) return null
+      const { data, error } = await admin
+        .from('properties')
+        .select('id')
+        .eq('buildium_property_id', buildiumUnit.PropertyId)
+        .maybeSingle()
+      if (error && error.code !== 'PGRST116') throw error
+      return data?.id ?? null
+    })()
+    if (propertyIdLocal) (payload as any).property_id = propertyIdLocal
+    const { data: existing, error: findErr } = await admin
+      .from('units')
+      .select('id')
+      .eq('buildium_unit_id', buildiumUnit?.Id)
+      .maybeSingle()
+    if (findErr && findErr.code !== 'PGRST116') throw findErr
+    if (existing?.id) {
+      await admin.from('units').update(payload).eq('id', existing.id)
+      return existing.id
+    } else {
+      const { data: inserted, error: insErr } = await admin.from('units').insert({ ...payload, created_at: now }).select('id').single()
+      if (insErr) throw insErr
+      return inserted?.id ?? null
+    }
+  }
+
+  async function fetchTaskCategory(categoryId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/tasks/categories/${categoryId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch task category', { status: res.status, body: txt, categoryId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function upsertTaskCategory(buildiumCategory: any, buildiumAccountId?: number | null) {
+    const now = new Date().toISOString()
+    const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+    const payload: any = {
+      buildium_category_id: buildiumCategory?.Id ?? null,
+      name: buildiumCategory?.Name ?? null,
+      is_active: true,
+      description: null,
+      color: null,
+      parent_id: null,
+      buildium_subcategory_id: null,
+      created_at: now,
+      updated_at: now,
+    }
+    const { data, error } = await admin
+      .from('task_categories')
+      .upsert({ ...payload, created_at: now }, { onConflict: 'buildium_category_id' })
+      .select('id')
+      .single()
+    if (error) throw error
+    return data?.id ?? null
+  }
+
+  async function updatePropertyManager(propertyIdBuildium: number, rentalManagerId?: number | null) {
+    if (!rentalManagerId) return
+    // Resolve local property id
+    const { data: propRow, error: propErr } = await admin
+      .from('properties')
+      .select('id')
+      .eq('buildium_property_id', propertyIdBuildium)
+      .maybeSingle()
+    if (propErr) throw propErr
+    const propertyIdLocal = propRow?.id
+    if (!propertyIdLocal) return
+
+    // Resolve local staff id by buildium_staff_id
+    const { data: staffRow, error: staffErr } = await admin
+      .from('staff')
+      .select('id')
+      .eq('buildium_staff_id', rentalManagerId)
+      .maybeSingle()
+    if (staffErr) throw staffErr
+    const staffId = staffRow?.id
+    if (!staffId) return
+
+    const now = new Date().toISOString()
+    // Look for existing property_staff role PROPERTY_MANAGER
+    const { data: existing, error: psErr } = await admin
+      .from('property_staff')
+      .select('property_id, staff_id, role')
+      .eq('property_id', propertyIdLocal)
+      .eq('role', 'PROPERTY_MANAGER')
+      .maybeSingle()
+    if (psErr && psErr.code !== 'PGRST116') throw psErr
+
+    if (existing?.staff_id && existing.staff_id !== staffId) {
+      // Reassign manager
+      await admin
+        .from('property_staff')
+        .update({ staff_id: staffId, updated_at: now })
+        .eq('property_id', propertyIdLocal)
+        .eq('role', 'PROPERTY_MANAGER')
+    } else if (!existing) {
+      await admin
+        .from('property_staff')
+        .insert({ property_id: propertyIdLocal, staff_id: staffId, role: 'PROPERTY_MANAGER', created_at: now, updated_at: now })
+    }
+  }
+
+  async function deleteGLAccountLocal(glAccountId: number) {
+    const { data: existing, error } = await admin
+      .from('gl_accounts')
+      .select('id')
+      .eq('buildium_gl_account_id', glAccountId)
+      .maybeSingle()
+    if (error) throw error
+    const glId = existing?.id
+    if (!glId) {
+      console.log('[buildium-webhook] GL account delete received but not found locally', glAccountId)
+      return
+    }
+    // Remove from any parent sub_accounts arrays
+    const { data: parents, error: parentErr } = await admin
+      .from('gl_accounts')
+      .select('id, sub_accounts')
+      .contains('sub_accounts', [glId])
+    if (parentErr) throw parentErr
+    if (parents && parents.length) {
+      for (const p of parents) {
+        const subs: string[] = Array.isArray(p?.sub_accounts) ? p.sub_accounts : []
+        const filtered = subs.filter((sid) => sid !== glId)
+        await admin.from('gl_accounts').update({ sub_accounts: filtered, updated_at: new Date().toISOString() }).eq('id', p.id)
+      }
+    }
+    await admin.from('gl_accounts').delete().eq('id', glId)
+    console.log('[buildium-webhook] GL account deleted locally', { glAccountId, glId })
+  }
+
+  async function deleteBillLocal(buildiumBillId: number) {
+    // Find any transactions linked to this Buildium bill
+    const { data: txRows, error } = await admin
+      .from('transactions')
+      .select('id')
+      .eq('buildium_bill_id', buildiumBillId)
+    if (error) throw error
+    if (!txRows || txRows.length === 0) {
+      console.log('[buildium-webhook] Bill delete received but not found locally', buildiumBillId)
+      return
+    }
+    const txIds = txRows.map((t: any) => t.id).filter(Boolean)
+    if (txIds.length) {
+      await admin.from('transaction_lines').delete().in('transaction_id', txIds)
+      await admin.from('transactions').delete().in('id', txIds)
+      console.log('[buildium-webhook] Bill deleted locally', { buildiumBillId, transactionCount: txIds.length })
+    }
+  }
+
+  async function deleteBillPaymentLocal(paymentId: number, billId?: number | null) {
+    const query = admin.from('transactions').select('id')
+    if (paymentId != null) query.eq('buildium_transaction_id', paymentId)
+    if (billId != null) query.eq('buildium_bill_id', billId)
+    const { data: txRows, error } = await query
+    if (error) throw error
+    if (!txRows || txRows.length === 0) {
+      console.log('[buildium-webhook] Bill payment delete received but not found locally', { paymentId, billId })
+      return
+    }
+    const txIds = txRows.map((t: any) => t.id).filter(Boolean)
+    if (txIds.length) {
+      await admin.from('transaction_lines').delete().in('transaction_id', txIds)
+      await admin.from('transactions').delete().in('id', txIds)
+      console.log('[buildium-webhook] Bill payment deleted locally', { paymentId, billId, transactionCount: txIds.length })
+    }
   }
 
   async function deleteLeaseLocal(buildiumLeaseId: number) {
@@ -813,11 +1115,197 @@ export async function POST(req: NextRequest) {
       if (toDeactivate.length) await admin.from('lease_contacts').update({ status: 'Inactive', updated_at: new Date().toISOString() }).in('id', toDeactivate)
     }
 
+    const resolveOrgIdFromBuildiumAccount = async (accountId?: number | null) => {
+      if (!accountId) return null
+      const { data, error } = await admin
+        .from('organizations')
+        .select('id')
+        .eq('buildium_org_id', accountId)
+        .maybeSingle()
+      if (error && error.code !== 'PGRST116') throw error
+      return data?.id ?? null
+    }
+
+    const upsertBillPaymentWithLines = async (payment: any, billId: number, fetchGL: (id: number) => Promise<any>) => {
+      const now = new Date().toISOString()
+      const paymentId = payment?.Id ?? payment?.PaymentId ?? null
+      const totalFromLines = Array.isArray(payment?.Lines)
+        ? payment.Lines.reduce((sum: number, line: any) => sum + Number(line?.Amount ?? 0), 0)
+        : 0
+      const headerDate = normalizeDate(payment?.EntryDate ?? payment?.Date ?? null)
+      const paymentMethod = mapPaymentMethod(payment?.PaymentMethod) || (payment?.CheckNumber ? 'Check' : null)
+
+      // Resolve local bank account + GL
+      const bankAccountLocalId = await resolveBankAccountId(payment?.BankAccountId ?? null, admin)
+      let bankGlAccountId: string | null = null
+      if (bankAccountLocalId) {
+        const { data: bank } = await admin.from('bank_accounts').select('gl_account').eq('id', bankAccountLocalId).maybeSingle()
+        if (bank?.gl_account) bankGlAccountId = bank.gl_account
+      }
+      if (!bankGlAccountId) {
+        throw new Error(`Missing bank GL account for bill payment ${paymentId ?? ''}`)
+      }
+
+      // Pick vendor/category from existing bill transaction if present
+      const { data: billTxMeta } = await admin
+        .from('transactions')
+        .select('vendor_id, category_id, org_id')
+        .eq('buildium_bill_id', billId)
+        .maybeSingle()
+
+      // Find existing payment transaction by buildium_transaction_id
+      let existing: { id: string; created_at: string } | null = null
+      if (paymentId != null) {
+        const { data, error } = await admin
+          .from('transactions')
+          .select('id, created_at')
+          .eq('buildium_transaction_id', paymentId)
+          .maybeSingle()
+        if (error && error.code !== 'PGRST116') throw error
+        existing = data ?? null
+      }
+
+      const totalAmount = totalFromLines || Number(payment?.Amount ?? 0) || debitSum || creditSum || 0
+
+      const header = {
+        buildium_transaction_id: paymentId,
+        buildium_bill_id: billId,
+        date: headerDate ?? new Date().toISOString().slice(0, 10),
+        paid_date: headerDate,
+        total_amount: totalAmount,
+        check_number: payment?.CheckNumber ?? null,
+        reference_number: payment?.Memo ?? payment?.ReferenceNumber ?? null,
+        memo: payment?.Memo ?? null,
+        transaction_type: 'Payment',
+        status: 'Paid',
+        bank_account_id: bankAccountLocalId,
+        vendor_id: billTxMeta?.vendor_id ?? null,
+        category_id: billTxMeta?.category_id ?? null,
+        org_id: billTxMeta?.org_id ?? null,
+        payment_method: paymentMethod,
+        updated_at: now,
+      }
+
+      let transactionId: string
+      if (existing) {
+        const { data, error } = await admin
+          .from('transactions')
+          .update(header)
+          .eq('id', existing.id)
+          .select('id')
+          .single()
+        if (error) throw error
+        transactionId = data.id
+      } else {
+        const { data, error } = await admin
+          .from('transactions')
+          .insert({ ...header, created_at: now })
+          .select('id')
+          .single()
+        if (error) throw error
+        transactionId = data.id
+      }
+
+      // Build lines from payment lines (debits), plus balancing credit to bank
+      const pendingLines: any[] = []
+      let debitSum = 0
+      let creditSum = 0
+      const paymentLines = Array.isArray(payment?.Lines) ? payment.Lines : []
+      for (const line of paymentLines) {
+        const glBuildiumId = line?.GLAccountId ?? line?.GLAccount?.Id ?? null
+        const glId = await ensureGLAccountId(glBuildiumId, fetchGL)
+        if (!glId) throw new Error(`GL account not found for bill payment line. BuildiumId=${glBuildiumId}`)
+        const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
+        const buildiumUnitId = line?.AccountingEntity?.UnitId ?? line?.AccountingEntity?.Unit?.Id ?? null
+        const propertyIdLocal = await resolveLocalPropertyId(buildiumPropertyId)
+        const unitIdLocal = await resolveLocalUnitId(buildiumUnitId)
+        const entityTypeRaw = line?.AccountingEntity?.AccountingEntityType || 'Rental'
+        const entityType: 'Rental' | 'Company' = String(entityTypeRaw).toLowerCase() === 'rental' ? 'Rental' : 'Company'
+        const amount = Math.abs(Number(line?.Amount ?? 0))
+        debitSum += amount
+        pendingLines.push({
+          transaction_id: transactionId,
+          gl_account_id: glId,
+          amount,
+          posting_type: 'Debit',
+          memo: line?.Memo ?? null,
+          account_entity_type: entityType,
+          account_entity_id: buildiumPropertyId,
+          date: header.date,
+          created_at: now,
+          updated_at: now,
+          buildium_property_id: buildiumPropertyId,
+          buildium_unit_id: buildiumUnitId,
+          buildium_lease_id: null,
+          property_id: propertyIdLocal,
+          unit_id: unitIdLocal,
+        })
+      }
+
+      if (totalAmount > 0) {
+        creditSum += totalAmount
+        // Use property/unit from first debit line for context if present
+        const sample = pendingLines[0] ?? {}
+        pendingLines.push({
+          transaction_id: transactionId,
+          gl_account_id: bankGlAccountId,
+          amount: totalAmount,
+          posting_type: 'Credit',
+          memo: payment?.Memo ?? null,
+          account_entity_type: sample?.account_entity_type ?? 'Company',
+          account_entity_id: sample?.account_entity_id ?? null,
+          date: header.date,
+          created_at: now,
+          updated_at: now,
+          buildium_property_id: sample?.buildium_property_id ?? null,
+          buildium_unit_id: sample?.buildium_unit_id ?? null,
+          buildium_lease_id: null,
+          property_id: sample?.property_id ?? null,
+          unit_id: sample?.unit_id ?? null,
+        })
+      }
+
+      // Replace existing lines
+      await admin.from('transaction_lines').delete().eq('transaction_id', transactionId)
+      if (pendingLines.length) {
+        await admin.from('transaction_lines').insert(pendingLines)
+      }
+      if (debitSum > 0 && creditSum > 0 && Math.abs(debitSum - creditSum) > 0.0001) {
+        throw new Error(`Double-entry integrity violation on bill payment ${paymentId}: debits (${debitSum}) != credits (${creditSum})`)
+      }
+      return { transactionId }
+    }
+
     for (const event of events) {
-      // Buildium event IDs can be in different fields
-      const eventId = event?.Id ?? event?.EventId ?? event?.eventId ?? event?.id ?? event?.TransactionId ?? event?.LeaseId ?? event?.BillId ?? event?.Data?.BillId ?? null
       // Buildium event types can be EventType or EventName
       const type = event?.EventType ?? event?.EventName ?? body?.type ?? body?.eventType ?? body?.EventName ?? 'unknown'
+      // Buildium event IDs can be in different fields
+      const rawEventId =
+        event?.Id ??
+        event?.EventId ??
+        event?.eventId ??
+        event?.id ??
+        event?.TransactionId ??
+        event?.LeaseId ??
+        event?.BillId ??
+        event?.PaymentId ??
+        event?.Data?.BillId ??
+        event?.Data?.PaymentId ??
+        null
+      // For certain events, append timestamp/property info to avoid false duplicates.
+      const eventId = (() => {
+        const evtTime = event?.EventDateTime ?? event?.eventDateTime ?? null
+        if (type && typeof type === 'string' && type.toLowerCase().includes('bill') && event?.BillId && evtTime) {
+          return `${event.BillId}-${evtTime}`
+        }
+        if (type && typeof type === 'string' && type.toLowerCase().includes('rental') && event?.PropertyId && evtTime) {
+          return `${event.PropertyId}-${evtTime}`
+        }
+        if (type && typeof type === 'string' && type.toLowerCase().includes('rentalunit') && event?.UnitId && evtTime) {
+          return `${event.UnitId}-${evtTime}`
+        }
+        return rawEventId || null
+      })()
 
       // Idempotent ingest per event
       if (eventId != null) {
@@ -839,6 +1327,16 @@ export async function POST(req: NextRequest) {
         payload: event,
         status: 'received',
       })
+
+      // Check toggle flag; if disabled, mark ignored and skip
+      if (typeof type === 'string' && disabledEvents.has(type)) {
+        await admin
+          .from('buildium_webhook_events')
+          .update({ status: 'ignored', processed_at: new Date().toISOString() })
+          .eq('event_id', eventId)
+        results.push({ eventId, status: 'processed' })
+        continue
+      }
 
       // Process lease transactions locally to ensure persistence even if edge function or Buildium IP restrictions fail
       if (typeof type === 'string' && type.includes('LeaseTransaction')) {
@@ -1083,21 +1581,148 @@ export async function POST(req: NextRequest) {
       }
 
       // Process bill create/update events
-      if (typeof type === 'string' && type.includes('Bill')) {
+      if (typeof type === 'string' && type.toLowerCase().includes('bill.payment')) {
+        const billIds = Array.isArray(event?.BillIds) ? event.BillIds : Array.isArray(event?.Data?.BillIds) ? event.Data.BillIds : []
+        const paymentId = event?.PaymentId ?? event?.Data?.PaymentId ?? event?.Id ?? null
+        if (!paymentId || !billIds.length) {
+          console.warn('[buildium-webhook] Bill.Payment event missing paymentId or billIds', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        } else {
+          for (const billId of billIds) {
+            if (!billId) continue
+            if (type.toLowerCase().includes('deleted')) {
+              try {
+                await deleteBillPaymentLocal(Number(paymentId), Number(billId))
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to delete bill payment locally', err)
+              }
+            } else {
+              const payment = await fetchBillPayment(Number(billId), Number(paymentId))
+              if (payment) {
+                try {
+                  const glFetcher = async (glId: number) => fetchGLAccount(glId)
+                  await upsertBillPaymentWithLines(payment, Number(billId), glFetcher)
+                } catch (err) {
+                  console.error('[buildium-webhook] Failed to upsert bill payment locally', err)
+                }
+              } else {
+                console.warn('[buildium-webhook] Could not fetch bill payment', { billId, paymentId })
+              }
+            }
+          }
+        }
+      } else if (typeof type === 'string' && type.includes('Bill')) {
         const billId = event?.BillId ?? event?.Data?.BillId ?? event?.EntityId ?? null
         if (billId) {
-          const bill = await fetchBill(Number(billId))
-          if (bill) {
+          if (type.includes('Deleted')) {
             try {
-              await upsertBillWithLines(bill, admin)
+              await deleteBillLocal(Number(billId))
             } catch (err) {
-              console.error('[buildium-webhook] Failed to upsert bill locally', err)
+              console.error('[buildium-webhook] Failed to delete bill locally', err)
             }
           } else {
-            console.warn('[buildium-webhook] Could not fetch bill for event', { billId, type })
+            const bill = await fetchBill(Number(billId))
+            if (bill) {
+              try {
+                await upsertBillWithLines(bill, admin)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert bill locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch bill for event', { billId, type })
+            }
           }
         } else {
           console.warn('[buildium-webhook] Bill event missing BillId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.includes('GLAccount')) {
+        const glAccountId = event?.GLAccountId ?? event?.Data?.GLAccountId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (glAccountId) {
+          if (type.includes('Deleted')) {
+            try {
+              await deleteGLAccountLocal(Number(glAccountId))
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to delete GL account locally', err)
+            }
+          } else {
+            const gl = await fetchGLAccountRemote(Number(glAccountId))
+            if (gl) {
+              try {
+                await upsertGLAccountWithOrg(gl, buildiumAccountId)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert GL account locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch GL account for event', { glAccountId, type })
+            }
+          }
+        } else {
+          console.warn('[buildium-webhook] GLAccount event missing GLAccountId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.includes('Rental')) {
+        const propertyId = event?.PropertyId ?? event?.Data?.PropertyId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (propertyId) {
+          const rental = await fetchRentalProperty(Number(propertyId))
+          if (rental) {
+            try {
+              const propertyLocalId = await upsertPropertyFromBuildium(rental, buildiumAccountId)
+              try {
+                const rentalManagerId = rental?.RentalManager?.Id ?? rental?.RentalManagerId ?? null
+                await updatePropertyManager(Number(propertyId), rentalManagerId)
+              } catch (err) {
+                console.warn('[buildium-webhook] Rental manager update skipped', err)
+              }
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to upsert rental property locally', err)
+            }
+          } else {
+            console.warn('[buildium-webhook] Could not fetch rental for event', { propertyId, type })
+          }
+        } else {
+          console.warn('[buildium-webhook] Rental event missing PropertyId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('rentalunit')) {
+        const unitId = event?.UnitId ?? event?.Data?.UnitId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (unitId) {
+          const unit = await fetchRentalUnit(Number(unitId))
+          if (unit) {
+            try {
+              await upsertUnitFromBuildium(unit, buildiumAccountId)
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to upsert rental unit locally', err)
+            }
+          } else {
+            console.warn('[buildium-webhook] Could not fetch rental unit for event', { unitId, type })
+          }
+        } else {
+          console.warn('[buildium-webhook] RentalUnit event missing UnitId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('taskcategory')) {
+        const categoryId = event?.TaskCategoryId ?? event?.Data?.TaskCategoryId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (categoryId) {
+          if (type.toLowerCase().includes('deleted')) {
+            try {
+              await admin.from('task_categories').delete().eq('buildium_category_id', Number(categoryId))
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to delete task category locally', err)
+            }
+          } else {
+            const cat = await fetchTaskCategory(Number(categoryId))
+            if (cat) {
+              try {
+                await upsertTaskCategory(cat, buildiumAccountId)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert task category locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch task category for event', { categoryId, type })
+            }
+          }
+        } else {
+          console.warn('[buildium-webhook] TaskCategory event missing TaskCategoryId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
         }
       }
 
@@ -1143,3 +1768,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error', detail: errorMessage }, { status: 500 })
   }
 }
+  // Load webhook toggle flags once
+  let disabledEvents = new Set<string>()
+  try {
+    const { data, error } = await admin
+      .from('webhook_event_flags')
+      .select('event_type, enabled')
+    if (!error && Array.isArray(data)) {
+      data.forEach((row: any) => {
+        if (row?.enabled === false && typeof row?.event_type === 'string') {
+          disabledEvents.add(row.event_type)
+        }
+      })
+    }
+  } catch (err) {
+    console.warn('[buildium-webhook] Could not load webhook toggles; proceeding as enabled', err)
+  }

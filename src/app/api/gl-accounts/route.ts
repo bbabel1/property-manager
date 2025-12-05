@@ -146,7 +146,9 @@ export async function GET(request: NextRequest) {
 
     let query = db
       .from('gl_accounts')
-      .select('id, name, type, is_active, is_security_deposit_liability')
+      .select(
+        'id, name, type, sub_type, account_number, default_account_name, cash_flow_classification, description, is_active, is_security_deposit_liability'
+      )
       .eq('org_id', orgId)
 
     if (type) query = query.eq('type', type)
@@ -155,6 +157,7 @@ export async function GET(request: NextRequest) {
       if (isActive === 'false') query = query.eq('is_active', false)
     }
 
+    query = query.order('type', { ascending: true })
     query = query.order('name', { ascending: true })
 
     const { data, error } = await query
@@ -166,4 +169,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

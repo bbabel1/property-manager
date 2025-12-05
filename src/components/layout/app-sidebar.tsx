@@ -101,7 +101,16 @@ const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { id: 'settings', label: 'Settings', href: '/settings', icon: Settings },
+  {
+    id: 'settings',
+    label: 'Settings',
+    href: '/settings',
+    icon: Settings,
+    children: [
+      { id: 'settings-general', label: 'General', href: '/settings' },
+      { id: 'settings-developer-console', label: 'Developer Console', href: '/settings/developer-console' },
+    ],
+  },
 ];
 
 export function AppSidebarLayout({ children, title }: { children: ReactNode; title?: string }) {
