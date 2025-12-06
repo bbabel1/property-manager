@@ -88,12 +88,16 @@ export default function DashboardPage() {
       <PageBody>
         <Stack gap="lg">
           {error && (
-            <div className="flex items-center justify-between rounded-md border border-red-200 bg-red-50 p-3 text-red-700">
+            <Cluster
+              justify="between"
+              align="center"
+              className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-red-700"
+            >
               <span>Couldn’t load dashboard.</span>
               <Button variant="outline" size="sm" onClick={refresh}>
                 Retry
               </Button>
-            </div>
+            </Cluster>
           )}
           <PageGrid columns={4}>
         <Card>
@@ -197,7 +201,7 @@ export default function DashboardPage() {
         </Card>
       </PageGrid>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <PageGrid columns={2}>
         <Card>
           <CardHeader>
             <div className="flex items-center">
@@ -289,9 +293,9 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </PageGrid>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <PageGrid columns={2}>
         <Card>
           <CardHeader>
             <div className="flex items-center">
@@ -426,7 +430,7 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </PageGrid>
         </Stack>
       </PageBody>
     </PageShell>

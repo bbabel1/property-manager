@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts'
-import { insertBuildiumWebhookEventRecord } from '../_shared/webhookEvents.ts'
+import { insertBuildiumWebhookEventRecord, deadLetterBuildiumEvent } from '../_shared/webhookEvents.ts'
 import { validateBuildiumEvent } from '../_shared/eventValidation.ts'
 
 // Types for webhook events
@@ -370,6 +370,7 @@ serve(async (req) => {
           eventName: validation.eventName,
           errors: validation.errors,
         })
+        await deadLetterBuildiumEvent(supabase, event, validation.errors, { webhookType: 'lease-transactions', signature: verification.signature ?? null })
         results.push({ eventId: null, success: false, error: 'invalid-payload', details: validation.errors })
         continue
       }
@@ -378,6 +379,15 @@ serve(async (req) => {
         webhookType: 'lease-transactions',
         signature: verification.signature ?? null,
       })
+
+      if (storeResult.status === 'invalid') {
+        console.warn('buildium-lease-transactions normalization failed', {
+          errors: storeResult.errors,
+          eventType: event?.EventType,
+        })
+        results.push({ eventId: null, success: false, error: 'invalid-normalization', details: storeResult.errors })
+        continue
+      }
 
       if (storeResult.status === 'duplicate') {
         console.warn('buildium-lease-transactions duplicate delivery', {

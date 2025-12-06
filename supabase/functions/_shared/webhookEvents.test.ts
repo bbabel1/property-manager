@@ -53,12 +53,14 @@ class FakeSupabase {
 }
 
 Deno.test('normalizeBuildiumWebhookEvent derives stable keys', () => {
-  const meta = normalizeBuildiumWebhookEvent({
+  const result = normalizeBuildiumWebhookEvent({
     Id: 'evt-123',
     EventType: 'LeaseTransaction.Created',
     EventDate: '2024-01-01T00:00:00Z',
     EntityId: 987,
   })
+  assert(result.ok)
+  const meta = result.normalized!
   assertEquals(meta.buildiumWebhookId, 'evt-123')
   assertEquals(meta.eventName, 'LeaseTransaction.Created')
   assertStringIncludes(meta.eventCreatedAt, '2024-01-01T00:00:00.000Z')
@@ -67,7 +69,12 @@ Deno.test('normalizeBuildiumWebhookEvent derives stable keys', () => {
 
 Deno.test('insertBuildiumWebhookEventRecord flags duplicates', async () => {
   const supabase = new FakeSupabase()
-  const event = { Id: 'evt-dup', EventType: 'LeaseTransaction.Created', EventDate: '2024-02-02T12:00:00Z' }
+  const event = {
+    Id: 'evt-dup',
+    EventType: 'LeaseTransaction.Created',
+    EventDate: '2024-02-02T12:00:00Z',
+    EntityId: 456,
+  }
 
   const first = await insertBuildiumWebhookEventRecord(supabase, event, { webhookType: 'lease-transactions' })
   const second = await insertBuildiumWebhookEventRecord(supabase, event, { webhookType: 'lease-transactions' })
@@ -78,17 +85,15 @@ Deno.test('insertBuildiumWebhookEventRecord flags duplicates', async () => {
 })
 
 Deno.test('normalizeBuildiumWebhookEvent tolerates partial events', () => {
-  const meta = normalizeBuildiumWebhookEvent({})
-  assertEquals(meta.eventName, 'unknown')
-  assertEquals(meta.eventEntityId, 'unknown')
-  assert(meta.buildiumWebhookId.includes('unknown'))
+  const result = normalizeBuildiumWebhookEvent({})
+  assertEquals(result.ok, false)
+  assert(result.errors.length > 0)
 })
 
-Deno.test('insertBuildiumWebhookEventRecord handles unknown EventName and missing ids', async () => {
+Deno.test('insertBuildiumWebhookEventRecord dead-letters invalid events', async () => {
   const supabase = new FakeSupabase()
-  const event = { EventDate: '2024-03-03T00:00:00Z' } // missing Id/EventType
+  const event = { EventDate: '2024-03-03T00:00:00Z' } // missing Id/EventType/EntityId
   const result = await insertBuildiumWebhookEventRecord(supabase, event, { webhookType: 'buildium-webhook' })
-  assertEquals(result.status, 'inserted')
-  assertStringIncludes(result.normalized.eventName, 'unknown')
-  assertEquals(result.normalized.eventEntityId, 'unknown')
+  assertEquals(result.status, 'invalid')
+  assert(result.errors.some((e) => e.toLowerCase().includes('missing')))
 })

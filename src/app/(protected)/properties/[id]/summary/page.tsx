@@ -1,17 +1,12 @@
-import InfoCard from '@/components/layout/InfoCard';
-import MetaStat from '@/components/layout/MetaStat';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Building2, Edit } from 'lucide-react';
-import { PropertyService } from '@/lib/property-service';
-import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection';
-import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection';
-import Link from 'next/link';
-import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
+import { PageColumns, Stack } from '@/components/layout/page-shell';
+import PropertyBankingAndServicesCard from '@/components/property/PropertyBankingAndServicesCard';
 import PropertyDetailsCard from '@/components/property/PropertyDetailsCard';
 import LocationCard from '@/components/property/LocationCard';
-import PropertyBankingAndServicesCard from '@/components/property/PropertyBankingAndServicesCard';
+import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection';
+import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection';
 import { supabaseAdmin } from '@/lib/db';
+import { PropertyService } from '@/lib/property-service';
+import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -69,9 +64,6 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
 
   // Banking reconciliation details intentionally omitted here; reconciliation lives on bank accounts.
 
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-
   if (!property) {
     return (
       <div className="p-6">
@@ -83,25 +75,23 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      {/* Left column: details + location */}
-      <div className="space-y-6 lg:col-span-2">
-        <PropertyDetailsCard property={property as any} />
-
-        <LocationCard property={property} />
-
-        <PropertyRecentNotesSection propertyId={property.id} />
-
-        <PropertyRecentFilesSection
-          propertyId={property.id}
-          buildiumPropertyId={property.buildium_property_id ?? null}
-        />
-      </div>
-
-      {/* Right rail stacked cards */}
-      <div className="space-y-6">
-        <PropertyBankingAndServicesCard property={property} fin={fin} />
-      </div>
-    </div>
+    <PageColumns
+      primary={
+        <Stack gap="lg">
+          <PropertyDetailsCard property={property as any} />
+          <LocationCard property={property} />
+          <PropertyRecentNotesSection propertyId={property.id} />
+          <PropertyRecentFilesSection
+            propertyId={property.id}
+            buildiumPropertyId={property.buildium_property_id ?? null}
+          />
+        </Stack>
+      }
+      secondary={
+        <Stack gap="lg">
+          <PropertyBankingAndServicesCard property={property} fin={fin} />
+        </Stack>
+      }
+    />
   );
 }

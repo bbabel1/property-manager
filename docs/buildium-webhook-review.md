@@ -1,6 +1,7 @@
 # Buildium Webhook Handling Review
 
 ## Current Design and Data Flow
+- See `docs/buildium-webhook-pipeline.md` for the current end-to-end pipeline diagram and handler coverage.
 - **Edge Functions**: Two Supabase edge functions (`buildium-webhook`, `buildium-lease-transactions`) accept POST payloads containing `Events` and store each event in the `buildium_webhook_events` table before processing. Processing is synchronous within the request lifecycle and events are immediately marked processed regardless of downstream failures. 【F:supabase/functions/buildium-webhook/index.ts†L251-L363】【F:supabase/functions/buildium-lease-transactions/index.ts†L295-L385】
 - **Routing by EventType**: The general webhook only handles `PropertyCreated/Updated`, `OwnerCreated/Updated`, and `LeaseCreated/Updated`, delegating other types to a default no-op. Lease events are forwarded to the `buildium-sync` function rather than mapping locally. Lease-transaction webhook filters for EventTypes containing `LeaseTransaction` and processes everything else as skipped. 【F:supabase/functions/buildium-webhook/index.ts†L315-L372】【F:supabase/functions/buildium-webhook/index.ts†L372-L455】【F:supabase/functions/buildium-lease-transactions/index.ts†L332-L378】
 - **Persistence Layer**: `buildium_webhook_events` stores raw payloads with flags for processing, retries, and errors. Initial migration defines nullable `event_id`, no unique constraints, and retry metadata but no enforcement of retry logic in code. 【F:supabase/migrations/20240101000001_001_initial_schema.sql†L1722-L1775】
@@ -45,3 +46,16 @@
 3. How should we scope events to organizations/tenants when Buildium IDs are not globally unique across orgs?
 4. What is the required SLA for webhook processing latency and acceptable retry strategy (count, backoff, alerting)?
 5. Are ownership updates (owner ↔ property) expected in webhook payloads, and how should missing bank account mappings be resolved automatically versus deferred to full sync?
+
+## Delete Event Mapping
+- Lease transactions: `LeaseTransactionDeleted`, `LeaseTransaction.Deleted`
+- Leases/tenants: `LeaseDeleted`, `Lease.Deleted`, `LeaseTenantDeleted`, `LeaseTenant.Deleted`, `LeaseTenantMoveOut`, `MoveOutDeleted`, `MoveOut.Deleted`
+- Bills/payments: `BillDeleted`, `Bill.Deleted`, `Bill.PaymentDeleted`, `BillPaymentDeleted`, `Bill.Payment.Deleted`
+- GL accounts: `GLAccountDeleted`, `GLAccount.Deleted`
+- Rentals/units: `RentalDeleted`, `Rental.Deleted`, `RentalPropertyDeleted`, `RentalProperty.Deleted`, `RentalUnitDeleted`, `RentalUnit.Deleted`
+- Tasks/categories: `TaskDeleted`, `Task.Deleted`, `TaskCategoryDeleted`, `TaskCategory.Deleted`
+- Vendors/categories: `VendorDeleted`, `Vendor.Deleted`, `VendorCategoryDeleted`, `VendorCategory.Deleted`
+- Work orders: `WorkOrderDeleted`, `WorkOrder.Deleted`
+- Bank accounts: `BankAccountDeleted`, `BankAccount.Deleted`
+
+See `docs/buildium-webhook-mappings.md` for full EventName → payload/schema → table mapping and FK expectations.
