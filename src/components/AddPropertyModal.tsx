@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import { Building, MapPin, Users, DollarSign, UserCheck, Home } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { AlertCircle, Building, CheckCircle2, ClipboardList, DollarSign, Home, MapPin, Sparkles, UserCheck, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -119,6 +120,76 @@ const STEPS = [
   { id: 6, title: 'Property Manager', icon: UserCheck }
 ]
 
+type TourStepConfig = {
+  id: number
+  title: string
+  description: string
+  icon: LucideIcon
+  bullets: string[]
+  optional?: boolean
+}
+
+const TOUR_STEPS: Record<number, TourStepConfig> = {
+  1: {
+    id: 1,
+    title: 'Choose a property type',
+    description: 'Pick the property type to unlock the rest of the flow.',
+    icon: Building,
+    bullets: ['Required to proceed', 'Matches the Property Type step title']
+  },
+  2: {
+    id: 2,
+    title: 'Enter property details',
+    description: 'Name, address, city/state/postal code, and country are required.',
+    icon: MapPin,
+    bullets: ['Use the address autocomplete for faster fill', 'All fields must be completed to enable Next']
+  },
+  3: {
+    id: 3,
+    title: 'Add owners',
+    description: 'Add owners until ownership totals 100%.',
+    icon: Users,
+    bullets: ['Include at least one owner', 'Ownership % must add up to 100% or Next stays disabled']
+  },
+  4: {
+    id: 4,
+    title: 'Add units',
+    description: 'Add at least one unit number; blank rows do not count.',
+    icon: Home,
+    bullets: ['Unit number is required for each unit', 'Use “Add Another Unit” to add more']
+  },
+  5: {
+    id: 5,
+    title: 'Bank account & management',
+    description: 'Select an operating bank account and set management scope/plan.',
+    icon: DollarSign,
+    bullets: [
+      'Operating bank account is required',
+      'Choose fee assignment (Building or Unit)',
+      'Management scope, service assignment, and plan are required',
+      'If fee assignment is Building, fee type + amount + billing are required'
+    ]
+  },
+  6: {
+    id: 6,
+    title: 'Assign property manager',
+    description: 'Optional but recommended—stored in state for later use.',
+    icon: UserCheck,
+    bullets: ['Pick a manager or leave blank', 'Finish confirms and routes to your properties list'],
+    optional: true
+  }
+}
+
+const PRE_TOUR_REQUIREMENTS = [
+  { label: 'Property address ready', icon: MapPin },
+  { label: 'Owners total 100%', icon: Users },
+  { label: 'At least one unit number', icon: Home },
+  { label: 'Operating bank account', icon: DollarSign },
+  { label: 'Management scope, plan, and service assignment', icon: ClipboardList },
+  { label: 'Fee assignment/type + billing when Building', icon: AlertCircle },
+  { label: 'Property manager (optional)', icon: UserCheck }
+]
+
 const PROPERTY_TYPES = [
   'Condo',
   'Co-op',
@@ -147,11 +218,13 @@ type OwnerOption = { id: string; name: string; status?: string | null }
 type BankAccountOption = Pick<BankAccountSummary, 'id' | 'name' | 'account_number' | 'routing_number'>
 type StaffOption = { id: string; displayName: string }
 
-export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
+export default function AddPropertyModal({ isOpen, onClose, onSuccess, startInTour = false }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void; startInTour?: boolean }) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<AddPropertyFormData>(INITIAL_FORM_DATA)
   const [syncToBuildium, setSyncToBuildium] = useState(true)
+  const [isTourActive, setIsTourActive] = useState<boolean>(!!startInTour)
+  const [showTourIntro, setShowTourIntro] = useState<boolean>(!!startInTour)
 
   // Options fetched from API
   const [owners, setOwners] = useState<OwnerOption[]>([])
@@ -203,6 +276,32 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       default:
         return true
     }
+  }
+
+  useEffect(() => {
+    if (isOpen && startInTour) {
+      setIsTourActive(true)
+      setShowTourIntro(true)
+      setCurrentStep(1)
+    }
+  }, [isOpen, startInTour])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsTourActive(false)
+      setShowTourIntro(false)
+    }
+  }, [isOpen])
+
+  const startTourNow = () => {
+    setIsTourActive(true)
+    setShowTourIntro(false)
+    setCurrentStep(1)
+  }
+
+  const dismissTour = () => {
+    setIsTourActive(false)
+    setShowTourIntro(false)
   }
 
   useEffect(() => {
@@ -259,6 +358,8 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       setFormData(prev => ({ ...prev, name: computed }))
     }
   }, [formData.addressLine1, formData.owners, formData.name])
+
+  const stepReady = canProceed(currentStep, formData)
 
   const handleNext = () => {
     if (currentStep < 6) {
@@ -387,6 +488,8 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
     })
   }
 
+  const nextEnabled = !submitting && stepReady
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
@@ -402,11 +505,39 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
       >
         {/* Header */}
         <DialogHeader className="p-6 border-b border-border">
-          <DialogTitle className="text-xl font-semibold text-foreground">Add New Property</DialogTitle>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <DialogTitle className="text-xl font-semibold text-foreground">Add New Property</DialogTitle>
+            <Button
+              type="button"
+              size="sm"
+              variant={isTourActive ? 'secondary' : 'outline'}
+              onClick={() => { setIsTourActive(true); setShowTourIntro(true) }}
+              className={`${FOCUS_RING} flex items-center gap-2`}
+            >
+              <Sparkles className="h-4 w-4" />
+              {isTourActive ? 'Tour active' : 'Start guided tour'}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Follow the same six steps as the modal: Property Type → Details → Ownership → Unit Details → Bank Account → Property Manager.
+          </p>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="px-6 py-4 border-b border-border">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+                Step {currentStep} of 6
+              </span>
+              <span className="text-sm font-semibold text-foreground">{STEPS[currentStep - 1]?.title}</span>
+            </div>
+            {isTourActive ? (
+              <span className="text-xs text-muted-foreground">
+                {stepReady ? 'Next is ready' : 'Complete this step to unlock Next'}
+              </span>
+            ) : null}
+          </div>
           <div className="flex items-center justify-between">
             {STEPS.map((step, index) => (
               <div key={step.id} className="flex items-center">
@@ -432,7 +563,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
         </div>
 
         {/* Step Content */}
-        <div className="p-5 md:p-6">
+        <div className={`p-5 md:p-6${isTourActive ? ' pb-24' : ''}`}>
           {submitError && (
             <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
               <p className="text-sm text-destructive">{submitError}</p>
@@ -442,6 +573,15 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
             <div className="mb-4 p-3 bg-success/10 border border-success/20 rounded-md">
               <p className="text-sm text-success">{submitSuccess}</p>
             </div>
+          )}
+          {isTourActive && showTourIntro && (
+            <TourIntroCard
+              onStart={startTourNow}
+              onSkip={dismissTour}
+            />
+          )}
+          {isTourActive && !showTourIntro && (
+            <GuidedStepTip config={TOUR_STEPS[currentStep]} ready={stepReady} />
           )}
           {currentStep === 1 && (
             <Step1PropertyType 
@@ -514,13 +654,134 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess }: { isOpe
                 Create this property in Buildium
               </label>
             )}
-            <Button type="button" onClick={handleNext} disabled={submitting || !canProceed(currentStep, formData)} className={FOCUS_RING}>
+            <Button
+              type="button"
+              onClick={handleNext}
+              disabled={!nextEnabled}
+              className={`${FOCUS_RING} min-h-[44px] ${nextEnabled ? 'shadow-primary/30 shadow-lg' : ''}`}
+            >
               {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boolean }) {
+  if (!config) return null
+  const Icon = config.icon
+  return (
+    <div className="mb-4">
+      <div className="hidden sm:flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4 shadow-sm">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-full border ${ready ? 'border-success/40 bg-success/10 text-success' : 'border-primary/30 bg-primary/10 text-primary'}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                Step {config.id} / 6
+              </span>
+              {config.optional ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">Optional</span>
+              ) : null}
+            </div>
+            <span className={`text-xs ${ready ? 'text-success' : 'text-muted-foreground'}`}>
+              {ready ? 'Ready for Next' : 'Finish required items'}
+            </span>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">{config.title}</h4>
+            <p className="text-sm text-muted-foreground">{config.description}</p>
+          </div>
+          <ul className="grid gap-1 sm:grid-cols-2">
+            {config.bullets.map((bullet) => (
+              <li key={bullet} className="flex items-start gap-2 text-sm text-foreground">
+                <CheckCircle2 className={`mt-0.5 h-4 w-4 ${ready ? 'text-success' : 'text-primary'}`} />
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Mobile bottom-sheet hint */}
+      <div className="sm:hidden sticky bottom-0 z-20 mt-3 rounded-t-2xl border border-border bg-background/95 px-4 py-3 shadow-[0_-12px_28px_rgba(0,0,0,0.12)] backdrop-blur">
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-full border ${ready ? 'border-success/40 bg-success/10 text-success' : 'border-primary/30 bg-primary/10 text-primary'}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                Step {config.id}/6
+              </span>
+              {config.optional ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">Optional</span>
+              ) : null}
+            </div>
+            <p className="text-sm font-semibold text-foreground">{config.title}</p>
+            <p className="text-xs text-muted-foreground">{config.description}</p>
+            <ul className="space-y-1">
+              {config.bullets.map((bullet) => (
+                <li key={bullet} className="flex items-start gap-2 text-xs text-foreground">
+                  <CheckCircle2 className={`mt-0.5 h-4 w-4 ${ready ? 'text-success' : 'text-primary'}`} />
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-muted-foreground">
+              {ready ? 'Next is highlighted.' : 'Complete these to enable Next.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TourIntroCard({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) {
+  return (
+    <div className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Sparkles className="h-5 w-5" />
+        </div>
+        <div className="flex-1 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-base font-semibold text-foreground">Guided tour: Add Property</h4>
+            <span className="text-xs text-muted-foreground">6 steps</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Quick checklist before you start. These match the required fields the modal already validates.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {PRE_TOUR_REQUIREMENTS.map((item) => {
+              const Icon = item.icon
+              return (
+                <div key={item.label} className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-2 py-2">
+                  <Icon className="h-4 w-4 text-primary" />
+                  <span className="text-sm text-foreground">{item.label}</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" onClick={onStart} className={`${FOCUS_RING} min-h-[44px]`}>
+              Start tour
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onSkip} className={FOCUS_RING}>
+              Skip tour
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Next highlights once the checklist for each step is done.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

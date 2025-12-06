@@ -688,21 +688,6 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                 </p>
               </div>
               <div>
-                <p className={sectionLabelClass}>At a Glance</p>
-                <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                  <div>
-                    <dt className="text-muted-foreground">Type</dt>
-                    <dd className="text-foreground font-medium">{property.property_type || '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Reserve</dt>
-                    <dd className="text-foreground font-medium">
-                      {formatCurrency(property.reserve ?? null)}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-              <div>
                 <p className={sectionLabelClass}>Property Manager</p>
                 <div className="text-foreground text-sm">
                   {property.property_manager_name || 'No manager assigned'}

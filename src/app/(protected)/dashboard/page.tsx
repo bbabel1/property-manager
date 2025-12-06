@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
+  Cluster,
   PageBody,
   PageGrid,
   PageHeader,
@@ -100,108 +101,108 @@ export default function DashboardPage() {
             </Cluster>
           )}
           <PageGrid columns={4}>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-sm font-medium">Total Properties</p>
-                <p className="text-foreground text-2xl font-bold">
-                  {isLoading ? '—' : (k?.total_properties ?? 0)}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {isLoading ? '—' : `${k?.total_units ?? 0} units`}
-                  </Badge>
-                  {typeof k?.growth_rate === 'number' && (
-                    <span className="text-muted-foreground text-xs">
-                      {k.growth_rate >= 0 ? '+' : ''}
-                      {k.growth_rate}%
-                    </span>
-                  )}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-sm font-medium">Total Properties</p>
+                    <p className="text-foreground text-2xl font-bold">
+                      {isLoading ? '—' : (k?.total_properties ?? 0)}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {isLoading ? '—' : `${k?.total_units ?? 0} units`}
+                      </Badge>
+                      {typeof k?.growth_rate === 'number' && (
+                        <span className="text-muted-foreground text-xs">
+                          {k.growth_rate >= 0 ? '+' : ''}
+                          {k.growth_rate}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-lg">
+                    <Building className="text-primary h-6 w-6" />
+                  </div>
                 </div>
-              </div>
-              <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-lg">
-                <Building className="text-primary h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-sm font-medium">Occupancy Rate</p>
-                <p className="text-foreground text-2xl font-bold">
-                  {isLoading ? '—' : `${k?.occupancy_rate ?? 0}%`}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-success text-xs text-white">
-                    {isLoading ? '—' : `${k?.occupied_units ?? 0} occupied`}
-                  </Badge>
-                  <span className="text-muted-foreground text-xs">
-                    {isLoading ? '—' : `${k?.available_units ?? 0} available`}
-                  </span>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-sm font-medium">Occupancy Rate</p>
+                    <p className="text-foreground text-2xl font-bold">
+                      {isLoading ? '—' : `${k?.occupancy_rate ?? 0}%`}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="bg-success text-xs text-white">
+                        {isLoading ? '—' : `${k?.occupied_units ?? 0} occupied`}
+                      </Badge>
+                      <span className="text-muted-foreground text-xs">
+                        {isLoading ? '—' : `${k?.available_units ?? 0} available`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-success/10 flex h-12 w-12 items-center justify-center rounded-lg">
+                    <TrendingUp className="text-success h-6 w-6" />
+                  </div>
                 </div>
-              </div>
-              <div className="bg-success/10 flex h-12 w-12 items-center justify-center rounded-lg">
-                <TrendingUp className="text-success h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-sm font-medium">Monthly Rent Roll</p>
-                <p className="text-foreground text-2xl font-bold">
-                  {isLoading ? '—' : formatCurrency(k?.monthly_rent_roll ?? 0)}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {isLoading ? '—' : `${k?.active_leases ?? 0} active leases`}
-                  </Badge>
-                  {typeof k?.growth_rate === 'number' && (
-                    <span className="text-success text-xs">
-                      {k.growth_rate >= 0 ? '+' : ''}
-                      {k.growth_rate}%
-                    </span>
-                  )}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-sm font-medium">Monthly Rent Roll</p>
+                    <p className="text-foreground text-2xl font-bold">
+                      {isLoading ? '—' : formatCurrency(k?.monthly_rent_roll ?? 0)}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        {isLoading ? '—' : `${k?.active_leases ?? 0} active leases`}
+                      </Badge>
+                      {typeof k?.growth_rate === 'number' && (
+                        <span className="text-success text-xs">
+                          {k.growth_rate >= 0 ? '+' : ''}
+                          {k.growth_rate}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-lg">
+                    <DollarSign className="text-primary h-6 w-6" />
+                  </div>
                 </div>
-              </div>
-              <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-lg">
-                <DollarSign className="text-primary h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-sm font-medium">Open Work Orders</p>
-                <p className="text-foreground text-2xl font-bold">
-                  {isLoading ? '—' : (k?.open_work_orders ?? 0)}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive" className="text-xs">
-                    {isLoading ? '—' : `${k?.urgent_work_orders ?? 0} urgent`}
-                  </Badge>
-                  <span className="text-muted-foreground text-xs">&nbsp;</span>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-sm font-medium">Open Work Orders</p>
+                    <p className="text-foreground text-2xl font-bold">
+                      {isLoading ? '—' : (k?.open_work_orders ?? 0)}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="destructive" className="text-xs">
+                        {isLoading ? '—' : `${k?.urgent_work_orders ?? 0} urgent`}
+                      </Badge>
+                      <span className="text-muted-foreground text-xs">&nbsp;</span>
+                    </div>
+                  </div>
+                  <div className="bg-warning/10 flex h-12 w-12 items-center justify-center rounded-lg">
+                    <AlertTriangle className="text-warning h-6 w-6" />
+                  </div>
                 </div>
-              </div>
-              <div className="bg-warning/10 flex h-12 w-12 items-center justify-center rounded-lg">
-                <AlertTriangle className="text-warning h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </PageGrid>
+              </CardContent>
+            </Card>
+          </PageGrid>
 
-      <PageGrid columns={2}>
+          <PageGrid columns={2}>
         <Card>
           <CardHeader>
             <div className="flex items-center">
