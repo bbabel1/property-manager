@@ -1,0 +1,117 @@
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts"
+import { SUPPORTED_EVENT_NAMES } from "./eventValidation.ts"
+
+const SUPPORTED_EVENT_TYPE_SET = new Set<string>(SUPPORTED_EVENT_NAMES as unknown as string[])
+const identifierSchema = z.union([z.string().min(1), z.number()])
+const dateValueSchema = z.union([z.string().min(1), z.number()])
+
+function isValidDate(val: unknown): boolean {
+  if (typeof val === 'number' && Number.isFinite(val)) {
+    const ts = val < 1_000_000_000_000 ? val * 1000 : val
+    return !Number.isNaN(new Date(ts).getTime())
+  }
+  if (typeof val === 'string' && val.trim().length) {
+    const parsed = new Date(val)
+    return !Number.isNaN(parsed.getTime())
+  }
+  return false
+}
+
+export function deriveEventType(evt: Record<string, unknown>): string {
+  const value =
+    (evt as any)?.EventType ||
+    (evt as any)?.EventName ||
+    (evt as any)?.eventType ||
+    (evt as any)?.type ||
+    (evt as any)?.Data?.EventType ||
+    (evt as any)?.Data?.EventName ||
+    ''
+  return typeof value === 'string' && value.trim().length ? value : ''
+}
+
+function eventHasTimestamp(evt: Record<string, unknown>): boolean {
+  const candidates = [
+    (evt as any)?.EventDate,
+    (evt as any)?.EventDateTime,
+    (evt as any)?.eventDateTime,
+    (evt as any)?.EventTimestamp,
+    (evt as any)?.Timestamp,
+    (evt as any)?.Data?.EventDate,
+    (evt as any)?.Data?.EventDateTime,
+  ]
+  return candidates.some(isValidDate)
+}
+
+export const BuildiumWebhookEventSchema = z
+  .object({
+    Id: identifierSchema.optional(),
+    EventId: identifierSchema.optional(),
+    EventType: z.string().min(1).optional(),
+    EventName: z.string().min(1).optional(),
+    EventDate: dateValueSchema.optional(),
+    EventDateTime: dateValueSchema.optional(),
+    EntityId: identifierSchema.optional(),
+    LeaseId: z.number().optional(),
+    TransactionId: z.number().optional(),
+    BillId: z.number().optional(),
+    BillIds: z.array(z.number()).optional(),
+    PaymentId: z.number().optional(),
+    GLAccountId: z.number().optional(),
+    PropertyId: z.number().optional(),
+    UnitId: z.number().optional(),
+    TaskId: z.number().optional(),
+    TaskCategoryId: z.number().optional(),
+    VendorId: z.number().optional(),
+    VendorCategoryId: z.number().optional(),
+    WorkOrderId: z.number().optional(),
+    RentalOwnerId: z.number().optional(),
+    TenantId: z.number().optional(),
+    AccountId: z.number().optional(),
+    BankAccountId: z.number().optional(),
+    Data: z.record(z.unknown()).optional(),
+  })
+  .superRefine((event, ctx) => {
+    const id = event.Id ?? event.EventId
+    if (id == null || id === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'missing Id/EventId' })
+    }
+
+    const eventType = deriveEventType(event as Record<string, unknown>)
+    if (!eventType) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'missing EventType/EventName' })
+    } else if (!SUPPORTED_EVENT_TYPE_SET.has(eventType)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `unsupported EventType ${eventType}` })
+    }
+
+    if (!eventHasTimestamp(event as Record<string, unknown>)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'missing or invalid EventDate/EventDateTime' })
+    }
+  })
+
+export const BuildiumWebhookPayloadSchema = z
+  .object({
+    Events: z.array(BuildiumWebhookEventSchema).min(1, 'Events array must contain at least one entry'),
+  })
+  .strict()
+
+export const LeaseTransactionsWebhookPayloadSchema = BuildiumWebhookPayloadSchema.extend({
+  credentials: z
+    .object({
+      baseUrl: z.string().url().optional(),
+      clientId: z.string().min(1).optional(),
+      clientSecret: z.string().min(1).optional(),
+    })
+    .partial()
+    .optional(),
+}).strict()
+
+export function validateWebhookPayload<T>(payload: unknown, schema: z.ZodSchema<T>) {
+  const parsed = schema.safeParse(payload)
+  if (parsed.success) return { ok: true as const, data: parsed.data }
+  const errors = parsed.error.issues.map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
+  return { ok: false as const, errors }
+}
+
+export type BuildiumWebhookEvent = z.infer<typeof BuildiumWebhookEventSchema>
+export type BuildiumWebhookPayload = z.infer<typeof BuildiumWebhookPayloadSchema>
+export type LeaseTransactionsWebhookPayload = z.infer<typeof LeaseTransactionsWebhookPayloadSchema>
