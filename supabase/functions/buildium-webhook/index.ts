@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts'
+import { insertBuildiumWebhookEventRecord } from '../_shared/webhookEvents.ts'
+import { validateBuildiumEvent } from '../_shared/eventValidation.ts'
 
 // Types for webhook events
 interface BuildiumWebhookEvent {
@@ -234,6 +237,14 @@ function mapPropertyTypeFromBuildium(buildiumType: string): string {
   }
 }
 
+const buildiumSignatureCache = new Map<string, number>()
+const MAX_RETRIES = 3
+const BACKOFF_BASE_MS = 200
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 // Main handler
 serve(async (req) => {
   try {
@@ -259,20 +270,32 @@ serve(async (req) => {
       )
     }
 
-    // Verify webhook signature (if provided)
-    const signature = req.headers.get('x-buildium-signature')
-    const webhookSecret = Deno.env.get('BUILDIUM_WEBHOOK_SECRET')
-    
-    if (webhookSecret && signature) {
-      // TODO: Implement signature verification
-      // For now, we'll log the signature for debugging
-      console.log('Webhook signature received:', signature)
+    const rawBody = await req.text()
+
+    const verification = await verifyBuildiumSignature(req.headers, rawBody, {
+      replayCache: buildiumSignatureCache,
+    })
+    if (!verification.ok) {
+      console.warn('buildium-webhook signature rejected', {
+        reason: verification.reason,
+        status: verification.status,
+        timestamp: verification.timestamp ?? null,
+        signaturePreview: verification.signature ? verification.signature.slice(0, 12) : null,
+        metric: 'buildium_webhook.signature_failure',
+      })
+      return new Response(
+        JSON.stringify({ error: 'Invalid signature', reason: verification.reason }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: verification.status,
+        }
+      )
     }
 
     // Parse webhook payload
     let payload: BuildiumWebhookPayload
     try {
-      payload = await req.json()
+      payload = JSON.parse(rawBody || '')
     } catch (parseError) {
       console.error('Failed to parse webhook payload:', parseError)
       return new Response(
@@ -295,48 +318,110 @@ serve(async (req) => {
     // Log webhook event
     console.log('Received webhook with', payload.Events.length, 'events')
 
-    // Store webhook event in database
-    for (const event of payload.Events) {
-      try {
-        await supabase
-          .from('buildium_webhook_events')
-          .insert({
-            event_id: event.Id,
-            event_type: event.EventType,
-            event_data: event,
-            processed: false
-          })
-      } catch (error) {
-        console.error('Failed to store webhook event:', error)
-      }
-    }
-
-    // Process webhook events
+    // Process webhook events with idempotent insert + conflict logging
     const results = []
+    let processingErrors = 0
     for (const event of payload.Events) {
-      try {
-        const result = await processWebhookEvent(event, buildiumClient, supabase)
-        results.push({ eventId: event.Id, success: result.success, error: result.error })
-      } catch (error) {
-        const errorMessage = error.message || 'Unknown error'
-        console.error('Failed to process webhook event:', errorMessage)
-        results.push({ eventId: event.Id, success: false, error: errorMessage })
+      const validation = validateBuildiumEvent(event)
+      if (!validation.ok) {
+        console.warn('buildium-webhook payload validation failed', {
+          eventName: validation.eventName,
+          errors: validation.errors,
+        })
+        results.push({ eventId: null, success: false, error: 'invalid-payload', details: validation.errors })
+        continue
+      }
+
+      const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {
+        webhookType: 'buildium-webhook',
+        signature: verification.signature ?? null,
+      })
+
+      if (storeResult.status === 'duplicate') {
+        console.warn('buildium-webhook duplicate delivery', {
+          webhookId: storeResult.normalized.buildiumWebhookId,
+          eventName: storeResult.normalized.eventName,
+          eventCreatedAt: storeResult.normalized.eventCreatedAt,
+        })
+        results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: true, duplicate: true })
+        continue
+      }
+
+      let attempt = 0
+      let processed = false
+      let lastError: any = null
+      while (attempt < MAX_RETRIES && !processed) {
+        attempt++
+        try {
+          const result = await processWebhookEvent(event, buildiumClient, supabase)
+          results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: result.success, error: result.error })
+
+          if (result.success) {
+            await supabase
+              .from('buildium_webhook_events')
+              .update({
+                processed: true,
+                processed_at: new Date().toISOString(),
+                status: 'processed',
+                retry_count: attempt - 1,
+                error_message: null,
+              })
+              .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+              .eq('event_name', storeResult.normalized.eventName)
+              .eq('event_created_at', storeResult.normalized.eventCreatedAt)
+            processed = true
+          } else {
+            throw new Error(result.error || 'Unknown processing failure')
+          }
+        } catch (error) {
+          lastError = error
+          processingErrors++
+          const errorMessage = (error as any)?.message || 'Unknown error'
+          console.error('buildium-webhook processing failed', {
+            eventId: storeResult.normalized.buildiumWebhookId,
+            eventName: storeResult.normalized.eventName,
+            attempt,
+            error: errorMessage,
+          })
+          const isLastAttempt = attempt >= MAX_RETRIES
+          await supabase
+            .from('buildium_webhook_events')
+            .update({
+              retry_count: attempt,
+              error_message: errorMessage,
+              status: isLastAttempt ? 'dead-letter' : 'retrying',
+              processed: isLastAttempt ? false : false,
+            })
+            .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+            .eq('event_name', storeResult.normalized.eventName)
+            .eq('event_created_at', storeResult.normalized.eventCreatedAt)
+
+          if (!isLastAttempt) {
+            const backoffMs = BACKOFF_BASE_MS * Math.pow(2, attempt - 1)
+            await sleep(backoffMs)
+          }
+        }
+      }
+
+      if (!processed) {
+        results.push({
+          eventId: storeResult.normalized.buildiumWebhookId,
+          success: false,
+          error: (lastError as any)?.message || 'failed after retries',
+          deadLetter: true,
+        })
       }
     }
 
-    // Mark events as processed
-    for (const event of payload.Events) {
-      try {
-        await supabase
-          .from('buildium_webhook_events')
-          .update({ 
-            processed: true, 
-            processed_at: new Date().toISOString() 
-          })
-          .eq('event_id', event.Id)
-      } catch (error) {
-        console.error('Failed to mark webhook event as processed:', error)
-      }
+    // Emit simple backlog metric (unprocessed count)
+    try {
+      const { count: backlogCount } = await supabase
+        .from('buildium_webhook_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('processed', false)
+      console.log('buildium-webhook backlog depth', { backlogCount, processingErrors })
+    } catch (e) {
+      console.warn('buildium-webhook backlog metric failed', { error: (e as any)?.message })
     }
 
     const successCount = results.filter(r => r.success).length

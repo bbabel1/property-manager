@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts'
+import { insertBuildiumWebhookEventRecord } from '../_shared/webhookEvents.ts'
+import { validateBuildiumEvent } from '../_shared/eventValidation.ts'
 
 // Types for webhook events
 interface BuildiumWebhookEvent {
@@ -277,6 +280,14 @@ async function upsertLeaseTransactionWithLines(
   return transactionId
 }
 
+const leaseTransactionsSignatureCache = new Map<string, number>()
+const MAX_RETRIES = 3
+const BACKOFF_BASE_MS = 200
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 // Main handler
 serve(async (req) => {
   try {
@@ -302,19 +313,32 @@ serve(async (req) => {
       )
     }
 
-    // Verify webhook signature (if provided)
-    const signature = req.headers.get('x-buildium-signature')
-    const webhookSecret = Deno.env.get('BUILDIUM_WEBHOOK_SECRET')
-    
-    if (webhookSecret && signature) {
-      // TODO: Implement signature verification
-      console.log('Webhook signature received:', signature)
+    const rawBody = await req.text()
+
+    const verification = await verifyBuildiumSignature(req.headers, rawBody, {
+      replayCache: leaseTransactionsSignatureCache,
+    })
+    if (!verification.ok) {
+      console.warn('buildium-lease-transactions signature rejected', {
+        reason: verification.reason,
+        status: verification.status,
+        timestamp: verification.timestamp ?? null,
+        signaturePreview: verification.signature ? verification.signature.slice(0, 12) : null,
+        metric: 'buildium_lease_transactions.signature_failure',
+      })
+      return new Response(
+        JSON.stringify({ error: 'Invalid signature', reason: verification.reason }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: verification.status,
+        }
+      )
     }
 
     // Parse webhook payload
     let payload: BuildiumWebhookPayload
     try {
-      payload = await req.json()
+      payload = JSON.parse(rawBody || '')
     } catch (parseError) {
       console.error('Failed to parse webhook payload:', parseError)
       return new Response(
@@ -337,56 +361,116 @@ serve(async (req) => {
     // Log webhook event
     console.log('Received lease transaction webhook with', payload.Events.length, 'events')
 
-    // Store webhook event in database
-    for (const event of payload.Events) {
-      try {
-        await supabase
-          .from('buildium_webhook_events')
-          .insert({
-            event_id: event.Id,
-            event_type: event.EventType,
-            event_data: event,
-            processed: false,
-            webhook_type: 'lease-transactions'
-          })
-      } catch (error) {
-        console.error('Failed to store webhook event:', error)
-      }
-    }
-
-    // Process webhook events (only lease transaction events)
+    // Process webhook events (only lease transaction events) with idempotent insert
     const results = []
     for (const event of payload.Events) {
-      try {
-        // Only process lease transaction events
-        const eventType = event.EventType || (event as any)?.EventName || ''
-        if (eventType.includes('LeaseTransaction')) {
-          const result = await processLeaseTransactionEvent(event, buildiumClient, supabase)
-          results.push({ eventId: event.Id, success: result.success, error: result.error })
-        } else {
-          console.log('Skipping non-lease-transaction event:', event.EventType)
-          results.push({ eventId: event.Id, success: true, skipped: true })
+      const validation = validateBuildiumEvent(event)
+      if (!validation.ok) {
+        console.warn('buildium-lease-transactions payload validation failed', {
+          eventName: validation.eventName,
+          errors: validation.errors,
+        })
+        results.push({ eventId: null, success: false, error: 'invalid-payload', details: validation.errors })
+        continue
+      }
+
+      const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {
+        webhookType: 'lease-transactions',
+        signature: verification.signature ?? null,
+      })
+
+      if (storeResult.status === 'duplicate') {
+        console.warn('buildium-lease-transactions duplicate delivery', {
+          webhookId: storeResult.normalized.buildiumWebhookId,
+          eventName: storeResult.normalized.eventName,
+          eventCreatedAt: storeResult.normalized.eventCreatedAt,
+        })
+        results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: true, duplicate: true })
+        continue
+      }
+
+      let attempt = 0
+      let processed = false
+      let lastError: any = null
+      while (attempt < MAX_RETRIES && !processed) {
+        attempt++
+        try {
+          // Only process lease transaction events
+          const eventType = event.EventType || (event as any)?.EventName || ''
+          if (eventType.includes('LeaseTransaction')) {
+            const result = await processLeaseTransactionEvent(event, buildiumClient, supabase)
+            results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: result.success, error: result.error })
+
+            if (result.success) {
+              await supabase
+                .from('buildium_webhook_events')
+                .update({
+                  processed: true,
+                  processed_at: new Date().toISOString(),
+                  status: 'processed',
+                  retry_count: attempt - 1,
+                  error_message: null,
+                })
+                .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+                .eq('event_name', storeResult.normalized.eventName)
+                .eq('event_created_at', storeResult.normalized.eventCreatedAt)
+              processed = true
+            } else {
+              throw new Error(result.error || 'Unknown processing failure')
+            }
+          } else {
+            console.log('Skipping non-lease-transaction event:', event.EventType)
+            results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: true, skipped: true })
+            processed = true
+          }
+        } catch (error) {
+          lastError = error
+          const errorMessage = error.message || 'Unknown error'
+          console.error('buildium-lease-transactions processing failed', {
+            eventId: storeResult.normalized.buildiumWebhookId,
+            eventName: storeResult.normalized.eventName,
+            attempt,
+            error: errorMessage,
+          })
+          const isLastAttempt = attempt >= MAX_RETRIES
+          await supabase
+            .from('buildium_webhook_events')
+            .update({
+              retry_count: attempt,
+              error_message: errorMessage,
+              status: isLastAttempt ? 'dead-letter' : 'retrying',
+              processed: isLastAttempt ? false : false,
+            })
+            .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+            .eq('event_name', storeResult.normalized.eventName)
+            .eq('event_created_at', storeResult.normalized.eventCreatedAt)
+
+          if (!isLastAttempt) {
+            const backoffMs = BACKOFF_BASE_MS * Math.pow(2, attempt - 1)
+            await sleep(backoffMs)
+          }
         }
-      } catch (error) {
-        const errorMessage = error.message || 'Unknown error'
-        console.error('Failed to process webhook event:', errorMessage)
-        results.push({ eventId: event.Id, success: false, error: errorMessage })
+      }
+
+      if (!processed) {
+        results.push({
+          eventId: storeResult.normalized.buildiumWebhookId,
+          success: false,
+          error: (lastError as any)?.message || 'failed after retries',
+          deadLetter: true,
+        })
       }
     }
 
-    // Mark events as processed
-    for (const event of payload.Events) {
-      try {
-        await supabase
-          .from('buildium_webhook_events')
-          .update({ 
-            processed: true, 
-            processed_at: new Date().toISOString() 
-          })
-          .eq('event_id', event.Id)
-      } catch (error) {
-        console.error('Failed to mark webhook event as processed:', error)
-      }
+    // Emit backlog metric
+    try {
+      const { count: backlogCount } = await supabase
+        .from('buildium_webhook_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('processed', false)
+      console.log('buildium-lease-transactions backlog depth', { backlogCount })
+    } catch (e) {
+      console.warn('buildium-lease-transactions backlog metric failed', { error: (e as any)?.message })
     }
 
     const successCount = results.filter(r => r.success).length

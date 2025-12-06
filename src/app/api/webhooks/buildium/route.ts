@@ -2,12 +2,24 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
+import { normalizeBuildiumWebhookEvent } from '../../../../supabase/functions/_shared/webhookEvents'
 import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
 
 // Shared admin client for module-scope helpers (webhook toggles, etc.)
 const admin = supabaseAdmin || supabase
+
+async function resolveOrgIdFromBuildiumAccount(accountId?: number | null) {
+  if (!accountId) return null
+  const { data, error } = await admin
+    .from('organizations')
+    .select('id')
+    .eq('buildium_org_id', accountId)
+    .maybeSingle()
+  if (error && error.code !== 'PGRST116') throw error
+  return data?.id ?? null
+}
 
 function computeHmac(raw: string, secret: string) {
   const buf = createHmac('sha256', secret).update(raw).digest()
@@ -182,6 +194,7 @@ export async function POST(req: NextRequest) {
 
   const signatureHeader = req.headers.get('x-buildium-signature') || ''
   const results: { eventId: string | number | null; status: 'processed' | 'duplicate' | 'error'; error?: string }[] = []
+  let normalizedEvents: { event: any; normalized: ReturnType<typeof normalizeBuildiumWebhookEvent> }[] = []
 
   const buildiumCreds = {
     baseUrl: process.env.BUILDIUM_BASE_URL,
@@ -1413,17 +1426,6 @@ export async function POST(req: NextRequest) {
       if (toDeactivate.length) await admin.from('lease_contacts').update({ status: 'Inactive', updated_at: new Date().toISOString() }).in('id', toDeactivate)
     }
 
-    const resolveOrgIdFromBuildiumAccount = async (accountId?: number | null) => {
-      if (!accountId) return null
-      const { data, error } = await admin
-        .from('organizations')
-        .select('id')
-        .eq('buildium_org_id', accountId)
-        .maybeSingle()
-      if (error && error.code !== 'PGRST116') throw error
-      return data?.id ?? null
-    }
-
     const upsertBillPaymentWithLines = async (payment: any, billId: number, fetchGL: (id: number) => Promise<any>) => {
       const now = new Date().toISOString()
       const paymentId = payment?.Id ?? payment?.PaymentId ?? null
@@ -1574,64 +1576,52 @@ export async function POST(req: NextRequest) {
       return { transactionId }
     }
 
-    for (const event of events) {
+    normalizedEvents = events.map((event) => ({
+      event,
+      normalized: normalizeBuildiumWebhookEvent(event),
+    }))
+
+    for (const { event, normalized } of normalizedEvents) {
       // Buildium event types can be EventType or EventName
       const type = event?.EventType ?? event?.EventName ?? body?.type ?? body?.eventType ?? body?.EventName ?? 'unknown'
-      // Buildium event IDs can be in different fields
-      const rawEventId =
-        event?.Id ??
-        event?.EventId ??
-        event?.eventId ??
-        event?.id ??
-        event?.TransactionId ??
-        event?.LeaseId ??
-        event?.BillId ??
-        event?.PaymentId ??
-        event?.Data?.BillId ??
-        event?.Data?.PaymentId ??
-        null
-      // For certain events, append timestamp/property info to avoid false duplicates.
-      const eventId = (() => {
-        const evtTime = event?.EventDateTime ?? event?.eventDateTime ?? null
-        if (type && typeof type === 'string' && type.toLowerCase().includes('bill') && event?.BillId && evtTime) {
-          return `${event.BillId}-${evtTime}`
-        }
-        if (type && typeof type === 'string' && type.toLowerCase().includes('rental') && event?.PropertyId && evtTime) {
-          return `${event.PropertyId}-${evtTime}`
-        }
-        if (type && typeof type === 'string' && type.toLowerCase().includes('rentalunit') && event?.UnitId && evtTime) {
-          return `${event.UnitId}-${evtTime}`
-        }
-        return rawEventId || null
-      })()
+      const eventId = normalized.buildiumWebhookId
 
       // Idempotent ingest per event
-      if (eventId != null) {
-        const { data: existing } = await admin
-          .from('buildium_webhook_events')
-          .select('id')
-          .eq('event_id', eventId)
-          .maybeSingle()
-        if (existing?.id) {
-          results.push({ eventId, status: 'duplicate' })
-          continue
-        }
+      const { data: existing } = await admin
+        .from('buildium_webhook_events')
+        .select('id')
+        .eq('buildium_webhook_id', normalized.buildiumWebhookId)
+        .eq('event_name', normalized.eventName)
+        .eq('event_created_at', normalized.eventCreatedAt)
+        .maybeSingle()
+      if (existing?.id) {
+        results.push({ eventId, status: 'duplicate' })
+        continue
       }
 
       await admin.from('buildium_webhook_events').insert({
-        event_id: eventId,
+        buildium_webhook_id: normalized.buildiumWebhookId,
+        event_name: normalized.eventName,
+        event_created_at: normalized.eventCreatedAt,
+        event_entity_id: normalized.eventEntityId,
+        event_id: normalized.buildiumWebhookId,
         event_type: type,
-        signature: signatureHeader,
+        event_data: event,
         payload: event,
+        signature: signatureHeader,
         status: 'received',
+        processed: false,
+        webhook_type: 'app-buildium-webhook',
       })
 
       // Check toggle flag; if disabled, mark ignored and skip
       if (typeof type === 'string' && disabledEvents.has(type)) {
         await admin
           .from('buildium_webhook_events')
-          .update({ status: 'ignored', processed_at: new Date().toISOString() })
-          .eq('event_id', eventId)
+          .update({ status: 'ignored', processed_at: new Date().toISOString(), processed: true })
+          .eq('buildium_webhook_id', normalized.buildiumWebhookId)
+          .eq('event_name', normalized.eventName)
+          .eq('event_created_at', normalized.eventCreatedAt)
         results.push({ eventId, status: 'processed' })
         continue
       }
@@ -2171,8 +2161,10 @@ export async function POST(req: NextRequest) {
       // Placeholder for downstream processing; currently mark as processed
       await admin
         .from('buildium_webhook_events')
-        .update({ status: 'processed', processed_at: new Date().toISOString() })
-        .eq('event_id', eventId)
+        .update({ status: 'processed', processed_at: new Date().toISOString(), processed: true })
+        .eq('buildium_webhook_id', normalized.buildiumWebhookId)
+        .eq('event_name', normalized.eventName)
+        .eq('event_created_at', normalized.eventCreatedAt)
 
       results.push({ eventId, status: 'processed' })
     }
@@ -2198,14 +2190,12 @@ export async function POST(req: NextRequest) {
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error'
     console.error('[buildium-webhook] Unhandled error', e)
-    const idsForError = events
-      .map((ev) => ev?.Id ?? ev?.EventId ?? ev?.eventId ?? ev?.id ?? null)
-      .filter((v) => v != null)
+    const idsForError = normalizedEvents.map(({ normalized }) => normalized.buildiumWebhookId)
     if (idsForError.length > 0) {
       await admin
         .from('buildium_webhook_events')
-        .update({ status: 'error', error: errorMessage, processed_at: new Date().toISOString() })
-        .in('event_id', idsForError)
+        .update({ status: 'error', error: errorMessage, processed_at: new Date().toISOString(), processed: false })
+        .in('buildium_webhook_id', idsForError)
     }
     return NextResponse.json({ error: 'Internal error', detail: errorMessage }, { status: 500 })
   }
