@@ -1,30 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts'
-import { insertBuildiumWebhookEventRecord, deadLetterBuildiumEvent } from '../_shared/webhookEvents.ts'
+import { insertBuildiumWebhookEventRecord } from '../_shared/webhookEvents.ts'
 import { validateBuildiumEvent } from '../_shared/eventValidation.ts'
-
-// Types for webhook events
-interface BuildiumWebhookEvent {
-  Id: string
-  EventType: string
-  EventName?: string
-  EntityId: number
-  TransactionId?: number
-  LeaseId?: number
-  EntityType: string
-  EventDate: string
-  Data: any
-}
-
-interface BuildiumWebhookPayload {
-  Events: BuildiumWebhookEvent[]
-  credentials?: {
-    baseUrl?: string
-    clientId?: string
-    clientSecret?: string
-  }
-}
+import {
+  LeaseTransactionsWebhookPayloadSchema,
+  deriveEventType,
+  type BuildiumWebhookEvent,
+  type LeaseTransactionsWebhookPayload,
+  validateWebhookPayload,
+} from '../_shared/webhookSchemas.ts'
+import { routeLeaseTransactionWebhookEvent } from '../_shared/eventRouting.ts'
+import { emitRoutingTelemetry } from '../_shared/telemetry.ts'
 
 // Buildium API Client for lease transactions
 class BuildiumClient {
@@ -336,13 +323,54 @@ serve(async (req) => {
     }
 
     // Parse webhook payload
-    let payload: BuildiumWebhookPayload
+    let parsedBody: unknown
     try {
-      payload = JSON.parse(rawBody || '')
+      parsedBody = JSON.parse(rawBody || '')
     } catch (parseError) {
       console.error('Failed to parse webhook payload:', parseError)
       return new Response(
         JSON.stringify({ error: 'Invalid JSON payload' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+
+    const payloadResult = validateWebhookPayload(parsedBody, LeaseTransactionsWebhookPayloadSchema)
+    if (!payloadResult.ok) {
+      console.warn('buildium-lease-transactions schema validation failed', {
+        errors: payloadResult.errors,
+        eventTypes: Array.isArray((parsedBody as any)?.Events)
+          ? (parsedBody as any).Events.map((evt: any) => deriveEventType(evt))
+          : [],
+      })
+      return new Response(
+        JSON.stringify({ error: 'Invalid payload', details: payloadResult.errors }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+
+    const payload: LeaseTransactionsWebhookPayload = payloadResult.data
+
+    const validationFailures = payload.Events.map((event, idx) => {
+      const validation = validateBuildiumEvent(event)
+      if (validation.ok) return null
+      return {
+        index: idx,
+        eventType: deriveEventType(event as Record<string, unknown>),
+        eventId: event.Id ?? event.EventId ?? null,
+        errors: validation.errors,
+      }
+    }).filter(Boolean) as Array<{ index: number; eventType: string; eventId: unknown; errors: string[] }>
+
+    if (validationFailures.length) {
+      console.warn('buildium-lease-transactions payload validation failed', { failures: validationFailures })
+      return new Response(
+        JSON.stringify({ error: 'Invalid payload', details: validationFailures }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 400,
@@ -364,16 +392,7 @@ serve(async (req) => {
     // Process webhook events (only lease transaction events) with idempotent insert
     const results = []
     for (const event of payload.Events) {
-      const validation = validateBuildiumEvent(event)
-      if (!validation.ok) {
-        console.warn('buildium-lease-transactions payload validation failed', {
-          eventName: validation.eventName,
-          errors: validation.errors,
-        })
-        await deadLetterBuildiumEvent(supabase, event, validation.errors, { webhookType: 'lease-transactions', signature: verification.signature ?? null })
-        results.push({ eventId: null, success: false, error: 'invalid-payload', details: validation.errors })
-        continue
-      }
+      const eventType = deriveEventType(event as Record<string, unknown>)
 
       const storeResult = await insertBuildiumWebhookEventRecord(supabase, event, {
         webhookType: 'lease-transactions',
@@ -385,7 +404,7 @@ serve(async (req) => {
           errors: storeResult.errors,
           eventType: event?.EventType,
         })
-        results.push({ eventId: null, success: false, error: 'invalid-normalization', details: storeResult.errors })
+        results.push({ eventId: null, success: false, error: 'invalid-normalization', details: storeResult.errors, eventType })
         continue
       }
 
@@ -395,7 +414,39 @@ serve(async (req) => {
           eventName: storeResult.normalized.eventName,
           eventCreatedAt: storeResult.normalized.eventCreatedAt,
         })
-        results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: true, duplicate: true })
+        results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: true, duplicate: true, eventType })
+        continue
+      }
+
+      const routingDecision = routeLeaseTransactionWebhookEvent(eventType)
+      if (routingDecision !== 'process') {
+        const status = routingDecision === 'dead-letter' ? 'dead-letter' : 'skipped'
+        await emitRoutingTelemetry('buildium-lease-transactions', routingDecision, storeResult.normalized, eventType)
+        await supabase
+          .from('buildium_webhook_events')
+          .update({
+            processed: true,
+            processed_at: new Date().toISOString(),
+            status,
+            retry_count: 0,
+            error_message: routingDecision === 'dead-letter' ? 'unsupported_event_type' : null,
+          })
+          .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+          .eq('event_name', storeResult.normalized.eventName)
+          .eq('event_created_at', storeResult.normalized.eventCreatedAt)
+
+        console.warn('buildium-lease-transactions routing skipped event', {
+          eventType,
+          routingDecision,
+          webhookId: storeResult.normalized.buildiumWebhookId,
+        })
+        results.push({
+          eventId: storeResult.normalized.buildiumWebhookId,
+          success: routingDecision === 'skip',
+          skipped: routingDecision === 'skip',
+          deadLetter: routingDecision === 'dead-letter',
+          eventType,
+        })
         continue
       }
 
@@ -405,33 +456,25 @@ serve(async (req) => {
       while (attempt < MAX_RETRIES && !processed) {
         attempt++
         try {
-          // Only process lease transaction events
-          const eventType = event.EventType || (event as any)?.EventName || ''
-          if (eventType.includes('LeaseTransaction')) {
-            const result = await processLeaseTransactionEvent(event, buildiumClient, supabase)
-            results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: result.success, error: result.error })
+          const result = await processLeaseTransactionEvent(event, eventType, buildiumClient, supabase)
+          results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: result.success, error: result.error, eventType })
 
-            if (result.success) {
-              await supabase
-                .from('buildium_webhook_events')
-                .update({
-                  processed: true,
-                  processed_at: new Date().toISOString(),
-                  status: 'processed',
-                  retry_count: attempt - 1,
-                  error_message: null,
-                })
-                .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
-                .eq('event_name', storeResult.normalized.eventName)
-                .eq('event_created_at', storeResult.normalized.eventCreatedAt)
-              processed = true
-            } else {
-              throw new Error(result.error || 'Unknown processing failure')
-            }
-          } else {
-            console.log('Skipping non-lease-transaction event:', event.EventType)
-            results.push({ eventId: storeResult.normalized.buildiumWebhookId, success: true, skipped: true })
+          if (result.success) {
+            await supabase
+              .from('buildium_webhook_events')
+              .update({
+                processed: true,
+                processed_at: new Date().toISOString(),
+                status: 'processed',
+                retry_count: attempt - 1,
+                error_message: null,
+              })
+              .eq('buildium_webhook_id', storeResult.normalized.buildiumWebhookId)
+              .eq('event_name', storeResult.normalized.eventName)
+              .eq('event_created_at', storeResult.normalized.eventCreatedAt)
             processed = true
+          } else {
+            throw new Error(result.error || 'Unknown processing failure')
           }
         } catch (error) {
           lastError = error
@@ -527,12 +570,12 @@ serve(async (req) => {
 })
 
 async function processLeaseTransactionEvent(
-  event: BuildiumWebhookEvent, 
+  event: BuildiumWebhookEvent,
+  eventType: string,
   buildiumClient: BuildiumClient, 
   supabase: any
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const eventType = event.EventType || (event as any)?.EventName || ''
     console.log('Processing lease transaction event:', eventType, 'for entity:', event.EntityId)
     
     if (eventType === 'LeaseTransactionDeleted' || eventType === 'LeaseTransaction.Deleted') {
