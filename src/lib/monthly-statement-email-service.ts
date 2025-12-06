@@ -16,6 +16,11 @@ import {
 import { format } from 'date-fns';
 import { getOwnerDrawSummary } from '@/lib/monthly-log-calculations';
 import { calculateNetToOwnerValue } from '@/types/monthly-log';
+import {
+  generateMonthlyStatementPDF,
+  uploadStatementPDF,
+  uploadStatementSnapshot,
+} from '@/lib/monthly-statement-service';
 
 interface StatementRecipient {
   email: string;
@@ -113,10 +118,24 @@ export async function sendMonthlyStatement(
       return { success: false, error: 'Monthly log not found' };
     }
 
-    // Check if PDF exists
-    if (!monthlyLog.pdf_url) {
-      return { success: false, error: 'PDF not generated yet. Please generate the PDF first.' };
+    // 2. Refresh/generate the PDF so we always send the current statement
+    const pdfResult = await generateMonthlyStatementPDF(monthlyLogId);
+    if (!pdfResult.success || !pdfResult.pdf) {
+      return { success: false, error: pdfResult.error || 'Failed to generate statement PDF' };
     }
+
+    // Upload the latest copy (updates monthly_logs.pdf_url) and an immutable snapshot for the history record
+    const latestUpload = await uploadStatementPDF(monthlyLogId, pdfResult.pdf);
+    if (!latestUpload.success || !latestUpload.url) {
+      return { success: false, error: latestUpload.error || 'Failed to upload statement PDF' };
+    }
+
+    const snapshotUpload = await uploadStatementSnapshot(monthlyLogId, pdfResult.pdf);
+    if (!snapshotUpload.success && snapshotUpload.error) {
+      console.warn('Failed to store statement snapshot', snapshotUpload.error);
+    }
+    const pdfUrlForEmail =
+      (snapshotUpload.success && snapshotUpload.url) || latestUpload.url || monthlyLog.pdf_url;
 
     // Get recipients from property
     const recipients =
@@ -178,7 +197,7 @@ export async function sendMonthlyStatement(
         periodMonth,
         netToOwner,
         ownerDraw,
-        pdfUrl: monthlyLog.pdf_url,
+        pdfUrl: pdfUrlForEmail,
         companyName,
       });
 
@@ -189,7 +208,7 @@ export async function sendMonthlyStatement(
         periodMonth,
         netToOwner,
         ownerDraw,
-        pdfUrl: monthlyLog.pdf_url,
+        pdfUrl: pdfUrlForEmail,
         companyName,
       });
 
@@ -230,11 +249,11 @@ export async function sendMonthlyStatement(
         .insert({
           monthly_log_id: monthlyLogId,
           sent_by_user_id: userId || null,
-          recipients: emailResults,
-          pdf_url: monthlyLog.pdf_url,
-          status: failedCount === 0 ? 'sent' : sentCount === 0 ? 'failed' : 'sent',
-          error_message: failedCount > 0 ? `${failedCount} recipient(s) failed` : null,
-        })
+        recipients: emailResults,
+        pdf_url: pdfUrlForEmail,
+        status: failedCount === 0 ? 'sent' : sentCount === 0 ? 'failed' : 'sent',
+        error_message: failedCount > 0 ? `${failedCount} recipient(s) failed` : null,
+      })
         .select('id')
         .single();
 
@@ -309,6 +328,7 @@ export async function getStatementEmailHistory(monthlyLogId: string): Promise<{
     sentAt: string;
     sentBy: string | null;
     recipients: any;
+    pdfUrl: string | null;
     status: string;
     errorMessage: string | null;
   }>;
@@ -317,7 +337,7 @@ export async function getStatementEmailHistory(monthlyLogId: string): Promise<{
   try {
     const { data, error } = await supabaseAdmin
       .from('statement_emails')
-      .select('id, sent_at, sent_by_user_id, recipients, status, error_message')
+      .select('id, sent_at, sent_by_user_id, recipients, pdf_url, status, error_message')
       .eq('monthly_log_id', monthlyLogId)
       .order('sent_at', { ascending: false });
 
@@ -330,6 +350,7 @@ export async function getStatementEmailHistory(monthlyLogId: string): Promise<{
       sentAt: record.sent_at,
       sentBy: record.sent_by_user_id,
       recipients: record.recipients,
+      pdfUrl: record.pdf_url ?? null,
       status: record.status,
       errorMessage: record.error_message,
     }));

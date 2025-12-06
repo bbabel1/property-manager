@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 type Org = { id: string; name: string }
-type Membership = { org_id: string; org_name?: string; role: string }
+type Membership = { org_id: string; org_name?: string; roles?: string[] }
 type UserRow = {
   id: string
   email: string
@@ -21,6 +21,7 @@ const ROLE_OPTIONS = [
   { label: 'Platform Admin', value: 'platform_admin' },
   { label: 'Owner Portal', value: 'owner_portal' },
   { label: 'Tenant Portal', value: 'tenant_portal' },
+  { label: 'Vendor Portal', value: 'vendor_portal' },
 ]
 
 export default function MembershipsPage() {
@@ -191,7 +192,9 @@ export default function MembershipsPage() {
                       <tr key={`${u.id}-${m.org_id}-${idx}`} className="border-t">
                         <td className="py-2 pr-4">{u.email}</td>
                         <td className="py-2 pr-4">{m.org_name || m.org_id}</td>
-                        <td className="py-2 pr-4"><Badge variant="secondary">{m.role}</Badge></td>
+                        <td className="py-2 pr-4">
+                          <Badge variant="secondary">{(m.roles && m.roles.length > 0 ? m.roles : ['org_staff']).join(', ')}</Badge>
+                        </td>
                         <td className="py-2 pr-4">
                           <Button variant="outline" size="sm" disabled={busy} onClick={() => remove(u.id, m.org_id)}>Remove</Button>
                         </td>
@@ -207,4 +210,3 @@ export default function MembershipsPage() {
     </div>
   )
 }
-

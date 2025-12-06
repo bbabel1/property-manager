@@ -8,6 +8,7 @@ import { Trash2 } from 'lucide-react';
 import InlineEditCard from '@/components/form/InlineEditCard';
 import EditLink from '@/components/ui/EditLink';
 import RepeaterField from '@/components/form/fields/RepeaterField';
+import { normalizeStaffRole } from '@/lib/staff-role';
 
 type OwnerOption = { id: string; name: string };
 type OwnerRow = {
@@ -284,7 +285,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
     };
   }, [editing, owners]);
 
-  // Load staff and filter for role = PROPERTY_MANAGER (space/underscore tolerant)
+  // Load staff and filter for role = Property Manager
   useEffect(() => {
     if (!editing) return;
     let cancelled = false;
@@ -295,12 +296,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
         const data = await res.json();
         if (!cancelled) {
           const options = (Array.isArray(data) ? data : [])
-            .filter(
-              (s: StaffMember) =>
-                String(s.role || '')
-                  .toUpperCase()
-                  .replace(/\s+/g, '_') === 'PROPERTY_MANAGER',
-            )
+            .filter((s: StaffMember) => normalizeStaffRole(s.role) === 'Property Manager')
             .map((s: StaffMember) => ({
               id: String(s.id),
               name:

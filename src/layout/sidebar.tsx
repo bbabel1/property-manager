@@ -64,6 +64,7 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
       case 'org_staff': return 'Staff';
       case 'owner_portal': return 'Owner';
       case 'tenant_portal': return 'Tenant';
+      case 'vendor_portal': return 'Vendor';
       default: return '';
     }
   }, [user]);

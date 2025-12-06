@@ -221,6 +221,32 @@ export async function POST(request: NextRequest) {
       await serverClient
         .from('org_memberships')
         .upsert({ user_id: staffUserId, org_id: targetOrgId, role: orgRole }, { onConflict: 'user_id,org_id' })
+
+      // Attach a default permission profile for staff
+      try {
+        const profileName = rawRole === 'Property Manager' ? 'Staff - Manager' : 'Staff - Standard'
+        const { data: profileRow } = await serverClient
+          .from('permission_profiles')
+          .select('id')
+          .eq('name', profileName)
+          .or(`org_id.is.null,org_id.eq.${targetOrgId}`)
+          .order('org_id', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        const profileId = (profileRow as any)?.id
+        if (profileId) {
+          await serverClient
+            .from('user_permission_profiles')
+            .delete()
+            .eq('user_id', staffUserId)
+            .eq('org_id', targetOrgId)
+          await serverClient
+            .from('user_permission_profiles')
+            .insert({ user_id: staffUserId, org_id: targetOrgId, profile_id: profileId })
+        }
+      } catch (profileError) {
+        console.warn('Failed to attach default permission profile for staff', profileError)
+      }
     }
 
     return NextResponse.json({ staff: staffRow })

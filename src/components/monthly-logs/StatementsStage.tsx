@@ -22,6 +22,7 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
   const [previewLoading, setPreviewLoading] = useState(false);
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
+  const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
   const hasProperty = Boolean(propertyId);
   const readyToSend = Boolean(pdfUrl && hasProperty && recipientCount && recipientCount > 0);
 
@@ -39,7 +40,7 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
             data = {};
           }
           if (data.pdf_url) {
-            setPdfUrl(data.pdf_url);
+            setPdfUrl(`${data.pdf_url}?t=${Date.now()}`);
           }
         }
       } catch (error) {
@@ -50,58 +51,59 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
     fetchPdfUrl();
   }, [monthlyLogId]);
 
-  const handlePreview = () => {
-    if (pdfUrl) {
-      setPreviewOpen(true);
-      return;
-    }
+  const handlePreview = async () => {
+    try {
+      setGenerating(true);
+      setPreviewLoading(true);
 
-    // If no PDF yet, generate then open
-    const generateAndPreview = async () => {
-      try {
-        setGenerating(true);
-        setPreviewLoading(true);
+      const response = await fetch(`/api/monthly-logs/${monthlyLogId}/generate-pdf`, {
+        method: 'POST',
+      });
 
-        const response = await fetch(`/api/monthly-logs/${monthlyLogId}/generate-pdf`, {
-          method: 'POST',
-        });
-
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            toast.error('Insufficient permissions to generate the statement PDF.');
-            return;
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          toast.error('Insufficient permissions to generate the statement PDF.');
+          if (pdfUrl) {
+            setPreviewOpen(true);
           }
-          const errorText = await response.text();
-          let errorData: any = {};
-          try {
-            errorData = errorText ? JSON.parse(errorText) : {};
-          } catch {
-            errorData = {};
-          }
-          throw new Error(errorData.error?.message || 'Failed to generate PDF');
+          return;
         }
-
-        const text = await response.text();
-        let data: any = {};
+        const errorText = await response.text();
+        let errorData: any = {};
         try {
-          data = text ? JSON.parse(text) : {};
+          errorData = errorText ? JSON.parse(errorText) : {};
         } catch {
-          data = {};
+          errorData = {};
         }
-        setPdfUrl(data.pdfUrl);
-        setPreviewOpen(true);
-        toast.success('Statement PDF generated. Opening preview...');
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to generate PDF';
-        console.error('Error generating PDF for preview:', error);
-        toast.error(errorMessage);
-      } finally {
-        setGenerating(false);
-        setPreviewLoading(false);
+        throw new Error(errorData.error?.message || 'Failed to generate PDF');
       }
-    };
 
-    void generateAndPreview();
+      const text = await response.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+      const refreshedUrl = data.pdfUrl ? `${data.pdfUrl}?t=${Date.now()}` : null;
+      if (refreshedUrl) {
+        setPdfUrl(refreshedUrl);
+      }
+      setPreviewOpen(true);
+      toast.success('Statement PDF generated. Opening preview...');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate PDF';
+      console.error('Error generating PDF for preview:', error);
+      toast.error(errorMessage);
+
+      // If generation failed but we have a cached PDF, still allow viewing it
+      if (pdfUrl) {
+        setPreviewOpen(true);
+      }
+    } finally {
+      setGenerating(false);
+      setPreviewLoading(false);
+    }
   };
 
   const handleSendStatement = async () => {
@@ -138,6 +140,8 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
       } else {
         toast.success(`Statement sent to ${data.sentCount} recipient(s)`);
       }
+
+      setHistoryRefreshToken(Date.now());
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send statement';
       console.error('Error sending statement:', error);
@@ -253,7 +257,10 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
           </section>
 
           <section className="space-y-3">
-            <StatementEmailHistory monthlyLogId={monthlyLogId} />
+            <StatementEmailHistory
+              monthlyLogId={monthlyLogId}
+              refreshToken={historyRefreshToken}
+            />
           </section>
         </CardContent>
       </Card>

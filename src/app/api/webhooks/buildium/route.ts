@@ -2,10 +2,11 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
-import { insertBuildiumWebhookEventRecord, deadLetterBuildiumEvent, type NormalizedBuildiumWebhook } from '../../../../supabase/functions/_shared/webhookEvents'
+import { insertBuildiumWebhookEventRecord, deadLetterBuildiumEvent, type NormalizedBuildiumWebhook } from '../../../../../supabase/functions/_shared/webhookEvents'
 import { markWebhookError, markWebhookTombstone } from '@/lib/buildium-webhook-status'
 import { looksLikeDelete } from '@/lib/buildium-delete-map'
-import { validateBuildiumEvent } from '../../../../supabase/functions/_shared/eventValidation'
+import { validateBuildiumEvent } from '../../../../../supabase/functions/_shared/eventValidation'
+import { sendPagerDutyEvent } from '@/lib/pagerduty'
 import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
@@ -163,6 +164,11 @@ export async function POST(req: NextRequest) {
     if (process.env.NODE_ENV === 'development') {
       console.error('[buildium-webhook] Signature check failed:', sigCheck.reason)
     }
+    await sendPagerDutyEvent({
+      summary: 'Buildium webhook signature invalid',
+      severity: 'warning',
+      customDetails: { reason: sigCheck.reason }
+    })
     return NextResponse.json({ error: 'Invalid signature', reason: sigCheck.reason }, { status: 401 })
   }
 
@@ -192,6 +198,11 @@ export async function POST(req: NextRequest) {
         bodyPreview: JSON.stringify(body).substring(0, 200),
       })
     }
+    await sendPagerDutyEvent({
+      summary: 'Buildium webhook payload missing events',
+      severity: 'warning',
+      customDetails: { bodyPreview: JSON.stringify(body || {}).slice(0, 200) }
+    })
     return NextResponse.json({ error: 'No webhook events found in payload' }, { status: 400 })
   }
 
@@ -685,12 +696,12 @@ export async function POST(req: NextRequest) {
     if (!staffId) return
 
     const now = new Date().toISOString()
-    // Look for existing property_staff role PROPERTY_MANAGER
+    // Look for existing property_staff role Property Manager
     const { data: existing, error: psErr } = await admin
       .from('property_staff')
       .select('property_id, staff_id, role')
       .eq('property_id', propertyIdLocal)
-      .eq('role', 'PROPERTY_MANAGER')
+      .eq('role', 'Property Manager')
       .maybeSingle()
     if (psErr && psErr.code !== 'PGRST116') throw psErr
 
@@ -700,11 +711,11 @@ export async function POST(req: NextRequest) {
         .from('property_staff')
         .update({ staff_id: staffId, updated_at: now })
         .eq('property_id', propertyIdLocal)
-        .eq('role', 'PROPERTY_MANAGER')
+        .eq('role', 'Property Manager')
     } else if (!existing) {
       await admin
         .from('property_staff')
-        .insert({ property_id: propertyIdLocal, staff_id: staffId, role: 'PROPERTY_MANAGER', created_at: now, updated_at: now })
+        .insert({ property_id: propertyIdLocal, staff_id: staffId, role: 'Property Manager', created_at: now, updated_at: now })
     }
   }
 
@@ -1596,6 +1607,11 @@ export async function POST(req: NextRequest) {
       if (!validation.ok) {
         console.warn('[buildium-webhook] payload validation failed', { eventName: validation.eventName, errors: validation.errors })
         await deadLetterBuildiumEvent(admin, event, validation.errors, { webhookType: 'app-buildium-webhook', signature: signatureHeader })
+        await sendPagerDutyEvent({
+          summary: 'Buildium webhook payload validation failed',
+          severity: 'warning',
+          customDetails: { eventName: validation.eventName, errors: validation.errors }
+        })
         results.push({ eventId: null, status: 'invalid', error: 'invalid-payload' })
         continue
       }

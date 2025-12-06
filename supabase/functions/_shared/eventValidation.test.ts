@@ -4,7 +4,7 @@ import { validateBuildiumEvent } from "./eventValidation.ts"
 Deno.test('accepts valid property event', () => {
   const res = validateBuildiumEvent({
     Id: 'evt-1',
-    EventType: 'PropertyCreated',
+    EventType: 'Property.Created',
     EventDate: '2024-01-01T00:00:00Z',
     EntityId: 123,
   })
@@ -14,7 +14,7 @@ Deno.test('accepts valid property event', () => {
 Deno.test('rejects missing EntityId on property event', () => {
   const res = validateBuildiumEvent({
     Id: 'evt-2',
-    EventType: 'PropertyUpdated',
+    EventType: 'Property.Updated',
     EventDate: '2024-01-01T00:00:00Z',
   })
   assertEquals(res.ok, false)
@@ -35,7 +35,7 @@ Deno.test('rejects unsupported EventName', () => {
 Deno.test('requires lease transaction fields', () => {
   const res = validateBuildiumEvent({
     Id: 'evt-4',
-    EventType: 'LeaseTransactionCreated',
+    EventType: 'LeaseTransaction.Created',
     EventDate: '2024-01-01T00:00:00Z',
     LeaseId: 42,
   })
@@ -46,7 +46,7 @@ Deno.test('requires lease transaction fields', () => {
 Deno.test('requires BillId on bill events', () => {
   const res = validateBuildiumEvent({
     Id: 'evt-bill',
-    EventType: 'BillUpdated',
+    EventType: 'Bill.Updated',
     EventDate: '2024-01-01T00:00:00Z',
     BillId: 123,
   })
@@ -54,7 +54,7 @@ Deno.test('requires BillId on bill events', () => {
 
   const missing = validateBuildiumEvent({
     Id: 'evt-bill-missing',
-    EventType: 'BillUpdated',
+    EventType: 'Bill.Updated',
     EventDate: '2024-01-01T00:00:00Z',
   })
   assertEquals(missing.ok, false)
@@ -84,7 +84,7 @@ Deno.test('requires PaymentId and BillIds on bill payment events', () => {
 Deno.test('requires lease and tenant on move out events', () => {
   const res = validateBuildiumEvent({
     Id: 'evt-moveout',
-    EventType: 'MoveOutCreated',
+    EventType: 'Lease.MoveOut.Created',
     EventDate: '2024-01-01T00:00:00Z',
     TenantId: 5,
   })
@@ -95,7 +95,7 @@ Deno.test('requires lease and tenant on move out events', () => {
 Deno.test('requires GLAccountId on GLAccount events', () => {
   const res = validateBuildiumEvent({
     Id: 'evt-gl',
-    EventType: 'GLAccountCreated',
+    EventType: 'GLAccount.Created',
     EventDate: '2024-01-01T00:00:00Z',
     GLAccountId: 77,
   })

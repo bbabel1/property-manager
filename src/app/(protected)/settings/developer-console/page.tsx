@@ -13,25 +13,74 @@ type WebhookRow = {
 }
 
 const WEBHOOK_EVENTS: WebhookRow[] = [
+  // General / properties / owners
+  { name: 'Property.Created' },
+  { name: 'Property.Updated' },
+  { name: 'Property.Deleted' },
+  { name: 'Owner.Created' },
+  { name: 'Owner.Updated' },
+  { name: 'Owner.Deleted' },
+  // Leases and related
+  { name: 'Lease.Created' },
+  { name: 'Lease.Updated' },
+  { name: 'Lease.Deleted' },
+  { name: 'LeaseTransaction.Created' },
+  { name: 'LeaseTransaction.Updated' },
+  { name: 'LeaseTransaction.Deleted' },
+  { name: 'LeaseTenant.Created' },
+  { name: 'LeaseTenant.Updated' },
+  { name: 'LeaseTenant.Deleted' },
+  { name: 'Lease.MoveOut.Created' },
+  { name: 'Lease.MoveOut.Updated' },
+  { name: 'Lease.MoveOut.Deleted' },
+  // Bills / payments
   { name: 'Bill.Created' },
   { name: 'Bill.Updated' },
   { name: 'Bill.Deleted' },
   { name: 'Bill.Payment.Created' },
   { name: 'Bill.Payment.Updated' },
   { name: 'Bill.Payment.Deleted' },
+  // GL / bank
   { name: 'GLAccount.Created' },
   { name: 'GLAccount.Updated' },
   { name: 'GLAccount.Deleted' },
+  { name: 'BankAccount.Created' },
+  { name: 'BankAccount.Updated' },
+  { name: 'BankAccount.Deleted' },
+  // Rentals / units / owners
+  { name: 'Rental.Created' },
   { name: 'Rental.Updated' },
+  { name: 'Rental.Deleted' },
+  { name: 'RentalUnit.Created' },
   { name: 'RentalUnit.Updated' },
+  { name: 'RentalUnit.Deleted' },
+  { name: 'RentalOwner.Created' },
+  { name: 'RentalOwner.Updated' },
+  { name: 'RentalOwner.Deleted' },
+  // Tasks / categories / history
   { name: 'TaskCategory.Created' },
   { name: 'TaskCategory.Updated' },
   { name: 'TaskCategory.Deleted' },
+  { name: 'Task.History.Created' },
+  { name: 'Task.History.Updated' },
+  { name: 'Task.History.Deleted' },
   { name: 'Task.Created' },
-  { name: 'LeaseTransaction.*' },
-  { name: 'Lease.*' },
-  { name: 'LeaseTenant.*' },
-  { name: 'MoveOut.*' },
+  { name: 'Task.Updated' },
+  { name: 'Task.Deleted' },
+  // Vendors
+  { name: 'VendorCategory.Created' },
+  { name: 'VendorCategory.Updated' },
+  { name: 'VendorCategory.Deleted' },
+  { name: 'Vendor.Transaction.Created' },
+  { name: 'Vendor.Transaction.Updated' },
+  { name: 'Vendor.Transaction.Deleted' },
+  { name: 'Vendor.Created' },
+  { name: 'Vendor.Updated' },
+  { name: 'Vendor.Deleted' },
+  // Work orders
+  { name: 'WorkOrder.Created' },
+  { name: 'WorkOrder.Updated' },
+  { name: 'WorkOrder.Deleted' },
 ]
 
 export default function DeveloperConsolePage() {

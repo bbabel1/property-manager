@@ -1,130 +1,99 @@
 export const GENERAL_EVENT_NAMES = [
-  'PropertyCreated',
-  'PropertyUpdated',
-  'OwnerCreated',
-  'OwnerUpdated',
-  'LeaseCreated',
-  'LeaseUpdated',
-] as const
+  'Property.Created',
+  'Property.Updated',
+  'Property.Deleted',
+  'Owner.Created',
+  'Owner.Updated',
+  'Owner.Deleted',
+] as const;
 
-const LEASE_EVENT_NAMES = [
-  'LeaseCreated',
-  'LeaseUpdated',
-  'LeaseDeleted',
-  'Lease.Deleted',
-] as const
+const LEASE_EVENT_NAMES = ['Lease.Created', 'Lease.Updated', 'Lease.Deleted'] as const;
 
 export const LEASE_TRANSACTION_EVENT_NAMES = [
-  'LeaseTransactionCreated',
-  'LeaseTransactionUpdated',
-  'LeaseTransactionDeleted',
+  'LeaseTransaction.Created',
+  'LeaseTransaction.Updated',
   'LeaseTransaction.Deleted',
-] as const
+] as const;
 
 const LEASE_TENANT_EVENT_NAMES = [
-  'LeaseTenantCreated',
-  'LeaseTenantUpdated',
-  'LeaseTenantDeleted',
-  'LeaseTenantMoveOut',
-  'LeaseTenant.MoveOut',
-] as const
+  'LeaseTenant.Created',
+  'LeaseTenant.Updated',
+  'LeaseTenant.Deleted',
+] as const;
 
 const MOVE_OUT_EVENT_NAMES = [
-  'MoveOutCreated',
-  'MoveOutUpdated',
-  'MoveOutDeleted',
-  'MoveOut.Deleted',
-] as const
+  'Lease.MoveOut.Created',
+  'Lease.MoveOut.Updated',
+  'Lease.MoveOut.Deleted',
+] as const;
 
 const BILL_PAYMENT_EVENT_NAMES = [
-  'Bill.PaymentCreated',
-  'Bill.PaymentUpdated',
-  'Bill.PaymentDeleted',
-  'BillPaymentCreated',
-  'BillPaymentUpdated',
-  'BillPaymentDeleted',
-] as const
+  'Bill.Payment.Created',
+  'Bill.Payment.Updated',
+  'Bill.Payment.Deleted',
+] as const;
 
-const BILL_EVENT_NAMES = [
-  'BillCreated',
-  'BillUpdated',
-  'BillDeleted',
-  'Bill.Deleted',
-] as const
+const BILL_EVENT_NAMES = ['Bill.Created', 'Bill.Updated', 'Bill.Deleted'] as const;
 
 const GL_ACCOUNT_EVENT_NAMES = [
-  'GLAccountCreated',
-  'GLAccountUpdated',
-  'GLAccountDeleted',
+  'GLAccount.Created',
+  'GLAccount.Updated',
   'GLAccount.Deleted',
-] as const
+] as const;
 
 const RENTAL_OWNER_EVENT_NAMES = [
-  'RentalOwnerCreated',
-  'RentalOwnerUpdated',
-  'RentalOwnerDeleted',
+  'RentalOwner.Created',
+  'RentalOwner.Updated',
   'RentalOwner.Deleted',
-] as const
+] as const;
 
-const RENTAL_PROPERTY_EVENT_NAMES = [
-  'RentalCreated',
-  'RentalUpdated',
-  'RentalDeleted',
-  'Rental.Deleted',
-  'RentalPropertyCreated',
-  'RentalPropertyUpdated',
-  'RentalPropertyDeleted',
-  'RentalProperty.Deleted',
-] as const
+const RENTAL_PROPERTY_EVENT_NAMES = ['Rental.Created', 'Rental.Updated', 'Rental.Deleted'] as const;
 
 const RENTAL_UNIT_EVENT_NAMES = [
-  'RentalUnitCreated',
-  'RentalUnitUpdated',
-  'RentalUnitDeleted',
+  'RentalUnit.Created',
+  'RentalUnit.Updated',
   'RentalUnit.Deleted',
-] as const
+] as const;
 
 const TASK_CATEGORY_EVENT_NAMES = [
-  'TaskCategoryCreated',
-  'TaskCategoryUpdated',
-  'TaskCategoryDeleted',
+  'TaskCategory.Created',
+  'TaskCategory.Updated',
   'TaskCategory.Deleted',
-] as const
+] as const;
 
-const TASK_EVENT_NAMES = [
-  'TaskCreated',
-  'TaskUpdated',
-  'TaskDeleted',
-  'Task.Deleted',
-] as const
+const TASK_HISTORY_EVENT_NAMES = [
+  'Task.History.Created',
+  'Task.History.Updated',
+  'Task.History.Deleted',
+] as const;
+
+const TASK_EVENT_NAMES = ['Task.Created', 'Task.Updated', 'Task.Deleted'] as const;
 
 const VENDOR_CATEGORY_EVENT_NAMES = [
-  'VendorCategoryCreated',
-  'VendorCategoryUpdated',
-  'VendorCategoryDeleted',
+  'VendorCategory.Created',
+  'VendorCategory.Updated',
   'VendorCategory.Deleted',
-] as const
+] as const;
 
-const VENDOR_EVENT_NAMES = [
-  'VendorCreated',
-  'VendorUpdated',
-  'VendorDeleted',
-  'Vendor.Deleted',
-] as const
+const VENDOR_TRANSACTION_EVENT_NAMES = [
+  'Vendor.Transaction.Created',
+  'Vendor.Transaction.Updated',
+  'Vendor.Transaction.Deleted',
+] as const;
+
+const VENDOR_EVENT_NAMES = ['Vendor.Created', 'Vendor.Updated', 'Vendor.Deleted'] as const;
 
 const WORK_ORDER_EVENT_NAMES = [
-  'WorkOrderCreated',
-  'WorkOrderUpdated',
-  'WorkOrderDeleted',
+  'WorkOrder.Created',
+  'WorkOrder.Updated',
   'WorkOrder.Deleted',
-] as const
+] as const;
 
 const BANK_ACCOUNT_EVENT_NAMES = [
-  'BankAccountCreated',
-  'BankAccountUpdated',
-  'BankAccountDeleted',
+  'BankAccount.Created',
+  'BankAccount.Updated',
   'BankAccount.Deleted',
-] as const
+] as const;
 
 export const SUPPORTED_EVENT_NAMES = [
   ...GENERAL_EVENT_NAMES,
@@ -139,62 +108,162 @@ export const SUPPORTED_EVENT_NAMES = [
   ...RENTAL_PROPERTY_EVENT_NAMES,
   ...RENTAL_UNIT_EVENT_NAMES,
   ...TASK_CATEGORY_EVENT_NAMES,
+  ...TASK_HISTORY_EVENT_NAMES,
   ...TASK_EVENT_NAMES,
   ...VENDOR_CATEGORY_EVENT_NAMES,
+  ...VENDOR_TRANSACTION_EVENT_NAMES,
   ...VENDOR_EVENT_NAMES,
   ...WORK_ORDER_EVENT_NAMES,
   ...BANK_ACCOUNT_EVENT_NAMES,
-] as const
+] as const;
 
-export type SupportedEventName = typeof SUPPORTED_EVENT_NAMES[number]
+export type SupportedEventName = (typeof SUPPORTED_EVENT_NAMES)[number];
+
+const EVENT_NAME_ALIAS_MAP = new Map<string, SupportedEventName>([
+  ...SUPPORTED_EVENT_NAMES.map((name) => [aliasKey(name), name]),
+  // Lease transactions (legacy camelCase)
+  ['leasetransactioncreated', 'LeaseTransaction.Created'],
+  ['leasetransactionupdated', 'LeaseTransaction.Updated'],
+  ['leasetransactiondeleted', 'LeaseTransaction.Deleted'],
+  // Lease tenants
+  ['leasetenantcreated', 'LeaseTenant.Created'],
+  ['leasetenantupdated', 'LeaseTenant.Updated'],
+  ['leasetenantdeleted', 'LeaseTenant.Deleted'],
+  ['leasetenantmoveout', 'Lease.MoveOut.Created'],
+  // Move outs (legacy)
+  ['moveoutcreated', 'Lease.MoveOut.Created'],
+  ['moveoutupdated', 'Lease.MoveOut.Updated'],
+  ['moveoutdeleted', 'Lease.MoveOut.Deleted'],
+  // Leases
+  ['leasecreated', 'Lease.Created'],
+  ['leaseupdated', 'Lease.Updated'],
+  ['leasedeleted', 'Lease.Deleted'],
+  // Bills
+  ['billcreated', 'Bill.Created'],
+  ['billupdated', 'Bill.Updated'],
+  ['billdeleted', 'Bill.Deleted'],
+  // Bill payments (legacy condensed)
+  ['billpaymentcreated', 'Bill.Payment.Created'],
+  ['billpaymentupdated', 'Bill.Payment.Updated'],
+  ['billpaymentdeleted', 'Bill.Payment.Deleted'],
+  ['bill.paymentcreated', 'Bill.Payment.Created'],
+  ['bill.paymentupdated', 'Bill.Payment.Updated'],
+  ['bill.paymentdeleted', 'Bill.Payment.Deleted'],
+  // GL accounts
+  ['glaccountcreated', 'GLAccount.Created'],
+  ['glaccountupdated', 'GLAccount.Updated'],
+  ['glaccountdeleted', 'GLAccount.Deleted'],
+  // Rentals (compat for RentalProperty)
+  ['rentalpropertycreated', 'Rental.Created'],
+  ['rentalpropertyupdated', 'Rental.Updated'],
+  ['rentalpropertydeleted', 'Rental.Deleted'],
+  ['rentalcreated', 'Rental.Created'],
+  ['rentalupdated', 'Rental.Updated'],
+  ['rentaldeleted', 'Rental.Deleted'],
+  // Rental units
+  ['rentalunitcreated', 'RentalUnit.Created'],
+  ['rentalunitupdated', 'RentalUnit.Updated'],
+  ['rentalunitdeleted', 'RentalUnit.Deleted'],
+  // Tasks & categories
+  ['taskcategorycreated', 'TaskCategory.Created'],
+  ['taskcategoryupdated', 'TaskCategory.Updated'],
+  ['taskcategorydeleted', 'TaskCategory.Deleted'],
+  ['taskcreated', 'Task.Created'],
+  ['taskupdated', 'Task.Updated'],
+  ['taskdeleted', 'Task.Deleted'],
+  ['taskhistorycreated', 'Task.History.Created'],
+  ['taskhistoryupdated', 'Task.History.Updated'],
+  ['taskhistorydeleted', 'Task.History.Deleted'],
+  // Vendors & categories
+  ['vendorcreated', 'Vendor.Created'],
+  ['vendorupdated', 'Vendor.Updated'],
+  ['vendordeleted', 'Vendor.Deleted'],
+  ['vendorcategorycreated', 'VendorCategory.Created'],
+  ['vendorcategoryupdated', 'VendorCategory.Updated'],
+  ['vendorcategorydeleted', 'VendorCategory.Deleted'],
+  ['vendortransactioncreated', 'Vendor.Transaction.Created'],
+  ['vendortransactionupdated', 'Vendor.Transaction.Updated'],
+  ['vendortransactiondeleted', 'Vendor.Transaction.Deleted'],
+  // Work orders
+  ['workordercreated', 'WorkOrder.Created'],
+  ['workorderupdated', 'WorkOrder.Updated'],
+  ['workorderdeleted', 'WorkOrder.Deleted'],
+  // Bank accounts
+  ['bankaccountcreated', 'BankAccount.Created'],
+  ['bankaccountupdated', 'BankAccount.Updated'],
+  ['bankaccountdeleted', 'BankAccount.Deleted'],
+  // Owners
+  ['ownercreated', 'Owner.Created'],
+  ['ownerupdated', 'Owner.Updated'],
+  ['ownerdeleted', 'Owner.Deleted'],
+  ['rentalownercreated', 'RentalOwner.Created'],
+  ['rentalownerupdated', 'RentalOwner.Updated'],
+  ['rentalownerdeleted', 'RentalOwner.Deleted'],
+  // Properties
+  ['propertycreated', 'Property.Created'],
+  ['propertyupdated', 'Property.Updated'],
+  ['propertydeleted', 'Property.Deleted'],
+] as Array<[string, SupportedEventName]>);
 
 export interface BuildiumWebhookEventLike {
-  Id?: string
-  EventId?: string
-  EventType?: string
-  EventName?: string
-  EventDate?: string
-  EventDateTime?: string
-  EntityId?: number
-  LeaseId?: number
-  TransactionId?: number
-  BillId?: number
-  PaymentId?: number
-  BillIds?: number[]
-  GLAccountId?: number
-  PropertyId?: number
-  UnitId?: number
-  TaskId?: number
-  TaskCategoryId?: number
-  VendorId?: number
-  VendorCategoryId?: number
-  WorkOrderId?: number
-  RentalOwnerId?: number
-  TenantId?: number
-  AccountId?: number
-  BankAccountId?: number
-  Data?: Record<string, unknown>
+  Id?: string;
+  EventId?: string;
+  EventType?: string;
+  EventName?: string;
+  EventDate?: string;
+  EventDateTime?: string;
+  EntityId?: number;
+  LeaseId?: number;
+  TransactionId?: number;
+  BillId?: number;
+  PaymentId?: number;
+  BillIds?: number[];
+  GLAccountId?: number;
+  PropertyId?: number;
+  UnitId?: number;
+  TaskId?: number;
+  TaskCategoryId?: number;
+  VendorId?: number;
+  VendorCategoryId?: number;
+  WorkOrderId?: number;
+  RentalOwnerId?: number;
+  TenantId?: number;
+  AccountId?: number;
+  BankAccountId?: number;
+  Data?: Record<string, unknown>;
 }
 
 export interface ValidationResult {
-  ok: boolean
-  errors: string[]
-  eventName: string
+  ok: boolean;
+  errors: string[];
+  eventName: string;
 }
 
 type FieldRequirement = {
-  label: string
-  paths: string[]
-  when?: (evt: BuildiumWebhookEventLike, eventName: string) => boolean
-  validator?: (value: unknown) => boolean
-  message?: string
-}
+  label: string;
+  paths: string[];
+  when?: (evt: BuildiumWebhookEventLike, eventName: string) => boolean;
+  validator?: (value: unknown) => boolean;
+  message?: string;
+};
 
 type EventValidationSpec = {
-  group: string
-  eventNames: readonly string[]
-  match?: (eventName: string) => boolean
-  required: FieldRequirement[]
+  group: string;
+  eventNames: readonly string[];
+  match?: (eventName: string) => boolean;
+  required: FieldRequirement[];
+};
+
+function aliasKey(name: string): string {
+  return name.replace(/[.\s]/g, '').toLowerCase();
+}
+
+export function canonicalizeEventName(name?: string | null): string {
+  if (!name || typeof name !== 'string') return 'unknown';
+  const trimmed = name.trim();
+  if (!trimmed.length) return 'unknown';
+  const key = aliasKey(trimmed);
+  return EVENT_NAME_ALIAS_MAP.get(key) ?? trimmed;
 }
 
 function normalizeEventName(evt: BuildiumWebhookEventLike): string {
@@ -204,25 +273,70 @@ function normalizeEventName(evt: BuildiumWebhookEventLike): string {
     (evt as any)?.eventType ||
     (evt as any)?.type ||
     (typeof evt.Data?.EventType === 'string' ? (evt.Data.EventType as string) : '') ||
-    (typeof (evt.Data as any)?.EventName === 'string' ? ((evt.Data as any).EventName as string) : '') ||
-    ''
-  return typeof value === 'string' && value.trim().length ? value : 'unknown'
+    (typeof (evt.Data as any)?.EventName === 'string'
+      ? ((evt.Data as any).EventName as string)
+      : '') ||
+    '';
+  if (typeof value !== 'string' || !value.trim().length) return 'unknown';
+  return canonicalizeEventName(value);
 }
 
 function hasValue(val: unknown): boolean {
-  return val !== null && val !== undefined && val !== ''
+  return val !== null && val !== undefined && val !== '';
+}
+
+function extractPrimaryIdentifier(evt: BuildiumWebhookEventLike): unknown {
+  return (
+    evt.Id ??
+    evt.EventId ??
+    evt.TransactionId ??
+    evt.LeaseId ??
+    evt.BillId ??
+    evt.PaymentId ??
+    (Array.isArray(evt.BillIds) && evt.BillIds.length ? evt.BillIds[0] : null) ??
+    evt.PropertyId ??
+    evt.UnitId ??
+    evt.GLAccountId ??
+    evt.TaskId ??
+    evt.TaskCategoryId ??
+    evt.VendorId ??
+    evt.VendorCategoryId ??
+    evt.WorkOrderId ??
+    evt.RentalOwnerId ??
+    evt.BankAccountId ??
+    evt.AccountId ??
+    evt.EntityId ??
+    (evt.Data as any)?.TransactionId ??
+    (evt.Data as any)?.BillId ??
+    (Array.isArray((evt.Data as any)?.BillIds) && (evt.Data as any)?.BillIds.length
+      ? (evt.Data as any)?.BillIds[0]
+      : null) ??
+    (evt.Data as any)?.PropertyId ??
+    (evt.Data as any)?.UnitId ??
+    (evt.Data as any)?.GLAccountId ??
+    (evt.Data as any)?.TaskId ??
+    (evt.Data as any)?.TaskCategoryId ??
+    (evt.Data as any)?.VendorId ??
+    (evt.Data as any)?.VendorCategoryId ??
+    (evt.Data as any)?.WorkOrderId ??
+    (evt.Data as any)?.RentalOwnerId ??
+    (evt.Data as any)?.BankAccountId ??
+    (evt.Data as any)?.AccountId ??
+    (evt.Data as any)?.Id ??
+    null
+  );
 }
 
 function isValidDateValue(val: unknown): boolean {
   if (typeof val === 'number' && Number.isFinite(val)) {
-    const ts = val < 1_000_000_000_000 ? val * 1000 : val
-    return !Number.isNaN(new Date(ts).getTime())
+    const ts = val < 1_000_000_000_000 ? val * 1000 : val;
+    return !Number.isNaN(new Date(ts).getTime());
   }
   if (typeof val === 'string' && val.trim().length) {
-    const parsed = new Date(val)
-    return !Number.isNaN(parsed.getTime())
+    const parsed = new Date(val);
+    return !Number.isNaN(parsed.getTime());
   }
-  return false
+  return false;
 }
 
 function hasValidDate(evt: BuildiumWebhookEventLike): boolean {
@@ -234,16 +348,18 @@ function hasValidDate(evt: BuildiumWebhookEventLike): boolean {
     (evt as any).Timestamp,
     (evt.Data as any)?.EventDate,
     (evt.Data as any)?.EventDateTime,
-  ]
-  return candidates.some((c) => isValidDateValue(c))
+  ];
+  return candidates.some((c) => isValidDateValue(c));
 }
 
 function valueAtPath(evt: BuildiumWebhookEventLike, path: string): unknown {
-  return path.split('.').reduce((acc: any, key) => (acc && key in acc ? acc[key] : undefined), evt as any)
+  return path
+    .split('.')
+    .reduce((acc: any, key) => (acc && key in acc ? acc[key] : undefined), evt as any);
 }
 
 function matchesSpec(spec: EventValidationSpec, eventName: string): boolean {
-  return spec.eventNames.includes(eventName as any) || (spec.match ? spec.match(eventName) : false)
+  return spec.eventNames.includes(eventName as any) || (spec.match ? spec.match(eventName) : false);
 }
 
 const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
@@ -252,7 +368,10 @@ const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
     eventNames: LEASE_TRANSACTION_EVENT_NAMES,
     match: (name) => name.toLowerCase().includes('leasetransaction'),
     required: [
-      { label: 'TransactionId/EntityId', paths: ['TransactionId', 'EntityId', 'Data.TransactionId'] },
+      {
+        label: 'TransactionId/EntityId',
+        paths: ['TransactionId', 'EntityId', 'Data.TransactionId'],
+      },
       { label: 'LeaseId', paths: ['LeaseId', 'Data.LeaseId'] },
     ],
   },
@@ -318,7 +437,9 @@ const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
     group: 'rental-owner',
     eventNames: RENTAL_OWNER_EVENT_NAMES,
     match: (name) => name.toLowerCase().includes('rentalowner'),
-    required: [{ label: 'RentalOwnerId', paths: ['RentalOwnerId', 'EntityId', 'Data.RentalOwnerId'] }],
+    required: [
+      { label: 'RentalOwnerId', paths: ['RentalOwnerId', 'EntityId', 'Data.RentalOwnerId'] },
+    ],
   },
   {
     group: 'rental-unit',
@@ -330,8 +451,8 @@ const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
     group: 'rental-property',
     eventNames: RENTAL_PROPERTY_EVENT_NAMES,
     match: (name) => {
-      const lower = name.toLowerCase()
-      return lower.includes('rental') && !lower.includes('owner') && !lower.includes('unit')
+      const lower = name.toLowerCase();
+      return lower.includes('rental') && !lower.includes('owner') && !lower.includes('unit');
     },
     required: [{ label: 'PropertyId', paths: ['PropertyId', 'EntityId', 'Data.PropertyId'] }],
   },
@@ -339,24 +460,47 @@ const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
     group: 'task-category',
     eventNames: TASK_CATEGORY_EVENT_NAMES,
     match: (name) => name.toLowerCase().includes('taskcategory'),
-    required: [{ label: 'TaskCategoryId', paths: ['TaskCategoryId', 'EntityId', 'Data.TaskCategoryId'] }],
+    required: [
+      { label: 'TaskCategoryId', paths: ['TaskCategoryId', 'EntityId', 'Data.TaskCategoryId'] },
+    ],
+  },
+  {
+    group: 'task-history',
+    eventNames: TASK_HISTORY_EVENT_NAMES,
+    match: (name) => name.toLowerCase().includes('task.history'),
+    required: [{ label: 'TaskId', paths: ['TaskId', 'EntityId', 'Data.TaskId'] }],
   },
   {
     group: 'task',
     eventNames: TASK_EVENT_NAMES,
-    match: (name) => name.toLowerCase().includes('task'),
+    match: (name) =>
+      name.toLowerCase().startsWith('task.') && !name.toLowerCase().includes('task.history'),
     required: [{ label: 'TaskId', paths: ['TaskId', 'EntityId', 'Data.TaskId'] }],
   },
   {
     group: 'vendor-category',
     eventNames: VENDOR_CATEGORY_EVENT_NAMES,
     match: (name) => name.toLowerCase().includes('vendorcategory'),
-    required: [{ label: 'VendorCategoryId', paths: ['VendorCategoryId', 'EntityId', 'Data.VendorCategoryId'] }],
+    required: [
+      {
+        label: 'VendorCategoryId',
+        paths: ['VendorCategoryId', 'EntityId', 'Data.VendorCategoryId'],
+      },
+    ],
+  },
+  {
+    group: 'vendor-transaction',
+    eventNames: VENDOR_TRANSACTION_EVENT_NAMES,
+    match: (name) => name.toLowerCase().includes('vendor.transaction'),
+    required: [{ label: 'VendorId', paths: ['VendorId', 'EntityId', 'Data.VendorId'] }],
   },
   {
     group: 'vendor',
     eventNames: VENDOR_EVENT_NAMES,
-    match: (name) => name.toLowerCase().includes('vendor'),
+    match: (name) =>
+      name.toLowerCase().startsWith('vendor.') &&
+      !name.toLowerCase().includes('vendorcategory') &&
+      !name.toLowerCase().includes('vendor.transaction'),
     required: [{ label: 'VendorId', paths: ['VendorId', 'EntityId', 'Data.VendorId'] }],
   },
   {
@@ -369,52 +513,54 @@ const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
     group: 'bank-account',
     eventNames: BANK_ACCOUNT_EVENT_NAMES,
     match: (name) => name.toLowerCase().includes('bankaccount'),
-    required: [{ label: 'BankAccountId', paths: ['BankAccountId', 'EntityId', 'Data.BankAccountId'] }],
+    required: [
+      { label: 'BankAccountId', paths: ['BankAccountId', 'EntityId', 'Data.BankAccountId'] },
+    ],
   },
   {
     group: 'property',
     eventNames: GENERAL_EVENT_NAMES,
     required: [{ label: 'EntityId', paths: ['EntityId'] }],
   },
-]
+];
 
 function ensureRequirements(
   evt: BuildiumWebhookEventLike,
   eventName: string,
   spec: EventValidationSpec,
-  errors: string[]
+  errors: string[],
 ) {
   for (const req of spec.required) {
-    if (req.when && !req.when(evt, eventName)) continue
+    if (req.when && !req.when(evt, eventName)) continue;
     const satisfied = req.paths.some((p) => {
-      const value = valueAtPath(evt, p)
-      if (req.validator) return req.validator(value)
-      return hasValue(value)
-    })
+      const value = valueAtPath(evt, p);
+      if (req.validator) return req.validator(value);
+      return hasValue(value);
+    });
     if (!satisfied) {
-      errors.push(req.message || `missing ${req.label}`)
+      errors.push(req.message || `missing ${req.label}`);
     }
   }
 }
 
 export function validateBuildiumEvent(evt: BuildiumWebhookEventLike): ValidationResult {
-  const errors: string[] = []
-  const eventName = normalizeEventName(evt)
-  const spec = EVENT_VALIDATION_SPECS.find((s) => matchesSpec(s, eventName))
+  const errors: string[] = [];
+  const eventName = normalizeEventName(evt);
+  const spec = EVENT_VALIDATION_SPECS.find((s) => matchesSpec(s, eventName));
 
-  if (!hasValue(evt.Id) && !hasValue(evt.EventId)) {
-    errors.push('missing Id/EventId')
+  if (!hasValue(extractPrimaryIdentifier(evt))) {
+    errors.push('missing event identifier (Id/EventId/TransactionId/LeaseId/EntityId)');
   }
 
   if (!hasValidDate(evt)) {
-    errors.push('missing or invalid EventDate/EventDateTime')
+    errors.push('missing or invalid EventDate/EventDateTime');
   }
 
   if (!spec) {
-    errors.push('unsupported EventName')
+    errors.push('unsupported EventName');
   } else {
-    ensureRequirements(evt, eventName, spec, errors)
+    ensureRequirements(evt, eventName, spec, errors);
   }
 
-  return { ok: errors.length === 0, errors, eventName }
+  return { ok: errors.length === 0, errors, eventName };
 }

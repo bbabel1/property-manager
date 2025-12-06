@@ -5,6 +5,7 @@ export type AppRole =
   | 'org_staff'
   | 'owner_portal'
   | 'tenant_portal'
+  | 'vendor_portal'
 
 export const RoleRank: Record<AppRole, number> = {
   platform_admin: 100,
@@ -13,6 +14,7 @@ export const RoleRank: Record<AppRole, number> = {
   org_staff: 40,
   owner_portal: 20,
   tenant_portal: 10,
+  vendor_portal: 15,
 }
 
 export function hasRole(userRoles: AppRole[] | undefined, required: AppRole | AppRole[]) {
@@ -22,4 +24,3 @@ export function hasRole(userRoles: AppRole[] | undefined, required: AppRole | Ap
   const needed = Math.min(...req.map((r) => RoleRank[r]))
   return maxRank >= needed
 }
-

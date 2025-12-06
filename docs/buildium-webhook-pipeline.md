@@ -28,7 +28,7 @@ This document summarizes the end-to-end webhook flow so new EventNames and handl
   - **Owners**: `upsertOwnerFromBuildium` + ownership creation; requires property links when provided.
   - **Tasks/task categories**: `mapTaskFromBuildiumWithRelations`, `upsertTaskCategory`; deletes remove rows or tombstone if already absent.
   - **Vendors/vendor categories**: `mapVendorFromBuildiumWithCategory`, `upsertVendorCategory`; vendor deletes acknowledged (no DB delete); categories deleted.
-  - **Work orders**: `mapWorkOrderFromBuildiumWithRelations`; deletes remove row or tombstone if absent.
+- **Work orders**: `mapWorkOrderFromBuildiumWithRelations` (creates vendor if missing, maps costs/dates/notes); deletes remove row or tombstone if absent.
   - **Bank accounts**: currently received but not fully handled; add handlers before enabling deletes.
 
 ## 5) Idempotency & Error Handling

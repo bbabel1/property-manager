@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { normalizeStaffRole } from '@/lib/staff-role';
+import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles';
 
 type Staff = {
   id: number;
@@ -30,10 +31,7 @@ type Staff = {
   buildium_staff_id?: number | null;
 };
 
-const ROLE_OPTIONS = [
-  { value: 'Property Manager', label: 'Property Manager' },
-  { value: 'Bookkeeper', label: 'Bookkeeper' },
-];
+const ROLE_OPTIONS = getAvailableUIStaffRoles().map((value) => ({ value, label: value }));
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);

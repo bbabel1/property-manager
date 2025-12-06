@@ -20,15 +20,22 @@ const PayloadSchema = z.object({
 })
 
 const PROPERTY_ROLE_ALIASES: Record<string, PropertyStaffInsert['role']> = {
-  property_manager: 'PROPERTY_MANAGER',
-  propertymanager: 'PROPERTY_MANAGER',
-  assistant_property_manager: 'ASSISTANT_PROPERTY_MANAGER',
-  assistantpropertymanager: 'ASSISTANT_PROPERTY_MANAGER',
-  operations_manager: 'ADMINISTRATOR',
+  property_manager: 'Property Manager',
+  propertymanager: 'Property Manager',
+  assistant_property_manager: 'Assistant Property Manager',
+  assistantpropertymanager: 'Assistant Property Manager',
+  operations_manager: 'Administrator',
+  administrator: 'Administrator',
+  admin: 'Administrator',
+  maintenance: 'Maintenance Coordinator',
+  maintenance_coordinator: 'Maintenance Coordinator',
+  maintenancecoordinator: 'Maintenance Coordinator',
+  accountant: 'Accountant',
+  bookkeeper: 'Bookkeeper',
 }
 
 function normalizePropertyRole(value?: string | null): PropertyStaffInsert['role'] {
-  if (!value) return 'PROPERTY_MANAGER'
+  if (!value) return 'Property Manager'
   const normalized = value
     .trim()
     .toLowerCase()
@@ -36,23 +43,22 @@ function normalizePropertyRole(value?: string | null): PropertyStaffInsert['role
     .replace(/^_+|_+$/g, '')
   if (PROPERTY_ROLE_ALIASES[normalized]) return PROPERTY_ROLE_ALIASES[normalized]
 
-  const upper = value.trim().toUpperCase()
   const allowedRoles: PropertyStaffInsert['role'][] = [
-    'PROPERTY_MANAGER',
-    'ASSISTANT_PROPERTY_MANAGER',
-    'MAINTENANCE_COORDINATOR',
-    'ACCOUNTANT',
-    'ADMINISTRATOR',
+    'Property Manager',
+    'Assistant Property Manager',
+    'Maintenance Coordinator',
+    'Accountant',
+    'Administrator',
+    'Bookkeeper',
   ]
 
-  return allowedRoles.includes(upper as PropertyStaffInsert['role'])
-    ? (upper as PropertyStaffInsert['role'])
-    : 'PROPERTY_MANAGER'
+  const titleCase = value.trim() as PropertyStaffInsert['role']
+  return allowedRoles.includes(titleCase) ? titleCase : 'Property Manager'
 }
 
 // POST /api/property-staff
 // Body: { assignments: Array<{ property_id: string; staff_id: number | string; role?: string }> }
-// - For PROPERTY_MANAGER: enforce one per property by replacing any existing row for that property/role
+// - For Property Manager: enforce one per property by replacing any existing row for that property/role
 // - For other roles: insert if missing; update updated_at if exists
 export async function POST(request: NextRequest) {
   try {
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
     for (const assignment of parsed.data.assignments) {
       const role = normalizePropertyRole(assignment.role)
       const timestamp = new Date().toISOString()
-      if (role === 'PROPERTY_MANAGER') {
+      if (role === 'Property Manager') {
         const { error: deleteError } = await client
           .from('property_staff')
           .delete()

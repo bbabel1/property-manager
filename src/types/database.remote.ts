@@ -424,46 +424,76 @@ export type Database = {
       }
       buildium_webhook_events: {
         Row: {
+          buildium_webhook_id: string
           created_at: string | null
+          error: string | null
           error_message: string | null
+          event_created_at: string
           event_data: Json
+          event_entity_id: string
           event_id: string | null
+          event_name: string
           event_type: string
           id: string
           max_retries: number | null
           org_id: string | null
-          processed: boolean | null
+          payload: Json | null
+          processed: boolean
           processed_at: string | null
+          received_at: string | null
           retry_count: number | null
+          signature: string | null
+          status: string | null
           updated_at: string | null
+          webhook_type: string | null
         }
         Insert: {
+          buildium_webhook_id: string
           created_at?: string | null
+          error?: string | null
           error_message?: string | null
+          event_created_at: string
           event_data: Json
+          event_entity_id: string
           event_id?: string | null
+          event_name: string
           event_type: string
           id?: string
           max_retries?: number | null
           org_id?: string | null
-          processed?: boolean | null
+          payload?: Json | null
+          processed?: boolean
           processed_at?: string | null
+          received_at?: string | null
           retry_count?: number | null
+          signature?: string | null
+          status?: string | null
           updated_at?: string | null
+          webhook_type?: string | null
         }
         Update: {
+          buildium_webhook_id?: string
           created_at?: string | null
+          error?: string | null
           error_message?: string | null
+          event_created_at?: string
           event_data?: Json
+          event_entity_id?: string
           event_id?: string | null
+          event_name?: string
           event_type?: string
           id?: string
           max_retries?: number | null
           org_id?: string | null
-          processed?: boolean | null
+          payload?: Json | null
+          processed?: boolean
           processed_at?: string | null
+          received_at?: string | null
           retry_count?: number | null
+          signature?: string | null
+          status?: string | null
           updated_at?: string | null
+          webhook_type?: string | null
         }
         Relationships: [
           {
@@ -627,10 +657,9 @@ export type Database = {
         Row: {
           bucket: string | null
           buildium_category_id: number | null
-          buildium_entity_id: number | null
-          buildium_entity_type: string | null
           buildium_file_id: number | null
           buildium_href: string | null
+          category: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -653,10 +682,9 @@ export type Database = {
         Insert: {
           bucket?: string | null
           buildium_category_id?: number | null
-          buildium_entity_id?: number | null
-          buildium_entity_type?: string | null
           buildium_file_id?: number | null
           buildium_href?: string | null
+          category?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -679,10 +707,9 @@ export type Database = {
         Update: {
           bucket?: string | null
           buildium_category_id?: number | null
-          buildium_entity_id?: number | null
-          buildium_entity_type?: string | null
           buildium_file_id?: number | null
           buildium_href?: string | null
+          category?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -703,6 +730,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "files_category_fkey"
+            columns: ["category"]
+            isOneToOne: false
+            referencedRelation: "file_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "files_org_id_fkey"
             columns: ["org_id"]
@@ -922,6 +956,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey1"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_amounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "journal_entries_transaction_id_fkey1"
             columns: ["transaction_id"]
@@ -1281,107 +1322,6 @@ export type Database = {
           },
         ]
       }
-      monthly_logs: {
-        Row: {
-          bills_amount: number
-          charges_amount: number
-          created_at: string
-          escrow_amount: number
-          id: string
-          management_fees_amount: number
-          notes: string | null
-          org_id: string
-          owner_distribution_amount: number
-          owner_statement_amount: number
-          payments_amount: number
-          pdf_url: string | null
-          period_start: string
-          previous_lease_balance: number
-          property_id: string
-          sort_index: number
-          stage: Database["public"]["Enums"]["monthly_log_stage"]
-          status: Database["public"]["Enums"]["monthly_log_status"]
-          tenant_id: string | null
-          unit_id: string
-          updated_at: string
-        }
-        Insert: {
-          bills_amount?: number
-          charges_amount?: number
-          created_at?: string
-          escrow_amount?: number
-          id?: string
-          management_fees_amount?: number
-          notes?: string | null
-          org_id: string
-          owner_distribution_amount?: number
-          owner_statement_amount?: number
-          payments_amount?: number
-          pdf_url?: string | null
-          period_start: string
-          previous_lease_balance?: number
-          property_id: string
-          sort_index?: number
-          stage?: Database["public"]["Enums"]["monthly_log_stage"]
-          status?: Database["public"]["Enums"]["monthly_log_status"]
-          tenant_id?: string | null
-          unit_id: string
-          updated_at?: string
-        }
-        Update: {
-          bills_amount?: number
-          charges_amount?: number
-          created_at?: string
-          escrow_amount?: number
-          id?: string
-          management_fees_amount?: number
-          notes?: string | null
-          org_id?: string
-          owner_distribution_amount?: number
-          owner_statement_amount?: number
-          payments_amount?: number
-          pdf_url?: string | null
-          period_start?: string
-          previous_lease_balance?: number
-          property_id?: string
-          sort_index?: number
-          stage?: Database["public"]["Enums"]["monthly_log_stage"]
-          status?: Database["public"]["Enums"]["monthly_log_status"]
-          tenant_id?: string | null
-          unit_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monthly_logs_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_logs_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_logs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_logs_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       monthly_log_task_rule_runs: {
         Row: {
           evaluated_at: string | null
@@ -1480,7 +1420,9 @@ export type Database = {
           org_id: string
           priority?: string | null
           property_conditions?: Json | null
-          stage_trigger?: Database["public"]["Enums"]["monthly_log_stage"] | null
+          stage_trigger?:
+            | Database["public"]["Enums"]["monthly_log_stage"]
+            | null
           status_default?: string | null
           subject_template: string
           unit_conditions?: Json | null
@@ -1504,7 +1446,9 @@ export type Database = {
           org_id?: string
           priority?: string | null
           property_conditions?: Json | null
-          stage_trigger?: Database["public"]["Enums"]["monthly_log_stage"] | null
+          stage_trigger?:
+            | Database["public"]["Enums"]["monthly_log_stage"]
+            | null
           status_default?: string | null
           subject_template?: string
           unit_conditions?: Json | null
@@ -1531,6 +1475,159 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_logs: {
+        Row: {
+          bills_amount: number
+          charges_amount: number
+          created_at: string
+          escrow_amount: number
+          id: string
+          lease_id: number | null
+          management_fees_amount: number
+          notes: string | null
+          org_id: string
+          owner_distribution_amount: number
+          owner_statement_amount: number
+          payments_amount: number
+          pdf_url: string | null
+          period_start: string
+          previous_lease_balance: number
+          property_id: string
+          sort_index: number
+          stage: Database["public"]["Enums"]["monthly_log_stage"]
+          status: Database["public"]["Enums"]["monthly_log_status"]
+          tenant_id: string | null
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          bills_amount?: number
+          charges_amount?: number
+          created_at?: string
+          escrow_amount?: number
+          id?: string
+          lease_id?: number | null
+          management_fees_amount?: number
+          notes?: string | null
+          org_id: string
+          owner_distribution_amount?: number
+          owner_statement_amount?: number
+          payments_amount?: number
+          pdf_url?: string | null
+          period_start: string
+          previous_lease_balance?: number
+          property_id: string
+          sort_index?: number
+          stage?: Database["public"]["Enums"]["monthly_log_stage"]
+          status?: Database["public"]["Enums"]["monthly_log_status"]
+          tenant_id?: string | null
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          bills_amount?: number
+          charges_amount?: number
+          created_at?: string
+          escrow_amount?: number
+          id?: string
+          lease_id?: number | null
+          management_fees_amount?: number
+          notes?: string | null
+          org_id?: string
+          owner_distribution_amount?: number
+          owner_statement_amount?: number
+          payments_amount?: number
+          pdf_url?: string | null
+          period_start?: string
+          previous_lease_balance?: number
+          property_id?: string
+          sort_index?: number
+          stage?: Database["public"]["Enums"]["monthly_log_stage"]
+          status?: Database["public"]["Enums"]["monthly_log_status"]
+          tenant_id?: string | null
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_logs_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_logs_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_membership_roles: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_membership_roles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_membership_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1578,6 +1675,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          buildium_org_id: number | null
           created_at: string
           id: string
           name: string
@@ -1585,6 +1683,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          buildium_org_id?: number | null
           created_at?: string
           id?: string
           name: string
@@ -1592,6 +1691,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          buildium_org_id?: number | null
           created_at?: string
           id?: string
           name?: string
@@ -1817,6 +1917,73 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permission_profile_permissions: {
+        Row: {
+          created_at: string
+          permission: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          permission: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          permission?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_profile_permissions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "permission_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      permission_profiles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          org_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          org_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          org_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2354,21 +2521,21 @@ export type Database = {
         Row: {
           created_at: string
           property_id: string
-          role: Database["public"]["Enums"]["staff_role"]
+          role: Database["public"]["Enums"]["staff_roles"]
           staff_id: number
           updated_at: string
         }
         Insert: {
           created_at?: string
           property_id: string
-          role?: Database["public"]["Enums"]["staff_role"]
+          role?: Database["public"]["Enums"]["staff_roles"]
           staff_id: number
           updated_at?: string
         }
         Update: {
           created_at?: string
           property_id?: string
-          role?: Database["public"]["Enums"]["staff_role"]
+          role?: Database["public"]["Enums"]["staff_roles"]
           staff_id?: number
           updated_at?: string
         }
@@ -2587,7 +2754,7 @@ export type Database = {
           is_active: boolean
           last_name: string | null
           phone: string | null
-          role: Database["public"]["Enums"]["staff_role"]
+          role: Database["public"]["Enums"]["staff_roles"]
           title: string | null
           updated_at: string
           user_id: string | null
@@ -2602,7 +2769,7 @@ export type Database = {
           is_active?: boolean
           last_name?: string | null
           phone?: string | null
-          role?: Database["public"]["Enums"]["staff_role"]
+          role?: Database["public"]["Enums"]["staff_roles"]
           title?: string | null
           updated_at: string
           user_id?: string | null
@@ -2617,7 +2784,7 @@ export type Database = {
           is_active?: boolean
           last_name?: string | null
           phone?: string | null
-          role?: Database["public"]["Enums"]["staff_role"]
+          role?: Database["public"]["Enums"]["staff_roles"]
           title?: string | null
           updated_at?: string
           user_id?: string | null
@@ -2846,9 +3013,8 @@ export type Database = {
           buildium_tenant_id: number | null
           buildium_unit_id: number | null
           category: string | null
-          subcategory: string | null
-          condition_snapshot: Json | null
           completed_date: string | null
+          condition_snapshot: Json | null
           created_at: string | null
           description: string | null
           estimated_cost: number | null
@@ -2864,8 +3030,9 @@ export type Database = {
           requested_by_contact_id: number | null
           requested_by_type: string | null
           scheduled_date: string | null
-          status: string | null
           source: Database["public"]["Enums"]["task_source_enum"] | null
+          status: string | null
+          subcategory: string | null
           subject: string
           task_category_id: string | null
           task_kind: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2885,9 +3052,8 @@ export type Database = {
           buildium_tenant_id?: number | null
           buildium_unit_id?: number | null
           category?: string | null
-          subcategory?: string | null
-          condition_snapshot?: Json | null
           completed_date?: string | null
+          condition_snapshot?: Json | null
           created_at?: string | null
           description?: string | null
           estimated_cost?: number | null
@@ -2903,8 +3069,9 @@ export type Database = {
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
           scheduled_date?: string | null
-          status?: string | null
           source?: Database["public"]["Enums"]["task_source_enum"] | null
+          status?: string | null
+          subcategory?: string | null
           subject: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2924,9 +3091,8 @@ export type Database = {
           buildium_tenant_id?: number | null
           buildium_unit_id?: number | null
           category?: string | null
-          subcategory?: string | null
-          condition_snapshot?: Json | null
           completed_date?: string | null
+          condition_snapshot?: Json | null
           created_at?: string | null
           description?: string | null
           estimated_cost?: number | null
@@ -2942,8 +3108,9 @@ export type Database = {
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
           scheduled_date?: string | null
-          status?: string | null
           source?: Database["public"]["Enums"]["task_source_enum"] | null
+          status?: string | null
+          subcategory?: string | null
           subject?: string
           task_category_id?: string | null
           task_kind?: Database["public"]["Enums"]["task_kind_enum"] | null
@@ -2964,6 +3131,20 @@ export type Database = {
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_monthly_log_rule_id_fkey"
+            columns: ["monthly_log_rule_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_log_task_rules"
             referencedColumns: ["id"]
           },
           {
@@ -2988,6 +3169,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_subcategory_fkey"
+            columns: ["subcategory"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasks_task_category_fk"
             columns: ["task_category_id"]
             isOneToOne: false
@@ -3006,20 +3194,6 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tasks_monthly_log_id_fkey"
-            columns: ["monthly_log_id"]
-            isOneToOne: false
-            referencedRelation: "monthly_logs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tasks_monthly_log_rule_id_fkey"
-            columns: ["monthly_log_rule_id"]
-            isOneToOne: false
-            referencedRelation: "monthly_log_task_rules"
             referencedColumns: ["id"]
           },
         ]
@@ -3235,6 +3409,13 @@ export type Database = {
             foreignKeyName: "journal_entries_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
+            referencedRelation: "transaction_amounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
             referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
@@ -3407,6 +3588,20 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -3673,6 +3868,52 @@ export type Database = {
           },
         ]
       }
+      user_permission_profiles: {
+        Row: {
+          created_at: string
+          org_id: string
+          profile_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          profile_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          profile_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permission_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_permission_profiles_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "permission_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_permission_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       vendor_categories: {
         Row: {
           buildium_category_id: number | null
@@ -3719,6 +3960,7 @@ export type Database = {
           insurance_provider: string | null
           is_active: boolean | null
           notes: string | null
+          payment_terms_days: number | null
           tax_address_city: string | null
           tax_address_country: string | null
           tax_address_line1: string | null
@@ -3749,6 +3991,7 @@ export type Database = {
           insurance_provider?: string | null
           is_active?: boolean | null
           notes?: string | null
+          payment_terms_days?: number | null
           tax_address_city?: string | null
           tax_address_country?: string | null
           tax_address_line1?: string | null
@@ -3779,6 +4022,7 @@ export type Database = {
           insurance_provider?: string | null
           is_active?: boolean | null
           notes?: string | null
+          payment_terms_days?: number | null
           tax_address_city?: string | null
           tax_address_country?: string | null
           tax_address_line1?: string | null
@@ -3824,6 +4068,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_event_flags: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          event_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          event_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          event_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       work_orders: {
         Row: {
@@ -3922,6 +4187,63 @@ export type Database = {
       }
     }
     Views: {
+      buildium_webhook_events_unhandled: {
+        Row: {
+          buildium_webhook_id: string | null
+          created_at: string | null
+          error: string | null
+          error_message: string | null
+          event_created_at: string | null
+          event_entity_id: string | null
+          event_name: string | null
+          event_type: string | null
+          id: string | null
+          processed: boolean | null
+          processed_at: string | null
+          received_at: string | null
+          retry_count: number | null
+          signature: string | null
+          status: string | null
+          webhook_type: string | null
+        }
+        Insert: {
+          buildium_webhook_id?: string | null
+          created_at?: string | null
+          error?: string | null
+          error_message?: string | null
+          event_created_at?: string | null
+          event_entity_id?: string | null
+          event_name?: string | null
+          event_type?: string | null
+          id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          received_at?: string | null
+          retry_count?: number | null
+          signature?: string | null
+          status?: string | null
+          webhook_type?: string | null
+        }
+        Update: {
+          buildium_webhook_id?: string | null
+          created_at?: string | null
+          error?: string | null
+          error_message?: string | null
+          event_created_at?: string | null
+          event_entity_id?: string | null
+          event_name?: string | null
+          event_type?: string | null
+          id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          received_at?: string | null
+          retry_count?: number | null
+          signature?: string | null
+          status?: string | null
+          webhook_type?: string | null
+        }
+        Relationships: []
+      }
       column_info_cache: {
         Row: {
           comment: string | null
@@ -4016,6 +4338,38 @@ export type Database = {
           total_size: string | null
         }
         Relationships: []
+      }
+      transaction_amounts: {
+        Row: {
+          account_name: string | null
+          created_at: string | null
+          date: string | null
+          effective_amount: number | null
+          id: string | null
+          lease_id: number | null
+          memo: string | null
+          monthly_log_id: string | null
+          reference_number: string | null
+          transaction_type:
+            | Database["public"]["Enums"]["transaction_type_enum"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users_with_auth: {
         Row: {
@@ -4597,6 +4951,18 @@ export type Database = {
         Args: { event_data: Json }
         Returns: undefined
       }
+      is_org_admin: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_org_admin_or_manager: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_org_member: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_platform_admin: { Args: { p_user_id?: string }; Returns: boolean }
       is_valid_country:
         | {
@@ -4623,6 +4989,10 @@ export type Database = {
       map_vendor_to_buildium: { Args: { p_vendor_id: string }; Returns: Json }
       map_work_order_to_buildium: {
         Args: { p_work_order_id: string }
+        Returns: Json
+      }
+      monthly_log_transaction_bundle: {
+        Args: { p_monthly_log_id: string }
         Returns: Json
       }
       normalize_country: { Args: { val: string }; Returns: string }
@@ -5010,6 +5380,10 @@ export type Database = {
         | "Zimbabwe"
       dr_cr_enum: "DR" | "CR"
       entity_type_enum: "Rental" | "Company"
+      etf_account_type_enum: "Checking" | "Saving"
+      fee_type_enum: "Percentage" | "Flat Rate"
+      FeeFrequency: "Monthly" | "Annually"
+      FeeType: "Percentage" | "Flat Rate"
       files_entity_type_enum:
         | "Properties"
         | "Units"
@@ -5022,10 +5396,6 @@ export type Database = {
         | "Ownership Accounts"
         | "Accounts"
         | "Vendors"
-      etf_account_type_enum: "Checking" | "Saving"
-      fee_type_enum: "Percentage" | "Flat Rate"
-      FeeFrequency: "Monthly" | "Annually"
-      FeeType: "Percentage" | "Flat Rate"
       gl_category:
         | "receivable"
         | "prepayment"
@@ -5600,6 +5970,19 @@ export const Constants = {
       fee_type_enum: ["Percentage", "Flat Rate"],
       FeeFrequency: ["Monthly", "Annually"],
       FeeType: ["Percentage", "Flat Rate"],
+      files_entity_type_enum: [
+        "Properties",
+        "Units",
+        "Leases",
+        "Tenants",
+        "Rental Owners",
+        "Associations",
+        "Association Owners",
+        "Association Units",
+        "Ownership Accounts",
+        "Accounts",
+        "Vendors",
+      ],
       gl_category: [
         "receivable",
         "prepayment",

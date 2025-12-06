@@ -12,6 +12,7 @@ import {
 } from '../_shared/webhookSchemas.ts'
 import { routeLeaseTransactionWebhookEvent } from '../_shared/eventRouting.ts'
 import { emitRoutingTelemetry } from '../_shared/telemetry.ts'
+import { sendPagerDutyEvent } from '../_shared/pagerDuty.ts'
 
 // Buildium API Client for lease transactions
 class BuildiumClient {
@@ -275,6 +276,36 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function normalizeLeaseTransactionsPayload(
+  body: unknown
+): { Events: BuildiumWebhookEvent[]; credentials?: LeaseTransactionsWebhookPayload['credentials'] } | null {
+  const raw = body as any
+  if (!raw || typeof raw !== 'object') return null
+
+  if (Array.isArray(raw.Events)) {
+    return { Events: raw.Events as BuildiumWebhookEvent[], credentials: raw.credentials }
+  }
+
+  if (raw.Event && typeof raw.Event === 'object') {
+    return { Events: [raw.Event as BuildiumWebhookEvent], credentials: raw.credentials }
+  }
+
+  const looksLikeSingleEvent =
+    typeof raw.EventType === 'string' ||
+    typeof raw.EventName === 'string' ||
+    raw.Id != null ||
+    raw.EventId != null ||
+    raw.TransactionId != null ||
+    raw.LeaseId != null ||
+    raw.EntityId != null
+
+  if (looksLikeSingleEvent) {
+    return { Events: [raw as BuildiumWebhookEvent], credentials: raw.credentials }
+  }
+
+  return null
+}
+
 // Main handler
 serve(async (req) => {
   try {
@@ -337,13 +368,31 @@ serve(async (req) => {
       )
     }
 
-    const payloadResult = validateWebhookPayload(parsedBody, LeaseTransactionsWebhookPayloadSchema)
+    const normalizedPayload = normalizeLeaseTransactionsPayload(parsedBody)
+    if (!normalizedPayload) {
+      console.warn('buildium-lease-transactions payload missing events', {
+        hasEventsArray: Array.isArray((parsedBody as any)?.Events),
+        keys: parsedBody && typeof parsedBody === 'object' ? Object.keys(parsedBody as any) : [],
+      })
+      return new Response(
+        JSON.stringify({ error: 'No webhook events found in payload' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+
+    const payloadResult = validateWebhookPayload(normalizedPayload, LeaseTransactionsWebhookPayloadSchema)
     if (!payloadResult.ok) {
       console.warn('buildium-lease-transactions schema validation failed', {
         errors: payloadResult.errors,
-        eventTypes: Array.isArray((parsedBody as any)?.Events)
-          ? (parsedBody as any).Events.map((evt: any) => deriveEventType(evt))
-          : [],
+        eventTypes: normalizedPayload.Events.map((evt: any) => deriveEventType(evt)),
+      })
+      await sendPagerDutyEvent({
+        summary: 'Buildium lease-transactions webhook schema validation failed',
+        severity: 'warning',
+        custom_details: { errors: payloadResult.errors, eventTypes: normalizedPayload.Events.map((evt: any) => deriveEventType(evt)) },
       })
       return new Response(
         JSON.stringify({ error: 'Invalid payload', details: payloadResult.errors }),
@@ -369,6 +418,11 @@ serve(async (req) => {
 
     if (validationFailures.length) {
       console.warn('buildium-lease-transactions payload validation failed', { failures: validationFailures })
+      await sendPagerDutyEvent({
+        summary: 'Buildium lease-transactions webhook payload validation failed',
+        severity: 'warning',
+        custom_details: { failures: validationFailures },
+      })
       return new Response(
         JSON.stringify({ error: 'Invalid payload', details: validationFailures }),
         {

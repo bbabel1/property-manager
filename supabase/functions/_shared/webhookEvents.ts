@@ -1,3 +1,5 @@
+import { canonicalizeEventName } from "./eventValidation.ts"
+
 export interface NormalizedBuildiumWebhook {
   buildiumWebhookId: string
   eventName: string
@@ -30,7 +32,7 @@ function extractEventName(event: any): string | null {
     event?.type ??
     event?.Data?.EventType ??
     event?.Data?.EventName
-  if (typeof value === 'string' && value.trim().length) return value
+  if (typeof value === 'string' && value.trim().length) return canonicalizeEventName(value)
   return null
 }
 
@@ -41,8 +43,35 @@ function extractPrimaryId(event: any): string | null {
     event?.eventId ??
     event?.TransactionId ??
     event?.LeaseId ??
+    event?.BillId ??
+    event?.PaymentId ??
+    (Array.isArray(event?.BillIds) && event?.BillIds.length ? event.BillIds[0] : null) ??
+    event?.PropertyId ??
+    event?.UnitId ??
+    event?.GLAccountId ??
+    event?.TaskId ??
+    event?.TaskCategoryId ??
+    event?.VendorId ??
+    event?.VendorCategoryId ??
+    event?.WorkOrderId ??
+    event?.RentalOwnerId ??
+    event?.BankAccountId ??
+    event?.AccountId ??
     event?.EntityId ??
     event?.Data?.TransactionId ??
+    event?.Data?.BillId ??
+    (Array.isArray(event?.Data?.BillIds) && event?.Data?.BillIds.length ? event.Data.BillIds[0] : null) ??
+    event?.Data?.PropertyId ??
+    event?.Data?.UnitId ??
+    event?.Data?.GLAccountId ??
+    event?.Data?.TaskId ??
+    event?.Data?.TaskCategoryId ??
+    event?.Data?.VendorId ??
+    event?.Data?.VendorCategoryId ??
+    event?.Data?.WorkOrderId ??
+    event?.Data?.RentalOwnerId ??
+    event?.Data?.BankAccountId ??
+    event?.Data?.AccountId ??
     event?.Data?.Id
   return candidate != null && candidate !== '' ? String(candidate) : null
 }

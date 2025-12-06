@@ -33,6 +33,7 @@ import type {
   BuildiumWorkOrderPriority,
   BuildiumWorkOrderStatus
 } from '../types/buildium'
+import { normalizeStaffRole } from '@/lib/staff-role'
 
 // Type alias for typed Supabase client
 type TypedSupabaseClient = SupabaseClient<Database>
@@ -1488,6 +1489,14 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<Buildi
 
   // Resolve local lease_id
   const localLeaseId = await resolveLocalLeaseId(buildiumTx.LeaseId, supabase)
+  let leaseIdForUpsert = localLeaseId
+  if (!leaseIdForUpsert && buildiumTx.LeaseId) {
+    try {
+      leaseIdForUpsert = await resolveOrCreateLeaseFromBuildium(buildiumTx.LeaseId, supabase)
+    } catch (err) {
+      console.warn('upsertLeaseTransactionWithLines: failed to resolve/create lease', err)
+    }
+  }
 
   // Find existing transaction by buildium_transaction_id
   let existingTx: { id: string; created_at: string } | null = null
@@ -1507,7 +1516,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<Buildi
   if (existingTx) {
     const updatePayload = {
       ...mappedTx,
-      lease_id: localLeaseId,
+      lease_id: leaseIdForUpsert,
       updated_at: nowIso
     }
     const { data, error } = await supabase
@@ -1521,7 +1530,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<Buildi
   } else {
     const insertPayload = {
       ...mappedTx,
-      lease_id: localLeaseId,
+      lease_id: leaseIdForUpsert,
       created_at: nowIso,
       updated_at: nowIso
     }
@@ -1750,13 +1759,14 @@ export function mapStaffToBuildium(local: StaffRow): BuildiumStaffInput {
     PhoneNumber: local.phone || undefined,
     Title: local.title || undefined,
     Role: ((): string | undefined => {
-      const r = String(local.role || '').toUpperCase()
+      const r = normalizeStaffRole(local.role)
       switch (r) {
-        case 'PROPERTY_MANAGER': return 'Property Manager'
-        case 'ASSISTANT_PROPERTY_MANAGER': return 'Assistant Manager'
-        case 'MAINTENANCE_COORDINATOR': return 'Maintenance Coordinator'
-        case 'ACCOUNTANT': return 'Accountant'
-        case 'ADMINISTRATOR': return 'Administrator'
+        case 'Property Manager': return 'Property Manager'
+        case 'Assistant Property Manager': return 'Assistant Manager'
+        case 'Maintenance Coordinator': return 'Maintenance Coordinator'
+        case 'Accountant': return 'Accountant'
+        case 'Administrator': return 'Administrator'
+        case 'Bookkeeper': return 'Accountant'
         default: return undefined
       }
     })()
@@ -1766,11 +1776,12 @@ export function mapStaffToBuildium(local: StaffRow): BuildiumStaffInput {
 export function mapStaffFromBuildium(buildium: Record<string, unknown>): StaffData {
   const role = String(buildium?.Role || '').toLowerCase()
   let localRole: string | null = null
-  if (role.includes('assistant')) localRole = 'ASSISTANT_PROPERTY_MANAGER'
-  else if (role.includes('maintenance')) localRole = 'MAINTENANCE_COORDINATOR'
-  else if (role.includes('accountant')) localRole = 'ACCOUNTANT'
-  else if (role.includes('admin')) localRole = 'ADMINISTRATOR'
-  else if (role.includes('manager')) localRole = 'PROPERTY_MANAGER'
+  if (role.includes('assistant')) localRole = 'Assistant Property Manager'
+  else if (role.includes('maintenance')) localRole = 'Maintenance Coordinator'
+  else if (role.includes('accountant')) localRole = 'Accountant'
+  else if (role.includes('bookkeeper')) localRole = 'Bookkeeper'
+  else if (role.includes('admin')) localRole = 'Administrator'
+  else if (role.includes('manager')) localRole = 'Property Manager'
   return {
     first_name: typeof buildium?.FirstName === 'string' ? buildium.FirstName : '',
     last_name: typeof buildium?.LastName === 'string' ? buildium.LastName : '',
@@ -2649,7 +2660,14 @@ export async function mapTaskFromBuildiumWithRelations(
 
   // Resolve category/subcategory and assigned staff if available
   let taskCategoryId = await ensureTaskCategoryFromTask(buildiumTask, supabase)
-  const assignedToStaffId = await resolveStaffIdByBuildiumUserId(buildiumTask?.AssignedToUserId, supabase)
+  let assignedToStaffId = await resolveStaffIdByBuildiumUserId(buildiumTask?.AssignedToUserId, supabase)
+  if (!assignedToStaffId && buildiumTask?.AssignedToUserId) {
+    try {
+      assignedToStaffId = await resolveOrCreateStaffFromBuildium(buildiumTask.AssignedToUserId, supabase)
+    } catch (err) {
+      console.warn('mapTaskFromBuildiumWithRelations: failed to resolve/create staff', err)
+    }
+  }
 
   // If To-Do kind and category required, ensure default when missing
   if (options?.taskKind === 'todo' && (!taskCategoryId || options?.requireCategory)) {
@@ -2711,7 +2729,10 @@ export async function mapTaskFromBuildiumWithRelations(
   // Requested by (Owner/Resident/Contact)
   const requested = await buildRequestedByFields(buildiumTask?.RequestedByUserEntity, supabase)
   const requestedTenantLocalId = requested.buildium_tenant_id
-    ? await resolveTenantIdByBuildiumTenantId(requested.buildium_tenant_id, supabase)
+    ? await resolveOrCreateTenantByBuildiumId(requested.buildium_tenant_id, supabase)
+    : null
+  const requestedOwnerLocalId = requested.buildium_owner_id
+    ? await resolveOrCreateOwnerByBuildiumId(requested.buildium_owner_id, supabase)
     : null
 
   return sanitizeForBuildium({
@@ -2725,6 +2746,7 @@ export async function mapTaskFromBuildiumWithRelations(
     requested_by_contact_id: requested.requested_by_contact_id || undefined,
     requested_by_type: requested.requested_by_type || undefined,
     requested_by_buildium_id: requested.requested_by_buildium_id || undefined,
+    owner_id: requestedOwnerLocalId || undefined,
     tenant_id: requestedTenantLocalId || undefined,
     task_kind: options?.taskKind || undefined,
     // Fallback Buildium IDs for backfill
@@ -2904,6 +2926,194 @@ async function resolveTenantIdByBuildiumTenantId(
     .single()
   if (error && error.code !== 'PGRST116') return null
   return data?.id ?? null
+}
+
+async function fetchBuildiumResource(path: string): Promise<any | null> {
+  const baseUrl = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'
+  const clientId = process.env.BUILDIUM_CLIENT_ID
+  const clientSecret = process.env.BUILDIUM_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    console.warn('fetchBuildiumResource missing Buildium credentials')
+    return null
+  }
+  const url = `${baseUrl}${path}`
+  const resp = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'x-buildium-client-id': clientId,
+      'x-buildium-client-secret': clientSecret
+    }
+  })
+  if (!resp.ok) {
+    console.warn('fetchBuildiumResource failed', { path, status: resp.status })
+    return null
+  }
+  return resp.json()
+}
+
+// Best-effort helpers to resolve or create missing entities from Buildium when referenced by ID.
+export async function resolveOrCreateLeaseFromBuildium(
+  buildiumLeaseId: number | null | undefined,
+  supabase: TypedSupabaseClient
+): Promise<string | null> {
+  if (!buildiumLeaseId) return null
+  const existing = await resolveLocalLeaseId(buildiumLeaseId, supabase)
+  if (existing) return existing
+  try {
+    const lease = await fetchBuildiumResource(`/leases/${buildiumLeaseId}`)
+    if (!lease) return null
+    const mapped = mapLeaseFromBuildium(lease as any)
+    const now = new Date().toISOString()
+    const { data, error } = await supabase
+      .from('lease')
+      .insert({ ...mapped, created_at: now, updated_at: now })
+      .select('id')
+      .maybeSingle()
+    if (error) {
+      console.warn('resolveOrCreateLeaseFromBuildium insert failed', error)
+      return null
+    }
+    return data?.id ?? null
+  } catch (e) {
+    console.warn('resolveOrCreateLeaseFromBuildium: lease fetch/create failed', e)
+    return null
+  }
+}
+
+export async function resolveOrCreateStaffFromBuildium(
+  buildiumUserId: number | null | undefined,
+  supabase: TypedSupabaseClient
+): Promise<string | null> {
+  if (!buildiumUserId) return null
+  const existing = await resolveStaffIdByBuildiumUserId(buildiumUserId, supabase)
+  if (existing) return existing
+  console.warn('resolveOrCreateStaffFromBuildium: auto-create disabled (schema lacks contact_id/phone on staff/contacts)')
+  return null
+}
+
+export async function resolveOrCreateOwnerByBuildiumId(
+  buildiumOwnerId: number | null | undefined,
+  supabase: TypedSupabaseClient
+): Promise<string | null> {
+  if (!buildiumOwnerId) return null
+  const existing = await resolveOwnerIdByBuildiumOwnerId(buildiumOwnerId, supabase)
+  if (existing) return existing
+  try {
+    const owner = await fetchBuildiumResource(`/rentalowners/${buildiumOwnerId}`)
+    if (!owner) return null
+    const result = await upsertOwnerFromBuildium(owner as any, supabase)
+    return result.ownerId
+  } catch (e) {
+    console.warn('resolveOrCreateOwnerByBuildiumId: owner fetch/create failed', e)
+    return null
+  }
+}
+
+export async function resolveOrCreateTenantByBuildiumId(
+  buildiumTenantId: number | null | undefined,
+  supabase: TypedSupabaseClient
+): Promise<string | null> {
+  if (!buildiumTenantId) return null
+  const existing = await resolveTenantIdByBuildiumTenantId(buildiumTenantId, supabase)
+  if (existing) return existing
+  try {
+    const tenant = await fetchBuildiumResource(`/rentals/tenants/${buildiumTenantId}`)
+    if (!tenant) return null
+    const contactData = mapTenantToContact(tenant as any)
+    const tenantData = mapTenantToTenantRecord(tenant as any)
+    const now = new Date().toISOString()
+
+    // Create contact
+    const { data: contactRow, error: contactErr } = await supabase
+      .from('contacts')
+      .insert({ ...contactData, created_at: now, updated_at: now })
+      .select('id')
+      .maybeSingle()
+    if (contactErr) {
+      console.warn('resolveOrCreateTenantByBuildiumId contact insert failed', contactErr)
+      return null
+    }
+    const contactId = contactRow?.id ?? null
+
+    const insertPayload = { ...tenantData, contact_id: contactId, created_at: now, updated_at: now }
+    const { data: tenantRow, error: tenantErr } = await supabase
+      .from('tenants')
+      .insert(insertPayload as any)
+      .select('id')
+      .maybeSingle()
+    if (tenantErr) {
+      console.warn('resolveOrCreateTenantByBuildiumId tenant insert failed', tenantErr)
+      return null
+    }
+    return tenantRow?.id ?? null
+  } catch (e) {
+    console.warn('resolveOrCreateTenantByBuildiumId: tenant fetch/create failed', e)
+    return null
+  }
+}
+
+export async function resolveOrCreatePropertyFromBuildium(
+  buildiumPropertyId: number | null | undefined,
+  supabase: TypedSupabaseClient
+): Promise<string | null> {
+  if (!buildiumPropertyId) return null
+  const existing = await resolveLocalPropertyIdFromBuildium(buildiumPropertyId, supabase)
+  if (existing) return existing
+  try {
+    const property = await fetchBuildiumResource(`/rentals/${buildiumPropertyId}`)
+    if (!property) return null
+    const mapped = await mapPropertyFromBuildiumWithBankAccount(property as any, supabase)
+    const now = new Date().toISOString()
+    const { data, error } = await supabase
+      .from('properties')
+      .insert({ ...mapped, created_at: now, updated_at: now })
+      .select('id')
+      .maybeSingle()
+    if (error) {
+      console.warn('resolveOrCreatePropertyFromBuildium insert failed', error)
+      return null
+    }
+    return data?.id ?? null
+  } catch (e) {
+    console.warn('resolveOrCreatePropertyFromBuildium: fetch/create failed', e)
+    return null
+  }
+}
+
+export async function resolveOrCreateUnitFromBuildium(
+  buildiumUnitId: number | null | undefined,
+  supabase: TypedSupabaseClient
+): Promise<string | null> {
+  if (!buildiumUnitId) return null
+  const existing = await resolveLocalUnitIdFromBuildium(buildiumUnitId, supabase)
+  if (existing) return existing
+  try {
+    const unit = await fetchBuildiumResource(`/rentals/units/${buildiumUnitId}`)
+    if (!unit) return null
+    const mapped = mapUnitFromBuildium(unit as any)
+    const now = new Date().toISOString()
+    const payload: any = { ...mapped, created_at: now, updated_at: now }
+    const buildiumPropId = (unit as any)?.PropertyId ?? (unit as any)?.Property?.Id ?? null
+    if (buildiumPropId) {
+      const localPropId =
+        (await resolveLocalPropertyIdFromBuildium(buildiumPropId, supabase)) ||
+        (await resolveOrCreatePropertyFromBuildium(buildiumPropId, supabase))
+      if (localPropId) payload.property_id = localPropId
+    }
+    const { data, error } = await supabase
+      .from('units')
+      .insert(payload)
+      .select('id')
+      .maybeSingle()
+    if (error) {
+      console.warn('resolveOrCreateUnitFromBuildium insert failed', error)
+      return null
+    }
+    return data?.id ?? null
+  } catch (e) {
+    console.warn('resolveOrCreateUnitFromBuildium: fetch/create failed', e)
+    return null
+  }
 }
 
 async function resolveContactIdForOwner(ownerId: string | null, supabase: TypedSupabaseClient): Promise<number | null> {
@@ -4127,23 +4337,30 @@ async function resolveBuildiumUnitIdFromLocal(localUnitId: string | null | undef
 
 export function mapWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): any {
   const subject = buildiumWO.Subject || buildiumWO.Title || ''
-  const rawStatus = (buildiumWO as any)?.WorkOrderStatus as BuildiumWorkOrderStatus | BuildiumWorkOrderStatus | undefined
-  const statusValue = (buildiumWO as any)?.Status || rawStatus
-  const dueDate = (buildiumWO as any)?.DueDate || (buildiumWO as any)?.WorkOrderDueDate || null
-  const desc = (buildiumWO as any)?.WorkDetails ?? (buildiumWO as any)?.Description ?? null
+  const rawStatus = buildiumWO.WorkOrderStatus
+  const statusValue = buildiumWO.Status || rawStatus
+  const dueDate = buildiumWO.DueDate || buildiumWO.WorkOrderDueDate || null
+  const desc = buildiumWO.WorkDetails ?? buildiumWO.Description ?? null
   return {
     buildium_work_order_id: buildiumWO.Id,
     subject,
     description: desc,
-    priority: mapWorkOrderPriorityFromBuildium((buildiumWO as any)?.Priority),
+    priority: mapWorkOrderPriorityFromBuildium(buildiumWO.Priority),
     status: mapWorkOrderStatusFromBuildium(statusValue as any),
     assigned_to: buildiumWO.AssignedToUserId ? String(buildiumWO.AssignedToUserId) : null,
-    estimated_cost: null,
-    actual_cost: null,
-    scheduled_date: dueDate ? normalizeDateString(String(dueDate), true) : null,
-    completed_date: null,
+    estimated_cost:
+      typeof buildiumWO.EstimatedCost === 'number' ? buildiumWO.EstimatedCost : null,
+    actual_cost: typeof buildiumWO.ActualCost === 'number' ? buildiumWO.ActualCost : null,
+    scheduled_date: buildiumWO.ScheduledDate
+      ? normalizeDateString(String(buildiumWO.ScheduledDate), true)
+      : dueDate
+        ? normalizeDateString(String(dueDate), true)
+        : null,
+    completed_date: buildiumWO.CompletedDate
+      ? normalizeDateString(String(buildiumWO.CompletedDate), true)
+      : null,
     category: buildiumWO.Category?.Name ?? null,
-    notes: (buildiumWO as any)?.VendorNotes ?? null,
+    notes: buildiumWO.VendorNotes ?? null,
     // property_id/unit_id are resolved in the WithRelations variant
     property_id: null,
     unit_id: null,
@@ -4156,10 +4373,10 @@ export function mapWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): any {
 export async function mapWorkOrderFromBuildiumWithRelations(buildiumWO: BuildiumWorkOrder, supabase: any): Promise<any> {
   const base = mapWorkOrderFromBuildium(buildiumWO)
   const buildiumUnitId =
-    (buildiumWO as any)?.UnitId ??
+    buildiumWO.UnitId ??
     (buildiumWO as any)?.Task?.UnitId ??
     null
-  const localUnitId = await resolveLocalUnitIdFromBuildium(buildiumUnitId, supabase)
+  let localUnitId = await resolveLocalUnitIdFromBuildium(buildiumUnitId, supabase)
 
   let localPropertyId = await resolveLocalPropertyIdFromBuildium((buildiumWO as any)?.Property?.Id, supabase)
   let orgId: string | null = null
@@ -4197,9 +4414,9 @@ export async function mapWorkOrderFromBuildiumWithRelations(buildiumWO: Buildium
 
   // Resolve vendor by Buildium vendor id if present
   let vendorId: string | null = null
-  if ((buildiumWO as any)?.VendorId) {
+  if (buildiumWO.VendorId) {
     try {
-      vendorId = await resolveVendorIdByBuildiumVendorId((buildiumWO as any).VendorId, supabase)
+      vendorId = await resolveLocalVendorIdFromBuildium(buildiumWO.VendorId, supabase)
     } catch (error) {
       console.warn('mapWorkOrderFromBuildiumWithRelations: failed to resolve vendor', error)
     }

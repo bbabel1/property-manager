@@ -6,6 +6,7 @@ import { Button } from './ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import type { CreateStaffFormValues, StaffSummary } from '@/components/forms/types'
 import { normalizeStaffRole } from '@/lib/staff-role'
+import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles'
 
 type CreateStaffModalProps = {
   isOpen: boolean
@@ -13,7 +14,7 @@ type CreateStaffModalProps = {
   onSuccess: (newStaff: StaffSummary) => void
 }
 
-const STAFF_ROLES = ['Property Manager', 'Bookkeeper']
+const STAFF_ROLES = getAvailableUIStaffRoles()
 
 const INITIAL_FORM: CreateStaffFormValues = {
   firstName: '',
