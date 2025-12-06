@@ -223,6 +223,13 @@ export default function MonthlyLogDetailPageContent({
         : null;
   const unitLabel = monthlyLog.units?.unit_number ?? monthlyLog.units?.unit_name ?? null;
   const orgId = monthlyLog.org_id != null ? String(monthlyLog.org_id) : null;
+  const addTransactionDisabled =
+    transactionScope === 'lease' ? !hasActiveLease : !supportsUnitTransactions;
+  const addTransactionDisabledReason = addTransactionDisabled
+    ? transactionScope === 'lease'
+      ? 'Link an active lease to this monthly log to add lease transactions.'
+      : 'Unit information is required before adding unit transactions.'
+    : null;
 
   useEffect(() => {
     if (!allowedModes.includes(transactionMode)) {
@@ -723,13 +730,6 @@ export default function MonthlyLogDetailPageContent({
   const statusActionLabel =
     logStatus === 'complete' ? 'Reopen monthly log' : 'Mark monthly log complete';
 
-  const addTransactionDisabled =
-    transactionScope === 'lease' ? !hasActiveLease : !supportsUnitTransactions;
-  const addTransactionDisabledReason = addTransactionDisabled
-    ? transactionScope === 'lease'
-      ? 'Link an active lease to this monthly log to add lease transactions.'
-      : 'Unit information is required before adding unit transactions.'
-    : null;
   const selectedEditIntent = useMemo(
     () => resolveEditTarget(selectedTransactionDetail),
     [resolveEditTarget, selectedTransactionDetail],

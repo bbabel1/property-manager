@@ -51,6 +51,23 @@ function formatInsurance(value?: string | null): string {
 
 const emptyPlaceholder = '—';
 
+const STATUS_PILL_STYLES = {
+  active:
+    'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
+  inactive:
+    'border-[var(--color-danger-400)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
+};
+
+const COMPLIANCE_PILL_STYLES: Record<
+  NonNullable<VendorInsight['complianceStatus']>,
+  string
+> = {
+  ok: '',
+  expiring: 'border-amber-200 bg-amber-50 text-amber-700',
+  expired: 'border-[var(--color-danger-400)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
+  missing: 'border-[var(--color-danger-200)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
+};
+
 export function VendorsTable({ vendors, categories }: VendorsTableProps) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -131,9 +148,11 @@ export function VendorsTable({ vendors, categories }: VendorsTableProps) {
               {filteredVendors.map((vendor) => {
                 const insurance = formatInsurance(vendor.insuranceExpirationDate);
                 const statusLabel = vendor.isActive ? 'Active' : 'Inactive';
-                const statusClass = vendor.isActive
-                  ? 'bg-[var(--color-action-50)] text-[var(--color-action-600)] border border-[var(--color-action-200)]'
-                  : 'bg-slate-100 text-slate-600 border border-slate-200';
+                const statusClass = vendor.isActive ? STATUS_PILL_STYLES.active : STATUS_PILL_STYLES.inactive;
+                const complianceTone =
+                  vendor.complianceStatus && vendor.complianceStatus !== 'ok'
+                    ? COMPLIANCE_PILL_STYLES[vendor.complianceStatus]
+                    : null;
 
                 return (
                   <TableRowLink
@@ -190,17 +209,8 @@ export function VendorsTable({ vendors, categories }: VendorsTableProps) {
                           <CalendarDays className="text-muted-foreground h-4 w-4" />
                           <span>{insurance}</span>
                         </div>
-                        {vendor.complianceStatus && vendor.complianceStatus !== 'ok' ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'w-max border-amber-200 bg-amber-50 text-amber-700',
-                              vendor.complianceStatus === 'expired' &&
-                                'border-red-200 bg-red-50 text-red-700',
-                              vendor.complianceStatus === 'missing' &&
-                                'border-slate-200 bg-slate-100 text-slate-600',
-                            )}
-                          >
+                        {complianceTone ? (
+                          <Badge variant="outline" className={cn('w-max', complianceTone)}>
                             {vendor.complianceStatus === 'expiring'
                               ? 'Expiring'
                               : vendor.complianceStatus === 'expired'

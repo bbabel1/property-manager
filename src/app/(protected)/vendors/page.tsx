@@ -26,12 +26,17 @@ export default async function VendorsPage() {
         title="Vendors"
         description="Manage your service providers and contractors."
         actions={
-          <Button size="sm" className="gap-2" asChild>
-            <Link href="/vendors">
-              <Plus className="h-4 w-4" />
-              Add vendor
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2" asChild>
+              <Link href="/vendors/categories">Manage categories</Link>
+            </Button>
+            <Button size="sm" className="gap-2" asChild>
+              <Link href="/vendors">
+                <Plus className="h-4 w-4" />
+                Add vendor
+              </Link>
+            </Button>
+          </div>
         }
       />
       <PageBody>

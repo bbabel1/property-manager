@@ -35,7 +35,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { TableRowLink } from '@/components/ui/table-row-link';
 import { cn } from '@/components/ui/utils';
+import BillRowActions from '@/components/financials/BillRowActions';
 import type { Database } from '@/types/database';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
@@ -101,11 +103,25 @@ export type RecentVendorWorkOrder = {
   propertyName: string | null;
 };
 
+export type VendorBillRow = {
+  id: string;
+  billDate: string | null;
+  totalAmount: number;
+  memo: string | null;
+  referenceNumber: string | null;
+  buildiumBillId: number | null;
+  propertyName: string | null;
+  unitLabel: string | null;
+  accountName: string | null;
+  accountNumber: string | null;
+};
+
 type VendorsDetailsClientProps = {
   vendor: VendorDetails;
   categories: CategoryOption[];
   expenseAccounts: ExpenseAccountOption[];
   recentWorkOrders: RecentVendorWorkOrder[];
+  bills: VendorBillRow[];
 };
 
 type EditFormState = {
@@ -230,6 +246,43 @@ function formatWorkOrderLabel(value: string | null | undefined): string {
     .split(/\s+/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ');
+}
+
+const billDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+const billCurrencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatBillDate(value: string | null): string {
+  if (!value) return '—';
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const date = new Date(isoLike);
+  if (Number.isNaN(date.getTime())) return '—';
+  return billDateFormatter.format(date);
+}
+
+function formatBillAmount(value: number | null | undefined): string {
+  const amount = Math.abs(Number(value ?? 0));
+  if (!Number.isFinite(amount)) return billCurrencyFormatter.format(0);
+  return billCurrencyFormatter.format(amount);
+}
+
+function formatAccountLabel(name?: string | null, number?: string | null): string {
+  if (!name && !number) return '—';
+  return [number, name].filter(Boolean).join(' • ') || '—';
+}
+
+function formatPropertyUnit(propertyName?: string | null, unitLabel?: string | null): string {
+  if (propertyName && unitLabel) return `${propertyName} • ${unitLabel}`;
+  return propertyName || unitLabel || '—';
 }
 
 function VendorInlineEditCard({
@@ -480,6 +533,7 @@ export function VendorsDetailsClient({
   categories,
   expenseAccounts,
   recentWorkOrders,
+  bills,
 }: VendorsDetailsClientProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -1039,7 +1093,82 @@ export function VendorsDetailsClient({
       </NavTabsContent>
 
       <NavTabsContent value="financials">
-        <EmptyPanel message="Financial details coming soon." />
+        <Card className="border-border overflow-hidden border shadow-sm">
+          <CardHeader className="border-border bg-muted/40 border-b px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-semibold">Financials</CardTitle>
+                <p className="text-muted-foreground text-sm">Bills linked to this vendor.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" asChild>
+                  <Link href="/bills/new">Record bill</Link>
+                </Button>
+                <Button size="sm" variant="outline">
+                  Pay bills
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-border border-b">
+                  <TableHead className="text-muted-foreground w-[10rem]">Date</TableHead>
+                  <TableHead className="text-muted-foreground w-[8rem]">Number</TableHead>
+                  <TableHead className="text-muted-foreground w-[10rem]">Ref. No.</TableHead>
+                  <TableHead className="text-muted-foreground w-[7rem]">Type</TableHead>
+                  <TableHead className="text-muted-foreground min-w-[14rem]">
+                    Property / Unit
+                  </TableHead>
+                  <TableHead className="text-muted-foreground min-w-[12rem]">Account</TableHead>
+                  <TableHead className="text-muted-foreground min-w-[12rem]">Memo</TableHead>
+                  <TableHead className="text-muted-foreground w-[8rem] text-right">
+                    Amount
+                  </TableHead>
+                  <TableHead className="w-[3rem]" />
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-border divide-y">
+                {bills.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-muted-foreground py-8 text-center">
+                      No bills have been recorded for this vendor yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  bills.map((bill) => (
+                    <TableRowLink key={bill.id} href={`/bills/${bill.id}`}>
+                      <TableCell className="text-primary font-medium">
+                        {formatBillDate(bill.billDate)}
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        {bill.buildiumBillId ?? '—'}
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        {bill.referenceNumber || '—'}
+                      </TableCell>
+                      <TableCell className="text-foreground">Bill</TableCell>
+                      <TableCell className="text-foreground">
+                        {formatPropertyUnit(bill.propertyName, bill.unitLabel)}
+                      </TableCell>
+                      <TableCell className="text-foreground">
+                        {formatAccountLabel(bill.accountName, bill.accountNumber)}
+                      </TableCell>
+                      <TableCell className="text-foreground">{bill.memo || '—'}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatBillAmount(bill.totalAmount)}
+                      </TableCell>
+                      <TableCell className="text-right" data-row-link-ignore="true">
+                        <BillRowActions billId={bill.id} />
+                      </TableCell>
+                    </TableRowLink>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </NavTabsContent>
 
       <NavTabsContent value="communications">
