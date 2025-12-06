@@ -6,6 +6,7 @@ import type { Database } from '@/types/database';
 import {
   VendorsDetailsClient,
   type RecentVendorWorkOrder,
+  type VendorBillRow,
 } from './_components/VendorDetailsClient';
 
 type VendorRow = Database['public']['Tables']['vendors']['Row'];
@@ -106,6 +107,7 @@ export default async function VendorDetailsPage({
   }
 
   let recentWorkOrders: RecentVendorWorkOrder[] = [];
+  let bills: VendorBillRow[] = [];
   try {
     const workOrdersRes = await db
       .from('work_orders')
@@ -159,6 +161,117 @@ export default async function VendorDetailsPage({
     }
   } catch (error) {
     console.error('Failed to load vendor work orders', error);
+  }
+
+  try {
+    const billsRes = await db
+      .from('transactions')
+      .select(
+        'id, date, due_date, total_amount, memo, reference_number, buildium_bill_id, transaction_type',
+      )
+      .eq('vendor_id', vendor.id)
+      .eq('transaction_type', 'Bill')
+      .order('due_date', { ascending: false })
+      .order('date', { ascending: false });
+
+    if (billsRes.error) {
+      console.error('Failed to load vendor bills', billsRes.error);
+    }
+
+    const billRows = (billsRes.data as any[] | null) ?? [];
+    const billIds = billRows
+      .map((row) => (row?.id != null ? String(row.id) : null))
+      .filter((id): id is string => Boolean(id));
+
+    const lineByTransactionId = new Map<
+      string,
+      {
+        propertyName: string | null;
+        unitLabel: string | null;
+        accountName: string | null;
+        accountNumber: string | null;
+        lineMemo: string | null;
+      }
+    >();
+
+    if (billIds.length) {
+      const linesRes = await db
+        .from('transaction_lines')
+        .select(
+          'transaction_id, memo, gl_accounts(name, account_number), properties(name), units(unit_number, unit_name)',
+        )
+        .in('transaction_id', billIds);
+
+      if (linesRes.error) {
+        console.error('Failed to load vendor bill lines', linesRes.error);
+      } else if (Array.isArray(linesRes.data)) {
+        for (const line of linesRes.data as any[]) {
+          const txId = line?.transaction_id ? String(line.transaction_id) : null;
+          if (!txId || lineByTransactionId.has(txId)) continue;
+          const unitLabel =
+            (line?.units as any)?.unit_number ||
+            (line?.units as any)?.unit_name ||
+            null;
+
+          lineByTransactionId.set(txId, {
+            propertyName: (line?.properties as any)?.name ?? null,
+            unitLabel: unitLabel || null,
+            accountName: (line?.gl_accounts as any)?.name ?? null,
+            accountNumber: (line?.gl_accounts as any)?.account_number ?? null,
+            lineMemo: typeof line?.memo === 'string' ? line.memo : null,
+          });
+        }
+      }
+    }
+
+    bills = billRows
+      .map((row) => {
+        const txId = row?.id != null ? String(row.id) : '';
+        if (!txId) return null;
+        const line = lineByTransactionId.get(txId);
+        const billDate =
+          typeof row?.due_date === 'string' && row.due_date
+            ? row.due_date
+            : typeof row?.date === 'string'
+              ? row.date
+              : null;
+
+        const buildiumIdRaw = row?.buildium_bill_id;
+        const parsedBuildiumId =
+          typeof buildiumIdRaw === 'number'
+            ? buildiumIdRaw
+            : typeof buildiumIdRaw === 'string' && buildiumIdRaw.trim() !== ''
+              ? Number(buildiumIdRaw)
+              : null;
+        const buildiumBillId =
+          typeof parsedBuildiumId === 'number' && Number.isFinite(parsedBuildiumId)
+            ? parsedBuildiumId
+            : null;
+        const amount = Number(row?.total_amount ?? 0);
+        const mapped: VendorBillRow = {
+          id: txId,
+          billDate,
+          totalAmount: Number.isFinite(amount) ? amount : 0,
+          memo:
+            typeof row?.memo === 'string' && row.memo.trim()
+              ? row.memo
+              : line?.lineMemo || null,
+          referenceNumber:
+            typeof row?.reference_number === 'string' && row.reference_number.trim()
+              ? row.reference_number
+              : null,
+          buildiumBillId,
+          propertyName: line?.propertyName || null,
+          unitLabel: line?.unitLabel || null,
+          accountName: line?.accountName || null,
+          accountNumber: line?.accountNumber || null,
+        };
+
+        return mapped;
+      })
+      .filter((row): row is VendorBillRow => Boolean(row?.id));
+  } catch (error) {
+    console.error('Failed to load vendor bills', error);
   }
 
   const categories = (
@@ -216,6 +329,7 @@ export default async function VendorDetailsPage({
       categories={categories}
       expenseAccounts={expenseAccounts}
       recentWorkOrders={recentWorkOrders}
+      bills={bills}
     />
   );
 }

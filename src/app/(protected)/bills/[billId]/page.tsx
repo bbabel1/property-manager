@@ -37,7 +37,7 @@ type LineItem = {
 
 type DetailEntry = {
   name: string;
-  value: string;
+  value: string | React.ReactNode;
   multiline?: boolean;
 };
 
@@ -142,7 +142,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   const billRes = await db
     .from('transactions')
     .select(
-      'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id',
+      'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id, work_order_id',
     )
     .eq('id', billId)
     .maybeSingle();
@@ -157,7 +157,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     notFound();
   }
 
-  const [linesRes, vendorRes, paymentsRes] = await Promise.all([
+  const [linesRes, vendorRes, paymentsRes, workOrderRes] = await Promise.all([
     db
       .from('transaction_lines')
       .select(
@@ -190,6 +190,9 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
       .eq('transaction_type', 'Payment')
       .eq('buildium_bill_id', bill.buildium_bill_id)
       .order('date', { ascending: false }),
+    bill.work_order_id
+      ? db.from('work_orders').select('id, subject').eq('id', bill.work_order_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   if (linesRes?.error) {
@@ -201,6 +204,9 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   }
   if (paymentsRes?.error) {
     console.error('Failed to load bill payments', paymentsRes.error);
+  }
+  if (workOrderRes?.error) {
+    console.error('Failed to load work order for bill', workOrderRes.error);
   }
 
   const rawLines = Array.isArray(linesRes?.data)
@@ -217,6 +223,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     (vendorContact?.display_name as string | undefined) ||
     (vendorContact?.company_name as string | undefined) ||
     'Vendor';
+  const workOrder = (workOrderRes?.data as { id: string; subject: string | null } | null) ?? null;
 
   let billFiles: BillFileRecord[] = [];
   try {
@@ -396,7 +403,17 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     { name: 'Date', value: billDateLabel },
     { name: 'Due', value: billDueLabel },
     { name: 'Reference number', value: bill.reference_number || '—' },
-    { name: 'Work order', value: '—' },
+    {
+      name: 'Work order',
+      value:
+        workOrder?.id && workOrder.subject ? (
+          <Link href={`/maintenance/work-orders/${workOrder.id}`} className="text-primary hover:underline">
+            {workOrder.subject}
+          </Link>
+        ) : (
+          '—'
+        ),
+    },
     { name: 'Pay to', value: vendorName || '—' },
     { name: 'Memo', value: bill.memo || 'Add a memo', multiline: true },
   ];

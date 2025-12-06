@@ -132,12 +132,13 @@ export default function TasksPageContent({
       </div>
 
       <Tabs defaultValue="tasks" className="space-y-4">
-        <div className="border-border/70 border-b">
-          <TabsList className="bg-transparent p-0">
+        <div className="border-b border-border/70">
+          <TabsList className="bg-transparent p-0 flex gap-6">
             <TabsTrigger
               value="tasks"
               className={cn(
-                'data-[state=inactive]:text-muted-foreground rounded-none border-b-2 border-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors',
+                'border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-medium transition-colors',
+                'data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground',
                 'data-[state=active]:border-primary data-[state=active]:text-foreground',
               )}
             >
@@ -147,7 +148,8 @@ export default function TasksPageContent({
               value="analytics"
               disabled
               className={cn(
-                'text-muted-foreground rounded-none border-b-2 border-transparent px-1 pt-2 pb-3 text-sm font-medium',
+                'border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-medium transition-colors',
+                'data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground',
                 'data-[state=active]:border-primary data-[state=active]:text-foreground',
               )}
             >
@@ -158,7 +160,7 @@ export default function TasksPageContent({
 
         <TabsContent value="tasks" className="space-y-4 focus-visible:outline-none">
           <Card className="border-border/70 border shadow-sm">
-            <CardContent className="flex flex-col gap-0 p-0">
+            <CardContent className="p-0">
               <div className="border-border/70 flex flex-wrap items-center gap-3 border-b px-6 py-4">
                 <Select defaultValue={defaultPropertyValue}>
                   <SelectTrigger className="min-w-[200px] sm:w-[220px]">
@@ -197,7 +199,7 @@ export default function TasksPageContent({
                 </Button>
               </div>
 
-              <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
+              <div className="border-border/70 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm text-muted-foreground">
                 <span>
                   {tasks.length} {matchLabel}
                 </span>
@@ -212,49 +214,27 @@ export default function TasksPageContent({
                 </Button>
               </div>
 
-              <div className="overflow-auto px-2 pt-4 pb-2 sm:px-4 md:px-6">
-                <Table className="min-w-[1024px]">
-                  <TableHeader>
-                    <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs tracking-widest uppercase">
-                      <TableHead className="w-12 pl-2">
+              <div className="overflow-auto">
+                <Table className="min-w-[1100px]">
+                  <TableHeader className="[&_th]:px-5 [&_th]:py-3">
+                    <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-[11px] font-semibold uppercase tracking-widest">
+                      <TableHead className="w-12 pl-4">
                         <Checkbox aria-label="Select all tasks" />
                       </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Status
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Due
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Task
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Unit
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Updated
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Age
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Priority
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Category
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Vendors
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Assignees
-                      </TableHead>
-                      <TableHead className="text-muted-foreground text-xs font-semibold tracking-wide">
-                        Action
-                      </TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Due</TableHead>
+                      <TableHead>Task</TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead>Age</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Vendors</TableHead>
+                      <TableHead>Assignees</TableHead>
+                      <TableHead>Action</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className="[&_td]:px-5 [&_td]:py-4">
                     {tasks.length === 0 ? (
                       <TableRow>
                         <TableCell
@@ -271,14 +251,14 @@ export default function TasksPageContent({
                           href={`/tasks/${task.id}`}
                           className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
                         >
-                          <TableCell className="w-12 px-2 py-4 align-top">
+                          <TableCell className="w-12 align-top">
                             <Checkbox
                               aria-label={`Select task ${task.subject}`}
                               onClick={preventRowNavigation}
                               onKeyDown={preventRowNavigation}
                             />
                           </TableCell>
-                          <TableCell className="py-4 align-top">
+                          <TableCell className="align-top">
                             <Badge
                               variant="outline"
                               className={cn(
@@ -289,10 +269,10 @@ export default function TasksPageContent({
                               {task.statusLabel}
                             </Badge>
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">
+                          <TableCell className="align-top text-sm">
                             {task.dueDateLabel}
                           </TableCell>
-                          <TableCell className="py-4 align-top">
+                          <TableCell className="align-top">
                             <div className="flex flex-col gap-1">
                               <span className="text-primary leading-5 font-medium">
                                 {task.subject}
@@ -306,17 +286,17 @@ export default function TasksPageContent({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground py-4 align-top text-sm">
+                          <TableCell className="text-muted-foreground align-top text-sm">
                             {task.unitLabel || '—'}
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">
+                          <TableCell className="align-top text-sm">
                             <p>{task.updatedAtLabel}</p>
                             <p className="text-muted-foreground text-xs">
                               {task.updatedRelativeLabel}
                             </p>
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">{task.ageLabel}</TableCell>
-                          <TableCell className="py-4 align-top text-sm">
+                          <TableCell className="align-top text-sm">{task.ageLabel}</TableCell>
+                          <TableCell className="align-top text-sm">
                             <div className="flex items-center gap-2">
                               <span
                                 className={cn(
@@ -328,13 +308,13 @@ export default function TasksPageContent({
                               <span>{task.priorityLabel}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">
+                          <TableCell className="align-top text-sm">
                             {task.categoryLabel}
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">
+                          <TableCell className="align-top text-sm">
                             {task.vendorLabel || '—'}
                           </TableCell>
-                          <TableCell className="py-4 align-top">
+                          <TableCell className="align-top">
                             {task.assignedToLabel ? (
                               <div className="flex items-center gap-2">
                                 <Avatar className="border-border/60 size-8 border">
@@ -350,7 +330,7 @@ export default function TasksPageContent({
                               <span className="text-muted-foreground text-sm">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-4 align-top text-sm">
+                          <TableCell className="align-top text-sm">
                             <button
                               type="button"
                               className="text-primary font-medium hover:underline"

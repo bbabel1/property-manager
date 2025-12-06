@@ -2748,7 +2748,6 @@ export type Database = {
       task_categories: {
         Row: {
           buildium_category_id: number | null
-          buildium_subcategory_id: number | null
           color: string | null
           created_at: string | null
           description: string | null
@@ -2760,7 +2759,6 @@ export type Database = {
         }
         Insert: {
           buildium_category_id?: number | null
-          buildium_subcategory_id?: number | null
           color?: string | null
           created_at?: string | null
           description?: string | null
@@ -2772,7 +2770,6 @@ export type Database = {
         }
         Update: {
           buildium_category_id?: number | null
-          buildium_subcategory_id?: number | null
           color?: string | null
           created_at?: string | null
           description?: string | null
@@ -2849,6 +2846,7 @@ export type Database = {
           buildium_tenant_id: number | null
           buildium_unit_id: number | null
           category: string | null
+          subcategory: string | null
           condition_snapshot: Json | null
           completed_date: string | null
           created_at: string | null
@@ -2887,6 +2885,7 @@ export type Database = {
           buildium_tenant_id?: number | null
           buildium_unit_id?: number | null
           category?: string | null
+          subcategory?: string | null
           condition_snapshot?: Json | null
           completed_date?: string | null
           created_at?: string | null
@@ -2925,6 +2924,7 @@ export type Database = {
           buildium_tenant_id?: number | null
           buildium_unit_id?: number | null
           category?: string | null
+          subcategory?: string | null
           condition_snapshot?: Json | null
           completed_date?: string | null
           created_at?: string | null
@@ -3300,6 +3300,7 @@ export type Database = {
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at: string
           vendor_id: string | null
+          work_order_id: string | null
         }
         Insert: {
           bank_account_id?: string | null
@@ -3331,6 +3332,7 @@ export type Database = {
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at: string
           vendor_id?: string | null
+          work_order_id?: string | null
         }
         Update: {
           bank_account_id?: string | null
@@ -3362,6 +3364,7 @@ export type Database = {
           transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
           updated_at?: string
           vendor_id?: string | null
+          work_order_id?: string | null
         }
         Relationships: [
           {

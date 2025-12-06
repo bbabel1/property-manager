@@ -29,9 +29,11 @@ type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
 type UnitRow = Database['public']['Tables']['units']['Row'];
+type ContactRow = Database['public']['Tables']['contacts']['Row'];
 
 type UIWorkOrder = {
   id: string;
+  taskId: string | null;
   title: string;
   requestType: string;
   unit: string;
@@ -211,15 +213,28 @@ export default async function MaintenancePage() {
   }
 
   if (vendorIds.length > 0) {
-    const { data, error } = await db
+    const { data, error } = (await db
       .from('vendors')
-      .select('id, display_name, company_name, name')
-      .in('id', vendorIds);
+      .select(
+        'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
+      )
+      .in('id', vendorIds)) as {
+      data: Array<
+        {
+          id: string;
+          contact?: Pick<ContactRow, 'display_name' | 'company_name' | 'first_name' | 'last_name'> | null;
+        }
+      > | null;
+      error: any;
+    };
     if (error) {
       console.error('Failed to load vendors for work orders', error);
     } else {
       data?.forEach((vendor) => {
-        const label = vendor.display_name || vendor.company_name || vendor.name || 'Vendor';
+        const contact = vendor.contact;
+        const fullName = [contact?.first_name, contact?.last_name].filter(Boolean).join(' ');
+        const label =
+          contact?.display_name || contact?.company_name || fullName || 'Vendor';
         vendorMap.set(vendor.id, label);
       });
     }
@@ -295,6 +310,7 @@ export default async function MaintenancePage() {
 
     return {
       id: order.buildium_work_order_id ? String(order.buildium_work_order_id) : order.id,
+      taskId: relatedTask?.id || null,
       title,
       requestType,
       unit: unitLabel,
@@ -458,12 +474,16 @@ export default async function MaintenancePage() {
                   uiWorkOrders.map((order) => (
                     <TableRow key={order.id} className="border-border/70 border-b last:border-0">
                       <TableCell className="px-2 py-4 align-top text-sm whitespace-normal">
-                        <Link
-                          href="#"
-                          className="text-primary leading-5 font-medium hover:underline"
-                        >
-                          {order.title}
-                        </Link>
+                        {order.taskId ? (
+                          <Link
+                            href={`/tasks/${order.taskId}?tab=work-orders&workOrderId=${order.id}`}
+                            className="text-primary leading-5 font-medium hover:underline"
+                          >
+                            {order.title}
+                          </Link>
+                        ) : (
+                          <span className="text-primary leading-5 font-medium">{order.title}</span>
+                        )}
                         <p className="text-muted-foreground mt-1 text-xs">{order.requestType}</p>
                       </TableCell>
                       <TableCell className="text-muted-foreground py-4 align-top text-sm whitespace-normal">

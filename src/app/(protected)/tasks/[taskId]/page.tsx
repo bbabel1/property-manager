@@ -36,14 +36,18 @@ import {
   type TaskStatusKey,
 } from '@/lib/tasks/utils';
 import type { Database } from '@/types/database';
+import TaskWorkOrdersPanel, { type WorkOrderListItem } from '@/components/tasks/TaskWorkOrdersPanel';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
+type TaskHistoryRow = Database['public']['Tables']['task_history']['Row'];
+type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
 type UnitRow = Database['public']['Tables']['units']['Row'];
-type TaskHistoryRow = Database['public']['Tables']['task_history']['Row'];
+type VendorRow = Database['public']['Tables']['vendors']['Row'];
 
 type PageProps = {
   params: Promise<{ taskId: string }>;
+  searchParams?: Promise<{ tab?: string; workOrderId?: string }>;
 };
 
 async function resolveParams(params: PageProps['params']) {
@@ -51,20 +55,54 @@ async function resolveParams(params: PageProps['params']) {
   return params;
 }
 
-export default async function TaskDetailsPage({ params }: PageProps) {
+export default async function TaskDetailsPage({ params, searchParams }: PageProps) {
   const { taskId } = await resolveParams(params);
+  const resolvedSearch = searchParams ? await searchParams : {};
   const db = supabaseAdmin || supabase;
+  const initialTab = resolvedSearch.tab === 'work-orders' ? 'work-orders' : 'summary';
+  const initialWorkOrderId = resolvedSearch.workOrderId || null;
 
-  const { data: task, error } = await db
+  const selectWithSubcategory =
+    'id, subject, description, status, priority, scheduled_date, created_at, updated_at, category, subcategory, task_kind, buildium_task_id, assigned_to, assigned_to_staff_id, buildium_assigned_to_user_id, property_id, unit_id, requested_by_type, requested_by_contact_id, requested_by_buildium_id, subcat:task_categories!tasks_subcategory_fkey(name)';
+  const selectWithoutSubcategory =
+    'id, subject, description, status, priority, scheduled_date, created_at, updated_at, category, task_kind, buildium_task_id, assigned_to, assigned_to_staff_id, buildium_assigned_to_user_id, property_id, unit_id, requested_by_type, requested_by_contact_id, requested_by_buildium_id';
+
+  let taskError: any = null;
+  let task: TaskRow | null = null;
+
+  const primary = await db
     .from('tasks')
-    .select(
-      'id, subject, description, status, priority, scheduled_date, created_at, updated_at, category, task_kind, buildium_task_id, assigned_to, property_id, unit_id, requested_by_type, requested_by_contact_id, requested_by_buildium_id',
-    )
+    .select(selectWithSubcategory)
     .eq('id', taskId)
     .maybeSingle<TaskRow>();
 
-  if (error) {
-    console.error('Failed to load task', error);
+  task = primary.data as (TaskRow & { subcat?: { name?: string | null } }) | null;
+  taskError = primary.error;
+
+  // Fallback if the subcategory column does not exist in this environment
+  if (taskError?.message && /column .*subcategory/i.test(taskError.message)) {
+    const fallback = await db
+      .from('tasks')
+      .select(selectWithoutSubcategory)
+      .eq('id', taskId)
+      .maybeSingle<TaskRow>();
+    task = (fallback.data as TaskRow | null) ?? (task as TaskRow | null);
+    taskError = fallback.error;
+    if (task && typeof (task as any).subcategory === 'undefined') {
+      // Ensure shape stays consistent for downstream usage
+      task = { ...task, subcategory: null } as TaskRow;
+    }
+  }
+
+  const subcategoryName =
+    (task as any)?.subcat?.name ??
+    (typeof (task as any)?.subcategory === 'string' && (task as any).subcategory?.length === 36
+      ? null
+      : (task as any)?.subcategory) ??
+    null;
+
+  if (taskError?.message) {
+    console.error('Failed to load task', taskError);
   }
 
   if (!task) {
@@ -87,7 +125,7 @@ export default async function TaskDetailsPage({ params }: PageProps) {
       > | null;
       error: any;
     };
-    if (propertyError) {
+    if (propertyError?.message) {
       console.error(
         `Failed to load property ${task.property_id} for task ${task.id}`,
         propertyError,
@@ -107,10 +145,90 @@ export default async function TaskDetailsPage({ params }: PageProps) {
       data: Pick<UnitRow, 'id' | 'unit_number'> | null;
       error: any;
     };
-    if (unitError) {
+    if (unitError?.message) {
       console.error(`Failed to load unit ${task.unit_id} for task ${task.id}`, unitError);
     } else {
       unit = data;
+    }
+  }
+
+  type ContactNameFields = Pick<
+    Database['public']['Tables']['contacts']['Row'],
+    'id' | 'display_name' | 'first_name' | 'last_name' | 'company_name' | 'is_company'
+  >;
+
+  let requesterContact: ContactNameFields | null = null;
+  if (task.requested_by_contact_id) {
+    const { data, error: contactError } = (await db
+      .from('contacts')
+      .select('id, display_name, first_name, last_name, company_name, is_company')
+      .eq('id', task.requested_by_contact_id)
+      .maybeSingle()) as { data: ContactNameFields | null; error: any };
+
+    if (contactError?.message) {
+      console.error(
+        `Failed to load requested-by contact ${task.requested_by_contact_id} for task ${task.id}`,
+        contactError,
+      );
+    } else {
+      requesterContact = data;
+    }
+  } else if (task.requested_by_buildium_id) {
+    const { data, error: contactError } = (await db
+      .from('contacts')
+      .select('id, display_name, first_name, last_name, company_name, is_company')
+      .eq('buildium_contact_id', task.requested_by_buildium_id)
+      .maybeSingle()) as { data: ContactNameFields | null; error: any };
+
+    if (contactError?.message) {
+      console.error(
+        `Failed to load requested-by contact by Buildium ID ${task.requested_by_buildium_id} for task ${task.id}`,
+        contactError,
+      );
+    } else {
+      requesterContact = data;
+    }
+  }
+
+  type StaffNameFields = Pick<
+    Database['public']['Tables']['staff']['Row'],
+    'id' | 'first_name' | 'last_name' | 'email' | 'buildium_user_id'
+  >;
+
+  let assignedStaff: StaffNameFields | null = null;
+  const numericAssignee =
+    task.assigned_to && /^\d+$/.test(task.assigned_to) ? Number(task.assigned_to) : null;
+  const buildiumAssigneeId = task.buildium_assigned_to_user_id ?? numericAssignee;
+
+  if (task.assigned_to_staff_id) {
+    const { data, error: staffError } = (await db
+      .from('staff')
+      .select('id, first_name, last_name, email, buildium_user_id')
+      .eq('id', task.assigned_to_staff_id)
+      .maybeSingle()) as { data: StaffNameFields | null; error: any };
+
+    if (staffError?.message) {
+      console.error(
+        `Failed to load staff member ${task.assigned_to_staff_id} for task ${task.id}`,
+        staffError,
+      );
+    } else {
+      assignedStaff = data;
+    }
+  } else if (buildiumAssigneeId) {
+    const { data, error: staffError } = (await db
+      .from('staff')
+      .select('id, first_name, last_name, email, buildium_user_id')
+      .eq('buildium_user_id', buildiumAssigneeId)
+      .maybeSingle()) as { data: StaffNameFields | null; error: any };
+
+    if (staffError?.message) {
+      console.error(
+        `Failed to load staff member by Buildium user ID ${buildiumAssigneeId} for task ${task.id}`,
+        staffError,
+      );
+    } else {
+      assignedStaff = data;
     }
   }
 
@@ -120,7 +238,7 @@ export default async function TaskDetailsPage({ params }: PageProps) {
     .eq('task_id', task.id)
     .order('created_at', { ascending: false });
 
-  if (historyError) {
+  if (historyError?.message) {
     console.error(`Failed to load task history for task ${task.id}`, historyError);
   }
 
@@ -131,7 +249,30 @@ export default async function TaskDetailsPage({ params }: PageProps) {
   const updatedLabel = formatTaskDateTime(task.updated_at);
   const updatedRelativeLabel = formatTaskRelative(task.updated_at);
   const ageLabel = formatTaskRelative(task.created_at, false);
-  const assignedTo = task.assigned_to || null;
+  const requesterDisplayName =
+    requesterContact?.display_name ||
+    requesterContact?.company_name ||
+    [requesterContact?.first_name, requesterContact?.last_name].filter(Boolean).join(' ').trim() ||
+    null;
+  const requesterTypeLabel = task.requested_by_type
+    ? task.requested_by_type.replace(/_/g, ' ')
+    : null;
+  const requestedByPrimary = requesterDisplayName || requesterTypeLabel || 'Not provided';
+  const requestedBySecondary =
+    requesterDisplayName && requesterTypeLabel
+      ? requesterTypeLabel
+      : !requesterDisplayName && !requesterTypeLabel
+        ? task.requested_by_contact_id || task.requested_by_buildium_id
+          ? `ID: ${task.requested_by_contact_id ?? task.requested_by_buildium_id}`
+          : null
+        : null;
+  const assignedStaffName =
+    assignedStaff?.first_name || assignedStaff?.last_name
+      ? [assignedStaff?.first_name, assignedStaff?.last_name].filter(Boolean).join(' ').trim() ||
+        assignedStaff?.email ||
+        null
+      : assignedStaff?.email || null;
+  const assignedTo = assignedStaffName || task.assigned_to || null;
   const assignedInitials = taskAssigneeInitials(assignedTo);
   const propertyName = property?.name || null;
   const propertyAddress = [
@@ -178,6 +319,7 @@ export default async function TaskDetailsPage({ params }: PageProps) {
 
   const hasFiles = false;
   const hasLinkedTasks = false;
+  const workOrders = await loadWorkOrdersForTask(db, task, propertyName, unitLabel);
   const statusBadgeTone: Record<TaskStatusKey, string> = {
     new: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
     in_progress: 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
@@ -190,12 +332,6 @@ export default async function TaskDetailsPage({ params }: PageProps) {
     normal: 'border border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
     high: 'border border-[var(--color-danger-500)] bg-[var(--color-danger-50)] text-[var(--color-danger-600)]',
     urgent: 'border border-[var(--color-danger-600)] bg-[var(--color-danger-50)] text-[var(--color-danger-700)]',
-  };
-  const priorityDotTone: Record<TaskPriorityKey, string> = {
-    low: 'bg-[var(--color-gray-400)]',
-    normal: 'bg-[var(--color-warning-600)]',
-    high: 'bg-[var(--color-danger-500)]',
-    urgent: 'bg-[var(--color-danger-700)]',
   };
 
   return (
@@ -246,19 +382,18 @@ export default async function TaskDetailsPage({ params }: PageProps) {
 
       <PageBody>
         <Stack gap="lg">
-          <Tabs defaultValue="summary" className="space-y-6">
-            <div className="border-border/70 border-b">
-              <TabsList className="bg-transparent p-0">
+          <Tabs defaultValue={initialTab} className="space-y-6">
+            <div className="border-b border-border/70">
+              <TabsList className="bg-transparent p-0 flex gap-6">
                 <TabsTrigger
                   value="summary"
-                  className="data-[state=inactive]:text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none border-b-2 border-transparent px-1 pt-2 pb-3 text-sm font-medium transition-colors"
+                  className="border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-medium transition-colors data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground"
                 >
                   Summary
                 </TabsTrigger>
                 <TabsTrigger
                   value="work-orders"
-                  disabled
-                  className="text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground rounded-none border-b-2 border-transparent px-1 pt-2 pb-3 text-sm font-medium"
+                  className="border-b-2 border-transparent px-1 pb-3 pt-2 text-sm font-medium transition-colors data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground"
                 >
                   Work orders
                 </TabsTrigger>
@@ -293,11 +428,7 @@ export default async function TaskDetailsPage({ params }: PageProps) {
                             <p className="text-muted-foreground text-xs tracking-widest uppercase">
                               Priority
                             </p>
-                            <div className="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold">
-                              <span
-                                className={`size-2.5 rounded-full ${priorityDotTone[priorityMeta.key]}`}
-                                aria-hidden
-                              />
+                            <div className="mt-2 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold">
                               <span
                                 className={`rounded-full px-2 py-1 ${priorityTone[priorityMeta.key]}`}
                               >
@@ -340,10 +471,15 @@ export default async function TaskDetailsPage({ params }: PageProps) {
                             )}
                           </div>
                           <div className="space-y-1">
-                            <p className="text-muted-foreground text-xs tracking-widest uppercase">
-                              Category
-                            </p>
-                            <p className="text-sm">{task.category || 'Uncategorized'}</p>
+                          <p className="text-muted-foreground text-xs tracking-widest uppercase">
+                            Category
+                          </p>
+                          <p className="text-sm">
+                            {task.category || 'Uncategorized'}
+                            {subcategoryName ? (
+                              <span className="text-muted-foreground"> {'>'} {subcategoryName}</span>
+                            ) : null}
+                          </p>
                           </div>
                         </div>
 
@@ -458,7 +594,6 @@ export default async function TaskDetailsPage({ params }: PageProps) {
                     <Card className="border-border/70 shadow-sm">
                       <CardHeader className="border-b border-border/70 pb-4">
                         <CardTitle>Location</CardTitle>
-                        <CardDescription>Where this issue lives.</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4 p-6">
                         {propertyName ? (
@@ -540,18 +675,11 @@ export default async function TaskDetailsPage({ params }: PageProps) {
                             Requested by
                           </p>
                           <p className="text-foreground mt-2 text-sm font-medium">
-                            {task.requested_by_type
-                              ? task.requested_by_type.replace(/_/g, ' ')
-                              : 'Not provided'}
+                            {requestedByPrimary}
                           </p>
-                          <p className="text-muted-foreground text-xs">
-                            ID:{' '}
-                            {task.requested_by_contact_id
-                              ? task.requested_by_contact_id
-                              : task.requested_by_buildium_id
-                                ? task.requested_by_buildium_id
-                                : '—'}
-                          </p>
+                          {requestedBySecondary ? (
+                            <p className="text-muted-foreground text-xs">{requestedBySecondary}</p>
+                          ) : null}
                         </div>
                         <div className="border-border/70 text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
                           Add owner or tenant contacts to message them quickly.
@@ -567,17 +695,200 @@ export default async function TaskDetailsPage({ params }: PageProps) {
             </TabsContent>
 
             <TabsContent value="work-orders" className="focus-visible:outline-none">
-              <Card className="border-border/70 shadow-sm">
-                <CardContent className="p-6">
-                  <p className="text-muted-foreground text-sm">
-                    Linked work orders will appear here once available.
-                  </p>
-                </CardContent>
-              </Card>
+              <TaskWorkOrdersPanel workOrders={workOrders} initialWorkOrderId={initialWorkOrderId} />
             </TabsContent>
           </Tabs>
         </Stack>
       </PageBody>
     </PageShell>
   );
+}
+
+type DBClient = typeof supabase | typeof supabaseAdmin;
+
+function normalizeWorkOrderStatus(value?: string | null): { key: TaskStatusKey; label: string } {
+  const normalized = String(value ?? '').toLowerCase();
+  switch (normalized) {
+    case 'in_progress':
+    case 'in-progress':
+      return { key: 'in_progress', label: 'In progress' };
+    case 'completed':
+      return { key: 'completed', label: 'Completed' };
+    case 'cancelled':
+    case 'canceled':
+      return { key: 'cancelled', label: 'Cancelled' };
+    default:
+      return { key: 'new', label: 'New' };
+  }
+}
+
+function normalizeWorkOrderPriority(value?: string | null): { key: TaskPriorityKey; label: string } {
+  const normalized = String(value ?? '').toLowerCase();
+  switch (normalized) {
+    case 'low':
+      return { key: 'low', label: 'Low' };
+    case 'high':
+      return { key: 'high', label: 'High' };
+    case 'urgent':
+      return { key: 'urgent', label: 'Urgent' };
+    default:
+      return { key: 'normal', label: 'Normal' };
+  }
+}
+
+async function loadWorkOrdersForTask(
+  db: DBClient,
+  task: TaskRow,
+  propertyName: string | null,
+  unitLabel: string | null,
+): Promise<WorkOrderListItem[]> {
+  if (!task.property_id && !task.unit_id) return [];
+
+  let query = db
+    .from('work_orders')
+    .select(
+      'id, buildium_work_order_id, subject, status, priority, scheduled_date, created_at, updated_at, property_id, unit_id, vendor_id, category, assigned_to, description, notes',
+    )
+    .order('created_at', { ascending: false }) as unknown as {
+    data: WorkOrderRow[] | null;
+    error: any;
+  };
+
+  if (task.unit_id) {
+    query = query.eq('unit_id', task.unit_id) as any;
+  } else if (task.property_id) {
+    query = query.eq('property_id', task.property_id) as any;
+  }
+
+  const { data: workOrderRows, error } = (await query) as { data: WorkOrderRow[] | null; error: any };
+  if (error?.message) {
+    console.error(`Failed to load work orders for task ${task.id}`, error);
+    return [];
+  }
+
+  const rows: WorkOrderRow[] = workOrderRows ?? [];
+  if (rows.length === 0) return [];
+
+  const propertyIds = Array.from(
+    new Set(rows.map((wo) => wo.property_id).filter((v): v is string => Boolean(v))),
+  );
+  const unitIds = Array.from(
+    new Set(rows.map((wo) => wo.unit_id).filter((v): v is string => Boolean(v))),
+  );
+  const vendorIds = Array.from(
+    new Set(rows.map((wo) => wo.vendor_id).filter((v): v is string => Boolean(v))),
+  );
+  const workOrderIds = rows.map((wo) => wo.id).filter(Boolean);
+
+  const propertyMap = new Map<string, Pick<PropertyRow, 'name'>>();
+  if (propertyIds.length > 0) {
+    const { data, error: propertyError } = await (db as any)
+      .from('properties')
+      .select('id, name')
+      .in('id', propertyIds);
+    if (propertyError?.message) {
+      console.error('Failed to load properties for work orders', propertyError);
+    } else {
+      data?.forEach((p: Pick<PropertyRow, 'id' | 'name'>) => {
+        propertyMap.set(p.id, { name: p.name });
+      });
+    }
+  }
+
+  const unitMap = new Map<string, Pick<UnitRow, 'unit_number'>>();
+  if (unitIds.length > 0) {
+    const { data, error: unitError } = await (db as any)
+      .from('units')
+      .select('id, unit_number')
+      .in('id', unitIds);
+    if (unitError?.message) {
+      console.error('Failed to load units for work orders', unitError);
+    } else {
+      data?.forEach((u: Pick<UnitRow, 'id' | 'unit_number'>) => unitMap.set(u.id, u));
+    }
+  }
+
+  const vendorMap = new Map<string, string>();
+  if (vendorIds.length > 0) {
+    const { data, error: vendorError } = (await (db as any)
+      .from('vendors')
+      .select(
+        'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
+      )
+      .in('id', vendorIds)) as { data: (VendorRow & { contact?: any })[] | null; error: any };
+    if (vendorError?.message) {
+      console.error('Failed to load vendors for work orders', vendorError);
+    } else {
+      data?.forEach((vendor) => {
+        const contact = vendor.contact as
+          | {
+              display_name?: string | null;
+              company_name?: string | null;
+              first_name?: string | null;
+              last_name?: string | null;
+            }
+          | null
+          | undefined;
+        const name =
+          contact?.display_name ||
+          contact?.company_name ||
+          [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+          'Vendor';
+        vendorMap.set(vendor.id, name);
+      });
+    }
+  }
+
+  // Load bills linked to these work orders via transactions.work_order_id
+  const billsByWorkOrder = new Map<string, { id: string; reference: string }[]>();
+  if (workOrderIds.length > 0) {
+    const { data: billRows, error: billsErr } = await (db as any)
+      .from('transactions')
+      .select('id, work_order_id, reference_number, buildium_bill_id')
+      .eq('transaction_type', 'Bill')
+      .in('work_order_id', workOrderIds)
+    if (billsErr?.message) {
+      console.error('Failed to load bills for work orders', billsErr)
+    } else {
+      (billRows || []).forEach((b: any) => {
+        const list = billsByWorkOrder.get(b.work_order_id) || []
+        const ref = b.buildium_bill_id ? `Bill #${b.buildium_bill_id}` : b.reference_number || `Bill ${b.id.slice(0, 6)}`
+        list.push({ id: b.id, reference: ref })
+        billsByWorkOrder.set(b.work_order_id, list)
+      })
+    }
+  }
+
+  return rows.map((wo) => {
+    const statusMeta = normalizeWorkOrderStatus(wo.status);
+    const priorityMeta = normalizeWorkOrderPriority(wo.priority);
+    const propertyLabel =
+      propertyMap.get(wo.property_id || '')?.name || propertyName || '—';
+    const unitLabelResolved =
+      unitMap.get(wo.unit_id || '')?.unit_number || unitLabel || null;
+    const vendorLabel = wo.vendor_id ? vendorMap.get(wo.vendor_id) || 'Vendor' : '—';
+
+    return {
+      id: wo.id,
+      reference: wo.buildium_work_order_id ? `#${wo.buildium_work_order_id}` : `#${wo.id.slice(0, 6)}`,
+      subject: wo.subject || 'Untitled work order',
+      statusKey: statusMeta.key,
+      statusLabel: statusMeta.label,
+      priorityKey: priorityMeta.key,
+      priorityLabel: priorityMeta.label,
+      dueDateLabel: formatTaskDate(wo.scheduled_date),
+      createdAtLabel: formatTaskDateTime(wo.created_at),
+      createdRelativeLabel: formatTaskRelative(wo.created_at),
+      updatedAtLabel: formatTaskDateTime(wo.updated_at),
+      updatedRelativeLabel: formatTaskRelative(wo.updated_at),
+      propertyName: propertyLabel,
+      unitLabel: unitLabelResolved,
+      vendorName: vendorLabel,
+      assignedTo: wo.assigned_to || null,
+      categoryLabel: wo.category || '—',
+      description: wo.description || null,
+      notes: wo.notes || null,
+      bills: billsByWorkOrder.get(wo.id) || [],
+    };
+  });
 }

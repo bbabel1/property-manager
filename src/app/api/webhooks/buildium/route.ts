@@ -4,6 +4,10 @@ import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
+import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
+
+// Shared admin client for module-scope helpers (webhook toggles, etc.)
+const admin = supabaseAdmin || supabase
 
 function computeHmac(raw: string, secret: string) {
   const buf = createHmac('sha256', secret).update(raw).digest()
@@ -470,7 +474,6 @@ export async function POST(req: NextRequest) {
       description: null,
       color: null,
       parent_id: null,
-      buildium_subcategory_id: null,
       created_at: now,
       updated_at: now,
     }
@@ -481,6 +484,163 @@ export async function POST(req: NextRequest) {
       .single()
     if (error) throw error
     return data?.id ?? null
+  }
+
+  async function upsertVendorCategory(buildiumCategory: any, buildiumAccountId?: number | null) {
+    const now = new Date().toISOString()
+    const payload: any = {
+      buildium_category_id: buildiumCategory?.Id ?? null,
+      name: buildiumCategory?.Name ?? null,
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    }
+    const { data, error } = await admin
+      .from('vendor_categories')
+      .upsert(payload, { onConflict: 'buildium_category_id' })
+      .select('id')
+      .single()
+    if (error) throw error
+    return data?.id ?? null
+  }
+
+  async function upsertVendor(buildiumVendor: any) {
+    const now = new Date().toISOString()
+    const mapped = await mapVendorFromBuildiumWithCategory(buildiumVendor, admin)
+    const contactId = mapped.contact_id || (await findOrCreateVendorContact(buildiumVendor, admin))
+    if (!contactId) throw new Error('Unable to resolve contact for vendor')
+
+    const payload: any = {
+      ...mapped,
+      contact_id: contactId,
+      updated_at: now,
+    }
+
+    const { data: existing, error: findErr } = await admin
+      .from('vendors')
+      .select('id, created_at')
+      .eq('buildium_vendor_id', mapped.buildium_vendor_id)
+      .maybeSingle()
+    if (findErr && findErr.code !== 'PGRST116') throw findErr
+
+    if (existing?.id) {
+      await admin.from('vendors').update(payload).eq('id', existing.id)
+      return existing.id
+    } else {
+      const insertPayload = { ...payload, created_at: now }
+      const { data: created, error: insErr } = await admin
+        .from('vendors')
+        .insert(insertPayload)
+        .select('id')
+        .single()
+      if (insErr) throw insErr
+      return created?.id ?? null
+    }
+  }
+
+  async function upsertWorkOrder(buildiumWorkOrder: any) {
+    const now = new Date().toISOString()
+    const mapped = await mapWorkOrderFromBuildiumWithRelations(buildiumWorkOrder, admin)
+    mapped.updated_at = now
+    const { data: existing, error: findErr } = await admin
+      .from('work_orders')
+      .select('id, created_at')
+      .eq('buildium_work_order_id', mapped.buildium_work_order_id)
+      .maybeSingle()
+    if (findErr && findErr.code !== 'PGRST116') throw findErr
+    if (existing?.id) {
+      await admin.from('work_orders').update(mapped).eq('id', existing.id)
+      return existing.id
+    } else {
+      const { data: created, error: insErr } = await admin
+        .from('work_orders')
+        .insert({ ...mapped, created_at: mapped.created_at || now })
+        .select('id')
+        .single()
+      if (insErr) throw insErr
+      return created?.id ?? null
+    }
+  }
+
+  async function upsertRentalOwner(buildiumOwner: any, buildiumAccountId?: number | null) {
+    // Org from AccountId
+    let orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+    const { ownerId } = await upsertOwnerFromBuildium(buildiumOwner, admin, orgId)
+
+    // Create ownerships for each property id provided
+    const rawPropertyIds =
+      (buildiumOwner as any)?.PropertyIds ??
+      (buildiumOwner as any)?.PropertyIDs ??
+      ((buildiumOwner as any)?.PropertyId ? [ (buildiumOwner as any).PropertyId ] : [])
+    const propertyIds = Array.isArray(rawPropertyIds) ? rawPropertyIds : []
+    if (!propertyIds.length) {
+      console.warn('[buildium-webhook] RentalOwner has no PropertyIds; ownerships will be skipped', { ownerId, buildiumOwnerId: buildiumOwner?.Id, rawPropertyIds })
+    }
+    if (propertyIds.length) {
+      const now = new Date().toISOString()
+      const share = propertyIds.length > 0 ? 100 / propertyIds.length : null
+
+      for (let i = 0; i < propertyIds.length; i++) {
+        const pid = Number(propertyIds[i])
+        const prop = await admin
+          .from('properties')
+          .select('id, org_id')
+          .eq('buildium_property_id', pid)
+          .maybeSingle()
+        if (prop.error && prop.error.code !== 'PGRST116') throw prop.error
+        if (!prop.data?.id) {
+          console.warn('[buildium-webhook] Skipping ownership insert; property not found locally', { ownerId, pid })
+          continue
+        }
+        const orgForOwnership =
+          prop.data.org_id ??
+          orgId ??
+          (await resolveOrgIdFromBuildiumAccount(buildiumAccountId))
+        if (!orgForOwnership) {
+          console.warn('[buildium-webhook] Skipping ownership insert; missing org_id', { ownerId, pid, localPropId: prop.data.id })
+          continue
+        }
+        orgId = orgForOwnership
+        const payload = {
+          owner_id: ownerId,
+          property_id: prop.data.id,
+          org_id: orgForOwnership,
+          ownership_percentage: share ?? 100,
+          disbursement_percentage: share ?? 100,
+          primary: i === 0,
+          total_properties: propertyIds.length,
+          total_units: 0,
+          created_at: now,
+          updated_at: now,
+        }
+        const { data: existingOwn, error: findOwnErr } = await admin
+          .from('ownerships')
+          .select('id')
+          .eq('owner_id', ownerId)
+          .eq('property_id', prop.id)
+          .maybeSingle()
+        if (findOwnErr && findOwnErr.code !== 'PGRST116') throw findOwnErr
+        if (!existingOwn) {
+          const { error: ownErr } = await admin.from('ownerships').insert(payload)
+          if (ownErr) {
+            console.error('[buildium-webhook] Ownership insert failed', { payload, error: ownErr })
+            throw ownErr
+          }
+        }
+      }
+
+      // If owner org is still null but we derived one, update owner
+      if (orgId) {
+        const { error: ownerUpdateErr } = await admin
+          .from('owners')
+          .update({ org_id: orgId, updated_at: new Date().toISOString() })
+          .eq('id', ownerId)
+        if (ownerUpdateErr) throw ownerUpdateErr
+      }
+    } else if (orgId) {
+      // Even without properties, persist org on owner
+      await admin.from('owners').update({ org_id: orgId, updated_at: new Date().toISOString() }).eq('buildium_owner_id', buildiumOwner?.Id)
+    }
   }
 
   async function updatePropertyManager(propertyIdBuildium: number, rentalManagerId?: number | null) {
@@ -547,13 +707,85 @@ export async function POST(req: NextRequest) {
     return res.json()
   }
 
+  async function fetchVendorCategory(vendorCategoryId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/vendors/categories/${vendorCategoryId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch vendor category', { status: res.status, body: txt, vendorCategoryId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function fetchVendor(vendorId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/vendors/${vendorId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch vendor', { status: res.status, body: txt, vendorId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function fetchWorkOrder(workOrderId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/workorders/${workOrderId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch work order', { status: res.status, body: txt, workOrderId })
+      return null
+    }
+    return res.json()
+  }
+
+  async function fetchRentalOwner(rentalOwnerId: number) {
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
+    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/owners/${rentalOwnerId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'x-buildium-client-id': buildiumCreds.clientId,
+        'x-buildium-client-secret': buildiumCreds.clientSecret,
+      }
+    })
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '')
+      console.error('[buildium-webhook] Failed to fetch rental owner', { status: res.status, body: txt, rentalOwnerId })
+      return null
+    }
+    return res.json()
+  }
+
   async function upsertTaskFromBuildium(buildiumTask: any, buildiumAccountId?: number | null) {
     const now = new Date().toISOString()
     const taskKind = (() => {
       const t = (buildiumTask?.TaskType || '').toString().toLowerCase()
       if (t === 'todo') return 'todo'
+      if (t === 'residentrequest' || t === 'resident') return 'resident'
       if (t === 'owner') return 'owner'
-      if (t === 'resident') return 'resident'
       if (t === 'contact') return 'contact'
       return 'other'
     })()
@@ -1725,6 +1957,23 @@ export async function POST(req: NextRequest) {
         } else {
           console.warn('[buildium-webhook] GLAccount event missing GLAccountId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
         }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('rentalowner')) {
+        const ownerId = event?.RentalOwnerId ?? event?.Data?.RentalOwnerId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (ownerId) {
+          const owner = await fetchRentalOwner(Number(ownerId))
+          if (owner) {
+            try {
+              await upsertRentalOwner(owner, buildiumAccountId)
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to upsert rental owner locally', err)
+            }
+          } else {
+            console.warn('[buildium-webhook] Could not fetch rental owner for event', { ownerId, type })
+          }
+        } else {
+          console.warn('[buildium-webhook] RentalOwner event missing RentalOwnerId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
       } else if (typeof type === 'string' && type.includes('Rental')) {
         const propertyId = event?.PropertyId ?? event?.Data?.PropertyId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
@@ -1794,25 +2043,128 @@ export async function POST(req: NextRequest) {
         const taskId = event?.TaskId ?? event?.Data?.TaskId ?? event?.EntityId ?? null
         const taskType = event?.TaskType ?? event?.Data?.TaskType ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
-        // Only handle Todo tasks for now
+        // Only handle supported task kinds for now
         const taskTypeNormalized = typeof taskType === 'string' ? taskType.toLowerCase() : ''
-        if (taskTypeNormalized && taskTypeNormalized !== 'todo') {
+        const supportedTaskTypes = ['todo', 'residentrequest']
+        if (taskTypeNormalized && !supportedTaskTypes.includes(taskTypeNormalized)) {
           results.push({ eventId, status: 'processed' })
           continue
         }
+
         if (taskId) {
-          const task = await fetchTask(Number(taskId))
-          if (task) {
+          const isDelete =
+            (typeof type === 'string' && type.toLowerCase().includes('deleted')) ||
+            (typeof event?.EventName === 'string' && event.EventName.toLowerCase().includes('deleted'))
+          if (isDelete) {
             try {
-              await upsertTaskFromBuildium(task, buildiumAccountId)
+              await admin.from('tasks').delete().eq('buildium_task_id', Number(taskId))
             } catch (err) {
-              console.error('[buildium-webhook] Failed to upsert task locally', err)
+              console.error('[buildium-webhook] Failed to delete task locally', err)
             }
           } else {
-            console.warn('[buildium-webhook] Could not fetch task for event', { taskId, taskType, type })
+            const task = await fetchTask(Number(taskId))
+            if (task) {
+              try {
+                await upsertTaskFromBuildium(task, buildiumAccountId)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert task locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch task for event', { taskId, taskType, type })
+            }
           }
         } else {
           console.warn('[buildium-webhook] Task event missing TaskId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('vendorcategory')) {
+        const vendorCategoryId = event?.VendorCategoryId ?? event?.Data?.VendorCategoryId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (vendorCategoryId) {
+          const isDelete = type.toLowerCase().includes('deleted') || (event?.EventName || '').toLowerCase().includes('deleted')
+          if (isDelete) {
+            try {
+              await admin.from('vendor_categories').delete().eq('buildium_category_id', Number(vendorCategoryId))
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to delete vendor category locally', err)
+            }
+          } else {
+            const vendorCategory = await fetchVendorCategory(Number(vendorCategoryId))
+            if (vendorCategory) {
+              try {
+                await upsertVendorCategory(vendorCategory, buildiumAccountId)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert vendor category locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch vendor category for event', { vendorCategoryId, type })
+            }
+          }
+        } else {
+          console.warn('[buildium-webhook] VendorCategory event missing VendorCategoryId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('vendor')) {
+        const vendorId = event?.VendorId ?? event?.Data?.VendorId ?? event?.EntityId ?? null
+        if (vendorId) {
+          const isDelete = type.toLowerCase().includes('deleted') || (event?.EventName || '').toLowerCase().includes('deleted')
+          if (isDelete) {
+            // Do not delete in DB per request; just acknowledge the event
+            console.info('[buildium-webhook] Vendor.Delete received; skipping deletion for testing', { vendorId })
+          } else {
+            const vendor = await fetchVendor(Number(vendorId))
+            if (vendor) {
+              try {
+                await upsertVendor(vendor)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert vendor locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch vendor for event', { vendorId, type })
+            }
+          }
+        } else {
+          console.warn('[buildium-webhook] Vendor event missing VendorId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('workorder')) {
+        const workOrderId = event?.WorkOrderId ?? event?.Data?.WorkOrderId ?? event?.EntityId ?? null
+        if (workOrderId) {
+          const isDelete = type.toLowerCase().includes('deleted') || (event?.EventName || '').toLowerCase().includes('deleted')
+          if (isDelete) {
+            try {
+              await admin.from('work_orders').delete().eq('buildium_work_order_id', Number(workOrderId))
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to delete work order locally', err)
+            }
+          } else {
+            const wo = await fetchWorkOrder(Number(workOrderId))
+            if (wo) {
+              try {
+                await upsertWorkOrder(wo)
+              } catch (err) {
+                console.error('[buildium-webhook] Failed to upsert work order locally', err)
+              }
+            } else {
+              console.warn('[buildium-webhook] Could not fetch work order for event', { workOrderId, type })
+            }
+          }
+        } else {
+          console.warn('[buildium-webhook] WorkOrder event missing WorkOrderId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+        }
+      } else if (typeof type === 'string' && type.toLowerCase().includes('rentalowner')) {
+        const ownerId = event?.RentalOwnerId ?? event?.Data?.RentalOwnerId ?? event?.EntityId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        if (ownerId) {
+          const owner = await fetchRentalOwner(Number(ownerId))
+          if (owner) {
+            try {
+              await upsertRentalOwner(owner, buildiumAccountId)
+            } catch (err) {
+              console.error('[buildium-webhook] Failed to upsert rental owner locally', err)
+            }
+          } else {
+            console.warn('[buildium-webhook] Could not fetch rental owner for event', { ownerId, type })
+          }
+        } else {
+          console.warn('[buildium-webhook] RentalOwner event missing RentalOwnerId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
         }
       }
 
