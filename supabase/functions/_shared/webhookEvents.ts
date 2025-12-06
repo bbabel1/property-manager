@@ -1,18 +1,3 @@
-const FALLBACK_EVENT_CREATED_AT = '1970-01-01T00:00:00.000Z'
-const FALLBACK_ENTITY_ID = 'unknown'
-
-function normalizeTimestamp(value: unknown): string {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const ts = value < 1_000_000_000_000 ? value * 1000 : value
-    return new Date(ts).toISOString()
-  }
-  if (typeof value === 'string' && value.trim().length) {
-    const parsed = new Date(value)
-    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString()
-  }
-  return FALLBACK_EVENT_CREATED_AT
-}
-
 export interface NormalizedBuildiumWebhook {
   buildiumWebhookId: string
   eventName: string
@@ -20,27 +5,37 @@ export interface NormalizedBuildiumWebhook {
   eventEntityId: string
 }
 
-export function normalizeBuildiumWebhookEvent(event: any): NormalizedBuildiumWebhook {
-  const eventName = String(
+export type NormalizationResult =
+  | { ok: true; errors: []; normalized: NormalizedBuildiumWebhook }
+  | { ok: false; errors: string[]; normalized: null }
+
+function normalizeTimestamp(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ts = value < 1_000_000_000_000 ? value * 1000 : value
+    const d = new Date(ts)
+    if (!Number.isNaN(d.getTime())) return d.toISOString()
+  }
+  if (typeof value === 'string' && value.trim().length) {
+    const parsed = new Date(value)
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString()
+  }
+  return null
+}
+
+function extractEventName(event: any): string | null {
+  const value =
     event?.EventType ??
-      event?.EventName ??
-      event?.eventType ??
-      event?.type ??
-      event?.Data?.EventType ??
-      'unknown'
-  )
+    event?.EventName ??
+    event?.eventType ??
+    event?.type ??
+    event?.Data?.EventType ??
+    event?.Data?.EventName
+  if (typeof value === 'string' && value.trim().length) return value
+  return null
+}
 
-  const eventCreatedAt = normalizeTimestamp(
-    event?.EventDate ??
-      event?.EventDateTime ??
-      event?.eventDateTime ??
-      event?.EventTimestamp ??
-      event?.Timestamp ??
-      event?.Data?.EventDate ??
-      event?.Data?.EventDateTime
-  )
-
-  const primaryId =
+function extractPrimaryId(event: any): string | null {
+  const candidate =
     event?.Id ??
     event?.EventId ??
     event?.eventId ??
@@ -49,38 +44,108 @@ export function normalizeBuildiumWebhookEvent(event: any): NormalizedBuildiumWeb
     event?.EntityId ??
     event?.Data?.TransactionId ??
     event?.Data?.Id
+  return candidate != null && candidate !== '' ? String(candidate) : null
+}
 
-  const buildiumWebhookId = String(
-    primaryId ??
-      `${eventName}:${event?.EntityId ?? event?.LeaseId ?? event?.TransactionId ?? 'unknown'}:${eventCreatedAt}`
-  )
-
-  const eventEntityId = String(
+function extractEntityId(event: any, primaryId: string | null): string | null {
+  const candidate =
     event?.EntityId ??
-      event?.LeaseId ??
-      event?.TransactionId ??
-      event?.PropertyId ??
-      event?.UnitId ??
-      event?.BillId ??
-      event?.Data?.TransactionId ??
-      event?.Data?.EntityId ??
-      FALLBACK_ENTITY_ID
-  )
+    event?.LeaseId ??
+    event?.TransactionId ??
+    event?.PropertyId ??
+    event?.UnitId ??
+    event?.BillId ??
+    event?.WorkOrderId ??
+    event?.TaskId ??
+    event?.VendorId ??
+    event?.Data?.TransactionId ??
+    event?.Data?.EntityId
+  if (candidate != null && candidate !== '') return String(candidate)
+  if (primaryId != null) return primaryId
+  return null
+}
 
-  return { buildiumWebhookId, eventName, eventCreatedAt, eventEntityId }
+export function normalizeBuildiumWebhookEvent(event: any): NormalizationResult {
+  const errors: string[] = []
+  const eventName = extractEventName(event)
+  if (!eventName) errors.push('missing EventType/EventName')
+
+  const eventCreatedAt =
+    normalizeTimestamp(event?.EventDate) ||
+    normalizeTimestamp(event?.EventDateTime) ||
+    normalizeTimestamp((event as any)?.eventDateTime) ||
+    normalizeTimestamp((event as any)?.EventTimestamp) ||
+    normalizeTimestamp((event as any)?.Timestamp) ||
+    normalizeTimestamp(event?.Data?.EventDate) ||
+    normalizeTimestamp(event?.Data?.EventDateTime)
+  if (!eventCreatedAt) errors.push('missing or invalid EventDate/EventDateTime')
+
+  const primaryId = extractPrimaryId(event)
+  if (!primaryId) errors.push('missing Id/EventId/TransactionId')
+
+  const eventEntityId = extractEntityId(event, primaryId)
+  if (!eventEntityId) errors.push('missing entity identifier')
+
+  if (errors.length) {
+    return { ok: false, errors, normalized: null }
+  }
+
+  return {
+    ok: true,
+    errors: [],
+    normalized: {
+      buildiumWebhookId: primaryId!,
+      eventName: eventName!,
+      eventCreatedAt: eventCreatedAt!,
+      eventEntityId: eventEntityId!,
+    },
+  }
 }
 
 type InsertResult =
   | { status: 'inserted'; id: string | null; normalized: NormalizedBuildiumWebhook }
   | { status: 'duplicate'; id: string | null; normalized: NormalizedBuildiumWebhook }
+  | { status: 'invalid'; id: string | null; errors: string[] }
 
 export async function insertBuildiumWebhookEventRecord(
   supabase: any,
   event: any,
   opts?: { webhookType?: string | null; signature?: string | null }
 ): Promise<InsertResult> {
-  const normalized = normalizeBuildiumWebhookEvent(event)
+  const normalizedResult = normalizeBuildiumWebhookEvent(event)
+  if (!normalizedResult.ok || !normalizedResult.normalized) {
+    const now = new Date().toISOString()
+    const surrogateId = `invalid-${Math.random().toString(36).slice(2, 10)}`
+    const eventName =
+      (event?.EventType as string) ||
+      (event?.EventName as string) ||
+      (event?.eventType as string) ||
+      (event?.type as string) ||
+      'invalid'
+    const deadLetterRow = {
+      buildium_webhook_id: surrogateId,
+      event_name: eventName,
+      event_created_at: now,
+      event_entity_id: surrogateId,
+      event_id: event?.EventId ?? event?.Id ?? surrogateId,
+      event_type: eventName,
+      event_data: event,
+      payload: event,
+      processed: true,
+      processed_at: now,
+      status: 'invalid',
+      error: normalizedResult.errors.join('; '),
+      webhook_type: opts?.webhookType ?? null,
+      signature: opts?.signature ?? null,
+    }
 
+    // Best-effort dead letter; ignore duplicate/constraint errors
+    await supabase.from('buildium_webhook_events').insert(deadLetterRow)
+
+    return { status: 'invalid', id: null, errors: normalizedResult.errors }
+  }
+
+  const normalized = normalizedResult.normalized
   const row = {
     buildium_webhook_id: normalized.buildiumWebhookId,
     event_name: normalized.eventName,
@@ -89,7 +154,9 @@ export async function insertBuildiumWebhookEventRecord(
     event_id: normalized.buildiumWebhookId,
     event_type: normalized.eventName,
     event_data: event,
+    payload: event,
     processed: false,
+    status: 'received',
     webhook_type: opts?.webhookType ?? null,
     signature: opts?.signature ?? null,
   }
@@ -118,4 +185,53 @@ export async function insertBuildiumWebhookEventRecord(
   }
 
   return { status: 'inserted', id: insertResponse.data?.id ?? null, normalized }
+}
+
+export async function deadLetterBuildiumEvent(
+  supabase: any,
+  event: any,
+  errors: string[],
+  opts?: { webhookType?: string | null; signature?: string | null }
+) {
+  const normalization = normalizeBuildiumWebhookEvent(event)
+  const now = new Date().toISOString()
+  const buildiumWebhookId =
+    normalization.ok && normalization.normalized
+      ? normalization.normalized.buildiumWebhookId
+      : `invalid-${Math.random().toString(36).slice(2, 10)}`
+  const eventName =
+    (normalization.ok && normalization.normalized && normalization.normalized.eventName) ||
+    extractEventName(event) ||
+    'invalid'
+  const eventCreatedAt =
+    (normalization.ok && normalization.normalized && normalization.normalized.eventCreatedAt) || now
+  const eventEntityId =
+    (normalization.ok && normalization.normalized && normalization.normalized.eventEntityId) || buildiumWebhookId
+
+  const row = {
+    buildium_webhook_id: buildiumWebhookId,
+    event_name: eventName,
+    event_created_at: eventCreatedAt,
+    event_entity_id: eventEntityId,
+    event_id: buildiumWebhookId,
+    event_type: eventName,
+    event_data: event,
+    payload: event,
+    processed: true,
+    processed_at: now,
+    status: 'invalid',
+    error: errors.join('; '),
+    webhook_type: opts?.webhookType ?? null,
+    signature: opts?.signature ?? null,
+  }
+
+  const res = await supabase.from('buildium_webhook_events').insert(row).select('id').maybeSingle()
+  if (res.error?.code === '23505') {
+    await supabase
+      .from('buildium_webhook_events')
+      .update({ status: 'invalid', error: row.error, processed: true, processed_at: now })
+      .eq('buildium_webhook_id', buildiumWebhookId)
+      .eq('event_name', eventName)
+      .eq('event_created_at', eventCreatedAt)
+  }
 }

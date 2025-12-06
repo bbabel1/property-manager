@@ -2,7 +2,10 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { supabase, supabaseAdmin } from '@/lib/db'
-import { normalizeBuildiumWebhookEvent } from '../../../../supabase/functions/_shared/webhookEvents'
+import { insertBuildiumWebhookEventRecord, deadLetterBuildiumEvent, type NormalizedBuildiumWebhook } from '../../../../supabase/functions/_shared/webhookEvents'
+import { markWebhookError, markWebhookTombstone } from '@/lib/buildium-webhook-status'
+import { looksLikeDelete } from '@/lib/buildium-delete-map'
+import { validateBuildiumEvent } from '../../../../supabase/functions/_shared/eventValidation'
 import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
@@ -193,8 +196,8 @@ export async function POST(req: NextRequest) {
   }
 
   const signatureHeader = req.headers.get('x-buildium-signature') || ''
-  const results: { eventId: string | number | null; status: 'processed' | 'duplicate' | 'error'; error?: string }[] = []
-  let normalizedEvents: { event: any; normalized: ReturnType<typeof normalizeBuildiumWebhookEvent> }[] = []
+  const results: { eventId: string | number | null; status: 'processed' | 'duplicate' | 'error' | 'invalid' | 'tombstoned'; error?: string }[] = []
+  const storedEvents: NormalizedBuildiumWebhook[] = []
 
   const buildiumCreds = {
     baseUrl: process.env.BUILDIUM_BASE_URL,
@@ -575,7 +578,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  async function upsertRentalOwner(buildiumOwner: any, buildiumAccountId?: number | null) {
+  async function upsertRentalOwner(buildiumOwner: any, buildiumAccountId?: number | null): Promise<{ ownerId: string; linkedProperties: number }> {
     // Org from AccountId
     let orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
     const { ownerId } = await upsertOwnerFromBuildium(buildiumOwner, admin, orgId)
@@ -589,6 +592,7 @@ export async function POST(req: NextRequest) {
     if (!propertyIds.length) {
       console.warn('[buildium-webhook] RentalOwner has no PropertyIds; ownerships will be skipped', { ownerId, buildiumOwnerId: buildiumOwner?.Id, rawPropertyIds })
     }
+    let linked = 0
     if (propertyIds.length) {
       const now = new Date().toISOString()
       const share = propertyIds.length > 0 ? 100 / propertyIds.length : null
@@ -639,6 +643,7 @@ export async function POST(req: NextRequest) {
             console.error('[buildium-webhook] Ownership insert failed', { payload, error: ownErr })
             throw ownErr
           }
+          linked++
         }
       }
 
@@ -654,6 +659,7 @@ export async function POST(req: NextRequest) {
       // Even without properties, persist org on owner
       await admin.from('owners').update({ org_id: orgId, updated_at: new Date().toISOString() }).eq('buildium_owner_id', buildiumOwner?.Id)
     }
+    return { ownerId, linkedProperties: linked }
   }
 
   async function updatePropertyManager(propertyIdBuildium: number, rentalManagerId?: number | null) {
@@ -850,7 +856,7 @@ export async function POST(req: NextRequest) {
     const glId = existing?.id
     if (!glId) {
       console.log('[buildium-webhook] GL account delete received but not found locally', glAccountId)
-      return
+      return false
     }
     // Remove from any parent sub_accounts arrays
     const { data: parents, error: parentErr } = await admin
@@ -867,6 +873,7 @@ export async function POST(req: NextRequest) {
     }
     await admin.from('gl_accounts').delete().eq('id', glId)
     console.log('[buildium-webhook] GL account deleted locally', { glAccountId, glId })
+    return true
   }
 
   async function deleteBillLocal(buildiumBillId: number) {
@@ -878,7 +885,7 @@ export async function POST(req: NextRequest) {
     if (error) throw error
     if (!txRows || txRows.length === 0) {
       console.log('[buildium-webhook] Bill delete received but not found locally', buildiumBillId)
-      return
+      return false
     }
     const txIds = txRows.map((t: any) => t.id).filter(Boolean)
     if (txIds.length) {
@@ -886,6 +893,7 @@ export async function POST(req: NextRequest) {
       await admin.from('transactions').delete().in('id', txIds)
       console.log('[buildium-webhook] Bill deleted locally', { buildiumBillId, transactionCount: txIds.length })
     }
+    return true
   }
 
   async function deleteBillPaymentLocal(paymentId: number, billId?: number | null) {
@@ -896,7 +904,7 @@ export async function POST(req: NextRequest) {
     if (error) throw error
     if (!txRows || txRows.length === 0) {
       console.log('[buildium-webhook] Bill payment delete received but not found locally', { paymentId, billId })
-      return
+      return false
     }
     const txIds = txRows.map((t: any) => t.id).filter(Boolean)
     if (txIds.length) {
@@ -904,6 +912,7 @@ export async function POST(req: NextRequest) {
       await admin.from('transactions').delete().in('id', txIds)
       console.log('[buildium-webhook] Bill payment deleted locally', { paymentId, billId, transactionCount: txIds.length })
     }
+    return true
   }
 
   async function deleteLeaseLocal(buildiumLeaseId: number) {
@@ -915,7 +924,7 @@ export async function POST(req: NextRequest) {
     if (error) throw error
     if (!leaseRow?.id) {
       console.log('[buildium-webhook] Lease delete received but not found locally', buildiumLeaseId)
-      return
+      return false
     }
     const leaseId = leaseRow.id
     // Null out monthly_logs referencing this lease
@@ -925,6 +934,7 @@ export async function POST(req: NextRequest) {
     // Delete the lease row
     await admin.from('lease').delete().eq('id', leaseId)
     console.log('[buildium-webhook] Lease deleted locally', leaseId)
+    return true
   }
 
   async function deleteTenantLocal(buildiumTenantId: number) {
@@ -936,12 +946,13 @@ export async function POST(req: NextRequest) {
     if (error) throw error
     if (!tenantRow?.id) {
       console.log('[buildium-webhook] Tenant delete received but not found locally', buildiumTenantId)
-      return
+      return false
     }
     const tenantId = tenantRow.id
     await admin.from('lease_contacts').delete().eq('tenant_id', tenantId)
     await admin.from('tenants').delete().eq('id', tenantId)
     console.log('[buildium-webhook] Tenant deleted locally', tenantId)
+    return true
   }
 
   async function syncLeaseViaEdge(leaseId: number) {
@@ -1576,43 +1587,44 @@ export async function POST(req: NextRequest) {
       return { transactionId }
     }
 
-    normalizedEvents = events.map((event) => ({
-      event,
-      normalized: normalizeBuildiumWebhookEvent(event),
-    }))
-
-    for (const { event, normalized } of normalizedEvents) {
-      // Buildium event types can be EventType or EventName
+    for (const event of events) {
       const type = event?.EventType ?? event?.EventName ?? body?.type ?? body?.eventType ?? body?.EventName ?? 'unknown'
-      const eventId = normalized.buildiumWebhookId
-
-      // Idempotent ingest per event
-      const { data: existing } = await admin
-        .from('buildium_webhook_events')
-        .select('id')
-        .eq('buildium_webhook_id', normalized.buildiumWebhookId)
-        .eq('event_name', normalized.eventName)
-        .eq('event_created_at', normalized.eventCreatedAt)
-        .maybeSingle()
-      if (existing?.id) {
-        results.push({ eventId, status: 'duplicate' })
+      const typeStr = typeof type === 'string' ? type : ''
+      const eventNameStr = typeof event?.EventName === 'string' ? event.EventName : ''
+      const looksDelete = looksLikeDelete(event)
+      const validation = validateBuildiumEvent(event)
+      if (!validation.ok) {
+        console.warn('[buildium-webhook] payload validation failed', { eventName: validation.eventName, errors: validation.errors })
+        await deadLetterBuildiumEvent(admin, event, validation.errors, { webhookType: 'app-buildium-webhook', signature: signatureHeader })
+        results.push({ eventId: null, status: 'invalid', error: 'invalid-payload' })
         continue
       }
 
-      await admin.from('buildium_webhook_events').insert({
-        buildium_webhook_id: normalized.buildiumWebhookId,
-        event_name: normalized.eventName,
-        event_created_at: normalized.eventCreatedAt,
-        event_entity_id: normalized.eventEntityId,
-        event_id: normalized.buildiumWebhookId,
-        event_type: type,
-        event_data: event,
-        payload: event,
+      const storeResult = await insertBuildiumWebhookEventRecord(admin, event, {
+        webhookType: 'app-buildium-webhook',
         signature: signatureHeader,
-        status: 'received',
-        processed: false,
-        webhook_type: 'app-buildium-webhook',
       })
+
+      if (storeResult.status === 'invalid') {
+        console.warn('[buildium-webhook] normalization failed', { errors: storeResult.errors })
+        results.push({ eventId: null, status: 'invalid', error: 'invalid-normalization' })
+        continue
+      }
+
+      const normalized = storeResult.normalized
+      storedEvents.push(normalized)
+      const eventKey = {
+        buildiumWebhookId: normalized.buildiumWebhookId,
+        eventName: normalized.eventName,
+        eventCreatedAt: normalized.eventCreatedAt,
+      }
+
+      if (storeResult.status === 'duplicate') {
+        results.push({ eventId: normalized.buildiumWebhookId, status: 'duplicate' })
+        continue
+      }
+
+      const eventId = normalized.buildiumWebhookId
 
       // Check toggle flag; if disabled, mark ignored and skip
       if (typeof type === 'string' && disabledEvents.has(type)) {
@@ -1632,7 +1644,7 @@ export async function POST(req: NextRequest) {
         const transactionId = event?.TransactionId ?? event?.Data?.TransactionId ?? eventId
 
         // Handle deletion locally
-        if (type.includes('Deleted')) {
+        if (looksDelete) {
           if (transactionId) {
             const { data: existing } = await admin.from('transactions').select('id').eq('buildium_transaction_id', transactionId).maybeSingle()
             if (existing?.id) {
@@ -1641,7 +1653,14 @@ export async function POST(req: NextRequest) {
               console.log('[buildium-webhook] Lease transaction deleted locally', existing.id)
             } else {
               console.log('[buildium-webhook] Lease transaction delete received but not found locally', transactionId)
+              await markWebhookTombstone(admin, eventKey, `Lease transaction ${transactionId} already absent`)
+              results.push({ eventId, status: 'tombstoned' })
+              continue
             }
+          } else {
+            await markWebhookError(admin, eventKey, 'unknown-delete-missing-transactionId')
+            results.push({ eventId, status: 'error', error: 'unknown-delete' })
+            continue
           }
         } else if (leaseId && transactionId) {
           // Upsert (create/update)
@@ -1665,23 +1684,37 @@ export async function POST(req: NextRequest) {
       if (typeof type === 'string' && type.includes('Lease') && !type.includes('LeaseTransaction') && !type.includes('LeaseTenant') && !type.includes('MoveOut')) {
         const leaseId = event?.LeaseId ?? event?.Data?.LeaseId ?? event?.EntityId ?? null
         if (leaseId) {
-          if (type.includes('Deleted')) {
+          if (looksDelete) {
             try {
-              await deleteLeaseLocal(Number(leaseId))
+              const deleted = await deleteLeaseLocal(Number(leaseId))
+              if (!deleted) {
+                await markWebhookTombstone(admin, eventKey, `Lease ${leaseId} already absent`)
+                results.push({ eventId, status: 'tombstoned' })
+                continue
+              }
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete lease locally', err)
+              await markWebhookError(admin, eventKey, `Lease delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'lease-delete-failed' })
+              continue
             }
           } else {
             // Fetch lease from Buildium
             const leaseRemote = await fetchLease(Number(leaseId))
             if (!leaseRemote) {
               console.warn('[buildium-webhook] Could not fetch lease for update', { leaseId })
+              await markWebhookError(admin, eventKey, `Lease ${leaseId} fetch failed`)
+              results.push({ eventId, status: 'error', error: 'lease-fetch-failed' })
+              continue
             } else {
               // Upsert lease + parties locally
               try {
                 await upsertLeaseWithPartiesLocal(leaseRemote)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert lease locally', err)
+                await markWebhookError(admin, eventKey, `Lease upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'lease-upsert-failed' })
+                continue
               }
 
               // Build current person set from payload (Tenants + Cosigners + CurrentTenants)
@@ -1705,11 +1738,19 @@ export async function POST(req: NextRequest) {
       if (typeof type === 'string' && type.includes('LeaseTenant')) {
         const tenantIdBuildium = event?.TenantId ?? event?.Data?.TenantId ?? event?.EntityId ?? null
         if (tenantIdBuildium) {
-          if (type.includes('Deleted')) {
+          if (looksDelete) {
             try {
-              await deleteTenantLocal(Number(tenantIdBuildium))
+              const deleted = await deleteTenantLocal(Number(tenantIdBuildium))
+              if (!deleted) {
+                await markWebhookTombstone(admin, eventKey, `Tenant ${tenantIdBuildium} already absent`)
+                results.push({ eventId, status: 'tombstoned' })
+                continue
+              }
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete tenant locally', err)
+              await markWebhookError(admin, eventKey, `Tenant delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'tenant-delete-failed' })
+              continue
             }
           } else {
             // For MoveOut events we only need to update lease_contact dates; otherwise do full upsert.
@@ -1731,7 +1772,14 @@ export async function POST(req: NextRequest) {
                     }).eq('lease_id', leaseLocalId).eq('tenant_id', tenantLocalId)
                   } else {
                     console.warn('[buildium-webhook] MoveOut could not resolve lease/tenant locally', { leaseId, tenantIdBuildium })
+                    await markWebhookError(admin, eventKey, `MoveOut missing lease/tenant (${leaseId}/${tenantIdBuildium})`)
+                    results.push({ eventId, status: 'error', error: 'moveout-resolution-failed' })
+                    continue
                   }
+                } else {
+                  await markWebhookError(admin, eventKey, `MoveOut fetch failed for lease ${leaseId}`)
+                  results.push({ eventId, status: 'error', error: 'moveout-fetch-failed' })
+                  continue
                 }
               }
               continue
@@ -1863,6 +1911,9 @@ export async function POST(req: NextRequest) {
               }).eq('lease_id', leaseLocalId).eq('tenant_id', tenantLocalId)
             } else {
               console.warn('[buildium-webhook] MoveOut could not resolve lease/tenant locally', { leaseId, tenantIdBuildium })
+              await markWebhookError(admin, eventKey, `MoveOut missing lease/tenant (${leaseId}/${tenantIdBuildium})`)
+              results.push({ eventId, status: 'error', error: 'moveout-resolution-failed' })
+              continue
             }
           }
         }
@@ -1874,14 +1925,24 @@ export async function POST(req: NextRequest) {
         const paymentId = event?.PaymentId ?? event?.Data?.PaymentId ?? event?.Id ?? null
         if (!paymentId || !billIds.length) {
           console.warn('[buildium-webhook] Bill.Payment event missing paymentId or billIds', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'Bill payment missing PaymentId or BillIds')
+          results.push({ eventId, status: 'error', error: 'bill-payment-missing-ids' })
         } else {
           for (const billId of billIds) {
             if (!billId) continue
-            if (type.toLowerCase().includes('deleted')) {
+            if (looksDelete) {
               try {
-                await deleteBillPaymentLocal(Number(paymentId), Number(billId))
+                const deleted = await deleteBillPaymentLocal(Number(paymentId), Number(billId))
+                if (!deleted) {
+                  await markWebhookTombstone(admin, eventKey, `Bill payment ${paymentId} for bill ${billId} already absent`)
+                  results.push({ eventId, status: 'tombstoned' })
+                  continue
+                }
               } catch (err) {
                 console.error('[buildium-webhook] Failed to delete bill payment locally', err)
+                await markWebhookError(admin, eventKey, `Bill payment delete failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'bill-payment-delete-failed' })
+                continue
               }
             } else {
               const payment = await fetchBillPayment(Number(billId), Number(paymentId))
@@ -1891,9 +1952,15 @@ export async function POST(req: NextRequest) {
                   await upsertBillPaymentWithLines(payment, Number(billId), glFetcher)
                 } catch (err) {
                   console.error('[buildium-webhook] Failed to upsert bill payment locally', err)
+                  await markWebhookError(admin, eventKey, `Bill payment upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                  results.push({ eventId, status: 'error', error: 'bill-payment-upsert-failed' })
+                  continue
                 }
               } else {
                 console.warn('[buildium-webhook] Could not fetch bill payment', { billId, paymentId })
+                await markWebhookError(admin, eventKey, `Bill payment fetch failed for bill ${billId}`)
+                results.push({ eventId, status: 'error', error: 'bill-payment-fetch-failed' })
+                continue
               }
             }
           }
@@ -1903,9 +1970,17 @@ export async function POST(req: NextRequest) {
         if (billId) {
           if (type.includes('Deleted')) {
             try {
-              await deleteBillLocal(Number(billId))
+              const deleted = await deleteBillLocal(Number(billId))
+              if (!deleted) {
+                await markWebhookTombstone(admin, eventKey, `Bill ${billId} already absent`)
+                results.push({ eventId, status: 'tombstoned' })
+                continue
+              }
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete bill locally', err)
+              await markWebhookError(admin, eventKey, `Bill delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'bill-delete-failed' })
+              continue
             }
           } else {
             const bill = await fetchBill(Number(billId))
@@ -1914,23 +1989,40 @@ export async function POST(req: NextRequest) {
                 await upsertBillWithLines(bill, admin)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert bill locally', err)
+                await markWebhookError(admin, eventKey, `Bill upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'bill-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch bill for event', { billId, type })
+              await markWebhookError(admin, eventKey, `Bill fetch failed for ${billId}`)
+              results.push({ eventId, status: 'error', error: 'bill-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] Bill event missing BillId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'Bill event missing BillId')
+          results.push({ eventId, status: 'error', error: 'bill-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.includes('GLAccount')) {
         const glAccountId = event?.GLAccountId ?? event?.Data?.GLAccountId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
         if (glAccountId) {
-          if (type.includes('Deleted')) {
+          if (looksDelete) {
             try {
-              await deleteGLAccountLocal(Number(glAccountId))
+              const deleted = await deleteGLAccountLocal(Number(glAccountId))
+              if (!deleted) {
+                await markWebhookTombstone(admin, eventKey, `GLAccount ${glAccountId} already absent`)
+                results.push({ eventId, status: 'tombstoned' })
+                continue
+              }
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete GL account locally', err)
+              await markWebhookError(admin, eventKey, `GLAccount delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'gl-delete-failed' })
+              continue
             }
           } else {
             const gl = await fetchGLAccountRemote(Number(glAccountId))
@@ -1939,13 +2031,22 @@ export async function POST(req: NextRequest) {
                 await upsertGLAccountWithOrg(gl, buildiumAccountId)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert GL account locally', err)
+                await markWebhookError(admin, eventKey, `GLAccount upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'gl-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch GL account for event', { glAccountId, type })
+              await markWebhookError(admin, eventKey, `GLAccount fetch failed for ${glAccountId}`)
+              results.push({ eventId, status: 'error', error: 'gl-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] GLAccount event missing GLAccountId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'GLAccount event missing GLAccountId')
+          results.push({ eventId, status: 'error', error: 'gl-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('rentalowner')) {
         const ownerId = event?.RentalOwnerId ?? event?.Data?.RentalOwnerId ?? event?.EntityId ?? null
@@ -1954,15 +2055,35 @@ export async function POST(req: NextRequest) {
           const owner = await fetchRentalOwner(Number(ownerId))
           if (owner) {
             try {
-              await upsertRentalOwner(owner, buildiumAccountId)
+              const { linkedProperties } = await upsertRentalOwner(owner, buildiumAccountId)
+              const totalProps =
+                Array.isArray((owner as any)?.PropertyIds) && (owner as any).PropertyIds.length
+                  ? (owner as any).PropertyIds.length
+                  : Array.isArray((owner as any)?.PropertyIDs) && (owner as any).PropertyIDs.length
+                    ? (owner as any).PropertyIDs.length
+                    : 0
+              if (totalProps > 0 && linkedProperties === 0) {
+                await markWebhookError(admin, eventKey, `Rental owner ${ownerId} missing property links`)
+                results.push({ eventId, status: 'error', error: 'rental-owner-missing-properties' })
+                continue
+              }
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert rental owner locally', err)
+              await markWebhookError(admin, eventKey, `Rental owner upsert failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'rental-owner-upsert-failed' })
+              continue
             }
           } else {
             console.warn('[buildium-webhook] Could not fetch rental owner for event', { ownerId, type })
+            await markWebhookError(admin, eventKey, `Rental owner fetch failed for ${ownerId}`)
+            results.push({ eventId, status: 'error', error: 'rental-owner-fetch-failed' })
+            continue
           }
         } else {
           console.warn('[buildium-webhook] RentalOwner event missing RentalOwnerId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'RentalOwner event missing RentalOwnerId')
+          results.push({ eventId, status: 'error', error: 'rental-owner-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.includes('Rental')) {
         const propertyId = event?.PropertyId ?? event?.Data?.PropertyId ?? event?.EntityId ?? null
@@ -1980,12 +2101,21 @@ export async function POST(req: NextRequest) {
               }
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert rental property locally', err)
+              await markWebhookError(admin, eventKey, `Rental property upsert failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'rental-upsert-failed' })
+              continue
             }
           } else {
             console.warn('[buildium-webhook] Could not fetch rental for event', { propertyId, type })
+            await markWebhookError(admin, eventKey, `Rental property fetch failed for ${propertyId}`)
+            results.push({ eventId, status: 'error', error: 'rental-fetch-failed' })
+            continue
           }
         } else {
           console.warn('[buildium-webhook] Rental event missing PropertyId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'Rental event missing PropertyId')
+          results.push({ eventId, status: 'error', error: 'rental-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('rentalunit')) {
         const unitId = event?.UnitId ?? event?.Data?.UnitId ?? event?.EntityId ?? null
@@ -1994,15 +2124,30 @@ export async function POST(req: NextRequest) {
           const unit = await fetchRentalUnit(Number(unitId))
           if (unit) {
             try {
+              const localPropId = await resolvePropertyIdByBuildiumPropertyId(unit?.PropertyId, admin)
+              if (!localPropId) {
+                await markWebhookError(admin, eventKey, `Rental unit ${unitId} missing local property ${unit?.PropertyId}`)
+                results.push({ eventId, status: 'error', error: 'rental-unit-missing-property' })
+                continue
+              }
               await upsertUnitFromBuildium(unit, buildiumAccountId)
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert rental unit locally', err)
+              await markWebhookError(admin, eventKey, `Rental unit upsert failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'rental-unit-upsert-failed' })
+              continue
             }
           } else {
             console.warn('[buildium-webhook] Could not fetch rental unit for event', { unitId, type })
+            await markWebhookError(admin, eventKey, `Rental unit fetch failed for ${unitId}`)
+            results.push({ eventId, status: 'error', error: 'rental-unit-fetch-failed' })
+            continue
           }
         } else {
           console.warn('[buildium-webhook] RentalUnit event missing UnitId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'RentalUnit event missing UnitId')
+          results.push({ eventId, status: 'error', error: 'rental-unit-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('taskcategory')) {
         const categoryId = event?.TaskCategoryId ?? event?.Data?.TaskCategoryId ?? event?.EntityId ?? null
@@ -2013,6 +2158,9 @@ export async function POST(req: NextRequest) {
               await admin.from('task_categories').delete().eq('buildium_category_id', Number(categoryId))
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete task category locally', err)
+              await markWebhookError(admin, eventKey, `Task category delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'task-category-delete-failed' })
+              continue
             }
           } else {
             const cat = await fetchTaskCategory(Number(categoryId))
@@ -2021,13 +2169,22 @@ export async function POST(req: NextRequest) {
                 await upsertTaskCategory(cat, buildiumAccountId)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert task category locally', err)
+                await markWebhookError(admin, eventKey, `Task category upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'task-category-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch task category for event', { categoryId, type })
+              await markWebhookError(admin, eventKey, `Task category fetch failed for ${categoryId}`)
+              results.push({ eventId, status: 'error', error: 'task-category-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] TaskCategory event missing TaskCategoryId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'TaskCategory event missing TaskCategoryId')
+          results.push({ eventId, status: 'error', error: 'task-category-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('task')) {
         const taskId = event?.TaskId ?? event?.Data?.TaskId ?? event?.EntityId ?? null
@@ -2042,14 +2199,21 @@ export async function POST(req: NextRequest) {
         }
 
         if (taskId) {
-          const isDelete =
-            (typeof type === 'string' && type.toLowerCase().includes('deleted')) ||
-            (typeof event?.EventName === 'string' && event.EventName.toLowerCase().includes('deleted'))
+          const isDelete = looksDelete
           if (isDelete) {
             try {
+              const { data: existing } = await admin.from('tasks').select('id').eq('buildium_task_id', Number(taskId)).maybeSingle()
+              if (!existing?.id) {
+                await markWebhookTombstone(admin, eventKey, `Task ${taskId} already absent`)
+                results.push({ eventId, status: 'tombstoned' })
+                continue
+              }
               await admin.from('tasks').delete().eq('buildium_task_id', Number(taskId))
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete task locally', err)
+              await markWebhookError(admin, eventKey, `Task delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'task-delete-failed' })
+              continue
             }
           } else {
             const task = await fetchTask(Number(taskId))
@@ -2058,24 +2222,36 @@ export async function POST(req: NextRequest) {
                 await upsertTaskFromBuildium(task, buildiumAccountId)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert task locally', err)
+                await markWebhookError(admin, eventKey, `Task upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'task-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch task for event', { taskId, taskType, type })
+              await markWebhookError(admin, eventKey, `Task fetch failed for ${taskId}`)
+              results.push({ eventId, status: 'error', error: 'task-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] Task event missing TaskId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'Task event missing TaskId')
+          results.push({ eventId, status: 'error', error: 'task-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('vendorcategory')) {
         const vendorCategoryId = event?.VendorCategoryId ?? event?.Data?.VendorCategoryId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
         if (vendorCategoryId) {
-          const isDelete = type.toLowerCase().includes('deleted') || (event?.EventName || '').toLowerCase().includes('deleted')
+          const isDelete = looksDelete
           if (isDelete) {
             try {
               await admin.from('vendor_categories').delete().eq('buildium_category_id', Number(vendorCategoryId))
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete vendor category locally', err)
+              await markWebhookError(admin, eventKey, `Vendor category delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'vendor-category-delete-failed' })
+              continue
             }
           } else {
             const vendorCategory = await fetchVendorCategory(Number(vendorCategoryId))
@@ -2084,18 +2260,27 @@ export async function POST(req: NextRequest) {
                 await upsertVendorCategory(vendorCategory, buildiumAccountId)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert vendor category locally', err)
+                await markWebhookError(admin, eventKey, `Vendor category upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'vendor-category-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch vendor category for event', { vendorCategoryId, type })
+              await markWebhookError(admin, eventKey, `Vendor category fetch failed for ${vendorCategoryId}`)
+              results.push({ eventId, status: 'error', error: 'vendor-category-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] VendorCategory event missing VendorCategoryId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'VendorCategory event missing VendorCategoryId')
+          results.push({ eventId, status: 'error', error: 'vendor-category-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('vendor')) {
         const vendorId = event?.VendorId ?? event?.Data?.VendorId ?? event?.EntityId ?? null
         if (vendorId) {
-          const isDelete = type.toLowerCase().includes('deleted') || (event?.EventName || '').toLowerCase().includes('deleted')
+          const isDelete = looksDelete
           if (isDelete) {
             // Do not delete in DB per request; just acknowledge the event
             console.info('[buildium-webhook] Vendor.Delete received; skipping deletion for testing', { vendorId })
@@ -2106,23 +2291,41 @@ export async function POST(req: NextRequest) {
                 await upsertVendor(vendor)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert vendor locally', err)
+                await markWebhookError(admin, eventKey, `Vendor upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'vendor-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch vendor for event', { vendorId, type })
+              await markWebhookError(admin, eventKey, `Vendor fetch failed for ${vendorId}`)
+              results.push({ eventId, status: 'error', error: 'vendor-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] Vendor event missing VendorId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'Vendor event missing VendorId')
+          results.push({ eventId, status: 'error', error: 'vendor-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('workorder')) {
         const workOrderId = event?.WorkOrderId ?? event?.Data?.WorkOrderId ?? event?.EntityId ?? null
         if (workOrderId) {
-          const isDelete = type.toLowerCase().includes('deleted') || (event?.EventName || '').toLowerCase().includes('deleted')
+          const isDelete = looksDelete
           if (isDelete) {
             try {
+              const { data: existing } = await admin.from('work_orders').select('id').eq('buildium_work_order_id', Number(workOrderId)).maybeSingle()
+              if (!existing?.id) {
+                await markWebhookTombstone(admin, eventKey, `Work order ${workOrderId} already absent`)
+                results.push({ eventId, status: 'tombstoned' })
+                continue
+              }
               await admin.from('work_orders').delete().eq('buildium_work_order_id', Number(workOrderId))
             } catch (err) {
               console.error('[buildium-webhook] Failed to delete work order locally', err)
+              await markWebhookError(admin, eventKey, `Work order delete failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'workorder-delete-failed' })
+              continue
             }
           } else {
             const wo = await fetchWorkOrder(Number(workOrderId))
@@ -2131,13 +2334,22 @@ export async function POST(req: NextRequest) {
                 await upsertWorkOrder(wo)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert work order locally', err)
+                await markWebhookError(admin, eventKey, `Work order upsert failed: ${(err as Error)?.message || 'unknown'}`)
+                results.push({ eventId, status: 'error', error: 'workorder-upsert-failed' })
+                continue
               }
             } else {
               console.warn('[buildium-webhook] Could not fetch work order for event', { workOrderId, type })
+              await markWebhookError(admin, eventKey, `Work order fetch failed for ${workOrderId}`)
+              results.push({ eventId, status: 'error', error: 'workorder-fetch-failed' })
+              continue
             }
           }
         } else {
           console.warn('[buildium-webhook] WorkOrder event missing WorkOrderId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'WorkOrder event missing WorkOrderId')
+          results.push({ eventId, status: 'error', error: 'workorder-missing-id' })
+          continue
         }
       } else if (typeof type === 'string' && type.toLowerCase().includes('rentalowner')) {
         const ownerId = event?.RentalOwnerId ?? event?.Data?.RentalOwnerId ?? event?.EntityId ?? null
@@ -2146,15 +2358,35 @@ export async function POST(req: NextRequest) {
           const owner = await fetchRentalOwner(Number(ownerId))
           if (owner) {
             try {
-              await upsertRentalOwner(owner, buildiumAccountId)
+              const { linkedProperties } = await upsertRentalOwner(owner, buildiumAccountId)
+              const totalProps =
+                Array.isArray((owner as any)?.PropertyIds) && (owner as any).PropertyIds.length
+                  ? (owner as any).PropertyIds.length
+                  : Array.isArray((owner as any)?.PropertyIDs) && (owner as any).PropertyIDs.length
+                    ? (owner as any).PropertyIDs.length
+                    : 0
+              if (totalProps > 0 && linkedProperties === 0) {
+                await markWebhookError(admin, eventKey, `Rental owner ${ownerId} missing property links`)
+                results.push({ eventId, status: 'error', error: 'rental-owner-missing-properties' })
+                continue
+              }
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert rental owner locally', err)
+              await markWebhookError(admin, eventKey, `Rental owner upsert failed: ${(err as Error)?.message || 'unknown'}`)
+              results.push({ eventId, status: 'error', error: 'rental-owner-upsert-failed' })
+              continue
             }
           } else {
             console.warn('[buildium-webhook] Could not fetch rental owner for event', { ownerId, type })
+            await markWebhookError(admin, eventKey, `Rental owner fetch failed for ${ownerId}`)
+            results.push({ eventId, status: 'error', error: 'rental-owner-fetch-failed' })
+            continue
           }
         } else {
           console.warn('[buildium-webhook] RentalOwner event missing RentalOwnerId', { eventSnippet: JSON.stringify(event).slice(0, 200) })
+          await markWebhookError(admin, eventKey, 'RentalOwner event missing RentalOwnerId')
+          results.push({ eventId, status: 'error', error: 'rental-owner-missing-id' })
+          continue
         }
       }
 
@@ -2178,6 +2410,8 @@ export async function POST(req: NextRequest) {
 
     const processed = results.filter((r) => r.status === 'processed').length
     const duplicates = results.filter((r) => r.status === 'duplicate').length
+    const invalid = results.filter((r) => r.status === 'invalid').length
+    const tombstoned = results.filter((r) => r.status === 'tombstoned').length
     const errors = results.filter((r) => r.status === 'error')
 
     return NextResponse.json({
@@ -2185,12 +2419,14 @@ export async function POST(req: NextRequest) {
       received: events.length,
       processed,
       duplicates,
+      invalid,
+      tombstoned,
       errors,
     })
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error'
     console.error('[buildium-webhook] Unhandled error', e)
-    const idsForError = normalizedEvents.map(({ normalized }) => normalized.buildiumWebhookId)
+    const idsForError = storedEvents.map((normalized) => normalized.buildiumWebhookId)
     if (idsForError.length > 0) {
       await admin
         .from('buildium_webhook_events')

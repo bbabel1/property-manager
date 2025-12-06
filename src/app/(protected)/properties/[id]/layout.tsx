@@ -1,7 +1,8 @@
+import { PageBody, PageShell } from '@/components/layout/page-shell'
 import PageHeader from '@/components/layout/PageHeader'
-import { getPropertyShellCached, PropertyService } from '@/lib/property-service'
-import { headers as nextHeaders, cookies as nextCookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/db'
+import { getPropertyShellCached, PropertyService } from '@/lib/property-service'
+import { cookies as nextCookies, headers as nextHeaders } from 'next/headers'
 
 export default async function PropertyLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -75,17 +76,21 @@ export default async function PropertyLayout({ children, params }: { children: R
   }
 
   return (
-    <div className="space-y-2">
-      <PageHeader property={{
-        id,
-        name: headerName || 'Property',
-        status: headerStatus,
-        property_type: headerType,
-        service_assignment: headerAssign,
-        service_plan: headerPlan,
-        buildium_property_id: headerBuildiumId
-      }} />
-      <div className="px-6 pb-8">{children}</div>
-    </div>
+    <PageShell>
+      <div className="px-2 sm:px-4 md:px-6">
+        <PageHeader
+          property={{
+            id,
+            name: headerName || 'Property',
+            status: headerStatus,
+            property_type: headerType,
+            service_assignment: headerAssign,
+            service_plan: headerPlan,
+            buildium_property_id: headerBuildiumId,
+          }}
+        />
+      </div>
+      <PageBody className="pt-0">{children}</PageBody>
+    </PageShell>
   )
 }
