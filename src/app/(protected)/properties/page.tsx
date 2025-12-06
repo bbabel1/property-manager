@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowUpDown,
   Building,
@@ -83,7 +84,10 @@ const formatLocation = (property: Property) => {
 }
 
 export default function PropertiesPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false)
+  const [startTourFromQuery, setStartTourFromQuery] = useState(false)
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +99,18 @@ export default function PropertiesPage() {
   useEffect(() => {
     void fetchProperties()
   }, [])
+
+  useEffect(() => {
+    const wantsTour = searchParams.get('tour') === 'add-property'
+    if (wantsTour) {
+      setStartTourFromQuery(true)
+      setIsAddPropertyModalOpen(true)
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('tour')
+      const qs = params.toString()
+      router.replace(qs ? `/properties?${qs}` : '/properties', { scroll: false })
+    }
+  }, [router, searchParams])
 
   async function fetchProperties() {
     try {
@@ -130,6 +146,12 @@ export default function PropertiesPage() {
   const handlePropertyCreated = () => {
     void fetchProperties()
     setIsAddPropertyModalOpen(false)
+    setStartTourFromQuery(false)
+  }
+
+  const handleCloseModal = () => {
+    setIsAddPropertyModalOpen(false)
+    setStartTourFromQuery(false)
   }
 
   let mainContent: ReactNode
@@ -372,8 +394,9 @@ export default function PropertiesPage() {
       </PageBody>
       <AddPropertyModal
         isOpen={isAddPropertyModalOpen}
-        onClose={() => setIsAddPropertyModalOpen(false)}
+        onClose={handleCloseModal}
         onSuccess={handlePropertyCreated}
+        startInTour={startTourFromQuery}
       />
     </PageShell>
   )
