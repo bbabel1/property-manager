@@ -1,60 +1,50 @@
+import { canonicalizeEventName } from '../../supabase/functions/_shared/eventValidation'
+
 /**
  * Canonical delete EventNames from Buildium webhooks. Keep this list in sync with
  * the router handling and add new names here instead of ad-hoc string includes.
  */
 export const DELETE_EVENT_NAMES = [
   // Lease transactions
-  'LeaseTransactionDeleted',
   'LeaseTransaction.Deleted',
   // Leases
-  'LeaseDeleted',
   'Lease.Deleted',
   // Lease tenants / move-outs
-  'LeaseTenantDeleted',
   'LeaseTenant.Deleted',
-  'LeaseTenantMoveOut',
-  'MoveOutDeleted',
-  'MoveOut.Deleted',
+  'Lease.MoveOut.Deleted',
   // Bills & payments
-  'BillDeleted',
   'Bill.Deleted',
-  'Bill.PaymentDeleted',
-  'BillPaymentDeleted',
   'Bill.Payment.Deleted',
   // GL accounts
-  'GLAccountDeleted',
   'GLAccount.Deleted',
   // Rentals / units
-  'RentalDeleted',
   'Rental.Deleted',
-  'RentalPropertyDeleted',
-  'RentalProperty.Deleted',
-  'RentalUnitDeleted',
   'RentalUnit.Deleted',
-  // Tasks
-  'TaskDeleted',
+  'RentalOwner.Deleted',
+  // Tasks & history
   'Task.Deleted',
+  'Task.History.Deleted',
   // Task categories
-  'TaskCategoryDeleted',
   'TaskCategory.Deleted',
-  // Vendors / categories
-  'VendorDeleted',
+  // Vendors / categories / transactions
   'Vendor.Deleted',
-  'VendorCategoryDeleted',
   'VendorCategory.Deleted',
+  'Vendor.Transaction.Deleted',
   // Work orders
-  'WorkOrderDeleted',
   'WorkOrder.Deleted',
   // Bank accounts
-  'BankAccountDeleted',
   'BankAccount.Deleted',
+  // Owners / properties
+  'Owner.Deleted',
+  'Property.Deleted',
 ] as const
 
 const DELETE_EVENT_NAME_SET = new Set((DELETE_EVENT_NAMES as readonly string[]).map((n) => n.toLowerCase()))
 
 export function isDeleteEventName(name?: string | null): boolean {
   if (!name || typeof name !== 'string') return false
-  return DELETE_EVENT_NAME_SET.has(name.toLowerCase())
+  const canonical = canonicalizeEventName(name)
+  return DELETE_EVENT_NAME_SET.has(canonical.toLowerCase())
 }
 
 export function looksLikeDelete(event: any): boolean {
@@ -63,5 +53,5 @@ export function looksLikeDelete(event: any): boolean {
     typeof event?.EventName === 'string' ? event.EventName : null,
     typeof (event as any)?.type === 'string' ? (event as any).type : null,
   ].filter(Boolean) as string[]
-  return candidates.some((c) => isDeleteEventName(c) || c.toLowerCase().includes('deleted'))
+  return candidates.some((c) => isDeleteEventName(c) || canonicalizeEventName(c).toLowerCase().includes('deleted'))
 }

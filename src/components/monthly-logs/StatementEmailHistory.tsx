@@ -12,6 +12,7 @@ import {
   CheckCircle,
   ChevronDown,
   History,
+  ExternalLink,
   XCircle,
 } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
@@ -26,15 +27,20 @@ interface EmailHistoryRecord {
     status: 'sent' | 'failed';
     error?: string;
   }>;
+  pdfUrl: string | null;
   status: string;
   errorMessage: string | null;
 }
 
 interface StatementEmailHistoryProps {
   monthlyLogId: string;
+  refreshToken?: number | string;
 }
 
-export default function StatementEmailHistory({ monthlyLogId }: StatementEmailHistoryProps) {
+export default function StatementEmailHistory({
+  monthlyLogId,
+  refreshToken,
+}: StatementEmailHistoryProps) {
   const [history, setHistory] = useState<EmailHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +49,7 @@ export default function StatementEmailHistory({ monthlyLogId }: StatementEmailHi
   useEffect(() => {
     fetchHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthlyLogId]);
+  }, [monthlyLogId, refreshToken]);
 
   const fetchHistory = async () => {
     try {
@@ -160,6 +166,23 @@ export default function StatementEmailHistory({ monthlyLogId }: StatementEmailHi
                             </span>
                           ) : null}
                         </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                        {record.pdfUrl ? (
+                          <a
+                            href={record.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            View Statement
+                          </a>
+                        ) : (
+                          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
+                            Statement file unavailable
+                          </span>
+                        )}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
                         {record.recipients.map((recipient, idx) => (

@@ -12,6 +12,7 @@ import {
 } from '../_shared/webhookSchemas.ts'
 import { routeGeneralWebhookEvent } from '../_shared/eventRouting.ts'
 import { emitRoutingTelemetry } from '../_shared/telemetry.ts'
+import { sendPagerDutyEvent } from '../_shared/pagerDuty.ts'
 
 // Buildium API Client (simplified for webhook processing)
 class BuildiumClient {
@@ -240,6 +241,36 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function normalizeBuildiumWebhookPayload(
+  body: unknown
+): BuildiumWebhookPayload | null {
+  const raw = body as any
+  if (!raw || typeof raw !== 'object') return null
+
+  if (Array.isArray(raw.Events)) {
+    return { Events: raw.Events as BuildiumWebhookEvent[] }
+  }
+
+  if (raw.Event && typeof raw.Event === 'object') {
+    return { Events: [raw.Event as BuildiumWebhookEvent] }
+  }
+
+  const looksLikeSingleEvent =
+    typeof raw.EventType === 'string' ||
+    typeof raw.EventName === 'string' ||
+    raw.Id != null ||
+    raw.EventId != null ||
+    raw.TransactionId != null ||
+    raw.LeaseId != null ||
+    raw.EntityId != null
+
+  if (looksLikeSingleEvent) {
+    return { Events: [raw as BuildiumWebhookEvent] }
+  }
+
+  return null
+}
+
 // Main handler
 serve(async (req) => {
   try {
@@ -302,13 +333,31 @@ serve(async (req) => {
       )
     }
 
-    const payloadResult = validateWebhookPayload(parsedBody, BuildiumWebhookPayloadSchema)
+    const normalizedPayload = normalizeBuildiumWebhookPayload(parsedBody)
+    if (!normalizedPayload) {
+      console.warn('buildium-webhook payload missing events', {
+        hasEventsArray: Array.isArray((parsedBody as any)?.Events),
+        keys: parsedBody && typeof parsedBody === 'object' ? Object.keys(parsedBody as any) : [],
+      })
+      return new Response(
+        JSON.stringify({ error: 'No webhook events found in payload' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      )
+    }
+
+    const payloadResult = validateWebhookPayload(normalizedPayload, BuildiumWebhookPayloadSchema)
     if (!payloadResult.ok) {
       console.warn('buildium-webhook schema validation failed', {
         errors: payloadResult.errors,
-        eventTypes: Array.isArray((parsedBody as any)?.Events)
-          ? (parsedBody as any).Events.map((evt: any) => deriveEventType(evt))
-          : [],
+        eventTypes: normalizedPayload.Events.map((evt: any) => deriveEventType(evt)),
+      })
+      await sendPagerDutyEvent({
+        summary: 'Buildium webhook schema validation failed',
+        severity: 'warning',
+        custom_details: { errors: payloadResult.errors, eventTypes: normalizedPayload.Events.map((evt: any) => deriveEventType(evt)) },
       })
       return new Response(
         JSON.stringify({ error: 'Invalid payload', details: payloadResult.errors }),
@@ -334,6 +383,11 @@ serve(async (req) => {
 
     if (validationFailures.length) {
       console.warn('buildium-webhook payload validation failed', { failures: validationFailures })
+      await sendPagerDutyEvent({
+        summary: 'Buildium webhook payload validation failed',
+        severity: 'warning',
+        custom_details: { failures: validationFailures },
+      })
       return new Response(
         JSON.stringify({ error: 'Invalid payload', details: validationFailures }),
         {
@@ -544,16 +598,16 @@ async function processWebhookEvent(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     switch (eventType) {
-      case 'PropertyCreated':
-      case 'PropertyUpdated':
+      case 'Property.Created':
+      case 'Property.Updated':
         return await processPropertyEvent(event, buildiumClient, supabase)
       
-      case 'OwnerCreated':
-      case 'OwnerUpdated':
+      case 'Owner.Created':
+      case 'Owner.Updated':
         return await processOwnerEvent(event, buildiumClient, supabase)
 
-      case 'LeaseCreated':
-      case 'LeaseUpdated':
+      case 'Lease.Created':
+      case 'Lease.Updated':
         return await processLeaseEvent(event, buildiumClient, supabase)
       
       default:

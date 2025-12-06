@@ -772,7 +772,7 @@ export async function POST(request: NextRequest) {
         .insert({
           property_id: createdProperty.id,
           staff_id: propertyManagerId,
-          role: 'PROPERTY_MANAGER'
+          role: 'Property Manager'
         })
 
       if (staffError) {

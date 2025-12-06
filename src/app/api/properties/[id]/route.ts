@@ -440,12 +440,12 @@ export async function PUT(
     // Handle property manager assignment (optional)
     if (Object.prototype.hasOwnProperty.call(body, 'property_manager_id')) {
       const staffId = body.property_manager_id
-      // Remove existing link for PROPERTY_MANAGER
+      // Remove existing link for Property Manager
       const { error: detachError } = await adminClient
         .from('property_staff')
         .delete()
         .eq('property_id', propertyId)
-        .eq('role', 'PROPERTY_MANAGER')
+        .eq('role', 'Property Manager')
       if (detachError) {
         console.error('🔍 API: Failed clearing existing property manager link:', detachError)
         return NextResponse.json({ error: 'Failed to update property manager assignment' }, { status: 500 })
@@ -474,7 +474,7 @@ export async function PUT(
         const { error: attachError } = await adminClient.from('property_staff').insert({
           property_id: propertyId,
           staff_id: numericStaffId,
-          role: 'PROPERTY_MANAGER',
+          role: 'Property Manager',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })

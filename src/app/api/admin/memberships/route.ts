@@ -9,7 +9,8 @@ import { mapUIStaffRoleToDB } from '@/lib/enums/staff-roles'
 const ROLE_SCHEMA = z.object({
   user_id: z.string().min(1, 'user_id is required'),
   org_id: z.string().min(1, 'org_id is required'),
-  roles: z.array(z.string().min(1)).min(1, 'At least one role is required')
+  roles: z.array(z.string().min(1)).min(1, 'At least one role is required'),
+  staff_role: z.string().optional()
 })
 
 const ALLOWED_ROLES: AppRole[] = [
@@ -18,7 +19,8 @@ const ALLOWED_ROLES: AppRole[] = [
   'org_manager',
   'org_staff',
   'owner_portal',
-  'tenant_portal'
+  'tenant_portal',
+  'vendor_portal'
 ]
 
 function normalizeAppRole(value: string): AppRole | null {
@@ -37,6 +39,9 @@ function normalizeAppRole(value: string): AppRole | null {
   }
   if (normalized === 'assistant_property_manager' || normalized === 'assistantpropertymanager') {
     return 'org_staff'
+  }
+  if (normalized === 'vendor_portal' || normalized === 'vendor') {
+    return 'vendor_portal'
   }
 
   return null
@@ -80,22 +85,49 @@ export async function POST(request: NextRequest) {
       role: top
     }
 
-    const { error } = await admin
+    // Keep primary/top role for compatibility
+    const { error: upsertMembershipError } = await admin
       .from('org_memberships')
       .upsert(membershipRow, { onConflict: 'user_id,org_id' })
-    if (error) {
-      return NextResponse.json({ error: 'Failed to update roles', details: error.message }, { status: 500 })
+    if (upsertMembershipError) {
+      return NextResponse.json({ error: 'Failed to update roles', details: upsertMembershipError.message }, { status: 500 })
     }
 
-    if (top === 'org_manager') {
+    // Store the full set of roles
+    try {
+      await admin
+        .from('org_membership_roles')
+        .delete()
+        .eq('user_id', parsed.data.user_id)
+        .eq('org_id', parsed.data.org_id)
+
+      const insertRoles = roles.map((role) => ({
+        user_id: parsed.data.user_id,
+        org_id: parsed.data.org_id,
+        role
+      }))
+
+      const { error: insertError } = await admin
+        .from('org_membership_roles')
+        .insert(insertRoles)
+
+      if (insertError) {
+        console.warn('Failed to persist org_membership_roles; falling back to primary role only', insertError)
+      }
+    } catch (rolesError) {
+      console.warn('Failed to update org_membership_roles', rolesError)
+    }
+
+    if (top === 'org_manager' || top === 'org_staff' || parsed.data.staff_role) {
       try {
-        const staffRole = mapUIStaffRoleToDB('Property Manager')
+        const staffRole = parsed.data.staff_role
+          ? mapUIStaffRoleToDB(parsed.data.staff_role)
+          : mapUIStaffRoleToDB(top === 'org_manager' ? 'Property Manager' : 'Bookkeeper')
         const timestamp = new Date().toISOString()
         const { data: existing } = await admin
           .from('staff')
           .select('id')
-          .eq('role', staffRole)
-          .eq('is_active', true)
+          .eq('user_id', parsed.data.user_id)
           .limit(1)
 
         if (!existing || existing.length === 0) {
@@ -105,10 +137,11 @@ export async function POST(request: NextRequest) {
             created_at: timestamp,
             updated_at: timestamp
           }
+          staffInsert.user_id = parsed.data.user_id
           await admin.from('staff').insert(staffInsert)
         }
       } catch (staffError) {
-        console.warn('Failed to auto-provision staff for org_manager role', staffError)
+        console.warn('Failed to auto-provision staff for membership change', staffError)
       }
     }
 

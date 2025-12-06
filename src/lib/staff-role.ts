@@ -15,6 +15,13 @@ const STAFF_ROLE_ALIASES: Record<string, StaffRole> = {
   'bookkeeper': 'Bookkeeper',
   'buildium_bookkeeper': 'Bookkeeper',
   'finance_manager': 'Bookkeeper',
+  'maintenance_coordinator': 'Maintenance Coordinator',
+  'maintenance': 'Maintenance Coordinator',
+  'maintenancecoord': 'Maintenance Coordinator',
+  'accountant': 'Accountant',
+  'finance': 'Accountant',
+  'administrator': 'Administrator',
+  'admin': 'Administrator',
 }
 
 /**

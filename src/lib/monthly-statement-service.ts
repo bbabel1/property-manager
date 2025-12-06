@@ -625,28 +625,52 @@ export async function uploadStatementPDF(
   monthlyLogId: string,
   pdfBuffer: Buffer,
 ): Promise<{ success: boolean; url?: string; error?: string }> {
-  try {
-    const fileName = `monthly-statements/${monthlyLogId}.pdf`;
+  return uploadStatementPDFToPath(`monthly-statements/${monthlyLogId}.pdf`, pdfBuffer, {
+    updateMonthlyLogId: monthlyLogId,
+    upsert: true,
+  });
+}
 
-    // Ensure bucket exists before upload (handles freshly provisioned environments)
-    try {
-      const { error: bucketError } = await supabaseAdmin.storage.createBucket(STATEMENT_BUCKET, {
-        public: true,
-      });
-      if (bucketError && bucketError.message && !bucketError.message.includes('already exists')) {
-        console.warn('Error creating bucket for statements', bucketError);
-      }
-    } catch (bucketException) {
-      console.warn('Unexpected error creating statement bucket', bucketException);
-      // Continue; upload will fail below with a clearer message
+/**
+ * Upload a versioned copy of a statement PDF without mutating the monthly log record.
+ * The uploaded file is unique per call and safe from later regenerations.
+ */
+export async function uploadStatementSnapshot(
+  monthlyLogId: string,
+  pdfBuffer: Buffer,
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  const timestamp = Date.now();
+  const fileName = `monthly-statements/${monthlyLogId}/history/${timestamp}.pdf`;
+  return uploadStatementPDFToPath(fileName, pdfBuffer, { upsert: false });
+}
+
+async function ensureStatementBucketExists() {
+  try {
+    const { error: bucketError } = await supabaseAdmin.storage.createBucket(STATEMENT_BUCKET, {
+      public: true,
+    });
+    if (bucketError && bucketError.message && !bucketError.message.includes('already exists')) {
+      console.warn('Error creating bucket for statements', bucketError);
     }
+  } catch (bucketException) {
+    console.warn('Unexpected error creating statement bucket', bucketException);
+  }
+}
+
+async function uploadStatementPDFToPath(
+  fileName: string,
+  pdfBuffer: Buffer,
+  options: { updateMonthlyLogId?: string; upsert?: boolean } = {},
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    await ensureStatementBucketExists();
 
     // Upload to Supabase storage
     const { error } = await supabaseAdmin.storage
       .from(STATEMENT_BUCKET)
       .upload(fileName, pdfBuffer, {
         contentType: 'application/pdf',
-        upsert: true, // Replace if exists
+        upsert: options.upsert ?? false,
       });
 
     if (error) {
@@ -661,15 +685,16 @@ export async function uploadStatementPDF(
       return { success: false, error: 'Failed to get public URL' };
     }
 
-    // Update monthly_logs with PDF URL
-    const { error: updateError } = await supabaseAdmin
-      .from('monthly_logs')
-      .update({ pdf_url: urlData.publicUrl })
-      .eq('id', monthlyLogId);
+    if (options.updateMonthlyLogId) {
+      const { error: updateError } = await supabaseAdmin
+        .from('monthly_logs')
+        .update({ pdf_url: urlData.publicUrl })
+        .eq('id', options.updateMonthlyLogId);
 
-    if (updateError) {
-      console.error('Error updating monthly log with PDF URL:', updateError);
-      return { success: false, error: updateError.message };
+      if (updateError) {
+        console.error('Error updating monthly log with PDF URL:', updateError);
+        return { success: false, error: updateError.message };
+      }
     }
 
     return { success: true, url: urlData.publicUrl };

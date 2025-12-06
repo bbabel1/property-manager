@@ -1,5 +1,5 @@
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts"
-import { SUPPORTED_EVENT_NAMES } from "./eventValidation.ts"
+import { SUPPORTED_EVENT_NAMES, canonicalizeEventName } from "./eventValidation.ts"
 
 const SUPPORTED_EVENT_TYPE_SET = new Set<string>(SUPPORTED_EVENT_NAMES as unknown as string[])
 const identifierSchema = z.union([z.string().min(1), z.number()])
@@ -26,7 +26,8 @@ export function deriveEventType(evt: Record<string, unknown>): string {
     (evt as any)?.Data?.EventType ||
     (evt as any)?.Data?.EventName ||
     ''
-  return typeof value === 'string' && value.trim().length ? value : ''
+  if (typeof value !== 'string' || !value.trim().length) return ''
+  return canonicalizeEventName(value)
 }
 
 function eventHasTimestamp(evt: Record<string, unknown>): boolean {
@@ -71,9 +72,46 @@ export const BuildiumWebhookEventSchema = z
     Data: z.record(z.unknown()).optional(),
   })
   .superRefine((event, ctx) => {
-    const id = event.Id ?? event.EventId
-    if (id == null || id === '') {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'missing Id/EventId' })
+    const primaryId =
+      event.Id ??
+      event.EventId ??
+      event.TransactionId ??
+      event.LeaseId ??
+      event.BillId ??
+      event.PaymentId ??
+      (Array.isArray(event.BillIds) && event.BillIds.length ? event.BillIds[0] : null) ??
+      event.PropertyId ??
+      event.UnitId ??
+      event.GLAccountId ??
+      event.TaskId ??
+      event.TaskCategoryId ??
+      event.VendorId ??
+      event.VendorCategoryId ??
+      event.WorkOrderId ??
+      event.RentalOwnerId ??
+      event.BankAccountId ??
+      event.AccountId ??
+      event.EntityId ??
+      (event as any)?.Data?.TransactionId ??
+      (event as any)?.Data?.BillId ??
+      (Array.isArray((event as any)?.Data?.BillIds) && (event as any)?.Data?.BillIds.length ? (event as any)?.Data?.BillIds[0] : null) ??
+      (event as any)?.Data?.PropertyId ??
+      (event as any)?.Data?.UnitId ??
+      (event as any)?.Data?.GLAccountId ??
+      (event as any)?.Data?.TaskId ??
+      (event as any)?.Data?.TaskCategoryId ??
+      (event as any)?.Data?.VendorId ??
+      (event as any)?.Data?.VendorCategoryId ??
+      (event as any)?.Data?.WorkOrderId ??
+      (event as any)?.Data?.RentalOwnerId ??
+      (event as any)?.Data?.BankAccountId ??
+      (event as any)?.Data?.AccountId ??
+      (event as any)?.Data?.Id
+    if (primaryId == null || primaryId === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'missing event identifier (Id/EventId/TransactionId/LeaseId/EntityId)',
+      })
     }
 
     const eventType = deriveEventType(event as Record<string, unknown>)

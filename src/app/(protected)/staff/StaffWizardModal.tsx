@@ -5,11 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { normalizeStaffRole } from '@/lib/staff-role'
+import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles'
 
-const ROLE_OPTIONS = [
-  { value: 'Property Manager', label: 'Property Manager' },
-  { value: 'Bookkeeper', label: 'Bookkeeper' },
-]
+const ROLE_OPTIONS = getAvailableUIStaffRoles().map((value) => ({ value, label: value }))
 
 export default function StaffWizardModal({ open, onOpenChange, onSaved }: { open: boolean; onOpenChange: (o:boolean)=>void; onSaved: ()=>void }) {
   const [step, setStep] = useState(1)
@@ -65,7 +63,7 @@ export default function StaffWizardModal({ open, onOpenChange, onSaved }: { open
       if (!res.ok) throw new Error(data?.error || 'Failed to create staff')
       const staffId = data?.staff?.id
       if (staffId && selectedProperties.size) {
-        await fetch('/api/property-staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignments: Array.from(selectedProperties).map(pid => ({ property_id: pid, staff_id: staffId, role: 'PROPERTY_MANAGER' })) }) })
+        await fetch('/api/property-staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignments: Array.from(selectedProperties).map(pid => ({ property_id: pid, staff_id: staffId, role: 'Property Manager' })) }) })
       }
       if (staffId && syncToBuildium) {
         await fetch('/api/buildium/staff/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staff_id: staffId }) })

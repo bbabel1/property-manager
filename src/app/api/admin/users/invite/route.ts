@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
 import { AppRole, RoleRank } from '@/lib/auth/roles'
+import { pickDefaultProfileNameForRoles } from '@/lib/permission-profiles'
+import { mapUIStaffRoleToDB } from '@/lib/enums/staff-roles'
 
 const ALLOWED_ROLES: AppRole[] = [
   'platform_admin',
@@ -11,12 +13,15 @@ const ALLOWED_ROLES: AppRole[] = [
   'org_staff',
   'owner_portal',
   'tenant_portal',
+  'vendor_portal',
 ]
 
 const InviteSchema = z.object({
   email: z.string().email('email must be a valid address'),
   org_id: z.string().min(1).optional(),
-  roles: z.array(z.string()).optional()
+  roles: z.array(z.string()).optional(),
+  permission_profile_id: z.string().uuid().optional(),
+  staff_role: z.string().optional(),
 })
 
 function normalizeRole(value: string): AppRole | null {
@@ -35,6 +40,9 @@ function normalizeRole(value: string): AppRole | null {
   if (normalized === 'assistant_property_manager' || normalized === 'assistantpropertymanager') {
     return 'org_staff'
   }
+  if (normalized === 'vendor_portal' || normalized === 'vendor') {
+    return 'vendor_portal'
+  }
   return null
 }
 
@@ -52,7 +60,7 @@ export async function POST(request: NextRequest) {
       const message = parsed.error.issues.map(i => i.message).join('\n') || 'Invalid payload'
       return NextResponse.json({ error: message }, { status: 400 })
     }
-    const { email: rawEmail, org_id: rawOrgId, roles: rawRoles } = parsed.data
+    const { email: rawEmail, org_id: rawOrgId, roles: rawRoles, permission_profile_id, staff_role } = parsed.data
 
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Server not configured with service role' }, { status: 500 })
@@ -125,6 +133,94 @@ export async function POST(request: NextRequest) {
 
       if (membershipError) {
         return NextResponse.json({ error: membershipError.message }, { status: 500 })
+      }
+
+      // Persist all selected roles for the membership
+      try {
+        const { error: deleteError } = await supabaseAdmin
+          .from('org_membership_roles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('org_id', org_id)
+
+        if (deleteError) {
+          console.warn('Failed to clear org_membership_roles before insert', deleteError)
+        }
+
+        const roleRows = normalizedRoles.map((role) => ({ user_id: userId, org_id, role }))
+        const { error: rolesError } = await supabaseAdmin
+          .from('org_membership_roles')
+          .insert(roleRows)
+
+        if (rolesError) {
+          console.warn('Failed to insert org_membership_roles for invite', rolesError)
+        }
+      } catch (rolesException) {
+        console.warn('Failed to sync org_membership_roles for invite', rolesException)
+      }
+
+      // Assign permission profile when provided or using default for role set
+      const profileName = permission_profile_id ? null : pickDefaultProfileNameForRoles(normalizedRoles)
+      try {
+        await supabaseAdmin
+          .from('user_permission_profiles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('org_id', org_id)
+        if (permission_profile_id) {
+          await supabaseAdmin
+            .from('user_permission_profiles')
+            .insert({ user_id: userId, org_id, profile_id: permission_profile_id })
+        } else if (profileName) {
+          const { data: profileRow } = await supabaseAdmin
+            .from('permission_profiles')
+            .select('id')
+            .eq('name', profileName)
+            .or(`org_id.is.null,org_id.eq.${org_id}`)
+            .order('org_id', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          const profileId = (profileRow as any)?.id
+          if (profileId) {
+            await supabaseAdmin
+              .from('user_permission_profiles')
+              .insert({ user_id: userId, org_id, profile_id: profileId })
+          }
+        }
+      } catch (profileError) {
+        console.warn('Failed to assign permission profile on invite', profileError)
+      }
+    }
+
+    // Auto-provision staff row when invited as staff/manager
+    const isStaffish = normalizedRoles.includes('org_manager') || normalizedRoles.includes('org_staff') || !!staff_role
+    if (isStaffish) {
+      try {
+        const { data: existingStaff } = await supabaseAdmin
+          .from('staff')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle()
+        if (!existingStaff?.id) {
+          const staffRole = staff_role
+            ? mapUIStaffRoleToDB(staff_role)
+            : normalizedRoles.includes('org_manager')
+              ? mapUIStaffRoleToDB('Property Manager')
+              : mapUIStaffRoleToDB('Bookkeeper')
+          const timestamp = new Date().toISOString()
+          await supabaseAdmin
+            .from('staff')
+            .insert({
+              user_id: userId,
+              role: staffRole,
+              email,
+              is_active: true,
+              created_at: timestamp,
+              updated_at: timestamp,
+            })
+        }
+      } catch (staffError) {
+        console.warn('Failed to auto-create staff row for invite', staffError)
       }
     }
 

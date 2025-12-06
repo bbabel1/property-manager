@@ -100,8 +100,8 @@ Authoritative mapping of Buildium webhook EventNames to expected payload shape, 
 
 ### Work Order (`WorkOrderCreated/Updated/Deleted`)
 - **Payload IDs (required):** `WorkOrderId`; optional `PropertyId`, `UnitId`, `VendorId`.
-- **Transform:** `mapWorkOrderFromBuildiumWithRelations`.
-- **Target:** `work_orders` (`buildium_work_order_id`, property/unit/vendor links).
+- **Transform:** `mapWorkOrderFromBuildiumWithRelations` (auto-creates vendor from Buildium if missing locally).
+- **Target:** `work_orders` (`buildium_work_order_id`, property/unit/vendor links, cost/dates: `estimated_cost`, `actual_cost`, `scheduled_date`, `completed_date`, `notes`/`VendorNotes`).
 - **FK expectations:** `PropertyId` → `properties.buildium_property_id`; `UnitId` → `units.buildium_unit_id`; `VendorId` → `vendors.buildium_vendor_id`.
 - **Deletes:** remove work order row (tombstone if already absent).
 

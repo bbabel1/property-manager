@@ -10,6 +10,7 @@ const RoleEnum = z.enum([
   'org_staff',
   'owner_portal',
   'tenant_portal',
+  'vendor_portal',
 ])
 
 const UpsertSchema = z.object({
@@ -51,6 +52,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message || 'Failed to upsert membership' }, { status: 500 })
     }
 
+    // Persist full role set (single role for this endpoint) to multi-role table
+    try {
+      await admin.from('org_membership_roles').delete().eq('user_id', user_id).eq('org_id', org_id)
+      await admin.from('org_membership_roles').insert({ user_id, org_id, role })
+    } catch (rolesError) {
+      console.warn('Failed to sync org_membership_roles for simple upsert', rolesError)
+    }
+
     return NextResponse.json({ success: true })
   } catch (e: any) {
     const msg = e?.message || 'Internal Server Error'
@@ -88,6 +97,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message || 'Failed to delete membership' }, { status: 500 })
     }
 
+    try {
+      await admin
+        .from('org_membership_roles')
+        .delete()
+        .eq('user_id', user_id)
+        .eq('org_id', org_id)
+    } catch (rolesError) {
+      console.warn('Failed to delete org_membership_roles for membership removal', rolesError)
+    }
+
     return NextResponse.json({ success: true })
   } catch (e: any) {
     const msg = e?.message || 'Internal Server Error'
@@ -95,4 +114,3 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status })
   }
 }
-

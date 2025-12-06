@@ -1,10 +1,10 @@
 # Buildium Webhook Event Support
 
 ## Supported EventNames
-- `PropertyCreated` / `PropertyUpdated`
-- `OwnerCreated` / `OwnerUpdated`
-- `LeaseCreated` / `LeaseUpdated`
-- `LeaseTransactionCreated` / `LeaseTransactionUpdated` / `LeaseTransactionDeleted` (`LeaseTransaction.Deleted`)
+- `Property.Created` / `Property.Updated` / `Property.Deleted`
+- `Owner.Created` / `Owner.Updated` / `Owner.Deleted`
+- `Lease.Created` / `Lease.Updated` / `Lease.Deleted`
+- `LeaseTransaction.Created` / `LeaseTransaction.Updated` / `LeaseTransaction.Deleted`
 
 ## Required Fields
 - Common: `Id` (or `EventId`), `EventDate` or `EventDateTime`

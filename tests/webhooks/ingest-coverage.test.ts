@@ -1,13 +1,15 @@
 import assert from 'node:assert'
 import test from 'node:test'
 import { buildiumEventFixtures } from '../fixtures/buildium-events'
-import { SUPPORTED_EVENT_NAMES, validateBuildiumEvent } from '../../supabase/functions/_shared/eventValidation'
+import { SUPPORTED_EVENT_NAMES, validateBuildiumEvent, canonicalizeEventName } from '../../supabase/functions/_shared/eventValidation'
 import { looksLikeDelete, DELETE_EVENT_NAMES } from '../../src/lib/buildium-delete-map'
 import { normalizeBuildiumWebhookEvent } from '../../supabase/functions/_shared/webhookEvents'
 
 test('all fixtures align with supported EventNames and validation', () => {
   const fixtureEventNames = new Set(
-    buildiumEventFixtures.map((f) => (f.event.EventType || f.event.EventName || '').toString())
+    buildiumEventFixtures.map((f) =>
+      canonicalizeEventName((f.event.EventType || f.event.EventName || '').toString())
+    )
   )
   for (const supported of SUPPORTED_EVENT_NAMES) {
     assert.ok(
@@ -17,7 +19,7 @@ test('all fixtures align with supported EventNames and validation', () => {
   }
   for (const fixture of buildiumEventFixtures) {
     const { event, name, valid = true } = fixture
-    const eventType = (event.EventType || event.EventName || '').toString()
+    const eventType = canonicalizeEventName((event.EventType || event.EventName || '').toString())
     if (valid) {
       assert.ok(
         SUPPORTED_EVENT_NAMES.includes(eventType as any),
@@ -43,7 +45,7 @@ test('delete fixtures are detected by delete map', () => {
   const fixtureDeleteNames = new Set(
     buildiumEventFixtures
       .filter((f) => looksLikeDelete(f.event))
-      .map((f) => (f.event.EventType || f.event.EventName || '').toString().toLowerCase())
+      .map((f) => canonicalizeEventName((f.event.EventType || f.event.EventName || '').toString()).toLowerCase())
   )
   for (const del of DELETE_EVENT_NAMES) {
     assert.ok(fixtureDeleteNames.has(del.toLowerCase()), `Missing delete fixture for ${del}`)

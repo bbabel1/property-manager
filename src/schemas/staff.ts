@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { STAFF_ROLE_VALUES } from '@/lib/enums/staff-roles';
 
-// Staff role enum
-const StaffRoleEnum = z.enum(['Property Manager', 'Bookkeeper']);
+// Staff role enum (derived from canonical list)
+const StaffRoleEnum = z.enum(STAFF_ROLE_VALUES as [string, ...string[]]);
 
 export const StaffCreateSchema = z.object({
   // Basic information

@@ -1,34 +1,45 @@
 import type { Database } from '@/types/database'
 
 // UI-friendly role names (what users see)
-export type UIStaffRole = 
+export type UIStaffRole =
   | 'Property Manager'
-  | 'Bookkeeper'
   | 'Assistant Property Manager'
   | 'Maintenance Coordinator'
   | 'Accountant'
   | 'Administrator'
+  | 'Bookkeeper'
 
 // Database enum values (what gets stored)
-export type DBStaffRole = Database['public']['Enums']['staff_role']
+export type DBStaffRole = Database['public']['Enums']['staff_roles']
 
-// Mapping from UI roles to database enum values
+// Canonical ordered list for UI pickers and validators
+export const STAFF_ROLE_VALUES: UIStaffRole[] = [
+  'Property Manager',
+  'Assistant Property Manager',
+  'Maintenance Coordinator',
+  'Accountant',
+  'Administrator',
+  'Bookkeeper',
+]
+
+// Mapping from UI roles to database enum values (1:1 when using staff_roles enum)
 export const UI_TO_DB_ROLE_MAPPING: Record<UIStaffRole, DBStaffRole> = {
-  'Property Manager': 'PROPERTY_MANAGER',
-  'Bookkeeper': 'ACCOUNTANT',
-  'Assistant Property Manager': 'ASSISTANT_PROPERTY_MANAGER',
-  'Maintenance Coordinator': 'MAINTENANCE_COORDINATOR',
-  'Accountant': 'ACCOUNTANT',
-  'Administrator': 'ADMINISTRATOR'
+  'Property Manager': 'Property Manager',
+  'Assistant Property Manager': 'Assistant Property Manager',
+  'Maintenance Coordinator': 'Maintenance Coordinator',
+  'Accountant': 'Accountant',
+  'Administrator': 'Administrator',
+  'Bookkeeper': 'Bookkeeper',
 } as const
 
 // Reverse mapping from database enum to UI role
 export const DB_TO_UI_ROLE_MAPPING: Record<DBStaffRole, UIStaffRole> = {
-  'PROPERTY_MANAGER': 'Property Manager',
-  'ASSISTANT_PROPERTY_MANAGER': 'Assistant Property Manager',
-  'MAINTENANCE_COORDINATOR': 'Maintenance Coordinator',
-  'ACCOUNTANT': 'Accountant',
-  'ADMINISTRATOR': 'Administrator'
+  'Property Manager': 'Property Manager',
+  'Assistant Property Manager': 'Assistant Property Manager',
+  'Maintenance Coordinator': 'Maintenance Coordinator',
+  'Accountant': 'Accountant',
+  'Administrator': 'Administrator',
+  'Bookkeeper': 'Bookkeeper',
 } as const
 
 /**
@@ -39,12 +50,12 @@ export const DB_TO_UI_ROLE_MAPPING: Record<DBStaffRole, UIStaffRole> = {
 export function mapUIStaffRoleToDB(uiRole: string): DBStaffRole {
   const normalizedRole = uiRole.trim() as UIStaffRole
   const dbRole = UI_TO_DB_ROLE_MAPPING[normalizedRole]
-  
+
   if (!dbRole) {
-    console.warn(`Unknown UI staff role: "${uiRole}", defaulting to PROPERTY_MANAGER`)
-    return 'PROPERTY_MANAGER'
+    console.warn(`Unknown UI staff role: "${uiRole}", defaulting to Property Manager`)
+    return 'Property Manager'
   }
-  
+
   return dbRole
 }
 
@@ -55,12 +66,12 @@ export function mapUIStaffRoleToDB(uiRole: string): DBStaffRole {
  */
 export function mapDBStaffRoleToUI(dbRole: DBStaffRole): UIStaffRole {
   const uiRole = DB_TO_UI_ROLE_MAPPING[dbRole]
-  
+
   if (!uiRole) {
     console.warn(`Unknown DB staff role: "${dbRole}", defaulting to Property Manager`)
     return 'Property Manager'
   }
-  
+
   return uiRole
 }
 
@@ -87,7 +98,7 @@ export function isValidDBStaffRole(role: string): role is DBStaffRole {
  * @returns Array of UI staff role strings
  */
 export function getAvailableUIStaffRoles(): UIStaffRole[] {
-  return Object.keys(UI_TO_DB_ROLE_MAPPING) as UIStaffRole[]
+  return STAFF_ROLE_VALUES
 }
 
 /**
@@ -95,5 +106,5 @@ export function getAvailableUIStaffRoles(): UIStaffRole[] {
  * @returns Array of database staff role enum values
  */
 export function getAvailableDBStaffRoles(): DBStaffRole[] {
-  return Object.keys(DB_TO_UI_ROLE_MAPPING) as DBStaffRole[]
+  return STAFF_ROLE_VALUES as DBStaffRole[]
 }

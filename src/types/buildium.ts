@@ -52,6 +52,68 @@ export type BuildiumLeaseContactRole = 'Tenant' | 'Cosigner' | 'Guarantor';
 export type BuildiumWorkOrderStatus = 'New' | 'InProgress' | 'Completed' | 'Cancelled';
 export type BuildiumWorkOrderPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 export type BuildiumWebhookEventType =
+  // Canonical dotted forms
+  | 'Property.Created'
+  | 'Property.Updated'
+  | 'Property.Deleted'
+  | 'Rental.Created'
+  | 'Rental.Updated'
+  | 'Rental.Deleted'
+  | 'RentalUnit.Created'
+  | 'RentalUnit.Updated'
+  | 'RentalUnit.Deleted'
+  | 'Owner.Created'
+  | 'Owner.Updated'
+  | 'Owner.Deleted'
+  | 'RentalOwner.Created'
+  | 'RentalOwner.Updated'
+  | 'RentalOwner.Deleted'
+  | 'Lease.Created'
+  | 'Lease.Updated'
+  | 'Lease.Deleted'
+  | 'LeaseTransaction.Created'
+  | 'LeaseTransaction.Updated'
+  | 'LeaseTransaction.Deleted'
+  | 'LeaseTenant.Created'
+  | 'LeaseTenant.Updated'
+  | 'LeaseTenant.Deleted'
+  | 'Lease.MoveOut.Created'
+  | 'Lease.MoveOut.Updated'
+  | 'Lease.MoveOut.Deleted'
+  | 'Bill.Created'
+  | 'Bill.Updated'
+  | 'Bill.Deleted'
+  | 'Bill.Payment.Created'
+  | 'Bill.Payment.Updated'
+  | 'Bill.Payment.Deleted'
+  | 'GLAccount.Created'
+  | 'GLAccount.Updated'
+  | 'GLAccount.Deleted'
+  | 'BankAccount.Created'
+  | 'BankAccount.Updated'
+  | 'BankAccount.Deleted'
+  | 'Task.Created'
+  | 'Task.Updated'
+  | 'Task.Deleted'
+  | 'Task.History.Created'
+  | 'Task.History.Updated'
+  | 'Task.History.Deleted'
+  | 'TaskCategory.Created'
+  | 'TaskCategory.Updated'
+  | 'TaskCategory.Deleted'
+  | 'Vendor.Created'
+  | 'Vendor.Updated'
+  | 'Vendor.Deleted'
+  | 'VendorCategory.Created'
+  | 'VendorCategory.Updated'
+  | 'VendorCategory.Deleted'
+  | 'Vendor.Transaction.Created'
+  | 'Vendor.Transaction.Updated'
+  | 'Vendor.Transaction.Deleted'
+  | 'WorkOrder.Created'
+  | 'WorkOrder.Updated'
+  | 'WorkOrder.Deleted'
+  // Legacy/alias forms (kept for compatibility)
   | 'PropertyCreated'
   | 'PropertyUpdated'
   | 'PropertyDeleted'
@@ -685,10 +747,19 @@ export interface BuildiumWorkOrder {
   RequestedByUserEntity?: BuildiumWorkOrderRequestedByEntity;
   AssignedToUserId?: number | null;
   WorkOrderStatus?: BuildiumWorkOrderStatus;
+  Status?: BuildiumWorkOrderStatus;
   Priority?: BuildiumWorkOrderPriority;
   DueDate?: string; // yyyy-mm-dd
+  WorkOrderDueDate?: string; // alternate
   CreatedDateTime?: string; // ISO 8601
   LastUpdatedDateTime?: string; // ISO 8601
+  VendorId?: number | null;
+  EstimatedCost?: number;
+  ActualCost?: number;
+  ScheduledDate?: string;
+  CompletedDate?: string;
+  VendorNotes?: string;
+  WorkDetails?: string;
 }
 
 export interface BuildiumWorkOrderCreate {

@@ -11,7 +11,7 @@ Deno.test('accepts valid buildium webhook payload', () => {
     Events: [
       {
         Id: 'evt-1',
-        EventType: 'PropertyCreated',
+        EventType: 'Property.Created',
         EventDate: '2024-01-01T00:00:00Z',
         EntityId: 1,
       },
@@ -70,10 +70,45 @@ Deno.test('accepts lease transaction payload with credentials', () => {
   assert(result.ok)
 })
 
+Deno.test('accepts dotted lease transaction event names', () => {
+  const payload = {
+    Events: [
+      {
+        Id: 'evt-lease-dotted',
+        EventType: 'LeaseTransaction.Created',
+        EventDateTime: '2024-03-03T00:00:00Z',
+        EntityId: 33,
+        LeaseId: 123,
+        TransactionId: 456,
+      },
+    ],
+  }
+
+  const result = validateWebhookPayload(payload, LeaseTransactionsWebhookPayloadSchema)
+  assert(result.ok)
+})
+
+Deno.test('accepts lease transaction payload without Id when TransactionId present', () => {
+  const payload = {
+    Events: [
+      {
+        EventType: 'LeaseTransaction.Created',
+        EventDateTime: '2024-03-03T00:00:00Z',
+        LeaseId: 123,
+        TransactionId: 456,
+      },
+    ],
+  }
+
+  const result = validateWebhookPayload(payload, LeaseTransactionsWebhookPayloadSchema)
+  assert(result.ok)
+})
+
 Deno.test('routing decisions are explicit', () => {
-  assertEquals(routeGeneralWebhookEvent('PropertyCreated'), 'process')
-  assertEquals(routeGeneralWebhookEvent('VendorCreated'), 'skip')
+  assertEquals(routeGeneralWebhookEvent('Property.Created'), 'process')
+  assertEquals(routeGeneralWebhookEvent('Vendor.Created'), 'skip')
   assertEquals(routeLeaseTransactionWebhookEvent('LeaseTransactionCreated'), 'process')
-  assertEquals(routeLeaseTransactionWebhookEvent('LeaseCreated'), 'skip')
+  assertEquals(routeLeaseTransactionWebhookEvent('LeaseTransaction.Created'), 'process')
+  assertEquals(routeLeaseTransactionWebhookEvent('Lease.Created'), 'skip')
   assertEquals(routeLeaseTransactionWebhookEvent('TotallyUnknown'), 'dead-letter')
 })
