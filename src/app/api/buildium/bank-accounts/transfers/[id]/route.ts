@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin')
     const transferId = (await params).id;
     
     logger.info({ userId: user.id, transferId, action: 'get_buildium_transfer' }, 'Fetching Buildium transfer details');
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin');
     const transferId = (await params).id;
     
     logger.info({ userId: user.id, transferId, action: 'update_buildium_transfer' }, 'Updating Buildium transfer');

@@ -40,9 +40,7 @@ const uniqueSlug = async (name: string, admin: TypedSupabaseClient): Promise<str
 
 export async function GET() {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
-    }
+    await requireRole('platform_admin')
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
     }
@@ -59,9 +57,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
-    }
+    await requireRole('platform_admin')
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
     }

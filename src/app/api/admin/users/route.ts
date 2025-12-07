@@ -4,10 +4,8 @@ import { requireRole } from '@/lib/auth/guards'
 
 export async function GET() {
   try {
-    // Enforce admin in production; relax in dev for bootstrap
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
-    }
+    // Restrict to platform_admin to avoid cross-org disclosure
+    await requireRole('platform_admin')
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
     }
@@ -116,6 +114,7 @@ export async function GET() {
       email: u.email,
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at,
+      app_metadata: u.app_metadata ?? {},
       memberships: byUser.get(u.id) || [],
       permission_profiles: profilesByUser.get(u.id) || [],
       contact: contactsByUser.get(u.id) || null,

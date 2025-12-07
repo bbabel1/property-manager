@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -7,7 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin')
     logger.info({ userId: user.id, action: 'get_buildium_withdrawals' }, 'Fetching Buildium withdrawals');
 
     // Buildium API call
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin');
     logger.info({ userId: user.id, action: 'create_buildium_withdrawal' }, 'Creating Buildium withdrawal');
 
     // Parse and validate request body

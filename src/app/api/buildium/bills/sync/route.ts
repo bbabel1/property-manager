@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supabase-client'
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       if (!rate.success) {
         return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
       }
-      await requireUser()
+      await requireRole('platform_admin')
     }
 
     const { searchParams } = new URL(request.url)
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       if (!rate.success) {
         return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
       }
-      await requireUser()
+      await requireRole('platform_admin')
     }
 
     // Accept a single Buildium bill payload and upsert it

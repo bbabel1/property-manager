@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    await requireUser()
+    await requireRole('platform_admin')
     const billId = (await params).id
     if (!billId) return NextResponse.json({ error: 'Missing billId' }, { status: 400 })
 

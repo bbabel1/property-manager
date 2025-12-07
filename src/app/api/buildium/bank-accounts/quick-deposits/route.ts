@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin')
     logger.info({ userId: user.id, action: 'get_buildium_quick_deposits' }, 'Fetching Buildium quick deposits');
 
     // Buildium API call
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin');
     logger.info({ userId: user.id, action: 'create_buildium_quick_deposit' }, 'Creating Buildium quick deposit');
 
     // Parse request body

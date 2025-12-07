@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     logger.info({ userId: user.id, action: 'get_buildium_undeposited_funds' }, 'Fetching Buildium undeposited funds');
 
     // Buildium API call

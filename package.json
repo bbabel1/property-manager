@@ -44,6 +44,8 @@
     "ci:env-check": "tsx src/env/server.ts && tsx src/env/client.ts",
     "test:buildium:smoke": "echo \"Buildium smoke tests removed.\"",
     "test:buildium:webhook": "echo \"Buildium webhook smoke tests removed.\"",
+    "test:membership": "tsx tests/membership-auth.spec.ts",
+    "test:security": "tsx tests/security-jwt-claims.spec.ts",
     "cron:recurring": "tsx scripts/cron/recurring.ts",
     "cron:late-fees": "tsx scripts/cron/late-fees.ts"
   },

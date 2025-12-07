@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import type { AppRole } from '@/lib/auth/roles';
 import { requiredRolesFor, userHasRequiredRoles } from '@/lib/rbac';
+import { logSecurityEvent } from '@/lib/security-log';
 
 type LooseRecord = Record<string, unknown>;
 type MiddlewareUser = {
@@ -27,6 +28,22 @@ const extractRoles = (user: MiddlewareUser): AppRole[] => {
   const claimsRoles = normalizeArray(claims.roles);
   const legacyRoles = normalizeArray(appMeta.roles);
   return [...claimsRoles, ...legacyRoles] as AppRole[];
+};
+
+const extractOrgRoles = (user: MiddlewareUser): Record<string, AppRole[]> => {
+  const appMeta = (user?.app_metadata ?? {}) as LooseRecord;
+  const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const orgRolesRaw = claims.org_roles;
+  const result: Record<string, AppRole[]> = {};
+  if (orgRolesRaw && typeof orgRolesRaw === 'object') {
+    Object.entries(orgRolesRaw as Record<string, unknown>).forEach(([orgId, roles]) => {
+      const arr = normalizeArray(roles).filter(Boolean) as AppRole[];
+      if (orgId && arr.length) {
+        result[String(orgId)] = arr;
+      }
+    });
+  }
+  return result;
 };
 
 const extractOrgIds = (user: MiddlewareUser): string[] => {
@@ -155,7 +172,11 @@ export async function middleware(req: NextRequest) {
     }
 
     let roles = extractRoles(user);
+    const orgRolesMap = extractOrgRoles(user);
     let orgIds = extractOrgIds(user);
+    if (!orgIds.length && Object.keys(orgRolesMap).length > 0) {
+      orgIds = Object.keys(orgRolesMap);
+    }
 
     // If roles/orgIds missing from claims (stale token), hydrate from memberships
     if ((!roles.length || !orgIds.length) && user.id) {
@@ -185,8 +206,40 @@ export async function middleware(req: NextRequest) {
 
     const required = requiredRolesFor(pathname);
     const isProd = process.env.NODE_ENV === 'production';
-    if (isProd && !userHasRequiredRoles(roles, required)) {
-      return new NextResponse('Forbidden', { status: 403 });
+    // Prefer org-scoped roles when an org is known
+    const targetOrgId =
+      req.headers.get('x-org-id') ||
+      (orgIds.length ? orgIds[0] : Object.keys(orgRolesMap)[0]);
+    const scopedRoles =
+      (targetOrgId && orgRolesMap[targetOrgId]) ||
+      (targetOrgId && orgRolesMap[String(targetOrgId)]) ||
+      roles;
+
+    if (isProd) {
+      if (targetOrgId && Object.keys(orgRolesMap).length > 0 && !orgRolesMap[targetOrgId]) {
+        logSecurityEvent({
+          action: 'org_membership_check',
+          route: pathname,
+          userId: user.id,
+          orgId: targetOrgId,
+          roles: scopedRoles,
+          result: 'deny',
+          reason: 'missing_org_membership',
+        });
+        return new NextResponse('Organization membership required', { status: 403 });
+      }
+      if (!userHasRequiredRoles(scopedRoles, required)) {
+        logSecurityEvent({
+          action: 'route_rbac_check',
+          route: pathname,
+          userId: user.id,
+          orgId: targetOrgId ?? null,
+          roles: scopedRoles,
+          result: 'deny',
+          reason: 'insufficient_role',
+        });
+        return new NextResponse('Forbidden', { status: 403 });
+      }
     }
 
     // Basic tenant isolation precheck: user must belong to at least one org
@@ -196,8 +249,12 @@ export async function middleware(req: NextRequest) {
 
     // Forward an org hint to route handlers if not provided (best-effort)
     const requestHeaders = new Headers(req.headers);
-    if (!requestHeaders.get('x-org-id') && orgIds?.[0]) {
-      requestHeaders.set('x-org-id', String(orgIds[0]));
+    if (!requestHeaders.get('x-org-id')) {
+      const preferredOrg = (user?.app_metadata as LooseRecord)?.claims?.preferred_org_id;
+      const orgHint = preferredOrg || orgIds?.[0] || targetOrgId;
+      if (orgHint) {
+        requestHeaders.set('x-org-id', String(orgHint));
+      }
     }
     if (user) {
       try {

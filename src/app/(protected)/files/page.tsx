@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
-import { Upload, Trash2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Upload } from 'lucide-react';
 import FilesTable from '@/components/files/FilesTable';
 import FilesFilters from '@/components/files/FilesFilters';
 import FileUploadDialog from '@/components/files/FileUploadDialog';
@@ -376,77 +378,78 @@ export default function FilesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-bold">Files</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage and organize all your property management files
-          </p>
-        </div>
-        <Button
-          className="flex w-full items-center gap-2 sm:w-auto"
-          onClick={() => setIsUploadDialogOpen(true)}
-          aria-label="Upload new file"
-        >
-          <Upload className="h-4 w-4" aria-hidden="true" />
-          Upload File
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Files"
+        description="Manage and organize all your property management files"
+        actions={
+          <Button
+            className="flex w-full items-center gap-2 sm:w-auto"
+            onClick={() => setIsUploadDialogOpen(true)}
+            aria-label="Upload new file"
+          >
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            Upload File
+          </Button>
+        }
+      />
 
-      <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
-        <FilesFilters
-          search={search}
-          categoryId={categoryId}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onSearchChange={handleSearchChange}
-          onCategoryChange={handleCategoryChange}
-          onDateFromChange={handleDateFromChange}
-          onDateToChange={handleDateToChange}
-          onClearFilters={handleClearFilters}
-          categoryOptions={categories}
-          variant="embedded"
-          className="border-b"
-        />
+      <PageBody>
+        <Card className="border-border/80 shadow-sm overflow-hidden">
+          <FilesFilters
+            search={search}
+            categoryId={categoryId}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onSearchChange={handleSearchChange}
+            onCategoryChange={handleCategoryChange}
+            onDateFromChange={handleDateFromChange}
+            onDateToChange={handleDateToChange}
+            onClearFilters={handleClearFilters}
+            categoryOptions={categories}
+            variant="embedded"
+            className="border-border/80 border-b"
+          />
 
-        <BulkActionsBar
-          selectedFiles={selectedFiles}
-          onSelectionChange={setSelectedFiles}
-          onRefresh={fetchFiles}
-          variant="inline"
-        />
-
-        <div className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
-          {matches} {matches === 1 ? 'match' : 'matches'}
-        </div>
-
-        {error ? (
-          <div className="px-4 py-12 text-center sm:px-6">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              Retry
-            </Button>
-          </div>
-        ) : (
-          <FilesTable
-            files={files}
-            isLoading={isLoading}
-            onFileClick={handleFileClick}
-            onFileView={handleFileView}
-            onFileDownload={handleFileDownload}
-            onFileEdit={handleFileEdit}
-            onFileEmail={handleFileEmail}
-            onFileDelete={handleFileDelete}
-            onFileShare={handleFileShare}
-            onFilesChanged={fetchFiles}
+          <BulkActionsBar
             selectedFiles={selectedFiles}
             onSelectionChange={setSelectedFiles}
-            variant="embedded"
+            onRefresh={fetchFiles}
+            variant="inline"
           />
-        )}
-      </div>
+
+          <div className="border-border/80 border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
+            {matches} {matches === 1 ? 'match' : 'matches'}
+          </div>
+
+          <CardContent className="p-0">
+            {error ? (
+              <div className="px-6 py-12 text-center">
+                <p className="text-destructive mb-4">{error}</p>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <FilesTable
+                files={files}
+                isLoading={isLoading}
+                onFileClick={handleFileClick}
+                onFileView={handleFileView}
+                onFileDownload={handleFileDownload}
+                onFileEdit={handleFileEdit}
+                onFileEmail={handleFileEmail}
+                onFileDelete={handleFileDelete}
+                onFileShare={handleFileShare}
+                onFilesChanged={fetchFiles}
+                selectedFiles={selectedFiles}
+                onSelectionChange={setSelectedFiles}
+                variant="embedded"
+              />
+            )}
+          </CardContent>
+        </Card>
+      </PageBody>
 
       {/* Upload Dialog */}
       <FileUploadDialog
@@ -530,6 +533,6 @@ export default function FilesPage() {
           fetchFiles(); // Refresh to update sharing indicators
         }}
       />
-    </div>
+    </PageShell>
   );
 }

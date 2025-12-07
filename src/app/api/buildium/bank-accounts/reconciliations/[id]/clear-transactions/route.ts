@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin');
     const reconciliationId = (await params).id;
     
     logger.info({ userId: user.id, reconciliationId, action: 'clear_reconciliation_transactions' }, 'Clearing Buildium reconciliation transactions');

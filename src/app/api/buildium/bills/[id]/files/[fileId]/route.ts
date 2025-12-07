@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sanitizeAndValidate } from '@/lib/sanitize';
@@ -17,8 +17,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    // Require authentication
-    const user = await requireUser();
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id, fileId } = await params;
 
@@ -77,8 +77,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       );
     }
 
-    // Require authentication
-    const user = await requireUser();
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id, fileId } = await params;
 
@@ -136,8 +136,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    // Require authentication
-    const user = await requireUser();
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id, fileId } = await params;
 
@@ -176,7 +176,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    await requireUser();
+    await requireRole('platform_admin');
     const { id, fileId } = await params;
 
     const body = await request.json();

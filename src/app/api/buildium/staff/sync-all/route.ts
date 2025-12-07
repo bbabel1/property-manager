@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { getServerSupabaseClient } from '@/lib/supabase-client'
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request)
+    await requireRole('platform_admin')
     const supabase = getServerSupabaseClient()
     const { data, error } = await supabase.functions.invoke('buildium-staff-sync', { body: { mode: 'manual' } })
     if (error) return NextResponse.json({ error: error.message || 'Invoke failed' }, { status: 500 })
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   // Latest run status helper (require auth; use admin to bypass RLS)
   try {
-    await requireUser(request)
+    await requireRole('platform_admin')
     const client = getServerSupabaseClient()
     const { data, error } = await client
       .from('buildium_sync_runs')

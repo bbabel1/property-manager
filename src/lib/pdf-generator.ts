@@ -5,7 +5,147 @@
  * Converts HTML templates to professional PDF documents.
  */
 
-import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
+
+import { chromium, type Browser, type BrowserContext } from 'playwright';
+
+const DEFAULT_LAUNCH_ARGS = ['--no-sandbox', '--disable-setuid-sandbox'] as const;
+
+const PLATFORM_BROWSER_CANDIDATES: Record<NodeJS.Platform, string[]> = {
+  win32: [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ],
+  darwin: [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ],
+  linux: [
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+  ],
+};
+
+/**
+ * Resolve a Chromium executable path that exists on the host.
+ *
+ * Preference order:
+ * 1) Explicit env override (PLAYWRIGHT_CHROMIUM_PATH, CHROMIUM_EXECUTABLE_PATH, CHROMIUM_PATH, GOOGLE_CHROME_SHIM)
+ * 2) Playwright-managed browser path (if downloaded)
+ * 3) Common system Chrome/Chromium locations by platform
+ */
+function getChromiumExecutablePath(): string | undefined {
+  const playwrightExecutable =
+    typeof chromium.executablePath === 'function' ? chromium.executablePath() : undefined;
+
+  const candidatePaths = [
+    process.env.PLAYWRIGHT_CHROMIUM_PATH,
+    process.env.CHROMIUM_EXECUTABLE_PATH,
+    process.env.CHROMIUM_PATH,
+    process.env.GOOGLE_CHROME_SHIM,
+    playwrightExecutable,
+    ...(PLATFORM_BROWSER_CANDIDATES[process.platform] ?? []),
+  ].filter(Boolean) as string[];
+
+  return candidatePaths.find((candidate) => existsSync(candidate));
+}
+
+let sharedBrowserPromise: Promise<Browser> | null = null;
+let shutdownHookRegistered = false;
+let activeBrowserUsers = 0;
+let browserIdleTimer: NodeJS.Timeout | null = null;
+
+const BROWSER_IDLE_TTL_MS = 5_000;
+
+async function launchChromiumBrowser() {
+  const executablePath = getChromiumExecutablePath();
+
+  if (!executablePath) {
+    throw new Error(
+      'Chromium is not available for PDF generation. Install Playwright browsers with `npx playwright install chromium` or set PLAYWRIGHT_CHROMIUM_PATH to an installed Chrome/Chromium binary.',
+    );
+  }
+
+  try {
+    return await chromium.launch({
+      headless: true,
+      args: [...DEFAULT_LAUNCH_ARGS],
+      executablePath,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown launch error';
+    throw new Error(
+      `Failed to launch Chromium for PDF generation using ${executablePath}. ${message}`,
+    );
+  }
+}
+
+function registerBrowserShutdownHook() {
+  if (shutdownHookRegistered) return;
+  shutdownHookRegistered = true;
+
+  const shutdown = async () => {
+    await closeSharedBrowser();
+  };
+
+  ['beforeExit', 'SIGINT', 'SIGTERM'].forEach((event) => {
+    process.on(event as NodeJS.Signals | 'beforeExit', shutdown);
+  });
+}
+
+async function getSharedBrowser(): Promise<Browser> {
+  if (!sharedBrowserPromise) {
+    sharedBrowserPromise = launchChromiumBrowser();
+    sharedBrowserPromise.catch(() => {
+      sharedBrowserPromise = null;
+    });
+    registerBrowserShutdownHook();
+  }
+
+  const browser = await sharedBrowserPromise;
+  if (!browser.isConnected()) {
+    sharedBrowserPromise = null;
+    return getSharedBrowser();
+  }
+
+  return browser;
+}
+
+function markBrowserActive() {
+  activeBrowserUsers += 1;
+  if (browserIdleTimer) {
+    clearTimeout(browserIdleTimer);
+    browserIdleTimer = null;
+  }
+}
+
+async function closeSharedBrowser() {
+  if (!sharedBrowserPromise) return;
+  try {
+    const browser = await sharedBrowserPromise;
+    if (browser?.isConnected()) {
+      await browser.close();
+    }
+  } catch {
+    // best effort; nothing else to do
+  } finally {
+    sharedBrowserPromise = null;
+  }
+}
+
+function releaseBrowserAfterUse() {
+  activeBrowserUsers = Math.max(0, activeBrowserUsers - 1);
+  if (activeBrowserUsers > 0 || browserIdleTimer) return;
+
+  browserIdleTimer = setTimeout(() => {
+    void closeSharedBrowser();
+  }, BROWSER_IDLE_TTL_MS);
+
+  // Allow process to exit naturally without waiting for the idle timer.
+  browserIdleTimer.unref?.();
+}
 
 export interface PDFGenerationOptions {
   /**
@@ -60,13 +200,12 @@ export async function generatePDFFromHTML(
   html: string,
   options: PDFGenerationOptions = {},
 ): Promise<Buffer> {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  markBrowserActive();
+  const browser = await getSharedBrowser();
+  let context: BrowserContext | null = null;
 
   try {
-    const context = await browser.newContext();
+    context = await browser.newContext();
     const page = await context.newPage();
 
     // Set the HTML content
@@ -97,7 +236,8 @@ export async function generatePDFFromHTML(
 
     return Buffer.from(pdfBuffer);
   } finally {
-    await browser.close();
+    await context?.close();
+    releaseBrowserAfterUse();
   }
 }
 
@@ -114,13 +254,12 @@ export async function generatePDFFromURL(
   url: string,
   options: PDFGenerationOptions = {},
 ): Promise<Buffer> {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  markBrowserActive();
+  const browser = await getSharedBrowser();
+  let context: BrowserContext | null = null;
 
   try {
-    const context = await browser.newContext();
+    context = await browser.newContext();
     const page = await context.newPage();
 
     // Navigate to the URL
@@ -152,7 +291,8 @@ export async function generatePDFFromURL(
 
     return Buffer.from(pdfBuffer);
   } finally {
-    await browser.close();
+    await context?.close();
+    releaseBrowserAfterUse();
   }
 }
 
@@ -163,11 +303,16 @@ export async function generatePDFFromURL(
  */
 export async function validatePDFGeneration(): Promise<{ isValid: boolean; error?: string }> {
   try {
-    const browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    await browser.close();
+    markBrowserActive();
+    const browser = await getSharedBrowser();
+    let context: BrowserContext | null = null;
+    try {
+      context = await browser.newContext();
+      await context.close();
+    } finally {
+      await context?.close();
+      releaseBrowserAfterUse();
+    }
     return { isValid: true };
   } catch (error) {
     return {

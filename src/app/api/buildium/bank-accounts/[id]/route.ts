@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumBankAccountUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -8,10 +8,10 @@ import { buildiumFetch } from '@/lib/buildium-http'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const bankAccountId = (await params).id;
     
-    logger.info({ userId: user.id, bankAccountId, action: 'get_buildium_bank_account' }, 'Fetching Buildium bank account details');
+    logger.info({ bankAccountId, action: 'get_buildium_bank_account' }, 'Fetching Buildium bank account details');
 
     const prox = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}`)
     if (!prox.ok) {
@@ -42,10 +42,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const bankAccountId = (await params).id;
     
-    logger.info({ userId: user.id, bankAccountId, action: 'update_buildium_bank_account' }, 'Updating Buildium bank account');
+    logger.info({ bankAccountId, action: 'update_buildium_bank_account' }, 'Updating Buildium bank account');
 
     // Parse and validate request body
     const body = await request.json();

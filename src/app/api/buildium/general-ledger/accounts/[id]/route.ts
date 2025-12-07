@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumGeneralLedgerAccountUpdateSchema } from '@/schemas/buildium';
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
-    await requireUser();
+    await requireRole('platform_admin');
     const { id } = await params;
 
     const { data, error } = await supabase.functions.invoke('buildium-sync', {
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
-    await requireUser();
+    await requireRole('platform_admin');
     const { id } = await params;
     const body = await request.json();
     const validatedData = sanitizeAndValidate(body, BuildiumGeneralLedgerAccountUpdateSchema);

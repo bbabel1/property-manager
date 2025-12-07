@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { supabaseAdmin } from '@/lib/db';
+import { resolveResourceOrg, requireOrgMember, requireOrgAdmin } from '@/lib/auth/org-guards';
 
 const TABLE = 'property_notes'
 
@@ -60,8 +61,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    // Require authentication
-    await requireUser(request);
+    // Require authentication + org membership
+    const auth = await requireAuth();
 
     const { id } = await params;
 
@@ -70,6 +71,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       logger.warn({ buildiumPropertyId: id }, 'No local property found for property notes request')
       return NextResponse.json({ success: true, data: [], count: 0 })
     }
+
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'property', propertyId)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Property org not found' }, { status: 404 })
+    }
+    await requireOrgMember({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
 
     const { searchParams } = new URL(request.url)
     const limitRaw = Number(searchParams.get('limit') ?? '50')
@@ -128,7 +135,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Require authentication
-    await requireUser(request);
+    const auth = await requireAuth();
 
     const { id } = await params;
 
@@ -137,6 +144,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.warn({ buildiumPropertyId: id }, 'Cannot create property note; property not found locally')
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
+
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'property', propertyId)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Property org not found' }, { status: 404 })
+    }
+    await requireOrgAdmin({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
 
     // Parse and validate request body
     const body = await request.json();
@@ -152,8 +165,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         subject: validatedData.Subject,
         body: validatedData.Body,
         is_private: validatedData.IsPrivate ?? false,
-        created_by: user.id,
-        created_by_name: user.email ?? user.user_metadata?.full_name ?? 'Unknown',
+        created_by: auth.user.id,
+        created_by_name: auth.user.email ?? auth.user.user_metadata?.full_name ?? 'Unknown',
       })
       .select()
       .single()
@@ -163,7 +176,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to create property note' }, { status: 500 })
     }
 
-    logger.info({ propertyId, userId: user.id }, 'Property note created successfully')
+    logger.info({ propertyId, userId: auth.user.id }, 'Property note created successfully')
 
     return NextResponse.json({ success: true, data: mapRowToBuildiumNote(data) }, { status: 201 })
 

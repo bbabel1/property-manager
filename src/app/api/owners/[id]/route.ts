@@ -6,6 +6,8 @@ import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { Database } from '@/types/database'
 import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType } from '@/lib/normalizers'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards'
 
 type ContactsUpdate = Database['public']['Tables']['contacts']['Update']
 type OwnersUpdate = Database['public']['Tables']['owners']['Update']
@@ -30,9 +32,16 @@ export async function GET(
 
     console.log('🔍 Owner Details API: Rate limit check passed');
 
-    // Authentication
+    // Authentication + org scope
+    const auth = await requireAuth()
     const user = await requireUser(request);
     console.log('🔍 Owner Details API: User authenticated:', user.id);
+
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'owner', resolvedParams.id)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ error: 'Owner not found or org missing' }, { status: 404 })
+    }
+    await requireOrgMember({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
 
     // Fetch owner from database with contact information
     console.log('🔍 Owner Details API: About to query Supabase...');
@@ -90,6 +99,7 @@ export async function GET(
         )
       `)
       .eq('id', resolvedParams.id)
+      .eq('org_id', resolvedOrg.orgId)
       .single();
 
     console.log('🔍 Owner Details API: Supabase query completed');

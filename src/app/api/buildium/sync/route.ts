@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin');
     
     const url = new URL(request.url);
     const { searchParams } = url;
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    const { user } = await requireRole('platform_admin');
     
     const body = await request.json();
     const { entityType } = body;

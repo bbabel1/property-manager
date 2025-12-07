@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitVideoImageCreateSchema } from '@/schemas/buildium';
@@ -16,8 +16,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    // Require authentication
-    const user = await requireUser(request);
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id } = await params;
 

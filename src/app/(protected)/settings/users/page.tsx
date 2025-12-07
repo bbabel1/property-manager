@@ -6,39 +6,80 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { X, Edit } from 'lucide-react'
-import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Org = { id: string; name: string }
 type Membership = { org_id: string; org_name?: string; roles?: string[] }
 type Contact = { id: string; first_name?: string; last_name?: string; email?: string; phone?: string }
-type PermissionProfile = { org_id: string; profile_id: string; profile_name?: string }
-type PermissionProfileOption = { id: string; name: string; org_id: string | null; description?: string | null }
-const DEFAULT_PROFILE_VALUE = '__default__'
-const STAFF_ROLE_PLACEHOLDER = '__no_staff_role__'
 type UserRow = { 
   id: string; 
   email: string; 
   created_at?: string; 
   last_sign_in_at?: string; 
   memberships: Membership[];
-  permission_profiles?: PermissionProfile[];
+  app_metadata?: any;
   contact?: Contact;
   staff?: { id: number; role: string | null } | null;
+}
+
+const ROLE_OPTIONS = [
+  { label: 'Administrator', key: 'admin' },
+  { label: 'Property Manager', key: 'property_manager' },
+  { label: 'Rental Owner', key: 'rental_owner' },
+  { label: 'Vendor', key: 'vendor' },
+]
+
+const USER_TYPES = ['staff', 'rental_owner', 'vendor']
+
+const roleKeyToLabel = (key: string): string => ROLE_OPTIONS.find((r) => r.key === key)?.label || key
+
+const roleKeyToAppRoles = (roleKey: string): string[] => {
+  switch (roleKey) {
+    case 'admin':
+      return ['org_admin', 'org_manager', 'org_staff']
+    case 'property_manager':
+      return ['org_staff']
+    case 'rental_owner':
+      return ['owner_portal']
+    case 'vendor':
+      return ['vendor_portal']
+    default:
+      return []
+  }
+}
+
+const normalizeUserTypes = (values: string[]): string[] =>
+  Array.from(
+    new Set(
+      values
+        .map((v) => v?.trim().toLowerCase())
+        .filter((v) => USER_TYPES.includes(v))
+    )
+  )
+
+const mapAppRolesToUiLabels = (roles: string[]): string[] => {
+  const set = new Set(roles)
+  if (set.has('org_admin')) return ['Administrator']
+  if (set.has('owner_portal')) return ['Rental Owner']
+  if (set.has('vendor_portal')) return ['Vendor']
+  if (set.has('org_manager') || set.has('org_staff')) return ['Property Manager']
+  return roles
 }
 
 export default function UsersRolesPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [orgs, setOrgs] = useState<Org[]>([])
-  const [permissionProfiles, setPermissionProfiles] = useState<PermissionProfileOption[]>([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState<string | null>(null)
 
   // Invite form state and shared org/role pickers
   const [selectedOrg, setSelectedOrg] = useState<string>('')
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(['org_staff'])
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['property_manager'])
+  const [selectedUserTypes, setSelectedUserTypes] = useState<string[]>([])
+  const [invitePlatformDev, setInvitePlatformDev] = useState(false)
   const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [showCreateOrg, setShowCreateOrg] = useState(false)
   const [newOrgName, setNewOrgName] = useState('')
@@ -50,19 +91,17 @@ export default function UsersRolesPage() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteErr, setInviteErr] = useState<string | null>(null)
-  const [selectedInviteProfileId, setSelectedInviteProfileId] = useState('')
-  const [selectedInviteStaffRole, setSelectedInviteStaffRole] = useState('')
   
   // Edit user state
   const [editingUser, setEditingUser] = useState<UserRow | null>(null)
   const [editSelectedOrg, setEditSelectedOrg] = useState<string>('')
   const [editSelectedRoles, setEditSelectedRoles] = useState<string[]>([])
+  const [editUserTypes, setEditUserTypes] = useState<string[]>([])
+  const [editPlatformDev, setEditPlatformDev] = useState(false)
   const [editBusy, setEditBusy] = useState(false)
   const [editEmail, setEditEmail] = useState('')
   const [editOrgRoles, setEditOrgRoles] = useState<Record<string, string[]>>({})
   const [editError, setEditError] = useState<string | null>(null)
-  const [editSelectedProfileId, setEditSelectedProfileId] = useState<string>('') 
-  const [editSelectedStaffRole, setEditSelectedStaffRole] = useState<string>('') 
   
   // Edit contact state
   const [editContact, setEditContact] = useState<Contact | null>(null)
@@ -82,29 +121,49 @@ export default function UsersRolesPage() {
       }
     }
 
-  const handleRoleSelect = (role: string) => {
-    if (!selectedRoles.includes(role)) {
-      setSelectedRoles(prev => [...prev, role])
-    }
+  const handleRoleToggle = (role: string) => {
+    setSelectedRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]))
   }
 
-  const handleRoleRemove = (role: string) => {
-    setSelectedRoles(prev => prev.filter(r => r !== role))
+  const handleInviteUserTypeSelect = (type: string) => {
+    setSelectedUserTypes((prev) => (prev.includes(type) ? prev : [...prev, type]))
   }
 
-  const handleEditRoleSelect = (role: string) => {
-    if (!editSelectedOrg || editSelectedRoles.includes(role)) return
-    setRolesForOrg(editSelectedOrg, [...editSelectedRoles, role])
+  const handleInviteUserTypeRemove = (type: string) => {
+    setSelectedUserTypes((prev) => prev.filter((t) => t !== type))
   }
 
-  const handleEditRoleRemove = (role: string) => {
+  const handleInviteUserTypeToggle = (type: string) => {
+    setSelectedUserTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
+  }
+
+  const handleEditRoleToggle = (role: string) => {
     if (!editSelectedOrg) return
-    setRolesForOrg(editSelectedOrg, editSelectedRoles.filter(r => r !== role))
+    const next = editSelectedRoles.includes(role)
+      ? editSelectedRoles.filter((r) => r !== role)
+      : [...editSelectedRoles, role]
+    setRolesForOrg(editSelectedOrg, next)
+  }
+
+  const handleEditUserTypeSelect = (type: string) => {
+    setEditUserTypes((prev) => (prev.includes(type) ? prev : [...prev, type]))
+  }
+
+  const handleEditUserTypeRemove = (type: string) => {
+    setEditUserTypes((prev) => prev.filter((t) => t !== type))
+  }
+
+  const handleEditUserTypeToggle = (type: string) => {
+    setEditUserTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
   const startEditUser = (user: UserRow) => {
     setEditingUser(user)
     setEditError(null)
+    const meta = (user.app_metadata ?? {}) as any
+    const existingUserTypes = Array.isArray(meta?.user_types) ? meta.user_types as string[] : []
+    setEditUserTypes(normalizeUserTypes(existingUserTypes))
+    setEditPlatformDev(Boolean(meta?.roles?.includes('platform_admin') || meta?.claims?.roles?.includes('platform_admin')))
     const membershipsByOrg: Record<string, string[]> = {}
     if (user.memberships && user.memberships.length > 0) {
       user.memberships.forEach((membership) => {
@@ -116,29 +175,30 @@ export default function UsersRolesPage() {
           : (membership as any).role
             ? [(membership as any).role as string]
             : []
-        rolesForMembership.forEach((role) => {
-          if (role) membershipsByOrg[membership.org_id].push(role)
-        })
+        const uiRole =
+          rolesForMembership.includes('org_admin')
+            ? 'admin'
+            : rolesForMembership.includes('owner_portal')
+              ? 'rental_owner'
+              : rolesForMembership.includes('vendor_portal')
+                ? 'vendor'
+                : 'property_manager'
+        membershipsByOrg[membership.org_id].push(uiRole)
       })
     const firstMembership = user.memberships[0]
     let rolesForOrg = membershipsByOrg[firstMembership.org_id] || []
     if (!rolesForOrg.length) {
-      rolesForOrg = ['org_staff']
+      rolesForOrg = ['property_manager']
     }
     const uniqueRoles = Array.from(new Set(rolesForOrg))
     membershipsByOrg[firstMembership.org_id] = uniqueRoles
     setEditOrgRoles(membershipsByOrg)
     setEditSelectedOrg(firstMembership.org_id)
     setEditSelectedRoles(uniqueRoles)
-    const profileForOrg = (user.permission_profiles || []).find((p) => p.org_id === firstMembership.org_id)
-    setEditSelectedProfileId(profileForOrg?.profile_id || '')
-    setEditSelectedStaffRole(user.staff?.role || '')
   } else {
     setEditOrgRoles({})
     setEditSelectedOrg('')
-    setEditSelectedRoles(['org_staff'])
-    setEditSelectedProfileId('')
-    setEditSelectedStaffRole('')
+    setEditSelectedRoles(['property_manager'])
   }
     
     // Pre-populate contact details
@@ -169,8 +229,8 @@ export default function UsersRolesPage() {
     setEditLastName('')
     setEditPhone('')
     setEditEmail('')
-    setEditSelectedProfileId('')
-    setEditSelectedStaffRole('')
+    setEditUserTypes([])
+    setEditPlatformDev(false)
   }
 
   const saveContactDetails = async (contactEmail: string) => {
@@ -235,32 +295,35 @@ export default function UsersRolesPage() {
       }
 
       // Then save roles
+      const appRoles = Array.from(
+        new Set(
+          rolesToSave.flatMap((r) => roleKeyToAppRoles(r))
+        )
+      )
+      if (editPlatformDev) {
+        appRoles.push('platform_admin')
+      }
+
       const res = await fetch('/api/admin/memberships', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           user_id: editingUser.id, 
           org_id: editSelectedOrg, 
-          roles: rolesToSave,
-          staff_role: editSelectedStaffRole || undefined
+          roles: appRoles,
         })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to update roles')
-      // Assign permission profile (optional)
-      const assignRes = await fetch('/api/admin/permission-profiles/assign', {
+      await fetch('/api/admin/users/meta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           user_id: editingUser.id,
-          org_id: editSelectedOrg,
-          profile_id: editSelectedProfileId || null
-        })
+          user_types: normalizeUserTypes(editUserTypes),
+          platform_developer: editPlatformDev,
+        }),
       })
-      if (!assignRes.ok) {
-        const assignData = await assignRes.json().catch(() => ({}))
-        throw new Error(assignData?.error || 'Failed to assign permission profile')
-      }
       // Refresh list
       const updated = await fetch('/api/admin/users').then(r => r.json())
       setUsers(updated.users || [])
@@ -285,27 +348,42 @@ export default function UsersRolesPage() {
     setInviting(true)
     setInviteErr(null)
     try {
-      const uniqueRoles = Array.from(new Set(selectedRoles.filter(Boolean)))
+      const appRoles = Array.from(
+        new Set(
+          selectedRoles.flatMap((r) => roleKeyToAppRoles(r))
+        )
+      )
+      if (invitePlatformDev) appRoles.push('platform_admin')
       const res = await fetch('/api/admin/users/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email: trimmedEmail, 
           org_id: selectedOrg || undefined, 
-          roles: uniqueRoles.length ? uniqueRoles : ['org_staff'],
-          permission_profile_id: selectedInviteProfileId || undefined,
-          staff_role: selectedInviteStaffRole || undefined
+          roles: appRoles.length ? appRoles : roleKeyToAppRoles('property_manager'),
         })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to invite user')
+      // Persist user types/platform flag when we have a user id
+      if (data?.data?.user_id) {
+        await fetch('/api/admin/users/meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: data.data.user_id,
+            user_types: normalizeUserTypes(selectedUserTypes),
+            platform_developer: invitePlatformDev,
+          }),
+        })
+      }
       // Refresh
       const updated = await fetch('/api/admin/users').then(r => r.json())
       setUsers(updated.users || [])
       setInviteEmail('')
-      setSelectedRoles(['org_staff'])
-      setSelectedInviteProfileId('')
-      setSelectedInviteStaffRole('')
+      setSelectedRoles(['property_manager'])
+      setSelectedUserTypes([])
+      setInvitePlatformDev(false)
       setShowInviteDialog(false)
     } catch (e: any) {
       setInviteErr(e?.message || 'Failed to invite user')
@@ -319,17 +397,14 @@ export default function UsersRolesPage() {
       setLoading(true)
       setPageError(null)
       try {
-        const [u, o, p] = await Promise.all([
+        const [u, o] = await Promise.all([
           fetch('/api/admin/users').then(r => r.json()),
           fetch('/api/admin/orgs').then(r => r.json()),
-          fetch('/api/admin/permission-profiles').then(r => r.json())
         ])
         if (u?.error) throw new Error(u.error)
         if (o?.error) throw new Error(o.error)
-        if (p?.error) throw new Error(p.error)
         setUsers(u.users || [])
         setOrgs(o.organizations || [])
-        setPermissionProfiles(p.profiles || [])
       } catch (e: any) {
         setPageError(e?.message || 'Failed to load users')
       } finally {
@@ -372,13 +447,10 @@ export default function UsersRolesPage() {
     }
     if (!value) return
     const roles = editOrgRoles[value]
-    const normalizedRoles = roles && roles.length ? Array.from(new Set(roles)) : ['org_staff']
+    const normalizedRoles = roles && roles.length ? Array.from(new Set(roles)) : ['property_manager']
     setEditOrgRoles(prev => ({ ...prev, [value]: normalizedRoles }))
     setEditSelectedOrg(value)
     setEditSelectedRoles(normalizedRoles)
-    const profileForOrg = editingUser?.permission_profiles?.find((p) => p.org_id === value)
-    setEditSelectedProfileId(profileForOrg?.profile_id || '')
-    setEditSelectedStaffRole(editingUser?.staff?.role || '')
   }
 
   const createOrg = async () => {
@@ -414,15 +486,6 @@ export default function UsersRolesPage() {
 
   const inviteEmailTrimmed = inviteEmail.trim()
   const inviteEmailValid = inviteEmailTrimmed.length > 0 && EMAIL_REGEX.test(inviteEmailTrimmed.toLowerCase())
-  const filteredInviteProfiles = permissionProfiles.filter(
-    (p) => !selectedOrg || !p.org_id || p.org_id === selectedOrg
-  )
-  const filteredEditProfiles = permissionProfiles.filter(
-    (p) => !editSelectedOrg || !p.org_id || p.org_id === editSelectedOrg
-  )
-  const staffRoleOptions = getAvailableUIStaffRoles()
-
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -455,7 +518,7 @@ export default function UsersRolesPage() {
                     <th className="py-2 pr-4">Email</th>
                     <th className="py-2 pr-4">Organization</th>
                     <th className="py-2 pr-4">Roles</th>
-                    <th className="py-2 pr-4">Permission Profile</th>
+                    <th className="py-2 pr-4">User Types</th>
                     <th className="py-2 pr-4">Last Sign-in</th>
                     <th className="py-2 pr-4">Actions</th>
                   </tr>
@@ -498,9 +561,10 @@ export default function UsersRolesPage() {
                           <div className="flex flex-col gap-1">
                             {u.memberships.map((m, idx) => {
                               const roles = m.roles && m.roles.length > 0 ? m.roles : ['org_staff']
+                              const labels = mapAppRolesToUiLabels(roles)
                               return (
                                 <span key={idx} className="text-sm">
-                                  {roles.join(', ')}
+                                  {labels.join(', ')}
                                 </span>
                               )
                             })}
@@ -508,17 +572,9 @@ export default function UsersRolesPage() {
                         )}
                       </td>
                       <td className="py-2 pr-4">
-                        {(u.permission_profiles || []).length === 0 ? (
-                          <span className="text-muted-foreground">Default</span>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            {u.permission_profiles?.map((p, idx) => (
-                              <span key={idx} className="text-sm">
-                                {p.profile_name || p.profile_id}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                        {Array.isArray((u.app_metadata as any)?.user_types) && (u.app_metadata as any)?.user_types.length
+                          ? (u.app_metadata as any).user_types.join(', ')
+                          : '—'}
                       </td>
                       <td className="py-2 pr-4">{u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : '-'}</td>
                       <td className="py-2 pr-4">
@@ -570,87 +626,54 @@ export default function UsersRolesPage() {
                 </SelectContent>
               </Select>
             </div>
-              <div>
-                <label className="block text-sm mb-1">Permission Profile (optional)</label>
-              <Select
-                value={selectedInviteProfileId || DEFAULT_PROFILE_VALUE}
-                onValueChange={(v) => setSelectedInviteProfileId(v === DEFAULT_PROFILE_VALUE ? '' : v)}
-              >
-                <SelectTrigger aria-label="Select permission profile">
-                  <SelectValue placeholder="Default for role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={DEFAULT_PROFILE_VALUE}>(Use default)</SelectItem>
-                  {filteredInviteProfiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                      {p.org_id ? '' : ' (global)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Staff Role (optional)</label>
-              <Select
-                value={selectedInviteStaffRole || STAFF_ROLE_PLACEHOLDER}
-                onValueChange={(v) => setSelectedInviteStaffRole(v === STAFF_ROLE_PLACEHOLDER ? '' : v)}
-              >
-                <SelectTrigger aria-label="Select staff role">
-                  <SelectValue placeholder="No staff role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={STAFF_ROLE_PLACEHOLDER}>No staff role</SelectItem>
-                  {staffRoleOptions.map((role) => (
-                    <SelectItem key={role} value={role}>{role}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <label className="block text-sm mb-1">Initial Roles (optional)</label>
-              <Select onValueChange={handleRoleSelect}>
-                <SelectTrigger aria-label="Add roles">
-                  <SelectValue placeholder="Add roles..." />
+              <Select value="" onValueChange={handleRoleToggle}>
+                <SelectTrigger aria-label="Select roles">
+                  <SelectValue placeholder={selectedRoles.length ? selectedRoles.map(roleKeyToLabel).join(', ') : 'Select roles...'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {[
-                      { label: 'Org Staff', value: 'org_staff' },
-                      { label: 'Property Manager', value: 'org_manager' },
-                      { label: 'Org Admin', value: 'org_admin' },
-                      { label: 'Platform Admin', value: 'platform_admin' },
-                      { label: 'Owner Portal', value: 'owner_portal' },
-                      { label: 'Tenant Portal', value: 'tenant_portal' },
-                      { label: 'Vendor Portal', value: 'vendor_portal' },
-                    ]
-                      .filter(opt => !selectedRoles.includes(opt.value))
-                      .map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
+                    {ROLE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.key} value={opt.key}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox checked={selectedRoles.includes(opt.key)} onCheckedChange={() => handleRoleToggle(opt.key)} />
+                          <span>{opt.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            {selectedRoles.length > 0 && (
               <div>
-                <label className="block text-sm mb-2">Selected Roles</label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedRoles.map((role) => (
-                    <Badge key={role} variant="secondary" className="flex items-center gap-1">
-                      {role}
-                      <button
-                        type="button"
-                        onClick={() => handleRoleRemove(role)}
-                        className="ml-1 hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
-                        aria-label={`Remove ${role} role`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
+                <label className="block text-sm mb-1">User Types</label>
+                <Select value="" onValueChange={handleInviteUserTypeToggle}>
+                  <SelectTrigger aria-label="Select user types">
+                    <SelectValue placeholder={selectedUserTypes.length ? selectedUserTypes.map((t) => t.replace('_', ' ')).join(', ') : 'Select user types...'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {USER_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={selectedUserTypes.includes(type)}
+                            onCheckedChange={() => handleInviteUserTypeToggle(type)}
+                          />
+                          <span className="capitalize">{type.replace('_', ' ')}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={invitePlatformDev}
+                  onCheckedChange={(checked) => setInvitePlatformDev(Boolean(checked))}
+                  id="platform-dev-invite"
+                />
+                <label htmlFor="platform-dev-invite" className="text-sm">Platform Developer (all orgs, full access)</label>
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <Button disabled={inviting || !inviteEmailValid} onClick={invite}>
                 {inviting ? 'Inviting...' : 'Send Invite'}
@@ -762,87 +785,56 @@ export default function UsersRolesPage() {
                     </div>
                 <div>
                   <label className="block text-sm mb-1">Roles</label>
-                  <Select onValueChange={handleEditRoleSelect}>
+                  <Select value="" onValueChange={handleEditRoleToggle}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Add roles..." />
+                      <SelectValue placeholder={editSelectedRoles.length ? editSelectedRoles.map(roleKeyToLabel).join(', ') : 'Select roles...'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {[
-                        { label: 'Org Staff', value: 'org_staff' },
-                        { label: 'Property Manager', value: 'org_manager' },
-                        { label: 'Org Admin', value: 'org_admin' },
-                        { label: 'Platform Admin', value: 'platform_admin' },
-                        { label: 'Owner Portal', value: 'owner_portal' },
-                        { label: 'Tenant Portal', value: 'tenant_portal' },
-                        { label: 'Vendor Portal', value: 'vendor_portal' },
-                      ]
-                        .filter(opt => !editSelectedRoles.includes(opt.value))
-                        .map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      {ROLE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.key} value={opt.key}>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              checked={editSelectedRoles.includes(opt.key)}
+                              onCheckedChange={() => handleEditRoleToggle(opt.key)}
+                            />
+                            <span>{opt.label}</span>
+                          </div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-sm mb-1">Staff Role (optional)</label>
-                  <Select
-                    value={editSelectedStaffRole || STAFF_ROLE_PLACEHOLDER}
-                    onValueChange={(v) => setEditSelectedStaffRole(v === STAFF_ROLE_PLACEHOLDER ? '' : v)}
-                  >
+                  <label className="block text-sm mb-1">User Types</label>
+                  <Select value="" onValueChange={handleEditUserTypeToggle}>
                     <SelectTrigger>
-                      <SelectValue placeholder="No staff role" />
+                      <SelectValue placeholder={editUserTypes.length ? editUserTypes.map((t) => t.replace('_', ' ')).join(', ') : 'Select user types...'} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={STAFF_ROLE_PLACEHOLDER}>No staff role</SelectItem>
-                      {staffRoleOptions.map((role) => (
-                        <SelectItem key={role} value={role}>{role}</SelectItem>
+                      {USER_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              checked={editUserTypes.includes(type)}
+                              onCheckedChange={() => handleEditUserTypeToggle(type)}
+                            />
+                            <span className="capitalize">{type.replace('_', ' ')}</span>
+                          </div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <label className="block text-sm mb-1">Permission Profile</label>
-                  <Select
-                    value={editSelectedProfileId || DEFAULT_PROFILE_VALUE}
-                    onValueChange={(v) => setEditSelectedProfileId(v === DEFAULT_PROFILE_VALUE ? '' : v)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Default for role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={DEFAULT_PROFILE_VALUE}>(Use default)</SelectItem>
-                          {filteredEditProfiles.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                              {p.org_id ? '' : ' (global)'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={editPlatformDev}
+                    onCheckedChange={(checked) => setEditPlatformDev(Boolean(checked))}
+                    id="platform-dev-edit"
+                  />
+                  <label htmlFor="platform-dev-edit" className="text-sm">Platform Developer (all orgs, full access)</label>
+                </div>
                   </div>
                 </div>
-                
-                {editSelectedRoles.length > 0 && (
-                  <div>
-                    <label className="block text-sm mb-2">Selected Roles</label>
-                    <div className="flex flex-wrap gap-2">
-                      {editSelectedRoles.map((role) => (
-                        <Badge key={role} variant="secondary" className="flex items-center gap-1">
-                          {role}
-                          <button
-                            type="button"
-                            onClick={() => handleEditRoleRemove(role)}
-                            className="ml-1 hover:bg-destructive hover:text-destructive-foreground rounded-full p-0.5"
-                            aria-label={`Remove ${role} role`}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 
                 {editError && <div className="text-sm text-destructive">{editError}</div>}
                 

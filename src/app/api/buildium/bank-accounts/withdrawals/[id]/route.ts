@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -7,7 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const withdrawalId = (await params).id;
     
     logger.info({ userId: user.id, withdrawalId, action: 'get_buildium_withdrawal' }, 'Fetching Buildium withdrawal details');
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const withdrawalId = (await params).id;
     
     logger.info({ userId: user.id, withdrawalId, action: 'update_buildium_withdrawal' }, 'Updating Buildium withdrawal');

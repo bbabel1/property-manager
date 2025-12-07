@@ -22,6 +22,25 @@ const eslintConfig = [
       "src/types/**"
     ]
   },
+  // Warn when importing the service-role client; enforce guard review per file
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "warn",
+        {
+          paths: [
+            {
+              name: "@/lib/db",
+              importNames: ["supabaseAdmin"],
+              message:
+                "Service role usage detected: ensure org_id resolution and requireOrgAdmin/Member guard before calling supabaseAdmin. If truly global, document in audit ledger."
+            }
+          ]
+        }
+      ]
+    }
+  },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {

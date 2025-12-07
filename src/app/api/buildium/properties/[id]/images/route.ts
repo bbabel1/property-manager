@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireAuth, requireRole } from '@/lib/auth/guards'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
@@ -25,9 +25,9 @@ export async function GET(
     }
 
     // Authentication
-    const user = await requireUser(request);
+    const auth = await requireAuth();
 
-    logger.info({ userId: user.id, propertyId, action: 'get_property_images' }, 'Fetching property images');
+    logger.info({ userId: auth.user.id, propertyId, action: 'get_property_images' }, 'Fetching property images');
 
     // Get property images from database
     const { data: images, error } = await supabase
@@ -85,9 +85,9 @@ export async function POST(
     }
 
     // Authentication
-    const user = await requireUser(request);
+    const auth = await requireAuth();
 
-    logger.info({ userId: user.id, propertyId, action: 'upload_property_image' }, 'Uploading property image');
+    logger.info({ userId: auth.user.id, propertyId, action: 'upload_property_image' }, 'Uploading property image');
 
     // Parse and validate request body
     const body = await request.json();
@@ -108,6 +108,10 @@ export async function POST(
 
     if (!propertyRow) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+    if (propertyRow.org_id) {
+      // Require admin/manager for uploads
+      await requireRole(['org_admin', 'org_manager', 'platform_admin'], propertyRow.org_id);
     }
     // Determine the next sort index for locally persisted images
     const { data: existingSort } = await db

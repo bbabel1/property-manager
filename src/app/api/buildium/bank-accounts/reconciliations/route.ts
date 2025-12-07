@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
-    logger.info({ userId: user.id, action: 'get_buildium_reconciliations' }, 'Fetching Buildium reconciliations');
+    await requireRole('platform_admin')
+    logger.info({ action: 'get_buildium_reconciliations' }, 'Fetching Buildium reconciliations');
 
     // Buildium API call
     const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/reconciliations', {
@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
-    logger.info({ userId: user.id, action: 'create_buildium_reconciliation' }, 'Creating Buildium reconciliation');
+    await requireRole('platform_admin')
+    logger.info({ action: 'create_buildium_reconciliation' }, 'Creating Buildium reconciliation');
 
     // Parse request body
     const body = await request.json();

@@ -24,6 +24,22 @@ const extractRoles = (user: SupabaseUser): AppRole[] => {
   return [...claimsRoles, ...legacyRoles] as AppRole[];
 };
 
+const extractOrgRoles = (user: SupabaseUser): Record<string, AppRole[]> => {
+  const appMeta = (user.app_metadata ?? {}) as LooseRecord;
+  const claims = (appMeta.claims ?? {}) as LooseRecord;
+  const orgRolesRaw = claims.org_roles;
+  const map: Record<string, AppRole[]> = {};
+  if (orgRolesRaw && typeof orgRolesRaw === 'object') {
+    Object.entries(orgRolesRaw as Record<string, unknown>).forEach(([orgId, roles]) => {
+      const arr = normalizeArray(roles).filter(Boolean) as AppRole[];
+      if (orgId && arr.length) {
+        map[String(orgId)] = arr;
+      }
+    });
+  }
+  return map;
+};
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -50,6 +66,7 @@ export async function requireAuth() {
   } = await supabase.auth.getUser();
   if (!user) throw new Error('UNAUTHENTICATED');
 
+  const orgRolesMap = extractOrgRoles(user as SupabaseUser);
   let roles = extractRoles(user as SupabaseUser);
 
   // Fallback: if roles are missing from claims/metadata, fetch memberships
@@ -88,13 +105,14 @@ export async function requireAuth() {
     }
   }
 
-  return { supabase, user, roles };
+  return { supabase, user, roles, orgRoles: orgRolesMap };
 }
 
-export async function requireRole(required: AppRole | AppRole[]) {
-  const { supabase, user, roles } = await requireAuth();
-  if (!hasRole(roles, required)) throw new Error('FORBIDDEN');
-  return { supabase, user, roles };
+export async function requireRole(required: AppRole | AppRole[], orgId?: string) {
+  const { supabase, user, roles, orgRoles } = await requireAuth();
+  const scopedRoles = orgId && orgRoles[orgId] ? orgRoles[orgId] : roles;
+  if (!hasRole(scopedRoles, required)) throw new Error('FORBIDDEN');
+  return { supabase, user, roles: scopedRoles, orgRoles };
 }
 
 export async function requireOrg(orgId: string) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumDepositUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -7,7 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const depositId = (await params).id;
     
     logger.info({ userId: user.id, depositId, action: 'get_buildium_deposit' }, 'Fetching Buildium deposit details');
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const depositId = (await params).id;
     
     logger.info({ userId: user.id, depositId, action: 'update_buildium_deposit' }, 'Updating Buildium deposit');

@@ -6,9 +6,8 @@ import { requireRole } from '@/lib/auth/guards'
 // Body: { user_id?: string, first_name?: string, last_name?: string, phone?: string, email?: string }
 export async function POST(request: NextRequest) {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
-    }
+    // Restrict to platform_admin to avoid cross-org contact edits via service role
+    await requireRole('platform_admin')
 
     const body = await request.json().catch(() => null)
     if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
