@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    const user = await requireUser(request)
+    await requireRole('platform_admin')
     const { id } = await params
     const buildiumId = Number(id)
     if (!Number.isFinite(buildiumId) || buildiumId <= 0) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Upsert into local DB (creates/updates contact and owner rows)
     const { ownerId, created } = await upsertOwnerFromBuildium(fetchResult.data, supabaseAdmin)
 
-    logger.info({ buildiumId, ownerId, userId: user.id, created }, 'Owner synced from Buildium into DB')
+    logger.info({ buildiumId, ownerId, created }, 'Owner synced from Buildium into DB')
 
     return NextResponse.json({ success: true, ownerId, buildiumId, created: !!created })
   } catch (err) {
@@ -45,4 +45,3 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-

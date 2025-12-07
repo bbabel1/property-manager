@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { requireRole } from '@/lib/auth/guards'
 
 export async function GET(request: NextRequest) {
   try {
+    await requireRole('platform_admin')
     const { searchParams } = new URL(request.url)
     const params: any = {}
     // Map common Buildium list params
@@ -26,6 +28,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireRole('platform_admin')
     const body = await request.json().catch(() => ({}))
     const res = await buildiumEdgeClient.createLeaseInBuildium(body)
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to create lease in Buildium' }, { status: 400 })
@@ -35,4 +38,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-

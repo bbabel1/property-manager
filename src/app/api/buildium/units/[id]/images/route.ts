@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitImageUploadSchema, BuildiumUnitImageOrderUpdateSchema } from '@/schemas/buildium';
@@ -20,8 +20,8 @@ export async function GET(
       );
     }
 
-    // Require authentication
-    const user = await requireUser(request);
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -89,8 +89,8 @@ export async function POST(
       );
     }
 
-    // Require authentication
-    const user = await requireUser(request);
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -161,8 +161,8 @@ export async function PUT(
       );
     }
 
-    // Require authentication
-    const user = await requireUser(request);
+    // Require platform admin
+    await requireRole('platform_admin');
 
     const { id } = await params;
 

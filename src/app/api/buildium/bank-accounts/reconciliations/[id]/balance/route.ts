@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const reconciliationId = (await params).id;
     
-    logger.info({ userId: user.id, reconciliationId, action: 'get_buildium_reconciliation_balance' }, 'Fetching Buildium reconciliation balance');
+    logger.info({ reconciliationId, action: 'get_buildium_reconciliation_balance' }, 'Fetching Buildium reconciliation balance');
 
     // Buildium API call
     const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/reconciliations/${reconciliationId}/balance`, {
@@ -50,10 +50,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const reconciliationId = (await params).id;
     
-    logger.info({ userId: user.id, reconciliationId, action: 'update_buildium_reconciliation_balance' }, 'Updating Buildium reconciliation balance');
+    logger.info({ reconciliationId, action: 'update_buildium_reconciliation_balance' }, 'Updating Buildium reconciliation balance');
 
     // Parse request body
     const body = await request.json();

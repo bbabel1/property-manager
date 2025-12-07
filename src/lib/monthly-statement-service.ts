@@ -86,6 +86,134 @@ type UnitRecord = {
   unit_name?: string | null;
 } | null;
 
+async function fetchTenantName(tenantId?: string | null) {
+  if (!tenantId) return null;
+
+  const { data: tenant } = await supabaseAdmin
+    .from('tenants')
+    .select('first_name, last_name, company_name, contacts(display_name)')
+    .eq('id', tenantId)
+    .single();
+
+  if (!tenant) return null;
+
+  if (tenant.company_name) {
+    return tenant.company_name;
+  }
+
+  if (tenant.first_name || tenant.last_name) {
+    return `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() || null;
+  }
+
+  if (tenant.contacts && Array.isArray(tenant.contacts) && tenant.contacts[0]) {
+    return tenant.contacts[0].display_name || null;
+  }
+
+  return null;
+}
+
+async function fetchOwnerNames(propertyId?: string | number | null) {
+  if (!propertyId) return [];
+
+  const normalizeOwners = (ownerships: any[] | null | undefined) => {
+    if (!ownerships) return [];
+
+    return ownerships
+      .map((row: any) => {
+        const owner = row.owners || {};
+        const contact = Array.isArray(owner.contacts) ? owner.contacts[0] : owner.contacts;
+        const contactName =
+          (contact?.company_name as string | undefined) ||
+          [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+          (contact?.display_name as string | undefined);
+        const directName = owner.company_name as string | undefined;
+        const finalName = (directName || contactName || '').trim();
+        return finalName || null;
+      })
+      .filter(Boolean) as string[];
+  };
+
+  const fetchForId = async (id: string | number) => {
+    const { data: ownerships, error: ownershipError } = await supabaseAdmin
+      .from('ownerships')
+      .select(
+        `
+        owners!inner(
+          company_name,
+          contacts (
+            display_name,
+            first_name,
+            last_name,
+            company_name
+          )
+        )
+      `,
+      )
+      .eq('property_id', id);
+
+    if (ownershipError || !ownerships) return [];
+    return normalizeOwners(ownerships);
+  };
+
+  const ownerNames = await fetchForId(propertyId);
+
+  if (ownerNames.length === 0) {
+    const numericId = Number(propertyId);
+    if (!Number.isNaN(numericId)) {
+      ownerNames.push(...(await fetchForId(numericId)));
+    }
+  }
+
+  return ownerNames.filter((name, idx) => ownerNames.indexOf(name) === idx);
+}
+
+async function fetchHoldingLinesForStatement(
+  monthlyLog: { unit_id?: string | null; property_id?: string | null },
+  statementDate: string,
+) {
+  if (monthlyLog.unit_id == null && !monthlyLog.property_id) {
+    return { holdingLines: null, error: null };
+  }
+
+  try {
+    const holdingQuery = supabaseAdmin
+      .from('transaction_lines')
+      .select(
+        `
+        id,
+        date,
+        memo,
+        amount,
+        posting_type,
+        unit_id,
+        property_id,
+        gl_accounts!inner(
+          name,
+          type,
+          gl_account_category!inner(category)
+        )
+      `,
+      )
+      .lte('date', statementDate)
+      .order('date', { ascending: true });
+
+    if (monthlyLog.unit_id && monthlyLog.property_id) {
+      holdingQuery.or(
+        `unit_id.eq.${monthlyLog.unit_id},and(unit_id.is.null,property_id.eq.${monthlyLog.property_id})`,
+      );
+    } else if (monthlyLog.unit_id) {
+      holdingQuery.eq('unit_id', monthlyLog.unit_id);
+    } else if (monthlyLog.property_id) {
+      holdingQuery.eq('property_id', monthlyLog.property_id);
+    }
+
+    const { data, error } = await holdingQuery;
+    return { holdingLines: (data as EscrowRow[] | null) ?? null, error };
+  } catch (error) {
+    return { holdingLines: null, error };
+  }
+}
+
 function resolveLogoUrl(rawLogo?: string | null): string | undefined {
   if (!rawLogo) return undefined;
   if (/^https?:\/\//i.test(rawLogo) || rawLogo.startsWith('data:')) return rawLogo;
@@ -159,8 +287,8 @@ export async function fetchMonthlyStatementData(
   monthlyLogId: string,
 ): Promise<StatementDataFetchResult> {
   try {
-    // Fetch monthly log with all related data
-    const { data: monthlyLog, error: logError } = await supabaseAdmin
+    // Fetch monthly log with all related data and financial summary (single round-trip)
+    const monthlyLogPromise = supabaseAdmin
       .from('monthly_logs')
       .select(
         `
@@ -169,6 +297,12 @@ export async function fetchMonthlyStatementData(
         property_id,
         unit_id,
         tenant_id,
+        charges_amount,
+        payments_amount,
+        bills_amount,
+        escrow_amount,
+        management_fees_amount,
+        previous_lease_balance,
         properties (
           name,
           address_line1,
@@ -185,25 +319,8 @@ export async function fetchMonthlyStatementData(
       .eq('id', monthlyLogId)
       .single();
 
-    if (logError || !monthlyLog) {
-      return { success: false, error: 'Monthly log not found' };
-    }
-
-    const statementGeneratedAt = new Date();
-    const statementDateISO = statementGeneratedAt.toISOString();
-    const statementDate = statementDateISO.slice(0, 10);
-
-    // Fetch financial summary
-    const { data: financialData } = await supabaseAdmin
-      .from('monthly_logs')
-      .select(
-        'charges_amount, payments_amount, bills_amount, escrow_amount, management_fees_amount, previous_lease_balance',
-      )
-      .eq('id', monthlyLogId)
-      .single();
-
     // Fetch all transaction lines with GL account information for categorization
-    const { data: transactionLines } = await supabaseAdmin
+    const transactionLinesPromise = supabaseAdmin
       .from('transaction_lines')
       .select(
         `
@@ -234,122 +351,39 @@ export async function fetchMonthlyStatementData(
       .eq('transactions.monthly_log_id', monthlyLogId)
       .order('date', { ascending: true });
 
-    // Fetch holding-related lines for the unit up to the statement date
-    let holdingLines: EscrowRow[] | null = null;
-    let holdingLinesError: any = null;
+    const [{ data: monthlyLog, error: logError }, { data: transactionLines }] = await Promise.all([
+      monthlyLogPromise,
+      transactionLinesPromise,
+    ]);
 
-    if (monthlyLog.unit_id != null || monthlyLog.property_id) {
-      const holdingQuery = supabaseAdmin
-        .from('transaction_lines')
-        .select(
-          `
-          id,
-          date,
-          memo,
-          amount,
-          posting_type,
-          unit_id,
-          property_id,
-          gl_accounts!inner(
-            name,
-            type,
-            gl_account_category!inner(category)
-          )
-        `,
-        )
-        .lte('date', statementDate)
-        .order('date', { ascending: true });
-
-      if (monthlyLog.unit_id && monthlyLog.property_id) {
-        holdingQuery.or(
-          `unit_id.eq.${monthlyLog.unit_id},and(unit_id.is.null,property_id.eq.${monthlyLog.property_id})`,
-        );
-      } else if (monthlyLog.unit_id) {
-        holdingQuery.eq('unit_id', monthlyLog.unit_id);
-      } else if (monthlyLog.property_id) {
-        holdingQuery.eq('property_id', monthlyLog.property_id);
-      }
-
-      const { data, error } = await holdingQuery;
-      holdingLines = (data as EscrowRow[] | null) ?? null;
-      holdingLinesError = error;
+    if (logError || !monthlyLog) {
+      return { success: false, error: 'Monthly log not found' };
     }
+
+    const financialData = monthlyLog as {
+      charges_amount?: number;
+      payments_amount?: number;
+      bills_amount?: number;
+      escrow_amount?: number;
+      management_fees_amount?: number;
+      previous_lease_balance?: number;
+    };
+
+    const statementGeneratedAt = new Date();
+    const statementDateISO = statementGeneratedAt.toISOString();
+    const statementDate = statementDateISO.slice(0, 10);
+
+    const holdingLinesPromise = fetchHoldingLinesForStatement(monthlyLog, statementDate);
+    const tenantNamePromise = fetchTenantName(monthlyLog.tenant_id);
+    const ownerNamesPromise = fetchOwnerNames(monthlyLog.property_id);
+    const ownerDrawPromise = getOwnerDrawSummary(monthlyLogId);
+
+    // Fetch holding-related lines for the unit up to the statement date
+    const [{ holdingLines, error: holdingLinesError }, tenantName, ownerNames, ownerDrawSummary] =
+      await Promise.all([holdingLinesPromise, tenantNamePromise, ownerNamesPromise, ownerDrawPromise]);
 
     if (holdingLinesError) {
       console.warn('Failed to fetch holding transaction lines for statement', holdingLinesError);
-    }
-
-    // Fetch tenant info if available
-    let tenantName = null;
-    if (monthlyLog.tenant_id) {
-      const { data: tenant } = await supabaseAdmin
-        .from('tenants')
-        .select('first_name, last_name, company_name, contacts(display_name)')
-        .eq('id', monthlyLog.tenant_id)
-        .single();
-
-    if (tenant) {
-      if (tenant.company_name) {
-        tenantName = tenant.company_name;
-      } else if (tenant.first_name || tenant.last_name) {
-        tenantName = `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim();
-        } else if (tenant.contacts && Array.isArray(tenant.contacts) && tenant.contacts[0]) {
-          tenantName = tenant.contacts[0].display_name;
-        }
-      }
-    }
-
-    // Fetch property owners (optional)
-    let ownerNames: string[] = [];
-    if (monthlyLog.property_id) {
-      const fetchOwners = async (propertyId: string | number) => {
-        try {
-          const { data: ownerships, error: ownershipError } = await supabaseAdmin
-            .from('ownerships')
-            .select(
-              `
-              owners!inner(
-                company_name,
-                contacts (
-                  display_name,
-                  first_name,
-                  last_name,
-                  company_name
-                )
-              )
-            `,
-            )
-            .eq('property_id', propertyId);
-
-          if (!ownershipError && ownerships) {
-            ownerNames = ownerships
-              .map((row: any) => {
-                const owner = row.owners || {};
-                const contact = Array.isArray(owner.contacts) ? owner.contacts[0] : owner.contacts;
-                const contactName =
-                  (contact?.company_name as string | undefined) ||
-                  [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
-                  (contact?.display_name as string | undefined);
-                const directName = owner.company_name as string | undefined;
-                const finalName = (directName || contactName || '').trim();
-                return finalName || null;
-              })
-              .filter(Boolean) as string[];
-
-            ownerNames = ownerNames.filter((name, idx) => ownerNames.indexOf(name) === idx);
-          }
-        } catch (ownershipError) {
-          console.warn('Failed to fetch property owners for statement', ownershipError);
-        }
-      };
-
-      await fetchOwners(monthlyLog.property_id);
-      if (!ownerNames.length) {
-        const numericId = Number(monthlyLog.property_id);
-        if (!Number.isNaN(numericId)) {
-          await fetchOwners(numericId);
-        }
-      }
     }
 
     // Categorize transaction lines by GL account type/category
@@ -501,7 +535,6 @@ export async function fetchMonthlyStatementData(
     const managementFees = financialData?.management_fees_amount || 0;
     const previousLeaseBalance = financialData?.previous_lease_balance || 0;
 
-    const ownerDrawSummary = await getOwnerDrawSummary(monthlyLogId);
     const ownerDraw = ownerDrawSummary.total;
     const netToOwner = calculateNetToOwnerValue({
       previousBalance: previousLeaseBalance,

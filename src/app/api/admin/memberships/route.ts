@@ -5,6 +5,8 @@ import { AppRole, RoleRank } from '@/lib/auth/roles'
 import type { Database } from '@/types/database'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapUIStaffRoleToDB } from '@/lib/enums/staff-roles'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { validateMembershipChange } from '@/lib/auth/membership-authz'
 
 const ROLE_SCHEMA = z.object({
   user_id: z.string().min(1, 'user_id is required'),
@@ -51,7 +53,19 @@ function normalizeAppRole(value: string): AppRole | null {
 // Body: { user_id: string, org_id: string, roles: string[] }
 export async function POST(request: NextRequest) {
   try {
-    await requireRole('org_admin')
+    if (process.env.DISABLE_MEMBERSHIP_APIS === 'true') {
+      return NextResponse.json({ error: 'Membership maintenance in progress' }, { status: 503 })
+    }
+
+    const rateLimit = await checkRateLimit(request, 'api')
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter: rateLimit.retryAfter },
+        { status: 429 },
+      )
+    }
+
+    const { supabase, user, roles: callerRoles } = await requireRole('org_admin')
     const rawBody = await request.json().catch(() => ({}))
     const parsed = ROLE_SCHEMA.safeParse(rawBody)
     if (!parsed.success) {
@@ -69,6 +83,33 @@ export async function POST(request: NextRequest) {
 
     if (!roles.length) {
       return NextResponse.json({ error: 'No valid roles provided' }, { status: 400 })
+    }
+
+    // Caller must be admin in the target org
+    const targetOrgId = parsed.data.org_id
+    const { data: membership, error: membershipError } = await supabase
+      .from('org_memberships')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('org_id', targetOrgId)
+      .maybeSingle()
+    if (membershipError) {
+      return NextResponse.json({ error: membershipError.message }, { status: 500 })
+    }
+    const validation = validateMembershipChange({
+      callerOrgRole: membership?.role as AppRole | null,
+      callerGlobalRoles: callerRoles,
+      requestedRoles: roles,
+    })
+    if (!validation.ok) {
+      const message =
+        validation.reason === 'platform_admin_required'
+          ? 'Only platform_admin can grant platform_admin'
+          : validation.reason === 'no_roles_provided'
+            ? 'No valid roles provided'
+            : 'Not authorized for this organization'
+      const status = validation.reason === 'no_roles_provided' ? 400 : 403
+      return NextResponse.json({ error: message }, { status })
     }
 
     roles.sort((a, b) => RoleRank[b] - RoleRank[a])

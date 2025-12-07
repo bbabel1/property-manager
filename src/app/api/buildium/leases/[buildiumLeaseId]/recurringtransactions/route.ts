@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    const user = await requireUser()
+    await requireRole('platform_admin')
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const orderby = searchParams.get('orderby') || undefined
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    const user = await requireUser()
+    await requireRole('platform_admin')
     const { id } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionCreateSchema)

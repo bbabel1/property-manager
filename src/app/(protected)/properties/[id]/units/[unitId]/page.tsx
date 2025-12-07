@@ -24,6 +24,12 @@ import UnitFinancialServicesCard from '@/components/unit/UnitFinancialServicesCa
 import LeaseSection from '@/components/units/LeaseSection';
 import UnitBillsFilters from '@/components/unit/UnitBillsFilters';
 import CreateMonthlyLogButton from '@/components/monthly-logs/CreateMonthlyLogButton';
+import {
+  MONTHLY_LOG_STAGES,
+  MONTHLY_LOG_STATUSES,
+  type MonthlyLogStage,
+  type MonthlyLogStatus,
+} from '@/components/monthly-logs/types';
 
 type Fin = {
   cash_balance?: number;
@@ -34,6 +40,12 @@ type Fin = {
 };
 type UnitSubNavKey = 'details' | 'ledger' | 'bills' | 'monthly_logs';
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
+type MonthlyLogListRow = {
+  id: string;
+  periodStart: string;
+  status: MonthlyLogStatus;
+  stage: MonthlyLogStage;
+};
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -45,6 +57,10 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 const shortDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: '2-digit',
   day: '2-digit',
+  year: 'numeric',
+});
+const monthLabelFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
   year: 'numeric',
 });
 
@@ -61,6 +77,58 @@ const formatDateString = (value?: string | null) => {
   const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return shortDateFormatter.format(date);
+};
+
+const formatPeriodStartLabel = (value?: string | null) => {
+  if (!value) return '—';
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const date = new Date(isoLike);
+  if (Number.isNaN(date.getTime())) return '—';
+  return monthLabelFormatter.format(date);
+};
+
+const normalizeMonthlyLogStage = (value: unknown): MonthlyLogStage => {
+  const normalized = String(value ?? '').toLowerCase();
+  return MONTHLY_LOG_STAGES.includes(normalized as MonthlyLogStage)
+    ? (normalized as MonthlyLogStage)
+    : 'charges';
+};
+
+const normalizeMonthlyLogStatus = (value: unknown): MonthlyLogStatus => {
+  const normalized = String(value ?? '').toLowerCase();
+  return MONTHLY_LOG_STATUSES.includes(normalized as MonthlyLogStatus)
+    ? (normalized as MonthlyLogStatus)
+    : 'pending';
+};
+
+const monthlyLogStageLabels: Record<MonthlyLogStage, string> = {
+  charges: 'Charges',
+  payments: 'Payments',
+  bills: 'Bills',
+  escrow: 'Escrow',
+  management_fees: 'Management fees',
+  owner_statements: 'Owner statements',
+  owner_distributions: 'Owner distributions',
+};
+
+const monthlyLogStatusLabels: Record<MonthlyLogStatus, string> = {
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  complete: 'Complete',
+};
+
+const monthlyLogStatusVariant = (
+  status: MonthlyLogStatus,
+): 'default' | 'secondary' | 'outline' => {
+  switch (status) {
+    case 'complete':
+      return 'secondary';
+    case 'in_progress':
+      return 'default';
+    case 'pending':
+    default:
+      return 'outline';
+  }
 };
 
 const readableTransactionType = (value: unknown) => {
@@ -288,6 +356,32 @@ export default async function UnitDetailsNested({
         .eq('unit_id', unit.id)
         .order('name');
       appliances = Array.isArray(appRows) ? appRows : [];
+    } catch {}
+  }
+
+  // Load monthly logs for this unit
+  let monthlyLogs: MonthlyLogListRow[] = [];
+  if (unit?.id) {
+    try {
+      const { data: logRows } = await db
+        .from('monthly_logs')
+        .select('id, period_start, status, stage, sort_index, created_at')
+        .eq('unit_id', unit.id)
+        .order('period_start', { ascending: false })
+        .order('stage', { ascending: true })
+        .order('sort_index', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      monthlyLogs = Array.isArray(logRows)
+        ? (logRows as any[])
+            .map((row) => ({
+              id: String(row.id),
+              periodStart: typeof row?.period_start === 'string' ? row.period_start : '',
+              status: normalizeMonthlyLogStatus((row as any)?.status),
+              stage: normalizeMonthlyLogStage((row as any)?.stage),
+            }))
+            .filter((row) => row.id && row.periodStart)
+        : [];
     } catch {}
   }
 
@@ -906,11 +1000,31 @@ export default async function UnitDetailsNested({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow>
-                        <TableCell colSpan={2} className="text-muted-foreground text-sm">
-                          No monthly logs have been recorded for this unit.
-                        </TableCell>
-                      </TableRow>
+                      {monthlyLogs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-muted-foreground text-sm">
+                            No monthly logs have been recorded for this unit.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        monthlyLogs.map((log) => (
+                          <TableRowLink key={log.id} href={`/monthly-logs/${log.id}`}>
+                            <TableCell className="text-foreground">
+                              {formatPeriodStartLabel(log.periodStart)}
+                            </TableCell>
+                            <TableCell className="text-foreground">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant={monthlyLogStatusVariant(log.status)}>
+                                  {monthlyLogStatusLabels[log.status]}
+                                </Badge>
+                                <span className="text-muted-foreground text-xs">
+                                  {monthlyLogStageLabels[log.stage]}
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRowLink>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </Card>
@@ -1130,9 +1244,40 @@ export default async function UnitDetailsNested({
                 unitLabel={unitLabel}
               />
             </div>
-            <div className="border-muted-foreground/40 text-muted-foreground rounded-md border border-dashed p-6 text-sm">
-              No monthly logs have been created for this unit yet.
-            </div>
+            {monthlyLogs.length === 0 ? (
+              <div className="border-muted-foreground/40 text-muted-foreground rounded-md border border-dashed p-6 text-sm">
+                No monthly logs have been created for this unit yet.
+              </div>
+            ) : (
+              <div className="border-border overflow-hidden rounded-lg border shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[14rem]">Month</TableHead>
+                      <TableHead className="w-[12rem]">Status</TableHead>
+                      <TableHead>Stage</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {monthlyLogs.map((log) => (
+                      <TableRowLink key={log.id} href={`/monthly-logs/${log.id}`}>
+                        <TableCell className="text-foreground">
+                          {formatPeriodStartLabel(log.periodStart)}
+                        </TableCell>
+                        <TableCell className="text-foreground">
+                          <Badge variant={monthlyLogStatusVariant(log.status)}>
+                            {monthlyLogStatusLabels[log.status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-foreground">
+                          {monthlyLogStageLabels[log.stage]}
+                        </TableCell>
+                      </TableRowLink>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumBankAccountCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -7,8 +7,8 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
-    logger.info({ userId: user.id, action: 'get_buildium_bank_accounts' }, 'Fetching Buildium bank accounts');
+    await requireRole('platform_admin');
+    logger.info({ action: 'get_buildium_bank_accounts' }, 'Fetching Buildium bank accounts');
 
     // Build query parameters (isActive, bankAccountType, limit, offset)
     const { searchParams } = new URL(request.url)
@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request);
-    logger.info({ userId: user.id, action: 'create_buildium_bank_account' }, 'Creating Buildium bank account');
+    await requireRole('platform_admin');
+    logger.info({ action: 'create_buildium_bank_account' }, 'Creating Buildium bank account');
 
     // Parse and validate request body
     const body = await request.json();

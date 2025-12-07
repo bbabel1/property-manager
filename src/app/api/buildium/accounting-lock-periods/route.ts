@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { config } from '@/config';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Require authentication
-    const user = await requireUser();
+    // Require platform admin
+    await requireRole('platform_admin');
 
     // Make request to Buildium API
     const buildiumUrl = `${config.BUILDIUM_BASE_URL}/accountinglockperiods`;

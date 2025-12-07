@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
 
 type AllowedTenantFields =
   | 'tax_id'
@@ -23,12 +25,20 @@ export async function PATCH(
   context: { params: { id: string } } | { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuth()
     const params = 'params' in context ? context.params : { id: '' }
     const { id } = params instanceof Promise ? await params : params
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Missing tenant id' }, { status: 400 })
     }
+
+    // Resolve org and enforce admin-level access for writes
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'tenant', id)
+    if (!resolvedOrg.ok) {
+      return NextResponse.json({ success: false, error: resolvedOrg.error }, { status: 404 })
+    }
+    await requireOrgAdmin({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
 
     const payload = (await request.json()) as Record<string, unknown>
     const updates: Record<string, unknown> = {}
@@ -50,6 +60,7 @@ export async function PATCH(
       .from('tenants')
       .update(updates)
       .eq('id', id)
+      .eq('org_id', resolvedOrg.orgId)
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })

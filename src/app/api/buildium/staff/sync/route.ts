@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { mapStaffToBuildium } from '@/lib/buildium-mappers'
 
 export async function POST(request: NextRequest) {
   try {
-    await requireUser(request)
+    await requireRole('platform_admin')
     const body = await request.json().catch(() => ({})) as { staff_id?: number | string }
     const sidRaw = body?.staff_id
     if (!sidRaw) return NextResponse.json({ error: 'staff_id is required' }, { status: 400 })

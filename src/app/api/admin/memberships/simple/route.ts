@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
+import { checkRateLimit } from '@/lib/rate-limit'
+import { validateMembershipChange } from '@/lib/auth/membership-authz'
 
 const RoleEnum = z.enum([
   'platform_admin',
@@ -28,10 +30,16 @@ const DeleteSchema = z.object({
 // Body: { user_id, org_id, role }
 export async function POST(request: NextRequest) {
   try {
-    // Enforce admin in production, relaxed in dev for bootstrap similar to other endpoints
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
+    if (process.env.DISABLE_MEMBERSHIP_APIS === 'true') {
+      return NextResponse.json({ error: 'Membership maintenance in progress' }, { status: 503 })
     }
+
+    const rateLimit = await checkRateLimit(request, 'api')
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: 'Too many requests', retryAfter: rateLimit.retryAfter }, { status: 429 })
+    }
+
+    const { supabase, user, roles: callerRoles } = await requireRole('org_admin')
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
     }
@@ -44,6 +52,32 @@ export async function POST(request: NextRequest) {
     }
 
     const { user_id, org_id, role } = parsed.data
+
+    const { data: membership, error: membershipError } = await supabase
+      .from('org_memberships')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('org_id', org_id)
+      .maybeSingle()
+    if (membershipError) {
+      return NextResponse.json({ error: membershipError.message }, { status: 500 })
+    }
+    const validation = validateMembershipChange({
+      callerOrgRole: membership?.role as any,
+      callerGlobalRoles: callerRoles,
+      requestedRoles: [role],
+    })
+    if (!validation.ok) {
+      const message =
+        validation.reason === 'platform_admin_required'
+          ? 'Only platform_admin can grant platform_admin'
+          : validation.reason === 'no_roles_provided'
+            ? 'No valid roles provided'
+            : 'Not authorized for this organization'
+      const status = validation.reason === 'no_roles_provided' ? 400 : 403
+      return NextResponse.json({ error: message }, { status })
+    }
+
     const { error } = await admin
       .from('org_memberships')
       .upsert({ user_id, org_id, role }, { onConflict: 'user_id,org_id' })
@@ -72,9 +106,14 @@ export async function POST(request: NextRequest) {
 // Body: { user_id, org_id }
 export async function DELETE(request: NextRequest) {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
+    if (process.env.DISABLE_MEMBERSHIP_APIS === 'true') {
+      return NextResponse.json({ error: 'Membership maintenance in progress' }, { status: 503 })
     }
+    const rateLimit = await checkRateLimit(request, 'api')
+    if (!rateLimit.success) {
+      return NextResponse.json({ error: 'Too many requests', retryAfter: rateLimit.retryAfter }, { status: 429 })
+    }
+    const { supabase, user, roles: callerRoles } = await requireRole('org_admin')
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
     }
@@ -87,6 +126,25 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { user_id, org_id } = parsed.data
+
+    const { data: membership, error: membershipError } = await supabase
+      .from('org_memberships')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('org_id', org_id)
+      .maybeSingle()
+    if (membershipError) {
+      return NextResponse.json({ error: membershipError.message }, { status: 500 })
+    }
+    const validation = validateMembershipChange({
+      callerOrgRole: membership?.role as any,
+      callerGlobalRoles: callerRoles,
+      requestedRoles: ['org_staff'], // placeholder to satisfy guard
+    })
+    if (!validation.ok && validation.reason !== 'no_roles_provided') {
+      return NextResponse.json({ error: 'Not authorized for this organization' }, { status: 403 })
+    }
+
     const { error } = await admin
       .from('org_memberships')
       .delete()

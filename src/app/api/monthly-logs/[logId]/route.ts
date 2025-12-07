@@ -2,19 +2,26 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards';
 
 const isDevBypass = process.env.NODE_ENV === 'development';
 
 export async function GET(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
-    if (!isDevBypass) {
-      const auth = await requireAuth();
-      if (!hasPermission(auth.roles, 'monthly_logs.read')) {
-        return NextResponse.json(
-          { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-          { status: 403 },
-        );
-      }
+    const auth = await requireAuth();
+    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'monthly_log', (await params).logId);
+    if (!resolvedOrg.ok) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: resolvedOrg.error } },
+        { status: 404 },
+      );
+    }
+    await requireOrgMember({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId });
+    if (!hasPermission(auth.roles, 'monthly_logs.read')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 },
+      );
     }
 
     // Parse parameters
@@ -67,6 +74,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
         `,
       )
       .eq('id', logId)
+      .eq('org_id', resolvedOrg.orgId)
       .maybeSingle();
 
     if (logError) {

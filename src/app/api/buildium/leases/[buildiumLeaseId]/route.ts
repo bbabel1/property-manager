@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
+import { requireRole } from '@/lib/auth/guards'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ buildiumLeaseId: string }> }) {
   try {
+    await requireRole('platform_admin')
     const { buildiumLeaseId } = await params
     const id = Number(buildiumLeaseId)
     const res = await buildiumEdgeClient.getLeaseFromBuildium(id)
@@ -17,6 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ bui
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ buildiumLeaseId: string }> }) {
   try {
+    await requireRole('platform_admin')
     const { buildiumLeaseId } = await params
     const id = Number(buildiumLeaseId)
     const body = await request.json().catch(() => ({}))
@@ -28,4 +31,3 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-

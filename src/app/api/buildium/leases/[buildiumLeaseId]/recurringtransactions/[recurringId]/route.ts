@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
@@ -9,7 +9,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    const user = await requireUser()
+    await requireRole('platform_admin')
     const { id, recurringId } = await params
 
     const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${id}/recurring-transactions/${recurringId}`, {
@@ -38,7 +38,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    const user = await requireUser()
+    await requireRole('platform_admin')
     const { id, recurringId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionUpdateSchema)
@@ -70,7 +70,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
-    const user = await requireUser()
+    await requireRole('platform_admin')
     const { id, recurringId } = await params
 
     const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${id}/recurring-transactions/${recurringId}`, {

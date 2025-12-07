@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import { supabase, supabaseAdmin } from '@/lib/db'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ vendorId: string }> }) {
   const { vendorId } = params
@@ -76,10 +78,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ve
     insuranceExpirationDate?: string | null
   }
 
+  const auth = await requireAuth()
+
   const db = supabaseAdmin || supabase
   if (!db) {
     return NextResponse.json({ error: 'Supabase client unavailable' }, { status: 500 })
   }
+
+  const resolvedOrg = await resolveResourceOrg(auth.supabase, 'vendor', vendorId)
+  if (!resolvedOrg.ok) {
+    return NextResponse.json({ error: resolvedOrg.error }, { status: 404 })
+  }
+  await requireOrgAdmin({ client: auth.supabase, userId: auth.user.id, orgId: resolvedOrg.orgId })
 
   const nowIso = new Date().toISOString()
 
@@ -186,6 +196,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ve
       .from('vendors')
       .update(vendorUpdates)
       .eq('id', vendorId)
+      .eq('org_id', resolvedOrg.orgId)
 
     if (vendorError) {
       return NextResponse.json({ error: vendorError.message }, { status: 500 })

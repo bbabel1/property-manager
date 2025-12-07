@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBulkBillPaymentCreateSchema } from '@/schemas/buildium';
@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Require authentication
-    const user = await requireUser();
+    // Require platform admin
+    await requireRole('platform_admin');
 
     // Parse and validate request body
     const body = await request.json();
@@ -74,13 +74,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    await requireRole('platform_admin')
     const supabaseAdmin = requireSupabaseAdmin('fetch Buildium bill payments')
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
-
-    await requireUser()
 
     const { searchParams } = new URL(request.url)
     const limit = searchParams.get('limit') || '50'

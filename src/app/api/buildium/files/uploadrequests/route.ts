@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileUploadRequestSchema } from '@/schemas/buildium';
@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
-    // Require authentication
-    const user = await requireUser();
+    // Require platform admin
+    await requireRole('platform_admin');
 
     // Parse and validate request body
     const body = await request.json();

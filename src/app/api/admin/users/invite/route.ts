@@ -50,9 +50,7 @@ function normalizeRole(value: string): AppRole | null {
 // Body: { email: string, org_id?: string, roles?: string[] }
 export async function POST(request: NextRequest) {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole('org_admin')
-    }
+    await requireRole('platform_admin')
 
     const body = await request.json().catch(() => ({}))
     const parsed = InviteSchema.safeParse(body)

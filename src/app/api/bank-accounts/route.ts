@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireUser } from '@/lib/auth'
-import type { Database } from '@/types/database'
-import {
-  getServerSupabaseClient,
-  hasSupabaseAdmin,
-  requireSupabaseAdmin,
-  SupabaseAdminUnavailableError,
-} from '@/lib/supabase-client'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveUserOrgIds } from '@/lib/auth/org-access'
+import { hasRole, type AppRole } from '@/lib/auth/roles'
 import { normalizeBankAccountType } from '@/lib/bank-account-service'
 import { normalizeCountryWithDefault } from '@/lib/normalizers'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 
 // Utility to mask numbers except last 4
 function mask(v: string | null | undefined) {
@@ -21,23 +15,15 @@ function mask(v: string | null | undefined) {
   return s.replace(/.(?=.{4}$)/g, '•')
 }
 
-async function resolveOrgId(request: NextRequest, db: any, userId: string): Promise<string> {
-  let orgId: string | null = request.headers.get('x-org-id') || null
-  if (!orgId) {
-    try {
-      const { data: rows } = await db
-        .from('org_memberships')
-        .select('org_id')
-        .eq('user_id', userId)
-        .limit(1)
-      const first = Array.isArray(rows) && rows.length > 0 ? rows[0] : null
-      orgId = (first as any)?.org_id || null
-    } catch {
-      // ignore and fall through
-    }
+async function resolveOrgId(request: NextRequest, userOrgIds: string[]): Promise<string> {
+  const requested = request.headers.get('x-org-id')
+  if (requested) {
+    const normalized = requested.trim()
+    if (normalized && userOrgIds.includes(normalized)) return normalized
+    throw new Error('ORG_FORBIDDEN')
   }
-  if (!orgId) throw new Error('ORG_CONTEXT_REQUIRED')
-  return orgId
+  if (!userOrgIds.length) throw new Error('ORG_CONTEXT_REQUIRED')
+  return userOrgIds[0]
 }
 
 // Generate a deterministic local-only Buildium GL ID placeholder for an org.
@@ -54,21 +40,10 @@ function computeLocalGlId(orgId: string, bump: number = 0): number {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request)
-    const url = new URL(request.url)
-    const reveal = url.searchParams.get('revealNumbers') === 'true'
+    const auth = await requireAuth()
+    const orgId = await resolveOrgId(request, await resolveUserOrgIds({ supabase: auth.supabase, user: auth.user }))
 
-    // Prefer admin for consistency and to avoid cookie/session coupling. Fall back to SSR client.
-    const db = getServerSupabaseClient()
-    // Scope to organization for predictable results
-    let orgId: string | null = null
-    try {
-      orgId = await resolveOrgId(request, db, user.id)
-    } catch {
-      // If org cannot be resolved, return empty to avoid leaking cross-org data
-      return NextResponse.json([])
-    }
-    const { data, error } = await db
+    const { data, error } = await auth.supabase
       .from('bank_accounts')
       .select('id, name, bank_account_type, account_number, routing_number, is_active')
       .eq('org_id', orgId)
@@ -88,8 +63,8 @@ export async function GET(request: NextRequest) {
       id: a.id,
       name: a.name,
       bank_account_type: a.bank_account_type,
-      account_number: reveal ? a.account_number : mask(a.account_number),
-      routing_number: reveal ? a.routing_number : mask(a.routing_number),
+      account_number: mask(a.account_number),
+      routing_number: mask(a.routing_number),
       is_active: a.is_active,
     }))
 
@@ -97,6 +72,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    if ((error as Error)?.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden for organization' }, { status: 403 })
+    }
+    if ((error as Error)?.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json({ error: 'orgId is required' }, { status: 400 })
     }
     return NextResponse.json({ error: 'Failed to load bank accounts' }, { status: 500 })
   }
@@ -117,7 +98,7 @@ const CreateSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireUser(request)
+    const auth = await requireAuth()
     const json = await request.json().catch(() => ({}))
     const parsed = CreateSchema.safeParse(json)
     if (!parsed.success) {
@@ -126,17 +107,19 @@ export async function POST(request: NextRequest) {
     }
     const body = parsed.data
 
-    if (!hasSupabaseAdmin()) {
-      return NextResponse.json({ error: 'Server not configured for writes (service role missing)' }, { status: 501 })
+    const allowedRoles: AppRole[] = ['org_admin', 'org_manager', 'platform_admin']
+    if (!hasRole(auth.roles, allowedRoles)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const admin = requireSupabaseAdmin('bank accounts POST')
-
     // Resolve organization context (required by schema/RLS)
-    const orgId = await resolveOrgId(request, admin, user.id)
+    const orgId = await resolveOrgId(
+      request,
+      await resolveUserOrgIds({ supabase: auth.supabase, user: auth.user })
+    )
 
     // Prevent duplicate accounts within the same org by routing+account number
-    const { data: existingAccount, error: existingErr } = await admin
+    const { data: existingAccount, error: existingErr } = await auth.supabase
       .from('bank_accounts')
       .select('id, name, bank_account_type, account_number, routing_number, is_active')
       .eq('org_id', orgId)
@@ -159,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     // Find or create a default GL account for bank accounts
     let glAccountId: string
-    const { data: existingGLAccount, error: glError } = await admin
+    const { data: existingGLAccount, error: glError } = await auth.supabase
       .from('gl_accounts')
       .select('id')
       .eq('org_id', orgId)
@@ -174,7 +157,7 @@ export async function POST(request: NextRequest) {
       let lastErr: any = null
       while (attempts < 5 && !created) {
         const placeholderId = computeLocalGlId(orgId, attempts)
-        const { data: newGLAccount, error: createGLError } = await admin
+        const { data: newGLAccount, error: createGLError } = await auth.supabase
           .from('gl_accounts')
           .insert({
             buildium_gl_account_id: placeholderId,
@@ -227,9 +210,9 @@ export async function POST(request: NextRequest) {
       buildium_bank_id: 0, // Default value for local accounts
       gl_account: glAccountId, // Reference to GL account
       org_id: orgId,
-    } as Database['public']['Tables']['bank_accounts']['Insert']
+    }
 
-    const { data, error } = await admin
+    const { data, error } = await auth.supabase
       .from('bank_accounts')
       .insert(insert as any)
       .select('id, name, bank_account_type, account_number, routing_number, is_active')
@@ -244,79 +227,16 @@ export async function POST(request: NextRequest) {
       routing_number: mask(data.routing_number)
     }
 
-    // Optional immediate sync to Buildium
-    const url = new URL(request.url)
-    const syncToBuildium = url.searchParams.get('syncToBuildium') === 'true'
-    if (syncToBuildium) {
-      // Load full row for mapping and enrich with GLAccountId if available
-      const { data: full, error: fetchErr } = await admin
-        .from('bank_accounts')
-        .select('*')
-        .eq('id', data.id)
-        .single()
-      if (fetchErr || !full) {
-        return NextResponse.json({ error: 'Created locally but failed to load for Buildium sync', details: fetchErr?.message }, { status: 500 })
-      }
-
-      let payload: any = { ...full }
-      try {
-        if (full.gl_account) {
-          const { data: gl } = await admin
-            .from('gl_accounts')
-            .select('buildium_gl_account_id')
-            .eq('id', full.gl_account)
-            .maybeSingle()
-          const glId = gl?.buildium_gl_account_id
-          if (typeof glId === 'number' && glId > 0) payload = { ...payload, GLAccountId: glId }
-        }
-      } catch {}
-
-      const result = await buildiumEdgeClient.syncBankAccountToBuildium(payload)
-      if (!result.success) {
-        const currentBuildiumId = full.buildium_bank_id ?? undefined
-        if (typeof currentBuildiumId === 'number') {
-          try {
-            await admin.rpc('update_buildium_sync_status', {
-              p_entity_type: 'bankAccount',
-              p_entity_id: data.id,
-              p_buildium_id: currentBuildiumId,
-              p_status: 'failed',
-              p_error_message: result.error || 'Unknown error'
-            })
-          } catch {}
-        }
-        return NextResponse.json({ success: true, data: maskedData, buildiumSync: { success: false, error: result.error } })
-      }
-
-      // Ensure local record stores the returned Buildium Id
-      if (result.buildiumId) {
-        try {
-          await admin.from('bank_accounts').update({ buildium_bank_id: result.buildiumId, updated_at: new Date().toISOString() }).eq('id', data.id)
-          await admin.rpc('update_buildium_sync_status', {
-            p_entity_type: 'bankAccount',
-            p_entity_id: data.id,
-            p_buildium_id: result.buildiumId,
-            p_status: 'synced'
-          })
-        } catch {}
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          ...maskedData,
-          buildium_bank_id: result.buildiumId ?? undefined
-        }
-      })
-    }
-
     return NextResponse.json(maskedData)
   } catch (error) {
-    if (error instanceof SupabaseAdminUnavailableError) {
-      return NextResponse.json({ error: error.message }, { status: 501 })
-    }
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    if ((error as Error)?.message === 'ORG_FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden for organization' }, { status: 403 })
+    }
+    if ((error as Error)?.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json({ error: 'orgId is required' }, { status: 400 })
     }
     return NextResponse.json({ error: 'Failed to create bank account' }, { status: 500 })
   }

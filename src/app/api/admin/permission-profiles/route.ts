@@ -15,9 +15,7 @@ const PayloadSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    if (process.env.NODE_ENV === 'production') {
-      await requireRole(['org_admin', 'platform_admin'])
-    }
+    await requireRole('platform_admin')
     const orgId = request.nextUrl.searchParams.get('org_id')
     const supabase = hasSupabaseAdmin() ? requireSupabaseAdmin('list permission profiles') : null
     if (!supabase) return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
@@ -52,7 +50,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireRole(['org_admin', 'platform_admin'])
+    await requireRole('platform_admin')
     const supabase = hasSupabaseAdmin() ? requireSupabaseAdmin('upsert permission profiles') : null
     if (!supabase) return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
 

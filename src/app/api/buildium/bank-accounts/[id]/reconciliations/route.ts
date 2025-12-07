@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(request)
+    const { user } = await requireRole('platform_admin')
     const bankAccountId = (await params).id
     logger.info({ userId: user.id, bankAccountId, action: 'get_buildium_reconciliations_by_bank' }, 'Fetching Buildium reconciliations by bank account')
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSupabaseClient } from '@/lib/supabase-client'
 import { logger } from '@/lib/logger'
-import { requireUser } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth/guards'
+import { resolveUserOrgIds } from '@/lib/auth/org-access'
 
 const normalizeOrgId = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) {
@@ -11,13 +11,6 @@ const normalizeOrgId = (value: unknown): string | null => {
     return String(value)
   }
   return null
-}
-
-const collectCandidates = (value: unknown): unknown[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => collectCandidates(entry))
-  }
-  return value === undefined ? [] : [value]
 }
 
 export async function GET(request: NextRequest) {
@@ -31,113 +24,18 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || undefined
     const isActive = searchParams.get('isActive')
 
-    const db = getServerSupabaseClient('api:gl-accounts:list')
+    const auth = await requireAuth()
+    const db = auth.supabase
+    const userOrgIds = await resolveUserOrgIds({ supabase: db, user: auth.user })
 
-    let resolvedUser: Awaited<ReturnType<typeof requireUser>> | null = null
-    if (!orgId) {
-      const encodedUser = request.headers.get('x-auth-user')
-      if (encodedUser) {
-        try {
-          const decoded = decodeURIComponent(encodedUser)
-          const parsed = JSON.parse(decoded) as {
-            app_metadata?: {
-              claims?: { org_ids?: unknown }
-              org_ids?: unknown
-              default_org_id?: unknown
-              org_id?: unknown
-            }
-            user_metadata?: {
-              org_ids?: unknown
-              default_org_id?: unknown
-              org_id?: unknown
-            }
-          } | null
-          if (parsed) {
-            const headerCandidates: unknown[] = []
-            headerCandidates.push(
-              ...collectCandidates(parsed.app_metadata?.claims?.org_ids),
-              ...collectCandidates(parsed.app_metadata?.org_ids),
-              ...collectCandidates(parsed.app_metadata?.default_org_id),
-              ...collectCandidates(parsed.app_metadata?.org_id),
-              ...collectCandidates(parsed.user_metadata?.org_ids),
-              ...collectCandidates(parsed.user_metadata?.default_org_id),
-              ...collectCandidates(parsed.user_metadata?.org_id)
-            )
-            for (const candidate of headerCandidates) {
-              const normalized = normalizeOrgId(candidate)
-              if (normalized) {
-                orgId = normalized
-                break
-              }
-            }
-          }
-        } catch (error) {
-          logger.warn({ error }, 'Failed to parse x-auth-user header for org id')
-        }
+    if (orgId) {
+      const normalized = normalizeOrgId(orgId)
+      if (!normalized || !userOrgIds.includes(normalized)) {
+        return NextResponse.json({ error: 'Forbidden for organization' }, { status: 403 })
       }
-    }
-
-    if (!orgId) {
-      try {
-        resolvedUser = await requireUser(request)
-      } catch (error) {
-        logger.warn({ error }, 'Failed to resolve user while inferring GL account org id')
-      }
-
-      if (resolvedUser) {
-        const { app_metadata, user_metadata } = resolvedUser
-        const userCandidates: unknown[] = []
-        userCandidates.push(
-          ...collectCandidates(app_metadata?.claims?.org_ids),
-          ...collectCandidates(app_metadata?.org_ids),
-          ...collectCandidates(app_metadata?.default_org_id),
-          ...collectCandidates((app_metadata as any)?.org_id),
-          ...collectCandidates(user_metadata?.org_ids),
-          ...collectCandidates(user_metadata?.default_org_id),
-          ...collectCandidates((user_metadata as any)?.org_id)
-        )
-        for (const candidate of userCandidates) {
-          const normalized = normalizeOrgId(candidate)
-          if (normalized) {
-            orgId = normalized
-            break
-          }
-        }
-      }
-    }
-
-    if (!orgId && resolvedUser?.id) {
-      try {
-        const { data: membership } = await db
-          .from('org_memberships')
-          .select('org_id')
-          .eq('user_id', resolvedUser.id)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle()
-        const normalized = normalizeOrgId(membership?.org_id)
-        if (normalized) orgId = normalized
-      } catch (error) {
-        logger.warn(
-          { error, userId: resolvedUser.id },
-          'Failed to resolve org from org_memberships for GL accounts'
-        )
-      }
-    }
-
-    if (!orgId && process.env.NODE_ENV !== 'production') {
-      try {
-        const { data: orgRow } = await db
-          .from('organizations')
-          .select('id')
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle()
-        const normalized = normalizeOrgId(orgRow?.id)
-        if (normalized) orgId = normalized
-      } catch (error) {
-        logger.warn({ error }, 'Failed to resolve fallback organization for GL accounts route')
-      }
+      orgId = normalized
+    } else {
+      orgId = userOrgIds[0] ?? null
     }
 
     if (!orgId) {

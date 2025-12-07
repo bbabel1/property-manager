@@ -230,7 +230,7 @@ export default function FilesTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">
+              <TableHead className="w-12 px-6 py-3">
                 <input
                   type="checkbox"
                   className="rounded border-gray-300"
@@ -239,11 +239,11 @@ export default function FilesTable({
                   onChange={(e) => handleSelectAll(e.target.checked)}
                 />
               </TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Uploaded</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="px-6 py-3">Title</TableHead>
+              <TableHead className="px-6 py-3">Category</TableHead>
+              <TableHead className="px-6 py-3">Location</TableHead>
+              <TableHead className="px-6 py-3">Uploaded</TableHead>
+              <TableHead className="px-6 py-3 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -262,7 +262,7 @@ export default function FilesTable({
                   }
                 }}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell className="px-6" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     className="rounded border-gray-300"
@@ -274,7 +274,7 @@ export default function FilesTable({
                     }}
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-6 py-4">
                   <div className="flex items-start gap-2">
                     <FileThumbnail
                       fileId={file.id}
@@ -295,12 +295,12 @@ export default function FilesTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-6 py-4">
                   <Badge variant="outline" className="font-normal">
                     {file.category_name}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-6 py-4">
                   {file.entity_url ? (
                     <Link
                       href={file.entity_url}
@@ -315,10 +315,10 @@ export default function FilesTable({
                     </span>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="px-6 py-4">
                   <div className="text-foreground text-sm">{formatDateTime(file.created_at)}</div>
                 </TableCell>
-                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                <TableCell className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <ActionButton aria-label="File actions" />

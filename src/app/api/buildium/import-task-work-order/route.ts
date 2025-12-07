@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client';
 import { mapTaskFromBuildiumWithRelations, mapWorkOrderFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { supabase, supabaseAdmin } from '@/lib/db';
+import { requireRole } from '@/lib/auth/guards';
 
 const db = supabaseAdmin || supabase;
 
@@ -89,6 +90,7 @@ async function upsertWorkOrderFromBuildium(
 
 export async function POST(request: Request) {
   try {
+    await requireRole('platform_admin');
     const body = await request.json().catch(() => ({}));
     const taskIdInput = Number(body?.taskId ?? BUILD_DEFAULTS.taskId);
     const workOrderIdInput = Number(body?.workOrderId ?? BUILD_DEFAULTS.workOrderId);

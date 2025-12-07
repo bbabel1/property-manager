@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    const user = await requireUser(request);
+    await requireRole('platform_admin')
     const reconciliationId = (await params).id;
     
-    logger.info({ userId: user.id, reconciliationId, action: 'finalize_reconciliation' }, 'Finalizing Buildium reconciliation');
+    logger.info({ reconciliationId, action: 'finalize_reconciliation' }, 'Finalizing Buildium reconciliation');
 
     // Parse request body
     const body = await request.json();
