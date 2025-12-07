@@ -201,10 +201,7 @@ export class PropertyService {
           : 0
       )
 
-      const total_owners = ownership?.length || 0
-
-      // Extract owners with ownership details from ownership data
-      const owners: Owner[] = (ownership?.map(o => {
+      let owners: Owner[] = (ownership?.map(o => {
         const ownerSource = (o.owners ?? {}) as Record<string, unknown>
         const { contacts, ...ownerRow } = ownerSource
         const contactRow = (contacts as Record<string, unknown> | null) ?? {}
@@ -217,6 +214,30 @@ export class PropertyService {
         } as Owner
       }).filter(Boolean) as Owner[] | undefined)
         ?.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)) || []
+
+      // Fallback: if ownerships table is empty (e.g., cache drift), pull from property_ownerships_cache
+      if (!owners.length) {
+        const { data: poc, error: pocError } = await dbClient
+          .from('property_ownerships_cache')
+          .select('owner_id, contact_id, display_name, primary_email, ownership_percentage, disbursement_percentage, primary')
+          .eq('property_id', id)
+        if (pocError) {
+          console.error('❌ Error fetching property_ownerships_cache:', pocError)
+        }
+        const cacheOwners =
+          poc?.map(o => ({
+            id: o.owner_id,
+            contact_id: o.contact_id,
+            ownership_percentage: o.ownership_percentage,
+            disbursement_percentage: o.disbursement_percentage,
+            primary: !!o.primary,
+            display_name: o.display_name ?? undefined,
+            primary_email: o.primary_email ?? undefined,
+          })) || []
+        owners = cacheOwners.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0))
+      }
+
+      const total_owners = owners.length
 
       // Enrich: banking accounts (names + masked last4)
       let operating_account: PropertyWithDetails['operating_account'] | undefined
@@ -249,10 +270,14 @@ export class PropertyService {
       let primary_owner_name: string | undefined
       if (owners.length) {
         const po = owners.find(o => (o as any).primary) || owners[0]
-        primary_owner_name = (po as any).company_name || [
-          (po as any).first_name,
-          (po as any).last_name
-        ].filter(Boolean).join(' ').trim() || undefined
+        primary_owner_name =
+          (po as any).display_name
+          || (po as any).company_name
+          || [
+            (po as any).first_name,
+            (po as any).last_name
+          ].filter(Boolean).join(' ').trim()
+          || undefined
       }
 
       const result: PropertyWithDetails = {

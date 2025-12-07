@@ -221,7 +221,7 @@ export function VendorsTable({ vendors, categories }: VendorsTableProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={statusClass}>
+                      <Badge variant="outline" className={`status-pill ${statusClass}`}>
                         {statusLabel}
                       </Badge>
                     </TableCell>

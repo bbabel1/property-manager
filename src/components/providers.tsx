@@ -21,7 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 type AuthActionResult = { error: AuthError | null };
-type SupportedOAuthProvider = Extract<Provider, 'github'>;
+type SupportedOAuthProvider = Extract<Provider, 'github' | 'google'>;
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

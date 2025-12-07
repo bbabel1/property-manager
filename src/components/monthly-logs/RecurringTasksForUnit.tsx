@@ -313,9 +313,9 @@ export default function RecurringTasksForUnit({
                         <Badge
                           variant="outline"
                           className={cn(
-                            'rounded-full px-1.5 py-0 text-[10px] font-medium',
+                            'status-pill px-1.5 py-0 text-[10px] font-medium',
                             task.isActive
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
                               : 'border-slate-300 bg-slate-100 text-slate-600',
                           )}
                         >

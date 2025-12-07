@@ -417,7 +417,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                             </label>
                             <div>
                               <Badge
-                                className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusBadgeTone[statusMeta.key]}`}
+                                className={`status-pill ${statusBadgeTone[statusMeta.key]}`}
                                 variant="outline"
                                 aria-label={`Task status: ${statusMeta.label}`}
                               >
@@ -577,7 +577,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
                                 <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
                                   <Badge
                                     variant="outline"
-                                    className={`rounded-full border px-3 py-1 text-[11px] font-medium ${statusBadgeTone[entry.statusKey]}`}
+                                    className={`status-pill text-[11px] font-medium ${statusBadgeTone[entry.statusKey]}`}
                                     aria-label={`Status: ${entry.status}`}
                                   >
                                     {entry.status}

@@ -47,7 +47,8 @@
     "test:membership": "tsx tests/membership-auth.spec.ts",
     "test:security": "tsx tests/security-jwt-claims.spec.ts",
     "cron:recurring": "tsx scripts/cron/recurring.ts",
-    "cron:late-fees": "tsx scripts/cron/late-fees.ts"
+    "cron:late-fees": "tsx scripts/cron/late-fees.ts",
+    "lint:buildium-credentials": "tsx scripts/lint-buildium-credentials.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

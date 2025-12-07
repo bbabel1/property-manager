@@ -1179,10 +1179,68 @@ export function createBuildiumClient(config: BuildiumApiConfig): BuildiumClient 
   return new BuildiumClient(config);
 }
 
+/**
+ * Get org-scoped Buildium client
+ * 
+ * BREAKING CHANGE: Now requires orgId parameter (or explicit undefined for system jobs)
+ * All credential access flows through getOrgScopedBuildiumConfig (central choke point)
+ * 
+ * @param orgId - Organization ID (undefined for system jobs without org context)
+ * @param config - Optional partial config to override defaults
+ * @returns Configured BuildiumClient instance
+ */
+export async function getOrgScopedBuildiumClient(
+  orgId?: string | undefined,
+  config?: Partial<BuildiumApiConfig>
+): Promise<BuildiumClient> {
+  const { getOrgScopedBuildiumConfig } = await import('./buildium/credentials-manager');
+  const credentials = await getOrgScopedBuildiumConfig(orgId);
+  
+  if (!credentials) {
+    throw new Error(
+      orgId 
+        ? `Buildium credentials not available for org ${orgId}`
+        : 'Buildium credentials not available (no orgId provided and no env vars)'
+    );
+  }
+
+  const clientConfig: BuildiumApiConfig = {
+    baseUrl: credentials.baseUrl,
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    timeout: config?.timeout || 30000,
+    retryAttempts: config?.retryAttempts || 3,
+    retryDelay: config?.retryDelay || 1000,
+    ...config,
+  };
+
+  return new BuildiumClient(clientConfig);
+}
+
+/**
+ * Create Buildium client with org-scoped credentials
+ * 
+ * BREAKING CHANGE: Now requires orgId parameter (or explicit undefined for system jobs)
+ * 
+ * @deprecated Use getOrgScopedBuildiumClient instead
+ * This function is kept for backward compatibility but will be removed after migration
+ */
+export async function createBuildiumClientWithOrg(
+  orgId?: string | undefined,
+  config?: Partial<BuildiumApiConfig>
+): Promise<BuildiumClient> {
+  console.warn('createBuildiumClientWithOrg called - please migrate to getOrgScopedBuildiumClient');
+  return getOrgScopedBuildiumClient(orgId, config);
+}
+
 // ============================================================================
-// DEFAULT CONFIG
+// DEFAULT CONFIG (DEPRECATED)
 // ============================================================================
 
+/**
+ * @deprecated Use getOrgScopedBuildiumClient instead
+ * This config is kept for backward compatibility but will be removed after migration
+ */
 export const defaultBuildiumConfig: BuildiumApiConfig = {
   baseUrl: process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1',
   clientId: process.env.BUILDIUM_CLIENT_ID || '',

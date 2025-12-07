@@ -309,6 +309,11 @@ html {
   .section-title-text {
     @apply text-lg font-semibold text-foreground;
   }
+
+  /* Standardized Status Pill Design */
+  .status-pill {
+    @apply inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold;
+  }
 }
 
 @layer utilities {

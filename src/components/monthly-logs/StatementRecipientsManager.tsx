@@ -133,7 +133,7 @@ export default function StatementRecipientsManager({
                 <div className="text-xs text-slate-600">{recipient.email}</div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700">
+                <span className="status-pill border-slate-200 bg-slate-50 text-slate-700 px-2 py-1 text-[11px] font-medium">
                   {recipient.role}
                 </span>
                 <Button

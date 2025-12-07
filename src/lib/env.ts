@@ -16,6 +16,7 @@ const envSchema = z.object({
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  GOOGLE_CALENDAR_OAUTH_REDIRECT_URI: z.string().url().optional(),
   
   // App Configuration (Required)
   NEXTAUTH_URL: z.string().url(),

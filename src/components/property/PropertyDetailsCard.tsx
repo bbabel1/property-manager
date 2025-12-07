@@ -70,6 +70,7 @@ interface OwnerAPIResponse {
 }
 
 export default function PropertyDetailsCard({ property }: { property: Property }) {
+  const PROPERTY_TYPES: string[] = ['Condo', 'Co-op', 'Condop', 'Mult-Family', 'Townhouse'];
   const [editing, setEditing] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -119,6 +120,8 @@ export default function PropertyDetailsCard({ property }: { property: Property }
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl);
+  const [propertyType, setPropertyType] = useState<string>(property.property_type || '');
+  const [yearBuilt, setYearBuilt] = useState<number | null>(property.year_built ?? null);
   const sectionLabelClass = 'eyebrow-label';
   const formLabelClass = 'block text-sm font-medium text-muted-foreground';
   const formInputClass =
@@ -131,7 +134,7 @@ export default function PropertyDetailsCard({ property }: { property: Property }
     );
   };
 
-  async function handleSyncToBuildium() {
+  async function handleSyncToBuildium(): Promise<boolean> {
     setSyncing(true);
     setSyncMsg(null);
     setSyncErr(null);
@@ -140,14 +143,17 @@ export default function PropertyDetailsCard({ property }: { property: Property }
       const j = await res.json().catch(() => ({}) as Record<string, unknown>);
       if (!res.ok || j?.error) {
         setSyncErr(j?.error || `Failed: HTTP ${res.status}`);
+        return false;
       } else {
         setSyncMsg('Synced to Buildium');
         // Update badge in-place without reload if possible
         if (j?.buildium_property_id)
           (property as Property).buildium_property_id = j.buildium_property_id;
+        return true;
       }
     } catch (e) {
       setSyncErr(e instanceof Error ? e.message : 'Failed to sync');
+      return false;
     } finally {
       setSyncing(false);
     }
@@ -469,9 +475,9 @@ export default function PropertyDetailsCard({ property }: { property: Property }
         name: property.name,
         country: property.country || 'United States',
         status: property.status || 'Active',
-        property_type: property.property_type ?? null,
+        property_type: propertyType || null,
         reserve: property.reserve ?? 0,
-        year_built: property.year_built ?? null,
+        year_built: yearBuilt ?? null,
         property_manager_id: managerId || null,
       };
       const ownersPayload = owners
@@ -501,9 +507,29 @@ export default function PropertyDetailsCard({ property }: { property: Property }
         },
         body: JSON.stringify(body),
       });
+      const responseJson = await res.json().catch(() => ({}) as Record<string, unknown>);
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}) as Record<string, unknown>);
-        throw new Error(j?.error || 'Failed to save property');
+        throw new Error(responseJson?.error || 'Failed to save property');
+      }
+      const hasBuildiumId = !!property.buildium_property_id;
+      // Surface updated data locally in case we skip reload on sync errors
+      const updated = (responseJson as any)?.property;
+      if (updated) {
+        (property as Property).address_line1 = updated.address_line1 ?? property.address_line1;
+        (property as Property).address_line2 = updated.address_line2 ?? property.address_line2;
+        (property as Property).city = updated.city ?? property.city;
+        (property as Property).state = updated.state ?? property.state;
+        (property as Property).postal_code = updated.postal_code ?? property.postal_code;
+        (property as Property).property_type = updated.property_type ?? property.property_type;
+        (property as Property).year_built = updated.year_built ?? property.year_built;
+        (property as Property).reserve = updated.reserve ?? property.reserve;
+      }
+      if (hasBuildiumId) {
+        const synced = await handleSyncToBuildium();
+        if (!synced) {
+          setError('Saved, but failed to sync to Buildium. Please try again.');
+          return;
+        }
       }
       // Refresh page to reflect saved values
       window.location.reload();
@@ -547,11 +573,13 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                   </span>
                 )}
               </div>
-              {!property.buildium_property_id && (
-                <Button size="sm" onClick={handleSyncToBuildium} disabled={syncing}>
-                  {syncing ? 'Syncing…' : 'Sync to Buildium'}
-                </Button>
-              )}
+              <Button size="sm" onClick={handleSyncToBuildium} disabled={syncing}>
+                {syncing
+                  ? 'Syncing…'
+                  : property.buildium_property_id
+                    ? 'Resync to Buildium'
+                    : 'Sync to Buildium'}
+              </Button>
             </div>
             <div className="relative md:col-span-2">
               <div className="bg-card w-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)]">
@@ -833,6 +861,44 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                       className={formInputClass}
                       placeholder="11217"
                       aria-label="Zip code"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Property Info */}
+              <div>
+                <h4 className="text-foreground mb-2 text-sm font-medium">Property Info</h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={`${formLabelClass} mb-1`}>Property Type</label>
+                    <select
+                      value={propertyType}
+                      onChange={(e) => setPropertyType(e.target.value)}
+                      className={`${formInputClass} pr-10`}
+                      aria-label="Property type"
+                    >
+                      <option value="">Select property type</option>
+                      {PROPERTY_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`${formLabelClass} mb-1`}>Year Built</label>
+                    <input
+                      type="number"
+                      value={yearBuilt ?? ''}
+                      onChange={(e) =>
+                        setYearBuilt(e.target.value ? Number(e.target.value) : null)
+                      }
+                      className={formInputClass}
+                      placeholder="e.g., 2010"
+                      min="1800"
+                      max={new Date().getFullYear()}
+                      aria-label="Year built"
                     />
                   </div>
                 </div>

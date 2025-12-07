@@ -121,7 +121,7 @@ export default function EnhancedHeader({
                   <span>Monthly log for {periodDisplay}</span>
                   <Badge
                     className={cn(
-                      'rounded-full px-2.5 py-0.5 text-xs font-medium',
+                      'status-pill px-2.5 py-0.5',
                       STATUS_BADGE_STYLES[status] ?? STATUS_BADGE_STYLES.pending,
                     )}
                   >

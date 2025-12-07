@@ -28,8 +28,12 @@ Buildium Integration Rules:
 6. **Validate responses**: Always validate Buildium API responses before processing 
    to ensure data integrity and prevent runtime errors.
 
-7. **Use proper authentication**: Ensure all Buildium API calls use the correct 
-   authentication headers and credentials from environment variables.
+7. **Use org-scoped credentials (CRITICAL)**: 
+   - NEVER use `process.env.BUILDIUM_*` directly in code
+   - ALL credential access must flow through `getOrgScopedBuildiumConfig()` in `src/lib/buildium/credentials-manager.ts`
+   - This is the ONLY place that should read `process.env.BUILDIUM_*` variables
+   - Use `getOrgScopedBuildiumClient(orgId)` or `buildiumFetch(..., orgId)` for API calls
+   - Pass `orgId` parameter (or `undefined` for system jobs without org context)
 
 8. **Handle relationship resolution**: When dealing with related data (e.g., 
    properties with bank accounts), use systematic resolution patterns with proper 
@@ -38,18 +42,21 @@ Buildium Integration Rules:
 9. **Document field mappings**: Maintain clear documentation of field mappings 
    between Buildium API responses and local database schema.
 
-10. **Use direct API calls**: Always use direct API calls with client credentials, 
-    not MCP tools or other intermediaries.
-
-11. **Standard API call pattern**:
+10. **Use org-scoped Buildium client/fetch**: Always use the centralized credential manager:
     ```typescript
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/[endpoint]/[id]`, {
-      method: 'GET',
+    // ✅ CORRECT: Use org-scoped client
+    const orgId = await resolveOrgId(request, userId)
+    const client = await getOrgScopedBuildiumClient(orgId)
+    const properties = await client.getProperties()
+    
+    // ✅ CORRECT: Use org-scoped fetch
+    const result = await buildiumFetch('GET', '/rentals', {}, undefined, orgId)
+    
+    // ❌ WRONG: Direct process.env usage
+    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals`, {
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
         'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
       }
     })
     ```

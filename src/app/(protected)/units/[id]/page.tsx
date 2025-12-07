@@ -58,10 +58,10 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
 
   const statusBadge = useMemo(() => {
     const status = (unit?.status || '').toLowerCase()
-    if (status === 'occupied') return { label: 'Occupied', cls: 'bg-blue-100 text-blue-800' }
-    if (status === 'vacant') return { label: 'Vacant', cls: 'bg-yellow-100 text-yellow-800' }
-    if (status === 'active') return { label: 'Active', cls: 'bg-green-100 text-green-800' }
-    return { label: unit?.status || 'Unknown', cls: 'bg-gray-100 text-gray-800' }
+    if (status === 'occupied') return { label: 'Occupied', cls: 'status-pill border-blue-800 bg-blue-100 text-blue-800' }
+    if (status === 'vacant') return { label: 'Vacant', cls: 'status-pill border-yellow-800 bg-yellow-100 text-yellow-800' }
+    if (status === 'active') return { label: 'Active', cls: 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]' }
+    return { label: unit?.status || 'Unknown', cls: 'status-pill border-gray-800 bg-gray-100 text-gray-800' }
   }, [unit])
 
   const currency = (n?: number | null) => n != null ? `$${Number(n).toLocaleString()}` : '-'

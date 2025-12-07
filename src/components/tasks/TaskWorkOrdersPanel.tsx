@@ -95,7 +95,7 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
               <Badge
                 variant="outline"
                 className={cn(
-                  'rounded-full border px-3 py-1 text-xs font-semibold capitalize',
+                  'status-pill capitalize',
                   STATUS_BADGE_STYLES[selected.statusKey],
                 )}
               >
@@ -103,7 +103,7 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
               </Badge>
               <Badge
                 variant="outline"
-                className="border-[var(--color-gray-200)] bg-[var(--color-gray-50)] text-foreground rounded-full px-3 py-1 text-xs font-semibold"
+                className="status-pill border-[var(--color-gray-200)] bg-[var(--color-gray-50)] text-foreground"
               >
                 {selected.priorityLabel}
               </Badge>
@@ -331,7 +331,7 @@ export default function TaskWorkOrdersPanel({ workOrders, initialWorkOrderId }: 
                   <Badge
                     variant="outline"
                     className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium capitalize',
+                      'status-pill font-medium capitalize',
                       STATUS_BADGE_STYLES[wo.statusKey],
                     )}
                   >

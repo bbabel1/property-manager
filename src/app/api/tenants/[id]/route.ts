@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
+import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 
 type AllowedTenantFields =
   | 'tax_id'
@@ -56,17 +57,52 @@ export async function PATCH(
 
     updates.updated_at = new Date().toISOString()
 
-    const { error } = await supabaseAdmin
+    const { data: updatedTenant, error } = await supabaseAdmin
       .from('tenants')
       .update(updates)
       .eq('id', id)
       .eq('org_id', resolvedOrg.orgId)
+      .select('id, buildium_tenant_id, tax_id, comment, emergency_contact_name, emergency_contact_email, emergency_contact_phone, emergency_contact_relationship')
+      .maybeSingle()
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    let buildiumSyncError: string | null = null
+    if (updatedTenant?.buildium_tenant_id) {
+      const buildiumPayload: Record<string, unknown> = {
+        TaxId: updates.tax_id ?? updatedTenant.tax_id ?? undefined,
+        Comment: updates.comment ?? updatedTenant.comment ?? undefined
+      }
+      const emergencyContact: Record<string, unknown> = {
+        Name: updates.emergency_contact_name ?? updatedTenant.emergency_contact_name ?? undefined,
+        Email: updates.emergency_contact_email ?? updatedTenant.emergency_contact_email ?? undefined,
+        Phone: updates.emergency_contact_phone ?? updatedTenant.emergency_contact_phone ?? undefined,
+        RelationshipDescription:
+          updates.emergency_contact_relationship ?? updatedTenant.emergency_contact_relationship ?? undefined
+      }
+      const clean = (obj: Record<string, unknown>) =>
+        Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== ''))
+      const contactClean = clean(emergencyContact)
+      if (Object.keys(contactClean).length) buildiumPayload.EmergencyContact = contactClean
+      const payloadClean = clean(buildiumPayload)
+
+      if (Object.keys(payloadClean).length) {
+        const res = await buildiumEdgeClient.updateTenantInBuildium(
+          Number(updatedTenant.buildium_tenant_id),
+          payloadClean
+        )
+        if (!res.success) {
+          buildiumSyncError = res.error || 'Failed to sync tenant to Buildium'
+        }
+      }
+    }
+
+    return NextResponse.json(
+      { success: true, buildium_sync_error: buildiumSyncError || undefined },
+      { status: buildiumSyncError ? 422 : 200 }
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unexpected error'
     return NextResponse.json({ success: false, error: message }, { status: 500 })

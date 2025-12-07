@@ -362,7 +362,64 @@ export async function PUT(
         return NextResponse.json({ error: 'Missing org context; cannot upsert ownerships' }, { status: 400 })
       }
       
-      // First, delete all existing ownership records for this property
+      const isUuid = (val: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+      // Pre-resolve all owner IDs before mutating ownerships
+      const resolvedOwners: {
+        owner_id: string;
+        ownershipPercentage: number;
+        disbursementPercentage: number;
+        primary: boolean;
+      }[] = [];
+      for (const owner of body.owners) {
+        let resolvedOwnerId = String(owner.id);
+        if (!isUuid(resolvedOwnerId)) {
+          const numericId = Number(resolvedOwnerId);
+          if (!Number.isNaN(numericId)) {
+            // First, try as Buildium owner id
+            const { data: ownerRow } = await adminClient
+              .from('owners')
+              .select('id')
+              .eq('buildium_owner_id', numericId)
+              .eq('org_id', orgId)
+              .maybeSingle();
+
+            // Fallback: try matching contact_id (form may send contact ids)
+            let resolvedId = ownerRow?.id;
+            if (!resolvedId) {
+              const { data: byContact } = await adminClient
+                .from('owners')
+                .select('id')
+                .eq('contact_id', numericId)
+                .eq('org_id', orgId)
+                .maybeSingle();
+              resolvedId = byContact?.id;
+            }
+
+            if (!resolvedId) {
+              return NextResponse.json(
+                { error: `Owner with Buildium/contact id ${numericId} not found in this org` },
+                { status: 400 }
+              );
+            }
+            resolvedOwnerId = resolvedId;
+          } else {
+            return NextResponse.json(
+              { error: `Invalid owner id: ${resolvedOwnerId}` },
+              { status: 400 }
+            );
+          }
+        }
+        resolvedOwners.push({
+          owner_id: resolvedOwnerId,
+          ownershipPercentage: toNumberOrDefault(owner.ownershipPercentage, 0),
+          disbursementPercentage: toNumberOrDefault(owner.disbursementPercentage, 0),
+          primary: Boolean(owner.primary),
+        });
+      }
+
+      // First, delete all existing ownership records for this property (after resolving owners)
       const { data: previousOwnerships, error: previousOwnershipsError } = await adminClient
         .from('ownerships')
         .select('id, property_id, owner_id, ownership_percentage, disbursement_percentage, primary, org_id, created_at, updated_at')
@@ -385,35 +442,27 @@ export async function PUT(
         console.log('🔍 API: Successfully deleted existing ownership records')
       }
 
-      // Then insert new ownership records
-      const insertErrors: any[] = []
-      const ownershipInsertNow = new Date().toISOString()
-      for (const owner of body.owners) {
-        console.log('🔍 API: Inserting ownership record for owner:', owner.id)
-        const ownershipPayload: OwnershipInsert = {
-          property_id: propertyId,
-          owner_id: String(owner.id),
-          ownership_percentage: toNumberOrDefault(owner.ownershipPercentage, 0),
-          disbursement_percentage: toNumberOrDefault(owner.disbursementPercentage, 0),
-          primary: Boolean(owner.primary),
-          org_id: orgId,
-          created_at: ownershipInsertNow,
-          updated_at: ownershipInsertNow,
-        }
-        const { data: ownershipData, error: insertError } = await adminClient
-          .from('ownerships')
-          .insert(ownershipPayload)
-          .select()
+      // Then insert new ownership records (all at once to satisfy constraint that percentages must sum to 100%)
+      const ownershipInsertNow = new Date().toISOString();
+      const ownershipRecords: OwnershipInsert[] = resolvedOwners.map(owner => ({
+        property_id: propertyId,
+        owner_id: owner.owner_id,
+        ownership_percentage: owner.ownershipPercentage,
+        disbursement_percentage: owner.disbursementPercentage,
+        primary: owner.primary,
+        org_id: orgId,
+        created_at: ownershipInsertNow,
+        updated_at: ownershipInsertNow,
+      }));
 
-        if (insertError) {
-          console.error('🔍 API: Error inserting ownership record:', insertError)
-          insertErrors.push(insertError)
-        } else {
-          console.log('🔍 API: Successfully inserted ownership record:', ownershipData)
-        }
-      }
-      if (insertErrors.length) {
-        console.error('🔍 API: Ownership insert failures, attempting to restore previous state.')
+      const { data: ownershipData, error: insertError } = await adminClient
+        .from('ownerships')
+        .insert(ownershipRecords)
+        .select();
+
+      if (insertError) {
+        console.error('🔍 API: Error inserting ownership records:', insertError);
+        // Attempt to restore previous state on error
         if (Array.isArray(previousOwnerships) && previousOwnerships.length > 0) {
           try {
             await adminClient.from('ownerships').insert(previousOwnerships.map(prev => ({
@@ -431,8 +480,13 @@ export async function PUT(
             console.error('🔍 API: Failed to restore prior ownerships after insert error:', restoreError)
           }
         }
-        return NextResponse.json({ error: 'Failed to upsert one or more ownerships', details: insertErrors.map(e => e.message || String(e)) }, { status: 400 })
+        return NextResponse.json({ 
+          error: 'Failed to update ownerships', 
+          details: insertError.message || String(insertError) 
+        }, { status: 400 })
       }
+      
+      console.log('🔍 API: Successfully inserted ownership records:', ownershipData);
     } else {
       console.log('🔍 API: Skipping ownership updates (no owners provided or empty)')
     }

@@ -119,6 +119,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
+    let buildiumSyncError: string | null = null;
+    let buildiumSyncedId: number | null = null;
     try {
       const { data: prop } = await db
         .from('properties')
@@ -126,18 +128,32 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         .eq('id', updatedUnit.property_id)
         .maybeSingle();
       if (prop?.buildium_property_id) {
-        await buildiumSync.syncUnitToBuildium({
+        const syncResult = await buildiumSync.syncUnitToBuildium({
           ...updatedUnit,
           buildium_property_id: prop.buildium_property_id,
         });
+        if (!syncResult.success) {
+          buildiumSyncError = syncResult.error || 'Failed to sync unit to Buildium';
+        } else {
+          buildiumSyncedId = syncResult.buildiumId ?? null;
+        }
       } else {
         console.warn('Units API: skipping Buildium sync (missing buildium_property_id)');
       }
     } catch (syncErr) {
-      console.error('Units API: non-fatal Buildium sync failure', syncErr);
+      buildiumSyncError =
+        syncErr instanceof Error ? syncErr.message : 'Unknown Buildium sync error';
+      console.error('Units API: Buildium sync failure', syncErr);
     }
 
-    return NextResponse.json(updatedUnit);
+    return NextResponse.json(
+      {
+        unit: updatedUnit,
+        buildium_unit_id: buildiumSyncedId ?? updatedUnit.buildium_unit_id ?? null,
+        buildium_sync_error: buildiumSyncError || undefined,
+      },
+      { status: buildiumSyncError ? 422 : 200 },
+    );
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

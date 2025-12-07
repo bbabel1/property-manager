@@ -179,7 +179,7 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
 
   const renderStatusPill = (icon: ReactNode, label: string, className: string) => (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-medium ${className}`}
+      className={`status-pill ${className}`}
     >
       {icon}
       {label}
@@ -224,9 +224,9 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
     }
     if (recipientCount && recipientCount > 0 && gmailStatus.connected) {
       return renderStatusPill(
-        <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />,
+        <CheckCircle className="h-3.5 w-3.5 text-[var(--color-success-600)]" />,
         'Ready to send',
-        'border-emerald-100 bg-emerald-50 text-emerald-700',
+        'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
       );
     }
     return null;
