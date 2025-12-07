@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBillCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +19,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -47,43 +50,48 @@ export async function GET(request: NextRequest) {
     if (dueDateFrom) queryParams.append('dueDateFrom', dueDateFrom);
     if (dueDateTo) queryParams.append('dueDateTo', dueDateTo);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const result = await buildiumFetch(
+      'GET',
+      '/bills',
+      Object.fromEntries(queryParams.entries()),
+      undefined,
+      orgId
+    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium bills fetch failed`);
+    if (!result.ok) {
+      logger.error(
+        { orgId, status: result.status, error: result.errorText },
+        'Buildium bills fetch failed'
+      );
 
       return NextResponse.json(
         { 
           error: 'Failed to fetch bills from Buildium',
-          details: errorData
+          details: result.json ?? result.errorText
         },
-        { status: response.status }
+        { status: result.status || 502 }
       );
     }
 
-    const bills = await response.json();
+    const bills = result.json;
 
-    logger.info(`Buildium bills fetched successfully`);
+    logger.info({ orgId }, 'Buildium bills fetched successfully');
 
     return NextResponse.json({
       success: true,
       data: bills,
-      count: bills.length,
+      count: Array.isArray(bills) ? bills.length : undefined,
     });
 
   } catch (error) {
-    logger.error(`Error fetching Buildium bills`);
+    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json(
+        { error: 'Organization context required' },
+        { status: 400 }
+      );
+    }
+
+    logger.error({ error }, 'Error fetching Buildium bills');
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -104,7 +112,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
     // Parse and validate request body
     const body = await request.json();
@@ -112,36 +121,32 @@ export async function POST(request: NextRequest) {
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumBillCreateSchema);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const result = await buildiumFetch(
+      'POST',
+      '/bills',
+      undefined,
+      validatedData,
+      orgId
+    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium bill creation failed`);
+    if (!result.ok) {
+      logger.error(
+        { orgId, status: result.status, error: result.errorText },
+        'Buildium bill creation failed'
+      );
 
       return NextResponse.json(
         { 
           error: 'Failed to create bill in Buildium',
-          details: errorData
+          details: result.json ?? result.errorText
         },
-        { status: response.status }
+        { status: result.status || 502 }
       );
     }
 
-    const bill = await response.json();
+    const bill = result.json;
 
-    logger.info(`Buildium bill created successfully`);
+    logger.info({ orgId }, 'Buildium bill created successfully');
 
     return NextResponse.json({
       success: true,
@@ -149,7 +154,14 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    logger.error(`Error creating Buildium bill`);
+    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json(
+        { error: 'Organization context required' },
+        { status: 400 }
+      );
+    }
+
+    logger.error({ error }, 'Error creating Buildium bill');
 
     return NextResponse.json(
       { error: 'Internal server error' },

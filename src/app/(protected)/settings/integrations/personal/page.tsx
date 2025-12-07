@@ -93,7 +93,14 @@ export default function PersonalIntegrationsPage() {
                 <CardTitle>{item.title}</CardTitle>
                 <p className="text-sm text-muted-foreground">{item.description}</p>
               </div>
-              <Badge variant={item.connected ? 'default' : 'outline'}>
+              <Badge 
+                variant="outline"
+                className={
+                  item.connected
+                    ? 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
+                    : 'status-pill'
+                }
+              >
                 {item.connected ? 'Connected' : 'Not connected'}
               </Badge>
             </CardHeader>

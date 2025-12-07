@@ -4,16 +4,28 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 
 ⚠️ **Auth Status**: Supabase Auth is the only auth system. NextAuth has been removed.
 
+## Live Application
+- https://pm.managedbyora.com – Production app, backed by Supabase (auth, Postgres, storage) and Buildium data sync; environment configured via the variables listed below.
+
 ## Project Overview & Value Proposition
 - Unified operational suite: properties, owners, leases, banking, monthly statements.
 - Supabase-first architecture: SSR-friendly auth, database types, RLS-ready.
 - Opinionated monthly log workflow with PDF statements and multi-recipient delivery.
 
-## Tech Stack & Architecture Snapshot
-- **Frontend:** Next.js 15 App Router + React 18, TypeScript (strict), SWR, React Hook Form + Zod, Tailwind CSS.
-- **Backend/data:** Supabase (PostgreSQL with RLS) for auth + persistence; Buildium integration for external sync; edge-friendly API routes.
-- **Observability & quality:** Sentry/OTel hooks, ESLint/Prettier, typecheck and env validation gates.
-- **Domain layout:** Domain modules live in `src/modules/<domain>/` with services, schemas, and UI entrypoints.
+## Complete Tech Stack
+- **Hosting & runtime:** Next.js 15 (App Router, SSR/ISR/edge support), React 18, TypeScript 5, `tsx` for TypeScript scripts; production URL served at `https://pm.managedbyora.com` on Vercel (Next.js-compatible host; infra/IaC lives under `infra/` if added).
+- **External services:** Supabase (PostgreSQL, Auth, Storage) via `@supabase/supabase-js` and `@supabase/ssr`; Buildium API for property/accounting sync and webhooks; Sentry via `@sentry/nextjs` for errors/performance; Google Maps JS API for map components; Gmail OAuth + API via `googleapis`; Resend for statement email delivery; Ngrok for local webhook testing (see `docs/buildium-webhook-setup-guide.md`).
+- **Data layer & infra libs:** `pg`/`@types/pg` for direct Postgres access; `dotenv` for env loading in scripts; Supabase migrations in `supabase/migrations/`; `sharp` for image/PDF asset handling; `pino` + `pino-pretty` for structured logging.
+- **Observability & tracing:** OpenTelemetry stack (`@opentelemetry/sdk-node`, `resources`, `semantic-conventions`, `exporter-trace-otlp-http`, `instrumentation-{fetch,http,pg,pino}`) feeding traces to your collector; app-level instrumentation lives in `instrumentation.ts`.
+- **Alerting & incident routing:** PagerDuty Events v2 integration wired via `LOG_FORWARDER_URL` and `PAGERDUTY_ROUTING_KEY` (see `src/lib/pagerduty.ts` and Supabase edge function helpers under `supabase/functions/_shared/pagerDuty.ts`).
+- **Data fetching & state:** `swr` for client caching; `zustand` for lightweight client state stores.
+- **Forms & validation:** `react-hook-form`, `@hookform/resolvers`, and `zod` for typed schemas and validation.
+- **Styling & theming:** Tailwind CSS v4 with plugins (`@tailwindcss/forms`, `@tailwindcss/typography`, `@tailwindcss/container-queries`, `@tailwindcss/postcss`), utility helpers (`tailwind-merge`, `class-variance-authority`, `clsx`), and `next-themes` for theme toggling.
+- **UI components & interactions:** Radix UI suite (`@radix-ui/react-*` accordion/alert-dialog/dialog/dropdown/tabs/tooltip/etc.), `@headlessui/react` primitives, `cmdk` command palette, `lucide-react` icons, `sonner` toasts, drag-and-drop via `@dnd-kit/{core,sortable,modifiers}`, `react-resizable-panels` for layout resizing, `vaul` sheets/drawers, `embla-carousel-react` sliders, `recharts` charts, `react-day-picker`, and `input-otp`.
+- **Utilities:** `date-fns` for date/time handling and formatting.
+- **Testing, linting & formatting:** `playwright` for end-to-end coverage (currently stubbed), `eslint` + `eslint-config-next` + `@eslint/eslintrc`, `stylelint` + `stylelint-config-standard` + `stylelint-config-tailwindcss`, `prettier` + `prettier-plugin-tailwindcss`, `markdownlint` + `markdownlint-cli`, and `typescript` for strict type checks (including env validation via `npm run ci:env-check` with Zod).
+- **Developer workflow:** `husky` + `lint-staged` for git hook enforcement, `concurrently` for multi-process dev tasks, type definitions via `@types/{node,react,react-dom}`, and Supabase CLI usage (`npx supabase@latest`) embedded in package scripts for schema dumps and type generation.
+- **Application structure:** Domain modules sit under `src/modules/<domain>/` (services, schemas, UI entrypoints); shared primitives in `src/components/`, cross-cutting infra in `src/lib/`, routes/API handlers in `src/app/`, and environment validation in `src/env/`.
 
 ## Routes & Feature Map
 - **Pages**

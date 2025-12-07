@@ -1,16 +1,31 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Mail, Lock, Eye, EyeOff, Github } from 'lucide-react';
+import { Mail, Eye, EyeOff, Github } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/providers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
+type OAuthProvider = 'github' | 'google';
+
+const oauthProviderLabels: Record<OAuthProvider, string> = {
+  github: 'GitHub',
+  google: 'Google',
+};
+
+function GoogleGlyph() {
+  return (
+    <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-border bg-background text-sm font-semibold text-[#4285F4]">
+      G
+    </span>
+  );
+}
+
 function SignInForm() {
   const router = useRouter();
-  const { user, loading, signIn, signInWithMagicLink, signInWithProvider } = useAuth();
+  const { user, loading, signIn, signInWithProvider } = useAuth();
   const search = useSearchParams();
   const nextPath = search?.get('next') || undefined;
   const errorParam = search?.get('error');
@@ -18,11 +33,10 @@ function SignInForm() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [authMethod, setAuthMethod] = useState<'magic' | 'credentials'>('credentials');
+  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
   const [showPassword, setShowPassword] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<null | 'github'>(null);
+  const [oauthLoading, setOauthLoading] = useState<null | OAuthProvider>(null);
 
-  // Redirect if already authenticated (but not in test mode)
   useEffect(() => {
     if (!loading && user && process.env.NEXT_PUBLIC_TEST_AUTH_BYPASS !== 'true') {
       router.replace(nextPath || '/dashboard');
@@ -35,75 +49,58 @@ function SignInForm() {
     }
     const errorMessages: Record<string, string> = {
       missing_oauth_code: 'We could not complete the sign-in. Please try again.',
-      oauth_exchange_failed:
-        'There was a problem completing the GitHub sign-in. Please try again.',
+      oauth_exchange_failed: 'There was a problem completing the sign-in. Please try again.',
     };
     setMessage(errorMessages[errorParam] || 'Sign-in failed. Please try again.');
+    setMessageType('error');
   }, [errorParam]);
-
-  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setMessage('');
-
-    try {
-      const { error } = await signInWithMagicLink(email);
-
-      if (error) {
-        setMessage(error.message || 'Failed to send sign-in link. Please try again.');
-      } else {
-        setMessage('Check your email for a sign-in link!');
-      }
-    } catch (err: any) {
-      console.error('Magic link sign-in failed', err);
-      setMessage(err?.message || 'An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setMessage('');
+    setMessageType('');
 
     try {
       const { error } = await signIn(email, password);
 
       if (error) {
         setMessage(error.message || 'Invalid email or password. Please try again.');
+        setMessageType('error');
       } else {
         setMessage('Login successful! Redirecting...');
-        // Auth context will handle the redirect automatically
+        setMessageType('success');
       }
     } catch (err: any) {
       console.error('Password sign-in failed', err);
       setMessage(err?.message || 'An error occurred. Please try again.');
+      setMessageType('error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmit = authMethod === 'magic' ? handleMagicLinkSubmit : handleCredentialsSubmit;
-
-  const handleOAuthSignIn = async () => {
-    setOauthLoading('github');
+  const handleOAuthSignIn = async (provider: OAuthProvider) => {
+    setOauthLoading(provider);
     setMessage('');
+    setMessageType('');
+
     try {
-      const { error } = await signInWithProvider('github', nextPath);
+      const { error } = await signInWithProvider(provider, nextPath);
       if (error) {
-        setMessage(error.message || 'GitHub sign-in failed. Please try again.');
+        setMessage(error.message || `${oauthProviderLabels[provider]} sign-in failed. Please try again.`);
+        setMessageType('error');
         setOauthLoading(null);
       }
       // Successful calls will redirect via Supabase OAuth flow.
     } catch (err: any) {
-      console.error('GitHub sign-in failed', err);
+      console.error(`${oauthProviderLabels[provider]} sign-in failed`, err);
       setMessage(err?.message || 'An error occurred. Please try again.');
+      setMessageType('error');
       setOauthLoading(null);
     }
   };
 
-  // Show loading spinner while checking auth state
   if (loading) {
     return (
       <div className="bg-background flex min-h-screen items-center justify-center">
@@ -125,31 +122,7 @@ function SignInForm() {
           </p>
         </CardHeader>
         <CardContent>
-          {/* Auth Method Toggle */}
-          <div className="border-border bg-background flex rounded-md border p-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={authMethod === 'credentials' ? 'default' : 'ghost'}
-              className="flex-1"
-              onClick={() => setAuthMethod('credentials')}
-            >
-              <Lock className="mr-2 h-4 w-4" />
-              Password
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={authMethod === 'magic' ? 'default' : 'ghost'}
-              className="flex-1"
-              onClick={() => setAuthMethod('magic')}
-            >
-              <Mail className="mr-2 h-4 w-4" />
-              Magic Link
-            </Button>
-          </div>
-
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+          <form className="mt-6 space-y-4" onSubmit={handleCredentialsSubmit}>
             <div>
               <label htmlFor="email" className="sr-only">
                 Email address
@@ -169,43 +142,39 @@ function SignInForm() {
               </div>
             </div>
 
-            {authMethod === 'credentials' && (
-              <div>
-                <label htmlFor="password" className="sr-only">
-                  Password
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="text-muted-foreground h-4 w-4" />
-                    ) : (
-                      <Eye className="text-muted-foreground h-4 w-4" />
-                    )}
-                  </button>
-                </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3"
+                >
+                  {showPassword ? (
+                    <EyeOff className="text-muted-foreground h-4 w-4" />
+                  ) : (
+                    <Eye className="text-muted-foreground h-4 w-4" />
+                  )}
+                </button>
               </div>
-            )}
+            </div>
 
             {message && (
               <div
                 className={`text-center text-sm ${
-                  message.includes('Check your email') || message.includes('successful')
-                    ? 'text-success'
-                    : 'text-destructive'
+                  messageType === 'success' ? 'text-success' : 'text-destructive'
                 }`}
               >
                 {message}
@@ -214,62 +183,65 @@ function SignInForm() {
 
             <div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading
-                  ? 'Signing in...'
-                  : authMethod === 'magic'
-                    ? 'Send sign-in link'
-                    : 'Sign in'}
+                {isLoading ? 'Signing in...' : 'Sign in'}
               </Button>
             </div>
+          </form>
 
-          <div className="bg-muted/50 flex flex-col gap-2 rounded-md p-3">
+          <div className="bg-muted/50 mt-6 flex flex-col gap-2 rounded-md p-3">
             <p className="text-muted-foreground text-center text-xs uppercase tracking-wide">
               Or continue with
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleOAuthSignIn}
-              disabled={oauthLoading === 'github'}
-            >
-              {oauthLoading === 'github' ? (
-                'Redirecting to GitHub...'
-              ) : (
-                <>
-                  <Github className="mr-2 h-4 w-4" />
-                  GitHub
-                </>
-              )}
-            </Button>
+            <div className="grid grid-cols-1 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthSignIn('google')}
+                disabled={oauthLoading !== null}
+              >
+                {oauthLoading === 'google' ? (
+                  'Redirecting to Google...'
+                ) : (
+                  <>
+                    <GoogleGlyph />
+                    Sign in with Google
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthSignIn('github')}
+                disabled={oauthLoading !== null}
+              >
+                {oauthLoading === 'github' ? (
+                  'Redirecting to GitHub...'
+                ) : (
+                  <>
+                    <Github className="mr-2 h-4 w-4" />
+                    Sign in with GitHub
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
-            {authMethod === 'credentials' && (
-              <div className="space-y-2 text-center">
-                <p className="text-muted-foreground text-sm">
-                  Don't have an account?{' '}
-                  <a href="/auth/signup" className="text-primary font-medium hover:underline">
-                    Create one here
-                  </a>
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  Or{' '}
-                  <button
-                    type="button"
-                    onClick={() => setAuthMethod('magic')}
-                    className="text-primary font-medium hover:underline"
-                  >
-                    use magic link instead
-                  </button>
-                </p>
-              </div>
-            )}
-          </form>
+          <div className="mt-4 space-y-2 text-center">
+            <p className="text-muted-foreground text-sm">
+              Don't have an account?{' '}
+              <a href="/auth/signup" className="text-primary font-medium hover:underline">
+                Create one here
+              </a>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
+
 export default function SignInPage() {
   return (
     <Suspense

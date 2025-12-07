@@ -305,20 +305,36 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
-      const updated = await res.json().catch(() => null as any)
-      if (!res.ok || !updated) {
-        throw new Error((updated as any)?.error || 'Failed to update unit')
+      const payload = await res.json().catch(() => ({} as any))
+      const updated = payload?.unit ?? payload
+      const syncError = payload?.buildium_sync_error
+
+      // Always reflect latest local values, even if Buildium sync failed
+      if (updated) {
+        setUnitNumber(updated.unit_number ?? unitNumber)
+        setUnitStatus(updated.status ?? unitStatus)
+        setUnitBedrooms(updated.unit_bedrooms ?? unitBedrooms)
+        setUnitBathrooms(updated.unit_bathrooms ?? unitBathrooms)
+        setUnitSize(
+          updated.unit_size != null && !Number.isNaN(updated.unit_size)
+            ? String(updated.unit_size)
+            : unitSize
+        )
+        setNotes(updated.description ?? notes)
+        if (typeof payload?.buildium_unit_id === 'number') {
+          (unit as any).buildium_unit_id = payload.buildium_unit_id
+        }
       }
-      setUnitNumber(updated.unit_number ?? unitNumber)
-      setUnitStatus(updated.status ?? unitStatus)
-      setUnitBedrooms(updated.unit_bedrooms ?? unitBedrooms)
-      setUnitBathrooms(updated.unit_bathrooms ?? unitBathrooms)
-      setUnitSize(
-        updated.unit_size != null && !Number.isNaN(updated.unit_size)
-          ? String(updated.unit_size)
-          : unitSize
-      )
-      setNotes(updated.description ?? notes)
+
+      if (!res.ok) {
+        throw new Error(syncError || payload?.error || 'Failed to update unit')
+      }
+
+      if (syncError) {
+        setError(`Saved, but failed to sync to Buildium: ${syncError}`)
+        return
+      }
+
       setEditing(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to update unit')

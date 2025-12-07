@@ -986,7 +986,7 @@ function TasksPanel({
             {items.length > 0 && (
               <Badge
                 variant="outline"
-                className="ml-2 rounded-full border-slate-400 bg-slate-200 px-1.5 py-0 text-xs font-medium"
+                className="status-pill ml-2 border-slate-400 bg-slate-200 px-1.5 py-0 font-medium"
               >
                 {items.length}
               </Badge>
@@ -1086,7 +1086,7 @@ function TasksPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
                     className={cn(
-                      'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                      'status-pill px-2 py-0.5 text-[11px] font-medium',
                       TASK_STATUS_BADGE[task.statusKey],
                     )}
                   >

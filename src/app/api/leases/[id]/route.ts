@@ -26,8 +26,9 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
     const { data: updated, error } = await db.from('lease').update(patch).eq('id', id).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-    let buildium: any = null
-    if (syncBuildium) {
+    let buildiumSyncError: string | null = null
+    let buildiumLeaseId: number | null = updated.buildium_lease_id ?? null
+    if (syncBuildium || buildiumLeaseId) {
       // Prepare Buildium payload; prefer direct fields if provided
       let PropertyId = updated.buildium_property_id
       let UnitId = updated.buildium_unit_id
@@ -52,20 +53,46 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
         PaymentDueDay: updated.payment_due_day ?? undefined,
         AccountDetails: { Rent: updated.rent_amount ?? 0, SecurityDeposit: updated.security_deposit ?? 0 }
       }
+
+      // Only attempt create when explicitly requested; otherwise update existing Buildium lease
       const buildiumId = updated.buildium_lease_id
-      const res = buildiumId
-        ? await buildiumEdgeClient.updateLeaseInBuildium(buildiumId, payload)
-        : await buildiumEdgeClient.createLeaseInBuildium(payload)
-      if (res.success && res.data?.Id) {
-        await db
-          .from('lease')
-          .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
-          .eq('id', id)
-        buildium = res.data
+      try {
+        if (buildiumId) {
+          const res = await buildiumEdgeClient.updateLeaseInBuildium(buildiumId, payload)
+          if (res.success && res.data?.Id) {
+            await db
+              .from('lease')
+              .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
+              .eq('id', id)
+            buildiumLeaseId = Number(res.data.Id)
+          } else if (!res.success) {
+            buildiumSyncError = res.error || 'Failed to sync lease to Buildium'
+          }
+        } else if (syncBuildium) {
+          const res = await buildiumEdgeClient.createLeaseInBuildium(payload)
+          if (res.success && res.data?.Id) {
+            await db
+              .from('lease')
+              .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
+              .eq('id', id)
+            buildiumLeaseId = Number(res.data.Id)
+          } else if (!res.success) {
+            buildiumSyncError = res.error || 'Failed to create lease in Buildium'
+          }
+        }
+      } catch (syncError) {
+        buildiumSyncError = syncError instanceof Error ? syncError.message : 'Failed to sync lease to Buildium'
       }
     }
 
-    return NextResponse.json({ lease: updated, buildium })
+    return NextResponse.json(
+      {
+        lease: updated,
+        buildium_lease_id: buildiumLeaseId,
+        buildium_sync_error: buildiumSyncError || undefined
+      },
+      { status: buildiumSyncError ? 422 : 200 }
+    )
   } catch (e) {
     logger.error({ error: e }, 'Error updating lease')
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

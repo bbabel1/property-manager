@@ -251,7 +251,7 @@ export default function TasksPageContent({
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  'rounded-full border px-3 py-1 text-xs font-medium capitalize',
+                                  'status-pill font-medium capitalize',
                                   STATUS_BADGE_STYLES[task.statusKey],
                                 )}
                               >

@@ -14,9 +14,14 @@ Environments & Stores
 Secret Inventory (by scope)
 - App (server/runtime):
   - `SUPABASE_SERVICE_ROLE_KEY` (server only)
-  - `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_WEBHOOK_SECRET`
+  - `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_WEBHOOK_SECRET` (optional - used as fallback when no org-scoped credentials in DB)
+  - `GMAIL_TOKEN_ENCRYPTION_KEY` or `NEXTAUTH_SECRET` (used for encrypting Buildium credentials and OAuth tokens)
   - `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`
   - `EMAIL_SERVER_*` (if used)
+- Database-stored (encrypted):
+  - Buildium credentials per organization (stored in `buildium_integrations` table)
+  - Encrypted using `GMAIL_TOKEN_ENCRYPTION_KEY` or `NEXTAUTH_SECRET`
+  - Encryption key source: `GMAIL_TOKEN_ENCRYPTION_KEY` environment variable, falling back to `NEXTAUTH_SECRET`
 - Public runtime (safe to expose to browser):
   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_*`
 - CI/CD (GitHub Actions):
@@ -62,6 +67,14 @@ Rotation Playbook
    - `.env.local` for local dev
 3) Redeploy app and functions.
 4) Invalidate/disable old secret.
+
+Buildium Credential Rotation
+- **UI-based rotation**: Update credentials via Settings → Integrations (org) → Buildium → Manage
+- **Encryption key rotation**: If `GMAIL_TOKEN_ENCRYPTION_KEY` or `NEXTAUTH_SECRET` changes:
+  - Existing encrypted credentials in database become invalid
+  - Users must re-enter credentials through the UI
+  - Old encrypted credentials cannot be decrypted with new key
+  - Plan: Rotate encryption key during maintenance window, notify users to re-enter credentials
 
 Hardening & Hygiene
 - Remove committed secrets: ensure `.env` files are not tracked. If any were committed, rotate immediately and purge from history (e.g., `git filter-repo` or BFG).

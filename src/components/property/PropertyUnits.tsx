@@ -55,11 +55,11 @@ export function PropertyUnits({ propertyId, property, onUnitsChange }: PropertyU
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Occupied':
-        return 'bg-red-100 text-red-800'
+        return 'status-pill border-red-800 bg-red-100 text-red-800'
       case 'Available':
-        return 'bg-green-100 text-green-800'
+        return 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
       case 'Maintenance':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'status-pill border-yellow-800 bg-yellow-100 text-yellow-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }

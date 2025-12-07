@@ -2928,24 +2928,25 @@ async function resolveTenantIdByBuildiumTenantId(
   return data?.id ?? null
 }
 
-async function fetchBuildiumResource(path: string): Promise<any | null> {
-  const baseUrl = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'
-  const clientId = process.env.BUILDIUM_CLIENT_ID
-  const clientSecret = process.env.BUILDIUM_CLIENT_SECRET
-  if (!clientId || !clientSecret) {
-    console.warn('fetchBuildiumResource missing Buildium credentials')
+async function fetchBuildiumResource(path: string, orgId?: string): Promise<any | null> {
+  const { getOrgScopedBuildiumConfig } = await import('./buildium/credentials-manager')
+  const config = await getOrgScopedBuildiumConfig(orgId)
+  
+  if (!config) {
+    console.warn({ orgId }, 'fetchBuildiumResource missing Buildium credentials')
     return null
   }
-  const url = `${baseUrl}${path}`
+  
+  const url = `${config.baseUrl}${path}`
   const resp = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'x-buildium-client-id': clientId,
-      'x-buildium-client-secret': clientSecret
+      'x-buildium-client-id': config.clientId,
+      'x-buildium-client-secret': config.clientSecret
     }
   })
   if (!resp.ok) {
-    console.warn('fetchBuildiumResource failed', { path, status: resp.status })
+    console.warn('fetchBuildiumResource failed', { path, status: resp.status, orgId })
     return null
   }
   return resp.json()

@@ -2,38 +2,33 @@
 
 ## 🚀 **Getting Started with Buildium Integration**
 
-### **Step 1: Environment Configuration**
-
-Add the following environment variables to your `.env.local` file:
-
-```bash
-
-# Buildium API Configuration
-
-BUILDIUM_CLIENT_ID="your-client-id"
-BUILDIUM_CLIENT_SECRET="your-client-secret"
-BUILDIUM_BASE_URL="https://apisandbox.buildium.com/v1"
-BUILDIUM_SYNC_ENABLED="true"
-BUILDIUM_RETRY_ATTEMPTS="3"
-BUILDIUM_RETRY_DELAY="1000"
-BUILDIUM_TIMEOUT="30000"
-
-# Buildium Webhook Configuration
-
-BUILDIUM_WEBHOOK_SECRET="your-webhook-secret-key-here"
-BUILDIUM_WEBHOOK_URL="https://yourdomain.com/api/webhooks/buildium"
-
-```
-
-### **Step 2: Get Buildium API Credentials**
+### **Step 1: Get Buildium API Credentials**
 
 1. **Log into your Buildium account**
 
 2. **Navigate to Settings → API**
 
-3. **Generate a new API key**
+3. **Generate a new API key** (Client ID and Client Secret)
 
-4. **Copy the API key to your environment variables**
+4. **Note your credentials** - you'll enter them in the UI
+
+### **Step 2: Configure Buildium Integration via UI**
+
+1. **Navigate to Settings → Integrations (org)**
+
+2. **Click "Connect" on the Buildium card**
+
+3. **Enter your Buildium credentials:**
+   - **Base URL**: `https://apisandbox.buildium.com/v1` (sandbox) or `https://api.buildium.com/v1` (production)
+   - **Client ID**: Your Buildium Client ID
+   - **Client Secret**: Your Buildium Client Secret
+   - **Webhook Secret**: Your Buildium webhook secret
+
+4. **Click "Test Connection"** to verify your credentials
+
+5. **Enable the integration** using the toggle switch
+
+6. **Click "Save"** to store your credentials
 
 ### **Step 3: Configure Webhook Endpoint**
 
@@ -45,9 +40,26 @@ BUILDIUM_WEBHOOK_URL="https://yourdomain.com/api/webhooks/buildium"
 
    - **Events**: Select all property management events
 
-   - **Secret**: Generate and save a webhook secret
+   - **Secret**: Generate and save a webhook secret (enter this in the UI)
 
-3. **Copy the webhook secret to your environment variables**
+3. **Update the webhook secret in the UI** if you change it later
+
+### **Step 4: Environment Variables (Optional - Fallback)**
+
+For backward compatibility and system jobs without org context, you can still use environment variables:
+
+```bash
+
+# Buildium API Configuration (Optional - used as fallback)
+
+BUILDIUM_CLIENT_ID="your-client-id"
+BUILDIUM_CLIENT_SECRET="your-client-secret"
+BUILDIUM_BASE_URL="https://apisandbox.buildium.com/v1"
+BUILDIUM_WEBHOOK_SECRET="your-webhook-secret-key-here"
+
+```
+
+**Note**: Database-stored credentials take precedence over environment variables. Environment variables are only used when no org-scoped credentials exist in the database.
 
 ### **Step 4: Test the Integration**
 

@@ -75,15 +75,23 @@ export default function LeaseHeaderMeta({
         headers: { 'Content-Type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) },
         body: JSON.stringify(body)
       })
-      const updated = await res.json().catch(() => null as any)
-      if (!res.ok || !updated) {
-        throw new Error(updated?.error || `Failed to update lease: HTTP ${res.status}`)
+      const payload = await res.json().catch(() => ({} as any))
+      const updated = payload?.lease ?? payload
+      const syncError = payload?.buildium_sync_error
+      if (updated) {
+        setStatus(updated.status ?? status)
+        const nextType = updated.term_type || updated.lease_type || type
+        setType(nextType || '')
+        setFrom(toInputDate(updated.lease_from_date ?? updated.start_date ?? from))
+        setTo(toInputDate(updated.lease_to_date ?? updated.end_date ?? to))
       }
-      setStatus(updated.status ?? status)
-      const nextType = updated.term_type || updated.lease_type || type
-      setType(nextType || '')
-      setFrom(toInputDate(updated.lease_from_date ?? updated.start_date ?? from))
-      setTo(toInputDate(updated.lease_to_date ?? updated.end_date ?? to))
+      if (!res.ok) {
+        throw new Error(syncError || payload?.error || `Failed to update lease: HTTP ${res.status}`)
+      }
+      if (syncError) {
+        setError(`Saved, but failed to sync to Buildium: ${syncError}`)
+        return
+      }
       setEditing(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save lease')

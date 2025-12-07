@@ -43,10 +43,10 @@
   --color-action-900: #06132B;
 
   /* Status Colors (aligned with Buildium UI accents) */
-  --color-success-50: #f1f7f3;
-  --color-success-500: #68906a;
-  --color-success-600: #4f7452;
-  --color-success-700: #3f5d42;
+  --color-success-50: #ecfdf5;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
 
   --color-warning-50: #fff6e6;
   --color-warning-500: #f08f2a;

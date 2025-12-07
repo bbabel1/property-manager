@@ -49,13 +49,13 @@ export default function TenantEmergencyContactInlineEditor({ tenantId, initial }
         })
       })
 
+      const data = await response.json().catch(() => ({} as any))
       if (!response.ok) {
-        let message = 'Failed to save emergency contact'
-        try {
-          const data = await response.json()
-          if (data?.error) message = data.error
-        } catch {}
+        const message = data?.error || 'Failed to save emergency contact'
         throw new Error(message)
+      }
+      if (data?.buildium_sync_error) {
+        throw new Error(`Saved, but failed to sync to Buildium: ${data.buildium_sync_error}`)
       }
 
       setEditing(false)

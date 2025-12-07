@@ -29,11 +29,11 @@ export async function getStaffGmailIntegration(
 ): Promise<GmailIntegration | null> {
   const { data, error } = await supabaseAdmin
     .from('gmail_integrations')
-    .select('*, staff!inner(org_id, is_active)')
+    // Keep payload simple and avoid depending on a non-existent staff.org_id column in some schemas
+    .select('*')
     .eq('user_id', userId)
+    .eq('org_id', orgId)
     .eq('is_active', true)
-    .eq('staff.org_id', orgId)
-    .eq('staff.is_active', true)
     .single();
 
   if (error || !data) {
@@ -201,4 +201,3 @@ export async function deleteGmailIntegration(integrationId: string): Promise<voi
     throw new Error(`Failed to delete Gmail integration: ${error.message}`);
   }
 }
-

@@ -121,11 +121,21 @@ export async function GET(request: Request) {
 
     const email = profile.data.emailAddress;
 
-    // Validate Gmail domain
-    if (!email.match(/@(gmail|googlemail)\.com$/i)) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=gmail&message=${encodeURIComponent('Only Gmail accounts are supported')}`
-      );
+    // Optional domain allowlist: set GMAIL_ALLOWED_DOMAINS=example.com,example.org to restrict.
+    const allowedDomainsEnv = process.env.GMAIL_ALLOWED_DOMAINS || '';
+    const allowedDomains = allowedDomainsEnv
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+    if (allowedDomains.length > 0) {
+      const emailDomain = email.split('@')[1]?.toLowerCase() || '';
+      const isGmail = /@(gmail|googlemail)\.com$/i.test(email);
+      const isAllowed = allowedDomains.includes(emailDomain);
+      if (!isGmail && !isAllowed) {
+        return NextResponse.redirect(
+          `${process.env.NEXT_PUBLIC_APP_URL}/settings/integrations?error=gmail&message=${encodeURIComponent('Email domain not allowed for Gmail integration')}`
+        );
+      }
     }
 
     // Store integration (will preserve existing refresh token if new one not provided)
@@ -158,4 +168,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

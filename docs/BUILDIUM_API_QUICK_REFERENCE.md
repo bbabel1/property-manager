@@ -1,15 +1,42 @@
 # Buildium API Quick Reference
 
+## Credential Management
+
+Buildium credentials are managed per-organization through the UI:
+
+- **Location**: Settings → Integrations (org) → Buildium
+- **Storage**: Credentials are encrypted and stored in the database (`buildium_integrations` table)
+- **Fallback**: Environment variables (`BUILDIUM_*`) are used as fallback when no org-scoped credentials exist
+- **Central Choke Point**: All credential access flows through `getOrgScopedBuildiumConfig()` in `src/lib/buildium/credentials-manager.ts`
+
+### Managing Credentials
+
+1. **Add/Update**: Navigate to Settings → Integrations → Buildium → Manage
+2. **Test Connection**: Click "Test Connection" to verify credentials
+3. **Enable/Disable**: Use the toggle switch to enable or disable the integration
+4. **Rotate Webhook Secret**: Update webhook secret when rotated in Buildium dashboard
+
+### API Endpoints for Credential Management
+
+- `GET /api/buildium/integration` - Get integration status (masked secrets)
+- `PUT /api/buildium/integration` - Update credentials
+- `DELETE /api/buildium/integration` - Delete integration (soft delete)
+- `POST /api/buildium/integration/status` - Test connection (throttled: 1/min per org)
+- `POST /api/buildium/integration/toggle` - Enable/disable integration
+- `POST /api/buildium/integration/rotate-webhook-secret` - Rotate webhook secret
+
 ## Authentication
 
 - **Base URL**:
   - Production: `https://api.buildium.com/v1`
   - Sandbox: `https://apisandbox.buildium.com/v1`
 - **Headers Required**:
-  - `x-buildium-client-id`: Your Buildium client ID
-  - `x-buildium-client-secret`: Your Buildium client secret
+  - `x-buildium-client-id`: Your Buildium client ID (from org-scoped config or env)
+  - `x-buildium-client-secret`: Your Buildium client secret (from org-scoped config or env)
   - `Accept`: `application/json`
   - `Content-Type`: `application/json` (for POST/PUT requests)
+
+**Note**: Credentials are automatically retrieved from the database (or env fallback) by the Buildium client. You should never hardcode credentials in code.
 
 ## Common Endpoints
 

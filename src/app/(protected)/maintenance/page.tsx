@@ -52,9 +52,12 @@ type UIWorkOrder = {
 
 const STATUS_BADGE_STYLES: Record<WorkOrderStatus, string> = {
   New: 'border-[var(--color-warning-500)] bg-[var(--color-warning-50)] text-[var(--color-warning-600)]',
-  'In progress': 'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
-  Completed: 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
-  Cancelled: 'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
+  'In progress':
+    'border-[var(--color-action-200)] bg-[var(--color-action-50)] text-[var(--color-action-700)]',
+  Completed:
+    'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]',
+  Cancelled:
+    'border-[var(--color-gray-300)] bg-[var(--color-gray-50)] text-[var(--color-gray-600)]',
 };
 
 const PRIORITY_DOT_STYLES: Record<WorkOrderPriority, string> = {
@@ -219,12 +222,13 @@ export default async function MaintenancePage() {
         'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
       )
       .in('id', vendorIds)) as {
-      data: Array<
-        {
-          id: string;
-          contact?: Pick<ContactRow, 'display_name' | 'company_name' | 'first_name' | 'last_name'> | null;
-        }
-      > | null;
+      data: Array<{
+        id: string;
+        contact?: Pick<
+          ContactRow,
+          'display_name' | 'company_name' | 'first_name' | 'last_name'
+        > | null;
+      }> | null;
       error: any;
     };
     if (error) {
@@ -233,8 +237,7 @@ export default async function MaintenancePage() {
       data?.forEach((vendor) => {
         const contact = vendor.contact;
         const fullName = [contact?.first_name, contact?.last_name].filter(Boolean).join(' ');
-        const label =
-          contact?.display_name || contact?.company_name || fullName || 'Vendor';
+        const label = contact?.display_name || contact?.company_name || fullName || 'Vendor';
         vendorMap.set(vendor.id, label);
       });
     }
@@ -495,7 +498,10 @@ export default async function MaintenancePage() {
                       </TableCell>
                       <TableCell className="py-4 align-top text-sm">{order.age}</TableCell>
                       <TableCell className="py-4 align-top text-sm">
-                        <Badge variant="outline" className={STATUS_BADGE_STYLES[order.status]}>
+                        <Badge
+                          variant="outline"
+                          className={`status-pill ${STATUS_BADGE_STYLES[order.status]}`}
+                        >
                           {order.status}
                         </Badge>
                       </TableCell>

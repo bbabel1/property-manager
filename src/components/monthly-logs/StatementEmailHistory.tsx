@@ -97,7 +97,7 @@ export default function StatementEmailHistory({
         <div className="flex items-center gap-2">
           <History className="h-4 w-4 text-slate-500" />
           <span className="text-sm font-semibold text-slate-900">Delivery history</span>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+          <span className="status-pill border-slate-200 bg-slate-50 text-slate-600 text-[11px] font-medium px-2 py-0.5">
             {history.length} {history.length === 1 ? 'entry' : 'entries'}
           </span>
         </div>
@@ -146,7 +146,7 @@ export default function StatementEmailHistory({
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                           {record.status === 'sent' ? (
-                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                            <CheckCircle className="h-4 w-4 text-[var(--color-success-600)]" />
                           ) : (
                             <XCircle className="h-4 w-4 text-rose-600" />
                           )}
@@ -156,12 +156,12 @@ export default function StatementEmailHistory({
                         </div>
                         <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600">
                           {sentCount > 0 ? (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                            <span className="status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]">
                               {sentCount} sent
                             </span>
                           ) : null}
                           {failedCount > 0 ? (
-                            <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700">
+                            <span className="status-pill border-rose-200 bg-rose-50 text-rose-700">
                               {failedCount} failed
                             </span>
                           ) : null}
@@ -189,9 +189,9 @@ export default function StatementEmailHistory({
                           <span
                             key={`${recipient.email}-${idx}`}
                             className={cn(
-                              'inline-flex items-center gap-1 rounded-full border px-2 py-1',
+                              'status-pill px-2 py-1',
                               recipient.status === 'sent'
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
                                 : 'border-rose-200 bg-rose-50 text-rose-700',
                             )}
                           >

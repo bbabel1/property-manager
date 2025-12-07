@@ -25,7 +25,6 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Profile', href: '/settings/profile', description: 'Personal details, role context, and preferences.' },
       { label: 'Notifications', href: '/settings/notifications', description: 'What you get notified about and how.' },
       { label: 'Security', href: '/settings/security', description: 'Password, two-factor, and active devices.' },
-      { label: 'Integrations (personal)', href: '/settings/integrations/personal', description: 'Calendar and email add-ons tied to you.' },
     ],
   },
   {

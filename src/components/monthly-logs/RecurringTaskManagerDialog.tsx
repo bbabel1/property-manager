@@ -462,7 +462,7 @@ export default function RecurringTaskManagerDialog({
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <ShieldCheck className="h-4 w-4 text-[var(--color-success-600)]" />
                   Monthly log only
                 </div>
                 <Button
@@ -481,10 +481,10 @@ export default function RecurringTaskManagerDialog({
           <div className="space-y-5 p-6">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-white px-4 py-3 shadow-sm">
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <Badge variant="outline" className="rounded-full bg-muted/60 text-foreground">
+                <Badge variant="outline" className="status-pill bg-muted/60 text-foreground">
                   {selectedPropertyName}
                 </Badge>
-                <Badge variant="outline" className="rounded-full bg-muted/60 text-foreground">
+                <Badge variant="outline" className="status-pill bg-muted/60 text-foreground">
                   {selectedUnitLabel}
                 </Badge>
                 <span className="text-xs text-muted-foreground">Recurring tasks for this unit</span>
@@ -538,9 +538,9 @@ export default function RecurringTaskManagerDialog({
                             <Badge
                               variant="outline"
                               className={cn(
-                                'rounded-full text-[11px] font-semibold',
+                                'status-pill text-[11px]',
                                 task.isActive
-                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]'
                                   : 'border-border bg-muted/80 text-muted-foreground',
                               )}
                             >

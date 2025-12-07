@@ -69,7 +69,7 @@ export default function BillFileAttachmentsCard({
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h2 className="text-foreground text-base font-semibold">File attachments</h2>
-              <span className="border-border/60 text-muted-foreground inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
+              <span className="status-pill border-border/60 text-muted-foreground px-2 py-0.5">
                 {fileCount} file{fileCount === 1 ? '' : 's'}
               </span>
             </div>

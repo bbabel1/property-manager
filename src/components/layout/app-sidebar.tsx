@@ -32,6 +32,7 @@ import {
   LogOut,
   Wrench,
   ChevronRight,
+  Calendar,
 } from 'lucide-react';
 import { ReactNode, useMemo, useState, useRef, useEffect } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
@@ -67,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { id: 'tenants', label: 'Tenants', href: '/tenants', icon: User },
   { id: 'files', label: 'Files', href: '/files', icon: Files },
+  { id: 'calendar', label: 'Calendar', href: '/calendar', icon: Calendar },
   {
     id: 'accounting',
     label: 'Accounting',
@@ -299,8 +301,8 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
                           aria-haspopup={hasChildren ? 'menu' : undefined}
                           aria-expanded={hasChildren ? isOpen : undefined}
                         >
-                          <item.icon className="mr-2 h-4 w-4" />
-                          <span className="flex-1 truncate text-left">{item.label}</span>
+                          <item.icon className="mr-2 h-4 w-4 shrink-0" />
+                          <span className="flex-1 min-w-0 text-left">{item.label}</span>
                           {hasChildren ? (
                             <ChevronRight
                               aria-hidden="true"

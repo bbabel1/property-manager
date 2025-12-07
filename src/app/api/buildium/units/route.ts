@@ -5,6 +5,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
+import { buildiumFetch } from '@/lib/buildium-http';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +20,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -43,43 +46,48 @@ export async function GET(request: NextRequest) {
     if (lastUpdatedFrom) queryParams.append('lastupdatedfrom', lastUpdatedFrom);
     if (lastUpdatedTo) queryParams.append('lastupdatedto', lastUpdatedTo);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const result = await buildiumFetch(
+      'GET',
+      '/rentals/units',
+      Object.fromEntries(queryParams.entries()),
+      undefined,
+      orgId
+    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium units fetch failed`);
+    if (!result.ok) {
+      logger.error(
+        { orgId, status: result.status, error: result.errorText },
+        'Buildium units fetch failed'
+      );
 
       return NextResponse.json(
         { 
           error: 'Failed to fetch units from Buildium',
-          details: errorData
+          details: result.json ?? result.errorText
         },
-        { status: response.status }
+        { status: result.status || 502 }
       );
     }
 
-    const units = await response.json();
+    const units = result.json;
 
-    logger.info(`Buildium units fetched successfully`);
+    logger.info({ orgId }, 'Buildium units fetched successfully');
 
     return NextResponse.json({
       success: true,
       data: units,
-      count: units.length,
+      count: Array.isArray(units) ? units.length : undefined,
     });
 
   } catch (error) {
-    logger.error(`Error fetching Buildium units`);
+    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json(
+        { error: 'Organization context required' },
+        { status: 400 }
+      );
+    }
+
+    logger.error({ error }, 'Error fetching Buildium units');
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -100,7 +108,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
+    const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
 
     // Parse and validate request body
     const body = await request.json();
@@ -108,34 +117,30 @@ export async function POST(request: NextRequest) {
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumUnitCreateSchema);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const result = await buildiumFetch(
+      'POST',
+      '/rentals/units',
+      undefined,
+      validatedData,
+      orgId
+    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium unit creation failed`);
+    if (!result.ok) {
+      logger.error(
+        { orgId, status: result.status, error: result.errorText },
+        'Buildium unit creation failed'
+      );
 
       return NextResponse.json(
         { 
           error: 'Failed to create unit in Buildium',
-          details: errorData
+          details: result.json ?? result.errorText
         },
-        { status: response.status }
+        { status: result.status || 502 }
       );
     }
 
-    const unit = await response.json();
+    const unit = result.json;
 
     // Optional persist to DB if query param persist=true|1
     const { searchParams } = new URL(request.url);
@@ -152,7 +157,14 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
-    logger.error(`Error creating Buildium unit`);
+    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
+      return NextResponse.json(
+        { error: 'Organization context required' },
+        { status: 400 }
+      );
+    }
+
+    logger.error({ error }, 'Error creating Buildium unit');
 
     return NextResponse.json(
       { error: 'Internal server error' },
