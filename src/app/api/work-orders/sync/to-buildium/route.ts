@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/db'
@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    await requireUser()
+    await requireRole('platform_admin')
 
     const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const localId = body?.localId as string

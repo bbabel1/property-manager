@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { buildiumSync } from '@/lib/buildium-sync'
 import { logger } from '@/lib/logger'
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(request)
+    await requireRole('platform_admin')
     const { id: leaseParam } = await params
     const leaseId = leaseParam
     const id = Number(leaseId)

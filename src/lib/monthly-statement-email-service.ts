@@ -21,6 +21,8 @@ import {
   uploadStatementPDF,
   uploadStatementSnapshot,
 } from '@/lib/monthly-statement-service';
+import { getStaffGmailIntegration } from '@/lib/gmail/token-manager';
+import { sendEmailViaGmail } from '@/lib/gmail/send-email';
 
 interface StatementRecipient {
   email: string;
@@ -90,7 +92,11 @@ export async function sendMonthlyStatement(
   userId?: string,
 ): Promise<SendStatementResult> {
   try {
-    // 1. Fetch monthly log data
+    if (!userId) {
+      return { success: false, error: 'User ID is required to send statements' };
+    }
+
+    // 1. Fetch monthly log data with org_id
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')
       .select(
@@ -100,9 +106,11 @@ export async function sendMonthlyStatement(
         pdf_url,
         property_id,
         unit_id,
+        org_id,
         properties (
           id,
           name,
+          org_id,
           statement_recipients
         ),
         units (
@@ -116,6 +124,21 @@ export async function sendMonthlyStatement(
 
     if (logError || !monthlyLog) {
       return { success: false, error: 'Monthly log not found' };
+    }
+
+    // Get org_id from monthly log or property
+    const orgId = monthlyLog.org_id || (monthlyLog.properties as any)?.org_id;
+    if (!orgId) {
+      return { success: false, error: 'Organization ID not found for this monthly log' };
+    }
+
+    // Check for Gmail integration (required)
+    const gmailIntegration = await getStaffGmailIntegration(userId, orgId);
+    if (!gmailIntegration || !gmailIntegration.is_active) {
+      return {
+        success: false,
+        error: 'Gmail integration not connected. Please connect your Gmail account in Settings > Integrations before sending statements.',
+      };
     }
 
     // 2. Refresh/generate the PDF so we always send the current statement
@@ -189,6 +212,28 @@ export async function sendMonthlyStatement(
       error?: string;
     }> = [];
 
+    // Download PDF for attachment
+    let pdfBuffer: Buffer | null = null;
+    if (pdfUrlForEmail) {
+      try {
+        const pdfResponse = await fetch(pdfUrlForEmail, {
+          headers: {
+            'Accept': 'application/pdf',
+          },
+        });
+        if (pdfResponse.ok) {
+          const arrayBuffer = await pdfResponse.arrayBuffer();
+          pdfBuffer = Buffer.from(arrayBuffer);
+        } else {
+          console.warn(`Failed to download PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
+        }
+      } catch (pdfError) {
+        console.warn('Failed to download PDF for attachment:', pdfError);
+        // Continue without attachment - email will still be sent with link
+      }
+    }
+
+    // Send emails via Gmail API
     for (const recipient of recipients) {
       const htmlContent = createMonthlyStatementEmailTemplate({
         recipientName: recipient.name,
@@ -212,23 +257,39 @@ export async function sendMonthlyStatement(
         companyName,
       });
 
-      const emailResult = await sendEmail({
-        to: [
-          {
-            email: recipient.email,
-            name: recipient.name,
-            role: recipient.role,
+      // Prepare attachments
+      const attachments = pdfBuffer
+        ? [
+            {
+              filename: `Monthly-Statement-${propertyName}-${periodMonth}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf',
+            },
+          ]
+        : undefined;
+
+      // Send via Gmail API
+      const emailResult = await sendEmailViaGmail(
+        userId,
+        orgId,
+        {
+          to: [
+            {
+              email: recipient.email,
+              name: recipient.name,
+              role: recipient.role,
+            },
+          ],
+          subject: `Monthly Statement - ${propertyName} (${periodMonth})`,
+          html: htmlContent,
+          text: textContent,
+          from: {
+            email: gmailIntegration.email,
+            name: companyName,
           },
-        ],
-        subject: `Monthly Statement - ${propertyName} (${periodMonth})`,
-        html: htmlContent,
-        text: textContent,
-        tags: [
-          { name: 'type', value: 'monthly-statement' },
-          { name: 'period', value: periodMonth },
-          { name: 'property', value: propertyName },
-        ],
-      });
+          attachments,
+        }
+      );
 
       emailResults.push({
         email: recipient.email,

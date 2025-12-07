@@ -106,7 +106,7 @@ export default function MembershipsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">Memberships</h1>
 
       <Card>
