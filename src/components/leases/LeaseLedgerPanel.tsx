@@ -298,7 +298,10 @@ export default function LeaseLedgerPanel({
     const amountLabel = formatCurrency(Math.abs(signedAmount || 0));
     const memo = detail?.Memo ?? detail?.Description ?? row.memo ?? '—';
     const referenceNumber =
-      detail?.CheckNumber ?? (detail as any)?.ReferenceNumber ?? row.invoice || null;
+      detail?.CheckNumber ??
+      (detail as any)?.ReferenceNumber ??
+      row.invoice ??
+      null;
     const transactionId = detail?.Id ?? row.transactionId ?? row.id;
     const allocations =
       (Array.isArray(detail?.Lines) && detail?.Lines?.length ? detail.Lines : detail?.Journal?.Lines) ||
