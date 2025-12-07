@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth'
+import { requireRole } from '@/lib/auth/guards'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { buildiumSync } from '@/lib/buildium-sync'
@@ -8,10 +8,10 @@ import type { Database } from '@/types/database'
 type UnitRow = Database['public']['Tables']['units']['Row']
 type UnitWithProperty = UnitRow & { properties?: { buildium_property_id: number | null } | null }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    await requireUser(request)
+    await requireRole('platform_admin')
     const db = supabaseAdmin || supabase
 
     const { data: unit, error } = await db

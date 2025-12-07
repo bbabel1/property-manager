@@ -32,4 +32,9 @@ Status legend: ✅ guarded & scoped, ⚠️ partial, ⛔ needs guard
 | Buildium units/tasks (listed routes) | Tasks/units     | ✅     | Platform_admin only (units, notes, images, amenities; tasks + history + files) |
 | Buildium owner/tenant requests       | Requests        | ✅     | Platform_admin only (resident-requests, todo-requests, owner-requests + contribution) |
 | Buildium appliances                  | Assets          | ✅     | Platform_admin only (appliances + service history) |
-| Buildium sync routes (service role)  | Mixed           | ⚠️     | Audit and add org scoping where applicable |
+| /api/work-orders (GET)               | Sync/search     | ✅     | Platform_admin guard on Buildium sync + local search orchestration |
+| /api/work-orders/sync/from-buildium  | Sync pull       | ✅     | Platform_admin only |
+| /api/work-orders/sync/to-buildium    | Sync push       | ✅     | Platform_admin only |
+| /api/units/[id]/sync                 | Unit sync       | ✅     | Platform_admin only (Buildium push) |
+| /api/leases/[id]/sync                | Lease sync      | ✅     | Platform_admin only (Buildium push) |
+| Buildium sync routes (service role)  | Mixed           | ✅     | Platform_admin required; org-scoped routes should add resolveResourceOrg + requireOrgMember/Admin if introduced |

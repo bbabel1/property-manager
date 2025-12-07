@@ -12,6 +12,11 @@ const envSchema = z.object({
   BUILDIUM_CLIENT_SECRET: z.string().optional(),
   BUILDIUM_WEBHOOK_SECRET: z.string().optional(),
   
+  // Google OAuth - Gmail Integration (Optional)
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  
   // App Configuration (Required)
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(32),

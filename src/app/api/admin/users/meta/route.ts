@@ -1,6 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
+import type { Database } from '@/types/database'
+
+type StaffRole = Database['public']['Enums']['staff_roles']
+
+const DEFAULT_STAFF_ROLE: StaffRole = 'Bookkeeper'
+
+async function ensureStaffRecord(userId: string) {
+  const admin = requireSupabaseAdmin('ensure staff for user meta')
+
+  const { data: existing, error: fetchErr } = await admin
+    .from('staff')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (existing?.id) return { ok: true as const }
+  if (fetchErr && fetchErr.code !== 'PGRST116') {
+    return { ok: false as const, error: fetchErr.message }
+  }
+
+  // Pull contact details when available to prefill staff profile
+  let contactEmail: string | null = null
+  let contactFirst: string | null = null
+  let contactLast: string | null = null
+  let contactPhone: string | null = null
+  try {
+    const { data: contact } = await admin
+      .from('contacts')
+      .select('first_name,last_name,primary_phone:primary_phone,primary_email:primary_email')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (contact) {
+      contactFirst = contact.first_name ?? null
+      contactLast = contact.last_name ?? null
+      contactPhone = (contact as any)?.primary_phone ?? null
+      contactEmail = (contact as any)?.primary_email ?? null
+    }
+  } catch (err) {
+    console.warn('Failed to load contact while auto-provisioning staff', err)
+  }
+
+  // Derive a reasonable staff role from membership roles
+  let resolvedRole: StaffRole = DEFAULT_STAFF_ROLE
+  try {
+    const { data: membershipRoles } = await admin
+      .from('org_membership_roles')
+      .select('role')
+      .eq('user_id', userId)
+    const roleSet = new Set((membershipRoles || []).map(r => r.role).filter(Boolean))
+    if (roleSet.has('org_admin')) resolvedRole = 'Administrator'
+    else if (roleSet.has('org_manager')) resolvedRole = 'Property Manager'
+    else if (roleSet.has('org_staff')) resolvedRole = 'Bookkeeper'
+  } catch (err) {
+    console.warn('Failed to derive staff role; defaulting to Bookkeeper', err)
+  }
+
+  // Fallback to auth email when contact is missing
+  let userEmail: string | null = contactEmail
+  try {
+    const { data: authUser } = await admin.auth.admin.getUserById(userId)
+    userEmail = userEmail || authUser?.user?.email || null
+  } catch (err) {
+    console.warn('Failed to load auth user while creating staff record', err)
+  }
+
+  const now = new Date().toISOString()
+  const { error: insertErr } = await admin.from('staff').insert({
+    user_id: userId,
+    email: userEmail,
+    first_name: contactFirst,
+    last_name: contactLast,
+    phone: contactPhone,
+    role: resolvedRole,
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  })
+
+  if (insertErr) {
+    return { ok: false as const, error: insertErr.message }
+  }
+
+  return { ok: true as const }
+}
 
 const USER_TYPES = new Set(['staff', 'rental_owner', 'vendor'])
 
@@ -42,6 +126,13 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (user_types.includes('staff')) {
+      const ensured = await ensureStaffRecord(user_id)
+      if (!ensured.ok) {
+        return NextResponse.json({ error: ensured.error || 'Failed to create staff record' }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ success: true, app_metadata: appMetadata })

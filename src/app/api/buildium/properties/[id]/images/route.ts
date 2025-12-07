@@ -25,9 +25,9 @@ export async function GET(
     }
 
     // Authentication
-    const auth = await requireAuth();
+    const { user } = await requireAuth();
 
-    logger.info({ userId: auth.user.id, propertyId, action: 'get_property_images' }, 'Fetching property images');
+    logger.info({ userId: user.id, propertyId, action: 'get_property_images' }, 'Fetching property images');
 
     // Get property images from database
     const { data: images, error } = await supabase
@@ -85,9 +85,9 @@ export async function POST(
     }
 
     // Authentication
-    const auth = await requireAuth();
+    const { user } = await requireAuth();
 
-    logger.info({ userId: auth.user.id, propertyId, action: 'upload_property_image' }, 'Uploading property image');
+    logger.info({ userId: user.id, propertyId, action: 'upload_property_image' }, 'Uploading property image');
 
     // Parse and validate request body
     const body = await request.json();

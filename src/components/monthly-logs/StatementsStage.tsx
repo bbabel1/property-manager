@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, type ReactNode } from 'react';
+import Link from 'next/link';
 import { AlertCircle, CheckCircle, Eye, FileText, Loader2, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,8 +24,9 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string; loading: boolean }>({ connected: false, loading: true });
   const hasProperty = Boolean(propertyId);
-  const readyToSend = Boolean(pdfUrl && hasProperty && recipientCount && recipientCount > 0);
+  const readyToSend = Boolean(pdfUrl && hasProperty && recipientCount && recipientCount > 0 && gmailStatus.connected);
 
   // Fetch existing PDF URL on mount
   useEffect(() => {
@@ -50,6 +52,30 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
 
     fetchPdfUrl();
   }, [monthlyLogId]);
+
+  // Fetch Gmail connection status
+  useEffect(() => {
+    const fetchGmailStatus = async () => {
+      try {
+        const response = await fetch('/api/gmail/status');
+        if (response.ok) {
+          const data = await response.json();
+          setGmailStatus({
+            connected: data.connected || false,
+            email: data.email || undefined,
+            loading: false,
+          });
+        } else {
+          setGmailStatus({ connected: false, loading: false });
+        }
+      } catch (error) {
+        console.error('Error fetching Gmail status:', error);
+        setGmailStatus({ connected: false, loading: false });
+      }
+    };
+
+    fetchGmailStatus();
+  }, []);
 
   const handlePreview = async () => {
     try {
@@ -189,7 +215,14 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
         'border-slate-200 bg-white text-slate-700',
       );
     }
-    if (recipientCount && recipientCount > 0) {
+    if (!gmailStatus.loading && !gmailStatus.connected) {
+      return renderStatusPill(
+        <AlertCircle className="h-3.5 w-3.5 text-amber-600" />,
+        'Gmail not connected',
+        'border-amber-100 bg-amber-50 text-amber-700',
+      );
+    }
+    if (recipientCount && recipientCount > 0 && gmailStatus.connected) {
       return renderStatusPill(
         <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />,
         'Ready to send',
@@ -200,7 +233,7 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
   })();
 
   const sendDisabled =
-    sending || !readyToSend || recipientsLoading;
+    sending || !readyToSend || recipientsLoading || !gmailStatus.connected;
 
   return (
     <div className="space-y-6">
@@ -212,6 +245,31 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {!gmailStatus.loading && !gmailStatus.connected && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-900">Gmail Integration Required</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Connect your Gmail account to send Monthly Log Statements.{' '}
+                    <Link
+                      href="/settings/integrations"
+                      className="font-medium underline hover:text-amber-900"
+                    >
+                      Connect Gmail
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {gmailStatus.connected && gmailStatus.email && (
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <Mail className="h-4 w-4" />
+              <span>Sending from: {gmailStatus.email}</span>
+            </div>
+          )}
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
             <div className="flex items-center gap-2 text-xs text-slate-700">{statusPill}</div>
             <div className="flex items-center gap-2">

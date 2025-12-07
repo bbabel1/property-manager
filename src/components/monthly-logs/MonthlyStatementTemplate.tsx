@@ -496,3 +496,4 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
     </html>
   );
 }
+
