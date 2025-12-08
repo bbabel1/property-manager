@@ -363,6 +363,37 @@ export async function loadUnassignedTransactionsPage(
   }
 
   const limit = clampLimit(params.limit);
+  let lineTransactionIds: string[] = [];
+  let leaseIdsForUnit: number[] = [];
+
+  if (scope === 'unit' && unitId) {
+    const { data: unitRow } = await db
+      .from('units')
+      .select('buildium_unit_id')
+      .eq('id', unitId)
+      .maybeSingle();
+
+    const lineFilters: string[] = [`unit_id.eq.${unitId}`];
+    if (unitRow?.buildium_unit_id != null) {
+      lineFilters.push(`buildium_unit_id.eq.${unitRow.buildium_unit_id}`);
+    }
+
+    if (lineFilters.length) {
+      const { data: lineRows } = await db
+        .from('transaction_lines')
+        .select('transaction_id')
+        .or(lineFilters.join(','))
+        .not('transaction_id', 'is', null);
+      const txIdsFromLines =
+        lineRows?.map((row) => row.transaction_id as string).filter(Boolean) ?? [];
+      lineTransactionIds = Array.from(new Set(txIdsFromLines));
+    }
+
+    const { data: leaseRows } = await db.from('lease').select('id').eq('unit_id', unitId);
+    leaseIdsForUnit = (leaseRows ?? []).map((row) => Number(row.id)).filter((id) =>
+      Number.isFinite(id),
+    );
+  }
 
   let query = db
     .from('transactions')
@@ -399,8 +430,23 @@ export async function loadUnassignedTransactionsPage(
 
   if (scope === 'lease') {
     query = query.eq('lease_id', leaseId);
-  } else {
-    query = query.eq('unit_id', unitId).is('lease_id', null);
+  } else if (scope === 'unit') {
+    const ors: string[] = [];
+    // Include transactions directly stored against the unit with no lease or lines
+    ors.push(`and(unit_id.eq.${unitId},lease_id.is.null)`);
+    if (leaseIdsForUnit.length) {
+      ors.push(`lease_id.in.(${leaseIdsForUnit.join(',')})`);
+    }
+    if (lineTransactionIds.length) {
+      ors.push(`id.in.(${lineTransactionIds.join(',')})`);
+    }
+    if (ors.length === 1) {
+      query = query.or(ors[0]);
+    } else if (ors.length > 1) {
+      query = query.or(ors.join(','));
+    } else {
+      return { items: [], nextCursor: null };
+    }
   }
 
   if (params.cursor) {
