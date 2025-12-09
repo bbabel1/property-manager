@@ -26,6 +26,8 @@ type Unit = {
   unit_number?: string | null;
   status?: string | null;
   tenants?: Array<{ name?: string | null; is_active?: boolean | null }>;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export default function UnitsTable({
@@ -66,6 +68,14 @@ export default function UnitsTable({
       const list = Array.isArray(j?.units) ? j.units : [];
       setUnits(list);
     } catch {}
+  };
+
+  const mostRecentEvent = (u: Unit) => {
+    const ts = u.updated_at || u.created_at;
+    if (!ts) return '—';
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return '—';
+    return `Updated ${date.toLocaleDateString()}`;
   };
 
   const statusBadge = (status?: string | null) => {
@@ -199,7 +209,9 @@ export default function UnitsTable({
                       <span className="text-muted-foreground text-sm">—</span>
                     )}
                   </TableCell>
-                  <TableCell>{/* Most recent event not wired yet */}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {mostRecentEvent(u)}
+                  </TableCell>
                 </TableRow>
               );
             })}

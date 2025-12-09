@@ -1,5 +1,7 @@
-import { supabase } from '@/lib/db';
+import { supabaseAdmin } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { isNewServiceCatalogEnabled } from './service-compatibility';
+import { getPropertyServicePricing, type ServicePricingConfig } from './service-pricing';
 
 export interface ManagementServiceConfig {
   service_plan: string | null;
@@ -8,6 +10,34 @@ export interface ManagementServiceConfig {
   bill_pay_notes: string | null;
   source: 'property' | 'unit';
   unit_id?: string;
+  // New fields for service catalog integration
+  service_offerings?: ServiceOffering[];
+  pricing_config?: ServicePricingConfig[];
+  plan_defaults?: PlanDefaults;
+}
+
+export interface ServiceOffering {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  description: string | null;
+  billing_basis: string;
+  default_rate: number | null;
+  default_freq: string;
+  min_amount?: number | null;
+  max_amount?: number | null;
+  default_rent_basis?: string | null;
+  applies_to: string;
+  bill_on: string;
+  is_active: boolean;
+}
+
+export interface PlanDefaults {
+  plan_fee_percent: number | null;
+  min_monthly_fee: number | null;
+  included_offerings: string[];
+  required_offerings: string[];
 }
 
 export interface PropertyServiceData {
@@ -44,23 +74,33 @@ export class ManagementService {
 
   /**
    * Get management service configuration based on service assignment level
+   * Supports both legacy and new service catalog via feature flag
    */
   async getServiceConfiguration(): Promise<ManagementServiceConfig> {
     try {
       // First, get the property's service assignment level
       const propertyServiceData = await this.getPropertyServiceData();
 
+      let config: ManagementServiceConfig;
+
       if (propertyServiceData.service_assignment === 'Property Level') {
-        return await this.getPropertyLevelConfiguration(propertyServiceData);
+        config = await this.getPropertyLevelConfiguration(propertyServiceData);
       } else if (propertyServiceData.service_assignment === 'Unit Level') {
-        return await this.getUnitLevelConfiguration();
+        config = await this.getUnitLevelConfiguration();
       } else {
         // Default to property level if service_assignment is null or undefined
         logger.warn(
           `Property ${this.propertyId} has no service_assignment set, defaulting to property level`,
         );
-        return await this.getPropertyLevelConfiguration(propertyServiceData);
+        config = await this.getPropertyLevelConfiguration(propertyServiceData);
       }
+
+      // If new service catalog is enabled, enrich with service offerings and pricing
+      if (isNewServiceCatalogEnabled()) {
+        await this.enrichWithServiceCatalog(config);
+      }
+
+      return config;
     } catch (error) {
       logger.error(
         { error, propertyId: this.propertyId, unitId: this.unitId },
@@ -73,10 +113,87 @@ export class ManagementService {
   }
 
   /**
+   * Enrich configuration with service catalog data (when feature flag is enabled)
+   */
+  private async enrichWithServiceCatalog(config: ManagementServiceConfig): Promise<void> {
+    try {
+      // Fetch service offerings from catalog
+      const { data: offerings, error: offeringsError } = await supabaseAdmin
+        .from('service_offerings')
+        .select('*')
+        .eq('is_active', true)
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (offeringsError) {
+        logger.warn(
+          { error: offeringsError },
+          'Failed to fetch service offerings, continuing without enrichment',
+        );
+        return;
+      }
+
+      config.service_offerings = (offerings || []) as ServiceOffering[];
+
+      // Fetch plan-based inclusions if service plan is set
+      if (config.service_plan) {
+        const { data: planOfferings } = await supabaseAdmin
+          .from('service_plan_offerings')
+          .select('offering_id, is_included, is_required, service_offerings(*)')
+          .eq('service_plan', config.service_plan)
+          .eq('is_included', true);
+
+        if (planOfferings) {
+          config.service_offerings = planOfferings
+            .map((po) => {
+              const offering = po.service_offerings;
+              return offering && typeof offering === 'object'
+                ? (offering as unknown as ServiceOffering)
+                : null;
+            })
+            .filter((o): o is ServiceOffering => o !== null);
+        }
+
+        // Fetch plan defaults
+        const { data: planDefaults } = await supabaseAdmin
+          .from('service_plan_default_pricing')
+          .select('plan_fee_percent, min_monthly_fee, offering_id, is_required')
+          .eq('service_plan', config.service_plan)
+          .limit(1)
+          .maybeSingle();
+
+        if (planDefaults) {
+          config.plan_defaults = {
+            plan_fee_percent: planDefaults.plan_fee_percent,
+            min_monthly_fee: planDefaults.min_monthly_fee,
+            included_offerings: [],
+            required_offerings: [],
+          };
+        }
+      }
+
+      // For Custom plan or A-la-Carte, fetch active offerings from property_service_pricing
+      if (config.service_plan === 'Custom' || config.service_plan === 'A-la-carte') {
+        try {
+          const pricingConfig = await getPropertyServicePricing(
+            this.propertyId,
+            this.unitId || null,
+          );
+          config.pricing_config = pricingConfig;
+        } catch (error) {
+          logger.warn({ error }, 'Failed to fetch property service pricing');
+        }
+      }
+    } catch (error) {
+      logger.warn({ error }, 'Error enriching with service catalog, continuing without enrichment');
+    }
+  }
+
+  /**
    * Get service data from properties table
    */
   private async getPropertyServiceData(): Promise<PropertyServiceData> {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('properties')
       .select('service_plan, active_services, service_assignment, bill_pay_list, bill_pay_notes')
       .eq('id', this.propertyId)
@@ -118,7 +235,7 @@ export class ManagementService {
       throw new Error('Unit ID is required for unit-level service configuration');
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('units')
       .select('service_plan, active_services, fee_notes, bill_pay_list, bill_pay_notes')
       .eq('id', this.unitId)
@@ -201,7 +318,7 @@ export class ManagementService {
       updateData.bill_pay_notes = config.bill_pay_notes;
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('properties')
       .update(updateData)
       .eq('id', this.propertyId);
@@ -243,7 +360,7 @@ export class ManagementService {
       updateData.fee_notes = config.bill_pay_notes;
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('units')
       .update(updateData)
       .eq('id', this.unitId)
@@ -261,9 +378,11 @@ export class ManagementService {
     Array<ManagementServiceConfig & { unit_number: string }>
   > {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('units')
-        .select('id, unit_number, service_plan, active_services, fee_notes, bill_pay_list, bill_pay_notes')
+        .select(
+          'id, unit_number, service_plan, active_services, fee_notes, bill_pay_list, bill_pay_notes',
+        )
         .eq('property_id', this.propertyId)
         .eq('is_active', true);
 
@@ -334,4 +453,16 @@ export async function updatePropertyServiceConfiguration(
 ): Promise<void> {
   const service = createManagementService(propertyId, unitId);
   await service.updateServiceConfiguration(config);
+}
+
+/**
+ * Get service pricing configuration for a property/unit
+ * Part of Phase 3.2: Service Configuration Integration
+ */
+export async function getServicePricing(
+  propertyId: string,
+  unitId?: string | null,
+  effectiveDate?: string,
+): Promise<ServicePricingConfig[]> {
+  return getPropertyServicePricing(propertyId, unitId, effectiveDate, supabaseAdmin);
 }

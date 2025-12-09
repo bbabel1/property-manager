@@ -212,10 +212,11 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{`Monthly Statement - ${hasValidPeriod ? format(periodStartDate, 'MMMM yyyy') : ''}`}</title>
         <style>{`
-          @page { size: letter; margin: 0.65in 0.75in; }
+          @page { size: letter; margin: 0.75in; }
           
           body {
-            margin: 42px 58px;
+            margin: 0;
+            padding: 0;
             font-family: "Times New Roman", Georgia, serif;
             color: #111;
             font-size: 12px;
@@ -496,4 +497,3 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
     </html>
   );
 }
-

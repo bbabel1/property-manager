@@ -83,6 +83,26 @@ function normalizeDate(d?: string | null): string | null {
   return null
 }
 
+function resolvePostingType(line: any): 'Debit' | 'Credit' {
+  const raw =
+    typeof line?.PostingType === 'string'
+      ? line.PostingType
+      : typeof line?.posting_type === 'string'
+      ? line.posting_type
+      : typeof line?.PostingTypeEnum === 'string'
+      ? line.PostingTypeEnum
+      : typeof line?.PostingTypeString === 'string'
+      ? line.PostingTypeString
+      : typeof line?.postingType === 'string'
+      ? line.postingType
+      : null
+  const normalized = (raw || '').toLowerCase()
+  if (normalized === 'debit' || normalized === 'dr' || normalized.includes('debit')) return 'Debit'
+  if (normalized === 'credit' || normalized === 'cr' || normalized.includes('credit')) return 'Credit'
+  const amountNum = Number(line?.Amount ?? 0)
+  return amountNum < 0 ? 'Debit' : 'Credit'
+}
+
 async function resolveLocalPropertyId(
   supabase: any,
   buildiumPropertyId: number | null | undefined
@@ -226,8 +246,8 @@ async function upsertLeaseTransactionWithLines(
   let debit = 0, credit = 0
 
   for (const line of lines) {
-    const amount = Number(line?.Amount ?? 0)
-    const posting = amount >= 0 ? 'Credit' : 'Debit'
+    const amountAbs = Math.abs(Number(line?.Amount ?? 0))
+    const posting = resolvePostingType(line)
     const glBuildiumId = typeof line?.GLAccount === 'number'
       ? line?.GLAccount
       : (line?.GLAccount?.Id ?? line?.GLAccountId ?? null)
@@ -242,7 +262,7 @@ async function upsertLeaseTransactionWithLines(
     await supabase.from('transaction_lines').insert({
       transaction_id: transactionId,
       gl_account_id: glId,
-      amount: Math.abs(amount),
+      amount: amountAbs,
       posting_type: posting,
       memo: line?.Memo ?? null,
       account_entity_type: 'Rental',
@@ -257,8 +277,8 @@ async function upsertLeaseTransactionWithLines(
       unit_id: unitIdLocal
     })
 
-    if (posting === 'Debit') debit += Math.abs(amount)
-    else credit += Math.abs(amount)
+    if (posting === 'Debit') debit += amountAbs
+    else credit += amountAbs
   }
 
   if (debit > 0 && credit > 0 && Math.abs(debit - credit) > 0.0001) {

@@ -1,0 +1,2 @@
+This placeholder tracks per-file `any` usage counts for the typecheck audit.
+Replace with the real counts if you re-run the `any` usage reporting scripts.

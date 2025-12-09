@@ -10,6 +10,7 @@ import { CalendarEvent, CalendarEventFilter, DEFAULT_EVENT_FILTERS } from '@/typ
 import { addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfMonth, startOfWeek, startOfDay } from 'date-fns'
 import { EventDetailDrawer } from './EventDetailDrawer'
 import { AddEventModal } from './AddEventModal'
+import { toast } from 'sonner'
 
 export type CalendarView = 'month' | 'week' | 'day'
 
@@ -118,19 +119,18 @@ export function GoogleCalendarView({
   }
 
   const handleEdit = (event: CalendarEvent) => {
-    // TODO: Implement edit functionality
-    // For now, close the drawer
     setDrawerOpen(false)
-    console.log('Edit event:', event)
+    toast.info('Editing events is not available yet', {
+      description: 'We will enable editing once calendar write APIs are connected.',
+    })
+    onEventClick?.(event)
   }
 
   const handleDelete = (event: CalendarEvent) => {
-    // TODO: Implement delete functionality
-    if (confirm(`Are you sure you want to delete "${event.title}"?`)) {
-      setDrawerOpen(false)
-      console.log('Delete event:', event)
-      // In real app, call API to delete event
-    }
+    setDrawerOpen(false)
+    toast.info('Event deletion is coming soon', {
+      description: 'Delete will be enabled after connecting calendar write APIs.',
+    })
   }
 
   // Filter events based on selected calendars

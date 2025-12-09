@@ -647,7 +647,7 @@ Owner Draw represents actual cash flow, while Net to Owner includes all income a
 
 - [RESEND_SETUP_GUIDE.md](./RESEND_SETUP_GUIDE.md) - Email configuration
 - [MONTHLY_LOG_IMPLEMENTATION_STATUS.md](./MONTHLY_LOG_IMPLEMENTATION_STATUS.md) - Technical details
-- [database-schema.md](./database/database-schema.md) - Database reference
+- [DATABASE_SCHEMA.md](./database/DATABASE_SCHEMA.md) - Database reference
 - [api-documentation.md](./api/api-documentation.md) - Complete API reference
 
 ---

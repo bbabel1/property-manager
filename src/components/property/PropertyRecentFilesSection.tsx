@@ -1,50 +1,109 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import AddLink from '@/components/ui/AddLink';
 import PropertyFileUploadDialog, {
   PropertyFileRow,
 } from '@/components/property/PropertyFileUploadDialog';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 interface PropertyRecentFilesSectionProps {
   propertyId: string;
   buildiumPropertyId: number | null;
+  orgId: string | null;
 }
+
+type ListedFile = PropertyFileRow & { href: string | null };
 
 export default function PropertyRecentFilesSection({
   propertyId,
   buildiumPropertyId,
+  orgId,
 }: PropertyRecentFilesSectionProps) {
   const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState<PropertyFileRow[]>([]);
+  const [files, setFiles] = useState<ListedFile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSaved = (row: PropertyFileRow) => {
-    setFiles((prev) => [row, ...prev].slice(0, 5));
+  const resolveHref = (file: any): string | null => {
+    if (typeof file?.buildium_href === 'string' && file.buildium_href.trim()) {
+      return file.buildium_href;
+    }
+    if (typeof file?.external_url === 'string' && file.external_url.trim()) {
+      return file.external_url;
+    }
+    if (file?.bucket && file?.storage_key && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const base = process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
+      return `${base}/storage/v1/object/${file.bucket}/${file.storage_key}`;
+    }
+    return null;
   };
+
+  const loadFiles = async () => {
+    if (!orgId) {
+      setFiles([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const entityId = buildiumPropertyId ?? -1;
+      const url = `/api/files?entityType=Properties&entityId=${entityId}&orgId=${orgId}`;
+      let res: Response;
+      try {
+        res = await fetchWithSupabaseAuth(url, { cache: 'no-store' });
+      } catch {
+        res = await fetch(url, { cache: 'no-store', credentials: 'include' });
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.error) {
+        throw new Error(json?.error || 'Failed to load files');
+      }
+      const rows = Array.isArray(json?.data) ? json.data : [];
+      const mapped: ListedFile[] = rows.slice(0, 5).map((file: any) => ({
+        id: String(file.id),
+        title: file.title || file.file_name || 'File',
+        category: file.category_name || 'Uncategorized',
+        description: file.description || null,
+        uploadedAt: new Date(file.created_at || Date.now()),
+        uploadedBy: file.created_by || '—',
+        href: resolveHref(file),
+      }));
+      setFiles(mapped);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load files');
+      setFiles([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildiumPropertyId, orgId]);
+
+  const emptyCopy = useMemo(() => {
+    if (!orgId) {
+      return 'Files require an organization context.';
+    }
+    return "You don't have any files for this property right now.";
+  }, [orgId]);
 
   return (
     <div className="space-y-4">
       <div className="section-title-row">
         <h2 className="section-title-text">Recent files</h2>
-        {buildiumPropertyId ? (
-          <AddLink onClick={() => setOpen(true)} aria-label="Add property file" className="px-2" />
-        ) : null}
+        <AddLink onClick={() => setOpen(true)} aria-label="Add property file" className="px-2" />
       </div>
       <div className="surface-card">
-        {!buildiumPropertyId ? (
-          <div className="text-muted-foreground px-4 py-6 text-sm">
-            File uploads will be available once this property is linked to Buildium.
-          </div>
+        {loading ? (
+          <div className="text-muted-foreground px-4 py-6 text-center text-sm">Loading files…</div>
         ) : files.length === 0 ? (
           <div className="text-muted-foreground px-4 py-6 text-sm">
-            You don't have any files for this property right now.{' '}
-            <Button
-              variant="link"
-              className="px-1"
-              onClick={() => buildiumPropertyId && setOpen(true)}
-              disabled={!buildiumPropertyId}
-            >
+            {emptyCopy}{' '}
+            <Button variant="link" className="px-1" onClick={() => setOpen(true)}>
               Upload your first file.
             </Button>
           </div>
@@ -65,21 +124,31 @@ export default function PropertyRecentFilesSection({
                     <div className="text-muted-foreground text-sm">{file.description}</div>
                   ) : null}
                 </div>
-                <Button variant="outline" className="min-h-[2.75rem] px-4">
-                  Download
-                </Button>
+                {file.href ? (
+                  <Button asChild variant="outline" className="min-h-[2.75rem] px-4">
+                    <a href={file.href} target="_blank" rel="noreferrer">
+                      Download
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="outline" className="min-h-[2.75rem] px-4" disabled>
+                    No download link
+                  </Button>
+                )}
               </div>
             ))}
           </div>
         )}
+        {error ? <div className="text-destructive px-4 py-2 text-sm">{error}</div> : null}
       </div>
 
-      {buildiumPropertyId ? (
+      {orgId ? (
         <PropertyFileUploadDialog
           open={open}
           onOpenChange={setOpen}
           uploaderName={null}
-          onSaved={handleSaved}
+          onSaved={loadFiles}
+          propertyId={propertyId}
         />
       ) : null}
     </div>

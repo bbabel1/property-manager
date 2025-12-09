@@ -158,7 +158,7 @@ export async function POST(
       monthlyLog.units?.property_id ??
       monthlyLog.properties?.id ??
       null;
-    let unitId = monthlyLog.unit_id ?? monthlyLog.units?.id ?? null;
+    const unitId = monthlyLog.unit_id ?? monthlyLog.units?.id ?? null;
     let orgId = monthlyLog.org_id ?? monthlyLog.properties?.org_id ?? null;
     let buildiumPropertyId =
       monthlyLog.units?.buildium_property_id ??

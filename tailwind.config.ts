@@ -1,4 +1,7 @@
 import type { Config } from 'tailwindcss';
+import forms from '@tailwindcss/forms';
+import typography from '@tailwindcss/typography';
+import containerQueries from '@tailwindcss/container-queries';
 
 const config: Config = {
   content: [
@@ -74,11 +77,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [
-    require('@tailwindcss/forms'),
-    require('@tailwindcss/typography'),
-    require('@tailwindcss/container-queries'),
-  ],
+  plugins: [forms, typography, containerQueries],
 };
 
 export default config;

@@ -1,6 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowRight,
   Plus,
   Building,
   TrendingUp,
@@ -13,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Cluster,
@@ -22,18 +25,55 @@ import {
   PageShell,
   Stack,
 } from '@/components/layout/page-shell';
-import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
+import { ExpiringLeaseBucketKey, ExpiringLeaseCounts, useDashboardMetrics } from '@/hooks/useDashboardMetrics';
 import { supabase } from '@/lib/db';
+
+type ExpiringStageKey = 'notStarted' | 'offers' | 'renewals' | 'moveOuts';
+
+const EXPIRING_STAGE_CONFIG: { key: ExpiringStageKey; label: string; color: string }[] = [
+  { key: 'notStarted', label: 'Not started', color: 'bg-slate-300' },
+  { key: 'offers', label: 'Offers', color: 'bg-sky-400' },
+  { key: 'renewals', label: 'Renewals', color: 'bg-primary' },
+  { key: 'moveOuts', label: 'Move-outs', color: 'bg-violet-500' },
+];
+
+const EXPIRING_BUCKETS_DEFAULT: Array<{ key: ExpiringLeaseBucketKey; label: string }> = [
+  { key: '0_30', label: '0 - 30 days' },
+  { key: '31_60', label: '31 - 60 days' },
+  { key: '61_90', label: '61 - 90 days' },
+  { key: 'all', label: 'All' },
+];
+
+const makeEmptyExpiringCounts = (): ExpiringLeaseCounts => ({
+  notStarted: 0,
+  offers: 0,
+  renewals: 0,
+  moveOuts: 0,
+  total: 0,
+});
 
 export default function DashboardPage() {
   const { data, error, isLoading, refresh, orgId } = useDashboardMetrics();
   const k = data?.kpis;
+  const [selectedExpiringBucket, setSelectedExpiringBucket] =
+    useState<ExpiringLeaseBucketKey>('0_30');
   const [txPage, setTxPage] = useState(1);
   const TX_PAGE_SIZE = 5;
   const transactions = data?.transactions ?? [];
   const txTotalPages = transactions.length ? Math.ceil(transactions.length / TX_PAGE_SIZE) : 1;
   const currentTxPage = Math.min(txPage, txTotalPages);
   const txSlice = transactions.slice((currentTxPage - 1) * TX_PAGE_SIZE, currentTxPage * TX_PAGE_SIZE);
+
+  const expiringBuckets = useMemo(() => {
+    const fromApi = data?.expiringLeases?.buckets ?? [];
+    return EXPIRING_BUCKETS_DEFAULT.map((bucket) => {
+      const match = fromApi.find((b) => b.key === bucket.key);
+      return {
+        ...bucket,
+        counts: match?.counts ? { ...makeEmptyExpiringCounts(), ...match.counts } : makeEmptyExpiringCounts(),
+      };
+    });
+  }, [data?.expiringLeases]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -203,100 +243,131 @@ export default function DashboardPage() {
           </PageGrid>
 
           <PageGrid columns={2}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center">
-              <FileText className="text-primary mr-2 h-5 w-5" />
-              <CardTitle>Lease Renewals</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2 text-center">
-                <div className="bg-destructive/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <span className="text-destructive text-lg font-bold">
-                    {isLoading ? '—' : (data?.renewals?.critical_30 ?? 0)}
-                  </span>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <FileText className="text-primary mr-2 h-5 w-5" />
+                    <CardTitle>Expiring Leases</CardTitle>
+                  </div>
+                  <span className="text-muted-foreground text-xs">Next 90 days</span>
                 </div>
-                <div>
-                  <p className="text-foreground text-sm font-medium">Critical</p>
-                  <p className="text-muted-foreground text-xs">≤30 days</p>
-                </div>
-              </div>
-              <div className="space-y-2 text-center">
-                <div className="bg-warning/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <span className="text-warning text-lg font-bold">
-                    {isLoading ? '—' : (data?.renewals?.upcoming_60 ?? 0)}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-foreground text-sm font-medium">Upcoming</p>
-                  <p className="text-muted-foreground text-xs">30-60 days</p>
-                </div>
-              </div>
-              <div className="space-y-2 text-center">
-                <div className="bg-primary/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <span className="text-primary text-lg font-bold">
-                    {isLoading ? '—' : (data?.renewals?.future_90 ?? 0)}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-foreground text-sm font-medium">Future</p>
-                  <p className="text-muted-foreground text-xs">60-90 days</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardHeader>
+              <CardContent>
+                <Tabs
+                  value={selectedExpiringBucket}
+                  onValueChange={(value) =>
+                    setSelectedExpiringBucket(value as ExpiringLeaseBucketKey)
+                  }
+                  className="space-y-4"
+                >
+                  <TabsList>
+                    {expiringBuckets.map((bucket) => (
+                      <TabsTrigger
+                        key={bucket.key}
+                        value={bucket.key}
+                        className="px-3 py-1 text-xs sm:text-sm"
+                      >
+                        {bucket.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {expiringBuckets.map((bucket) => {
+                    const counts = bucket.counts ?? makeEmptyExpiringCounts();
+                    const maxCount = Math.max(
+                      ...EXPIRING_STAGE_CONFIG.map((stage) => counts[stage.key]),
+                      1,
+                    );
+                    return (
+                      <TabsContent key={bucket.key} value={bucket.key} className="space-y-3">
+                        {EXPIRING_STAGE_CONFIG.map((stage) => {
+                          const count = counts[stage.key];
+                          const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                          return (
+                            <div className="flex items-center gap-3" key={stage.key}>
+                              <div className="w-24 text-sm text-muted-foreground">{stage.label}</div>
+                              <div className="flex-1">
+                                <div className="bg-muted h-3 w-full rounded-full">
+                                  <div
+                                    className={`${stage.color} h-3 rounded-full transition-[width] duration-300`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="w-8 text-right text-sm font-semibold text-foreground">
+                                {isLoading ? '—' : count}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div className="flex items-center justify-between pt-2 text-sm">
+                          <span className="text-foreground font-semibold">
+                            {isLoading
+                              ? 'Loading…'
+                              : `${counts.total} ${counts.total === 1 ? 'lease' : 'leases'}`}
+                          </span>
+                          <Button variant="link" size="sm" className="px-0 text-primary" asChild>
+                            <Link href="/leases" className="inline-flex items-center gap-1">
+                              View all
+                              <ArrowRight className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </TabsContent>
+                    );
+                  })}
+                </Tabs>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center">
-              <UserCheck className="text-primary mr-2 h-5 w-5" />
-              <CardTitle>Property Onboarding</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-6 grid grid-cols-3 gap-4">
-              <div className="space-y-2 text-center">
-                <div className="bg-primary/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <span className="text-primary text-lg font-bold">
-                    {isLoading ? '—' : (data?.onboarding?.in_progress ?? 0)}
-                  </span>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center">
+                  <UserCheck className="text-primary mr-2 h-5 w-5" />
+                  <CardTitle>Property Onboarding</CardTitle>
                 </div>
-                <div>
-                  <p className="text-foreground text-sm font-medium">In Progress</p>
-                  <p className="text-muted-foreground text-xs">Active</p>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-6 grid grid-cols-3 gap-4">
+                  <div className="space-y-2 text-center">
+                    <div className="bg-primary/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
+                      <span className="text-primary text-lg font-bold">
+                        {isLoading ? '—' : (data?.onboarding?.in_progress ?? 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-foreground text-sm font-medium">In Progress</p>
+                      <p className="text-muted-foreground text-xs">Active</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-center">
+                    <div className="bg-warning/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
+                      <span className="text-warning text-lg font-bold">
+                        {isLoading ? '—' : (data?.onboarding?.pending_approval ?? 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-foreground text-sm font-medium">Pending</p>
+                      <p className="text-muted-foreground text-xs">Approval</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-center">
+                    <div className="bg-destructive/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
+                      <span className="text-destructive text-lg font-bold">
+                        {isLoading ? '—' : (data?.onboarding?.overdue ?? 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-foreground text-sm font-medium">Overdue</p>
+                      <p className="text-muted-foreground text-xs">Needs attention</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2 text-center">
-                <div className="bg-warning/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <span className="text-warning text-lg font-bold">
-                    {isLoading ? '—' : (data?.onboarding?.pending_approval ?? 0)}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-foreground text-sm font-medium">Pending</p>
-                  <p className="text-muted-foreground text-xs">Approval</p>
-                </div>
-              </div>
-              <div className="space-y-2 text-center">
-                <div className="bg-destructive/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full">
-                  <span className="text-destructive text-lg font-bold">
-                    {isLoading ? '—' : (data?.onboarding?.overdue ?? 0)}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-foreground text-sm font-medium">Overdue</p>
-                  <p className="text-muted-foreground text-xs">Needs attention</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </PageGrid>
+              </CardContent>
+            </Card>
+          </PageGrid>
 
-      <PageGrid columns={2}>
+          <PageGrid columns={2}>
         <Card>
           <CardHeader>
             <div className="flex items-center">

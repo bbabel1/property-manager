@@ -120,6 +120,74 @@ Authorization: Bearer <your-jwt-token>
 - `GET /api/files/{id}/presign` - Fetch a signed URL for previewing/downloading file contents
 - `PUT /api/files/{id}/sharing` - Toggle Buildium portal sharing with tenants or rental owners (requires `buildium_file_id`)
 
+### Email Templates
+
+- `GET /api/email-templates` - List email templates with pagination and filtering
+- `POST /api/email-templates` - Create new email template (admin/manager only)
+- `GET /api/email-templates/{id}` - Get template by ID
+- `PUT /api/email-templates/{id}` - Full update with optimistic concurrency (admin/manager only)
+- `PATCH /api/email-templates/{id}` - Partial update with optimistic concurrency (admin/manager only)
+- `DELETE /api/email-templates/{id}` - Archive template (soft delete, admin/manager only)
+- `POST /api/email-templates/{id}/preview` - Preview rendered template (rate limited: 10/min)
+- `POST /api/email-templates/{id}/test` - Send test email (admin/manager only, rate limited: 5/hour)
+- `GET /api/email-templates/variables/{templateKey}` - Get available variables for template type
+
+**GET /api/email-templates**
+
+Query parameters:
+- `status` (optional): Filter by status (`active`, `inactive`, `archived`)
+- `templateKey` (optional): Filter by template key
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 50, max: 100)
+
+**POST /api/email-templates**
+
+Request body:
+```json
+{
+  "template_key": "monthly_rental_statement",
+  "name": "Monthly Rental Statement",
+  "description": "Template description",
+  "subject_template": "Monthly Statement - {{propertyName}}",
+  "body_html_template": "<p>HTML content</p>",
+  "body_text_template": "Plain text content",
+  "available_variables": [...],
+  "status": "active"
+}
+```
+
+**POST /api/email-templates/{id}/preview**
+
+Request body (optional):
+```json
+{
+  "variables": {
+    "propertyName": "123 Main St",
+    "periodMonth": "December 2024"
+  }
+}
+```
+
+Response:
+```json
+{
+  "subject": "Monthly Statement - 123 Main St",
+  "bodyHtml": "<p>Rendered HTML</p>",
+  "bodyText": "Rendered text",
+  "warnings": ["Missing required variable: recipientName"]
+}
+```
+
+**Error Codes:**
+- `TEMPLATE_NOT_FOUND` - Template doesn't exist or wrong org
+- `INVALID_TEMPLATE_KEY` - Unknown template_key enum value
+- `INVALID_VARIABLES` - Unknown variables in template
+- `TEMPLATE_CONFLICT` - Optimistic concurrency conflict (409)
+- `TEMPLATE_KEY_IMMUTABLE` - Attempted to change template_key
+- `TEMPLATE_KEY_EXISTS` - Template key already exists for org
+- `RATE_LIMIT_EXCEEDED` - Rate limit hit (429)
+- `VALIDATION_ERROR` - Field validation failed (400)
+
 ## File Locations
 
 ```text

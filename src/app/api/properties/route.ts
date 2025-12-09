@@ -23,6 +23,7 @@ import {
   toNumberOrDefault,
   toNumberOrNull,
 } from '@/lib/normalizers'
+import { normalizeStaffRole } from '@/lib/staff-role'
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert']
 // type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update'] // Unused
@@ -916,6 +917,44 @@ export async function GET() {
       )
     }
 
+    const managerIds = Array.from(
+      new Set(
+        (data || [])
+          .map((p) => (p as any)?.property_manager_id)
+          .filter((v): v is string | number => Boolean(v)),
+      ),
+    )
+
+    const managerMap = new Map<
+      string,
+      { name: string; email?: string | null; phone?: string | null; role?: string | null }
+    >()
+    if (managerIds.length) {
+      try {
+        const { data: managers } = await db
+          .from('staff')
+          .select('id, display_name, first_name, last_name, email, phone, role')
+          .in('id', managerIds as any)
+        for (const mgr of managers || []) {
+          const normalized = normalizeStaffRole((mgr as any)?.role)
+          if (normalized === 'Property Manager') {
+            const name =
+              (mgr as any)?.display_name ||
+              [(mgr as any)?.first_name, (mgr as any)?.last_name].filter(Boolean).join(' ').trim() ||
+              'Property Manager'
+            managerMap.set(String((mgr as any).id), {
+              name,
+              email: (mgr as any)?.email ?? null,
+              phone: (mgr as any)?.phone ?? null,
+              role: (mgr as any)?.role ?? null,
+            })
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load property managers for list', err)
+      }
+    }
+
     const mapped = (data || []).map((p) => {
       const ownerships = Array.isArray(p?.ownerships) ? p.ownerships : []
       const ownersCount = ownerships.length
@@ -947,6 +986,7 @@ export async function GET() {
         totalActiveUnits: p.total_active_units ?? 0,
         ownersCount,
         primaryOwnerName,
+        propertyManagerName: managerMap.get(String((p as any)?.property_manager_id ?? ''))?.name ?? null,
         operatingBankAccountId: p.operating_bank_account_id,
         depositTrustAccountId: p.deposit_trust_account_id,
       }

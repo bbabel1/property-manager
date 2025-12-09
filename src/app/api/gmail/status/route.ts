@@ -1,6 +1,6 @@
 /**
  * Gmail Integration Status
- * 
+ *
  * GET /api/gmail/status
  * Returns the current Gmail integration status for the authenticated user
  */
@@ -26,7 +26,7 @@ export async function GET() {
     if (membershipError || !membership) {
       return NextResponse.json(
         { error: { code: 'ORG_NOT_FOUND', message: 'Organization membership not found' } },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -55,15 +55,13 @@ export async function GET() {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json(
         { error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch Gmail status' } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
-

@@ -74,6 +74,7 @@ export type RecordBillFormProps = {
   units: UnitOption[];
   glAccounts: AccountOption[];
   payableAccounts: AccountOption[];
+  defaultPropertyId?: string | null;
 };
 
 type DraftLineKind = 'expense' | 'markup';
@@ -340,6 +341,7 @@ export default function RecordBillForm({
   units,
   glAccounts,
   payableAccounts,
+  defaultPropertyId = null,
 }: RecordBillFormProps) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
@@ -349,7 +351,10 @@ export default function RecordBillForm({
     () => properties.filter((property) => property.id !== COMPANY_SENTINEL),
     [properties],
   );
-  const defaultPropertyId =
+  const preferredPropertyId =
+    (defaultPropertyId && properties.find((p) => p.id === defaultPropertyId)?.id) || null;
+  const resolvedDefaultPropertyId =
+    preferredPropertyId ??
     properties.find((property) => property.id === COMPANY_SENTINEL)?.id ??
     realProperties[0]?.id ??
     COMPANY_SENTINEL;
@@ -358,7 +363,7 @@ export default function RecordBillForm({
   const [submitIntent, setSubmitIntent] = useState<'save' | 'save-and-new'>('save');
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState(() => ({
-    property_id: defaultPropertyId,
+    property_id: resolvedDefaultPropertyId,
     unit_id: '',
     vendor_id: '',
     bill_date: today,
@@ -372,7 +377,7 @@ export default function RecordBillForm({
   const buildInitialLine = () => ({
     id: makeId(),
     kind: 'expense',
-    property_id: ensureNull(defaultPropertyId),
+    property_id: ensureNull(resolvedDefaultPropertyId),
     unit_id: null,
     gl_account_id: glAccounts[0]?.id ?? '',
     description: '',

@@ -32,6 +32,26 @@ function dateOnly(s?: string | null): string {
   return s.slice(0, 10)
 }
 
+function resolvePostingType(line: any): 'Debit' | 'Credit' {
+  const raw =
+    typeof line?.PostingType === 'string'
+      ? line.PostingType
+      : typeof line?.posting_type === 'string'
+      ? line.posting_type
+      : typeof line?.PostingTypeEnum === 'string'
+      ? line.PostingTypeEnum
+      : typeof line?.PostingTypeString === 'string'
+      ? line.PostingTypeString
+      : typeof line?.postingType === 'string'
+      ? line.postingType
+      : null
+  const normalized = (raw || '').toLowerCase()
+  if (normalized === 'debit' || normalized === 'dr' || normalized.includes('debit')) return 'Debit'
+  if (normalized === 'credit' || normalized === 'cr' || normalized.includes('credit')) return 'Credit'
+  const amountNum = Number(line?.Amount ?? 0)
+  return amountNum < 0 ? 'Debit' : 'Credit'
+}
+
 // Minimal GL account resolver: ensures a local gl_accounts row exists for a Buildium GL account id
 async function resolveGLAccountId(supabase: any, buildiumGLAccountId?: number | null): Promise<string | null> {
   if (!buildiumGLAccountId) return null
@@ -138,8 +158,8 @@ async function upsertWithLines(supabase: any, tx: any): Promise<{ transactionId:
 
   const pending: any[] = []
   for (const line of lines) {
-    const amount = Number(line?.Amount ?? 0)
-    const postingType = amount >= 0 ? 'Credit' : 'Debit'
+    const amountAbs = Math.abs(Number(line?.Amount ?? 0))
+    const postingType = resolvePostingType(line)
     const glBuildiumId = line?.GLAccountId ?? (typeof line?.GLAccount === 'number' ? line.GLAccount : line?.GLAccount?.Id)
     const glId = await resolveGLAccountId(supabase, glBuildiumId)
     if (!glId) continue
@@ -150,7 +170,7 @@ async function upsertWithLines(supabase: any, tx: any): Promise<{ transactionId:
     pending.push({
       transaction_id: transactionId,
       gl_account_id: glId,
-      amount: Math.abs(amount),
+      amount: amountAbs,
       posting_type: postingType,
       memo: line?.Memo ?? null,
       account_entity_type: 'Rental',

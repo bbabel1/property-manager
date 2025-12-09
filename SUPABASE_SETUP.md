@@ -4,7 +4,7 @@ This guide will help you connect your Ora Property Management application to Sup
 
 ## Prerequisites
 
-1. A Supabase account (sign up at [supabase.com](https://supabase.com))
+1. A Supabase account (sign up via the [Supabase getting started guide](https://supabase.com/docs/guides/getting-started))
 2. A Supabase project created
 
 ## Step 1: Get Your Supabase Credentials
@@ -245,4 +245,4 @@ const { error } = await supabase
 
 - **Type errors**: Generate TypeScript types from your Supabase schema
 
-For more information, visit the [Supabase documentation](https://supabase.com/docs).
+For more information, visit the [Supabase documentation](https://supabase.com/docs/guides/getting-started).

@@ -8,6 +8,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
     await requireOrg(orgId)
 
     const now = Date.now()
+    const ninetyDaysFromNowIso = new Date(now + 90 * 24 * 60 * 60 * 1000).toISOString()
     const url = new URL(req.url)
     const hours = Number.isFinite(Number(url.searchParams.get('hours')))
       ? Number(url.searchParams.get('hours'))
@@ -15,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
     const windowHours = hours > 0 ? hours : 24
     const sinceIso = new Date(now - windowHours * 60 * 60 * 1000).toISOString()
 
-    const [kpis, renewals, onboardingSummary, recentTx, activeWOs] = await Promise.all([
+    const [kpis, renewals, onboardingSummary, recentTx, activeWOs, expiringLeases] = await Promise.all([
       supabase
         .from('v_dashboard_kpis')
         .select(
@@ -47,9 +48,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
         .eq('org_id', orgId)
         .lte('rn', 5)
         .order('rn', { ascending: true }),
+      supabase
+        .from('lease')
+        .select('id,lease_to_date,renewal_offer_status,status')
+        .eq('org_id', orgId)
+        .in('status', ['active', 'Active', 'ACTIVE'])
+        .not('lease_to_date', 'is', null)
+        .gte('lease_to_date', new Date(now).toISOString())
+        .lte('lease_to_date', ninetyDaysFromNowIso),
     ])
 
-    const error = kpis.error || renewals.error || onboardingSummary.error || recentTx.error || activeWOs.error
+    const error =
+      kpis.error ||
+      renewals.error ||
+      onboardingSummary.error ||
+      recentTx.error ||
+      activeWOs.error ||
+      expiringLeases.error
     if (error) {
       return NextResponse.json({ error: error.message || 'Failed to load dashboard' }, { status: 500 })
     }
@@ -91,6 +106,53 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
       property_name: null,
     }))
 
+    const bucketDefs = [
+      { key: '0_30', label: '0 - 30 days', min: 0, max: 30 },
+      { key: '31_60', label: '31 - 60 days', min: 31, max: 60 },
+      { key: '61_90', label: '61 - 90 days', min: 61, max: 90 },
+      { key: 'all', label: 'All (0-90 days)', min: 0, max: 90 },
+    ] as const
+
+    const makeCounts = () => ({ notStarted: 0, offers: 0, renewals: 0, moveOuts: 0, total: 0 })
+    const expiringBuckets: Record<
+      (typeof bucketDefs)[number]['key'],
+      { key: string; label: string; counts: { notStarted: number; offers: number; renewals: number; moveOuts: number; total: number } }
+    > = bucketDefs.reduce(
+      (acc, def) => ({
+        ...acc,
+        [def.key]: { key: def.key, label: def.label, counts: makeCounts() },
+      }),
+      {} as Record<
+        (typeof bucketDefs)[number]['key'],
+        { key: string; label: string; counts: { notStarted: number; offers: number; renewals: number; moveOuts: number; total: number } }
+      >
+    )
+
+    const normalizeStage = (status: string | null | undefined) => {
+      const normalized = (status || '').toLowerCase()
+      if (normalized === 'offered') return 'offers' as const
+      if (normalized === 'accepted' || normalized === 'renewed') return 'renewals' as const
+      if (normalized === 'declined' || normalized === 'expired') return 'moveOuts' as const
+      return 'notStarted' as const
+    }
+
+    const nowDate = new Date(now)
+    ;(expiringLeases.data ?? []).forEach((lease: any) => {
+      const leaseTo = lease?.lease_to_date ? new Date(lease.lease_to_date) : null
+      if (!leaseTo || Number.isNaN(leaseTo.getTime())) return
+      const daysUntil = Math.floor((leaseTo.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysUntil < 0) return
+
+      const stage = normalizeStage(lease?.renewal_offer_status)
+      bucketDefs.forEach((bucket) => {
+        if (daysUntil >= bucket.min && daysUntil <= bucket.max) {
+          const target = expiringBuckets[bucket.key]
+          target.counts[stage] += 1
+          target.counts.total += 1
+        }
+      })
+    })
+
     return new NextResponse(
       JSON.stringify({
         kpis: kpis.data ?? null,
@@ -98,6 +160,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
         onboarding: onboardingData,
         transactions: transactionsData,
         workOrders: workOrdersData,
+        expiringLeases: {
+          buckets: bucketDefs.map((bucket) => expiringBuckets[bucket.key]),
+        },
       }),
       {
         headers: {

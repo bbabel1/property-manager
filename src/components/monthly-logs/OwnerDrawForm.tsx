@@ -148,6 +148,11 @@ export default function OwnerDrawForm({
     setForm((prev) => ({ ...prev, amount: formatted }));
   }, [defaultAmount, disbursementPercentage, form.payeeId]);
 
+  const amountNumber = useMemo(() => {
+    const parsed = Number(form.amount);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }, [form.amount]);
+
   const hasPropertyAndUnit = Boolean(propertyContext.propertyId && propertyContext.unitId);
 
   if (loading) {
@@ -235,11 +240,6 @@ export default function OwnerDrawForm({
       </Alert>
     );
   }
-
-  const amountNumber = useMemo(() => {
-    const parsed = Number(form.amount);
-    return Number.isFinite(parsed) ? parsed : NaN;
-  }, [form.amount]);
 
   const canSubmit =
     Boolean(form.payeeId) &&

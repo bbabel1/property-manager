@@ -1020,7 +1020,7 @@ This section provides an overview of the database migration history and evolutio
 
 ### Auto-Generated Files
 - **`src/types/database.ts`** - TypeScript types matching database schema
-- **`docs/database/database-schema.md`** - Auto-generated overview (may be redundant)
+- **`docs/database/DATABASE_SCHEMA.md`** - Auto-generated overview (may be redundant)
 
 ## Quick Reference
 

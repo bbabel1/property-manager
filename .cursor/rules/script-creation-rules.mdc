@@ -14,17 +14,13 @@ Script Creation and Execution Rules:
    config({ path: '.env.local' })
    ```
 
-3. **Standard Buildium API call pattern**:
+3. **Standard Buildium API call pattern (org-scoped credentials required)**:
    ```typescript
-   const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals/${id}`, {
-     method: 'GET',
-     headers: {
-       'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-       'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-       'Content-Type': 'application/json',
-       'Accept': 'application/json'
-     }
-   })
+   import { buildiumFetch } from '@/lib/buildium-http'
+
+   const orgId = process.env.DEFAULT_ORG_ID ?? process.argv[2] // prefer explicit orgId arg
+   const response = await buildiumFetch('GET', `/rentals/${id}`, undefined, undefined, orgId)
+   if (!response.ok) throw new Error(`Buildium request failed: ${response.status} ${response.errorText}`)
    ```
 
 4. **Always clean up temporary scripts**: Remove test scripts after use with `rm scripts/**/temp-*.ts`

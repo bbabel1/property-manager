@@ -77,7 +77,7 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
     fetchGmailStatus();
   }, []);
 
-  const handlePreview = async () => {
+  const handleGenerate = async () => {
     try {
       setGenerating(true);
       setPreviewLoading(true);
@@ -130,6 +130,14 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
       setGenerating(false);
       setPreviewLoading(false);
     }
+  };
+
+  const handleView = () => {
+    if (!pdfUrl) {
+      toast.error('Generate the statement PDF before viewing.');
+      return;
+    }
+    setPreviewOpen(true);
   };
 
   const handleSendStatement = async () => {
@@ -273,16 +281,29 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
             <div className="flex items-center gap-2 text-xs text-slate-700">{statusPill}</div>
             <div className="flex items-center gap-2">
-              <Button
-                onClick={handlePreview}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                disabled={previewLoading || generating}
-              >
-                <Eye className="h-4 w-4" />
-                {previewLoading ? 'Loading…' : 'View PDF'}
-              </Button>
+              {!pdfUrl ? (
+                <Button
+                  onClick={handleGenerate}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={previewLoading || generating}
+                >
+                  <FileText className="h-4 w-4" />
+                  {generating ? 'Generating…' : 'Generate PDF'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleView}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={previewLoading}
+                >
+                  <Eye className="h-4 w-4" />
+                  View PDF
+                </Button>
+              )}
               <Button
                 onClick={handleSendStatement}
                 disabled={sendDisabled}

@@ -137,9 +137,9 @@ npm run dev
 
 ## 📚 Additional Resources
 
-- [Supabase Setup Guide](docs/database/SUPABASE_SETUP.md)
+- [Supabase Setup Guide](docs/database/supabase-setup.md)
 - [Buildium Integration Guide](docs/buildium-integration-guide.md)
-- [Environment Variables Documentation](https://nextjs.org/docs/basic-features/environment-variables)
+- [Environment Variables Documentation](https://nextjs.org/docs/app/building-your-application/configuring/environment-variables)
 
 ## 🔄 Regenerating TypeScript Types (Local vs Remote)
 

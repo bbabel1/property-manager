@@ -85,6 +85,7 @@ import EditOwnerModal, { type OwnerModalData } from '@/components/EditOwnerModal
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Database } from '@/types/database'
+import { toast } from 'sonner'
 
 type Country = Database['public']['Enums']['countries']
 
@@ -443,8 +444,9 @@ export default function OwnerDetailsPage() {
   const handleQuickEmail = async () => {
     setIsSendingEmail(true)
     try {
-      // TODO: Implement email sending
-      console.log('Sending email to:', owner?.primary_email)
+      toast.info('Owner email send is not wired yet', {
+        description: 'We will hook this action to the messaging service soon.',
+      })
     } catch (error) {
       console.error('Error sending email:', error)
     } finally {
@@ -455,8 +457,9 @@ export default function OwnerDetailsPage() {
   const handleQuickText = async () => {
     setIsSendingText(true)
     try {
-      // TODO: Implement text sending
-      console.log('Sending text to:', owner?.primary_phone)
+      toast.info('Owner text send is not available yet', {
+        description: 'SMS support will be added after messaging backend is ready.',
+      })
     } catch (error) {
       console.error('Error sending text:', error)
     } finally {
@@ -467,8 +470,9 @@ export default function OwnerDetailsPage() {
   const handleGenerateStatement = async () => {
     setIsGeneratingStatement(true)
     try {
-      // TODO: Implement statement generation
-      console.log('Generating statement for owner:', ownerId)
+      toast.info('Owner statement generation is coming soon', {
+        description: 'Statements will be generated once the finance service is connected.',
+      })
     } catch (error) {
       console.error('Error generating statement:', error)
     } finally {

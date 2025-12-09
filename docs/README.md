@@ -16,7 +16,7 @@
 ## Database Documentation
 
 - [Database Schema](database/DATABASE_SCHEMA.md) - Complete schema overview
-- [Supabase Setup Guide](../docs/database/SUPABASE_SETUP.md) - Initial setup instructions
+- [Supabase Setup Guide](database/supabase-setup.md) - Initial setup instructions
 
 ## Migration Guides
 

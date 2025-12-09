@@ -1,6 +1,6 @@
 # Buildium Console Theme Reference
 
-Our UI now mirrors the managedbyorasandbox Buildium console theme, keeping palette and typography consistent with the production dashboard and properties views.[1](https://managedbyorasandbox.managebuilding.com/manager/app/homepage/dashboard)[2](https://managedbyorasandbox.managebuilding.com/manager/app/properties)
+Our UI now mirrors the managedbyorasandbox Buildium console theme, keeping palette and typography consistent with the production dashboard and properties views (sandbox console at managedbyorasandbox.managebuilding.com, login required).
 
 ## Color Palette
 
@@ -22,7 +22,7 @@ The remaining semantic tokens (muted, secondary, accent, etc.) proxy to these pr
 
 - **Primary font**: `Source Sans 3` (weights 400/500/600/700 loaded via `next/font`)
 - **Fallbacks**: `Source Sans Pro`, `Open Sans`, system UI stack
-- **Scale**: 1rem base with medium headings (`font-weight: 600`), matching dashboard card titles and table typography.[1](https://managedbyorasandbox.managebuilding.com/manager/app/homepage/dashboard)
+- **Scale**: 1rem base with medium headings (`font-weight: 600`), matching dashboard card titles and table typography in the sandbox console.
 
 ## Implementation Notes
 

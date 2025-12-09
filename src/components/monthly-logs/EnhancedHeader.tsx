@@ -64,7 +64,7 @@ const STATUS_BADGE_STYLES: Record<MonthlyLogStatus, string> = {
   pending: 'bg-amber-100 text-amber-800 border border-amber-200',
   in_progress: 'bg-blue-100 text-blue-800 border border-blue-200',
   complete:
-    'bg-[var(--color-action-50)] text-[var(--color-action-700)] border border-[var(--color-action-200)]',
+    'bg-[var(--color-success-50)] text-[var(--color-success-700)] border border-[var(--color-success-500)]',
 };
 
 export default function EnhancedHeader({
