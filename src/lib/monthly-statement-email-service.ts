@@ -6,13 +6,6 @@
  */
 
 import { supabaseAdmin } from '@/lib/db';
-import {
-  sendEmail,
-  sendEmailToMultipleRecipients,
-  createMonthlyStatementEmailTemplate,
-  createMonthlyStatementEmailText,
-  type EmailRecipient,
-} from '@/lib/email-service';
 import { format } from 'date-fns';
 import { getOwnerDrawSummary } from '@/lib/monthly-log-calculations';
 import { calculateNetToOwnerValue } from '@/types/monthly-log';
@@ -23,6 +16,8 @@ import {
 } from '@/lib/monthly-statement-service';
 import { getStaffGmailIntegration } from '@/lib/gmail/token-manager';
 import { sendEmailViaGmail } from '@/lib/gmail/send-email';
+import { getEmailTemplate, renderEmailTemplate } from '@/lib/email-template-service';
+import { buildTemplateVariables } from '@/lib/email-templates/variable-mapping';
 
 interface StatementRecipient {
   email: string;
@@ -198,7 +193,42 @@ export async function sendMonthlyStatement(
       ownerDraw,
     });
 
-    // 3. Prepare email data
+    // 3. Fetch email template from database (with fallback to hardcoded)
+    let template = null;
+    let baseVariables: Record<string, unknown> | null = null;
+    let templateError: string | null = null;
+
+    try {
+      template = await getEmailTemplate(orgId, 'monthly_rental_statement');
+      
+      if (template && template.status === 'active') {
+        // Build comprehensive variable map (without recipient name - will be set per recipient)
+        baseVariables = await buildTemplateVariables(monthlyLogId, orgId);
+        console.info('[monthly-statement] Loaded active email template', {
+          orgId,
+          templateId: (template as any)?.id,
+          templateKey: template.template_key,
+          status: template.status,
+          monthlyLogId,
+        });
+      } else {
+        templateError =
+          'No active monthly statement email template configured for this organization. Add or activate one in Settings > Templates.';
+      }
+    } catch (templateError) {
+      console.error('Error fetching template for monthly statement:', templateError);
+      templateError =
+        'Failed to load monthly statement email template. Please try again after confirming the template exists and is active.';
+    }
+
+    if (!template || !baseVariables) {
+      return {
+        success: false,
+        error: templateError ?? 'A monthly statement email template is required before sending.',
+      };
+    }
+
+    // Prepare fallback data
     const periodMonth = format(new Date(monthlyLog.period_start), 'MMMM yyyy');
     const propertyName = (monthlyLog.properties as any)?.name || 'Unknown Property';
     const unitNumber =
@@ -235,27 +265,43 @@ export async function sendMonthlyStatement(
 
     // Send emails via Gmail API
     for (const recipient of recipients) {
-      const htmlContent = createMonthlyStatementEmailTemplate({
-        recipientName: recipient.name,
-        propertyName,
-        unitNumber,
-        periodMonth,
-        netToOwner,
-        ownerDraw,
-        pdfUrl: pdfUrlForEmail,
-        companyName,
-      });
+      let finalSubject = '';
+      let finalHtml = '';
+      let finalText = '';
 
-      const textContent = createMonthlyStatementEmailText({
-        recipientName: recipient.name,
-        propertyName,
-        unitNumber,
-        periodMonth,
-        netToOwner,
-        ownerDraw,
-        pdfUrl: pdfUrlForEmail,
-        companyName,
-      });
+      // Use template from database; fail fast if rendering breaks to avoid silent fallback
+      try {
+        // Set recipient-specific variable
+        const variables = { ...baseVariables, recipientName: recipient.name };
+        
+        // Render template
+        const rendered = await renderEmailTemplate(template, variables);
+        console.info('[monthly-statement] Rendered email template for recipient', {
+          orgId,
+          templateId: (template as any)?.id,
+          monthlyLogId,
+          recipientEmail: recipient.email,
+          subjectPreview: rendered.subject?.slice?.(0, 120) ?? rendered.subject,
+          hasHtml: !!rendered.bodyHtml,
+          hasText: !!rendered.bodyText,
+          warningCount: rendered.warnings?.length ?? 0,
+        });
+        
+        finalSubject = rendered.subject;
+        finalHtml = rendered.bodyHtml;
+        finalText = rendered.bodyText || '';
+        
+        if (rendered.warnings && rendered.warnings.length > 0) {
+          console.warn('Template render warnings:', rendered.warnings);
+        }
+      } catch (renderError) {
+        console.error('Error rendering monthly statement template:', renderError);
+        return {
+          success: false,
+          error:
+            'Failed to render the monthly statement email template. Please fix the template variables and try again.',
+        };
+      }
 
       // Prepare attachments
       const attachments = pdfBuffer
@@ -280,9 +326,9 @@ export async function sendMonthlyStatement(
               role: recipient.role,
             },
           ],
-          subject: `Monthly Statement - ${propertyName} (${periodMonth})`,
-          html: htmlContent,
-          text: textContent,
+          subject: finalSubject,
+          html: finalHtml,
+          text: finalText,
           from: {
             email: gmailIntegration.email,
             name: companyName,

@@ -34,7 +34,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
 ### 2. Get Supabase Credentials
 
-1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+1. Go to the Supabase dashboard (app.supabase.com) and open your project
 2. Create a new project or select an existing one
 3. Go to **Settings** → **API**
 

@@ -309,7 +309,7 @@ export async function storeBuildiumCredentials(
   }
 
   // Insert or update (avoid ON CONFLICT to work without a unique index in dev)
-  let action: 'INSERT' | 'UPDATE' = existing ? 'UPDATE' : 'INSERT';
+  const action: 'INSERT' | 'UPDATE' = existing ? 'UPDATE' : 'INSERT';
   let data;
   if (existing) {
     const { data: updated, error } = await supabaseAdmin

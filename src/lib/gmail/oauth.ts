@@ -1,6 +1,6 @@
 /**
  * Gmail OAuth Utilities
- * 
+ *
  * Handles OAuth state management and URL generation for Google OAuth flow.
  */
 
@@ -54,7 +54,8 @@ export async function clearOAuthState(): Promise<void> {
  */
 export function buildGoogleOAuthUrl(state: string): string {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || 
+  const redirectUri =
+    process.env.GOOGLE_OAUTH_REDIRECT_URI ||
     `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/gmail/callback`;
 
   if (!clientId) {
@@ -83,8 +84,8 @@ export function buildGoogleOAuthUrl(state: string): string {
  * Validate redirect URI matches configured value
  */
 export function validateRedirectUri(redirectUri: string): boolean {
-  const configuredUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || 
+  const configuredUri =
+    process.env.GOOGLE_OAUTH_REDIRECT_URI ||
     `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/gmail/callback`;
   return redirectUri === configuredUri;
 }
-

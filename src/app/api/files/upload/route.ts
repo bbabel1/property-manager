@@ -1099,6 +1099,53 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
 
+  const claimedOrgIds = new Set<string>();
+  const addClaim = (value: unknown) => {
+    if (typeof value === 'string' && value.trim()) {
+      claimedOrgIds.add(value.trim());
+    }
+  };
+  const claimArray = (values: unknown) => {
+    if (Array.isArray(values)) {
+      values.forEach(addClaim);
+    }
+  };
+
+  const userMeta = (user.user_metadata ?? undefined) as Record<string, unknown> | undefined;
+  const userAppMeta = (user.app_metadata ?? undefined) as Record<string, unknown> | undefined;
+  addClaim(userMeta?.default_org_id);
+  addClaim(userAppMeta?.default_org_id);
+  addClaim(userMeta?.org_id);
+  addClaim(userAppMeta?.org_id);
+  claimArray(userMeta?.['org_ids']);
+  claimArray(userAppMeta?.['org_ids']);
+
+  let hasMembership = claimedOrgIds.has(orgId);
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (!hasMembership && uuidRegex.test(user.id) && supabaseAdminMaybe) {
+    const { data: membership, error: membershipError } = await supabaseAdminMaybe
+      .from('org_memberships')
+      .select('user_id')
+      .eq('org_id', orgId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (membershipError) {
+      logger.warn(
+        { error: membershipError.message, orgId, userId: user.id },
+        'org membership lookup failed during file upload',
+      );
+    }
+    hasMembership = Boolean(membership);
+  }
+
+  if (!hasMembership) {
+    return NextResponse.json(
+      { error: 'Not authorized for this organization' },
+      { status: 403 },
+    );
+  }
+
   // Log the resolved org_id for debugging
   if (process.env.NODE_ENV !== 'production') {
     const entityOrgId = await resolveOrgForEntity(admin, entityType, entityId);

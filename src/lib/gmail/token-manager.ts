@@ -1,6 +1,6 @@
 /**
  * Gmail Token Manager
- * 
+ *
  * Handles token storage, retrieval, and refresh for Gmail integrations.
  */
 
@@ -25,7 +25,7 @@ export interface GmailIntegration {
  */
 export async function getStaffGmailIntegration(
   userId: string,
-  orgId: string
+  orgId: string,
 ): Promise<GmailIntegration | null> {
   const { data, error } = await supabaseAdmin
     .from('gmail_integrations')
@@ -98,7 +98,7 @@ export async function refreshAccessToken(integration: GmailIntegration): Promise
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     console.error('Token refresh failed:', error);
-    
+
     // If refresh token is invalid, deactivate integration
     if (response.status === 400) {
       await supabaseAdmin
@@ -106,7 +106,7 @@ export async function refreshAccessToken(integration: GmailIntegration): Promise
         .update({ is_active: false })
         .eq('id', integration.id);
     }
-    
+
     throw new Error('Failed to refresh access token');
   }
 
@@ -120,8 +120,8 @@ export async function refreshAccessToken(integration: GmailIntegration): Promise
     .from('gmail_integrations')
     .update({
       access_token_encrypted: encryptToken(newAccessToken),
-      refresh_token_encrypted: data.refresh_token 
-        ? encryptToken(data.refresh_token) 
+      refresh_token_encrypted: data.refresh_token
+        ? encryptToken(data.refresh_token)
         : integration.refresh_token_encrypted, // Keep existing if not provided
       token_expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
@@ -140,7 +140,7 @@ export async function storeGmailIntegration(
   accessToken: string,
   refreshToken: string | null,
   expiresIn: number,
-  scope: string
+  scope: string,
 ): Promise<GmailIntegration> {
   const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
@@ -192,10 +192,7 @@ export async function storeGmailIntegration(
  * Delete Gmail integration
  */
 export async function deleteGmailIntegration(integrationId: string): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('gmail_integrations')
-    .delete()
-    .eq('id', integrationId);
+  const { error } = await supabaseAdmin.from('gmail_integrations').delete().eq('id', integrationId);
 
   if (error) {
     throw new Error(`Failed to delete Gmail integration: ${error.message}`);

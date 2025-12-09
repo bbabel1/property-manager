@@ -25,6 +25,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Profile', href: '/settings/profile', description: 'Personal details, role context, and preferences.' },
       { label: 'Notifications', href: '/settings/notifications', description: 'What you get notified about and how.' },
       { label: 'Security', href: '/settings/security', description: 'Password, two-factor, and active devices.' },
+      { label: 'Integrations', href: '/settings/integrations/personal', description: 'Gmail and Calendar that follow you.' },
     ],
   },
   {
@@ -34,6 +35,8 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Team & Roles', href: '/settings/users', description: 'Members, roles, invites, and profiles.' },
       { label: 'Integrations (org)', href: '/settings/integrations', description: 'Buildium, Square, and other connections.' },
       { label: 'Billing & Plans', href: '/settings/billing', description: 'Subscription, usage, invoices, and payment method.' },
+      { label: 'Templates', href: '/settings/templates', description: 'Email templates for statements and notifications.' },
+      { label: 'Services', href: '/settings/services', description: 'Service catalog, pricing, and automation rules.' },
     ],
   },
   {
@@ -56,7 +59,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-[280px_1fr] xl:grid-cols-[300px_1fr]">
         <aside className="lg:border-r lg:border-border/60">
-          <div className="rounded-lg border border-border/60 bg-card shadow-sm lg:sticky lg:top-14">
+          <div className="rounded-lg border border-border/60 bg-card shadow-sm lg:sticky lg:top-14 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
             <div className="border-b border-border/60 px-4 py-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Settings</div>
               <div className="text-sm text-muted-foreground">Personal, workspace, and account controls</div>

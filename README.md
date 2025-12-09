@@ -55,8 +55,8 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 ## Quick Start
 1) Install: `npm install`  
 2) Env: `cp env.example .env.local` then fill values (see table below).  
-3) Database: apply SQL in `supabase/migrations/` (CLI or dashboard). See `docs/database/SUPABASE_SETUP.md`.  
-4) Run dev server: `npm run dev` → http://localhost:3000  
+3) Database: apply SQL in `supabase/migrations/` (CLI or dashboard). See `docs/database/supabase-setup.md`.  
+4) Run dev server: `npm run dev` → open localhost:3000 in your browser  
 
 ## Running & Tooling
 - `npm run dev` – Next.js dev server
@@ -129,5 +129,5 @@ tests/                   # Test docs/config (see tests/README.md)
 ## Documentation Index
 - Full index: [`docs/README.md`](docs/README.md) lists every file under `docs/`.
 - Overview docs: [`architecture.md`](docs/architecture.md), [`domain-model.md`](docs/domain-model.md), [`performance-strategy.md`](docs/performance-strategy.md), [`features.md`](docs/features.md), [`decisions.md`](docs/decisions.md).
-- Category directories: [`architecture/`](docs/architecture/), [`api/`](docs/api/), [`database/`](docs/database/), [`design-system/`](docs/design-system/), [`observability/`](docs/observability/), [`security/`](docs/security/), [`runbooks/`](docs/runbooks/), [`reports/`](docs/reports/), [`ai-analysis/`](docs/ai-analysis/), [`ui-components/`](docs/ui-components/).
+- Category highlights: [`architecture/CURRENT_ARCHITECTURE_ANALYSIS.md`](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md), [`api/api-documentation.md`](docs/api/api-documentation.md), [`database/DATABASE_SCHEMA.md`](docs/database/DATABASE_SCHEMA.md), [`design-system/enhanced-greys.md`](docs/design-system/enhanced-greys.md), [`observability/logging.md`](docs/observability/logging.md), [`security/secrets-management.md`](docs/security/secrets-management.md), [`runbooks/seed-reset.md`](docs/runbooks/seed-reset.md), [`reports/MIGRATION_READY_CHECKLIST.md`](docs/reports/MIGRATION_READY_CHECKLIST.md), [`ai-analysis/architecture-insights.md`](docs/ai-analysis/architecture-insights.md), [`ui-components/section-detail.md`](docs/ui-components/section-detail.md).
 - Additional top-level guides: onboarding and operational notes such as [`QUICK_START_GUIDE.md`](docs/QUICK_START_GUIDE.md), Buildium guides (e.g., [`buildium-integration-guide.md`](docs/buildium-integration-guide.md)), monthly log references (e.g., [`MONTHLY_LOG_README.md`](docs/MONTHLY_LOG_README.md)), and safety/process docs (e.g., [`DATABASE_SAFETY_GUIDE.md`](docs/DATABASE_SAFETY_GUIDE.md)).

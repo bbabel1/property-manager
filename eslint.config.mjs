@@ -18,6 +18,9 @@ const eslintConfig = [
       "scripts/**",
       "stories/**",
       "supabase/**",
+      ".next/**",
+      "next-env.d.ts",
+      "fix-markdown.js",
       // Ignore generated or vendor type definitions
       "src/types/**"
     ]

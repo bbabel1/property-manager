@@ -44,7 +44,7 @@ npm run docs:update
 ### Auto-Generated Files (Do Not Edit Manually)
 - `docs/database/current_schema.sql` - Current database schema
 - `src/types/database.ts` - TypeScript types matching database
-- `docs/database/database-schema.md` - Human-readable schema documentation
+- `docs/database/DATABASE_SCHEMA.md` - Human-readable schema documentation
 
 ### Manual Files (Version Controlled)
 - `supabase/migrations/` - Migration history

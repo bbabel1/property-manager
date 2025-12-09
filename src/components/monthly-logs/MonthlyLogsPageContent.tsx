@@ -41,7 +41,7 @@ const statusStyles: Record<MonthlyLogStatus, { label: string; className: string 
   complete: {
     label: 'Complete',
     className:
-      'bg-[var(--color-action-50)] text-[var(--color-action-700)] border border-[var(--color-action-200)]',
+      'bg-[var(--color-success-50)] text-[var(--color-success-700)] border border-[var(--color-success-500)]',
   },
 };
 

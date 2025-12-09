@@ -1,6 +1,6 @@
 /**
  * Token Encryption Utilities
- * 
+ *
  * Encrypts/decrypts OAuth tokens before storing in database.
  * Uses AES-256-GCM encryption with a key derived from environment variable.
  */
@@ -14,9 +14,7 @@ const SALT_LENGTH = 64;
 const TAG_LENGTH = 16;
 
 if (!ENCRYPTION_KEY) {
-  console.warn(
-    'GMAIL_TOKEN_ENCRYPTION_KEY or NEXTAUTH_SECRET not set. Token encryption may fail.'
-  );
+  console.warn('GMAIL_TOKEN_ENCRYPTION_KEY or NEXTAUTH_SECRET not set. Token encryption may fail.');
 }
 
 /**
@@ -74,5 +72,3 @@ export function decryptToken(encryptedToken: string): string {
 
   return decrypted;
 }
-
-

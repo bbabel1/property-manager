@@ -1,5 +1,6 @@
 import { supabase, supabaseAdmin } from './db'
 import type { Database } from '@/types/database'
+import { normalizeStaffRole } from './staff-role'
 
 export type Property = Database['public']['Tables']['properties']['Row']
 export type Unit = Database['public']['Tables']['units']['Row']
@@ -161,7 +162,7 @@ export class PropertyService {
           .eq('property_id', id)
       ])
 
-      const units = (unitsRes as any).data as Unit[] | null
+      let units = (unitsRes as any).data as Unit[] | null
       const unitsError = (unitsRes as any).error
       const ownership = (ownershipRes as any).data as any[] | null
       const ownershipError = (ownershipRes as any).error
@@ -169,6 +170,62 @@ export class PropertyService {
       if (unitsError) console.error('❌ Error fetching units:', unitsError)
       if (ownershipError) console.error('❌ Error fetching ownership:', ownershipError)
       if (units?.length) console.log('✅ Units found:', units.length, 'units')
+
+      // Attach tenants to units (latest lease contacts per unit)
+      if (units?.length) {
+        const unitIds = units.map((u) => u.id).filter(Boolean) as (string | number)[]
+        if (unitIds.length) {
+          try {
+            const { data: leaseRows } = await dbClient
+              .from('lease')
+              .select('id, unit_id, status')
+              .in('unit_id', unitIds as any)
+            const leaseById = new Map<string, { unit_id: string | number | null; status?: string | null }>()
+            const leaseIds: (string | number)[] = []
+            for (const row of leaseRows || []) {
+              const leaseId = (row as any)?.id
+              if (leaseId != null) {
+                leaseIds.push(leaseId)
+                leaseById.set(String(leaseId), {
+                  unit_id: (row as any)?.unit_id ?? null,
+                  status: (row as any)?.status ?? null,
+                })
+              }
+            }
+            if (leaseIds.length) {
+              const { data: leaseContacts } = await dbClient
+                .from('lease_contacts')
+                .select(
+                  'lease_id, status, tenants( id, contact:contacts(display_name, first_name, last_name, company_name, is_company) )',
+                )
+                .in('lease_id', leaseIds as any)
+              const tenantsByUnit = new Map<string, Array<{ name?: string | null; is_active?: boolean | null }>>()
+              for (const lc of leaseContacts || []) {
+                const leaseId = (lc as any)?.lease_id
+                const leaseMeta = leaseById.get(String(leaseId))
+                const unitId = leaseMeta?.unit_id
+                if (!unitId) continue
+                const contact = (lc as any)?.tenants?.contact
+                const name =
+                  contact?.display_name ||
+                  contact?.company_name ||
+                  [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+                  'Tenant'
+                const isActive = (leaseMeta?.status || '').toLowerCase() !== 'inactive'
+                const list = tenantsByUnit.get(String(unitId)) || []
+                list.push({ name, is_active: isActive })
+                tenantsByUnit.set(String(unitId), list)
+              }
+              units = units.map((u) => ({
+                ...u,
+                tenants: tenantsByUnit.get(String(u.id)) || [],
+              })) as Unit[]
+            }
+          } catch (err) {
+            console.warn('Failed to attach tenants to units', err)
+          }
+        }
+      }
 
       // Calculate summary data preferring DB-maintained aggregates, then fallback to units list
       const aggTotal = (property.total_active_units ?? property.total_units) || 0
@@ -259,9 +316,29 @@ export class PropertyService {
         if (tr) deposit_trust_account = { id: tr.id, name: tr.name, last4: tr.account_number ? String(tr.account_number).slice(-4) : null }
       }
 
-      const property_manager_name: string | undefined = undefined
-      const property_manager_email: string | undefined = undefined
-      const property_manager_phone: string | undefined = undefined
+      let property_manager_name: string | undefined = undefined
+      let property_manager_email: string | undefined = undefined
+      let property_manager_phone: string | undefined = undefined
+      if (property.property_manager_id) {
+        try {
+          const { data: manager } = await dbClient
+            .from('staff')
+            .select('id, display_name, first_name, last_name, email, phone, role')
+            .eq('id', property.property_manager_id)
+            .maybeSingle()
+          const normalizedRole = normalizeStaffRole((manager as any)?.role)
+          if (manager && normalizedRole === 'Property Manager') {
+            property_manager_name =
+              (manager as any)?.display_name ||
+              [(manager as any)?.first_name, (manager as any)?.last_name].filter(Boolean).join(' ').trim() ||
+              'Property Manager'
+            property_manager_email = (manager as any)?.email ?? undefined
+            property_manager_phone = (manager as any)?.phone ?? undefined
+          }
+        } catch (err) {
+          console.warn('Failed to load property manager', err)
+        }
+      }
 
       // Enrich: primary image URL (disabled until product defines property image strategy)
       let primary_image_url: string | undefined

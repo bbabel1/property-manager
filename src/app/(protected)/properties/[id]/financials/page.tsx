@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import Link from 'next/link';
 import { endOfMonth, startOfMonth } from 'date-fns';
 import DateRangeControls from '@/components/DateRangeControls';
 import LedgerFilters from '@/components/financials/LedgerFilters';
@@ -507,9 +508,11 @@ export default async function FinancialsTab({
         <TabsContent value="bills" className="space-y-6">
           {/* Bills Actions */}
           <div className="flex flex-wrap items-center justify-end gap-3">
-            <Button type="button">Record bill</Button>
-            <Button type="button" variant="outline">
-              Pay bills
+            <Button type="button" asChild>
+              <Link href={`/bills/new?propertyId=${id}`}>Record bill</Link>
+            </Button>
+            <Button type="button" variant="outline" asChild>
+              <Link href={`/bills?properties=${id}&tab=unpaid`}>Pay bills</Link>
             </Button>
           </div>
 

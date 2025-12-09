@@ -1,23 +1,23 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 const envSchema = z.object({
   // Supabase Configuration (Required)
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(10),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(10),
-  
+
   // Buildium Integration (Optional)
   BUILDIUM_BASE_URL: z.string().url().optional(),
   BUILDIUM_CLIENT_ID: z.string().optional(),
   BUILDIUM_CLIENT_SECRET: z.string().optional(),
   BUILDIUM_WEBHOOK_SECRET: z.string().optional(),
-  
+
   // Google OAuth - Gmail Integration (Optional)
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
   GOOGLE_CALENDAR_OAUTH_REDIRECT_URI: z.string().url().optional(),
-  
+
   // App Configuration (Required)
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(32),
@@ -30,33 +30,33 @@ export function validateEnvironment() {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-  }
+  };
 
   const missingVars = Object.entries(requiredVars)
     .filter(([_, value]) => !value)
-    .map(([key]) => key)
+    .map(([key]) => key);
 
   if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingVars)
-    console.error('💡 Ensure these are set in .env.local and restart the dev server')
-    return false
+    console.error('❌ Missing required environment variables:', missingVars);
+    console.error('💡 Ensure these are set in .env.local and restart the dev server');
+    return false;
   }
 
   // Debug info (only in development)
   if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 Environment variables debug:')
-    console.log('  - hasUrl:', !!requiredVars.NEXT_PUBLIC_SUPABASE_URL)
-    console.log('  - hasAnonKey:', !!requiredVars.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-    console.log('  - anonKeyLength:', requiredVars.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0)
-    console.log('  - hasServiceRoleKey:', !!requiredVars.SUPABASE_SERVICE_ROLE_KEY)
-    console.log('  - supabaseUrl:', requiredVars.NEXT_PUBLIC_SUPABASE_URL)
+    console.log('🔧 Environment variables debug:');
+    console.log('  - hasUrl:', !!requiredVars.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('  - hasAnonKey:', !!requiredVars.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    console.log('  - anonKeyLength:', requiredVars.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0);
+    console.log('  - hasServiceRoleKey:', !!requiredVars.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('  - supabaseUrl:', requiredVars.NEXT_PUBLIC_SUPABASE_URL);
   }
 
-  return true
+  return true;
 }
 
 // Call validation on module load
-validateEnvironment()
+validateEnvironment();
 
 // Try to parse environment, but don't throw if validation fails
 let env: z.infer<typeof envSchema>;

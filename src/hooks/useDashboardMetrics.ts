@@ -3,6 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/db'
 
+export type ExpiringLeaseBucketKey = '0_30' | '31_60' | '61_90' | 'all'
+export type ExpiringLeaseCounts = {
+  notStarted: number
+  offers: number
+  renewals: number
+  moveOuts: number
+  total: number
+}
+export type ExpiringLeaseBucket = {
+  key: ExpiringLeaseBucketKey
+  label: string
+  counts: ExpiringLeaseCounts
+}
+
 export type DashboardData = {
   kpis: {
     org_id: string
@@ -38,6 +52,7 @@ export type DashboardData = {
     property_name: string | null
     scheduled_date?: string | null
   }[]
+  expiringLeases: { buckets: ExpiringLeaseBucket[] } | null
 }
 
 async function fetchDashboard(orgId: string): Promise<DashboardData> {

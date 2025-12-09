@@ -84,6 +84,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
           <PropertyRecentFilesSection
             propertyId={property.id}
             buildiumPropertyId={property.buildium_property_id ?? null}
+            orgId={(property as any).org_id ?? null}
           />
         </Stack>
       }

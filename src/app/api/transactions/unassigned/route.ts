@@ -57,8 +57,17 @@ export async function GET(request: NextRequest) {
       if (!unitId) {
         return NextResponse.json({ items: [], nextCursor: null });
       }
-      // TODO: Implement unit-level transaction discovery once unit-aware transactions exist.
-      return NextResponse.json({ items: [], nextCursor: null });
+      const page = await loadUnassignedTransactionsPage(
+        {
+          leaseId,
+          unitId,
+          scope,
+          cursor: cursor || null,
+          limit,
+        },
+        supabase,
+      );
+      return NextResponse.json(page);
     }
 
     const page = await loadUnassignedTransactionsPage(

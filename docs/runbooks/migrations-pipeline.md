@@ -28,3 +28,25 @@ Notes
 - Ensure migrations in `supabase/migrations/` are ordered and idempotent where possible.
 - Prefer corrective forward migrations over destructive rollbacks (see rollback runbook).
 
+## Transaction Totals Architecture
+
+**Important**: Transaction totals (`transactions.total_amount`) are now derived from signed transaction lines via `fn_calculate_transaction_total()`. Legacy triggers that enforced totals via simple sum of lines have been removed.
+
+### How It Works
+- Transaction totals are calculated using the signed calculator function `fn_calculate_transaction_total()`
+- The function applies proper Debit/Credit accounting: `Debit` lines add to total, `Credit` lines subtract
+- All amounts are stored as absolute values with sign carried by `posting_type` (normalized to 'Debit'/'Credit')
+- Totals are automatically maintained via triggers on `transaction_lines` changes
+
+### Migrations Applied
+- `20251230120000_normalize_posting_type.sql`: Normalized posting types and enforced absolute amounts
+- `20251230123000_drop_legacy_total_triggers.sql`: Removed legacy sum-of-lines triggers, unified to signed calculator
+
+### Legacy Triggers Removed
+- `trg_transaction_total_matches` (on `transactions`)
+- `trg_transaction_total_lines_insupd` (on `transaction_lines`)
+- `fn_transaction_total_matches_on_lines()`
+- `fn_transaction_total_matches()`
+
+All transaction total calculations now flow through `fn_calculate_transaction_total()` for consistency.
+

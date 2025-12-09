@@ -36,7 +36,7 @@ npm run dev
 
 ### **Step 5: Test the Feature**
 
-1. Navigate to http://localhost:3000/monthly-logs
+1. Navigate to /monthly-logs on your running dev server
 2. Create a new monthly log
 3. Assign a few transactions
 4. Navigate through the stages

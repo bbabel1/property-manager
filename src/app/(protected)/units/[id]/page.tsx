@@ -23,6 +23,7 @@ type Unit = {
   unit_bathrooms?: string | number | null
   description?: string | null
   status?: string | null
+  is_active?: boolean | null
 }
 
 export default function UnitDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,7 +61,8 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
     const status = (unit?.status || '').toLowerCase()
     if (status === 'occupied') return { label: 'Occupied', cls: 'status-pill border-blue-800 bg-blue-100 text-blue-800' }
     if (status === 'vacant') return { label: 'Vacant', cls: 'status-pill border-yellow-800 bg-yellow-100 text-yellow-800' }
-    if (status === 'active') return { label: 'Active', cls: 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]' }
+    if (status === 'active' || unit?.is_active) return { label: 'Active', cls: 'status-pill border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]' }
+    if (unit?.is_active === false) return { label: 'Inactive', cls: 'status-pill border-gray-400 bg-gray-100 text-gray-700' }
     return { label: unit?.status || 'Unknown', cls: 'status-pill border-gray-800 bg-gray-100 text-gray-800' }
   }, [unit])
 
@@ -326,13 +328,55 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
         </TabsContent>
 
         <TabsContent value="monthly-log">
-          <Card><CardContent className="p-6 text-muted-foreground">Monthly Log content coming soon…</CardContent></Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Monthly logs</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-muted-foreground">
+                View or create monthly logs for this unit to track rent and expenses.
+              </p>
+              <div className="flex gap-2">
+                <Link href={`/monthly-logs?unitId=${unit.id}`}>
+                  <Button variant="outline" size="sm">Open monthly logs</Button>
+                </Link>
+                <Link href={`/monthly-logs/new?unitId=${unit.id}`}>
+                  <Button size="sm">Create monthly log</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="inspections">
-          <Card><CardContent className="p-6 text-muted-foreground">Inspections content coming soon…</CardContent></Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Inspections</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Schedule or log inspections for this unit. Inspection scheduling will sync once the
+                calendar write API is available.
+              </p>
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/calendar?prefillUnit=${unit.id}`}>Go to calendar</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="appliances">
-          <Card><CardContent className="p-6 text-muted-foreground">Appliances content coming soon…</CardContent></Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Appliances</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Track appliances for this unit once the inventory module is connected.
+              </p>
+              <Button size="sm" variant="outline" disabled>
+                Inventory module pending
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

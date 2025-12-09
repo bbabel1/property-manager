@@ -130,7 +130,13 @@ async function fetchVendorsWithOptionalColumns(db: TypedSupabaseClient) {
   }
 }
 
-export default async function RecordBillPage() {
+export default async function RecordBillPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ propertyId?: string }>;
+}) {
+  const sp = (await (searchParams || Promise.resolve({}))) || {};
+  const preferredPropertyId = typeof (sp as any)?.propertyId === 'string' ? (sp as any).propertyId : null;
   let db: TypedSupabaseClient;
   try {
     db = getSupabaseServiceRoleClient('loading record bill form data');
@@ -252,6 +258,7 @@ export default async function RecordBillPage() {
           units={units}
           glAccounts={accounts}
           payableAccounts={payableAccountCandidates.length ? payableAccountCandidates : accounts}
+          defaultPropertyId={preferredPropertyId}
         />
       </PageBody>
     </PageShell>

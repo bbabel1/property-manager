@@ -16,7 +16,7 @@ Resend is a modern email API service designed for developers. It provides:
 - Generous free tier (100 emails/day, 3,000/month)
 
 **Official Website:** https://resend.com  
-**Documentation:** https://resend.com/docs
+**Documentation:** https://resend.com/docs/introduction
 
 ---
 
@@ -296,10 +296,10 @@ ORDER BY sent_at DESC;
 
 ## 📚 **Additional Resources**
 
-- [Resend Documentation](https://resend.com/docs)
+- [Resend Documentation](https://resend.com/docs/introduction)
 - [Resend React Guide](https://resend.com/docs/send-with-react)
-- [Email Best Practices](https://resend.com/docs/knowledge-base/email-best-practices)
-- [Deliverability Guide](https://resend.com/docs/knowledge-base/deliverability)
+- [Email Best Practices](https://resend.com/docs/email-best-practices)
+- [Deliverability Guide](https://resend.com/docs/deliverability)
 
 ---
 
@@ -320,4 +320,4 @@ Before going live with email sending:
 
 ---
 
-**Need Help?** Contact Resend support at support@resend.com or check their documentation at https://resend.com/docs
+**Need Help?** Contact Resend support at support@resend.com or check their documentation at https://resend.com/docs/introduction

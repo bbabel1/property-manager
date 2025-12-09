@@ -1,6 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const resolvePostingType = (line: any): 'Debit' | 'Credit' => {
+  const raw =
+    typeof line?.PostingType === 'string'
+      ? line.PostingType
+      : typeof line?.posting_type === 'string'
+      ? line.posting_type
+      : typeof line?.PostingTypeEnum === 'string'
+      ? line.PostingTypeEnum
+      : typeof line?.PostingTypeString === 'string'
+      ? line.PostingTypeString
+      : typeof line?.postingType === 'string'
+      ? line.postingType
+      : null
+  const normalized = (raw || '').toLowerCase()
+  if (normalized === 'debit' || normalized === 'dr' || normalized.includes('debit')) return 'Debit'
+  if (normalized === 'credit' || normalized === 'cr' || normalized.includes('credit')) return 'Credit'
+  const amountNum = Number(line?.Amount ?? 0)
+  return amountNum < 0 ? 'Debit' : 'Credit'
+}
+
 // Types for Buildium API
 interface BuildiumApiConfig {
   baseUrl: string
@@ -1504,8 +1524,8 @@ async function upsertLeaseTransactionWithLines(
   let debit = 0, credit = 0
   const lines = leaseTx?.Journal?.Lines || []
   for (const line of lines) {
-    const amount = Number(line?.Amount ?? 0)
-    const posting = amount >= 0 ? 'Credit' : 'Debit'
+    const amount = Math.abs(Number(line?.Amount ?? 0))
+    const posting = resolvePostingType(line)
     const glBuildiumId = (line as any)?.GLAccount?.Id
     const glId = await resolveGLAccountId(supabase, buildiumClient, glBuildiumId)
     if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`)
@@ -1517,7 +1537,7 @@ async function upsertLeaseTransactionWithLines(
     await supabase.from('transaction_lines').insert({
       transaction_id: transactionId,
       gl_account_id: glId,
-      amount: Math.abs(amount),
+      amount,
       posting_type: posting,
       memo: line?.Memo ?? null,
       account_entity_type: 'Rental',
@@ -1532,8 +1552,8 @@ async function upsertLeaseTransactionWithLines(
       unit_id: unitIdLocal
     })
 
-    if (posting === 'Debit') debit += Math.abs(amount)
-    else credit += Math.abs(amount)
+    if (posting === 'Debit') debit += amount
+    else credit += amount
   }
 
   if (debit > 0 && credit > 0 && Math.abs(debit - credit) > 0.0001) {
@@ -1646,10 +1666,8 @@ async function upsertGLEntry(
   let credit = 0
   const pending: any[] = []
   for (const line of (entry?.Lines || [])) {
-    const amount = Number(line?.Amount || 0)
-    const posting: 'Debit' | 'Credit' = line?.PostingType === 'Debit' || line?.PostingType === 'Credit'
-      ? line.PostingType
-      : (amount >= 0 ? 'Credit' : 'Debit')
+    const amount = Math.abs(Number(line?.Amount || 0))
+    const posting: 'Debit' | 'Credit' = resolvePostingType(line)
 
     if (!line?.AccountingEntity || !line?.AccountingEntity?.AccountingEntityType) {
       throw new Error('AccountingEntity with AccountingEntityType is required for GL entry lines')
@@ -1668,7 +1686,7 @@ async function upsertGLEntry(
     pending.push({
       transaction_id: transactionId,
       gl_account_id: glAccountId,
-      amount: Math.abs(amount),
+      amount,
       posting_type: posting,
       memo: line?.Memo ?? null,
       account_entity_type: String(line?.AccountingEntity?.AccountingEntityType).toLowerCase() === 'rental' ? 'Rental' : 'Company',
@@ -1683,8 +1701,8 @@ async function upsertGLEntry(
       unit_id: unitId
     })
 
-    if (posting === 'Debit') debit += Math.abs(amount)
-    else credit += Math.abs(amount)
+    if (posting === 'Debit') debit += amount
+    else credit += amount
   }
 
   if (pending.length > 0) {

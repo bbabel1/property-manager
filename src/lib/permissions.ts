@@ -3,6 +3,12 @@ import type { AppRole } from './auth/roles';
 export type Permission =
   | 'properties.read'
   | 'properties.write'
+  | 'financials.read'
+  | 'financials.write'
+  | 'settings.read'
+  | 'settings.write'
+  | 'reports.read'
+  | 'dashboard.read'
   | 'owners.read'
   | 'owners.write'
   | 'leases.read'
@@ -15,6 +21,12 @@ export type Permission =
 export const AllPermissions: Permission[] = [
   'properties.read',
   'properties.write',
+  'financials.read',
+  'financials.write',
+  'settings.read',
+  'settings.write',
+  'reports.read',
+  'dashboard.read',
   'owners.read',
   'owners.write',
   'leases.read',
@@ -29,6 +41,12 @@ const Matrix: Record<AppRole, Permission[]> = {
   platform_admin: [
     'properties.read',
     'properties.write',
+    'financials.read',
+    'financials.write',
+    'settings.read',
+    'settings.write',
+    'reports.read',
+    'dashboard.read',
     'owners.read',
     'owners.write',
     'leases.read',
@@ -41,6 +59,12 @@ const Matrix: Record<AppRole, Permission[]> = {
   org_admin: [
     'properties.read',
     'properties.write',
+    'financials.read',
+    'financials.write',
+    'settings.read',
+    'settings.write',
+    'reports.read',
+    'dashboard.read',
     'owners.read',
     'owners.write',
     'leases.read',
@@ -53,6 +77,11 @@ const Matrix: Record<AppRole, Permission[]> = {
   org_manager: [
     'properties.read',
     'properties.write',
+    'financials.read',
+    'financials.write',
+    'settings.read',
+    'reports.read',
+    'dashboard.read',
     'owners.read',
     'owners.write',
     'leases.read',
@@ -64,6 +93,9 @@ const Matrix: Record<AppRole, Permission[]> = {
   ],
   org_staff: [
     'properties.read',
+    'financials.read',
+    'reports.read',
+    'dashboard.read',
     'owners.read',
     'leases.read',
     'monthly_logs.read',

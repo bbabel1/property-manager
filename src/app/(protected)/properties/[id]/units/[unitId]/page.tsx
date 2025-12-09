@@ -21,6 +21,7 @@ import { PropertyService } from '@/lib/property-service';
 import { supabase as supaClient, supabaseAdmin } from '@/lib/db';
 import UnitDetailsCard from '@/components/unit/UnitDetailsCard';
 import UnitFinancialServicesCard from '@/components/unit/UnitFinancialServicesCard';
+import UnitServicesTab from '@/components/unit/UnitServicesTab';
 import LeaseSection from '@/components/units/LeaseSection';
 import UnitBillsFilters from '@/components/unit/UnitBillsFilters';
 import CreateMonthlyLogButton from '@/components/monthly-logs/CreateMonthlyLogButton';
@@ -38,7 +39,7 @@ type Fin = {
   available_balance?: number;
   as_of?: string;
 };
-type UnitSubNavKey = 'details' | 'ledger' | 'bills' | 'monthly_logs';
+type UnitSubNavKey = 'details' | 'services' | 'ledger' | 'bills' | 'monthly_logs';
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 type MonthlyLogListRow = {
   id: string;
@@ -117,9 +118,7 @@ const monthlyLogStatusLabels: Record<MonthlyLogStatus, string> = {
   complete: 'Complete',
 };
 
-const monthlyLogStatusVariant = (
-  status: MonthlyLogStatus,
-): 'default' | 'secondary' | 'outline' => {
+const monthlyLogStatusVariant = (status: MonthlyLogStatus): 'default' | 'secondary' | 'outline' => {
   switch (status) {
     case 'complete':
       return 'secondary';
@@ -265,6 +264,7 @@ export default async function UnitDetailsNested({
   const statusFilterParam = parseListParam(sp?.bstatus).map((entry) => entry.toLowerCase());
   const subNavItems: { key: UnitSubNavKey; label: string }[] = [
     { key: 'details', label: 'Details' },
+    { key: 'services', label: 'Services' },
     { key: 'ledger', label: 'Ledger' },
     { key: 'bills', label: 'Bills' },
     { key: 'monthly_logs', label: 'Monthly Logs' },
@@ -940,7 +940,14 @@ export default async function UnitDetailsNested({
         </nav>
       </div>
 
-      {activeTab === 'details' ? (
+      {activeTab === 'services' ? (
+        <UnitServicesTab
+          propertyId={propertyIdString}
+          unitId={unitIdString}
+          unit={unit}
+          property={property}
+        />
+      ) : activeTab === 'details' ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left column mirrors property summary */}
           <div className="space-y-6 lg:col-span-2">
@@ -1216,7 +1223,7 @@ export default async function UnitDetailsNested({
                       <TableCell className="text-foreground">{row.memo}</TableCell>
                       <TableCell>{row.referenceNumber}</TableCell>
                       <TableCell className="text-right">{row.amountLabel}</TableCell>
-                        <TableCell className="text-right" data-row-link-ignore="true">
+                      <TableCell className="text-right" data-row-link-ignore="true">
                         <BillRowActions billId={String(row.id)} />
                       </TableCell>
                     </TableRowLink>

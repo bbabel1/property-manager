@@ -145,7 +145,7 @@ export async function postLateFees() {
       .select('transaction_id, amount, posting_type, gl_account_id, date')
       .eq('lease_id', lease.id)
       .eq('gl_account_id', gl.rent_income)
-      .eq('posting_type', 'CR')
+      .in('posting_type', ['Credit', 'CR'])
       .lte('date', cutoff)
       .order('date', { ascending: false })
       .limit(1)

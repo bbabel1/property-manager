@@ -41,6 +41,8 @@ export async function PATCH(
       .eq('posting_type', 'Credit')
       .limit(1)
 
+    const providedCreditAccountId = payload?.credit_account_id ?? null
+
     await admin.from('transaction_lines').delete().eq('transaction_id', id)
 
     const txDate = payload?.date || header?.date || new Date().toISOString().slice(0, 10)
@@ -67,24 +69,42 @@ export async function PATCH(
 
     debitTotal = debitRows.reduce((s: number, r: any) => s + Number(r.amount || 0), 0)
     const template = existingCredit?.[0] || null
-    if (debitTotal > 0 && template) {
+
+    // Determine credit line source: existing template or provided fallback gl_account_id
+    const creditGlAccountId = template?.gl_account_id || providedCreditAccountId || null
+
+    if (debitTotal > 0 && creditGlAccountId) {
       await admin.from('transaction_lines').insert({
         transaction_id: id,
-        gl_account_id: template.gl_account_id,
+        gl_account_id: creditGlAccountId,
         amount: debitTotal,
         posting_type: 'Credit',
-        memo: template.memo ?? payload?.memo ?? null,
-        account_entity_type: template.account_entity_type || 'Company',
-        account_entity_id: template.account_entity_id ?? null,
+        memo: template?.memo ?? payload?.memo ?? null,
+        account_entity_type: template?.account_entity_type || 'Company',
+        account_entity_id: template?.account_entity_id ?? null,
         date: txDate,
         created_at: nowIso,
         updated_at: nowIso,
-        property_id: template.property_id ?? debitRows[0]?.property_id ?? null,
-        unit_id: template.unit_id ?? debitRows[0]?.unit_id ?? null,
-        buildium_property_id: template.buildium_property_id ?? null,
-        buildium_unit_id: template.buildium_unit_id ?? null,
+        property_id: template?.property_id ?? debitRows[0]?.property_id ?? null,
+        unit_id: template?.unit_id ?? debitRows[0]?.unit_id ?? null,
+        buildium_property_id: template?.buildium_property_id ?? null,
+        buildium_unit_id: template?.buildium_unit_id ?? null,
         buildium_lease_id: null,
       })
+    } else if (debitTotal > 0 && !creditGlAccountId) {
+      return NextResponse.json(
+        { error: 'A balancing credit GL account is required when updating bill lines' },
+        { status: 400 }
+      )
+    }
+
+    // Validate balanced debits/credits
+    const creditTotal = debitTotal > 0 ? debitTotal : 0
+    if (debitTotal !== creditTotal) {
+      return NextResponse.json(
+        { error: 'Debits and credits must balance for bill updates' },
+        { status: 400 }
+      )
     }
   }
 

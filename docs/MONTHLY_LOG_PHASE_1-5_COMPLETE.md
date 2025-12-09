@@ -744,12 +744,12 @@ Once deployed, track these KPIs:
 
 - `docs/QUICK_START_GUIDE.md` - General app guide
 - `docs/RESEND_SETUP_GUIDE.md` - Email configuration
-- `docs/database/database-schema.md` - Database reference
+- `docs/database/DATABASE_SCHEMA.md` - Database reference
 
 ### **External Resources**
 
-- Resend Documentation: https://resend.com/docs
-- Playwright Documentation: https://playwright.dev/docs
+- Resend Documentation: https://resend.com/docs/introduction
+- Playwright Documentation: https://playwright.dev/docs/intro
 - Supabase Storage: https://supabase.com/docs/guides/storage
 
 ---

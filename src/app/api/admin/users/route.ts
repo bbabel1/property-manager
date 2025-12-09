@@ -89,7 +89,7 @@ export async function GET() {
     }
 
     // Permission profiles per user/org
-    let profilesByUser = new Map<string, any[]>()
+    const profilesByUser = new Map<string, any[]>()
     try {
       const { data: profileRows, error: profileErr } = await supabaseAdmin
         .from('user_permission_profiles')

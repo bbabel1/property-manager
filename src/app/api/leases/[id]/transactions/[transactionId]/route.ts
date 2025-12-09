@@ -131,52 +131,6 @@ export async function PUT(
     }
     const result = await LeaseTransactionService.updateInBuildiumAndDB(leaseId, transactionId, payload)
 
-    // Refresh local cache directly as well (in case Buildium sync is bypassed)
-    if (supabaseAdmin) {
-      await supabaseAdmin.from('transactions').update({
-        date: parsed.data.date,
-        total_amount: parsed.data.amount,
-        memo: parsed.data.memo ?? null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', transactionId)
-
-      await supabaseAdmin
-        .from('transaction_lines')
-        .delete()
-        .eq('transaction_id', transactionId)
-
-      if (lines.length) {
-        // Enrich with lease context for mapping
-        let leaseRow: any = null
-        try {
-          const { data } = await supabaseAdmin
-            .from('lease')
-            .select('property_id, unit_id, buildium_property_id, buildium_unit_id, buildium_lease_id')
-            .eq('id', leaseId)
-            .maybeSingle()
-          leaseRow = data || null
-        } catch {}
-
-        await supabaseAdmin.from('transaction_lines').insert(
-          lines.map((line) => ({
-            transaction_id: transactionId,
-            gl_account_id: line.GLAccountId,
-            amount: line.Amount,
-            memo: line.Memo ?? null,
-            posting_type: 'Debit',
-            date: parsed.data.date,
-            lease_id: Number.isFinite(leaseId) ? Number(leaseId) : null,
-            account_entity_type: 'Rental' as any,
-            account_entity_id: leaseRow?.buildium_property_id ?? null,
-            property_id: leaseRow?.property_id ?? null,
-            unit_id: leaseRow?.unit_id ?? null,
-            buildium_unit_id: leaseRow?.buildium_unit_id ?? null,
-            buildium_lease_id: leaseRow?.buildium_lease_id ?? null,
-          }))
-        )
-      }
-    }
-
     return NextResponse.json({ data: result.buildium })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to update transaction' }, { status: 500 })

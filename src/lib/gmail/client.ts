@@ -1,18 +1,19 @@
 /**
  * Gmail API Client
- * 
+ *
  * Wrapper for Gmail API operations with automatic token refresh.
  */
 
 import { google } from 'googleapis';
 import { getStaffGmailIntegration, getAccessToken, type GmailIntegration } from './token-manager';
+import { resolveRedirectUri } from '@/lib/google/oauth';
 
 /**
  * Get authenticated Gmail client for a user
  */
 export async function getGmailClient(userId: string, orgId: string) {
   const integration = await getStaffGmailIntegration(userId, orgId);
-  
+
   if (!integration) {
     throw new Error('Gmail integration not found. Please connect your Gmail account.');
   }
@@ -28,8 +29,7 @@ export async function getGmailClient(userId: string, orgId: string) {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
     process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    process.env.GOOGLE_OAUTH_REDIRECT_URI || 
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/gmail/callback`
+    resolveRedirectUri('gmail'),
   );
 
   oauth2Client.setCredentials({
@@ -39,5 +39,3 @@ export async function getGmailClient(userId: string, orgId: string) {
   // Return Gmail API client
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
-
-

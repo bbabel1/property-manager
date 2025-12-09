@@ -6,6 +6,7 @@
 
 import { google } from 'googleapis';
 import { getStaffCalendarIntegration, getAccessToken, type GoogleCalendarIntegration } from './token-manager';
+import { resolveRedirectUri } from '@/lib/google/oauth';
 
 /**
  * Get authenticated Google Calendar client for a user
@@ -28,8 +29,7 @@ export async function getCalendarClient(userId: string, orgId: string) {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_OAUTH_CLIENT_ID,
     process.env.GOOGLE_OAUTH_CLIENT_SECRET,
-    process.env.GOOGLE_CALENDAR_OAUTH_REDIRECT_URI || 
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/calendar/callback`
+    resolveRedirectUri('calendar')
   );
 
   oauth2Client.setCredentials({

@@ -1,0 +1,2 @@
+This placeholder keeps `docs/typecheck-phase0.md` link references intact.
+Regenerate the full `any` usage listing and overwrite this file when rerunning the typecheck audit.

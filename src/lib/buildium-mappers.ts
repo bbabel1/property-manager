@@ -1034,8 +1034,8 @@ export async function upsertGLEntryWithLines(
   let creditSum = 0
   const glLines = getGlEntryLines(buildiumEntry)
   for (const line of glLines) {
-    const amountNum = Number(line?.Amount ?? 0)
-    const postingType = (line?.PostingType === 'Debit' || line?.PostingType === 'Credit') ? line.PostingType : (amountNum >= 0 ? 'Credit' : 'Debit')
+    const amountAbs = Math.abs(Number(line?.Amount ?? 0))
+    const postingType = resolvePostingTypeFromLine(line)
 
     // Resolve GL account (hard fail if not resolvable)
     const glAccountId = await resolveGLAccountId(
@@ -1062,7 +1062,7 @@ export async function upsertGLEntryWithLines(
     pendingLines.push({
       transaction_id: transactionId,
       gl_account_id: glAccountId,
-      amount: Math.abs(amountNum),
+      amount: amountAbs,
       posting_type: postingType,
       memo: line?.Memo ?? null,
       account_entity_type: entityType,
@@ -1077,8 +1077,8 @@ export async function upsertGLEntryWithLines(
       unit_id: localUnitId
     })
 
-    if (postingType === 'Debit') debitSum += Math.abs(amountNum)
-    else creditSum += Math.abs(amountNum)
+    if (postingType === 'Debit') debitSum += amountAbs
+    else creditSum += amountAbs
   }
 
   if (pendingLines.length > 0) {
@@ -1478,6 +1478,30 @@ export function mapLeaseTransactionFromBuildium(buildiumTx: Partial<BuildiumLeas
   }
 }
 
+function resolvePostingTypeFromLine(line: any): 'Debit' | 'Credit' {
+  const raw =
+    typeof line?.PostingType === 'string'
+      ? line.PostingType
+      : typeof line?.posting_type === 'string'
+      ? line.posting_type
+      : typeof line?.PostingTypeEnum === 'string'
+      ? line.PostingTypeEnum
+      : typeof line?.PostingTypeString === 'string'
+      ? line.PostingTypeString
+      : typeof line?.postingType === 'string'
+      ? line.postingType
+      : null;
+  const normalized = (raw || '').toLowerCase();
+  if (normalized === 'debit' || normalized === 'dr' || normalized.includes('debit')) {
+    return 'Debit';
+  }
+  if (normalized === 'credit' || normalized === 'cr' || normalized.includes('credit')) {
+    return 'Credit';
+  }
+  const amountNum = Number(line?.Amount ?? 0);
+  return amountNum < 0 ? 'Debit' : 'Credit';
+}
+
 /**
  * Upserts a transaction by buildium_transaction_id, then deletes and re-inserts all transaction lines.
  * Enforces that at least one local FK is present (lease_id or any line with property_id/unit_id).
@@ -1549,8 +1573,8 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<Buildi
   let creditSum = 0
 
   for (const line of lines) {
-    const amountNum = Number(line?.Amount ?? 0)
-    const postingType = amountNum >= 0 ? 'Credit' : 'Debit'
+    const amountAbs = Math.abs(Number(line?.Amount ?? 0))
+    const postingType = resolvePostingTypeFromLine(line)
 
     // Resolve GL account (fail whole import if not resolvable)
     const glAccountBuildiumId = line?.GLAccountId ?? (typeof line?.GLAccount === 'number' ? line.GLAccount : line?.GLAccount?.Id)
@@ -1566,7 +1590,7 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<Buildi
 
     pendingLineRows.push({
       gl_account_id: glAccountId,
-      amount: Math.abs(amountNum),
+      amount: amountAbs,
       posting_type: postingType,
       memo: line?.Memo ?? null,
       account_entity_type: 'Rental',
@@ -1581,8 +1605,8 @@ export async function upsertLeaseTransactionWithLines(buildiumTx: Partial<Buildi
       unit_id: localUnitId
     })
 
-    if (postingType === 'Debit') debitSum += Math.abs(amountNum)
-    else creditSum += Math.abs(amountNum)
+    if (postingType === 'Debit') debitSum += amountAbs
+    else creditSum += amountAbs
   }
 
   // Prefer to have a local FK, but do not hard-fail if missing for lease transactions
@@ -4377,7 +4401,7 @@ export async function mapWorkOrderFromBuildiumWithRelations(buildiumWO: Buildium
     buildiumWO.UnitId ??
     (buildiumWO as any)?.Task?.UnitId ??
     null
-  let localUnitId = await resolveLocalUnitIdFromBuildium(buildiumUnitId, supabase)
+  const localUnitId = await resolveLocalUnitIdFromBuildium(buildiumUnitId, supabase)
 
   let localPropertyId = await resolveLocalPropertyIdFromBuildium((buildiumWO as any)?.Property?.Id, supabase)
   let orgId: string | null = null

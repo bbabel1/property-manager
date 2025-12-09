@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
-import { generateStateToken, setOAuthState, buildGoogleOAuthUrl } from '@/lib/gmail/oauth';
+import { generateStateToken, setOAuthState, buildGoogleOAuthUrl } from '@/lib/google/oauth';
 
 export async function GET() {
   try {
@@ -48,10 +48,15 @@ export async function GET() {
 
     // Generate and store state token
     const state = generateStateToken();
-    await setOAuthState(state);
+    await setOAuthState({
+      state,
+      userId: auth.user.id,
+      flow: 'gmail',
+      createdAt: Date.now(),
+    });
 
     // Build OAuth URL
-    const authUrl = buildGoogleOAuthUrl(state);
+    const authUrl = buildGoogleOAuthUrl('gmail', state);
 
     // Redirect to Google
     return NextResponse.redirect(authUrl);
@@ -71,4 +76,3 @@ export async function GET() {
     );
   }
 }
-

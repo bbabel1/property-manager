@@ -1,24 +1,46 @@
-import type { Database as DatabaseSchema } from '@/types/database'
+import type { Database as DatabaseSchema } from '@/types/database';
 
 // Enum types for unit bedrooms and bathrooms (matching database enum names)
-export type BedroomEnum = 'Studio' | '1' | '2' | '3' | '4' | '5+' | '6' | '7' | '8' | '9+'
-export type BathroomEnum = '1' | '1.5' | '2' | '2.5' | '3' | '3.5' | '4+' | '4.5' | '5' | '5+'
+export type BedroomEnum = 'Studio' | '1' | '2' | '3' | '4' | '5+' | '6' | '7' | '8' | '9+';
+export type BathroomEnum = '1' | '1.5' | '2' | '2.5' | '3' | '3.5' | '4+' | '4.5' | '5' | '5+';
 
 // Service-related enums
-export type ServicePlan = 'Full' | 'Basic' | 'A-la-carte'
-export type FeeFrequency = 'Monthly' | 'Annually'
-export type FeeType = 'Percentage' | 'Flat Rate'
+export type ServicePlan = 'Full' | 'Basic' | 'A-la-carte' | 'Custom';
+export type FeeFrequency = 'Monthly' | 'Annually';
+export type FeeType = 'Percentage' | 'Flat Rate';
 
 // Array constants for use in dropdowns
-export const BEDROOM_OPTIONS: BedroomEnum[] = ['Studio', '1', '2', '3', '4', '5+', '6', '7', '8', '9+']
-export const BATHROOM_OPTIONS: BathroomEnum[] = ['1', '1.5', '2', '2.5', '3', '3.5', '4+', '4.5', '5', '5+']
-export const SERVICE_PLAN_OPTIONS: ServicePlan[] = ['Full', 'Basic', 'A-la-carte']
-export const FEE_FREQUENCY_OPTIONS: FeeFrequency[] = ['Monthly', 'Annually']
-export const FEE_TYPE_OPTIONS: FeeType[] = ['Percentage', 'Flat Rate']
+export const BEDROOM_OPTIONS: BedroomEnum[] = [
+  'Studio',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5+',
+  '6',
+  '7',
+  '8',
+  '9+',
+];
+export const BATHROOM_OPTIONS: BathroomEnum[] = [
+  '1',
+  '1.5',
+  '2',
+  '2.5',
+  '3',
+  '3.5',
+  '4+',
+  '4.5',
+  '5',
+  '5+',
+];
+export const SERVICE_PLAN_OPTIONS: ServicePlan[] = ['Full', 'Basic', 'A-la-carte', 'Custom'];
+export const FEE_FREQUENCY_OPTIONS: FeeFrequency[] = ['Monthly', 'Annually'];
+export const FEE_TYPE_OPTIONS: FeeType[] = ['Percentage', 'Flat Rate'];
 
-export type CountryEnum = DatabaseSchema['public']['Enums']['countries']
-export type UnitDB = DatabaseSchema['public']['Tables']['units']['Row']
-export type UnitUpdateDB = DatabaseSchema['public']['Tables']['units']['Update']
+export type CountryEnum = DatabaseSchema['public']['Enums']['countries'];
+export type UnitDB = DatabaseSchema['public']['Tables']['units']['Row'];
+export type UnitUpdateDB = DatabaseSchema['public']['Tables']['units']['Update'];
 
 // Application interface (camelCase) - Updated to match live database
 export interface Unit {
@@ -103,7 +125,7 @@ export function mapUnitFromDB(dbUnit: UnitDB): Unit {
 // Application to Database mapping
 export function mapUnitToDB(unit: Partial<Unit>): UnitUpdateDB {
   const dbUnit: UnitUpdateDB = {};
-  
+
   if (unit.propertyId !== undefined) dbUnit.property_id = unit.propertyId;
   if (unit.unitNumber !== undefined) dbUnit.unit_number = unit.unitNumber;
   if (unit.unitSize !== undefined) dbUnit.unit_size = unit.unitSize;
@@ -121,7 +143,8 @@ export function mapUnitToDB(unit: Partial<Unit>): UnitUpdateDB {
   if (unit.unitBathrooms !== undefined) dbUnit.unit_bathrooms = unit.unitBathrooms ?? null;
   if (unit.description !== undefined) dbUnit.description = unit.description ?? null;
   if (unit.buildiumUnitId !== undefined) dbUnit.buildium_unit_id = unit.buildiumUnitId ?? null;
-  if (unit.buildiumPropertyId !== undefined) dbUnit.buildium_property_id = unit.buildiumPropertyId ?? null;
+  if (unit.buildiumPropertyId !== undefined)
+    dbUnit.buildium_property_id = unit.buildiumPropertyId ?? null;
   if (unit.serviceStart !== undefined) dbUnit.service_start = unit.serviceStart ?? null;
   if (unit.serviceEnd !== undefined) dbUnit.service_end = unit.serviceEnd ?? null;
   if (unit.servicePlan !== undefined) dbUnit.service_plan = unit.servicePlan ?? null;
@@ -136,9 +159,11 @@ export function mapUnitToDB(unit: Partial<Unit>): UnitUpdateDB {
   if (unit.unitType !== undefined) dbUnit.unit_type = unit.unitType ?? null;
 
   if (unit.isActive !== undefined) dbUnit.is_active = unit.isActive ?? null;
-  if (unit.buildiumCreatedAt !== undefined) dbUnit.buildium_created_at = unit.buildiumCreatedAt ?? null;
-  if (unit.buildiumUpdatedAt !== undefined) dbUnit.buildium_updated_at = unit.buildiumUpdatedAt ?? null;
+  if (unit.buildiumCreatedAt !== undefined)
+    dbUnit.buildium_created_at = unit.buildiumCreatedAt ?? null;
+  if (unit.buildiumUpdatedAt !== undefined)
+    dbUnit.buildium_updated_at = unit.buildiumUpdatedAt ?? null;
   if (unit.buildingName !== undefined) dbUnit.building_name = unit.buildingName ?? null;
-  
+
   return dbUnit;
 }

@@ -14,6 +14,26 @@ import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOr
 // Shared admin client for module-scope helpers (webhook toggles, etc.)
 const admin = supabaseAdmin || supabase
 
+const resolvePostingType = (line: any): 'Debit' | 'Credit' => {
+  const raw =
+    typeof line?.PostingType === 'string'
+      ? line.PostingType
+      : typeof line?.posting_type === 'string'
+      ? line.posting_type
+      : typeof line?.PostingTypeEnum === 'string'
+      ? line.PostingTypeEnum
+      : typeof line?.PostingTypeString === 'string'
+      ? line.PostingTypeString
+      : typeof line?.postingType === 'string'
+      ? line.postingType
+      : null
+  const normalized = (raw || '').toLowerCase()
+  if (normalized === 'debit' || normalized === 'dr' || normalized.includes('debit')) return 'Debit'
+  if (normalized === 'credit' || normalized === 'cr' || normalized.includes('credit')) return 'Credit'
+  const amountNum = Number(line?.Amount ?? 0)
+  return amountNum < 0 ? 'Debit' : 'Credit'
+}
+
 async function resolveOrgIdFromBuildiumAccount(accountId?: number | null) {
   if (!accountId) return null
   const { data, error } = await admin
@@ -1173,8 +1193,8 @@ export async function POST(req: NextRequest) {
       const lines = Array.isArray(leaseTx?.Journal?.Lines) ? leaseTx.Journal.Lines : Array.isArray(leaseTx?.Lines) ? leaseTx.Lines : []
       let debit = 0, credit = 0
       for (const line of lines) {
-        const amount = Number(line?.Amount ?? 0)
-        const posting = amount >= 0 ? 'Credit' : 'Debit'
+        const amountAbs = Math.abs(Number(line?.Amount ?? 0))
+        const posting = resolvePostingType(line)
         const glBuildiumId = typeof line?.GLAccount === 'number' ? line?.GLAccount : (line?.GLAccount?.Id ?? line?.GLAccountId ?? null)
         const glId = await ensureGLAccountId(glBuildiumId, fetchGL)
         if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`)
@@ -1185,7 +1205,7 @@ export async function POST(req: NextRequest) {
         await admin.from('transaction_lines').insert({
           transaction_id: transactionId,
           gl_account_id: glId,
-          amount: Math.abs(amount),
+          amount: amountAbs,
           posting_type: posting,
           memo: line?.Memo ?? null,
           account_entity_type: 'Rental',
@@ -1199,8 +1219,8 @@ export async function POST(req: NextRequest) {
           property_id: propertyIdLocal,
           unit_id: unitIdLocal,
         })
-        if (posting === 'Debit') debit += Math.abs(amount)
-        else credit += Math.abs(amount)
+        if (posting === 'Debit') debit += amountAbs
+        else credit += amountAbs
       }
       if (debit > 0 && credit > 0 && Math.abs(debit - credit) > 0.0001) {
         throw new Error(`Double-entry integrity violation: debits (${debit}) != credits (${credit})`)
@@ -1544,12 +1564,14 @@ export async function POST(req: NextRequest) {
         const entityTypeRaw = line?.AccountingEntity?.AccountingEntityType || 'Rental'
         const entityType: 'Rental' | 'Company' = String(entityTypeRaw).toLowerCase() === 'rental' ? 'Rental' : 'Company'
         const amount = Math.abs(Number(line?.Amount ?? 0))
-        debitSum += amount
+        const posting = resolvePostingType(line)
+        if (posting === 'Debit') debitSum += amount
+        else creditSum += amount
         pendingLines.push({
           transaction_id: transactionId,
           gl_account_id: glId,
           amount,
-          posting_type: 'Debit',
+          posting_type: posting,
           memo: line?.Memo ?? null,
           account_entity_type: entityType,
           account_entity_id: buildiumPropertyId,
@@ -2453,7 +2475,7 @@ export async function POST(req: NextRequest) {
   }
 }
   // Load webhook toggle flags once
-  let disabledEvents = new Set<string>()
+  const disabledEvents = new Set<string>()
   try {
     const { data, error } = await admin
       .from('webhook_event_flags')

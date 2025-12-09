@@ -635,6 +635,12 @@ export async function generateMonthlyStatementPDF(
       format: 'Letter',
       printBackground: true,
       preferCSSPageSize: true,
+      margin: {
+        top: '0.75in',
+        right: '0.75in',
+        bottom: '0.75in',
+        left: '0.75in',
+      },
     });
 
     return { success: true, pdf: pdfBuffer };

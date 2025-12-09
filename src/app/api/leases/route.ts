@@ -641,21 +641,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'property_id and unit_id (or corresponding Buildium IDs) are required' }, { status: 400 })
     }
 
-    // TODO: idempotency_keys table doesn't exist in current database schema
     const admin = getServerSupabaseClient()
-    const idemKey = request.headers.get('Idempotency-Key')
-      || `lease:${property_id}:${unit_id}:${body.lease_from_date}:${body.lease_to_date || ''}`
-    // try {
-    //   const { data: idem } = await admin.from('idempotency_keys').select('response').eq('key', idemKey).maybeSingle()
-    //   if (idem?.response) return NextResponse.json(idem.response, { status: 201 })
-    // } catch {}
 
-    // Atomic create via SQL function
+    // Resolve org_id early for both payload and idempotency scoping
     const { data: propertyRowForOrg } = await (supabaseAdmin || supabase)
       .from('properties')
       .select('org_id')
       .eq('id', property_id)
       .maybeSingle()
+    const resolvedOrgId = propertyRowForOrg?.org_id ?? null
+
+    const idemKey =
+      request.headers.get('Idempotency-Key') ||
+      `lease:${property_id}:${unit_id}:${body.lease_from_date}:${body.lease_to_date || ''}`
+
+    if (idemKey && resolvedOrgId) {
+      const nowIso = new Date().toISOString()
+      try {
+        const { data: idem } = await admin
+          .from('idempotency_keys')
+          .select('response')
+          .eq('key', idemKey)
+          .eq('org_id', resolvedOrgId)
+          .gte('expires_at', nowIso)
+          .maybeSingle()
+        if (idem?.response) {
+          // Touch last_used_at but do not block response on failure
+          try {
+            await admin
+              .from('idempotency_keys')
+              .update({ last_used_at: nowIso })
+              .eq('key', idemKey)
+              .eq('org_id', resolvedOrgId)
+          } catch {}
+          return NextResponse.json(idem.response, { status: 201 })
+        }
+      } catch {}
+    }
+
+    const storeIdempotencyResponse = async (response: unknown) => {
+      if (!idemKey || !resolvedOrgId) return
+      const now = new Date()
+      const expires = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+      try {
+        await admin
+          .from('idempotency_keys')
+          .upsert(
+            {
+              key: idemKey,
+              org_id: resolvedOrgId,
+              response,
+              last_used_at: now.toISOString(),
+              expires_at: expires.toISOString(),
+            },
+            { onConflict: 'key' },
+          )
+      } catch {}
+    }
 
     const payload = {
       lease: {
@@ -671,7 +713,7 @@ export async function POST(request: NextRequest) {
         prorated_last_month_rent: body.prorated_last_month_rent ?? null,
         renewal_offer_status: body.renewal_offer_status ?? null,
         status: body.status || 'active',
-        org_id: propertyRowForOrg?.org_id ?? null
+        org_id: resolvedOrgId
       },
       contacts: Array.isArray(body.contacts) ? body.contacts : [],
       rent_schedules: Array.isArray(body.rent_schedules) ? body.rent_schedules : [],
@@ -691,7 +733,7 @@ export async function POST(request: NextRequest) {
         const { getLeaseDocumentsCompat } = await import('@/lib/files')
         const docs = await getLeaseDocumentsCompat(admin, lease_id_full)
         const response = { lease, contacts, rent_schedules: schedules, recurring_transactions: recurs, documents: docs }
-        try { await admin.from('idempotency_keys').insert({ key: idemKey, response }) } catch {}
+        await storeIdempotencyResponse(response)
         return NextResponse.json(response, { status: 201 })
       } catch (wrapErr) {
         // Fallback to legacy aggregate if wrapper not available
@@ -933,7 +975,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = { lease, contacts, rent_schedules: schedules, recurring_transactions: recurs, documents: docs, ...(buildium ? { buildium } : {}), ...(buildiumWarning ? { buildiumSync: buildiumWarning } : {}) }
-    try { await admin.from('idempotency_keys').insert({ key: idemKey, response }) } catch {}
+    await storeIdempotencyResponse(response)
     return NextResponse.json(response, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : JSON.stringify(error)

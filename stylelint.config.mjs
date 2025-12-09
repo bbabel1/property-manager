@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+ 
 import tailwindcss from 'stylelint-config-tailwindcss';
 
 export default {

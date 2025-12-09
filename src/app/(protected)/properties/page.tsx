@@ -49,6 +49,7 @@ interface Property {
   totalVacantUnits?: number
   ownersCount?: number
   primaryOwnerName?: string
+  propertyManagerName?: string | null
   operatingBankAccountId?: string | null
   depositTrustAccountId?: string | null
 }
@@ -60,12 +61,12 @@ const statusOptions = [
 ]
 
 const typeOptions = [
-  { value: 'all', label: 'Add filter option' },
+  { value: 'all', label: 'All types' },
   { value: 'Condo', label: 'Condo' },
   { value: 'Co-op', label: 'Co-op' },
   { value: 'Condop', label: 'Condop' },
   { value: 'Rental Building', label: 'Rental Building' },
-  { value: 'Mult-Family', label: 'Multi-Family' },
+  { value: 'Multi-Family', label: 'Multi-Family' },
   { value: 'Townhouse', label: 'Townhouse' },
   { value: 'none', label: 'No type assigned' },
 ]
@@ -95,6 +96,7 @@ export default function PropertiesPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [showBankAccounts, setShowBankAccounts] = useState(true)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     void fetchProperties()
@@ -129,7 +131,7 @@ export default function PropertiesPage() {
 
   const filtered = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
-    return properties.filter((property) => {
+    const filteredList = properties.filter((property) => {
       const matchesSearch =
         normalizedSearch.length === 0 ||
         filterableStrings(property).some((value) => value.includes(normalizedSearch))
@@ -141,7 +143,13 @@ export default function PropertiesPage() {
           : property.propertyType === typeFilter)
       return matchesSearch && matchesStatus && matchesType
     })
-  }, [properties, searchTerm, statusFilter, typeFilter])
+    return filteredList.sort((a, b) => {
+      const nameA = a.name.toLowerCase()
+      const nameB = b.name.toLowerCase()
+      const diff = nameA.localeCompare(nameB)
+      return sortDir === 'asc' ? diff : -diff
+    })
+  }, [properties, searchTerm, statusFilter, typeFilter, sortDir])
 
   const handlePropertyCreated = () => {
     void fetchProperties()
@@ -152,6 +160,48 @@ export default function PropertiesPage() {
   const handleCloseModal = () => {
     setIsAddPropertyModalOpen(false)
     setStartTourFromQuery(false)
+  }
+
+  const handleExport = () => {
+    if (filtered.length === 0) return
+    const headers = [
+      'Property',
+      'Location',
+      'Rental owners',
+      'Manager',
+      'Type',
+      'Operating account',
+      'Deposit trust account',
+      'Status',
+    ]
+    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`
+    const rows = filtered.map((property) => {
+      const location = formatLocation(property)
+      const owners = property.primaryOwnerName ?? '—'
+      const manager = property.propertyManagerName || 'Not assigned'
+      const type = property.propertyType ?? '—'
+      const op = property.operatingBankAccountId ? 'Linked' : 'Setup'
+      const dep = property.depositTrustAccountId ? 'Linked' : 'Setup'
+      const status = property.status || '—'
+      return [
+        property.name,
+        location,
+        owners,
+        manager,
+        type,
+        op,
+        dep,
+        status,
+      ].map((cell) => escape(String(cell)))
+    })
+    const csv = [headers.map(escape), ...rows].map((row) => row.join(',')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'properties.csv'
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   let mainContent: ReactNode
@@ -222,12 +272,12 @@ export default function PropertiesPage() {
               </Select>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Add filter option" />
-                </SelectTrigger>
-                <SelectContent>
-                  {typeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {typeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -268,7 +318,13 @@ export default function PropertiesPage() {
           <p className="text-sm text-muted-foreground">
             {filtered.length} {filtered.length === 1 ? 'match' : 'matches'}
           </p>
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={handleExport}
+            disabled={filtered.length === 0}
+          >
             Export
           </Button>
         </div>
@@ -296,8 +352,18 @@ export default function PropertiesPage() {
                   <tr>
                     <th className="px-6 py-3 font-semibold">
                       <span className="flex items-center gap-2">
-                        Property
-                        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden="true" />
+                        <button
+                          type="button"
+                          onClick={() => setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                          className="flex items-center gap-1 text-left font-semibold text-foreground transition hover:text-primary"
+                          aria-label="Sort by property name"
+                        >
+                          Property
+                          <ArrowUpDown
+                            className={`h-3.5 w-3.5 transition ${sortDir === 'asc' ? 'rotate-0' : 'rotate-180'} text-muted-foreground/70`}
+                            aria-hidden="true"
+                          />
+                        </button>
                       </span>
                     </th>
                     <th className="px-6 py-3 font-semibold">Location</th>
@@ -354,7 +420,7 @@ export default function PropertiesPage() {
                           </Stack>
                         </td>
                         <td className="px-6 py-5 align-top text-sm text-muted-foreground">
-                          Not assigned
+                          {property.propertyManagerName || 'Not assigned'}
                         </td>
                         <td className="px-6 py-5 align-top text-sm text-muted-foreground">
                           {property.propertyType ?? '—'}

@@ -21,7 +21,7 @@
 
 ## `any` / `@ts-ignore` catalogue
 - `@ts-ignore`: 1 occurrence in [`src/components/units/LeaseSection.tsx:277`](../src/components/units/LeaseSection.tsx). Documented as a Supabase `foreignTable` typing gap.
-- Explicit `any` usage: 1,075 hits tracked in [`scripts/any-usages.txt`](../scripts/any-usages.txt) with per-file counts in [`scripts/any-usage-counts.txt`](../scripts/any-usage-counts.txt). Top owners:
+- Explicit `any` usage: 1,075 hits tracked in [`scripts/any-usages.txt`](../scripts/any-usages.txt); regenerate per-file counts if you need the old `any-usage-counts` breakdown. Top owners:
   1. `supabase/functions/buildium-sync/index.ts` – 144
   2. `src/lib/buildium-mappers.ts` – 131
   3. `src/lib/buildium-edge-client.ts` – 56

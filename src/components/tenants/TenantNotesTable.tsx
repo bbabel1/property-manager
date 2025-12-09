@@ -135,8 +135,27 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
   };
 
   const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export clicked');
+    if (!notes.length) {
+      toast.info('No notes to export');
+      return;
+    }
+    const headers = ['Created At', 'Updated At', 'Note'];
+    const rows = notes.map((note) => [
+      note.created_at ?? '',
+      note.updated_at ?? '',
+      (note.note ?? '').replace(/\r?\n/g, ' '),
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tenant-notes-${tenantId}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Notes exported');
   };
 
   const filteredNotes = notes.filter((note) => {
