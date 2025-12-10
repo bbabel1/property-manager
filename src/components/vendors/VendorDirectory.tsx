@@ -47,7 +47,11 @@ const formatCurrency = (value: number) =>
 function complianceBadge(status: VendorInsight['complianceStatus']) {
   switch (status) {
     case 'ok':
-      return <Badge className="bg-[var(--color-action-50)]0/10 text-[var(--color-action-600)] dark:bg-[var(--color-action-50)]0/15 dark:text-[var(--color-action-100)]">Compliant</Badge>
+      return (
+        <Badge className="bg-[var(--color-action-50)]/10 text-[var(--color-action-600)] dark:bg-[var(--color-action-50)]/15 dark:text-[var(--color-action-100)]">
+          Compliant
+        </Badge>
+      )
     case 'expiring':
       return <Badge className="bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200">Expiring</Badge>
     case 'expired':

@@ -33,6 +33,7 @@ import {
   Wrench,
   ChevronRight,
   Calendar,
+  ShieldCheck,
 } from 'lucide-react';
 import { ReactNode, useMemo, useState, useRef, useEffect } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
@@ -66,6 +67,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'maintenance-vendors', label: 'Vendors', href: '/vendors' },
     ],
   },
+  { id: 'compliance', label: 'Compliance', href: '/compliance', icon: ShieldCheck },
   { id: 'tenants', label: 'Tenants', href: '/tenants', icon: User },
   { id: 'files', label: 'Files', href: '/files', icon: Files },
   { id: 'calendar', label: 'Calendar', href: '/calendar', icon: Calendar },

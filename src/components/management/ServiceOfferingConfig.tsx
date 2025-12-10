@@ -1,9 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ManagementServiceConfig, ServiceOffering } from '@/lib/management-service';
 import { ServicePricingConfig } from '@/lib/service-pricing';
-import { formatCurrency } from '@/lib/format-currency';
+import { formatCurrency } from '@/lib/transactions/formatting';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  LargeDialogContent,
+} from '@/components/ui/dialog';
+import { Search, X } from 'lucide-react';
+import { toast } from 'sonner';
+import ServiceDetailView from '@/components/property/services/ServiceDetailView';
 
 interface ServiceOfferingConfigProps {
   propertyId: string;
@@ -28,13 +42,6 @@ interface OfferingWithPricing extends ServiceOffering {
   };
 }
 
-const SERVICE_PLAN_OPTIONS = [
-  { value: 'Full', label: 'Full Service' },
-  { value: 'Basic', label: 'Basic Service' },
-  { value: 'A-la-carte', label: 'A-la-Carte' },
-  { value: 'Custom', label: 'Custom' },
-];
-
 export default function ServiceOfferingConfig({
   propertyId,
   unitId,
@@ -44,18 +51,40 @@ export default function ServiceOfferingConfig({
   const [offerings, setOfferings] = useState<OfferingWithPricing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
   const [selectedOfferings, setSelectedOfferings] = useState<Set<string>>(new Set());
   const [pricingOverrides, setPricingOverrides] = useState<
     Record<string, Partial<ServicePricingConfig>>
   >({});
+  const [pendingToggles, setPendingToggles] = useState<Set<string>>(new Set());
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedServiceForDetail, setSelectedServiceForDetail] = useState<string | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const onConfigChangeRef = useRef(onConfigChange);
+  
+  // Update ref when callback changes
+  useEffect(() => {
+    onConfigChangeRef.current = onConfigChange;
+  }, [onConfigChange]);
 
   const loadOfferings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch service configuration (includes service_offerings when feature flag is on)
+      // Fetch all service offerings from catalog
+      const catalogResponse = await fetch('/api/services/catalog');
+      const catalogResult = await catalogResponse.json();
+      if (!catalogResponse.ok) {
+        throw new Error(
+          catalogResult?.error?.message || catalogResult?.error || 'Failed to load service offerings',
+        );
+      }
+      const allOfferings: ServiceOffering[] = catalogResult.data || [];
+
+      // Fetch service configuration
       const params = new URLSearchParams({ propertyId });
       if (unitId) params.append('unitId', unitId);
 
@@ -84,18 +113,43 @@ export default function ServiceOfferingConfig({
         }
       });
 
+      // Fetch plan mappings to determine included services
+      let includedOfferingIds = new Set<string>();
+      if (servicePlan) {
+        try {
+          const planMappingsResponse = await fetch(
+            `/api/services/plan-offerings?plan=${servicePlan}`,
+          );
+          if (planMappingsResponse.ok) {
+            const planMappings = await planMappingsResponse.json();
+            includedOfferingIds = new Set(
+              (planMappings.data || [])
+                .filter((m: any) => m.is_included === true)
+                .map((m: any) => m.offering_id),
+            );
+          }
+        } catch (err) {
+          console.warn('Failed to fetch plan mappings:', err);
+        }
+      }
+
+      // Use all offerings from catalog, or fallback to config.service_offerings
+      const offeringsToProcess = allOfferings.length > 0 ? allOfferings : (config.service_offerings || []);
+
       // Process offerings
-      if (config.service_offerings && config.service_offerings.length > 0) {
-        const processedOfferings: OfferingWithPricing[] = config.service_offerings.map(
+      if (offeringsToProcess.length > 0) {
+        const processedOfferings: OfferingWithPricing[] = offeringsToProcess.map(
           (offering) => {
             const pricing = pricingByOffering.get(offering.id);
-            const isSelected = pricing?.is_active === true || selectedOfferings.has(offering.id);
+            // Only use pricing data from API, not local state
+            const isSelected = pricing?.is_active === true;
+            const isIncluded = includedOfferingIds.has(offering.id);
 
             return {
               ...offering,
-              isSelected,
-              isIncluded: false, // Will be set from plan mappings
-              isOptional: false,
+              isSelected: isSelected || isIncluded,
+              isIncluded,
+              isOptional: !isIncluded,
               pricing: pricing || undefined,
               defaultPricing: {
                 rate: offering.default_rate,
@@ -107,7 +161,7 @@ export default function ServiceOfferingConfig({
           },
         );
 
-        // Group by category
+        // Group by category and sort
         const grouped = processedOfferings.reduce(
           (acc, offering) => {
             const category = offering.category || 'Other';
@@ -120,20 +174,18 @@ export default function ServiceOfferingConfig({
           {} as Record<string, OfferingWithPricing[]>,
         );
 
-        // Flatten and sort by category
-        const sortedOfferings: OfferingWithPricing[] = [];
         const categoryOrder = [
           'Financial Management',
           'Property Care',
           'Resident Services',
           'Compliance & Legal',
         ];
+        const sortedOfferings: OfferingWithPricing[] = [];
         categoryOrder.forEach((category) => {
           if (grouped[category]) {
             sortedOfferings.push(...grouped[category]);
           }
         });
-        // Add any remaining categories
         Object.keys(grouped).forEach((category) => {
           if (!categoryOrder.includes(category)) {
             sortedOfferings.push(...grouped[category]);
@@ -143,104 +195,149 @@ export default function ServiceOfferingConfig({
         setOfferings(sortedOfferings);
         const selectedIds = sortedOfferings.filter((o) => o.isSelected).map((o) => o.id);
         setSelectedOfferings(new Set(selectedIds));
-        onConfigChange?.({
+        // Only call onConfigChange after initial load, not on every render
+        onConfigChangeRef.current?.({
           selectedOfferings: selectedIds,
-          pricingOverrides,
+          pricingOverrides: {},
         });
       } else {
-        // Fallback: use legacy services if new catalog not available
-        const legacyServices = config.active_services || [];
         setOfferings([]);
         setSelectedOfferings(new Set());
+        onConfigChangeRef.current?.({
+          selectedOfferings: [],
+          pricingOverrides: {},
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load service offerings');
     } finally {
       setLoading(false);
     }
-  }, [propertyId, unitId]);
+  }, [propertyId, unitId, servicePlan]);
 
   useEffect(() => {
     loadOfferings();
   }, [loadOfferings]);
 
+  const handleRowClick = (offeringId: string, event: React.MouseEvent) => {
+    // Don't open dialog if clicking on checkbox
+    if ((event.target as HTMLElement).closest('button, [role="checkbox"]')) {
+      return;
+    }
+    setSelectedServiceForDetail(offeringId);
+    setIsDetailDialogOpen(true);
+  };
+
   const toggleOffering = async (offeringId: string) => {
     const offering = offerings.find((o) => o.id === offeringId);
-    const newSelected = new Set(selectedOfferings);
-    if (newSelected.has(offeringId)) {
-      newSelected.delete(offeringId);
-      // Deactivate pricing
-      const params = new URLSearchParams({ propertyId, offeringId });
-      if (unitId) params.append('unitId', unitId);
-      await fetch(`/api/service-pricing?${params.toString()}`, {
-        method: 'DELETE',
+    if (!offering) return;
+    if (pendingToggles.has(offeringId)) return;
+
+    const previous = new Set(selectedOfferings);
+    const nextSelection = new Set(selectedOfferings);
+    const updatedPending = new Set(pendingToggles);
+    updatedPending.add(offeringId);
+    setPendingToggles(updatedPending);
+    setActionErrors((prev) => {
+      const copy = { ...prev };
+      delete copy[offeringId];
+      return copy;
+    });
+
+    try {
+      if (nextSelection.has(offeringId)) {
+        nextSelection.delete(offeringId);
+        const params = new URLSearchParams({ propertyId, offeringId });
+        if (unitId) params.append('unitId', unitId);
+        const resp = await fetch(`/api/service-pricing?${params.toString()}`, {
+          method: 'DELETE',
+        });
+        if (!resp.ok) {
+          throw new Error('Failed to remove pricing');
+        }
+      } else {
+        nextSelection.add(offeringId);
+        const rentBasis =
+          offering.billing_basis === 'percent_rent' ? 'scheduled' : undefined;
+        const resp = await fetch('/api/service-pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            property_id: propertyId,
+            unit_id: unitId || null,
+            offering_id: offeringId,
+            billing_basis: offering.billing_basis || 'per_property',
+            billing_frequency: offering.default_freq || 'monthly',
+            bill_on: offering.bill_on || 'calendar_day',
+            rent_basis: rentBasis,
+          }),
+        });
+        if (!resp.ok) {
+          throw new Error('Failed to save pricing');
+        }
+      }
+
+      setSelectedOfferings(nextSelection);
+      onConfigChange?.({
+        selectedOfferings: Array.from(nextSelection),
+        pricingOverrides,
       });
-    } else {
-      newSelected.add(offeringId);
-      // Create pricing record (will use defaults)
-      const rentBasis =
-        offering?.billing_basis === 'percent_rent' ? 'scheduled' : undefined;
-      await fetch('/api/service-pricing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          property_id: propertyId,
-          unit_id: unitId || null,
-          offering_id: offeringId,
-          billing_basis: offering?.billing_basis || 'per_property',
-          billing_frequency: offering?.default_freq || 'monthly',
-          bill_on: offering?.bill_on || 'calendar_day',
-          rent_basis: rentBasis,
-        }),
+      await loadOfferings();
+    } catch (err) {
+      setSelectedOfferings(previous);
+      setActionErrors((prev) => ({
+        ...prev,
+        [offeringId]:
+          err instanceof Error ? err.message : 'An unexpected error occurred while updating.',
+      }));
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update service offering selection.',
+      );
+    } finally {
+      setPendingToggles((prev) => {
+        const copy = new Set(prev);
+        copy.delete(offeringId);
+        return copy;
       });
     }
-    setSelectedOfferings(newSelected);
-    onConfigChange?.({
-      selectedOfferings: Array.from(newSelected),
-      pricingOverrides,
-    });
   };
 
-  const updatePricingOverride = async (
-    offeringId: string,
-    updates: Partial<ServicePricingConfig>,
-  ) => {
-    const offering = offerings.find((o) => o.id === offeringId);
-    if (!offering) return;
+  // Get unique categories
+  const categories = useMemo(() => {
+    const cats = new Set(offerings.map((o) => o.category || 'Other'));
+    return Array.from(cats).sort();
+  }, [offerings]);
 
-    const currentPricing = offering.pricing;
-    const rentBasis =
-        (updates.billing_basis || offering.billing_basis) === 'percent_rent'
-          ? updates.rent_basis || currentPricing?.rent_basis || 'scheduled'
-          : updates.rent_basis;
-    const newPricing = {
-      ...currentPricing,
-      ...updates,
-      property_id: propertyId,
-      unit_id: unitId || null,
-      offering_id: offeringId,
-      rent_basis: rentBasis,
-    };
+  // Filter offerings
+  const filteredOfferings = useMemo(() => {
+    return offerings.filter((offering) => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch =
+          offering.name.toLowerCase().includes(query) ||
+          (offering.description || '').toLowerCase().includes(query) ||
+          (offering.category || '').toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
 
-    await fetch('/api/service-pricing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newPricing),
+      // Category filter
+      if (categoryFilter !== 'all') {
+        if ((offering.category || 'Other') !== categoryFilter) return false;
+      }
+
+      // Status filter
+      if (statusFilter === 'enabled') {
+        if (!selectedOfferings.has(offering.id)) return false;
+      } else if (statusFilter === 'disabled') {
+        if (selectedOfferings.has(offering.id)) return false;
+      } else if (statusFilter === 'included') {
+        if (!offering.isIncluded) return false;
+      }
+
+      return true;
     });
-
-    setPricingOverrides({
-      ...pricingOverrides,
-      [offeringId]: updates,
-    });
-
-    onConfigChange?.({
-      selectedOfferings: Array.from(selectedOfferings),
-      pricingOverrides: {
-        ...pricingOverrides,
-        [offeringId]: updates,
-      },
-    });
-  };
+  }, [offerings, searchQuery, categoryFilter, statusFilter, selectedOfferings]);
 
   if (loading) {
     return (
@@ -259,6 +356,7 @@ export default function ServiceOfferingConfig({
         <button
           onClick={loadOfferings}
           className="text-destructive hover:text-destructive/80 mt-2 text-sm underline"
+          aria-label="Retry loading service offerings"
         >
           Retry
         </button>
@@ -266,147 +364,303 @@ export default function ServiceOfferingConfig({
     );
   }
 
-  // Group offerings by category
-  const offeringsByCategory = offerings.reduce(
-    (acc, offering) => {
-      const category = offering.category || 'Other';
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(offering);
-      return acc;
-    },
-    {} as Record<string, OfferingWithPricing[]>,
-  );
-
-  const categoryOrder = [
-    'Financial Management',
-    'Property Care',
-    'Resident Services',
-    'Compliance & Legal',
-  ];
+  if (offerings.length === 0) {
+    return (
+      <div className="text-muted-foreground py-6 text-center text-sm">
+        No service offerings available.
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Service Offerings</h3>
-        <button
-          onClick={() => setEditing(!editing)}
-          className="text-primary hover:text-primary/80 text-sm"
-        >
-          {editing ? 'Done' : 'Edit'}
-        </button>
+    <div className="space-y-4">
+      {/* Search and Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <label htmlFor="service-search" className="sr-only">
+            Search services
+          </label>
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+          <Input
+            id="service-search"
+            type="search"
+            placeholder="Search services..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+            aria-label="Search services"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <label htmlFor="category-filter" className="sr-only">
+            Filter by category
+          </label>
+          <select
+            id="category-filter"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            aria-label="Filter by category"
+            title="Filter by category"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="status-filter" className="sr-only">
+            Filter by status
+          </label>
+          <select
+            id="status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            aria-label="Filter by status"
+            title="Filter by status"
+          >
+            <option value="all">All Status</option>
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled</option>
+            <option value="included">Included in Plan</option>
+          </select>
+        </div>
       </div>
 
+      {/* Service Plan Info */}
       {servicePlan && (
         <div className="bg-muted rounded-md p-3">
           <div className="text-sm font-medium">Current Plan: {servicePlan}</div>
-          {servicePlan === 'Basic' || servicePlan === 'Full' ? (
-            <div className="text-muted-foreground mt-1 text-xs">
-              Services included in this plan are automatically selected. You can add additional
-              services.
-            </div>
-          ) : (
-            <div className="text-muted-foreground mt-1 text-xs">
-              Select individual services for this{' '}
-              {servicePlan === 'Custom' ? 'custom' : 'a-la-carte'} plan.
-            </div>
-          )}
+          <div className="text-muted-foreground mt-1 text-xs">
+            {servicePlan === 'Basic' || servicePlan === 'Full'
+              ? 'Services included in this plan are automatically selected. You can add or remove services.'
+              : `Select individual services for this ${servicePlan === 'Custom' ? 'custom' : 'a-la-carte'} plan.`}
+          </div>
         </div>
       )}
 
-      {categoryOrder.map((category) => {
-        const categoryOfferings = offeringsByCategory[category] || [];
-        if (categoryOfferings.length === 0) return null;
+      {/* Results Count */}
+      <div className="text-muted-foreground text-sm">
+        Showing {filteredOfferings.length} of {offerings.length} services
+      </div>
 
-        return (
-          <div key={category} className="space-y-3">
-            <h4 className="text-foreground text-sm font-semibold">{category}</h4>
-            <div className="space-y-2">
-              {categoryOfferings.map((offering) => {
-                const isSelected = selectedOfferings.has(offering.id);
-                const pricing = offering.pricing || offering.defaultPricing;
+      {/* Table */}
+      <div className="border-border rounded-lg border">
+        <div className="max-h-[600px] overflow-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background">
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={
+                      filteredOfferings.length > 0 &&
+                      filteredOfferings.every((o) => selectedOfferings.has(o.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      filteredOfferings.forEach((offering) => {
+                        if (checked && !selectedOfferings.has(offering.id)) {
+                          toggleOffering(offering.id);
+                        } else if (!checked && selectedOfferings.has(offering.id)) {
+                          toggleOffering(offering.id);
+                        }
+                      });
+                    }}
+                    aria-label="Select all services"
+                  />
+                </TableHead>
+                <TableHead>Service</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Pricing</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredOfferings.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-muted-foreground py-6 text-center">
+                    No services match your filters.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredOfferings.map((offering) => {
+                  const isSelected = selectedOfferings.has(offering.id);
+                  const pricing = offering.pricing || offering.defaultPricing;
+                  const isIncludedInPlan = offering.isIncluded;
+                  const isPending = pendingToggles.has(offering.id);
 
-                return (
-                  <div
-                    key={offering.id}
-                    className={`rounded-md border p-3 ${
-                      isSelected ? 'border-primary bg-primary/5' : 'border-border'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          {editing &&
-                            (servicePlan === 'A-la-carte' || servicePlan === 'Custom') && (
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleOffering(offering.id)}
-                                className="text-primary focus:ring-primary h-4 w-4 rounded border-gray-300"
-                              />
-                            )}
-                          <div>
-                            <div className="text-foreground font-medium">{offering.name}</div>
-                            {offering.description && (
-                              <div className="text-muted-foreground mt-1 text-xs">
-                                {offering.description}
+                  return (
+                    <TableRow
+                      key={offering.id}
+                      className={`cursor-pointer transition-colors ${
+                        isSelected ? 'bg-primary/5 dark:bg-primary/10' : ''
+                      } ${isPending ? 'opacity-50' : ''}`}
+                      onClick={(e) => handleRowClick(offering.id, e)}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          disabled={isPending}
+                          onCheckedChange={() => toggleOffering(offering.id)}
+                          aria-label={`Select ${offering.name}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium">{offering.name}</div>
+                          {offering.description && (
+                            <div className="text-muted-foreground text-xs line-clamp-2">
+                              {offering.description}
+                            </div>
+                          )}
+                          {actionErrors[offering.id] && (
+                            <div className="text-destructive text-xs">{actionErrors[offering.id]}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {offering.category || 'Other'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {isIncludedInPlan && (
+                            <Badge variant="secondary" className="text-xs">
+                              Included
+                            </Badge>
+                          )}
+                          {isSelected && !isIncludedInPlan && (
+                            <Badge variant="default" className="text-xs">
+                              Enabled
+                            </Badge>
+                          )}
+                          {!isSelected && (
+                            <Badge variant="outline" className="text-xs">
+                              Disabled
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {pricing ? (
+                          <div className="space-y-1 text-sm">
+                            <div className="font-medium">
+                              {pricing.rate !== null && pricing.rate !== undefined
+                                ? formatCurrency(pricing.rate)
+                                : 'N/A'}{' '}
+                              <span className="text-muted-foreground text-xs">
+                                / {pricing.frequency || offering.defaultPricing?.frequency || 'N/A'}
+                              </span>
+                            </div>
+                            {(pricing.min_amount || pricing.max_amount) && (
+                              <div className="text-muted-foreground text-xs">
+                                {pricing.min_amount && `Min: ${formatCurrency(pricing.min_amount)}`}
+                                {pricing.min_amount && pricing.max_amount && ' • '}
+                                {pricing.max_amount && `Max: ${formatCurrency(pricing.max_amount)}`}
                               </div>
                             )}
                           </div>
-                        </div>
-                        {pricing && (
-                          <div className="text-muted-foreground mt-2 text-xs">
-                            <div>
-                              Pricing: {pricing.rate ? formatCurrency(pricing.rate) : 'N/A'} /{' '}
-                              {pricing.frequency || offering.defaultPricing?.frequency}
-                            </div>
-                            {pricing.min_amount && (
-                              <div>Min: {formatCurrency(pricing.min_amount)}</div>
-                            )}
-                            {pricing.max_amount && (
-                              <div>Max: {formatCurrency(pricing.max_amount)}</div>
-                            )}
-                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Not configured</span>
                         )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Show any remaining categories */}
-      {Object.keys(offeringsByCategory)
-        .filter((cat) => !categoryOrder.includes(cat))
-        .map((category) => {
-          const categoryOfferings = offeringsByCategory[category] || [];
-          if (categoryOfferings.length === 0) return null;
-
-          return (
-            <div key={category} className="space-y-3">
-              <h4 className="text-foreground text-sm font-semibold">{category}</h4>
-              <div className="space-y-2">
-                {categoryOfferings.map((offering) => {
-                  const isSelected = selectedOfferings.has(offering.id);
-                  return (
-                    <div
-                      key={offering.id}
-                      className={`rounded-md border p-3 ${
-                        isSelected ? 'border-primary bg-primary/5' : 'border-border'
-                      }`}
-                    >
-                      <div className="text-foreground font-medium">{offering.name}</div>
-                    </div>
+                      </TableCell>
+                    </TableRow>
                   );
-                })}
-              </div>
-            </div>
-          );
-        })}
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Service Detail Dialog */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <LargeDialogContent className="max-h-[90vh]">
+          {selectedServiceForDetail && (() => {
+            const selectedOffering = offerings.find((o) => o.id === selectedServiceForDetail);
+            if (!selectedOffering) return null;
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{selectedOffering.name}</DialogTitle>
+                </DialogHeader>
+                <div className="mt-4">
+                  <ServiceDetailView
+                    offering={{
+                      id: selectedOffering.id,
+                      name: selectedOffering.name,
+                      description: selectedOffering.description,
+                      category: selectedOffering.category,
+                      isSelected: selectedOffering.isSelected,
+                      isIncluded: selectedOffering.isIncluded,
+                      pricing: selectedOffering.pricing
+                        ? {
+                            rate: selectedOffering.pricing.rate,
+                            frequency: selectedOffering.pricing.billing_frequency,
+                            min_amount: selectedOffering.pricing.min_amount,
+                            max_amount: selectedOffering.pricing.max_amount,
+                            billing_basis: selectedOffering.pricing.billing_basis,
+                            effective_start: selectedOffering.pricing.effective_start,
+                            effective_end: selectedOffering.pricing.effective_end,
+                          }
+                        : undefined,
+                      defaultPricing: selectedOffering.defaultPricing,
+                    }}
+                    propertyId={propertyId}
+                    isEditMode={true}
+                    onEdit={() => {
+                      // Edit mode is already enabled
+                    }}
+                    onDisable={() => {
+                      toggleOffering(selectedOffering.id);
+                      setIsDetailDialogOpen(false);
+                    }}
+                    onDuplicate={() => {
+                      toast.info('Duplicate functionality coming soon');
+                    }}
+                    onPricingSave={async (pricingData) => {
+                      try {
+                        const response = await fetch('/api/service-pricing', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            ...pricingData,
+                            property_id: propertyId,
+                            unit_id: unitId || null,
+                            offering_id: selectedOffering.id,
+                          }),
+                        });
+                        if (!response.ok) {
+                          throw new Error('Failed to save pricing');
+                        }
+                        toast.success('Pricing updated successfully');
+                        await loadOfferings();
+                        setIsDetailDialogOpen(false);
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Failed to save pricing');
+                        throw err;
+                      }
+                    }}
+                    onRefresh={loadOfferings}
+                  />
+                </div>
+              </>
+            );
+          })()}
+        </LargeDialogContent>
+      </Dialog>
     </div>
   );
 }

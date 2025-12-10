@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: property, error } = await db
       .from('properties')
       .select(`
-        id, org_id, buildium_property_id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
+        id, org_id, buildium_property_id, building_id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
         property_type, status, reserve, year_built, created_at, updated_at,
         borough, neighborhood, longitude, latitude, location_verified,
         service_assignment, service_plan,
@@ -41,6 +41,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (error || !property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+
+    let building: any = null
+    if ((property as any).building_id) {
+      try {
+        const { data: bldg } = await db
+          .from('buildings')
+          .select('*')
+          .eq('id', (property as any).building_id)
+          .maybeSingle()
+        building = bldg || null
+      } catch {}
     }
 
     // Owners from cache: small, flat, indexed
@@ -151,6 +163,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       property_manager_email,
       property_manager_phone,
       primary_image_url: undefined,
+      building,
     }
 
     // Ensure nested ownerships (from old joins) are absent

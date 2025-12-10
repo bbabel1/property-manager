@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Building2 } from 'lucide-react'
+import { Loader2, Building2, Database } from 'lucide-react'
 import { BuildiumCredentialsForm } from '@/components/integrations/buildium-credentials-form'
+import { NYCGeoserviceForm } from '@/components/integrations/nyc-geoservice-form'
 
 type Integration = {
   key: string
@@ -33,6 +35,7 @@ type BuildiumIntegrationStatus = {
 }
 
 export default function WorkspaceIntegrationsPage() {
+  const router = useRouter()
   const [integrations, setIntegrations] = useState<Integration[]>([
     {
       key: 'buildium',
@@ -41,9 +44,24 @@ export default function WorkspaceIntegrationsPage() {
       status: 'not_connected',
       loading: true,
     },
+    {
+      key: 'nyc_geoservice',
+      name: 'NYC Geoservice',
+      description: 'NYC Planning Geoservice for BIN/BBL lookups during address enrichment.',
+      status: 'not_connected',
+      loading: false,
+    },
+    {
+      key: 'nyc_data',
+      name: 'NYC Data Sources',
+      description: 'DOB NOW + NYC Open Data (DOB/HPD/FDNY) used for compliance syncs.',
+      status: 'not_connected',
+      loading: false,
+    },
   ])
   const [buildiumFormOpen, setBuildiumFormOpen] = useState(false)
   const [buildiumStatus, setBuildiumStatus] = useState<BuildiumIntegrationStatus | null>(null)
+  const [geoFormOpen, setGeoFormOpen] = useState(false)
 
   // Load Buildium integration status
   const loadBuildiumStatus = async () => {
@@ -83,13 +101,54 @@ export default function WorkspaceIntegrationsPage() {
     }
   }
 
+  const loadNYCIntegrationStatus = async () => {
+    try {
+      const res = await fetch('/api/nyc-data/integration')
+      if (!res.ok) return
+      const data = await res.json()
+      setIntegrations((prev) =>
+        prev.map((int) =>
+          int.key === 'nyc_geoservice'
+            ? {
+                ...int,
+                status: data.has_geoservice_api_key ? 'connected' : 'not_connected',
+                loading: false,
+              }
+            : int.key === 'nyc_data'
+            ? {
+                ...int,
+                status: data.has_app_token || data.has_geoservice_api_key ? 'connected' : 'not_connected',
+                loading: false,
+              }
+            : int,
+        ),
+      )
+    } catch (error) {
+      console.error('Failed to load NYC integration status:', error)
+      setIntegrations((prev) =>
+        prev.map((int) =>
+          int.key === 'nyc_geoservice' || int.key === 'nyc_data' ? { ...int, loading: false } : int,
+        ),
+      )
+    }
+  }
+
   useEffect(() => {
     loadBuildiumStatus()
+    loadNYCIntegrationStatus()
   }, [])
 
-  const toggleIntegration = (key: string) => {
+  const handleIntegrationAction = (key: string) => {
     if (key === 'buildium') {
       setBuildiumFormOpen(true)
+      return
+    }
+    if (key === 'nyc_geoservice') {
+      setGeoFormOpen(true)
+      return
+    }
+    if (key === 'nyc_data') {
+      router.push('/settings/integrations/nyc-data')
       return
     }
 
@@ -121,6 +180,8 @@ export default function WorkspaceIntegrationsPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   {integration.key === 'buildium' && <Building2 className="h-5 w-5 text-muted-foreground" />}
+                  {integration.key === 'nyc_data' && <Database className="h-5 w-5 text-muted-foreground" />}
+                  {integration.key === 'nyc_geoservice' && <Database className="h-5 w-5 text-muted-foreground" />}
                   <CardTitle>{integration.name}</CardTitle>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">{integration.description}</p>
@@ -147,7 +208,11 @@ export default function WorkspaceIntegrationsPage() {
             </CardHeader>
             <CardContent className="flex items-center justify-between gap-3">
               <div className="text-xs text-muted-foreground">
-                {integration.lastTestedAt
+                {integration.key === 'nyc_data'
+                  ? 'Used for Compliance sync (DOB, HPD, FDNY). Configure API keys in Settings → Environment.'
+                  : integration.key === 'nyc_geoservice'
+                  ? 'Used for NYC address normalization (BIN/BBL).'
+                  : integration.lastTestedAt
                   ? `Last tested: ${new Date(integration.lastTestedAt).toLocaleString()}`
                   : 'No connection test yet'}
               </div>
@@ -158,11 +223,9 @@ export default function WorkspaceIntegrationsPage() {
                     Loading...
                   </Button>
                 ) : (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => toggleIntegration(integration.key)}>
-                      Manage
-                    </Button>
-                  </>
+                  <Button size="sm" variant="outline" onClick={() => handleIntegrationAction(integration.key)}>
+                    Manage
+                  </Button>
                 )}
               </div>
             </CardContent>
@@ -179,6 +242,15 @@ export default function WorkspaceIntegrationsPage() {
           setBuildiumFormOpen(false)
         }}
         initialStatus={buildiumStatus}
+      />
+
+      <NYCGeoserviceForm
+        isOpen={geoFormOpen}
+        onClose={() => setGeoFormOpen(false)}
+        onSuccess={() => {
+          loadNYCGeoserviceStatus()
+          setGeoFormOpen(false)
+        }}
       />
     </div>
   )

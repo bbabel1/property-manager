@@ -17,6 +17,11 @@ const ServerEnv = z.object({
   COMPANY_PHONE: z.string().optional(),
   COMPANY_EMAIL: z.string().email().optional(),
   COMPANY_LOGO_URL: z.string().url().optional(),
+  // NYC data integrations (optional)
+  NYC_GEOSERVICE_API_KEY: z.string().optional(),
+  NYC_GEOSERVICE_BASE_URL: z.string().url().optional(),
+  NYC_OPEN_DATA_APP_TOKEN: z.string().optional(),
+  NYC_OPEN_DATA_BASE_URL: z.string().url().optional(),
 });
 
 export const env = ServerEnv.parse({
@@ -34,6 +39,10 @@ export const env = ServerEnv.parse({
   COMPANY_PHONE: process.env.COMPANY_PHONE,
   COMPANY_EMAIL: process.env.COMPANY_EMAIL,
   COMPANY_LOGO_URL: process.env.COMPANY_LOGO_URL,
+  NYC_GEOSERVICE_API_KEY: process.env.NYC_GEOSERVICE_API_KEY,
+  NYC_GEOSERVICE_BASE_URL: process.env.NYC_GEOSERVICE_BASE_URL,
+  NYC_OPEN_DATA_APP_TOKEN: process.env.NYC_OPEN_DATA_APP_TOKEN,
+  NYC_OPEN_DATA_BASE_URL: process.env.NYC_OPEN_DATA_BASE_URL,
 });
 
 export type ServerEnvType = z.infer<typeof ServerEnv>;

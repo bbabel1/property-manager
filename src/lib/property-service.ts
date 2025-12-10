@@ -3,6 +3,7 @@ import type { Database } from '@/types/database'
 import { normalizeStaffRole } from './staff-role'
 
 export type Property = Database['public']['Tables']['properties']['Row']
+export type Building = Database['public']['Tables']['buildings']['Row']
 export type Unit = Database['public']['Tables']['units']['Row']
 export type Owner = Database['public']['Tables']['owners']['Row'] & {
   ownership_percentage?: number | null
@@ -34,6 +35,7 @@ export type PropertyWithDetails = Property & {
   property_manager_email?: string
   property_manager_phone?: string
   primary_image_url?: string
+  building?: Building | null
 }
 
 export type PropertyListItem = Pick<Property, 'id' | 'name' | 'status' | 'property_type' | 'created_at'>
