@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    await requireUser()
+    await requireUser(request)
 
     const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const params = {

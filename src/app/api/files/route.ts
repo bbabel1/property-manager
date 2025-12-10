@@ -10,7 +10,7 @@ import { requireUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser();
+    const user = await requireUser(request);
     const supabase = await getSupabaseServerClient();
     const url = new URL(request.url);
 

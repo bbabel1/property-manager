@@ -253,6 +253,135 @@ export type Database = {
         }
         Relationships: []
       }
+      buildings: {
+        Row: {
+          bbl: string | null
+          bin: string | null
+          borough_code: string | null
+          city: string | null
+          condo_num: string | null
+          coop_num: string | null
+          country: string | null
+          created_at: string
+          ease_digit: string | null
+          enrichment_errors: Json | null
+          geoservice: Json | null
+          geoservice_response_at: string | null
+          hpd_building: Json | null
+          hpd_registration: Json | null
+          hpd_registration_response_at: string | null
+          hpd_response_at: string | null
+          house_number: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          neighborhood: string | null
+          nta: Json | null
+          nta_code: string | null
+          nta_name: string | null
+          nta_response_at: string | null
+          parid: string | null
+          pluto: Json | null
+          pluto_response_at: string | null
+          raw_address: string | null
+          normalized_address_key: string | null
+          state: string | null
+          street_name: string | null
+          street_name_normalized: string | null
+          tax_block: string | null
+          tax_lot: string | null
+          tax_map: string | null
+          tax_section: string | null
+          tax_volume: string | null
+          updated_at: string
+          zip_code: string | null
+        }
+        Insert: {
+          bbl?: string | null
+          bin?: string | null
+          borough_code?: string | null
+          city?: string | null
+          condo_num?: string | null
+          coop_num?: string | null
+          country?: string | null
+          created_at?: string
+          ease_digit?: string | null
+          enrichment_errors?: Json | null
+          geoservice?: Json | null
+          geoservice_response_at?: string | null
+          hpd_building?: Json | null
+          hpd_registration?: Json | null
+          hpd_registration_response_at?: string | null
+          hpd_response_at?: string | null
+          house_number?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood?: string | null
+          nta?: Json | null
+          nta_code?: string | null
+          nta_name?: string | null
+          nta_response_at?: string | null
+          parid?: string | null
+          pluto?: Json | null
+          pluto_response_at?: string | null
+          raw_address?: string | null
+          normalized_address_key?: string | null
+          state?: string | null
+          street_name?: string | null
+          street_name_normalized?: string | null
+          tax_block?: string | null
+          tax_lot?: string | null
+          tax_map?: string | null
+          tax_section?: string | null
+          tax_volume?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Update: {
+          bbl?: string | null
+          bin?: string | null
+          borough_code?: string | null
+          city?: string | null
+          condo_num?: string | null
+          coop_num?: string | null
+          country?: string | null
+          created_at?: string
+          ease_digit?: string | null
+          enrichment_errors?: Json | null
+          geoservice?: Json | null
+          geoservice_response_at?: string | null
+          hpd_building?: Json | null
+          hpd_registration?: Json | null
+          hpd_registration_response_at?: string | null
+          hpd_response_at?: string | null
+          house_number?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          neighborhood?: string | null
+          nta?: Json | null
+          nta_code?: string | null
+          nta_name?: string | null
+          nta_response_at?: string | null
+          parid?: string | null
+          pluto?: Json | null
+          pluto_response_at?: string | null
+          raw_address?: string | null
+          normalized_address_key?: string | null
+          state?: string | null
+          street_name?: string | null
+          street_name_normalized?: string | null
+          tax_block?: string | null
+          tax_lot?: string | null
+          tax_map?: string | null
+          tax_section?: string | null
+          tax_volume?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
       buildium_api_cache: {
         Row: {
           created_at: string | null
@@ -2035,6 +2164,14 @@ export type Database = {
           billing_frequency:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
+          building_id: string | null
+          bin: string | null
+          bbl: string | null
+          block: number | null
+          lot: number | null
+          borough_code: number | null
+          hpd_building_id: number | null
+          hpd_registration_id: number | null
           borough: string | null
           buildium_created_at: string | null
           buildium_property_id: number | null
@@ -2061,6 +2198,7 @@ export type Database = {
             | null
           name: string
           neighborhood: string | null
+          normalized_address_key: string | null
           occupancy_rate: number | null
           operating_bank_account_id: string | null
           org_id: string
@@ -2106,6 +2244,14 @@ export type Database = {
           billing_frequency?:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
+          building_id?: string | null
+          bin?: string | null
+          bbl?: string | null
+          block?: number | null
+          lot?: number | null
+          borough_code?: number | null
+          hpd_building_id?: number | null
+          hpd_registration_id?: number | null
           borough?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
@@ -2132,6 +2278,7 @@ export type Database = {
             | null
           name: string
           neighborhood?: string | null
+          normalized_address_key?: string | null
           occupancy_rate?: number | null
           operating_bank_account_id?: string | null
           org_id: string
@@ -2177,6 +2324,14 @@ export type Database = {
           billing_frequency?:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
+          building_id?: string | null
+          bin?: string | null
+          bbl?: string | null
+          block?: number | null
+          lot?: number | null
+          borough_code?: number | null
+          hpd_building_id?: number | null
+          hpd_registration_id?: number | null
           borough?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
@@ -2203,6 +2358,7 @@ export type Database = {
             | null
           name?: string
           neighborhood?: string | null
+          normalized_address_key?: string | null
           occupancy_rate?: number | null
           operating_bank_account_id?: string | null
           org_id?: string
@@ -2237,6 +2393,13 @@ export type Database = {
             columns: ["deposit_trust_account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
           {

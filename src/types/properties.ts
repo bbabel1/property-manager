@@ -24,6 +24,15 @@ export interface Property {
   state?: string; // VARCHAR(100), NULL
   postal_code: string; // VARCHAR(20), NOT NULL
   country: CountryEnum; // public.countries enum, NOT NULL
+  building_id?: string | null; // UUID FK to buildings
+  bin?: string | null; // BIN stored on properties for direct sync
+  bbl?: string | null; // BBL stored on properties for cross-agency joins
+  block?: number | null;
+  lot?: number | null;
+  borough_code?: number | null; // 1-5
+  hpd_building_id?: number | null;
+  hpd_registration_id?: number | null;
+  normalized_address_key?: string | null;
   
   // Integration and business fields
   buildium_property_id?: number; // INTEGER, NULL
@@ -48,6 +57,15 @@ export interface CreatePropertyRequest {
   state?: string;
   postal_code: string;
   country: CountryEnum;
+  building_id?: string | null;
+  bin?: string | null;
+  bbl?: string | null;
+  block?: number | null;
+  lot?: number | null;
+  borough_code?: number | null;
+  hpd_building_id?: number | null;
+  hpd_registration_id?: number | null;
+  normalized_address_key?: string | null;
   buildium_property_id?: number;
   property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids?: number[];
@@ -71,6 +89,7 @@ export interface PropertyFormData {
   state: string;
   postal_code: string;
   country: CountryEnum;
+  building_id?: string | null;
   buildium_property_id: string; // Form field as string
   property_type?: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
   rental_owner_ids: string; // Form field as comma-separated string

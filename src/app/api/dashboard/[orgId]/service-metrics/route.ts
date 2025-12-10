@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, requireOrg } from '@/lib/auth/guards';
+import { requireAuth } from '@/lib/auth/guards';
+import { userHasOrgAccess } from '@/lib/auth/org-access';
 import { hasPermission } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
 
@@ -28,19 +29,35 @@ function getPeriodDates(period: 'month' | 'quarter' | 'year') {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ orgId: string }> },
+  { params }: { params: { orgId: string } },
 ) {
   try {
     const auth = await requireAuth();
-    if (!hasPermission(auth.roles, 'dashboard.read')) {
+    const { supabase, user, roles } = auth;
+
+    if (!hasPermission(roles, 'dashboard.read')) {
       return NextResponse.json(
         { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 },
       );
     }
 
-    const { orgId } = await params;
-    const { supabase } = await requireOrg(orgId);
+    const { orgId } = params;
+    if (!orgId) {
+      return NextResponse.json(
+        { error: { code: 'ORG_CONTEXT_REQUIRED', message: 'Organization context required' } },
+        { status: 400 },
+      );
+    }
+
+    const orgAllowed = await userHasOrgAccess({ supabase, user, orgId });
+    if (!orgAllowed) {
+      return NextResponse.json(
+        { error: { code: 'ORG_FORBIDDEN', message: 'Forbidden: organization access denied' } },
+        { status: 403 },
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const period = (searchParams.get('period') || 'month') as 'month' | 'quarter' | 'year';
     const type = searchParams.get('type') || 'all';
@@ -119,7 +136,7 @@ export async function GET(
 
     if (type === 'all' || type === 'revenue') {
       const revenueQuery = propertyId
-        ? supabase.from('v_service_revenue_by_property').select('*').eq('property_id', propertyId)
+        ? supabase.from('v_service_revenue_by_property').select('*')
         : supabase.from('v_service_revenue_by_offering').select('*');
 
       revenueQuery
@@ -128,6 +145,10 @@ export async function GET(
         .lte('period_end', end)
         .order('period_start', { ascending: false })
         .limit(200);
+
+      if (propertyId) {
+        revenueQuery.eq('property_id', propertyId);
+      }
 
       const { data, error } = await revenueQuery;
 
@@ -211,18 +232,61 @@ export async function GET(
         }
       });
 
+      const { data: propertiesInScope, error: propertiesError } = await supabase
+        .from('properties')
+        .select('id')
+        .eq('org_id', orgId)
+        .limit(2000);
+
+      if (propertiesError) {
+        logger.error({ error: propertiesError }, 'Error fetching properties for utilization totals');
+        return NextResponse.json(
+          { error: { code: 'QUERY_ERROR', message: 'Failed to load utilization data' } },
+          { status: 500 },
+        );
+      }
+
+      const filteredProperties = propertyId
+        ? (propertiesInScope || []).filter((p) => p.id === propertyId)
+        : propertiesInScope || [];
+
+      const { data: unitsInScope, error: unitsError } = await supabase
+        .from('units')
+        .select('id, property_id, properties!inner(org_id)')
+        .eq('properties.org_id', orgId)
+        .limit(5000);
+
+      if (unitsError) {
+        logger.error({ error: unitsError }, 'Error fetching units for utilization totals');
+        return NextResponse.json(
+          { error: { code: 'QUERY_ERROR', message: 'Failed to load utilization data' } },
+          { status: 500 },
+        );
+      }
+
+      const filteredUnits = propertyId
+        ? (unitsInScope || []).filter((u) => u.property_id === propertyId)
+        : unitsInScope || [];
+
+      const totalProperties = filteredProperties.length;
+      const totalUnits = filteredUnits.length;
+
       const utilization = Array.from(utilizationMap.values()).map((item) => {
-        const totalProperties = item.propertyIds.size;
-        const totalUnits = item.unitIds.size;
+        const activeProperties = item.propertyIds.size;
+        const activeUnits = item.unitIds.size;
+        const propertyUtilizationRate =
+          totalProperties > 0 ? (activeProperties / totalProperties) * 100 : 0;
+        const unitUtilizationRate = totalUnits > 0 ? (activeUnits / totalUnits) * 100 : 0;
+        const utilizationRate = totalUnits > 0 ? unitUtilizationRate : propertyUtilizationRate;
         return {
           offering_id: item.offering_id,
           offering_name: item.offering_name,
           category: item.category,
           total_properties: totalProperties,
-          active_properties: totalProperties,
+          active_properties: activeProperties,
           total_units: totalUnits,
-          active_units: totalUnits,
-          utilization_rate: totalProperties > 0 ? (totalProperties / totalProperties) * 100 : 0,
+          active_units: activeUnits,
+          utilization_rate: utilizationRate,
         };
       });
 

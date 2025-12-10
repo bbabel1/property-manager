@@ -18,6 +18,14 @@ const envSchema = z.object({
   GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
   GOOGLE_CALENDAR_OAUTH_REDIRECT_URI: z.string().url().optional(),
 
+  // NYC API Integration (Optional)
+  NYC_OPEN_DATA_API_KEY: z.string().optional(),
+  DOB_NOW_API_BASE_URL: z.string().url().optional().default('https://a810-bisweb.nyc.gov/bisweb/'),
+  NYC_OPEN_DATA_BASE_URL: z.string().url().optional().default('https://data.cityofnewyork.us/'),
+  NYC_OPEN_DATA_APP_TOKEN: z.string().optional(),
+  NYC_GEOSERVICE_API_KEY: z.string().optional(),
+  NYC_GEOSERVICE_BASE_URL: z.string().url().optional(),
+
   // App Configuration (Required)
   NEXTAUTH_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(32),

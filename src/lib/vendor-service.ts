@@ -250,15 +250,21 @@ function buildAutomationSignals(
     })
   }
 
-  if (vendor.complianceStatus === 'expiring' || vendor.complianceStatus === 'expired') {
+  if (vendor.complianceStatus === 'expiring' || vendor.complianceStatus === 'expired' || vendor.complianceStatus === 'missing') {
+    let description: string
+    if (vendor.complianceStatus === 'expired') {
+      description = 'Insurance/COI has expired'
+    } else if (vendor.complianceStatus === 'expiring') {
+      description = 'Insurance/COI expiring within 30 days'
+    } else {
+      description = 'No insurance/COI on file'
+    }
+
     signals.push({
       vendorId: vendor.id,
       vendorName: vendor.displayName,
       signalType: 'compliance',
-      description:
-        vendor.complianceStatus === 'expired'
-          ? 'Insurance/COI has expired'
-          : 'Insurance/COI expiring within 30 days',
+      description,
       suggestedAction: 'Auto-request updated COI and suspend new work orders until received',
       priority: 'high',
     })

@@ -43,6 +43,7 @@ export default function PageHeader({ property }: Props) {
     { key: 'files', label: 'Files' },
     { key: 'contacts', label: 'Contacts' },
     { key: 'tasks', label: 'Tasks' },
+    { key: 'compliance', label: 'Compliance' },
   ];
   const statusActive = String(property.status || '').toLowerCase() === 'active';
   const subtitleParts = [

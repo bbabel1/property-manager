@@ -24,6 +24,8 @@ import {
   toNumberOrNull,
 } from '@/lib/normalizers'
 import { normalizeStaffRole } from '@/lib/staff-role'
+import { enrichBuildingForProperty } from '@/lib/building-enrichment'
+import { buildNormalizedAddressKey } from '@/lib/normalized-address'
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert']
 // type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update'] // Unused
@@ -47,10 +49,16 @@ interface PropertyRequestBody {
   name: string
   addressLine1: string
   addressLine2?: string | null
+  addressLine3?: string | null
   city: string
   state: string
   postalCode: string
   country: string
+  borough?: string | null
+  neighborhood?: string | null
+  latitude?: number | string | null
+  longitude?: number | string | null
+  locationVerified?: boolean | null
   yearBuilt?: number | string | null
   structureDescription?: string | null
   owners?: Array<{ ownerId: string; percentage?: number; primary?: boolean }>
@@ -174,6 +182,15 @@ export async function POST(request: NextRequest) {
       return trimmed.length > 0 ? trimmed : null
     }
 
+    const normalizedAddress = buildNormalizedAddressKey({
+      addressLine1,
+      city,
+      state,
+      postalCode,
+      country,
+      borough: body?.borough ?? body?.city ?? null,
+    })
+
     const propertyData: PropertiesInsert = {
       name,
       structure_description: structureDescription ?? null,
@@ -192,6 +209,7 @@ export async function POST(request: NextRequest) {
       status: propertyStatus,
       is_active: propertyStatus === 'Active',
       rental_owner_ids: null,
+      normalized_address_key: normalizedAddress?.normalizedAddressKey || null,
       management_scope: normalizeAssignmentLevelEnum(management_scope),
       service_assignment: normalizeAssignmentLevel(service_assignment),
       service_plan: normalizeServicePlan(service_plan),
@@ -211,6 +229,40 @@ export async function POST(request: NextRequest) {
       org_id: orgId,
       created_at: now,
       updated_at: now,
+    }
+
+    let enrichmentResult: Awaited<ReturnType<typeof enrichBuildingForProperty>> | null = null
+    try {
+      enrichmentResult = await enrichBuildingForProperty(
+        {
+          addressLine1,
+          city,
+          state,
+          postalCode,
+          country,
+          borough: body?.borough ?? body?.city ?? null,
+          neighborhood: body?.neighborhood ?? null,
+          latitude: toNumberOrNull(body?.latitude),
+          longitude: toNumberOrNull(body?.longitude),
+          normalizedAddressKey: normalizedAddress?.normalizedAddressKey || null,
+        },
+        { db, normalizedAddressKey: normalizedAddress?.normalizedAddressKey || null }
+      )
+    } catch (enrichErr) {
+      const message = enrichErr instanceof Error ? enrichErr.message : 'Address enrichment failed'
+      logger.error({ error: message }, 'Address enrichment failed')
+      return NextResponse.json(
+        { error: 'Address enrichment failed', details: message },
+        { status: 422 }
+      )
+    }
+
+    if (enrichmentResult?.propertyPatch) {
+      for (const [key, value] of Object.entries(enrichmentResult.propertyPatch)) {
+        if (value !== undefined) {
+          ;(propertyData as any)[key] = value as any
+        }
+      }
     }
 
     const insertPayload: Record<string, unknown> = { ...propertyData }
@@ -784,7 +836,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         message: 'Property created successfully',
-        property: property
+        property: property,
+        building: enrichmentResult?.building || null,
+        enrichment_errors: enrichmentResult?.errors || []
       },
       { status: 201 }
     )
