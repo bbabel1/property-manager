@@ -14,6 +14,12 @@ import type {
   ComplianceItemGenerationResponse,
   ComplianceProgram,
 } from '@/types/compliance'
+import {
+  canonicalAssetType,
+  programTargetsAsset,
+  programTargetsProperty,
+  resolveProgramScope,
+} from './compliance-programs'
 
 export class ComplianceItemGenerator {
   /**
@@ -25,12 +31,13 @@ export class ComplianceItemGenerator {
     periodsAhead = 12
   ): Promise<ComplianceItemGenerationResponse> {
     try {
+      const overrides = await this.getPropertyProgramOverrides(propertyId, orgId)
+
       // Get all enabled compliance programs for this org
       const { data: programs, error: programsError } = await supabaseAdmin
         .from('compliance_programs')
         .select('*')
         .eq('org_id', orgId)
-        .eq('is_enabled', true)
 
       if (programsError) {
         logger.error({ error: programsError, propertyId, orgId }, 'Failed to fetch compliance programs')
@@ -46,9 +53,53 @@ export class ComplianceItemGenerator {
       let itemsSkipped = 0
       const errors: string[] = []
 
+      // Property metadata for criteria evaluation
+      const { data: propertyRow } = await supabaseAdmin
+        .from('properties')
+        .select('id, borough, bin, building_id, total_units')
+        .eq('id', propertyId)
+        .maybeSingle()
+
+      let propertyMeta: { id: string; borough: string | null; bin: string | null; occupancy_group?: string | null; occupancy_description?: string | null; is_one_two_family?: boolean | null; is_private_residence_building?: boolean | null; dwelling_unit_count?: number | null; property_total_units?: number | null } | null =
+        null
+
+      if (propertyRow) {
+        propertyMeta = {
+          id: propertyRow.id as string,
+          borough: (propertyRow as any).borough as string | null,
+          bin: (propertyRow as any).bin as string | null,
+          property_total_units: (propertyRow as any).total_units as number | null,
+        }
+
+        const buildingId = (propertyRow as any).building_id as string | null
+        if (buildingId) {
+          const { data: buildingRow } = await supabaseAdmin
+            .from('buildings')
+            .select('id, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, dwelling_unit_count')
+            .eq('id', buildingId)
+            .maybeSingle()
+          if (buildingRow) {
+            propertyMeta.occupancy_group = (buildingRow as any).occupancy_group as string | null
+            propertyMeta.occupancy_description = (buildingRow as any).occupancy_description as string | null
+            propertyMeta.is_one_two_family = (buildingRow as any).is_one_two_family as boolean | null
+            propertyMeta.is_private_residence_building = (buildingRow as any).is_private_residence_building as boolean | null
+            propertyMeta.dwelling_unit_count = (buildingRow as any).dwelling_unit_count as number | null
+          }
+        }
+      }
+
       // Generate items for each program
       for (const program of programs) {
         try {
+          const override = overrides.get(program.id)
+          const effectiveEnabled = typeof override === 'boolean' ? override : program.is_enabled
+          if (!effectiveEnabled) continue
+
+          const scope = resolveProgramScope(program)
+          if ((scope === 'property' || scope === 'both') && !programTargetsProperty(program as ComplianceProgram, propertyMeta)) {
+            continue
+          }
+
           const result = await this.generateItemsForProgram(
             program.id,
             propertyId,
@@ -91,7 +142,7 @@ export class ComplianceItemGenerator {
       // Get asset details
       const { data: asset, error: assetError } = await supabaseAdmin
         .from('compliance_assets')
-        .select('id, property_id, asset_type')
+        .select('id, property_id, asset_type, external_source, active, metadata, device_category, device_technology, device_subtype, is_private_residence')
         .eq('id', assetId)
         .eq('org_id', orgId)
         .single()
@@ -100,12 +151,15 @@ export class ComplianceItemGenerator {
         throw new Error(`Asset not found: ${assetId}`)
       }
 
+      const assetType = (asset as any).asset_type as string | null
+
+      const overrides = await this.getPropertyProgramOverrides(asset.property_id, orgId)
+
       // Get programs that apply to this asset type
       const { data: programs, error: programsError } = await supabaseAdmin
         .from('compliance_programs')
         .select('*')
         .eq('org_id', orgId)
-        .eq('is_enabled', true)
         .in('applies_to', ['asset', 'both'])
 
       if (programsError) {
@@ -117,11 +171,62 @@ export class ComplianceItemGenerator {
         return { success: true, items_created: 0, items_skipped: 0 }
       }
 
+      // Fetch property meta for criteria checks
+      const { data: propertyRow } = await supabaseAdmin
+        .from('properties')
+        .select('id, borough, bin, building_id, total_units')
+        .eq('id', (asset as any).property_id)
+        .maybeSingle()
+      let propertyMeta: { id: string; borough: string | null; bin: string | null; occupancy_group?: string | null; occupancy_description?: string | null; is_one_two_family?: boolean | null; is_private_residence_building?: boolean | null; dwelling_unit_count?: number | null; property_total_units?: number | null } | null =
+        null
+      if (propertyRow) {
+        propertyMeta = {
+          id: propertyRow.id as string,
+          borough: (propertyRow as any).borough as string | null,
+          bin: (propertyRow as any).bin as string | null,
+          property_total_units: (propertyRow as any).total_units as number | null,
+        }
+        const buildingId = (propertyRow as any).building_id as string | null
+        if (buildingId) {
+          const { data: buildingRow } = await supabaseAdmin
+            .from('buildings')
+            .select('id, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, dwelling_unit_count')
+            .eq('id', buildingId)
+            .maybeSingle()
+          if (buildingRow) {
+            propertyMeta.occupancy_group = (buildingRow as any).occupancy_group as string | null
+            propertyMeta.occupancy_description = (buildingRow as any).occupancy_description as string | null
+            propertyMeta.is_one_two_family = (buildingRow as any).is_one_two_family as boolean | null
+            propertyMeta.is_private_residence_building = (buildingRow as any).is_private_residence_building as boolean | null
+            propertyMeta.dwelling_unit_count = (buildingRow as any).dwelling_unit_count as number | null
+          }
+        }
+      }
+
+      // Filter out programs that do not match this asset type (prevent boilers/facades/etc. from being assigned to elevators)
+      const typeGuards: Record<string, (code: string) => boolean> = {
+        elevator: (code) => code.startsWith('NYC_ELV'),
+        boiler: (code) => code.startsWith('NYC_BOILER'),
+        sprinkler: (code) => code.startsWith('NYC_SPRINKLER'),
+        gas_piping: (code) => code.startsWith('NYC_GAS'),
+        facade: (code) => code.startsWith('NYC_FACADE'),
+      }
+      const normalizedType = canonicalAssetType(asset as any) || (assetType || '').toLowerCase()
+      const guard = typeGuards[normalizedType]
+      const filteredPrograms = (guard ? programs.filter((p) => guard(p.code || '')) : programs).filter((p) => {
+        const override = overrides.get(p.id)
+        const effectiveEnabled = typeof override === 'boolean' ? override : p.is_enabled
+        if (!effectiveEnabled) return false
+        const scope = resolveProgramScope(p as ComplianceProgram)
+        if (scope === 'property') return false
+        return programTargetsAsset(p as ComplianceProgram, asset as any, propertyMeta)
+      })
+
       let itemsCreated = 0
       let itemsSkipped = 0
       const errors: string[] = []
 
-      for (const program of programs) {
+      for (const program of filteredPrograms) {
         try {
           const result = await this.generateItemsForProgram(
             program.id,
@@ -190,7 +295,7 @@ export class ComplianceItemGenerator {
       // Get property org_id to ensure consistency
       const { data: property, error: propertyError } = await supabaseAdmin
         .from('properties')
-        .select('org_id')
+        .select('org_id, borough, bin, building_id, total_units')
         .eq('id', propertyId)
         .single()
 
@@ -202,14 +307,102 @@ export class ComplianceItemGenerator {
         throw new Error(`Property org_id mismatch: ${property.org_id} !== ${orgId}`)
       }
 
+      const propertyMeta: {
+        id: string
+        borough: string | null
+        bin: string | null
+        occupancy_group?: string | null
+        occupancy_description?: string | null
+        is_one_two_family?: boolean | null
+        is_private_residence_building?: boolean | null
+        dwelling_unit_count?: number | null
+        property_total_units?: number | null
+      } = {
+        id: propertyId,
+        borough: (property as any).borough as string | null,
+        bin: (property as any).bin as string | null,
+        property_total_units: (property as any).total_units as number | null,
+      }
+
+      const buildingId = (property as any).building_id as string | null
+      if (buildingId) {
+        const { data: buildingRow } = await supabaseAdmin
+          .from('buildings')
+          .select('id, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, dwelling_unit_count')
+          .eq('id', buildingId)
+          .maybeSingle()
+        if (buildingRow) {
+          propertyMeta.occupancy_group = (buildingRow as any).occupancy_group as string | null
+          propertyMeta.occupancy_description = (buildingRow as any).occupancy_description as string | null
+          propertyMeta.is_one_two_family = (buildingRow as any).is_one_two_family as boolean | null
+          propertyMeta.is_private_residence_building = (buildingRow as any).is_private_residence_building as boolean | null
+          propertyMeta.dwelling_unit_count = (buildingRow as any).dwelling_unit_count as number | null
+        }
+      }
+
+      let assetMeta: { id: string; property_id: string; asset_type: string | null; external_source: string | null; active: boolean; metadata: Record<string, unknown> } | null = null
+      if (assetId) {
+        const { data: assetRow, error: assetRowError } = await supabaseAdmin
+        .from('compliance_assets')
+        .select('id, property_id, asset_type, external_source, active, metadata, device_category, device_technology, device_subtype, is_private_residence')
+        .eq('id', assetId)
+        .eq('org_id', orgId)
+        .single()
+
+        if (assetRowError || !assetRow) {
+          throw new Error(`Asset not found for criteria evaluation: ${assetId}`)
+        }
+        assetMeta = {
+          id: assetRow.id as string,
+          property_id: assetRow.property_id as string,
+          asset_type: (assetRow as any).asset_type as string | null,
+          external_source: (assetRow as any).external_source as string | null,
+          active: (assetRow as any).active !== false,
+          device_category: (assetRow as any).device_category as string | null,
+          device_technology: (assetRow as any).device_technology as string | null,
+          device_subtype: (assetRow as any).device_subtype as string | null,
+          is_private_residence: (assetRow as any).is_private_residence as boolean | null,
+          metadata: ((assetRow as any).metadata || {}) as Record<string, unknown>,
+        }
+      }
+
+      const scope = resolveProgramScope(program as ComplianceProgram)
+
+      if ((scope === 'property' || scope === 'both') && !programTargetsProperty(program as ComplianceProgram, propertyMeta)) {
+        return { items_created: 0, items_skipped: 0 }
+      }
+
+      if (assetId && !programTargetsAsset(program as ComplianceProgram, assetMeta, propertyMeta)) {
+        return { items_created: 0, items_skipped: 0 }
+      }
+
       // Calculate periods (timezone-aware)
       const now = new Date()
       const timezone = 'America/New_York' // NYC timezone
+      const horizon = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+      horizon.setFullYear(horizon.getFullYear() + 5)
+
+      // Clean up any items beyond horizon for this target before creating new ones
+      const horizonStr = horizon.toISOString().split('T')[0]
+      const deleteQuery = supabaseAdmin
+        .from('compliance_items')
+        .delete()
+        .eq('program_id', programId)
+        .eq('property_id', propertyId)
+        .gt('due_date', horizonStr)
+      if (assetId) {
+        deleteQuery.eq('asset_id', assetId)
+      } else {
+        deleteQuery.is('asset_id', null)
+      }
+      await deleteQuery
+
       const periods = this.calculatePeriods(
         program.frequency_months,
         program.lead_time_days,
         periodsAhead,
-        timezone
+        timezone,
+        horizon,
       )
 
       let itemsCreated = 0
@@ -291,13 +484,23 @@ export class ComplianceItemGenerator {
     frequencyMonths: number,
     leadTimeDays: number,
     periodsAhead: number,
-    timezone: string
+    timezone: string,
+    horizonOverride?: Date
   ): Array<{ period_start: string; period_end: string; due_date: string }> {
+    if (frequencyMonths <= 0) return []
     const periods: Array<{ period_start: string; period_end: string; due_date: string }> = []
 
     // Get current date in NYC timezone
     const now = new Date()
     const nycDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    const maxLookaheadYears = 5
+    const horizon = horizonOverride
+      ? new Date(horizonOverride)
+      : (() => {
+          const h = new Date(nycDate)
+          h.setFullYear(h.getFullYear() + maxLookaheadYears)
+          return h
+        })()
 
     // Start from the beginning of the current month
     const startDate = new Date(nycDate.getFullYear(), nycDate.getMonth(), 1)
@@ -319,6 +522,9 @@ export class ComplianceItemGenerator {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
       if (dueDate >= thirtyDaysAgo) {
+        if (dueDate > horizon) {
+          break
+        }
         periods.push({
           period_start: periodStart.toISOString().split('T')[0],
           period_end: periodEnd.toISOString().split('T')[0],
@@ -329,5 +535,31 @@ export class ComplianceItemGenerator {
 
     return periods
   }
-}
 
+  private async getPropertyProgramOverrides(
+    propertyId: string,
+    orgId: string
+  ): Promise<Map<string, boolean | null>> {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('compliance_property_program_overrides')
+        .select('program_id, is_enabled')
+        .eq('property_id', propertyId)
+        .eq('org_id', orgId)
+
+      if (error) {
+        logger.error({ error, propertyId, orgId }, 'Failed to load program overrides for property')
+        return new Map()
+      }
+
+      const map = new Map<string, boolean | null>()
+      ;(data || []).forEach((row) => {
+        map.set(row.program_id, typeof row.is_enabled === 'boolean' ? row.is_enabled : null)
+      })
+      return map
+    } catch (error) {
+      logger.error({ error, propertyId, orgId }, 'Error loading program overrides for property')
+      return new Map()
+    }
+  }
+}

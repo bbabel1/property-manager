@@ -467,7 +467,6 @@ Add item UX: status-driven primary CTA, audit trail + comments, inline violation
 - [ ] Create compliance sync service in src/lib/compliance-sync-service.ts to sync NYC data, map to compliance_events, update compliance_items (idempotent via external IDs), with advisory locks and external_sync_state.
 - [ ] Create sync API route at src/app/api/compliance/sync/route.ts and nightly sync job (Edge Function or cron) with per-org+source advisory locks.
 - [ ] Create migration to seed default compliance_program_templates and insert enabled compliance_programs for existing orgs; hook/job to auto-enable for new orgs.
-
 - [ ] Create compliance item generator in src/lib/compliance-item-generator.ts (timezone-aware periods, lead times, advisory lock, unique index guard).
 - [ ] Add portfolio UX: smart defaults/saved views, per-row quick actions, visual hierarchy (chips + sparkline, locked first column), global compliance search with typed autocomplete.
 - [ ] Create portfolio compliance dashboard at src/app/(protected)/compliance/page.tsx with summary cards, property table, filters; API at src/app/api/compliance/portfolio/route.ts with pagination limits and org scoping.

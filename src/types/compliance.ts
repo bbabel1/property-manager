@@ -83,6 +83,23 @@ export type ComplianceAppliesTo =
   | 'asset'
   | 'both'
 
+export type ComplianceDeviceCategory =
+  | 'elevator'
+  | 'escalator'
+  | 'dumbwaiter'
+  | 'wheelchair_lift'
+  | 'material_lift'
+  | 'manlift'
+  | 'pneumatic_elevator'
+  | 'other_vertical'
+  | 'lift'
+  | 'chairlift'
+  | 'boiler'
+  | 'sprinkler'
+  | 'gas_piping'
+  | 'generic'
+  | 'other'
+
 // ============================================================================
 // BASE TYPES
 // ============================================================================
@@ -96,6 +113,7 @@ export interface ComplianceProgramTemplate {
   lead_time_days: number
   applies_to: ComplianceAppliesTo
   severity_score: number // 1-5
+  criteria: ComplianceProgramCriteria | null
   notes: string | null
   is_active: boolean
   created_at: string
@@ -113,11 +131,49 @@ export interface ComplianceProgram {
   lead_time_days: number
   applies_to: ComplianceAppliesTo
   severity_score: number // 1-5
+  criteria: ComplianceProgramCriteria | null
   is_enabled: boolean
   override_fields: Record<string, unknown> // jsonb
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+export interface CompliancePropertyProgramOverride {
+  id: string
+  org_id: string
+  property_id: string
+  program_id: string
+  is_enabled: boolean | null
+  created_at: string
+  updated_at: string
+}
+
+export type ComplianceProgramWithOverride = ComplianceProgram & {
+  override?: CompliancePropertyProgramOverride | null
+  effective_is_enabled?: boolean
+}
+
+export interface ComplianceProgramCriteria {
+  scope_override?: ComplianceAppliesTo
+  property_filters?: {
+    boroughs?: string[]
+    require_bin?: boolean
+    occupancy_groups?: string[]
+    is_one_two_family?: boolean
+    is_private_residence_building?: boolean
+    min_dwelling_units?: number
+    max_dwelling_units?: number
+  }
+  asset_filters?: {
+    asset_types?: ComplianceAssetType[]
+    external_source?: string | null
+    active_only?: boolean
+    device_categories?: ComplianceDeviceCategory[]
+    exclude_device_categories?: ComplianceDeviceCategory[]
+    device_technologies?: string[]
+    is_private_residence?: boolean
+  }
 }
 
 export interface ComplianceAsset {
@@ -130,6 +186,10 @@ export interface ComplianceAsset {
   external_source: string | null
   external_source_id: string | null
   active: boolean
+  device_category?: ComplianceDeviceCategory | null
+  device_technology?: string | null
+  device_subtype?: string | null
+  is_private_residence?: boolean | null
   metadata: Record<string, unknown> // jsonb
   created_at: string
   updated_at: string
@@ -200,6 +260,7 @@ export interface ComplianceViolation {
   cleared_date: string | null // date
   linked_item_id: string | null
   linked_work_order_id: string | null
+  metadata: Record<string, unknown> // jsonb
   created_at: string
   updated_at: string
 }
@@ -444,4 +505,3 @@ export interface ComplianceItemGenerationResponse {
   items_skipped: number
   errors?: string[]
 }
-

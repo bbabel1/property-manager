@@ -53,6 +53,10 @@ export async function POST(
       return NextResponse.json({ error: 'Program not found' }, { status: 404 })
     }
 
+    if (!program.is_enabled) {
+      return NextResponse.json({ error: 'Program is disabled. Enable it before generating items.' }, { status: 400 })
+    }
+
     const generator = new ComplianceItemGenerator()
     let itemsCreated = 0
     let itemsSkipped = 0

@@ -15,7 +15,11 @@ import { ExternalLink, Eye } from 'lucide-react'
 import type { ComplianceItemWithRelations } from '@/types/compliance'
 
 interface ComplianceChecklistTableProps {
-  items: ComplianceItemWithRelations[]
+  items: (ComplianceItemWithRelations & {
+    computedLastInspection?: string | null
+    computedLastEventType?: string | null
+    programDisplayName?: string
+  })[]
   onViewItem?: (itemId: string) => void
 }
 
@@ -56,10 +60,9 @@ export function ComplianceChecklistTable({
           <TableRow>
             <TableHead>Program</TableHead>
             <TableHead>Asset</TableHead>
-            <TableHead>Period</TableHead>
+            <TableHead>Last Event</TableHead>
             <TableHead>Due Date</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Last Event</TableHead>
             <TableHead>Next Action</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
@@ -75,7 +78,7 @@ export function ComplianceChecklistTable({
             items.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium">
-                  {item.program?.name || 'Unknown Program'}
+                  {item.programDisplayName || item.program?.name || 'Unknown Program'}
                 </TableCell>
                 <TableCell>
                   {item.asset ? (
@@ -90,7 +93,23 @@ export function ComplianceChecklistTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  {formatDate(item.period_start)} - {formatDate(item.period_end)}
+                  {(() => {
+                    const lastInspection = item.computedLastInspection
+                    if (!lastInspection) return '—'
+                    const date = new Date(lastInspection)
+                    const label =
+                      item.program?.code === 'NYC_ELV_CAT1'
+                        ? 'CAT1 Latest Report'
+                        : item.program?.code === 'NYC_ELV_CAT5'
+                          ? 'CAT5 Latest Report'
+                          : item.computedLastEventType || 'Last Event'
+                    return (
+                      <div className="text-sm">
+                        <div>{date.toLocaleDateString()}</div>
+                        <div className="text-muted-foreground">{label}</div>
+                      </div>
+                    )
+                  })()}
                 </TableCell>
                 <TableCell>
                   <span
@@ -106,16 +125,6 @@ export function ComplianceChecklistTable({
                   </span>
                 </TableCell>
                 <TableCell>{getStatusBadge(item.status)}</TableCell>
-                <TableCell>
-                  {item.events && item.events.length > 0 ? (
-                    <div className="text-sm">
-                      <div>{formatDate(item.events[0].inspection_date || item.events[0].created_at)}</div>
-                      <div className="text-muted-foreground">{item.events[0].compliance_status || '—'}</div>
-                    </div>
-                  ) : (
-                    '—'
-                  )}
-                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {item.next_action || '—'}
                 </TableCell>
@@ -157,4 +166,3 @@ export function ComplianceChecklistTable({
     </div>
   )
 }
-
