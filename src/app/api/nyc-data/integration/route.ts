@@ -102,14 +102,38 @@ export async function PUT(request: NextRequest) {
       isEnabled: body.isEnabled,
       elevatorDevices: datasetsInput.elevatorDevices || datasetsInput.dataset_elevator_devices || undefined,
       elevatorInspections: datasetsInput.elevatorInspections || datasetsInput.dataset_elevator_inspections || undefined,
-      elevatorViolations: datasetsInput.elevatorViolations || datasetsInput.dataset_elevator_violations || undefined,
+      dobSafetyViolations:
+        datasetsInput.dobSafetyViolations ||
+        datasetsInput.elevatorViolations || // backward compatibility with old key
+        datasetsInput.dataset_elevator_violations ||
+        undefined,
       dobViolations: datasetsInput.dobViolations || datasetsInput.dataset_dob_violations || undefined,
       dobActiveViolations: datasetsInput.dobActiveViolations || datasetsInput.dataset_dob_active_violations || undefined,
       dobEcbViolations: datasetsInput.dobEcbViolations || datasetsInput.dataset_dob_ecb_violations || undefined,
+      dobComplaints: datasetsInput.dobComplaints || datasetsInput.dataset_dob_complaints || undefined,
+      bedbugReporting: datasetsInput.bedbugReporting || datasetsInput.dataset_bedbug_reporting || undefined,
+      dobNowApprovedPermits:
+        datasetsInput.dobNowApprovedPermits || datasetsInput.dataset_dob_now_approved_permits || undefined,
+      dobNowSafetyBoiler:
+        datasetsInput.dobNowSafetyBoiler || datasetsInput.dataset_dob_now_safety_boiler || undefined,
+      dobNowSafetyFacade:
+        datasetsInput.dobNowSafetyFacade || datasetsInput.dataset_dob_now_safety_facade || undefined,
+      dobPermitIssuanceOld:
+        datasetsInput.dobPermitIssuanceOld || datasetsInput.dataset_dob_permit_issuance_old || undefined,
+      dobCertificateOfOccupancyOld:
+        datasetsInput.dobCertificateOfOccupancyOld ||
+        datasetsInput.dataset_dob_certificate_of_occupancy_old ||
+        undefined,
+      dobCertificateOfOccupancyNow:
+        datasetsInput.dobCertificateOfOccupancyNow ||
+        datasetsInput.dataset_dob_certificate_of_occupancy_now ||
+        undefined,
       hpdViolations: datasetsInput.hpdViolations || datasetsInput.dataset_hpd_violations || undefined,
       hpdComplaints: datasetsInput.hpdComplaints || datasetsInput.dataset_hpd_complaints || undefined,
+      hpdRegistrations: datasetsInput.hpdRegistrations || datasetsInput.dataset_hpd_registrations || undefined,
       fdnyViolations: datasetsInput.fdnyViolations || datasetsInput.dataset_fdny_violations || undefined,
       asbestosViolations: datasetsInput.asbestosViolations || datasetsInput.dataset_asbestos_violations || undefined,
+      sidewalkViolations: datasetsInput.sidewalkViolations || datasetsInput.dataset_sidewalk_violations || undefined,
     })
 
     return NextResponse.json({ success: true })

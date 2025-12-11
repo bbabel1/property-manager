@@ -265,6 +265,11 @@ export type Database = {
           created_at: string
           ease_digit: string | null
           enrichment_errors: Json | null
+          occupancy_group: string | null
+          occupancy_description: string | null
+          is_one_two_family: boolean | null
+          is_private_residence_building: boolean | null
+          dwelling_unit_count: number | null
           geoservice: Json | null
           geoservice_response_at: string | null
           hpd_building: Json | null
@@ -307,6 +312,11 @@ export type Database = {
           created_at?: string
           ease_digit?: string | null
           enrichment_errors?: Json | null
+          occupancy_group?: string | null
+          occupancy_description?: string | null
+          is_one_two_family?: boolean | null
+          is_private_residence_building?: boolean | null
+          dwelling_unit_count?: number | null
           geoservice?: Json | null
           geoservice_response_at?: string | null
           hpd_building?: Json | null
@@ -349,6 +359,11 @@ export type Database = {
           created_at?: string
           ease_digit?: string | null
           enrichment_errors?: Json | null
+          occupancy_group?: string | null
+          occupancy_description?: string | null
+          is_one_two_family?: boolean | null
+          is_private_residence_building?: boolean | null
+          dwelling_unit_count?: number | null
           geoservice?: Json | null
           geoservice_response_at?: string | null
           hpd_building?: Json | null

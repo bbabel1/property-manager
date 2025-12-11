@@ -8,6 +8,7 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/db'
+import { sanitizeProgramCriteria } from '@/lib/compliance-programs'
 
 export async function PATCH(
   request: NextRequest,
@@ -58,6 +59,24 @@ export async function PATCH(
     }
     if (typeof body.notes === 'string') {
       updates.notes = body.notes
+    }
+    if (typeof body.jurisdiction === 'string') {
+      updates.jurisdiction = body.jurisdiction
+    }
+    if (typeof body.applies_to === 'string') {
+      updates.applies_to = body.applies_to
+    }
+    if (typeof body.frequency_months === 'number') {
+      updates.frequency_months = body.frequency_months
+    }
+    if (typeof body.lead_time_days === 'number') {
+      updates.lead_time_days = body.lead_time_days
+    }
+    if (body.override_fields && typeof body.override_fields === 'object') {
+      updates.override_fields = body.override_fields
+    }
+    if (body.criteria !== undefined) {
+      updates.criteria = sanitizeProgramCriteria(body.criteria)
     }
 
     if (Object.keys(updates).length === 0) {

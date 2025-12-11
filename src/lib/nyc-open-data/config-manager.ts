@@ -11,14 +11,25 @@ import { logger } from '@/lib/logger'
 export type NYCOpenDataDatasets = {
   elevatorDevices: string
   elevatorInspections: string
-  elevatorViolations: string
+  dobSafetyViolations: string
   dobViolations: string
   dobActiveViolations: string
   dobEcbViolations: string
+  dobComplaints: string
+  bedbugReporting: string
+  dobNowApprovedPermits: string
+  dobNowSafetyBoiler: string
+  dobNowSafetyFacade: string
+  dobPermitIssuanceOld: string
+  dobCertificateOfOccupancyOld: string
+  dobCertificateOfOccupancyNow: string
   hpdViolations: string
   hpdComplaints: string
+  hpdRegistrations: string
   fdnyViolations: string
   asbestosViolations: string
+  sidewalkViolations: string
+  heatSensorProgram: string
 }
 
 export type NYCOpenDataConfig = {
@@ -41,6 +52,13 @@ export type NYCOpenDataConfigUpsert = Partial<NYCOpenDataDatasets> & {
   geoserviceBaseUrl?: string
   geoserviceApiKey?: string
   geoserviceApiKeyUnchanged?: boolean
+  // Legacy compatibility
+  elevatorViolations?: string
+  sidewalkViolations?: string
+  dobComplaints?: string
+  dobCertificateOfOccupancyOld?: string
+  dobCertificateOfOccupancyNow?: string
+  heatSensorProgram?: string
 }
 
 const DEFAULT_BASE_URL = process.env.NYC_OPEN_DATA_BASE_URL || 'https://data.cityofnewyork.us/'
@@ -50,14 +68,25 @@ const DEFAULT_GEOSERVICE_BASE_URL =
 export const DEFAULT_DATASET_IDS: NYCOpenDataDatasets = {
   elevatorDevices: 'juyv-2jek', // DOB NOW Build – Elevator Devices
   elevatorInspections: 'e5aq-a4j2', // DOB NOW Elevator Safety Compliance Filings
-  elevatorViolations: 'rff7-h44d', // Active Elevator Violations
+  dobSafetyViolations: '855j-jady', // DOB Safety Violations (NYC Open Data)
   dobViolations: '3h2n-5cm9',
   dobActiveViolations: '6drr-tyq2',
   dobEcbViolations: '6bgk-3dad',
+  dobComplaints: 'eabe-havv', // DOB Complaints Received
+  bedbugReporting: 'wz6d-d3jb', // Bedbug Reporting (HPD)
+  dobNowApprovedPermits: 'rbx6-tga4', // DOB NOW: Build – Approved Permits
+  dobNowSafetyBoiler: '52dp-yji6', // DOB NOW: Safety Boiler
+  dobNowSafetyFacade: 'xubg-57si', // DOB NOW: Safety – Facades Compliance Filings
+  dobPermitIssuanceOld: 'ipu4-2q9a', // DOB Permit Issuance (OLD/BIS)
+  dobCertificateOfOccupancyOld: 'bs8b-p36w', // DOB Certificate Of Occupancy (Old)
+  dobCertificateOfOccupancyNow: 'pkdm-hqz6', // DOB NOW: Certificate of Occupancy
   hpdViolations: 'wvxf-dwi5',
   hpdComplaints: 'ygpa-z7cr',
+  hpdRegistrations: 'tesw-yqqr', // HPD Registrations
   fdnyViolations: 'avgm-ztsb',
   asbestosViolations: 'r6c3-8mpt',
+  sidewalkViolations: '6kbp-uz6m', // Sidewalk Management Database - Violations
+  heatSensorProgram: 'h4mf-f24e', // Buildings Selected for the Heat Sensor Program (HSP)
 }
 
 function buildConfigFromRow(row: any): NYCOpenDataConfig {
@@ -71,14 +100,29 @@ function buildConfigFromRow(row: any): NYCOpenDataConfig {
     datasets: {
       elevatorDevices: row?.dataset_elevator_devices || DEFAULT_DATASET_IDS.elevatorDevices,
       elevatorInspections: row?.dataset_elevator_inspections || DEFAULT_DATASET_IDS.elevatorInspections,
-      elevatorViolations: row?.dataset_elevator_violations || DEFAULT_DATASET_IDS.elevatorViolations,
+      dobSafetyViolations: row?.dataset_elevator_violations || DEFAULT_DATASET_IDS.dobSafetyViolations,
       dobViolations: row?.dataset_dob_violations || DEFAULT_DATASET_IDS.dobViolations,
       dobActiveViolations: row?.dataset_dob_active_violations || DEFAULT_DATASET_IDS.dobActiveViolations,
       dobEcbViolations: row?.dataset_dob_ecb_violations || DEFAULT_DATASET_IDS.dobEcbViolations,
+      dobComplaints: row?.dataset_dob_complaints || DEFAULT_DATASET_IDS.dobComplaints,
+      bedbugReporting: row?.dataset_bedbug_reporting || DEFAULT_DATASET_IDS.bedbugReporting,
+      dobNowApprovedPermits:
+        row?.dataset_dob_now_approved_permits || DEFAULT_DATASET_IDS.dobNowApprovedPermits,
+      dobPermitIssuanceOld:
+        row?.dataset_dob_permit_issuance_old || DEFAULT_DATASET_IDS.dobPermitIssuanceOld,
+      dobCertificateOfOccupancyOld:
+        row?.dataset_dob_certificate_of_occupancy_old || DEFAULT_DATASET_IDS.dobCertificateOfOccupancyOld,
+      dobCertificateOfOccupancyNow:
+        row?.dataset_dob_certificate_of_occupancy_now || DEFAULT_DATASET_IDS.dobCertificateOfOccupancyNow,
+      dobNowSafetyBoiler: row?.dataset_dob_now_safety_boiler || DEFAULT_DATASET_IDS.dobNowSafetyBoiler,
+      dobNowSafetyFacade: row?.dataset_dob_now_safety_facade || DEFAULT_DATASET_IDS.dobNowSafetyFacade,
       hpdViolations: row?.dataset_hpd_violations || DEFAULT_DATASET_IDS.hpdViolations,
       hpdComplaints: row?.dataset_hpd_complaints || DEFAULT_DATASET_IDS.hpdComplaints,
+      hpdRegistrations: row?.dataset_hpd_registrations || DEFAULT_DATASET_IDS.hpdRegistrations,
       fdnyViolations: row?.dataset_fdny_violations || DEFAULT_DATASET_IDS.fdnyViolations,
       asbestosViolations: row?.dataset_asbestos_violations || DEFAULT_DATASET_IDS.asbestosViolations,
+      sidewalkViolations: row?.dataset_sidewalk_violations || DEFAULT_DATASET_IDS.sidewalkViolations,
+      heatSensorProgram: row?.dataset_heat_sensor_program || DEFAULT_DATASET_IDS.heatSensorProgram,
     },
     isEnabled: row?.is_enabled ?? true,
     source: 'db',
@@ -163,18 +207,51 @@ export async function saveNYCOpenDataConfig(orgId: string, payload: NYCOpenDataC
     elevatorDevices: payload.elevatorDevices || existing?.dataset_elevator_devices || DEFAULT_DATASET_IDS.elevatorDevices,
     elevatorInspections:
       payload.elevatorInspections || existing?.dataset_elevator_inspections || DEFAULT_DATASET_IDS.elevatorInspections,
-    elevatorViolations:
-      payload.elevatorViolations || existing?.dataset_elevator_violations || DEFAULT_DATASET_IDS.elevatorViolations,
+    dobSafetyViolations:
+      payload.dobSafetyViolations ||
+      payload.elevatorViolations || // backward compatibility
+      existing?.dataset_elevator_violations ||
+      DEFAULT_DATASET_IDS.dobSafetyViolations,
     dobViolations: payload.dobViolations || existing?.dataset_dob_violations || DEFAULT_DATASET_IDS.dobViolations,
     dobActiveViolations:
       payload.dobActiveViolations || existing?.dataset_dob_active_violations || DEFAULT_DATASET_IDS.dobActiveViolations,
     dobEcbViolations:
       payload.dobEcbViolations || existing?.dataset_dob_ecb_violations || DEFAULT_DATASET_IDS.dobEcbViolations,
+    dobComplaints:
+      payload.dobComplaints || existing?.dataset_dob_complaints || DEFAULT_DATASET_IDS.dobComplaints,
+    bedbugReporting:
+      payload.bedbugReporting || existing?.dataset_bedbug_reporting || DEFAULT_DATASET_IDS.bedbugReporting,
+    dobNowApprovedPermits:
+      payload.dobNowApprovedPermits ||
+      existing?.dataset_dob_now_approved_permits ||
+      DEFAULT_DATASET_IDS.dobNowApprovedPermits,
+    dobPermitIssuanceOld:
+      payload.dobPermitIssuanceOld ||
+      existing?.dataset_dob_permit_issuance_old ||
+      DEFAULT_DATASET_IDS.dobPermitIssuanceOld,
+    dobCertificateOfOccupancyOld:
+      payload.dobCertificateOfOccupancyOld ||
+      existing?.dataset_dob_certificate_of_occupancy_old ||
+      DEFAULT_DATASET_IDS.dobCertificateOfOccupancyOld,
+    dobCertificateOfOccupancyNow:
+      payload.dobCertificateOfOccupancyNow ||
+      existing?.dataset_dob_certificate_of_occupancy_now ||
+      DEFAULT_DATASET_IDS.dobCertificateOfOccupancyNow,
+    dobNowSafetyBoiler:
+      payload.dobNowSafetyBoiler || existing?.dataset_dob_now_safety_boiler || DEFAULT_DATASET_IDS.dobNowSafetyBoiler,
+    dobNowSafetyFacade:
+      payload.dobNowSafetyFacade || existing?.dataset_dob_now_safety_facade || DEFAULT_DATASET_IDS.dobNowSafetyFacade,
     hpdViolations: payload.hpdViolations || existing?.dataset_hpd_violations || DEFAULT_DATASET_IDS.hpdViolations,
     hpdComplaints: payload.hpdComplaints || existing?.dataset_hpd_complaints || DEFAULT_DATASET_IDS.hpdComplaints,
+    hpdRegistrations:
+      payload.hpdRegistrations || existing?.dataset_hpd_registrations || DEFAULT_DATASET_IDS.hpdRegistrations,
     fdnyViolations: payload.fdnyViolations || existing?.dataset_fdny_violations || DEFAULT_DATASET_IDS.fdnyViolations,
     asbestosViolations:
       payload.asbestosViolations || existing?.dataset_asbestos_violations || DEFAULT_DATASET_IDS.asbestosViolations,
+    sidewalkViolations:
+      payload.sidewalkViolations || existing?.dataset_sidewalk_violations || DEFAULT_DATASET_IDS.sidewalkViolations,
+    heatSensorProgram:
+      payload.heatSensorProgram || existing?.dataset_heat_sensor_program || DEFAULT_DATASET_IDS.heatSensorProgram,
   }
 
   const upsertPayload = {
@@ -185,14 +262,25 @@ export async function saveNYCOpenDataConfig(orgId: string, payload: NYCOpenDataC
     geoservice_base_url: payload.geoserviceBaseUrl || existing?.geoservice_base_url || DEFAULT_GEOSERVICE_BASE_URL,
     dataset_elevator_devices: datasets.elevatorDevices,
     dataset_elevator_inspections: datasets.elevatorInspections,
-    dataset_elevator_violations: datasets.elevatorViolations,
+    dataset_elevator_violations: datasets.dobSafetyViolations,
     dataset_dob_violations: datasets.dobViolations,
     dataset_dob_active_violations: datasets.dobActiveViolations,
     dataset_dob_ecb_violations: datasets.dobEcbViolations,
+    dataset_dob_complaints: datasets.dobComplaints,
+    dataset_bedbug_reporting: datasets.bedbugReporting,
+    dataset_dob_now_approved_permits: datasets.dobNowApprovedPermits,
+    dataset_dob_permit_issuance_old: datasets.dobPermitIssuanceOld,
+    dataset_dob_certificate_of_occupancy_old: datasets.dobCertificateOfOccupancyOld,
+    dataset_dob_certificate_of_occupancy_now: datasets.dobCertificateOfOccupancyNow,
+    dataset_dob_now_safety_boiler: datasets.dobNowSafetyBoiler,
+    dataset_dob_now_safety_facade: datasets.dobNowSafetyFacade,
     dataset_hpd_violations: datasets.hpdViolations,
     dataset_hpd_complaints: datasets.hpdComplaints,
+    dataset_hpd_registrations: datasets.hpdRegistrations,
     dataset_fdny_violations: datasets.fdnyViolations,
     dataset_asbestos_violations: datasets.asbestosViolations,
+    dataset_sidewalk_violations: datasets.sidewalkViolations,
+    dataset_heat_sensor_program: datasets.heatSensorProgram,
     is_enabled: payload.isEnabled ?? existing?.is_enabled ?? true,
     deleted_at: null,
   }

@@ -2,6 +2,7 @@ import type { Database, Json } from '@/types/database'
 import { supabase, supabaseAdmin, type TypedSupabaseClient } from './db'
 import { logger } from './logger'
 import { buildNormalizedAddressKey } from './normalized-address'
+import { DEFAULT_DATASET_IDS } from './nyc-open-data/config-manager'
 
 type BuildingRow = Database['public']['Tables']['buildings']['Row']
 type BuildingInsert = Database['public']['Tables']['buildings']['Insert']
@@ -96,6 +97,26 @@ const BOROUGH_NAMES: Record<string, string> = {
   '4': 'Queens',
   '5': 'Staten Island',
 }
+
+const HPD_REGISTRATION_DATASET_ID = DEFAULT_DATASET_IDS.hpdRegistrations
+const HPD_REGISTRATION_COLUMNS = [
+  'registrationid',
+  'buildingid',
+  'boroid',
+  'boro',
+  'housenumber',
+  'lowhousenumber',
+  'highhousenumber',
+  'streetname',
+  'streetcode',
+  'zip',
+  'block',
+  'lot',
+  'bin',
+  'communityboard',
+  'lastregistrationdate',
+  'registrationenddate',
+] as const
 
 function isNYCBoroughCode(code: string | null | undefined): code is string {
   return Boolean(code && ['1', '2', '3', '4', '5'].includes(code))
@@ -387,7 +408,7 @@ async function fetchHpdRegistration(
   appToken?: string | null,
   baseUrl?: string | null
 ): Promise<Record<string, unknown> | null> {
-  const url = new URL('resource/tesw-yqqr.json', baseUrl || DEFAULT_OPEN_DATA_BASE)
+  const url = new URL(`resource/${HPD_REGISTRATION_DATASET_ID}.json`, baseUrl || DEFAULT_OPEN_DATA_BASE)
   url.searchParams.set('$where', `registrationid='${registrationId}'`)
   if (appToken) url.searchParams.set('$$app_token', appToken)
 
@@ -395,15 +416,21 @@ async function fetchHpdRegistration(
   const row = Array.isArray(json) ? json[0] : null
   if (!row) return null
 
-  const filtered: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(row)) {
+  const normalized: Record<string, unknown> = {}
+  for (const column of HPD_REGISTRATION_COLUMNS) {
+    const value = (row as Record<string, unknown>)[column]
     const norm = normalizeValue(value) ?? normalizeNumber(value)
-    if (norm !== null && norm !== undefined) {
-      filtered[key] = norm
-    }
+    normalized[column] = norm ?? null
   }
-  filtered.HPD_Registration_Response = true
-  return filtered
+
+  for (const [key, value] of Object.entries(row)) {
+    if (key in normalized) continue
+    const norm = normalizeValue(value) ?? normalizeNumber(value)
+    normalized[key] = norm ?? null
+  }
+
+  normalized.HPD_Registration_Response = true
+  return normalized
 }
 
 function parseGeometry(feature: any): Array<Array<[number, number]>> {

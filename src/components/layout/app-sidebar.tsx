@@ -22,6 +22,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Building,
+  Building2,
   Home,
   FileText,
   Files,
@@ -54,6 +55,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { id: 'properties', label: 'Properties', href: '/properties', icon: Building },
+  { id: 'buildings', label: 'Buildings', href: '/buildings', icon: Building2 },
   { id: 'units', label: 'Units', href: '/units', icon: Home },
   { id: 'leases', label: 'Leases', href: '/leases', icon: FileText },
   { id: 'owners', label: 'Owners', href: '/owners', icon: Users },
