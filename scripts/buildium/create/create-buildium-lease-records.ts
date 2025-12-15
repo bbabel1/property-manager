@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { mapLeaseFromBuildiumWithTenants, createLeaseContactRelationship } from '@/lib/buildium-mappers'
+import type { BuildiumLease, BuildiumTenant } from '@/types/buildium'
 
 // Load environment variables
 config({ path: '.env.local' })
@@ -12,72 +13,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 const buildiumLeaseId = '16235'
-
-interface BuildiumTenant {
-  Id: number
-  FirstName: string
-  LastName: string
-  Email: string
-  AlternateEmail?: string
-  PhoneNumbers: Array<{
-    Number: string
-    Type: string
-  }>
-  CreatedDateTime: string
-  EmergencyContact: {
-    Name: string
-    RelationshipDescription: string
-    Phone: string
-    Email: string
-  }
-  DateOfBirth: string
-  SMSOptInStatus: string
-  Address: {
-    AddressLine1: string
-    AddressLine2: string
-    AddressLine3: string
-    City: string
-    State: string
-    PostalCode: string
-    Country: string
-  }
-  AlternateAddress?: any
-  MailingPreference: string
-  Leases?: any
-  Comment: string
-  TaxId: string
-}
-
-interface BuildiumLease {
-  Id: number
-  PropertyId: number
-  UnitId: number
-  UnitNumber: string
-  LeaseFromDate: string
-  LeaseToDate: string
-  LeaseType: string
-  LeaseStatus: string
-  IsEvictionPending: boolean
-  TermType: string
-  RenewalOfferStatus: string
-  CurrentTenants: BuildiumTenant[]
-  CurrentNumberOfOccupants: number
-  AccountDetails: {
-    SecurityDeposit: number
-    Rent: number
-  }
-  Cosigners: any[]
-  AutomaticallyMoveOutTenants: boolean
-  CreatedDateTime: string
-  LastUpdatedDateTime: string
-  MoveOutData: any[]
-  PaymentDueDay: number
-  Tenants: Array<{
-    Id: number
-    Status: string
-    MoveInDate: string
-  }>
-}
 
 async function fetchLeaseFromBuildium(leaseId: string): Promise<BuildiumLease> {
   const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${leaseId}`
@@ -135,9 +70,22 @@ async function getLocalUnitId(buildiumUnitId: number): Promise<string> {
 
 async function createContactRecord(buildiumTenant: BuildiumTenant): Promise<number> {
   try {
-    const mobilePhone = buildiumTenant.PhoneNumbers?.find(p => p.Type === 'Cell')?.Number || null
-    const homePhone = buildiumTenant.PhoneNumbers?.find(p => p.Type === 'Home')?.Number || null
-    const workPhone = buildiumTenant.PhoneNumbers?.find(p => p.Type === 'Work')?.Number || null
+    const phoneEntries = Array.isArray(buildiumTenant.PhoneNumbers)
+      ? buildiumTenant.PhoneNumbers
+      : buildiumTenant.PhoneNumbers
+        ? [
+            { Type: 'Home', Number: buildiumTenant.PhoneNumbers.Home },
+            { Type: 'Work', Number: buildiumTenant.PhoneNumbers.Work },
+            { Type: 'Cell', Number: buildiumTenant.PhoneNumbers.Mobile },
+          ].filter((p) => p.Number)
+        : []
+
+    const mobilePhone = phoneEntries.find((p) => p?.Type === 'Cell')?.Number || null
+    const homePhone = phoneEntries.find((p) => p?.Type === 'Home')?.Number || null
+    const workPhone = phoneEntries.find((p) => p?.Type === 'Work')?.Number || null
+
+    const primaryAddress =
+      buildiumTenant.PrimaryAddress || (buildiumTenant as any).Address || {}
 
     const contactData = {
       is_company: false,
@@ -149,13 +97,13 @@ async function createContactRecord(buildiumTenant: BuildiumTenant): Promise<numb
       primary_phone: mobilePhone || homePhone || workPhone || null,
       alt_phone: workPhone || homePhone || null,
       date_of_birth: buildiumTenant.DateOfBirth || null,
-      primary_address_line_1: buildiumTenant.Address.AddressLine1,
-      primary_address_line_2: buildiumTenant.Address.AddressLine2 || null,
-      primary_address_line_3: buildiumTenant.Address.AddressLine3 || null,
-      primary_city: buildiumTenant.Address.City,
-      primary_state: buildiumTenant.Address.State,
-      primary_postal_code: buildiumTenant.Address.PostalCode,
-      primary_country: buildiumTenant.Address.Country,
+      primary_address_line_1: primaryAddress.AddressLine1,
+      primary_address_line_2: primaryAddress.AddressLine2 || null,
+      primary_address_line_3: primaryAddress.AddressLine3 || null,
+      primary_city: primaryAddress.City,
+      primary_state: primaryAddress.State,
+      primary_postal_code: primaryAddress.PostalCode,
+      primary_country: primaryAddress.Country,
       alt_address_line_1: null,
       alt_address_line_2: null,
       alt_address_line_3: null,
@@ -163,7 +111,7 @@ async function createContactRecord(buildiumTenant: BuildiumTenant): Promise<numb
       alt_state: null,
       alt_postal_code: null,
       alt_country: null,
-      mailing_preference: 'primary',
+      mailing_preference: buildiumTenant.MailingPreference || 'primary',
       updated_at: new Date().toISOString()
     }
 

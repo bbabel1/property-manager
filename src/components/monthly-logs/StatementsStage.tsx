@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import StatementRecipientsManager from './StatementRecipientsManager';
 import StatementEmailHistory from './StatementEmailHistory';
 import StatementPreviewDialog from './StatementPreviewDialog';
+import { safeParseJson } from '@/types/monthly-log';
 
 interface StatementsStageProps {
   monthlyLogId: string;
@@ -95,22 +96,12 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
           return;
         }
         const errorText = await response.text();
-        let errorData: any = {};
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = {};
-        }
+        const errorData = safeParseJson<{ error?: { message?: string } }>(errorText) ?? {};
         throw new Error(errorData.error?.message || 'Failed to generate PDF');
       }
 
       const text = await response.text();
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = {};
-      }
+      const data = safeParseJson<{ pdfUrl?: string | null }>(text) ?? {};
       const refreshedUrl = data.pdfUrl ? `${data.pdfUrl}?t=${Date.now()}` : null;
       if (refreshedUrl) {
         setPdfUrl(refreshedUrl);
@@ -150,29 +141,21 @@ export default function StatementsStage({ monthlyLogId, propertyId }: Statements
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorData: any = {};
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = {};
-        }
+        const errorData = safeParseJson<{ error?: { message?: string } }>(errorText) ?? {};
         throw new Error(errorData.error?.message || 'Failed to send statement');
       }
 
       const text = await response.text();
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = {};
-      }
+      const data = safeParseJson<{ failedCount?: number; sentCount?: number }>(text) ?? {};
+      const failedCount = data.failedCount ?? 0;
+      const sentCount = data.sentCount ?? 0;
 
-      if (data.failedCount > 0) {
-        toast.warning(`Sent to ${data.sentCount} recipient(s), ${data.failedCount} failed`, {
+      if (failedCount > 0) {
+        toast.warning(`Sent to ${sentCount} recipient(s), ${failedCount} failed`, {
           description: 'Some emails could not be delivered. Check the email history for details.',
         });
       } else {
-        toast.success(`Statement sent to ${data.sentCount} recipient(s)`);
+        toast.success(`Statement sent to ${sentCount} recipient(s)`);
       }
 
       setHistoryRefreshToken(Date.now());

@@ -1,4 +1,3 @@
-import { Blob } from 'buffer'
 import sharp from 'sharp'
 import { supabaseAdmin } from './db'
 import { logger } from './logger'
@@ -21,6 +20,15 @@ const HEADERS = () => ({
 })
 
 export type UnitRow = Database['public']['Tables']['units']['Row']
+type UnitInsert = Partial<Database['public']['Tables']['units']['Insert']> & { property_id?: string | null }
+type BuildiumUnitImageWithFileName = BuildiumUnitImage & { PhysicalFileName?: string | null }
+type BuildiumUnitNote = {
+  Id: number
+  Subject?: string | null
+  Body?: string | null
+  IsPrivate?: boolean | null
+  [key: string]: unknown
+}
 
 type PreparedImage = {
   buffer: Buffer
@@ -42,7 +50,11 @@ export default class UnitService {
     offset?: number
     limit?: number
     persist?: boolean
+    orgId?: string
   }): Promise<BuildiumUnit[]> {
+    if (params?.persist && !params.orgId) {
+      throw new Error('orgId is required when persisting Buildium units');
+    }
     const qs = new URLSearchParams()
     if (params?.limit) qs.append('limit', String(params.limit))
     if (params?.offset) qs.append('offset', String(params.offset))
@@ -60,7 +72,7 @@ export default class UnitService {
 
     if (params?.persist) {
       for (const u of items) {
-        await UnitService.persistBuildiumUnit(u).catch(err =>
+        await UnitService.persistBuildiumUnit(u, params.orgId as string).catch(err =>
           logger.error({ unitId: u.Id, error: (err as Error).message }, 'Failed persisting Buildium unit')
         )
       }
@@ -70,11 +82,14 @@ export default class UnitService {
   }
 
   // Get one Buildium unit, optionally persisting
-  static async getFromBuildium(id: number, persist = false): Promise<BuildiumUnit | null> {
+  static async getFromBuildium(id: number, persist = false, orgId?: string): Promise<BuildiumUnit | null> {
+    if (persist && !orgId) {
+      throw new Error('orgId is required when persisting Buildium units');
+    }
     const res = await fetch(`${BASE}/rentals/units/${id}`, { headers: HEADERS() })
     if (!res.ok) return null
     const item: BuildiumUnit = await res.json()
-    if (persist) await UnitService.persistBuildiumUnit(item).catch(() => void 0)
+    if (persist) await UnitService.persistBuildiumUnit(item, orgId as string).catch(() => void 0)
     return item
   }
 
@@ -90,13 +105,16 @@ export default class UnitService {
     if (!res.ok) throw new Error(`Buildium unit create failed: ${res.status}`)
     const created: BuildiumUnit = await res.json()
 
-    await UnitService.persistBuildiumUnit(created)
+    await UnitService.persistBuildiumUnit(created, local.org_id)
     return { buildium: created, localId: local.id }
   }
 
   // Update in Buildium (by buildium id), then update DB row
   static async updateInBuildiumAndDB(buildiumId: number, partial: Partial<UnitRow>): Promise<BuildiumUnit> {
-    const payload: BuildiumUnitUpdate = mapUnitToBuildium({ ...partial, buildium_property_id: partial.buildium_property_id })
+    const payload: BuildiumUnitUpdate = mapUnitToBuildium({
+      ...(partial as UnitRow),
+      buildium_property_id: partial.buildium_property_id ?? null,
+    })
     const res = await fetch(`${BASE}/rentals/units/${buildiumId}`, {
       method: 'PUT',
       headers: HEADERS(),
@@ -126,17 +144,24 @@ export default class UnitService {
   }
 
   // Persist a Buildium unit into the DB (upsert by buildium id)
-  static async persistBuildiumUnit(buildiumUnit: BuildiumUnit): Promise<string | null> {
+  static async persistBuildiumUnit(buildiumUnit: BuildiumUnit, orgId: string): Promise<string | null> {
+    if (!orgId) {
+      throw new Error('orgId is required to persist Buildium units')
+    }
     // Resolve local property by Buildium PropertyId
     const supabase = supabaseAdmin
     const { data: propertyRow, error: propertyLookupError } = await supabase
       .from('properties')
-      .select('id')
+      .select('id, org_id')
       .eq('buildium_property_id', buildiumUnit.PropertyId)
-      .maybeSingle()
+      .maybeSingle<{ id: string; org_id: string }>()
 
     if (propertyLookupError) {
       logger.error({ propertyId: buildiumUnit.PropertyId, error: propertyLookupError }, 'Failed to find local property for Buildium unit')
+    }
+
+    if (propertyRow?.org_id && propertyRow.org_id !== orgId) {
+      throw new Error(`Buildium property ${buildiumUnit.PropertyId} belongs to different org (${propertyRow.org_id})`)
     }
 
     let propertyId: string | null = propertyRow?.id ?? null
@@ -148,10 +173,51 @@ export default class UnitService {
         throw new Error(`No local property and failed to fetch Buildium property ${buildiumUnit.PropertyId}: ${pres.status}`)
       }
       const buildiumProperty = await pres.json()
-      const mappedProperty = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, supabase)
+      const mappedProperty = (await mapPropertyFromBuildiumWithBankAccount(
+        buildiumProperty,
+        supabase,
+      )) as any
+
+      if (mappedProperty.operating_bank_account_id) {
+        const { data: bankAccount } = await supabase
+          .from('bank_accounts')
+          .select('org_id')
+          .eq('id', mappedProperty.operating_bank_account_id)
+          .maybeSingle<{ org_id: string | null }>()
+        if (bankAccount?.org_id && bankAccount.org_id !== orgId) {
+          throw new Error(
+            `Operating bank account org mismatch for Buildium property ${buildiumUnit.PropertyId}: expected ${orgId}, found ${bankAccount.org_id}`,
+          )
+        }
+      }
+
+      const now = new Date().toISOString()
+      const propertyPayload = {
+        name: mappedProperty.name,
+        structure_description: mappedProperty.structure_description ?? null,
+        address_line1: mappedProperty.address_line1,
+        address_line2: mappedProperty.address_line2 ?? null,
+        address_line3: mappedProperty.address_line3 ?? null,
+        city: mappedProperty.city ?? null,
+        state: mappedProperty.state ?? null,
+        postal_code: mappedProperty.postal_code,
+        country: (mappedProperty.country as Database['public']['Enums']['countries']) || 'United States',
+        property_type: (mappedProperty.property_type as Database['public']['Enums']['property_type_enum']) ?? null,
+        rental_type: mappedProperty.rental_type ?? null,
+        operating_bank_account_id: mappedProperty.operating_bank_account_id ?? null,
+        buildium_property_id: mappedProperty.buildium_property_id,
+        reserve: mappedProperty.reserve ?? null,
+        year_built: mappedProperty.year_built ?? null,
+        total_units: mappedProperty.total_units ?? undefined,
+        is_active: mappedProperty.is_active ?? true,
+        org_id: orgId,
+        created_at: now,
+        updated_at: now
+      } as Database['public']['Tables']['properties']['Insert']
+
       const { data: newProp, error: propErr } = await supabase
         .from('properties')
-        .insert(mappedProperty)
+        .insert(propertyPayload)
         .select('id')
         .single()
       if (propErr) throw propErr
@@ -159,7 +225,8 @@ export default class UnitService {
     }
 
     const mapped = UnitService.mapForDB(buildiumUnit)
-    mapped.property_id = propertyId || (propertyRow as any)?.id
+    mapped.property_id = (propertyId ?? propertyRow?.id) ?? undefined
+    mapped.org_id = orgId
     mapped.updated_at = new Date().toISOString()
     if (!mapped.created_at) mapped.created_at = new Date().toISOString()
 
@@ -177,18 +244,19 @@ export default class UnitService {
       await supabase.from('units').update(mapped).eq('id', existing.id)
       return existing.id
     } else {
-      const { data, error } = await supabase.from('units').insert(mapped).select('id').single()
+      // Cast to any because mapped payload comes from Buildium mapping and may omit optional fields not required at runtime.
+      const { data, error } = await supabase.from('units').insert(mapped as any).select('id').single()
       if (error) throw error
       return data.id
     }
   }
 
-  private static mapForDB(buildiumUnit: BuildiumUnit) {
-    const base = mapUnitFromBuildium(buildiumUnit)
+  private static mapForDB(buildiumUnit: BuildiumUnit): UnitInsert {
+    const base = mapUnitFromBuildium(buildiumUnit) as UnitInsert
     return {
       ...base,
-      country: base.country || 'United States'
-    } as any
+      country: (base.country as UnitInsert['country']) || 'United States'
+    }
   }
 
   // ------------------------
@@ -248,7 +316,13 @@ export default class UnitService {
       if (value != null) formData.append(key, value)
     }
 
-    formData.append('file', new Blob([prepared.buffer], { type: prepared.mimeType }), prepared.fileName)
+    const binary =
+      prepared.buffer instanceof Uint8Array
+        ? prepared.buffer
+        : new Uint8Array((prepared as unknown as ArrayBuffer) || prepared.buffer);
+    const blobData = new Uint8Array(binary);
+    const fileBlob = new globalThis.Blob([blobData], { type: prepared.mimeType });
+    formData.append('file', fileBlob, prepared.fileName)
 
     const uploadRes = await fetch(ticket.BucketUrl, {
       method: 'POST',
@@ -271,8 +345,12 @@ export default class UnitService {
         const images: BuildiumUnitImage[] = await listRes.json()
         if (Array.isArray(images)) {
           let candidate = images.find(img => typeof img?.Id === 'number' && !beforeIds.has(img.Id)) || null
-          if (!candidate && ticket?.PhysicalFileName) {
-            candidate = images.find(img => String((img as any)?.PhysicalFileName || '').toLowerCase() === String(ticket.PhysicalFileName || '').toLowerCase()) || null
+          const ticketFileName = (ticket?.PhysicalFileName || '').toLowerCase()
+          if (!candidate && ticketFileName) {
+            candidate = images.find(img => {
+              const physicalFileName = (img as BuildiumUnitImageWithFileName).PhysicalFileName || ''
+              return physicalFileName.toLowerCase() === ticketFileName
+            }) || null
           }
           if (!candidate && images.length) {
             candidate = images[images.length - 1]
@@ -382,43 +460,43 @@ export default class UnitService {
   // ------------------------
   // Unit Notes
   // ------------------------
-  static async listNotes(unitId: number, params?: { limit?: number; offset?: number }): Promise<any[]> {
+  static async listNotes(unitId: number, params?: { limit?: number; offset?: number }): Promise<BuildiumUnitNote[]> {
     const q = new URLSearchParams()
     if (params?.limit) q.append('limit', String(params.limit))
     if (params?.offset) q.append('offset', String(params.offset))
     const res = await fetch(`${BASE}/rentals/units/${unitId}/notes?${q.toString()}`, { headers: HEADERS() })
     if (!res.ok) throw new Error(`Buildium list unit notes failed: ${res.status}`)
-    const notes = await res.json()
+    const notes = (await res.json()) as BuildiumUnitNote[]
     await UnitService.persistNotes(unitId, notes).catch(() => void 0)
     return notes
   }
 
-  static async getNote(unitId: number, noteId: number): Promise<any> {
+  static async getNote(unitId: number, noteId: number): Promise<BuildiumUnitNote> {
     const res = await fetch(`${BASE}/rentals/units/${unitId}/notes/${noteId}`, { headers: HEADERS() })
     if (!res.ok) throw new Error(`Buildium get unit note failed: ${res.status}`)
-    return res.json()
+    return res.json() as Promise<BuildiumUnitNote>
   }
 
-  static async createNote(unitId: number, payload: { Subject: string; Body: string; IsPrivate?: boolean }): Promise<any> {
+  static async createNote(unitId: number, payload: { Subject: string; Body: string; IsPrivate?: boolean }): Promise<BuildiumUnitNote> {
     const res = await fetch(`${BASE}/rentals/units/${unitId}/notes`, {
       method: 'POST',
       headers: HEADERS(),
       body: JSON.stringify(payload)
     })
     if (!res.ok) throw new Error(`Buildium create unit note failed: ${res.status}`)
-    const note = await res.json()
+    const note = (await res.json()) as BuildiumUnitNote
     await UnitService.persistNotes(unitId, [note]).catch(() => void 0)
     return note
   }
 
-  static async updateNote(unitId: number, noteId: number, payload: { Subject?: string; Body?: string; IsPrivate?: boolean }): Promise<any> {
+  static async updateNote(unitId: number, noteId: number, payload: { Subject?: string; Body?: string; IsPrivate?: boolean }): Promise<BuildiumUnitNote> {
     const res = await fetch(`${BASE}/rentals/units/${unitId}/notes/${noteId}`, {
       method: 'PUT',
       headers: HEADERS(),
       body: JSON.stringify(payload)
     })
     if (!res.ok) throw new Error(`Buildium update unit note failed: ${res.status}`)
-    const note = await res.json()
+    const note = (await res.json()) as BuildiumUnitNote
     await UnitService.persistNotes(unitId, [note]).catch(() => void 0)
     return note
   }
@@ -435,12 +513,14 @@ export default class UnitService {
     return data?.id ?? null
   }
 
-  static async persistImages(buildiumUnitId: number, images: BuildiumUnitImage[]): Promise<void> {
+  static async persistImages(buildiumUnitId: number, images: BuildiumUnitImage[], orgId?: string): Promise<void> {
     let localUnitId = await UnitService.resolveLocalUnitId(buildiumUnitId)
     if (!localUnitId) {
-      // Ensure unit exists locally
-      const unit = await UnitService.getFromBuildium(buildiumUnitId, true).catch(() => null)
-      localUnitId = await UnitService.resolveLocalUnitId(buildiumUnitId)
+      // Ensure unit exists locally only when org context is provided
+      if (orgId) {
+        await UnitService.getFromBuildium(buildiumUnitId, true, orgId).catch(() => null)
+        localUnitId = await UnitService.resolveLocalUnitId(buildiumUnitId)
+      }
     }
     if (!localUnitId) return
     const now = new Date().toISOString()
@@ -509,11 +589,13 @@ export default class UnitService {
     return lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' : null
   }
 
-  static async persistNotes(buildiumUnitId: number, notes: any[]): Promise<void> {
+  static async persistNotes(buildiumUnitId: number, notes: BuildiumUnitNote[], orgId?: string): Promise<void> {
     let localUnitId = await UnitService.resolveLocalUnitId(buildiumUnitId)
     if (!localUnitId) {
-      const unit = await UnitService.getFromBuildium(buildiumUnitId, true).catch(() => null)
-      localUnitId = await UnitService.resolveLocalUnitId(buildiumUnitId)
+      if (orgId) {
+        await UnitService.getFromBuildium(buildiumUnitId, true, orgId).catch(() => null)
+        localUnitId = await UnitService.resolveLocalUnitId(buildiumUnitId)
+      }
     }
     if (!localUnitId) return
     const now = new Date().toISOString()

@@ -2,18 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ManagementServiceConfig } from '@/lib/management-service';
+import { SERVICE_PLAN_OPTIONS, toServicePlan } from '@/lib/service-plan';
 
 interface ManagementServiceConfigProps {
   propertyId: string;
   unitId?: string;
   onConfigChange?: (config: ManagementServiceConfig) => void;
 }
-
-const SERVICE_PLANS = [
-  { value: 'Full', label: 'Full Service' },
-  { value: 'Basic', label: 'Basic Service' },
-  { value: 'A-la-carte', label: 'A-la-carte Service' },
-];
 
 const ACTIVE_SERVICES = [
   'Rent Collection',
@@ -51,8 +46,13 @@ export default function ManagementServiceConfigComponent({
         throw new Error(result.error || 'Failed to load configuration');
       }
 
-      setConfig(result.data);
-      onConfigChange?.(result.data);
+      const normalized = {
+        ...result.data,
+        service_plan: toServicePlan(result.data?.service_plan),
+      } as ManagementServiceConfig;
+
+      setConfig(normalized);
+      onConfigChange?.(normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load configuration');
     } finally {
@@ -200,16 +200,19 @@ export default function ManagementServiceConfigComponent({
         {editing ? (
           <select
             value={config.service_plan || ''}
-            onChange={(e) => updateConfig({ service_plan: e.target.value || null })}
+            onChange={(e) => updateConfig({ service_plan: toServicePlan(e.target.value) })}
             className="w-full rounded-md border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             aria-label="Service Plan"
           >
             <option value="">Select service plan...</option>
-            {SERVICE_PLANS.map((plan) => (
-              <option key={plan.value} value={plan.value}>
-                {plan.label}
-              </option>
-            ))}
+            {SERVICE_PLAN_OPTIONS.map((plan) => {
+              const label = plan === 'A-la-carte' ? 'A-la-carte Service' : `${plan} Service`;
+              return (
+                <option key={plan} value={plan}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
         ) : (
           <div className="text-sm text-gray-900">{config.service_plan || 'Not set'}</div>

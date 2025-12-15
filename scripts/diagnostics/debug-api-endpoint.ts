@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 
@@ -75,7 +76,6 @@ async function debugAPIEndpoint() {
 }
 
 debugAPIEndpoint().catch(console.error)
-
 
 
 

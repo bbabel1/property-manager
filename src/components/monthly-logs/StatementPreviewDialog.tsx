@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { safeParseJson } from '@/types/monthly-log';
 
 type StatementPreviewDialogProps = {
   open: boolean;
@@ -12,6 +13,12 @@ type StatementPreviewDialogProps = {
   monthlyLogId: string;
   pdfUrl: string | null;
   onPdfGenerated?: (url: string) => void;
+};
+
+const normalizePdfUrl = (url: string | null): string | undefined => {
+  if (typeof url !== 'string') return undefined;
+  const trimmed = url.trim();
+  return trimmed.length ? trimmed : undefined;
 };
 
 export default function StatementPreviewDialog({
@@ -23,18 +30,19 @@ export default function StatementPreviewDialog({
 }: StatementPreviewDialogProps) {
   const [ready, setReady] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const normalizedPdfUrl = normalizePdfUrl(pdfUrl);
 
   useEffect(() => {
     if (!open) {
       setReady(false);
       return;
     }
-    if (pdfUrl) {
+    if (normalizedPdfUrl) {
       setReady(true);
     }
-  }, [open, pdfUrl]);
+  }, [open, normalizedPdfUrl]);
 
-  const canShow = Boolean(pdfUrl);
+  const canShow = Boolean(normalizedPdfUrl);
 
   const regenerate = async () => {
     if (!monthlyLogId) return;
@@ -45,24 +53,15 @@ export default function StatementPreviewDialog({
       });
       if (!response.ok) {
         const errorText = await response.text();
-        let errorData: any = {};
-        try {
-          errorData = errorText ? JSON.parse(errorText) : {};
-        } catch {
-          errorData = {};
-        }
+        const errorData = safeParseJson<{ error?: { message?: string } }>(errorText) ?? {};
         throw new Error(errorData.error?.message || 'Failed to generate statement');
       }
       const text = await response.text();
-      let data: any = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        data = {};
-      }
-      if (data.pdfUrl) {
+      const data = safeParseJson<{ pdfUrl?: string | null }>(text) ?? {};
+      const parsedPdfUrl = normalizePdfUrl(data.pdfUrl ?? null);
+      if (parsedPdfUrl) {
         // Bust cache by appending a timestamp so the iframe refreshes immediately
-        const bust = `${data.pdfUrl}?t=${Date.now()}`;
+        const bust = `${parsedPdfUrl}?t=${Date.now()}`;
         onPdfGenerated?.(bust);
         setReady(true);
       }
@@ -76,11 +75,11 @@ export default function StatementPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-none sm:max-w-none w-[min(calc(100vw-3rem),1200px)] max-h-[96vh] p-0">
+      <DialogContent className="max-h-[96vh] w-full max-w-[800px] p-0">
         <DialogHeader className="px-6 pt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <DialogTitle>Monthly Statement</DialogTitle>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
               <span>Template:</span>
               <span className="text-foreground font-medium">Modern</span>
             </div>
@@ -105,8 +104,8 @@ export default function StatementPreviewDialog({
           <div className="flex h-full flex-col gap-4 px-6 pb-6">
             <div className="flex-1 rounded-md border shadow-sm">
               <iframe
-                key={pdfUrl}
-                src={pdfUrl ?? undefined}
+                key={normalizedPdfUrl ?? 'statement-preview'}
+                src={normalizedPdfUrl}
                 title="Monthly Statement"
                 className="h-full min-h-[70vh] w-full rounded-md"
                 loading="lazy"
@@ -115,12 +114,12 @@ export default function StatementPreviewDialog({
             </div>
             <div className="flex items-center justify-between gap-3">
               {regenerating ? (
-                <div className="text-xs text-muted-foreground inline-flex items-center gap-2">
+                <div className="text-muted-foreground inline-flex items-center gap-2 text-xs">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Regenerating…
                 </div>
               ) : (
-                <span className="text-xs text-muted-foreground">Template: Modern</span>
+                <span className="text-muted-foreground text-xs">Template: Modern</span>
               )}
               <div className="flex gap-2">
                 <Button
@@ -135,7 +134,7 @@ export default function StatementPreviewDialog({
                   {regenerating ? 'Refreshing…' : 'Refresh PDF'}
                 </Button>
                 <Button type="button" variant="outline" size="sm" asChild>
-                  <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={normalizedPdfUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Open in new tab
                   </a>

@@ -53,7 +53,7 @@ type BillRowRecord = {
   [key: string]: unknown;
 };
 
-function normalizeBillStatus(value: any): BillStatusLabel {
+function normalizeBillStatus(value: unknown): BillStatusLabel {
   switch (String(value ?? '').toLowerCase()) {
     case 'overdue':
       return 'Overdue';
@@ -146,10 +146,9 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
   const tabParam = typeof sp?.tab === 'string' ? sp.tab : undefined;
   const currentTab = tabParam === 'paid' ? 'paid' : 'unpaid';
 
-  const propertiesResponse = await (db as any)
-    .from('properties')
-    .select('id, name')
-    .order('name', { ascending: true });
+  const propertiesResponse = await db.from('properties').select('id, name').order('name', {
+    ascending: true,
+  });
 
   const propertyOptions: Option[] = (
     (propertiesResponse?.data ?? []) as Array<{ id: string; name?: string }>
@@ -177,7 +176,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
     property_id?: string | null;
   }> = [];
   if (allPropertyIds.length) {
-    let unitsQuery = (db as any).from('units').select('id, unit_number, unit_name, property_id');
+    let unitsQuery = db.from('units').select('id, unit_number, unit_name, property_id');
     if (selectedPropertyIds.length && selectedPropertyIds.length !== allPropertyIds.length) {
       unitsQuery = unitsQuery.in('property_id', selectedPropertyIds);
     }
@@ -216,7 +215,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
       ? null
       : selectedUnitIds;
 
-  const vendorsQuery = (db as any)
+  const vendorsQuery = db
     .from('vendors')
     .select(
       'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
@@ -284,7 +283,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
   const transactionIds: string[] = [];
 
   if (selectedPropertyIds.length) {
-    let qLine = (db as any)
+    let qLine = db
       .from('transaction_lines')
       .select('transaction_id, property_id, unit_id, amount, posting_type');
     if (propertyFilterIds) qLine = qLine.in('property_id', propertyFilterIds);
@@ -313,7 +312,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
   let rowsWithProperties: BillRowRecord[] = [];
 
   if (transactionIds.length) {
-    let qTx = (db as any)
+    let qTx = db
       .from('transactions')
       .select(
         'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type',
@@ -327,9 +326,13 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
     }
 
     const { data: txData } = await qTx;
-    const enrichedRows = (txData || []).map((row: any) => {
+    const enrichedRows = ((txData || []) as BillRowRecord[]).map((row) => {
       const current = normalizeBillStatus(row.status);
-      const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
+      const derived = deriveBillStatusFromDates(
+        current,
+        row.due_date ?? null,
+        row.paid_date ?? null,
+      );
       if (derived !== current) {
         statusUpdates.push({ id: row.id, status: derived });
       }
@@ -349,7 +352,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
       try {
         await Promise.all(
           statusUpdates.map((update) =>
-            (db as any).from('transactions').update({ status: update.status }).eq('id', update.id),
+            db.from('transactions').update({ status: update.status }).eq('id', update.id),
           ),
         );
       } catch (error) {

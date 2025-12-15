@@ -1,7 +1,7 @@
 import { config } from 'dotenv'
-import { logger } from './utils/logger'
+import { logger } from '../../utils/logger'
 
-config()
+config({ path: '.env.local' })
 
 const leaseId = '16235'
 

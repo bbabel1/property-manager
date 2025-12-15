@@ -45,7 +45,28 @@ export async function GET(request: NextRequest) {
     let query = db
       .from('gl_accounts')
       .select(
-        'id, name, type, sub_type, account_number, default_account_name, cash_flow_classification, description, is_active, is_security_deposit_liability'
+        [
+          'id',
+          'name',
+          'type',
+          'sub_type',
+          'account_number',
+          'default_account_name',
+          'cash_flow_classification',
+          'description',
+          'is_active',
+          'is_security_deposit_liability',
+          'is_bank_account',
+          'is_contra_account',
+          'is_credit_card_account',
+          'exclude_from_cash_balances',
+          'is_default_gl_account',
+          'buildium_gl_account_id',
+          'buildium_parent_gl_account_id',
+          'sub_accounts',
+          'created_at',
+          'updated_at',
+        ].join(', ')
       )
       .eq('org_id', orgId)
 

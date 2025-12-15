@@ -137,7 +137,7 @@ export const EmailTemplateUpdateSchema = z.object({
  * Zod schema for TemplateRenderSchema (preview/test requests)
  */
 export const TemplateRenderSchema = z.object({
-  variables: z.record(z.union([z.string(), z.number(), z.null()])).optional(),
+  variables: z.record(z.string(), z.union([z.string(), z.number(), z.null()])).optional(),
 });
 
 /**
@@ -183,4 +183,3 @@ export interface PaginatedResponse<T> {
   data: T[];
   pagination: PaginationMeta;
 }
-

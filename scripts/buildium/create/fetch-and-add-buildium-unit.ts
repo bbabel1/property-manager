@@ -93,13 +93,11 @@ async function fetchAndAddBuildiumUnit(unitId: number) {
     console.log('🔄 Mapping unit with standard mapper...')
     const localData = mapUnitFromBuildium(buildiumUnit)
     
-    // Add the property_id relationship
-    localData.property_id = localPropertyId
-    
     // Add required timestamp fields
     const now = new Date().toISOString()
     const finalData = {
       ...localData,
+      property_id: localPropertyId,
       created_at: now,
       updated_at: now
     }

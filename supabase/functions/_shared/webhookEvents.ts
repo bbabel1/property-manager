@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck
+
 import { canonicalizeEventName } from "./eventValidation.ts"
 
 export interface NormalizedBuildiumWebhook {

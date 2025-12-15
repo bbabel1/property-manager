@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/db';
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { logId: string; transactionId: string } },
+  { params }: { params: Promise<{ logId: string; transactionId: string }> },
 ) {
   try {
     const roles: AppRole[] =
@@ -22,7 +22,7 @@ export async function DELETE(
       );
     }
 
-    const { logId, transactionId } = params;
+    const { logId, transactionId } = await params;
 
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')

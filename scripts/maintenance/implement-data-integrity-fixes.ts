@@ -9,9 +9,9 @@ import { createClient } from '@supabase/supabase-js'
 config({ path: '.env.local' })
 
 // Import our new systems
-import { validateDataIntegrity, VALIDATION_SQL_FUNCTIONS } from '../src/lib/data-integrity-validator'
-import { BuildiumEndpointValidator } from '../src/lib/buildium-endpoint-validator'
-import { runSyncRecovery, SYNC_OPERATIONS_TABLE_SQL } from '../src/lib/sync-error-recovery'
+import { validateDataIntegrity, VALIDATION_SQL_FUNCTIONS } from '@/lib/data-integrity-validator'
+import { BuildiumEndpointValidator } from '@/lib/buildium-endpoint-validator'
+import { runSyncRecovery, SYNC_OPERATIONS_TABLE_SQL } from '@/lib/sync-error-recovery'
 
 async function main() {
   console.log('🚀 Starting data integrity implementation...')

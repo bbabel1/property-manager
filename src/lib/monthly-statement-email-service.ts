@@ -25,6 +25,23 @@ interface StatementRecipient {
   role?: string;
 }
 
+const coerceRecipients = (raw: unknown): StatementRecipient[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      const candidate = item as Partial<StatementRecipient>;
+      if (typeof candidate?.email !== 'string' || typeof candidate?.name !== 'string') {
+        return null;
+      }
+      return {
+        email: candidate.email,
+        name: candidate.name,
+        role: typeof candidate.role === 'string' ? candidate.role : undefined,
+      };
+    })
+    .filter(Boolean) as StatementRecipient[];
+};
+
 interface SendStatementResult {
   success: boolean;
   sentCount?: number;
@@ -58,7 +75,7 @@ export async function getStatementRecipients(
       return { success: false, error: error.message };
     }
 
-    const recipients = (property?.statement_recipients as StatementRecipient[]) || [];
+    const recipients = coerceRecipients(property?.statement_recipients);
     return { success: true, recipients };
   } catch (error) {
     return {
@@ -156,8 +173,7 @@ export async function sendMonthlyStatement(
       (snapshotUpload.success && snapshotUpload.url) || latestUpload.url || monthlyLog.pdf_url;
 
     // Get recipients from property
-    const recipients =
-      ((monthlyLog.properties as any)?.statement_recipients as StatementRecipient[]) || [];
+    const recipients = coerceRecipients((monthlyLog.properties as any)?.statement_recipients);
 
     if (recipients.length === 0) {
       return {

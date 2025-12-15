@@ -5,7 +5,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
-import { upsertBillWithLines } from '../../src/lib/buildium-mappers'
+import { upsertBillWithLines } from '@/lib/buildium-mappers'
 
 async function main() {
   const billIdArg = process.argv[2]
@@ -77,4 +77,3 @@ main().catch((err) => {
   console.error('Failed to fetch/upsert bill:', err)
   process.exit(1)
 })
-

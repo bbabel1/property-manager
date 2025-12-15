@@ -150,3 +150,80 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await requireAuth();
+    const { user, roles } = auth;
+
+    if (!hasPermission(roles, 'settings.write')) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 },
+      );
+    }
+
+    const { id } = await params;
+
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('service_offerings')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) {
+      logger.error({ error: fetchError, userId: user.id }, 'Error verifying service offering');
+      return NextResponse.json(
+        { error: { code: 'QUERY_ERROR', message: 'Failed to verify service offering' } },
+        { status: 500 },
+      );
+    }
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Service offering not found' } },
+        { status: 404 },
+      );
+    }
+
+    const { error } = await supabaseAdmin.from('service_offerings').delete().eq('id', id);
+
+    if (error) {
+      const code = (error as any)?.code;
+      if (code === '23503') {
+        return NextResponse.json(
+          {
+            error: {
+              code: 'CONFLICT',
+              message: 'Cannot delete service offering because related records exist',
+            },
+          },
+          { status: 409 },
+        );
+      }
+
+      logger.error({ error, userId: user.id }, 'Error deleting service offering');
+      return NextResponse.json(
+        { error: { code: 'QUERY_ERROR', message: 'Failed to delete service offering' } },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    logger.error({ error }, 'Error in DELETE /api/services/catalog/[id]');
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      return NextResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        { status: 401 },
+      );
+    }
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } },
+      { status: 500 },
+    );
+  }
+}

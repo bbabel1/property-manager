@@ -8,7 +8,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { getEmailTemplate, renderEmailTemplate } from '@/lib/email-template-service';
-import { TemplateRenderSchema } from '@/types/email-templates';
+import {
+  TemplateRenderSchema,
+  type EmailTemplateKey,
+  type TemplateVariableValues,
+  type EmailTemplate,
+  type EmailTemplateStatus,
+} from '@/types/email-templates';
 import { supabaseAdmin } from '@/lib/db';
 import { getAvailableVariables } from '@/lib/email-templates/variable-definitions';
 import { sendEmailViaGmail } from '@/lib/gmail/send-email';
@@ -115,9 +121,17 @@ export async function POST(
       ? templateData.available_variables
       : JSON.parse(JSON.stringify(templateData.available_variables || []));
 
-    const template = {
+    const status =
+      templateData.status === 'active' ||
+      templateData.status === 'inactive' ||
+      templateData.status === 'archived'
+        ? (templateData.status as EmailTemplateStatus)
+        : 'active';
+
+    const template: EmailTemplate = {
       ...templateData,
       available_variables: availableVariables,
+      status,
     };
 
     // Parse request body
@@ -125,8 +139,9 @@ export async function POST(
     const validated = TestEmailSchema.parse(body);
 
     // Build variable values
-    const variableDefs = getAvailableVariables(template.template_key as any);
-    const variableValues: Record<string, unknown> = {};
+    const templateKey = template.template_key as EmailTemplateKey;
+    const variableDefs = getAvailableVariables(templateKey);
+    const variableValues: TemplateVariableValues = {};
 
     // Set defaults
     for (const varDef of variableDefs) {
@@ -135,7 +150,7 @@ export async function POST(
 
     // Override with provided variables
     if (validated.variables) {
-      Object.assign(variableValues, validated.variables);
+      Object.assign(variableValues, validated.variables as TemplateVariableValues);
     }
 
     // Render template

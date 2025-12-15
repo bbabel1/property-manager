@@ -27,7 +27,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
       return data;
     });
 
-  const [initialProperty, fin] = await Promise.all([propertyPromise, finPromise]);
+  const [initialProperty, finRaw] = await Promise.all([propertyPromise, finPromise]);
   let property = initialProperty;
 
   // Fallback: if property still unavailable (e.g., env misconfig), try internal API with revalidation
@@ -90,7 +90,20 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
       }
       secondary={
         <Stack gap="lg">
-          <PropertyBankingAndServicesCard property={property} fin={fin} />
+          <PropertyBankingAndServicesCard
+            property={property}
+            fin={
+              finRaw && typeof finRaw === 'object' && !Array.isArray(finRaw)
+                ? (finRaw as {
+                    cash_balance?: number;
+                    security_deposits?: number;
+                    reserve?: number;
+                    available_balance?: number;
+                    as_of?: string;
+                  })
+                : undefined
+            }
+          />
         </Stack>
       }
     />

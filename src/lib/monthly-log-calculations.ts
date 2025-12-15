@@ -51,6 +51,43 @@ export type OwnerDrawSummary = {
   transactions: OwnerDrawTransaction[];
 };
 
+const OWNER_DRAW_KEYWORDS = [
+  'owner draw',
+  'owner distribution',
+  'distribution to owner',
+  'owner payout',
+];
+
+const matchesOwnerDrawAccount = (
+  account?: {
+    name?: string | null;
+    default_account_name?: string | null;
+    type?: string | null;
+  } | null,
+) => {
+  const fields = [
+    account?.name?.toLowerCase().trim() ?? '',
+    account?.default_account_name?.toLowerCase().trim() ?? '',
+  ].filter(Boolean);
+
+  if (
+    fields.some(
+      (value) =>
+        OWNER_DRAW_KEYWORDS.some((keyword) => value.includes(keyword)) ||
+        (value.includes('owner') && value.includes('distribution')),
+    )
+  ) {
+    return true;
+  }
+
+  // As a safety net, allow equity accounts that explicitly mention "owner"
+  if (account?.type?.toLowerCase().includes('equity')) {
+    return fields.some((value) => value.includes('owner'));
+  }
+
+  return false;
+};
+
 /**
  * Fetch owner draw transaction lines for a monthly log by filtering GL accounts.
  *
@@ -74,24 +111,31 @@ export async function getOwnerDrawSummary(
           transaction_lines(
             gl_accounts(
               name,
+              default_account_name,
               gl_account_category(
                 category
               )
             )
           )
         ),
-        gl_accounts!inner(name)
+        gl_accounts!inner(
+          name,
+          default_account_name,
+          type,
+          gl_account_category(
+            category
+          )
+        )
       `,
     )
-    .eq('transactions.monthly_log_id', monthlyLogId)
-    .ilike('gl_accounts.name', 'owner draw');
+    .eq('transactions.monthly_log_id', monthlyLogId);
 
   if (error) {
     console.error('Error fetching owner draw transactions:', error);
     return { total: 0, transactions: [] };
   }
 
-  const ownerDrawLines = (data ?? []) as Array<{
+  const ownerDrawLines = ((data ?? []) as unknown as Array<{
     id: string;
     amount: number | string | null;
     transactions: {
@@ -101,21 +145,29 @@ export async function getOwnerDrawSummary(
       transaction_lines?: Array<{
         gl_accounts?: {
           name?: string | null;
+          default_account_name?: string | null;
           gl_account_category?: {
             category?: string | null;
           } | null;
+          type?: string | null;
         } | null;
       }> | null;
     } | null;
-  }>;
+    gl_accounts?: {
+      name?: string | null;
+      default_account_name?: string | null;
+      type?: string | null;
+      gl_account_category?: {
+        category?: string | null;
+      } | null;
+    } | null;
+  }>).filter((row) => matchesOwnerDrawAccount(row.gl_accounts ?? undefined));
 
   const filteredLines = ownerDrawLines.filter((row) => {
-    const siblingLines = row.transactions?.transaction_lines ?? [];
-    return !siblingLines.some((sibling) => {
-      const accountName = sibling.gl_accounts?.name?.trim().toLowerCase() ?? '';
-      const category = sibling.gl_accounts?.gl_account_category?.category?.trim().toLowerCase() ?? '';
-      return accountName.includes('tax escrow') || category === 'deposit';
-    });
+    const accountName = row.gl_accounts?.name?.trim().toLowerCase() ?? '';
+    const category = row.gl_accounts?.gl_account_category?.category?.trim().toLowerCase() ?? '';
+    const isEscrowAccount = accountName.includes('escrow') || category === 'deposit';
+    return !isEscrowAccount;
   });
 
   const transactions: OwnerDrawTransaction[] = filteredLines.map((row) => ({
@@ -189,7 +241,7 @@ export async function getTotalFeeCharges(monthlyLogId: string): Promise<number> 
     return 0;
   }
 
-  return data?.reduce((sum, line) => sum + Math.abs(line.amount), 0) ?? 0;
+  return data?.reduce((sum, line) => sum + Math.abs(line.amount ?? 0), 0) ?? 0;
 }
 
 /**

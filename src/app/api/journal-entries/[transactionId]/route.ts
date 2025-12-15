@@ -16,6 +16,7 @@ import {
   resolveBuildiumAccountingEntityType,
   syncJournalEntryToBuildium,
 } from '../buildium-sync';
+import type { TablesInsert } from '@/types/database';
 
 type RouteParams = {
   transactionId: string;
@@ -391,7 +392,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
 
   const { data: journalEntry, error: journalError } = await admin
     .from('journal_entries')
-    .select('id, transaction_id, buildium_gl_entry_id')
+    .select('id, transaction_id, buildium_gl_entry_id, date, memo, total_amount')
     .eq('transaction_id', transactionId)
     .maybeSingle();
 
@@ -408,21 +409,21 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     id: string;
     transaction_id: string;
     buildium_gl_entry_id: number | string | null;
-    date: string | null;
+    date: string;
     memo: string | null;
     total_amount: number | string | null;
   };
 
   const existingBuildiumEntryId = parseBuildiumNumericId(journalEntryRecord.buildium_gl_entry_id);
   const originalJournalEntryState = {
-    date: journalEntryRecord.date ?? null,
+    date: journalEntryRecord.date || new Date().toISOString(),
     memo: journalEntryRecord.memo ?? null,
     totalAmount: coerceNumber(journalEntryRecord.total_amount),
   };
 
   const { data: transaction, error: transactionError } = await admin
     .from('transactions')
-    .select('id, transaction_type, org_id')
+    .select('id, transaction_type, org_id, date, memo, total_amount')
     .eq('id', transactionId)
     .maybeSingle();
 
@@ -439,13 +440,13 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     id: string;
     transaction_type: string;
     org_id: string | null;
-    date: string | null;
+    date: string;
     memo: string | null;
     total_amount: number | string | null;
   };
 
   const originalTransactionState = {
-    date: transactionRecord.date ?? null,
+    date: transactionRecord.date || new Date().toISOString(),
     memo: transactionRecord.memo ?? null,
     totalAmount: coerceNumber(transactionRecord.total_amount),
   };
@@ -699,18 +700,17 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     try {
       await admin.from('transaction_lines').delete().eq('transaction_id', transactionId);
       if (Array.isArray(originalLines) && originalLines.length > 0) {
-        await admin.from('transaction_lines').insert(
-          (originalLines as Record<string, unknown>[]).map((line) => ({
-            ...line,
-            updated_at: new Date().toISOString(),
-          })),
-        );
+        const restoredLines = (originalLines as Record<string, unknown>[]).map((line) => ({
+          ...line,
+          updated_at: nowIso,
+        })) as TablesInsert<'transaction_lines'>[];
+        await admin.from('transaction_lines').insert(restoredLines);
       }
       await admin
         .from('transactions')
         .update({
           date: originalTransactionState.date,
-          memo: originalTransactionState.memo,
+          memo: originalTransactionState.memo ?? undefined,
           total_amount: originalTransactionState.totalAmount,
           updated_at: new Date().toISOString(),
         })
@@ -719,7 +719,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
         .from('journal_entries')
         .update({
           date: originalJournalEntryState.date,
-          memo: originalJournalEntryState.memo,
+          memo: originalJournalEntryState.memo ?? undefined,
           total_amount: originalJournalEntryState.totalAmount,
           updated_at: new Date().toISOString(),
         })
@@ -798,27 +798,26 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   }));
 
   const insertLinesResult = await admin.from('transaction_lines').insert(lineRows);
-  if (insertLinesResult.error) {
-    logIssue(
-      'failed to insert updated lines',
-      {
-        supabaseError: {
-          message: insertLinesResult.error.message,
-          hint: insertLinesResult.error.hint,
+    if (insertLinesResult.error) {
+      logIssue(
+        'failed to insert updated lines',
+        {
+          supabaseError: {
+            message: insertLinesResult.error.message,
+            hint: insertLinesResult.error.hint,
+          },
         },
-      },
-      'error',
-    );
-    if (Array.isArray(originalLines) && originalLines.length > 0) {
-      await admin.from('transaction_lines').insert(
-        (originalLines as Record<string, unknown>[]).map((line) => ({
+        'error',
+      );
+      if (Array.isArray(originalLines) && originalLines.length > 0) {
+        const restoredLines = (originalLines as Record<string, unknown>[]).map((line) => ({
           ...line,
           updated_at: nowIso,
-        })),
-      );
+        })) as TablesInsert<'transaction_lines'>[];
+        await admin.from('transaction_lines').insert(restoredLines);
+      }
+      return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
     }
-    return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
-  }
 
   const journalUpdate = await admin
     .from('journal_entries')

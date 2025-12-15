@@ -17,6 +17,7 @@ export type BuildiumUnitType =
   | 'Other';
 export type BuildiumTaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type BuildiumTaskStatus = 'Open' | 'InProgress' | 'Completed' | 'Cancelled' | 'OnHold';
+export type BuildiumTaskRequestedByEntity = BuildiumWorkOrderRequestedByEntity;
 export type BuildiumBillStatus = 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid';
 export type BuildiumPaymentMethod =
   | 'Check'
@@ -386,7 +387,7 @@ export interface BuildiumFileDownloadMessage {
 // FILE TYPES (Buildium Files API)
 // ============================================================================
 
-export type BuildiumEntityType =
+export type BuildiumFileEntityType =
   | 'Account'
   | 'Association'
   | 'AssociationOwner'
@@ -402,7 +403,7 @@ export type BuildiumEntityType =
 
 export interface BuildiumFile {
   Id: number;
-  EntityType: BuildiumEntityType;
+  EntityType: BuildiumFileEntityType;
   EntityId: number | null;
   FileName: string;
   Title: string;
@@ -427,7 +428,7 @@ export interface BuildiumFileCategory {
 
 // File upload request (step 1: metadata)
 export interface BuildiumFileUploadRequest {
-  EntityType: BuildiumEntityType;
+  EntityType: BuildiumFileEntityType;
   EntityId: number | null;
   FileName: string;
   Title: string;
@@ -1171,7 +1172,7 @@ export interface BuildiumWebhookEvent {
   EntityId: number;
   EntityType: string;
   EventDate: string; // ISO 8601
-  Data: any; // The actual entity data
+  Data: Record<string, unknown>; // The actual entity data
 }
 
 export interface BuildiumWebhookPayload {
@@ -1278,7 +1279,7 @@ export interface BuildiumApiResponse<T> {
 export interface BuildiumApiError {
   Message: string;
   ErrorCode?: string;
-  Details?: any;
+  Details?: Record<string, unknown> | null;
 }
 
 // ============================================================================

@@ -237,11 +237,10 @@ export default function FileUploadDialog({
   );
   const isUnitLink = entityType === 'unit';
   const entityLabel = ENTITY_TYPE_OPTIONS.find((e) => e.value === entityType)?.label || 'Entity';
-  
 
   return (
     <Dialog open={open} onOpenChange={(value) => (value ? onOpenChange(true) : close())}>
-      <DialogContent className="max-w-3xl sm:max-w-4xl">
+      <DialogContent className="w-[680px] max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Upload File</DialogTitle>
           <DialogDescription>

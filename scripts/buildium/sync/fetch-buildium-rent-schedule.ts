@@ -1,49 +1,33 @@
 import { config } from 'dotenv'
-import { logger } from './utils/logger'
+import { logger } from '../../utils/logger'
 
-config()
+config({ path: '.env.local' })
 
 const rentId = '7906'
 
 async function fetchRentScheduleFromBuildium(rentId: string) {
-  // Try different possible endpoints for rent schedules
-  const endpoints = [
-    `/rentals/leases/16235/rent/${rentId}`,
-    `/leases/16235/rent/${rentId}`
-  ]
-  
-  for (const endpoint of endpoints) {
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}${endpoint}`
-    console.log(`\nTrying endpoint: ${endpoint}`)
-    
-    try {
-      const response = await fetch(buildiumUrl, {
-        headers: {
-          'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-          'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-          'Content-Type': 'application/json'
-        }
-      })
+  // Confirmed working endpoint for rent schedules
+  const endpoint = `/leases/16235/rent/${rentId}`
+  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}${endpoint}`
+  console.log(`\nRequesting endpoint: ${endpoint}`)
 
-      if (response.ok) {
-        const data = await response.json()
-        console.log(`✅ Success with endpoint: ${endpoint}`)
-        console.log('Rent schedule data from Buildium:', JSON.stringify(data, null, 2))
-        logger.info(`Successfully fetched rent schedule ${rentId} from Buildium`)
-        return data
-      } else {
-        const errorText = await response.text()
-        console.log(`❌ Failed with endpoint: ${endpoint} - ${response.status} ${response.statusText}`)
-        if (response.status !== 404) {
-          console.log('Error response:', errorText)
-        }
-      }
-    } catch (error) {
-      console.log(`❌ Error with endpoint: ${endpoint} - ${error}`)
+  const response = await fetch(buildiumUrl, {
+    headers: {
+      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
+      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+      'Content-Type': 'application/json'
     }
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed fetching rent schedule ${rentId} via ${endpoint} - ${response.status} ${response.statusText} - ${errorText}`)
   }
-  
-  throw new Error('All rent schedule endpoints failed')
+
+  const data = await response.json()
+  console.log('✅ Rent schedule data from Buildium:', JSON.stringify(data, null, 2))
+  logger.info(`Successfully fetched rent schedule ${rentId} from Buildium`)
+  return data
 }
 
 async function main() {
@@ -67,7 +51,7 @@ async function main() {
     })
 
   } catch (error) {
-    logger.error('Failed to fetch rent schedule:', error)
+    logger.error({ error }, 'Failed to fetch rent schedule')
     process.exit(1)
   }
 }

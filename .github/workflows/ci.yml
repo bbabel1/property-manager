@@ -40,7 +40,7 @@ jobs:
         run: npm run lint:css
 
       - name: Run type check
-        run: npx tsc --noEmit
+        run: npm run typecheck:all
         continue-on-error: true
 
       - name: Run tests

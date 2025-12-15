@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
@@ -5,7 +7,7 @@ import { logger } from '@/lib/logger'
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     logger.info({ userId: user.id, action: 'get_buildium_transactions' }, 'Fetching Buildium transactions');
 
     // Buildium API call

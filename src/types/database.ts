@@ -253,10 +253,480 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_events: {
+        Row: {
+          amount: number
+          calculated_at: string | null
+          created_at: string | null
+          id: string
+          invoiced_at: string | null
+          offering_id: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
+          property_id: string | null
+          rent_amount: number | null
+          rent_basis: Database["public"]["Enums"]["rent_basis_enum"] | null
+          source_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          transaction_id: string | null
+          unit_id: string | null
+        }
+        Insert: {
+          amount: number
+          calculated_at?: string | null
+          created_at?: string | null
+          id?: string
+          invoiced_at?: string | null
+          offering_id?: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
+          property_id?: string | null
+          rent_amount?: number | null
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          source_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          transaction_id?: string | null
+          unit_id?: string | null
+        }
+        Update: {
+          amount?: number
+          calculated_at?: string | null
+          created_at?: string | null
+          id?: string
+          invoiced_at?: string | null
+          offering_id?: string | null
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
+          property_id?: string | null
+          rent_amount?: number | null
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          source_basis?: Database["public"]["Enums"]["billing_basis_enum"]
+          transaction_id?: string | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "billing_events_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_amounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      building_permit_units: {
+        Row: {
+          created_at: string
+          id: string
+          permit_id: string
+          unit_id: string | null
+          unit_reference: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          permit_id: string
+          unit_id?: string | null
+          unit_reference?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          permit_id?: string
+          unit_id?: string | null
+          unit_reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_permit_units_permit_id_fkey"
+            columns: ["permit_id"]
+            isOneToOne: false
+            referencedRelation: "building_permits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_permit_units_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      building_permits: {
+        Row: {
+          act_as_superintendent: string | null
+          applicant_business_address: string | null
+          applicant_business_name: string | null
+          applicant_license: string | null
+          approved_date: string | null
+          apt_condo_no_s: string | null
+          bbl: string | null
+          bin: string | null
+          bldg_type: string | null
+          block: string | null
+          borough: string | null
+          building_id: string | null
+          c_b_no: string | null
+          census_tract: number | null
+          community_board: number | null
+          council_district: number | null
+          created_at: string
+          dataset_id: string
+          dataset_run_date: string | null
+          estimated_job_costs: string | null
+          expiration_date: string | null
+          expired_date: string | null
+          filing_date: string | null
+          filing_reason: string | null
+          filing_representative_business_name: string | null
+          filing_status: string | null
+          hic_license: string | null
+          house_no: string | null
+          id: string
+          issuance_date: string | null
+          issued_date: string | null
+          job_description: string | null
+          job_doc_number: string | null
+          job_filing_number: string
+          job_number: string | null
+          job_start_date: string | null
+          job_type: string | null
+          latitude: number | null
+          longitude: number | null
+          lot: string | null
+          metadata: Json
+          non_profit: string | null
+          nta: string | null
+          oil_gas: string | null
+          org_id: string
+          owner_business_name: string | null
+          owner_business_type: string | null
+          owner_city: string | null
+          owner_first_name: string | null
+          owner_house_city: string | null
+          owner_house_number: string | null
+          owner_house_phone: string | null
+          owner_house_state: string | null
+          owner_house_street_name: string | null
+          owner_house_zip_code: string | null
+          owner_last_name: string | null
+          owner_name: string | null
+          owner_phone: string | null
+          owner_state: string | null
+          owner_street_address: string | null
+          owner_zip_code: string | null
+          permit_sequence: string | null
+          permit_sequence_number: string | null
+          permit_si_no: string | null
+          permit_status: string | null
+          permit_subtype: string | null
+          permit_type: string | null
+          permittee_business_name: string | null
+          permittee_first_name: string | null
+          permittee_last_name: string | null
+          permittee_license_number: string | null
+          permittee_license_type: string | null
+          permittee_other_title: string | null
+          permittee_phone: string | null
+          property_id: string | null
+          residential: string | null
+          self_cert: string | null
+          sequence_number: string | null
+          site_fill: string | null
+          site_safety_mgr_business_name: string | null
+          site_safety_mgr_first_name: string | null
+          site_safety_mgr_last_name: string | null
+          source: string
+          source_record_id: string | null
+          special_district_1: string | null
+          special_district_2: string | null
+          street_name: string | null
+          superintendent_business_name: string | null
+          superintendent_name: string | null
+          tracking_number: string | null
+          updated_at: string
+          work_on_floor: string | null
+          work_permit: string | null
+          work_type: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          act_as_superintendent?: string | null
+          applicant_business_address?: string | null
+          applicant_business_name?: string | null
+          applicant_license?: string | null
+          approved_date?: string | null
+          apt_condo_no_s?: string | null
+          bbl?: string | null
+          bin?: string | null
+          bldg_type?: string | null
+          block?: string | null
+          borough?: string | null
+          building_id?: string | null
+          c_b_no?: string | null
+          census_tract?: number | null
+          community_board?: number | null
+          council_district?: number | null
+          created_at?: string
+          dataset_id?: string
+          dataset_run_date?: string | null
+          estimated_job_costs?: string | null
+          expiration_date?: string | null
+          expired_date?: string | null
+          filing_date?: string | null
+          filing_reason?: string | null
+          filing_representative_business_name?: string | null
+          filing_status?: string | null
+          hic_license?: string | null
+          house_no?: string | null
+          id?: string
+          issuance_date?: string | null
+          issued_date?: string | null
+          job_description?: string | null
+          job_doc_number?: string | null
+          job_filing_number: string
+          job_number?: string | null
+          job_start_date?: string | null
+          job_type?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          lot?: string | null
+          metadata?: Json
+          non_profit?: string | null
+          nta?: string | null
+          oil_gas?: string | null
+          org_id: string
+          owner_business_name?: string | null
+          owner_business_type?: string | null
+          owner_city?: string | null
+          owner_first_name?: string | null
+          owner_house_city?: string | null
+          owner_house_number?: string | null
+          owner_house_phone?: string | null
+          owner_house_state?: string | null
+          owner_house_street_name?: string | null
+          owner_house_zip_code?: string | null
+          owner_last_name?: string | null
+          owner_name?: string | null
+          owner_phone?: string | null
+          owner_state?: string | null
+          owner_street_address?: string | null
+          owner_zip_code?: string | null
+          permit_sequence?: string | null
+          permit_sequence_number?: string | null
+          permit_si_no?: string | null
+          permit_status?: string | null
+          permit_subtype?: string | null
+          permit_type?: string | null
+          permittee_business_name?: string | null
+          permittee_first_name?: string | null
+          permittee_last_name?: string | null
+          permittee_license_number?: string | null
+          permittee_license_type?: string | null
+          permittee_other_title?: string | null
+          permittee_phone?: string | null
+          property_id?: string | null
+          residential?: string | null
+          self_cert?: string | null
+          sequence_number?: string | null
+          site_fill?: string | null
+          site_safety_mgr_business_name?: string | null
+          site_safety_mgr_first_name?: string | null
+          site_safety_mgr_last_name?: string | null
+          source?: string
+          source_record_id?: string | null
+          special_district_1?: string | null
+          special_district_2?: string | null
+          street_name?: string | null
+          superintendent_business_name?: string | null
+          superintendent_name?: string | null
+          tracking_number?: string | null
+          updated_at?: string
+          work_on_floor?: string | null
+          work_permit?: string | null
+          work_type?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          act_as_superintendent?: string | null
+          applicant_business_address?: string | null
+          applicant_business_name?: string | null
+          applicant_license?: string | null
+          approved_date?: string | null
+          apt_condo_no_s?: string | null
+          bbl?: string | null
+          bin?: string | null
+          bldg_type?: string | null
+          block?: string | null
+          borough?: string | null
+          building_id?: string | null
+          c_b_no?: string | null
+          census_tract?: number | null
+          community_board?: number | null
+          council_district?: number | null
+          created_at?: string
+          dataset_id?: string
+          dataset_run_date?: string | null
+          estimated_job_costs?: string | null
+          expiration_date?: string | null
+          expired_date?: string | null
+          filing_date?: string | null
+          filing_reason?: string | null
+          filing_representative_business_name?: string | null
+          filing_status?: string | null
+          hic_license?: string | null
+          house_no?: string | null
+          id?: string
+          issuance_date?: string | null
+          issued_date?: string | null
+          job_description?: string | null
+          job_doc_number?: string | null
+          job_filing_number?: string
+          job_number?: string | null
+          job_start_date?: string | null
+          job_type?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          lot?: string | null
+          metadata?: Json
+          non_profit?: string | null
+          nta?: string | null
+          oil_gas?: string | null
+          org_id?: string
+          owner_business_name?: string | null
+          owner_business_type?: string | null
+          owner_city?: string | null
+          owner_first_name?: string | null
+          owner_house_city?: string | null
+          owner_house_number?: string | null
+          owner_house_phone?: string | null
+          owner_house_state?: string | null
+          owner_house_street_name?: string | null
+          owner_house_zip_code?: string | null
+          owner_last_name?: string | null
+          owner_name?: string | null
+          owner_phone?: string | null
+          owner_state?: string | null
+          owner_street_address?: string | null
+          owner_zip_code?: string | null
+          permit_sequence?: string | null
+          permit_sequence_number?: string | null
+          permit_si_no?: string | null
+          permit_status?: string | null
+          permit_subtype?: string | null
+          permit_type?: string | null
+          permittee_business_name?: string | null
+          permittee_first_name?: string | null
+          permittee_last_name?: string | null
+          permittee_license_number?: string | null
+          permittee_license_type?: string | null
+          permittee_other_title?: string | null
+          permittee_phone?: string | null
+          property_id?: string | null
+          residential?: string | null
+          self_cert?: string | null
+          sequence_number?: string | null
+          site_fill?: string | null
+          site_safety_mgr_business_name?: string | null
+          site_safety_mgr_first_name?: string | null
+          site_safety_mgr_last_name?: string | null
+          source?: string
+          source_record_id?: string | null
+          special_district_1?: string | null
+          special_district_2?: string | null
+          street_name?: string | null
+          superintendent_business_name?: string | null
+          superintendent_name?: string | null
+          tracking_number?: string | null
+          updated_at?: string
+          work_on_floor?: string | null
+          work_permit?: string | null
+          work_type?: string | null
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_permits_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_permits_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_permits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_permits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
       buildings: {
         Row: {
           bbl: string | null
           bin: string | null
+          borough: string | null
           borough_code: string | null
           city: string | null
           condo_num: string | null
@@ -264,32 +734,34 @@ export type Database = {
           country: string | null
           created_at: string
           ease_digit: string | null
-          enrichment_errors: Json | null
-          occupancy_group: string | null
-          occupancy_description: string | null
-          is_one_two_family: boolean | null
-          is_private_residence_building: boolean | null
-          dwelling_unit_count: number | null
+          enrichment_errors: Json
           geoservice: Json | null
           geoservice_response_at: string | null
+          heat_sensor_program: boolean
+          house_number: string | null
+          hpd: Json | null
           hpd_building: Json | null
           hpd_registration: Json | null
           hpd_registration_response_at: string | null
           hpd_response_at: string | null
-          house_number: string | null
           id: string
+          is_one_two_family: boolean | null
+          is_private_residence_building: boolean | null
           latitude: number | null
           longitude: number | null
           neighborhood: string | null
+          normalized_address_key: string | null
           nta: Json | null
           nta_code: string | null
           nta_name: string | null
           nta_response_at: string | null
+          occupancy_description: string | null
+          occupancy_group: string | null
           parid: string | null
           pluto: Json | null
           pluto_response_at: string | null
           raw_address: string | null
-          normalized_address_key: string | null
+          residential_units: number | null
           state: string | null
           street_name: string | null
           street_name_normalized: string | null
@@ -304,6 +776,7 @@ export type Database = {
         Insert: {
           bbl?: string | null
           bin?: string | null
+          borough?: string | null
           borough_code?: string | null
           city?: string | null
           condo_num?: string | null
@@ -311,32 +784,34 @@ export type Database = {
           country?: string | null
           created_at?: string
           ease_digit?: string | null
-          enrichment_errors?: Json | null
-          occupancy_group?: string | null
-          occupancy_description?: string | null
-          is_one_two_family?: boolean | null
-          is_private_residence_building?: boolean | null
-          dwelling_unit_count?: number | null
+          enrichment_errors?: Json
           geoservice?: Json | null
           geoservice_response_at?: string | null
+          heat_sensor_program?: boolean
+          house_number?: string | null
+          hpd?: Json | null
           hpd_building?: Json | null
           hpd_registration?: Json | null
           hpd_registration_response_at?: string | null
           hpd_response_at?: string | null
-          house_number?: string | null
           id?: string
+          is_one_two_family?: boolean | null
+          is_private_residence_building?: boolean | null
           latitude?: number | null
           longitude?: number | null
           neighborhood?: string | null
+          normalized_address_key?: string | null
           nta?: Json | null
           nta_code?: string | null
           nta_name?: string | null
           nta_response_at?: string | null
+          occupancy_description?: string | null
+          occupancy_group?: string | null
           parid?: string | null
           pluto?: Json | null
           pluto_response_at?: string | null
           raw_address?: string | null
-          normalized_address_key?: string | null
+          residential_units?: number | null
           state?: string | null
           street_name?: string | null
           street_name_normalized?: string | null
@@ -351,6 +826,7 @@ export type Database = {
         Update: {
           bbl?: string | null
           bin?: string | null
+          borough?: string | null
           borough_code?: string | null
           city?: string | null
           condo_num?: string | null
@@ -358,32 +834,34 @@ export type Database = {
           country?: string | null
           created_at?: string
           ease_digit?: string | null
-          enrichment_errors?: Json | null
-          occupancy_group?: string | null
-          occupancy_description?: string | null
-          is_one_two_family?: boolean | null
-          is_private_residence_building?: boolean | null
-          dwelling_unit_count?: number | null
+          enrichment_errors?: Json
           geoservice?: Json | null
           geoservice_response_at?: string | null
+          heat_sensor_program?: boolean
+          house_number?: string | null
+          hpd?: Json | null
           hpd_building?: Json | null
           hpd_registration?: Json | null
           hpd_registration_response_at?: string | null
           hpd_response_at?: string | null
-          house_number?: string | null
           id?: string
+          is_one_two_family?: boolean | null
+          is_private_residence_building?: boolean | null
           latitude?: number | null
           longitude?: number | null
           neighborhood?: string | null
+          normalized_address_key?: string | null
           nta?: Json | null
           nta_code?: string | null
           nta_name?: string | null
           nta_response_at?: string | null
+          occupancy_description?: string | null
+          occupancy_group?: string | null
           parid?: string | null
           pluto?: Json | null
           pluto_response_at?: string | null
           raw_address?: string | null
-          normalized_address_key?: string | null
+          residential_units?: number | null
           state?: string | null
           street_name?: string | null
           street_name_normalized?: string | null
@@ -462,6 +940,104 @@ export type Database = {
           response_status?: number | null
         }
         Relationships: []
+      }
+      buildium_integration_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string
+          created_at: string
+          field_changes: Json | null
+          id: string
+          org_id: string
+          test_result: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          created_at?: string
+          field_changes?: Json | null
+          id?: string
+          org_id: string
+          test_result?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          created_at?: string
+          field_changes?: Json | null
+          id?: string
+          org_id?: string
+          test_result?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buildium_integration_audit_log_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "buildium_integration_audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buildium_integrations: {
+        Row: {
+          base_url: string
+          client_id_encrypted: string
+          client_secret_encrypted: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          is_enabled: boolean
+          last_tested_at: string | null
+          org_id: string
+          updated_at: string
+          webhook_secret_encrypted: string
+          webhook_secret_rotated_at: string | null
+        }
+        Insert: {
+          base_url: string
+          client_id_encrypted: string
+          client_secret_encrypted: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          last_tested_at?: string | null
+          org_id: string
+          updated_at?: string
+          webhook_secret_encrypted: string
+          webhook_secret_rotated_at?: string | null
+        }
+        Update: {
+          base_url?: string
+          client_id_encrypted?: string
+          client_secret_encrypted?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          last_tested_at?: string | null
+          org_id?: string
+          updated_at?: string
+          webhook_secret_encrypted?: string
+          webhook_secret_rotated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buildium_integrations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       buildium_sync_runs: {
         Row: {
@@ -649,6 +1225,658 @@ export type Database = {
           },
         ]
       }
+      compliance_assets: {
+        Row: {
+          active: boolean
+          asset_type: Database["public"]["Enums"]["compliance_asset_type"]
+          created_at: string
+          device_category: string | null
+          device_subtype: string | null
+          device_technology: string | null
+          external_source: string | null
+          external_source_id: string | null
+          id: string
+          is_private_residence: boolean | null
+          location_notes: string | null
+          metadata: Json | null
+          name: string
+          org_id: string
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          asset_type: Database["public"]["Enums"]["compliance_asset_type"]
+          created_at?: string
+          device_category?: string | null
+          device_subtype?: string | null
+          device_technology?: string | null
+          external_source?: string | null
+          external_source_id?: string | null
+          id?: string
+          is_private_residence?: boolean | null
+          location_notes?: string | null
+          metadata?: Json | null
+          name: string
+          org_id: string
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          asset_type?: Database["public"]["Enums"]["compliance_asset_type"]
+          created_at?: string
+          device_category?: string | null
+          device_subtype?: string | null
+          device_technology?: string | null
+          external_source?: string | null
+          external_source_id?: string | null
+          id?: string
+          is_private_residence?: boolean | null
+          location_notes?: string | null
+          metadata?: Json | null
+          name?: string
+          org_id?: string
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_assets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_assets_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_assets_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      compliance_events: {
+        Row: {
+          asset_id: string | null
+          compliance_status: string | null
+          created_at: string
+          defects: boolean
+          event_type: Database["public"]["Enums"]["compliance_event_type"]
+          external_tracking_number: string | null
+          filed_date: string | null
+          id: string
+          inspection_date: string | null
+          inspection_type: string | null
+          inspector_company: string | null
+          inspector_name: string | null
+          item_id: string | null
+          org_id: string
+          property_id: string
+          raw_source: Json | null
+          updated_at: string
+        }
+        Insert: {
+          asset_id?: string | null
+          compliance_status?: string | null
+          created_at?: string
+          defects?: boolean
+          event_type: Database["public"]["Enums"]["compliance_event_type"]
+          external_tracking_number?: string | null
+          filed_date?: string | null
+          id?: string
+          inspection_date?: string | null
+          inspection_type?: string | null
+          inspector_company?: string | null
+          inspector_name?: string | null
+          item_id?: string | null
+          org_id: string
+          property_id: string
+          raw_source?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string | null
+          compliance_status?: string | null
+          created_at?: string
+          defects?: boolean
+          event_type?: Database["public"]["Enums"]["compliance_event_type"]
+          external_tracking_number?: string | null
+          filed_date?: string | null
+          id?: string
+          inspection_date?: string | null
+          inspection_type?: string | null
+          inspector_company?: string | null
+          inspector_name?: string | null
+          item_id?: string | null
+          org_id?: string
+          property_id?: string
+          raw_source?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_events_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      compliance_item_work_orders: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          org_id: string
+          role: Database["public"]["Enums"]["compliance_work_order_role"]
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          org_id: string
+          role?: Database["public"]["Enums"]["compliance_work_order_role"]
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["compliance_work_order_role"]
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_item_work_orders_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_item_work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_item_work_orders_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_item_work_orders_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_items: {
+        Row: {
+          asset_id: string | null
+          created_at: string
+          defect_flag: boolean
+          due_date: string
+          external_tracking_number: string | null
+          id: string
+          next_action: string | null
+          notes: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+          primary_work_order_id: string | null
+          program_id: string
+          property_id: string
+          result: string | null
+          source: Database["public"]["Enums"]["compliance_item_source"]
+          status: Database["public"]["Enums"]["compliance_item_status"]
+          updated_at: string
+        }
+        Insert: {
+          asset_id?: string | null
+          created_at?: string
+          defect_flag?: boolean
+          due_date: string
+          external_tracking_number?: string | null
+          id?: string
+          next_action?: string | null
+          notes?: string | null
+          org_id: string
+          period_end: string
+          period_start: string
+          primary_work_order_id?: string | null
+          program_id: string
+          property_id: string
+          result?: string | null
+          source?: Database["public"]["Enums"]["compliance_item_source"]
+          status?: Database["public"]["Enums"]["compliance_item_status"]
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string | null
+          created_at?: string
+          defect_flag?: boolean
+          due_date?: string
+          external_tracking_number?: string | null
+          id?: string
+          next_action?: string | null
+          notes?: string | null
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          primary_work_order_id?: string | null
+          program_id?: string
+          property_id?: string
+          result?: string | null
+          source?: Database["public"]["Enums"]["compliance_item_source"]
+          status?: Database["public"]["Enums"]["compliance_item_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_items_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_primary_work_order_id_fkey"
+            columns: ["primary_work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_primary_work_order_id_fkey"
+            columns: ["primary_work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_items_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      compliance_program_templates: {
+        Row: {
+          applies_to: Database["public"]["Enums"]["compliance_applies_to"]
+          code: string
+          created_at: string
+          criteria: Json | null
+          frequency_months: number
+          id: string
+          is_active: boolean
+          jurisdiction: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days: number
+          name: string
+          notes: string | null
+          severity_score: number
+          updated_at: string
+        }
+        Insert: {
+          applies_to: Database["public"]["Enums"]["compliance_applies_to"]
+          code: string
+          created_at?: string
+          criteria?: Json | null
+          frequency_months: number
+          id?: string
+          is_active?: boolean
+          jurisdiction: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days?: number
+          name: string
+          notes?: string | null
+          severity_score: number
+          updated_at?: string
+        }
+        Update: {
+          applies_to?: Database["public"]["Enums"]["compliance_applies_to"]
+          code?: string
+          created_at?: string
+          criteria?: Json | null
+          frequency_months?: number
+          id?: string
+          is_active?: boolean
+          jurisdiction?: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days?: number
+          name?: string
+          notes?: string | null
+          severity_score?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      compliance_programs: {
+        Row: {
+          applies_to: Database["public"]["Enums"]["compliance_applies_to"]
+          code: string
+          created_at: string
+          criteria: Json | null
+          frequency_months: number
+          id: string
+          is_enabled: boolean
+          jurisdiction: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days: number
+          name: string
+          notes: string | null
+          org_id: string
+          override_fields: Json | null
+          severity_score: number
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          applies_to: Database["public"]["Enums"]["compliance_applies_to"]
+          code: string
+          created_at?: string
+          criteria?: Json | null
+          frequency_months: number
+          id?: string
+          is_enabled?: boolean
+          jurisdiction: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days?: number
+          name: string
+          notes?: string | null
+          org_id: string
+          override_fields?: Json | null
+          severity_score: number
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          applies_to?: Database["public"]["Enums"]["compliance_applies_to"]
+          code?: string
+          created_at?: string
+          criteria?: Json | null
+          frequency_months?: number
+          id?: string
+          is_enabled?: boolean
+          jurisdiction?: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days?: number
+          name?: string
+          notes?: string | null
+          org_id?: string
+          override_fields?: Json | null
+          severity_score?: number
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_programs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_programs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_program_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_property_program_overrides: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          created_at: string
+          id: string
+          is_assigned: boolean
+          is_enabled: boolean | null
+          org_id: string
+          program_id: string
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          is_assigned?: boolean
+          is_enabled?: boolean | null
+          org_id: string
+          program_id: string
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          is_assigned?: boolean
+          is_enabled?: boolean | null
+          org_id?: string
+          program_id?: string
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_property_program_overrides_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "compliance_property_program_overrides_org_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_property_program_overrides_program_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_property_program_overrides_property_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_property_program_overrides_property_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      compliance_violations: {
+        Row: {
+          agency: Database["public"]["Enums"]["compliance_violation_agency"]
+          asset_id: string | null
+          category: Database["public"]["Enums"]["compliance_violation_category"]
+          cleared_date: string | null
+          created_at: string
+          cure_by_date: string | null
+          description: string
+          id: string
+          issue_date: string
+          linked_item_id: string | null
+          linked_work_order_id: string | null
+          metadata: Json | null
+          org_id: string
+          property_id: string
+          severity_score: number | null
+          status: Database["public"]["Enums"]["compliance_violation_status"]
+          updated_at: string
+          violation_number: string
+        }
+        Insert: {
+          agency: Database["public"]["Enums"]["compliance_violation_agency"]
+          asset_id?: string | null
+          category?: Database["public"]["Enums"]["compliance_violation_category"]
+          cleared_date?: string | null
+          created_at?: string
+          cure_by_date?: string | null
+          description: string
+          id?: string
+          issue_date: string
+          linked_item_id?: string | null
+          linked_work_order_id?: string | null
+          metadata?: Json | null
+          org_id: string
+          property_id: string
+          severity_score?: number | null
+          status?: Database["public"]["Enums"]["compliance_violation_status"]
+          updated_at?: string
+          violation_number: string
+        }
+        Update: {
+          agency?: Database["public"]["Enums"]["compliance_violation_agency"]
+          asset_id?: string | null
+          category?: Database["public"]["Enums"]["compliance_violation_category"]
+          cleared_date?: string | null
+          created_at?: string
+          cure_by_date?: string | null
+          description?: string
+          id?: string
+          issue_date?: string
+          linked_item_id?: string | null
+          linked_work_order_id?: string | null
+          metadata?: Json | null
+          org_id?: string
+          property_id?: string
+          severity_score?: number | null
+          status?: Database["public"]["Enums"]["compliance_violation_status"]
+          updated_at?: string
+          violation_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_violations_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_violations_linked_item_id_fkey"
+            columns: ["linked_item_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_violations_linked_work_order_id_fkey"
+            columns: ["linked_work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_violations_linked_work_order_id_fkey"
+            columns: ["linked_work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_violations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_violations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_violations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           alt_address_line_1: string | null
@@ -753,6 +1981,201 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users_with_auth"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      data_sources: {
+        Row: {
+          created_at: string
+          dataset_id: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_enabled: boolean
+          key: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dataset_id: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          key: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dataset_id?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          key?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      device_type_normalization: {
+        Row: {
+          created_at: string
+          default_is_private_residence: boolean | null
+          id: number
+          normalized_category: string
+          normalized_subtype: string | null
+          normalized_technology: string | null
+          raw_description: string | null
+          raw_device_type: string
+          source_system: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_is_private_residence?: boolean | null
+          id?: number
+          normalized_category: string
+          normalized_subtype?: string | null
+          normalized_technology?: string | null
+          raw_description?: string | null
+          raw_device_type: string
+          source_system: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_is_private_residence?: boolean | null
+          id?: number
+          normalized_category?: string
+          normalized_subtype?: string | null
+          normalized_technology?: string | null
+          raw_description?: string | null
+          raw_device_type?: string
+          source_system?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          available_variables: Json
+          body_html_template: string
+          body_text_template: string | null
+          created_at: string
+          created_by_user_id: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          status: string
+          subject_template: string
+          template_key: string
+          updated_at: string
+          updated_by_user_id: string
+        }
+        Insert: {
+          available_variables?: Json
+          body_html_template: string
+          body_text_template?: string | null
+          created_at?: string
+          created_by_user_id: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id: string
+          status?: string
+          subject_template: string
+          template_key: string
+          updated_at?: string
+          updated_by_user_id: string
+        }
+        Update: {
+          available_variables?: Json
+          body_html_template?: string
+          body_text_template?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          status?: string
+          subject_template?: string
+          template_key?: string
+          updated_at?: string
+          updated_by_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "email_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_templates_updated_by_user_id_fkey"
+            columns: ["updated_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      external_sync_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_cursor: string | null
+          last_error: string | null
+          last_run_at: string | null
+          last_seen_at: string | null
+          org_id: string
+          source: Database["public"]["Enums"]["external_sync_source"]
+          status: Database["public"]["Enums"]["external_sync_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_cursor?: string | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_seen_at?: string | null
+          org_id: string
+          source: Database["public"]["Enums"]["external_sync_source"]
+          status?: Database["public"]["Enums"]["external_sync_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_cursor?: string | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_seen_at?: string | null
+          org_id?: string
+          source?: Database["public"]["Enums"]["external_sync_source"]
+          status?: Database["public"]["Enums"]["external_sync_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_sync_state_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1021,6 +2444,170 @@ export type Database = {
         }
         Relationships: []
       }
+      gmail_integrations: {
+        Row: {
+          access_token_encrypted: string
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          org_id: string
+          refresh_token_encrypted: string | null
+          scope: string
+          staff_id: number
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          org_id: string
+          refresh_token_encrypted?: string | null
+          scope: string
+          staff_id: number
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          org_id?: string
+          refresh_token_encrypted?: string | null
+          scope?: string
+          staff_id?: number
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gmail_integrations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gmail_integrations_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gmail_integrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      google_calendar_integrations: {
+        Row: {
+          access_token_encrypted: string
+          calendar_id: string
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          org_id: string
+          refresh_token_encrypted: string | null
+          scope: string
+          staff_id: number
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          calendar_id?: string
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          org_id: string
+          refresh_token_encrypted?: string | null
+          scope: string
+          staff_id: number
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          calendar_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          org_id?: string
+          refresh_token_encrypted?: string | null
+          scope?: string
+          staff_id?: number
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_integrations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_integrations_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_integrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      idempotency_keys: {
+        Row: {
+          created_at: string
+          expires_at: string
+          key: string
+          last_used_at: string
+          org_id: string | null
+          response: Json | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          key: string
+          last_used_at?: string
+          org_id?: string | null
+          response?: Json | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          key?: string
+          last_used_at?: string
+          org_id?: string | null
+          response?: Json | null
+        }
+        Relationships: []
+      }
       inspections: {
         Row: {
           created_at: string
@@ -1223,6 +2810,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fk_lease_property_id"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
             foreignKeyName: "fk_lease_unit_id"
             columns: ["unit_id"]
             isOneToOne: false
@@ -1242,6 +2836,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "Lease_propertyId_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "Lease_unitId_fkey"
@@ -1540,9 +3141,11 @@ export type Database = {
           org_id: string
           priority: string | null
           property_conditions: Json | null
+          service_offering_id: string | null
           stage_trigger: Database["public"]["Enums"]["monthly_log_stage"] | null
           status_default: string | null
           subject_template: string
+          trigger_on_service_activation: boolean | null
           unit_conditions: Json | null
           updated_at: string | null
         }
@@ -1564,11 +3167,13 @@ export type Database = {
           org_id: string
           priority?: string | null
           property_conditions?: Json | null
+          service_offering_id?: string | null
           stage_trigger?:
             | Database["public"]["Enums"]["monthly_log_stage"]
             | null
           status_default?: string | null
           subject_template: string
+          trigger_on_service_activation?: boolean | null
           unit_conditions?: Json | null
           updated_at?: string | null
         }
@@ -1590,11 +3195,13 @@ export type Database = {
           org_id?: string
           priority?: string | null
           property_conditions?: Json | null
+          service_offering_id?: string | null
           stage_trigger?:
             | Database["public"]["Enums"]["monthly_log_stage"]
             | null
           status_default?: string | null
           subject_template?: string
+          trigger_on_service_activation?: boolean | null
           unit_conditions?: Json | null
           updated_at?: string | null
         }
@@ -1618,6 +3225,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_log_task_rules_service_offering_id_fkey"
+            columns: ["service_offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
             referencedColumns: ["id"]
           },
         ]
@@ -1718,6 +3332,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "monthly_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
             foreignKeyName: "monthly_logs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1729,6 +3350,134 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nyc_open_data_integrations: {
+        Row: {
+          app_token_encrypted: string | null
+          base_url: string
+          created_at: string
+          dataset_asbestos_violations: string
+          dataset_bedbug_reporting: string
+          dataset_dob_active_violations: string
+          dataset_dob_certificate_of_occupancy_now: string
+          dataset_dob_certificate_of_occupancy_old: string
+          dataset_dob_complaints: string
+          dataset_dob_ecb_violations: string
+          dataset_dob_job_applications: string
+          dataset_dob_now_approved_permits: string
+          dataset_dob_now_job_filings: string
+          dataset_dob_now_safety_boiler: string
+          dataset_dob_now_safety_facade: string
+          dataset_dob_permit_issuance_old: string
+          dataset_dob_violations: string
+          dataset_elevator_complaints: string
+          dataset_elevator_devices: string
+          dataset_elevator_inspections: string
+          dataset_elevator_violations: string
+          dataset_elevator_violations_active: string
+          dataset_elevator_violations_historic: string
+          dataset_fdny_violations: string
+          dataset_heat_sensor_program: string
+          dataset_hpd_complaints: string
+          dataset_hpd_registrations: string
+          dataset_hpd_violations: string
+          dataset_sidewalk_violations: string
+          deleted_at: string | null
+          geoservice_api_key_encrypted: string | null
+          geoservice_app_id_encrypted: string | null
+          geoservice_base_url: string | null
+          id: string
+          is_enabled: boolean
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          app_token_encrypted?: string | null
+          base_url?: string
+          created_at?: string
+          dataset_asbestos_violations?: string
+          dataset_bedbug_reporting?: string
+          dataset_dob_active_violations?: string
+          dataset_dob_certificate_of_occupancy_now?: string
+          dataset_dob_certificate_of_occupancy_old?: string
+          dataset_dob_complaints?: string
+          dataset_dob_ecb_violations?: string
+          dataset_dob_job_applications?: string
+          dataset_dob_now_approved_permits?: string
+          dataset_dob_now_job_filings?: string
+          dataset_dob_now_safety_boiler?: string
+          dataset_dob_now_safety_facade?: string
+          dataset_dob_permit_issuance_old?: string
+          dataset_dob_violations?: string
+          dataset_elevator_complaints?: string
+          dataset_elevator_devices?: string
+          dataset_elevator_inspections?: string
+          dataset_elevator_violations?: string
+          dataset_elevator_violations_active?: string
+          dataset_elevator_violations_historic?: string
+          dataset_fdny_violations?: string
+          dataset_heat_sensor_program?: string
+          dataset_hpd_complaints?: string
+          dataset_hpd_registrations?: string
+          dataset_hpd_violations?: string
+          dataset_sidewalk_violations?: string
+          deleted_at?: string | null
+          geoservice_api_key_encrypted?: string | null
+          geoservice_app_id_encrypted?: string | null
+          geoservice_base_url?: string | null
+          id?: string
+          is_enabled?: boolean
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          app_token_encrypted?: string | null
+          base_url?: string
+          created_at?: string
+          dataset_asbestos_violations?: string
+          dataset_bedbug_reporting?: string
+          dataset_dob_active_violations?: string
+          dataset_dob_certificate_of_occupancy_now?: string
+          dataset_dob_certificate_of_occupancy_old?: string
+          dataset_dob_complaints?: string
+          dataset_dob_ecb_violations?: string
+          dataset_dob_job_applications?: string
+          dataset_dob_now_approved_permits?: string
+          dataset_dob_now_job_filings?: string
+          dataset_dob_now_safety_boiler?: string
+          dataset_dob_now_safety_facade?: string
+          dataset_dob_permit_issuance_old?: string
+          dataset_dob_violations?: string
+          dataset_elevator_complaints?: string
+          dataset_elevator_devices?: string
+          dataset_elevator_inspections?: string
+          dataset_elevator_violations?: string
+          dataset_elevator_violations_active?: string
+          dataset_elevator_violations_historic?: string
+          dataset_fdny_violations?: string
+          dataset_heat_sensor_program?: string
+          dataset_hpd_complaints?: string
+          dataset_hpd_registrations?: string
+          dataset_hpd_violations?: string
+          dataset_sidewalk_violations?: string
+          deleted_at?: string | null
+          geoservice_api_key_encrypted?: string | null
+          geoservice_app_id_encrypted?: string | null
+          geoservice_base_url?: string | null
+          id?: string
+          is_enabled?: boolean
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nyc_open_data_integrations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1953,6 +3702,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "owners_contact_fk"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["contact_id"]
+          },
+          {
             foreignKeyName: "owners_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -2063,6 +3819,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ownerships_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       permission_profile_permissions: {
@@ -2134,21 +3897,66 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
+          currency: string | null
+          date_format: string | null
+          display_name: string | null
           email: string | null
+          favorite_properties: string[]
           full_name: string | null
+          landing_page: string | null
+          locale: string | null
+          notification_preferences: Json
+          number_format: string | null
+          personal_integrations: Json
+          phone: string | null
+          primary_work_role: string | null
+          timezone: string | null
+          two_factor_enabled: boolean
+          updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
+          currency?: string | null
+          date_format?: string | null
+          display_name?: string | null
           email?: string | null
+          favorite_properties?: string[]
           full_name?: string | null
+          landing_page?: string | null
+          locale?: string | null
+          notification_preferences?: Json
+          number_format?: string | null
+          personal_integrations?: Json
+          phone?: string | null
+          primary_work_role?: string | null
+          timezone?: string | null
+          two_factor_enabled?: boolean
+          updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
+          currency?: string | null
+          date_format?: string | null
+          display_name?: string | null
           email?: string | null
+          favorite_properties?: string[]
           full_name?: string | null
+          landing_page?: string | null
+          locale?: string | null
+          notification_preferences?: Json
+          number_format?: string | null
+          personal_integrations?: Json
+          phone?: string | null
+          primary_work_role?: string | null
+          timezone?: string | null
+          two_factor_enabled?: boolean
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -2170,6 +3978,7 @@ export type Database = {
           address_line2: string | null
           address_line3: string | null
           available_balance: number | null
+          bbl: string | null
           bill_administration:
             | Database["public"]["Enums"]["bill_administration_option"][]
             | null
@@ -2179,15 +3988,11 @@ export type Database = {
           billing_frequency:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
-          building_id: string | null
           bin: string | null
-          bbl: string | null
           block: number | null
-          lot: number | null
-          borough_code: number | null
-          hpd_building_id: number | null
-          hpd_registration_id: number | null
           borough: string | null
+          borough_code: number | null
+          building_id: string | null
           buildium_created_at: string | null
           buildium_property_id: number | null
           buildium_updated_at: string | null
@@ -2203,11 +4008,14 @@ export type Database = {
           fee_dollar_amount: number | null
           fee_percentage: number | null
           fee_type: Database["public"]["Enums"]["fee_type_enum"] | null
+          hpd_building_id: number | null
+          hpd_registration_id: number | null
           id: string
           is_active: boolean | null
           latitude: number | null
           location_verified: boolean | null
           longitude: number | null
+          lot: number | null
           management_scope:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
@@ -2250,6 +4058,7 @@ export type Database = {
           address_line2?: string | null
           address_line3?: string | null
           available_balance?: number | null
+          bbl?: string | null
           bill_administration?:
             | Database["public"]["Enums"]["bill_administration_option"][]
             | null
@@ -2259,15 +4068,11 @@ export type Database = {
           billing_frequency?:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
-          building_id?: string | null
           bin?: string | null
-          bbl?: string | null
           block?: number | null
-          lot?: number | null
-          borough_code?: number | null
-          hpd_building_id?: number | null
-          hpd_registration_id?: number | null
           borough?: string | null
+          borough_code?: number | null
+          building_id?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
           buildium_updated_at?: string | null
@@ -2283,11 +4088,14 @@ export type Database = {
           fee_dollar_amount?: number | null
           fee_percentage?: number | null
           fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
+          hpd_building_id?: number | null
+          hpd_registration_id?: number | null
           id?: string
           is_active?: boolean | null
           latitude?: number | null
           location_verified?: boolean | null
           longitude?: number | null
+          lot?: number | null
           management_scope?:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
@@ -2330,6 +4138,7 @@ export type Database = {
           address_line2?: string | null
           address_line3?: string | null
           available_balance?: number | null
+          bbl?: string | null
           bill_administration?:
             | Database["public"]["Enums"]["bill_administration_option"][]
             | null
@@ -2339,15 +4148,11 @@ export type Database = {
           billing_frequency?:
             | Database["public"]["Enums"]["billing_frequency_enum"]
             | null
-          building_id?: string | null
           bin?: string | null
-          bbl?: string | null
           block?: number | null
-          lot?: number | null
-          borough_code?: number | null
-          hpd_building_id?: number | null
-          hpd_registration_id?: number | null
           borough?: string | null
+          borough_code?: number | null
+          building_id?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
           buildium_updated_at?: string | null
@@ -2363,11 +4168,14 @@ export type Database = {
           fee_dollar_amount?: number | null
           fee_percentage?: number | null
           fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
+          hpd_building_id?: number | null
+          hpd_registration_id?: number | null
           id?: string
           is_active?: boolean | null
           latitude?: number | null
           location_verified?: boolean | null
           longitude?: number | null
+          lot?: number | null
           management_scope?:
             | Database["public"]["Enums"]["assignment_level_enum"]
             | null
@@ -2404,17 +4212,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "properties_deposit_trust_account_id_fkey"
-            columns: ["deposit_trust_account_id"]
-            isOneToOne: false
-            referencedRelation: "bank_accounts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "properties_building_id_fkey"
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_deposit_trust_account_id_fkey"
+            columns: ["deposit_trust_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
             referencedColumns: ["id"]
           },
           {
@@ -2429,6 +4237,78 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_automation_overrides: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          offering_id: string
+          override_config: Json
+          property_id: string
+          rule_id: string
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          offering_id: string
+          override_config: Json
+          property_id: string
+          rule_id: string
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          offering_id?: string
+          override_config?: Json
+          property_id?: string
+          rule_id?: string
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_automation_overrides_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_automation_overrides_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_automation_overrides_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_automation_overrides_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "service_automation_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_automation_overrides_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
@@ -2484,6 +4364,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "property_images_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       property_notes: {
@@ -2531,6 +4418,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_notes_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
         ]
       }
@@ -2592,6 +4486,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
         ]
       }
@@ -2695,6 +4596,107 @@ export type Database = {
         }
         Relationships: []
       }
+      property_service_pricing: {
+        Row: {
+          bill_on: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          billing_frequency: Database["public"]["Enums"]["billing_frequency_enum"]
+          created_at: string | null
+          effective_end: string | null
+          effective_start: string
+          hourly_min_hours: number | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          markup_pct: number | null
+          markup_pct_cap: number | null
+          max_amount: number | null
+          min_amount: number | null
+          min_monthly_fee: number | null
+          offering_id: string
+          property_id: string
+          rate: number | null
+          rent_basis: Database["public"]["Enums"]["rent_basis_enum"] | null
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          bill_on: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          billing_frequency: Database["public"]["Enums"]["billing_frequency_enum"]
+          created_at?: string | null
+          effective_end?: string | null
+          effective_start?: string
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          max_amount?: number | null
+          min_amount?: number | null
+          min_monthly_fee?: number | null
+          offering_id: string
+          property_id: string
+          rate?: number | null
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          bill_on?: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis?: Database["public"]["Enums"]["billing_basis_enum"]
+          billing_frequency?: Database["public"]["Enums"]["billing_frequency_enum"]
+          created_at?: string | null
+          effective_end?: string | null
+          effective_start?: string
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          max_amount?: number | null
+          min_amount?: number | null
+          min_monthly_fee?: number | null
+          offering_id?: string
+          property_id?: string
+          rate?: number | null
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_service_pricing_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_service_pricing_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_service_pricing_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_service_pricing_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_staff: {
         Row: {
           created_at: string
@@ -2724,6 +4726,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_staff_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "property_staff_staff_id_fkey"
@@ -2822,6 +4831,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       recurring_transactions: {
@@ -2917,6 +4933,338 @@ export type Database = {
             columns: ["lease_id"]
             isOneToOne: false
             referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_automation_rules: {
+        Row: {
+          charge_template: Json | null
+          conditions: Json | null
+          created_at: string | null
+          frequency: Database["public"]["Enums"]["automation_frequency_enum"]
+          id: string
+          is_active: boolean | null
+          offering_id: string
+          rule_type: Database["public"]["Enums"]["automation_rule_type_enum"]
+          task_template: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          charge_template?: Json | null
+          conditions?: Json | null
+          created_at?: string | null
+          frequency: Database["public"]["Enums"]["automation_frequency_enum"]
+          id?: string
+          is_active?: boolean | null
+          offering_id: string
+          rule_type: Database["public"]["Enums"]["automation_rule_type_enum"]
+          task_template?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          charge_template?: Json | null
+          conditions?: Json | null
+          created_at?: string | null
+          frequency?: Database["public"]["Enums"]["automation_frequency_enum"]
+          id?: string
+          is_active?: boolean | null
+          offering_id?: string
+          rule_type?: Database["public"]["Enums"]["automation_rule_type_enum"]
+          task_template?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_automation_rules_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_fee_history: {
+        Row: {
+          amount: number
+          billing_event_id: string | null
+          calculation_details: Json | null
+          created_at: string | null
+          id: string
+          offering_id: string | null
+          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
+          transaction_id: string | null
+        }
+        Insert: {
+          amount: number
+          billing_event_id?: string | null
+          calculation_details?: Json | null
+          created_at?: string | null
+          id?: string
+          offering_id?: string | null
+          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          billing_event_id?: string | null
+          calculation_details?: Json | null
+          created_at?: string | null
+          id?: string
+          offering_id?: string | null
+          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_fee_history_billing_event_id_fkey"
+            columns: ["billing_event_id"]
+            isOneToOne: false
+            referencedRelation: "billing_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_fee_history_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_fee_history_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_amounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_fee_history_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_fee_history_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_offerings: {
+        Row: {
+          applies_to: Database["public"]["Enums"]["applies_to_enum"]
+          bill_on: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          category: string
+          code: string
+          created_at: string | null
+          default_freq: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_rate: number | null
+          default_rent_basis:
+            | Database["public"]["Enums"]["rent_basis_enum"]
+            | null
+          description: string | null
+          hourly_min_hours: number | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean | null
+          markup_pct: number | null
+          markup_pct_cap: number | null
+          max_amount: number | null
+          min_amount: number | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          applies_to: Database["public"]["Enums"]["applies_to_enum"]
+          bill_on: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          category: string
+          code: string
+          created_at?: string | null
+          default_freq: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_rate?: number | null
+          default_rent_basis?:
+            | Database["public"]["Enums"]["rent_basis_enum"]
+            | null
+          description?: string | null
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          max_amount?: number | null
+          min_amount?: number | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          applies_to?: Database["public"]["Enums"]["applies_to_enum"]
+          bill_on?: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis?: Database["public"]["Enums"]["billing_basis_enum"]
+          category?: string
+          code?: string
+          created_at?: string | null
+          default_freq?: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_rate?: number | null
+          default_rent_basis?:
+            | Database["public"]["Enums"]["rent_basis_enum"]
+            | null
+          description?: string | null
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          max_amount?: number | null
+          min_amount?: number | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      service_plan_default_pricing: {
+        Row: {
+          bill_on: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          default_freq: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_rate: number | null
+          hourly_min_hours: number | null
+          hourly_rate: number | null
+          is_included: boolean | null
+          is_required: boolean | null
+          markup_pct: number | null
+          markup_pct_cap: number | null
+          max_amount: number | null
+          min_amount: number | null
+          min_monthly_fee: number | null
+          offering_id: string
+          plan_fee_percent: number | null
+          rent_basis: Database["public"]["Enums"]["rent_basis_enum"] | null
+          service_plan: Database["public"]["Enums"]["service_plan_enum"]
+        }
+        Insert: {
+          bill_on: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis: Database["public"]["Enums"]["billing_basis_enum"]
+          default_freq: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_rate?: number | null
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          is_included?: boolean | null
+          is_required?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          max_amount?: number | null
+          min_amount?: number | null
+          min_monthly_fee?: number | null
+          offering_id: string
+          plan_fee_percent?: number | null
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          service_plan: Database["public"]["Enums"]["service_plan_enum"]
+        }
+        Update: {
+          bill_on?: Database["public"]["Enums"]["bill_on_enum"]
+          billing_basis?: Database["public"]["Enums"]["billing_basis_enum"]
+          default_freq?: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_rate?: number | null
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          is_included?: boolean | null
+          is_required?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          max_amount?: number | null
+          min_amount?: number | null
+          min_monthly_fee?: number | null
+          offering_id?: string
+          plan_fee_percent?: number | null
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          service_plan?: Database["public"]["Enums"]["service_plan_enum"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_plan_default_pricing_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_plan_offerings: {
+        Row: {
+          is_included: boolean | null
+          is_optional: boolean | null
+          offering_id: string
+          service_plan: Database["public"]["Enums"]["service_plan_enum"]
+        }
+        Insert: {
+          is_included?: boolean | null
+          is_optional?: boolean | null
+          offering_id: string
+          service_plan: Database["public"]["Enums"]["service_plan_enum"]
+        }
+        Update: {
+          is_included?: boolean | null
+          is_optional?: boolean | null
+          offering_id?: string
+          service_plan?: Database["public"]["Enums"]["service_plan_enum"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_plan_offerings_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settings_gl_accounts: {
+        Row: {
+          ar_lease: string
+          cash_operating: string
+          cash_trust: string | null
+          late_fee_income: string | null
+          org_id: string
+          rent_income: string
+          tenant_deposit_liability: string
+          updated_at: string | null
+          write_off: string | null
+        }
+        Insert: {
+          ar_lease: string
+          cash_operating: string
+          cash_trust?: string | null
+          late_fee_income?: string | null
+          org_id: string
+          rent_income: string
+          tenant_deposit_liability: string
+          updated_at?: string | null
+          write_off?: string | null
+        }
+        Update: {
+          ar_lease?: string
+          cash_operating?: string
+          cash_trust?: string | null
+          late_fee_income?: string | null
+          org_id?: string
+          rent_income?: string
+          tenant_deposit_liability?: string
+          updated_at?: string | null
+          write_off?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settings_gl_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -3340,11 +5688,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
             foreignKeyName: "tasks_requested_by_contact_fk"
             columns: ["requested_by_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_requested_by_contact_fk"
+            columns: ["requested_by_contact_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["contact_id"]
           },
           {
             foreignKeyName: "tasks_subcategory_fkey"
@@ -3481,6 +5843,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tenants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["contact_id"]
+          },
+          {
             foreignKeyName: "tenants_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -3584,6 +5953,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "journal_entries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
             foreignKeyName: "journal_entries_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
@@ -3640,9 +6016,11 @@ export type Database = {
           date: string
           due_date: string | null
           email_receipt: boolean
+          fee_category: Database["public"]["Enums"]["fee_category_enum"] | null
           id: string
           is_recurring: boolean | null
           lease_id: number | null
+          legacy_memo: string | null
           memo: string | null
           monthly_log_id: string | null
           org_id: string | null
@@ -3651,9 +6029,11 @@ export type Database = {
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt: boolean
           recurring_schedule: Json | null
           reference_number: string | null
+          service_offering_id: string | null
           status: Database["public"]["Enums"]["transaction_status_enum"]
           total_amount: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
@@ -3672,9 +6052,11 @@ export type Database = {
           date: string
           due_date?: string | null
           email_receipt?: boolean
+          fee_category?: Database["public"]["Enums"]["fee_category_enum"] | null
           id?: string
           is_recurring?: boolean | null
           lease_id?: number | null
+          legacy_memo?: string | null
           memo?: string | null
           monthly_log_id?: string | null
           org_id?: string | null
@@ -3683,9 +6065,11 @@ export type Database = {
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt?: boolean
           recurring_schedule?: Json | null
           reference_number?: string | null
+          service_offering_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status_enum"]
           total_amount?: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
@@ -3704,9 +6088,11 @@ export type Database = {
           date?: string
           due_date?: string | null
           email_receipt?: boolean
+          fee_category?: Database["public"]["Enums"]["fee_category_enum"] | null
           id?: string
           is_recurring?: boolean | null
           lease_id?: number | null
+          legacy_memo?: string | null
           memo?: string | null
           monthly_log_id?: string | null
           org_id?: string | null
@@ -3715,9 +6101,11 @@ export type Database = {
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt?: boolean
           recurring_schedule?: Json | null
           reference_number?: string | null
+          service_offering_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status_enum"]
           total_amount?: number
           transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
@@ -3759,6 +6147,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_service_offering_id_fkey"
+            columns: ["service_offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
             referencedColumns: ["id"]
           },
           {
@@ -4044,6 +6439,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "units_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       user_permission_profiles: {
@@ -4225,6 +6627,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vendors_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["contact_id"]
+          },
+          {
             foreignKeyName: "vendors_gl_account_fkey"
             columns: ["gl_account"]
             isOneToOne: false
@@ -4346,6 +6755,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "work_orders_unit_id_fkey"
@@ -4549,6 +6965,42 @@ export type Database = {
           },
         ]
       }
+      user_profiles: {
+        Row: {
+          avatar_url: string | null
+          contact_email: string | null
+          contact_id: number | null
+          contact_phone: string | null
+          currency: string | null
+          date_format: string | null
+          display_name: string | null
+          email: string | null
+          favorite_properties: string[] | null
+          first_name: string | null
+          full_name: string | null
+          landing_page: string | null
+          last_name: string | null
+          locale: string | null
+          notification_preferences: Json | null
+          number_format: string | null
+          personal_integrations: Json | null
+          phone: string | null
+          primary_work_role: string | null
+          timezone: string | null
+          two_factor_enabled: boolean | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users_with_auth"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       users_with_auth: {
         Row: {
           created_at: string | null
@@ -4599,6 +7051,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "work_orders_unit_id_fkey"
@@ -4682,6 +7141,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       v_lease_renewals_summary: {
@@ -4697,6 +7163,23 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_legacy_management_fees: {
+        Row: {
+          monthly_log_id: string | null
+          offering_ids: string[] | null
+          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
+          total_management_fee: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
             referencedColumns: ["id"]
           },
         ]
@@ -4829,6 +7312,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       v_reconciliation_variance_alerts: {
@@ -4860,6 +7350,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
         ]
       }
@@ -4910,6 +7407,13 @@ export type Database = {
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
         ]
       }
       v_rent_roll_current_month: {
@@ -4942,6 +7446,219 @@ export type Database = {
           },
         ]
       }
+      v_service_costs: {
+        Row: {
+          hourly_cost_amount: number | null
+          job_cost_amount: number | null
+          offering_id: string | null
+          org_id: string | null
+          period_end: string | null
+          period_start: string | null
+          property_id: string | null
+          total_cost_amount: number | null
+          unit_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "billing_events_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_service_profitability: {
+        Row: {
+          cost_amount: number | null
+          margin_amount: number | null
+          margin_percentage: number | null
+          offering_id: string | null
+          org_id: string | null
+          period_end: string | null
+          period_start: string | null
+          property_id: string | null
+          revenue_amount: number | null
+          unit_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "billing_events_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_service_revenue_by_offering: {
+        Row: {
+          category: string | null
+          offering_id: string | null
+          offering_name: string | null
+          org_id: string | null
+          period_end: string | null
+          period_start: string | null
+          property_count: number | null
+          revenue_amount: number | null
+          unit_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_service_revenue_by_owner: {
+        Row: {
+          offering_id: string | null
+          org_id: string | null
+          owner_id: string | null
+          period_end: string | null
+          period_start: string | null
+          property_id: string | null
+          revenue_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ownerships_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_service_revenue_by_property: {
+        Row: {
+          billing_event_count: number | null
+          offering_id: string | null
+          org_id: string | null
+          period_end: string | null
+          period_start: string | null
+          property_id: string | null
+          revenue_amount: number | null
+          unit_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      v_service_revenue_by_unit: {
+        Row: {
+          billing_event_count: number | null
+          offering_id: string | null
+          org_id: string | null
+          period_end: string | null
+          period_start: string | null
+          property_id: string | null
+          revenue_amount: number | null
+          unit_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "billing_events_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_work_order_summary: {
         Row: {
           open_count: number | null
@@ -4960,6 +7677,10 @@ export type Database = {
       }
     }
     Functions: {
+      _parse_bool: { Args: { p_value: string }; Returns: boolean }
+      _parse_date: { Args: { p_value: string }; Returns: string }
+      _parse_timestamptz: { Args: { p_value: string }; Returns: string }
+      acquire_compliance_lock: { Args: { lock_key: string }; Returns: boolean }
       calculate_owner_total_properties: {
         Args: { owner_uuid: string }
         Returns: number
@@ -5157,6 +7878,13 @@ export type Database = {
           }
       jwt_custom_claims: { Args: never; Returns: Json }
       map_bill_to_buildium: { Args: { p_bill_id: string }; Returns: Json }
+      map_event_status_to_item_status: {
+        Args: {
+          p_compliance_status: string
+          p_event_type: Database["public"]["Enums"]["compliance_event_type"]
+        }
+        Returns: Database["public"]["Enums"]["compliance_item_status"]
+      }
       map_owner_to_buildium: { Args: { p_owner_id: string }; Returns: Json }
       map_property_to_buildium: {
         Args: { p_property_id: string }
@@ -5183,6 +7911,23 @@ export type Database = {
         Returns: undefined
       }
       refresh_schema_cache: { Args: never; Returns: undefined }
+      release_compliance_lock: { Args: { lock_key: string }; Returns: boolean }
+      resolve_compliance_program: {
+        Args: { p_org_id: string; p_template_id: string }
+        Returns: {
+          applies_to: Database["public"]["Enums"]["compliance_applies_to"]
+          code: string
+          frequency_months: number
+          id: string
+          is_enabled: boolean
+          jurisdiction: Database["public"]["Enums"]["compliance_jurisdiction"]
+          lead_time_days: number
+          name: string
+          org_id: string
+          severity_score: number
+          template_id: string
+        }[]
+      }
       set_buildium_api_cache: {
         Args: {
           p_cache_duration_minutes?: number
@@ -5252,8 +7997,20 @@ export type Database = {
         | "Microwave"
         | "Dishwasher"
         | "Washer/Dryer"
+      applies_to_enum: "property" | "unit" | "owner" | "building"
       assignment_level: "Property Level" | "Unit Level"
       assignment_level_enum: "Building" | "Unit"
+      automation_frequency_enum:
+        | "monthly"
+        | "quarterly"
+        | "annually"
+        | "on_event"
+        | "weekly"
+        | "biweekly"
+      automation_rule_type_enum:
+        | "recurring_task"
+        | "recurring_charge"
+        | "workflow_trigger"
       bank_account_type_enum:
         | "checking"
         | "savings"
@@ -5287,7 +8044,28 @@ export type Database = {
         | "Insurance"
         | "Utilities"
         | "Other"
-      billing_frequency_enum: "Annual" | "Monthly"
+      bill_on_enum:
+        | "calendar_day"
+        | "event"
+        | "job_close"
+        | "lease_event"
+        | "time_log"
+      billing_basis_enum:
+        | "per_property"
+        | "per_unit"
+        | "percent_rent"
+        | "job_cost"
+        | "hourly"
+        | "one_time"
+      billing_frequency_enum:
+        | "Annual"
+        | "Monthly"
+        | "monthly"
+        | "annually"
+        | "one_time"
+        | "per_event"
+        | "per_job"
+        | "quarterly"
       buildium_bank_account_type:
         | "Checking"
         | "Savings"
@@ -5358,6 +8136,47 @@ export type Database = {
         | "TaskCreated"
         | "TaskUpdated"
         | "TaskCompleted"
+      compliance_applies_to: "property" | "asset" | "both"
+      compliance_asset_type:
+        | "elevator"
+        | "boiler"
+        | "facade"
+        | "gas_piping"
+        | "sprinkler"
+        | "generic"
+        | "other"
+      compliance_event_type:
+        | "inspection"
+        | "filing"
+        | "correction"
+        | "violation_clearance"
+      compliance_item_source:
+        | "manual"
+        | "dob_sync"
+        | "hpd_sync"
+        | "fdny_sync"
+        | "open_data_sync"
+      compliance_item_status:
+        | "not_started"
+        | "scheduled"
+        | "in_progress"
+        | "inspected"
+        | "filed"
+        | "accepted"
+        | "accepted_with_defects"
+        | "failed"
+        | "overdue"
+        | "closed"
+      compliance_jurisdiction:
+        | "NYC_DOB"
+        | "NYC_HPD"
+        | "FDNY"
+        | "NYC_DEP"
+        | "OTHER"
+      compliance_violation_agency: "DOB" | "HPD" | "FDNY" | "DEP" | "OTHER"
+      compliance_violation_category: "violation" | "complaint"
+      compliance_violation_status: "open" | "in_progress" | "cleared" | "closed"
+      compliance_work_order_role: "primary" | "related"
       countries:
         | "Afghanistan"
         | "Albania"
@@ -5557,8 +8376,13 @@ export type Database = {
         | "Zambia"
         | "Zimbabwe"
       dr_cr_enum: "DR" | "CR"
+      email_template_key: "monthly_rental_statement"
+      email_template_status: "active" | "inactive" | "archived"
       entity_type_enum: "Rental" | "Company"
       etf_account_type_enum: "Checking" | "Saving"
+      external_sync_source: "dob_now" | "nyc_open_data" | "hpd" | "fdny"
+      external_sync_status: "idle" | "running" | "error"
+      fee_category_enum: "plan_fee" | "service_fee" | "override" | "legacy"
       fee_type_enum: "Percentage" | "Flat Rate"
       FeeFrequency: "Monthly" | "Annually"
       FeeType: "Percentage" | "Flat Rate"
@@ -5628,6 +8452,7 @@ export type Database = {
         | "Rental Building"
         | "Townhouse"
         | "Mult-Family"
+      rent_basis_enum: "scheduled" | "billed" | "collected"
       rent_cycle_enum:
         | "Monthly"
         | "Weekly"
@@ -5639,7 +8464,7 @@ export type Database = {
         | "Every6Months"
         | "OneTime"
       rent_schedule_status: "Past" | "Current" | "Future"
-      service_plan_enum: "Full" | "Basic" | "A-la-carte"
+      service_plan_enum: "Full" | "Basic" | "A-la-carte" | "Custom"
       ServicePlan: "Full" | "Basic" | "A-la-carte"
       staff_role:
         | "PROPERTY_MANAGER"
@@ -5836,8 +8661,22 @@ export const Constants = {
         "Dishwasher",
         "Washer/Dryer",
       ],
+      applies_to_enum: ["property", "unit", "owner", "building"],
       assignment_level: ["Property Level", "Unit Level"],
       assignment_level_enum: ["Building", "Unit"],
+      automation_frequency_enum: [
+        "monthly",
+        "quarterly",
+        "annually",
+        "on_event",
+        "weekly",
+        "biweekly",
+      ],
+      automation_rule_type_enum: [
+        "recurring_task",
+        "recurring_charge",
+        "workflow_trigger",
+      ],
       bank_account_type_enum: [
         "checking",
         "savings",
@@ -5864,7 +8703,31 @@ export const Constants = {
         "Utilities",
         "Other",
       ],
-      billing_frequency_enum: ["Annual", "Monthly"],
+      bill_on_enum: [
+        "calendar_day",
+        "event",
+        "job_close",
+        "lease_event",
+        "time_log",
+      ],
+      billing_basis_enum: [
+        "per_property",
+        "per_unit",
+        "percent_rent",
+        "job_cost",
+        "hourly",
+        "one_time",
+      ],
+      billing_frequency_enum: [
+        "Annual",
+        "Monthly",
+        "monthly",
+        "annually",
+        "one_time",
+        "per_event",
+        "per_job",
+        "quarterly",
+      ],
       buildium_bank_account_type: [
         "Checking",
         "Savings",
@@ -5943,6 +8806,52 @@ export const Constants = {
         "TaskUpdated",
         "TaskCompleted",
       ],
+      compliance_applies_to: ["property", "asset", "both"],
+      compliance_asset_type: [
+        "elevator",
+        "boiler",
+        "facade",
+        "gas_piping",
+        "sprinkler",
+        "generic",
+        "other",
+      ],
+      compliance_event_type: [
+        "inspection",
+        "filing",
+        "correction",
+        "violation_clearance",
+      ],
+      compliance_item_source: [
+        "manual",
+        "dob_sync",
+        "hpd_sync",
+        "fdny_sync",
+        "open_data_sync",
+      ],
+      compliance_item_status: [
+        "not_started",
+        "scheduled",
+        "in_progress",
+        "inspected",
+        "filed",
+        "accepted",
+        "accepted_with_defects",
+        "failed",
+        "overdue",
+        "closed",
+      ],
+      compliance_jurisdiction: [
+        "NYC_DOB",
+        "NYC_HPD",
+        "FDNY",
+        "NYC_DEP",
+        "OTHER",
+      ],
+      compliance_violation_agency: ["DOB", "HPD", "FDNY", "DEP", "OTHER"],
+      compliance_violation_category: ["violation", "complaint"],
+      compliance_violation_status: ["open", "in_progress", "cleared", "closed"],
+      compliance_work_order_role: ["primary", "related"],
       countries: [
         "Afghanistan",
         "Albania",
@@ -6143,8 +9052,13 @@ export const Constants = {
         "Zimbabwe",
       ],
       dr_cr_enum: ["DR", "CR"],
+      email_template_key: ["monthly_rental_statement"],
+      email_template_status: ["active", "inactive", "archived"],
       entity_type_enum: ["Rental", "Company"],
       etf_account_type_enum: ["Checking", "Saving"],
+      external_sync_source: ["dob_now", "nyc_open_data", "hpd", "fdny"],
+      external_sync_status: ["idle", "running", "error"],
+      fee_category_enum: ["plan_fee", "service_fee", "override", "legacy"],
       fee_type_enum: ["Percentage", "Flat Rate"],
       FeeFrequency: ["Monthly", "Annually"],
       FeeType: ["Percentage", "Flat Rate"],
@@ -6222,6 +9136,7 @@ export const Constants = {
         "Townhouse",
         "Mult-Family",
       ],
+      rent_basis_enum: ["scheduled", "billed", "collected"],
       rent_cycle_enum: [
         "Monthly",
         "Weekly",
@@ -6234,7 +9149,7 @@ export const Constants = {
         "OneTime",
       ],
       rent_schedule_status: ["Past", "Current", "Future"],
-      service_plan_enum: ["Full", "Basic", "A-la-carte"],
+      service_plan_enum: ["Full", "Basic", "A-la-carte", "Custom"],
       ServicePlan: ["Full", "Basic", "A-la-carte"],
       staff_role: [
         "PROPERTY_MANAGER",

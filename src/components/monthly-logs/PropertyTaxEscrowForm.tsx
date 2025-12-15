@@ -10,6 +10,8 @@ import {
   type JournalEntryFieldControls,
   type JournalEntryFormValues,
   type JournalEntrySuccessPayload,
+  type PropertyOption,
+  type UnitOption,
 } from '@/components/financials/GeneralJournalEntryForm';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -51,7 +53,9 @@ const fetchGlAccounts = async (url: string): Promise<GlAccountRow[]> => {
 
   if (!response.ok || !payload) {
     const message =
-      payload && payload.error ? String(payload.error) : 'Failed to load GL accounts.';
+      payload && 'error' in payload && payload.error
+        ? String(payload.error)
+        : 'Failed to load GL accounts.';
     throw new Error(message);
   }
 
@@ -75,6 +79,12 @@ type PropertyTaxEscrowFormProps = {
 const fallbackLabel = (value: string | null, placeholder: string): string =>
   value && value.trim().length > 0 ? value : placeholder;
 
+const normalizeId = (value: string | null | undefined): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
+
 export type PropertyTaxEscrowSuccessPayload = JournalEntrySuccessPayload & {
   amount: number;
   accountLabel: string;
@@ -93,6 +103,9 @@ export default function PropertyTaxEscrowForm({
   onCancel,
   onSuccess,
 }: PropertyTaxEscrowFormProps) {
+  const normalizedPropertyId = useMemo(() => normalizeId(propertyId), [propertyId]);
+  const normalizedUnitId = useMemo(() => normalizeId(unitId), [unitId]);
+
   const accountEndpoint = useMemo(() => {
     if (!orgId) {
       return null;
@@ -145,8 +158,8 @@ export default function PropertyTaxEscrowForm({
   const initialValues = useMemo<JournalEntryFormValues>(
     () => ({
       date: new Date().toISOString().slice(0, 10),
-      propertyId,
-      unitId: unitId ?? '',
+      propertyId: normalizedPropertyId ?? '',
+      unitId: normalizedUnitId ?? '',
       memo: '',
       lines: [
         {
@@ -163,40 +176,40 @@ export default function PropertyTaxEscrowForm({
         },
       ],
     }),
-    [ownerDrawAccountId, propertyId, propertyTaxEscrowAccountId, unitId],
+    [normalizedPropertyId, normalizedUnitId, ownerDrawAccountId, propertyTaxEscrowAccountId],
   );
 
-  const propertyOptions = useMemo(
-    () => [
-      {
-        id: propertyId,
-        label: fallbackLabel(propertyName, 'Property'),
-      },
-    ],
-    [propertyId, propertyName],
-  );
-
-  const unitOptions = useMemo(() => {
-    if (!unitId) return [];
+  const propertyOptions = useMemo<PropertyOption[]>(() => {
+    if (!normalizedPropertyId) return [];
     return [
       {
-        id: unitId,
+        id: normalizedPropertyId,
+        label: fallbackLabel(propertyName, 'Property'),
+      },
+    ];
+  }, [normalizedPropertyId, propertyName]);
+
+  const unitOptions = useMemo<UnitOption[]>(() => {
+    if (!normalizedUnitId) return [];
+    return [
+      {
+        id: normalizedUnitId,
         label: fallbackLabel(unitLabel, 'Unit'),
       },
     ];
-  }, [unitId, unitLabel]);
+  }, [normalizedUnitId, unitLabel]);
 
   const unitsByProperty = useMemo(() => {
-    if (!unitId) return undefined;
+    if (!normalizedPropertyId || !normalizedUnitId) return undefined;
     return {
-      [propertyId]: unitOptions,
+      [normalizedPropertyId]: unitOptions,
     };
-  }, [propertyId, unitId, unitOptions]);
+  }, [normalizedPropertyId, normalizedUnitId, unitOptions]);
 
   const fieldControls: JournalEntryFieldControls = useMemo(
     () => ({
       propertyDisabled: true,
-      unitDisabled: Boolean(unitId),
+      unitDisabled: Boolean(normalizedUnitId),
       disableAddLines: true,
       minLines: 2,
       lockedLineIndices: [0, 1],
@@ -205,7 +218,7 @@ export default function PropertyTaxEscrowForm({
         1: { debitDisabled: true, accountDisabled: true },
       },
     }),
-    [unitId],
+    [normalizedUnitId],
   );
 
   const propertyTaxEscrowLabel = fallbackLabel(
@@ -364,8 +377,8 @@ export default function PropertyTaxEscrowForm({
       unitOptions={unitOptions}
       unitsByProperty={unitsByProperty}
       accountOptions={accountOptions}
-      defaultPropertyId={propertyId}
-      defaultUnitId={unitId ?? ''}
+      defaultPropertyId={normalizedPropertyId ?? undefined}
+      defaultUnitId={normalizedUnitId ?? undefined}
       autoSelectDefaultProperty={false}
       initialValues={initialValues}
       onCancel={onCancel}

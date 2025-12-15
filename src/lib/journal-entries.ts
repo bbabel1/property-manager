@@ -123,12 +123,12 @@ export const normalizeJournalLines = (rawLines: JournalEntryPayload['lines']) =>
   };
 };
 
-export const parseCurrencyInput = (value?: string | null) => {
+export const parseCurrencyInput = (value?: string | number | null) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (!value) return 0;
-  const numeric = Number(value.replace(/[^0-9.-]/g, ''));
+  const numeric = Number(String(value).replace(/[^0-9.-]/g, ''));
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
 export const sanitizeCurrencyInput = (value: string) => value.replace(/[^0-9.-]/g, '');
-
 

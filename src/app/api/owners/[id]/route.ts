@@ -12,6 +12,62 @@ import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards'
 type ContactsUpdate = Database['public']['Tables']['contacts']['Update']
 type OwnersUpdate = Database['public']['Tables']['owners']['Update']
 
+type OwnerContactView = {
+  id: string
+  is_company: boolean | null
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  display_name: string | null
+  primary_email: string | null
+  alt_email: string | null
+  primary_phone: string | null
+  alt_phone: string | null
+  date_of_birth: string | null
+  primary_address_line_1: string | null
+  primary_address_line_2: string | null
+  primary_address_line_3: string | null
+  primary_city: string | null
+  primary_state: string | null
+  primary_postal_code: string | null
+  primary_country: string | null
+  alt_address_line_1: string | null
+  alt_address_line_2: string | null
+  alt_address_line_3: string | null
+  alt_city: string | null
+  alt_state: string | null
+  alt_postal_code: string | null
+  alt_country: string | null
+  mailing_preference: string | null
+}
+
+type OwnerRow = {
+  id: string
+  contact_id: string | null
+  management_agreement_start_date: string | null
+  management_agreement_end_date: string | null
+  comment: string | null
+  etf_account_type: string | null
+  etf_account_number: string | null
+  etf_routing_number: string | null
+  tax_payer_id: string | null
+  tax_payer_type: string | null
+  tax_payer_name1: string | null
+  tax_payer_name2: string | null
+  tax_address_line1: string | null
+  tax_address_line2: string | null
+  tax_address_line3: string | null
+  tax_city: string | null
+  tax_state: string | null
+  tax_postal_code: string | null
+  tax_country: string | null
+  created_at: string | null
+  updated_at: string | null
+  contacts: OwnerContactView | OwnerContactView[] | null
+}
+
+type OwnershipRow = { properties: { total_units: number | null } | { total_units: number | null }[] | null }
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -137,69 +193,65 @@ export async function GET(
       // Don't fail the request, just set total_units to 0
     }
 
-    // Sum up total_units from all properties owned by this owner
-    const totalUnits = ownerships?.reduce((sum, ownership) => {
+    const typedOwner = owner as OwnerRow;
+    const typedOwnerships = (ownerships || []) as OwnershipRow[];
+
+    const totalUnits = typedOwnerships.reduce((sum, ownership) => {
       const property = Array.isArray(ownership.properties) ? ownership.properties[0] : ownership.properties;
       return sum + (property?.total_units || 0);
-    }, 0) || 0;
+    }, 0);
 
-    // Transform data to include a display name and flatten contact information
-    console.log('🔍 Owner Details API: Transforming data...');
-    const contact = Array.isArray(owner.contacts) ? owner.contacts[0] : owner.contacts;
-    const transformedOwner = {
-      id: owner.id,
-      contact_id: owner.contact_id,
-      management_agreement_start_date: owner.management_agreement_start_date,
-      management_agreement_end_date: owner.management_agreement_end_date,
-      comment: owner.comment,
-      etf_account_type: owner.etf_account_type,
-      etf_account_number: owner.etf_account_number,
-      etf_routing_number: owner.etf_routing_number,
-      created_at: owner.created_at,
-      updated_at: owner.updated_at,
-      // Contact information flattened
-      is_company: contact?.is_company,
-      first_name: contact?.first_name,
-      last_name: contact?.last_name,
-      company_name: contact?.company_name,
-      display_name: contact?.display_name,
-      primary_email: contact?.primary_email,
-      alt_email: contact?.alt_email,
-      primary_phone: contact?.primary_phone,
-      alt_phone: contact?.alt_phone,
-      date_of_birth: contact?.date_of_birth,
-      primary_address_line_1: contact?.primary_address_line_1,
-      primary_address_line_2: contact?.primary_address_line_2,
-      primary_address_line_3: contact?.primary_address_line_3,
-      primary_city: contact?.primary_city,
-      primary_state: contact?.primary_state,
-      primary_postal_code: contact?.primary_postal_code,
-      primary_country: contact?.primary_country,
-      alt_address_line_1: contact?.alt_address_line_1,
-      alt_address_line_2: contact?.alt_address_line_2,
-      alt_address_line_3: contact?.alt_address_line_3,
-      alt_city: contact?.alt_city,
-      alt_state: contact?.alt_state,
-      alt_postal_code: contact?.alt_postal_code,
-      alt_country: contact?.alt_country,
-      mailing_preference: contact?.mailing_preference,
-      // Tax information from owners table
-      tax_payer_id: owner.tax_payer_id,
-      tax_payer_type: owner.tax_payer_type,
-      tax_payer_name: [owner.tax_payer_name1, owner.tax_payer_name2].filter(Boolean).join(' ').trim() || null,
-      tax_address_line_1: owner.tax_address_line1,
-      tax_address_line_2: owner.tax_address_line2,
-      tax_address_line_3: owner.tax_address_line3,
-      tax_city: owner.tax_city,
-      tax_state: owner.tax_state,
-      tax_postal_code: owner.tax_postal_code,
-      tax_country: owner.tax_country,
-      // Computed fields
-      displayName: contact?.display_name || (contact?.is_company 
-        ? contact?.company_name 
+    const contact = Array.isArray(typedOwner.contacts) ? typedOwner.contacts[0] : typedOwner.contacts;
+    const transformedOwner: Record<string, unknown> = {
+      id: typedOwner.id,
+      contact_id: typedOwner.contact_id,
+      management_agreement_start_date: typedOwner.management_agreement_start_date,
+      management_agreement_end_date: typedOwner.management_agreement_end_date,
+      comment: typedOwner.comment,
+      etf_account_type: typedOwner.etf_account_type,
+      etf_account_number: typedOwner.etf_account_number,
+      etf_routing_number: typedOwner.etf_routing_number,
+      created_at: typedOwner.created_at,
+      updated_at: typedOwner.updated_at,
+      is_company: contact?.is_company ?? null,
+      first_name: contact?.first_name ?? null,
+      last_name: contact?.last_name ?? null,
+      company_name: contact?.company_name ?? null,
+      display_name: contact?.display_name ?? null,
+      primary_email: contact?.primary_email ?? null,
+      alt_email: contact?.alt_email ?? null,
+      primary_phone: contact?.primary_phone ?? null,
+      alt_phone: contact?.alt_phone ?? null,
+      date_of_birth: contact?.date_of_birth ?? null,
+      primary_address_line_1: contact?.primary_address_line_1 ?? null,
+      primary_address_line_2: contact?.primary_address_line_2 ?? null,
+      primary_address_line_3: contact?.primary_address_line_3 ?? null,
+      primary_city: contact?.primary_city ?? null,
+      primary_state: contact?.primary_state ?? null,
+      primary_postal_code: contact?.primary_postal_code ?? null,
+      primary_country: contact?.primary_country ?? null,
+      alt_address_line_1: contact?.alt_address_line_1 ?? null,
+      alt_address_line_2: contact?.alt_address_line_2 ?? null,
+      alt_address_line_3: contact?.alt_address_line_3 ?? null,
+      alt_city: contact?.alt_city ?? null,
+      alt_state: contact?.alt_state ?? null,
+      alt_postal_code: contact?.alt_postal_code ?? null,
+      alt_country: contact?.alt_country ?? null,
+      mailing_preference: contact?.mailing_preference ?? null,
+      tax_payer_id: typedOwner.tax_payer_id,
+      tax_payer_type: typedOwner.tax_payer_type,
+      tax_payer_name: [typedOwner.tax_payer_name1, typedOwner.tax_payer_name2].filter(Boolean).join(' ').trim() || null,
+      tax_address_line_1: typedOwner.tax_address_line1,
+      tax_address_line_2: typedOwner.tax_address_line2,
+      tax_address_line_3: typedOwner.tax_address_line3,
+      tax_city: typedOwner.tax_city,
+      tax_state: typedOwner.tax_state,
+      tax_postal_code: typedOwner.tax_postal_code,
+      tax_country: typedOwner.tax_country,
+      displayName: contact?.display_name || (contact?.is_company
+        ? contact?.company_name
         : `${contact?.first_name || ''} ${contact?.last_name || ''}`.trim()),
-      addressLine1: contact?.primary_address_line_1, // Legacy compatibility
-      // Total units calculated from properties
+      addressLine1: contact?.primary_address_line_1 ?? null,
       total_units: totalUnits
     };
 

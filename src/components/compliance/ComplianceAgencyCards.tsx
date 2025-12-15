@@ -10,6 +10,8 @@ type AgencySummary = {
   counts: Array<{ label: string; value: number }>
   lastEvent?: string | null
   cta?: { label: string; href?: string; onClick?: () => void }
+  showFilings?: boolean
+  onViewFilings?: () => void
 }
 
 function AgencyCard({ summary }: { summary: AgencySummary }) {
@@ -39,6 +41,15 @@ function AgencyCard({ summary }: { summary: AgencySummary }) {
         {summary.cta && summary.cta.href && (
           <a className="text-xs text-primary underline" href={summary.cta.href} target="_blank" rel="noreferrer">{summary.cta.label}</a>
         )}
+        {summary.showFilings && summary.onViewFilings && (
+          <button
+            type="button"
+            onClick={summary.onViewFilings}
+            className="text-xs text-primary underline"
+          >
+            Filings
+          </button>
+        )}
       </CardContent>
     </Card>
   )
@@ -48,9 +59,11 @@ interface ComplianceAgencyCardsProps {
   hpd: { registration_id: string | null; building_id: string | null; violations: number; complaints: number; last_event_date: string | null }
   fdny: { open_violations: number; last_event_date: string | null }
   dep: { open_violations: number; last_event_date: string | null }
+  onViewHpdFilings?: () => void
+  hasHpdFilings?: boolean
 }
 
-export function ComplianceAgencyCards({ hpd, fdny, dep }: ComplianceAgencyCardsProps) {
+export function ComplianceAgencyCards({ hpd, fdny, dep, onViewHpdFilings, hasHpdFilings }: ComplianceAgencyCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <AgencyCard
@@ -63,6 +76,8 @@ export function ComplianceAgencyCards({ hpd, fdny, dep }: ComplianceAgencyCardsP
             { label: 'Complaints', value: hpd.complaints || 0 },
           ],
           lastEvent: hpd.last_event_date,
+          showFilings: Boolean(hasHpdFilings),
+          onViewFilings: onViewHpdFilings,
         }}
       />
       <AgencyCard
@@ -82,4 +97,3 @@ export function ComplianceAgencyCards({ hpd, fdny, dep }: ComplianceAgencyCardsP
     </div>
   )
 }
-

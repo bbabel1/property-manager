@@ -2,7 +2,7 @@
 
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import { upsertLeaseTransactionWithLines } from '../../src/lib/buildium-mappers'
+import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
 
 config()
 
@@ -85,4 +85,3 @@ main().catch((e) => {
   console.error('Fatal error:', e)
   process.exit(1)
 })
-

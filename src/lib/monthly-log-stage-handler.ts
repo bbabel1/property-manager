@@ -6,6 +6,10 @@
  */
 
 import { supabaseAdmin } from '@/lib/db';
+import type { Database } from '@/types/database';
+
+type TransactionRow = Database['public']['Tables']['transactions']['Row'];
+type TransactionTypeEnum = Database['public']['Enums']['transaction_type_enum'];
 
 export type MonthlyLogStage =
   | 'charges'
@@ -18,15 +22,11 @@ export type MonthlyLogStage =
 
 export type StageTransactionAction = 'assign' | 'unassign';
 
-export interface StageTransaction {
-  id: string;
-  total_amount: number;
-  date: string;
-  transaction_type: string;
-  memo: string;
-  monthly_log_id: string | null;
-  lease_id: number | null;
-  reference_number: string | null;
+export interface StageTransaction
+  extends Pick<
+    TransactionRow,
+    'id' | 'total_amount' | 'date' | 'transaction_type' | 'memo' | 'monthly_log_id' | 'lease_id' | 'reference_number'
+  > {
   [key: string]: unknown;
 }
 
@@ -139,7 +139,7 @@ export async function getStageTransactions(
   stage: MonthlyLogStage,
 ): Promise<StageTransaction[]> {
   // Map stages to transaction types
-  const stageTransactionTypes: Record<MonthlyLogStage, string[]> = {
+  const stageTransactionTypes: Record<MonthlyLogStage, TransactionTypeEnum[]> = {
     charges: ['Charge', 'Credit'],
     payments: ['Payment'],
     bills: ['Bill'],
@@ -185,7 +185,7 @@ export async function getUnassignedStageTransactions(
   unitId?: string,
 ): Promise<StageTransaction[]> {
   // Map stages to transaction types
-  const stageTransactionTypes: Record<MonthlyLogStage, string[]> = {
+  const stageTransactionTypes: Record<MonthlyLogStage, TransactionTypeEnum[]> = {
     charges: ['Charge', 'Credit'],
     payments: ['Payment'],
     bills: ['Bill'],

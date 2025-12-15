@@ -33,9 +33,9 @@ async function upsertForOrg(supabase: any, orgId: string) {
   required.cash_operating = await findGlIdByName(supabase, { like: 'operat' })
   required.tenant_deposit_liability = await findGlIdByName(supabase, { exact: DEPOSIT_LIAB_NAME, like: 'deposit' })
   // Optional/best-effort
-  const late_fee_income = await findGlIdByName(supabase, 'late fee')
-  const write_off = await findGlIdByName(supabase, 'bad debt')
-  const cash_trust = await findGlIdByName(supabase, 'trust')
+  const late_fee_income = await findGlIdByName(supabase, { like: 'late fee' })
+  const write_off = await findGlIdByName(supabase, { like: 'bad debt' })
+  const cash_trust = await findGlIdByName(supabase, { like: 'trust' })
 
   const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k)
   if (missing.length) {

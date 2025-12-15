@@ -45,14 +45,14 @@ async function upsertTaskFromBuildium(taskId: number, client: ReturnType<typeof 
   }
 
   if (existing?.id) {
-    const { error } = await db.from('tasks').update(localPayload).eq('id', existing.id);
+    const { error } = await db.from('tasks').update(localPayload as any).eq('id', existing.id);
     if (error) throw error;
     return { action: 'updated', localId: existing.id, buildiumId: buildiumTask.Id };
   }
 
   const { data: inserted, error: insertError } = await db
     .from('tasks')
-    .insert(localPayload)
+    .insert(localPayload as any)
     .select('id')
     .single();
   if (insertError) throw insertError;
@@ -74,14 +74,14 @@ async function upsertWorkOrderFromBuildium(
   if (existingError) throw existingError;
 
   if (existing?.id) {
-    const { error } = await db.from('work_orders').update(localPayload).eq('id', existing.id);
+    const { error } = await db.from('work_orders').update(localPayload as any).eq('id', existing.id);
     if (error) throw error;
     return { action: 'updated', localId: existing.id, buildiumId: buildiumWorkOrder.Id };
   }
 
   const { data: inserted, error: insertError } = await db
     .from('work_orders')
-    .insert(localPayload)
+    .insert(localPayload as any)
     .select('id')
     .single();
   if (insertError) throw insertError;

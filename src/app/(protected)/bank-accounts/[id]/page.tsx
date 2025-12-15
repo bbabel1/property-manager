@@ -2,14 +2,26 @@ import InfoCard from '@/components/layout/InfoCard'
 import Link from 'next/link'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 
-export default async function BankAccountShow({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+type BankAccountDetail = {
+  id: string
+  name: string | null
+  description: string | null
+  bank_account_type: string | null
+  account_number: string | null
+  routing_number: string | null
+  gl_account: string | null
+  buildium_bank_id: number | null
+  is_active: boolean | null
+}
+
+export default async function BankAccountShow({ params }: { params: { id: string } }) {
+  const { id } = params
   const supabase = await getSupabaseServerClient()
-  const { data: a, error } = await (supabase as any)
+  const { data: a, error } = await supabase
     .from('bank_accounts')
     .select('id, name, description, bank_account_type, account_number, routing_number, gl_account, buildium_bank_id, is_active')
     .eq('id', id)
-    .maybeSingle()
+    .maybeSingle<BankAccountDetail>()
 
   if (error || !a) {
     return (

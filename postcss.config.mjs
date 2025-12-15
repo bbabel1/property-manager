@@ -1,6 +1,10 @@
+/* eslint-env node */
+
 // Use Tailwind v4 PostCSS plugin (required for `@import "tailwindcss"`)
-export default {
+const config = {
   plugins: {
-    "@tailwindcss/postcss": {},
+    '@tailwindcss/postcss': {},
   },
 };
+
+export default config;

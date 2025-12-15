@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
-import { logger } from './utils/logger'
-import { resolveGLAccountId } from '../../../src/lib/buildium-mappers'
+import { logger } from '../../utils/logger'
+import { resolveGLAccountId } from '@/lib/buildium-mappers'
 
 config()
 

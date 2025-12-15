@@ -60,20 +60,25 @@ export async function POST(request: NextRequest) {
         propertyId,
         unitId,
         title,
-        description:
-          typeof payload.description === 'string' ? payload.description : payload.description ?? null,
+        description: typeof payload.description === 'string' ? payload.description : null,
         dueAnchor:
           payload.dueAnchor === 'period_start' || payload.dueAnchor === 'period_end'
             ? payload.dueAnchor
-            : (payload.due_anchor as any),
+            : payload.due_anchor === 'period_start' || payload.due_anchor === 'period_end'
+              ? payload.due_anchor
+              : undefined,
         dueOffsetDays:
           typeof payload.dueOffsetDays === 'number'
             ? payload.dueOffsetDays
-            : (payload.due_offset_days as number | undefined),
+            : typeof payload.due_offset_days === 'number'
+              ? payload.due_offset_days
+              : undefined,
         frequency:
           typeof payload.frequency === 'string'
             ? payload.frequency
-            : (payload.recurrence as string | undefined),
+            : typeof payload.recurrence === 'string'
+              ? payload.recurrence
+              : undefined,
         interval: typeof payload.interval === 'number' ? payload.interval : undefined,
         isActive: payload.isActive === false ? false : true,
         assignedStaffId:

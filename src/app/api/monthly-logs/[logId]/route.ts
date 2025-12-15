@@ -9,7 +9,9 @@ const isDevBypass = process.env.NODE_ENV === 'development';
 export async function GET(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
     const auth = await requireAuth();
-    const resolvedOrg = await resolveResourceOrg(auth.supabase, 'monthly_log', (await params).logId);
+    // Use the service-role client to resolve org without being blocked by RLS
+    // (membership is enforced below via requireOrgMember)
+    const resolvedOrg = await resolveResourceOrg(supabaseAdmin, 'monthly_log', (await params).logId);
     if (!resolvedOrg.ok) {
       return NextResponse.json(
         { error: { code: 'NOT_FOUND', message: resolvedOrg.error } },

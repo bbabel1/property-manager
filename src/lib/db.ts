@@ -12,20 +12,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-// NOTE: many routes still rely on tables and functions that aren't captured in the
-// generated Database types yet. We temporarily widen the table constraint to `any`
-// so we can iterate on the schema while keeping typed row payloads. Once the schema
-// metadata is regenerated, we can tighten this back to `keyof Database['public']['Tables']`.
-export type TypedSupabaseClient = SupabaseClient<Database, 'public', any>
+export type TypedSupabaseClient = SupabaseClient<any>
 
 // Client for frontend/client-side operations (safe to create even if values are undefined; calls will fail clearly)
-export const supabase: TypedSupabaseClient = createClient<Database>(supabaseUrl || '', supabaseAnonKey || '')
+export const supabase: TypedSupabaseClient = createClient(supabaseUrl || '', supabaseAnonKey || '')
 
 // Admin client for server-side operations (API routes only). Optional if key missing.
 const isServer = typeof window === 'undefined'
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const supabaseAdminInternal = isServer && serviceKey
-  ? createClient<Database>(supabaseUrl || '', serviceKey)
+  ? createClient(supabaseUrl || '', serviceKey)
   : undefined
 
 if (isServer && !serviceKey) {

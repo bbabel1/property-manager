@@ -5,6 +5,15 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitNoteUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+
+type BuildiumUnitNotePayload = {
+  Id: number | string | null;
+  Subject?: string | null;
+  Body?: string | null;
+  IsPrivate?: boolean | null;
+  [key: string]: unknown;
+};
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; noteId: string }> }) {
   try {
@@ -18,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
 
     const { id, noteId } = await params;
 
@@ -47,8 +56,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const note = await response.json();
-    try { await UnitService.persistNotes(Number(id), [note]) } catch {}
+    const note = (await response.json()) as BuildiumUnitNotePayload;
+    let orgId: string | null = null;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    } catch {
+      return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
+    }
+    try { await UnitService.persistNotes(Number(id), [note as any], orgId) } catch {}
 
     logger.info(`Buildium unit note fetched successfully`);
 
@@ -79,7 +94,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
 
     const { id, noteId } = await params;
 
@@ -116,8 +131,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const note = await response.json();
-    try { await UnitService.persistNotes(Number(id), [note]) } catch {}
+    const note = (await response.json()) as BuildiumUnitNotePayload;
+    let orgId: string | null = null;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    } catch {
+      return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
+    }
+    try { await UnitService.persistNotes(Number(id), [note as any], orgId) } catch {}
 
     logger.info(`Buildium unit note updated successfully`);
 

@@ -1,23 +1,30 @@
-"use client"
+'use client';
 
-import { useCallback, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { CheckCircle2 } from 'lucide-react'
-import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
-import type { BillFileRecord } from './types'
+import { useCallback, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { CheckCircle2 } from 'lucide-react';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import type { BillFileRecord } from './types';
 
 type BillFileUploadDialogProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  billId: string
-  uploaderName?: string | null
-  onSaved?: (row: BillFileRecord) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  billId: string;
+  uploaderName?: string | null;
+  onSaved?: (row: BillFileRecord) => void;
+};
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf']
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf'];
 const ALLOWED_MIME_TYPES = new Set<string>([
   'application/msword',
   'application/vnd.ms-excel',
@@ -28,193 +35,201 @@ const ALLOWED_MIME_TYPES = new Set<string>([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   'application/vnd.openxmlformats-officedocument.presentationml.template',
   'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
-  'text/plain'
-])
+  'text/plain',
+]);
 const UNSUPPORTED_FILE_MESSAGE =
-  'Unsupported file type. Allowed formats: PDF, images, and Office documents.'
+  'Unsupported file type. Allowed formats: PDF, images, and Office documents.';
 
 const isAllowedMimeType = (mimeType: string | undefined | null) => {
-  if (!mimeType) return true
+  if (!mimeType) return true;
   for (const prefix of ALLOWED_MIME_PREFIXES) {
-    if (mimeType.startsWith(prefix)) return true
+    if (mimeType.startsWith(prefix)) return true;
   }
-  if (ALLOWED_MIME_TYPES.has(mimeType)) return true
-  if (mimeType.startsWith('application/vnd.openxmlformats-officedocument')) return true
-  return false
-}
+  if (ALLOWED_MIME_TYPES.has(mimeType)) return true;
+  if (mimeType.startsWith('application/vnd.openxmlformats-officedocument')) return true;
+  return false;
+};
 
 export default function BillFileUploadDialog({
   open,
   onOpenChange,
   billId,
   uploaderName = 'Team member',
-  onSaved
+  onSaved,
 }: BillFileUploadDialogProps) {
-  const [step, setStep] = useState<'select' | 'details'>('select')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [title, setTitle] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [step, setStep] = useState<'select' | 'details'>('select');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const resetState = useCallback(() => {
-    setStep('select')
-    setSelectedFile(null)
-    setTitle('')
-    setError(null)
-    setIsSaving(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }, [])
+    setStep('select');
+    setSelectedFile(null);
+    setTitle('');
+    setError(null);
+    setIsSaving(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
 
   const close = useCallback(() => {
-    onOpenChange(false)
-    resetState()
-  }, [onOpenChange, resetState])
+    onOpenChange(false);
+    resetState();
+  }, [onOpenChange, resetState]);
 
   const handleFiles = (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return
-    const file = fileList[0]
+    if (!fileList || fileList.length === 0) return;
+    const file = fileList[0];
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      setError('File size exceeds 25 MB limit')
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      return
+      setError('File size exceeds 25 MB limit');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
 
     if (!isAllowedMimeType(file.type)) {
-      setError(UNSUPPORTED_FILE_MESSAGE)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      return
+      setError(UNSUPPORTED_FILE_MESSAGE);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
 
-    setSelectedFile(file)
-    setTitle(file.name)
-    setStep('details')
-  }
+    setSelectedFile(file);
+    setTitle(file.name);
+    setStep('details');
+  };
 
   const onFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(event.target.files)
-  }
+    handleFiles(event.target.files);
+  };
 
   const onDrop = (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault()
-    handleFiles(event.dataTransfer.files)
-  }
+    event.preventDefault();
+    handleFiles(event.dataTransfer.files);
+  };
 
   const save = async () => {
-    if (!selectedFile || isSaving) return
+    if (!selectedFile || isSaving) return;
 
     if (selectedFile.size > MAX_UPLOAD_BYTES) {
-      setError('File size exceeds 25 MB limit')
-      return
+      setError('File size exceeds 25 MB limit');
+      return;
     }
 
     if (!isAllowedMimeType(selectedFile.type)) {
-      setError(UNSUPPORTED_FILE_MESSAGE)
-      return
+      setError(UNSUPPORTED_FILE_MESSAGE);
+      return;
     }
 
-    setIsSaving(true)
-    setError(null)
+    setIsSaving(true);
+    setError(null);
 
     try {
-      const trimmedTitle = title.trim() || selectedFile.name
-      let fileName = trimmedTitle
+      const trimmedTitle = title.trim() || selectedFile.name;
+      let fileName = trimmedTitle;
       if (!fileName.includes('.') && selectedFile.name.includes('.')) {
-        const ext = selectedFile.name.split('.').pop()
-        if (ext) fileName = `${fileName}.${ext}`
+        const ext = selectedFile.name.split('.').pop();
+        if (ext) fileName = `${fileName}.${ext}`;
       }
 
-      const formData = new FormData()
-      formData.append('file', selectedFile)
-      formData.append('entityType', 'bill')
-      formData.append('entityId', billId)
-      formData.append('fileName', fileName)
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('entityType', 'bill');
+      formData.append('entityId', billId);
+      formData.append('fileName', fileName);
       if (selectedFile.type) {
-        formData.append('mimeType', selectedFile.type)
+        formData.append('mimeType', selectedFile.type);
       }
-      formData.append('isPrivate', 'true')
+      formData.append('isPrivate', 'true');
 
-      let response: Response
+      let response: Response;
       try {
         response = await fetchWithSupabaseAuth('/api/files/upload', {
           method: 'POST',
-          body: formData
-        })
+          body: formData,
+        });
       } catch (authError) {
-        console.warn('fetchWithSupabaseAuth failed for bill file upload; falling back.', authError)
+        console.warn('fetchWithSupabaseAuth failed for bill file upload; falling back.', authError);
         response = await fetch('/api/files/upload', {
           method: 'POST',
           body: formData,
-          credentials: 'include'
-        })
+          credentials: 'include',
+        });
       }
 
       if (!response.ok) {
-        const details = await response.json().catch(() => ({}))
-        const message = typeof details?.error === 'string' ? details.error : 'Failed to upload file'
-        throw new Error(message)
+        const details = await response.json().catch(() => ({}));
+        const message =
+          typeof details?.error === 'string' ? details.error : 'Failed to upload file';
+        throw new Error(message);
       }
 
-      const payload = await response.json().catch(() => ({}))
-      const file = payload?.file ?? null
-      const link = payload?.link ?? null
+      const payload = await response.json().catch(() => ({}));
+      const file = payload?.file ?? null;
+      const link = payload?.link ?? null;
       const buildiumFileId =
         typeof payload?.buildiumFileId === 'number'
           ? payload.buildiumFileId
-          : (typeof file?.buildium_file_id === 'number' ? file.buildium_file_id : null)
+          : typeof file?.buildium_file_id === 'number'
+            ? file.buildium_file_id
+            : null;
       const buildiumHref =
         typeof payload?.buildiumFile?.Href === 'string'
           ? payload.buildiumFile.Href
-          : (typeof file?.buildium_href === 'string' ? file.buildium_href : null)
+          : typeof file?.buildium_href === 'string'
+            ? file.buildium_href
+            : null;
 
       const uploadedAt: string =
         typeof link?.added_at === 'string'
           ? link.added_at
           : typeof file?.created_at === 'string'
             ? file.created_at
-            : new Date().toISOString()
+            : new Date().toISOString();
 
       const uploadedBy =
         (typeof link?.added_by === 'string' && link.added_by.length ? link.added_by : null) ??
         uploaderName ??
-        'Team member'
+        'Team member';
 
-      const buildiumSyncError = typeof payload?.buildiumSyncError === 'string' && payload.buildiumSyncError.length
-        ? payload.buildiumSyncError
-        : null
+      const buildiumSyncError =
+        typeof payload?.buildiumSyncError === 'string' && payload.buildiumSyncError.length
+          ? payload.buildiumSyncError
+          : null;
 
       const record: BillFileRecord = {
         id:
           (file?.id as string) ||
-          (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`),
+          (typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}`),
         title: file?.file_name || fileName,
         uploadedAt,
         uploadedBy,
         buildiumFileId,
         buildiumHref,
-        buildiumSyncError
-      }
+        buildiumSyncError,
+      };
 
-      onSaved?.(record)
+      onSaved?.(record);
 
       if (buildiumSyncError) {
-        setError(`Saved locally. Buildium sync failed: ${buildiumSyncError}`)
-        return
+        setError(`Saved locally. Buildium sync failed: ${buildiumSyncError}`);
+        return;
       }
 
-      close()
+      close();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to upload file'
-      setError(message)
+      const message = err instanceof Error ? err.message : 'Failed to upload file';
+      setError(message);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(value) => (value ? onOpenChange(true) : close())}>
-      <DialogContent className="max-w-3xl sm:max-w-4xl top-[35%] translate-y-[-35%]">
+      <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
           <DialogTitle>Upload File</DialogTitle>
           <DialogDescription>
@@ -229,11 +244,10 @@ export default function BillFileUploadDialog({
             <label
               onDrop={onDrop}
               onDragOver={(event) => event.preventDefault()}
-              className="flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/40 bg-muted/40 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+              className="border-muted-foreground/40 bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary flex h-40 cursor-pointer items-center justify-center rounded-md border-2 border-dashed text-sm transition"
             >
               <div className="text-center">
-                Drag &amp; drop files here or{' '}
-                <span className="text-primary underline">Browse</span>
+                Drag &amp; drop files here or <span className="text-primary underline">Browse</span>
               </div>
               <input
                 ref={fileInputRef}
@@ -243,17 +257,17 @@ export default function BillFileUploadDialog({
                 accept="application/pdf,image/*"
               />
             </label>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               Supported formats include PDF and common image types. Maximum size 25 MB.
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="overflow-hidden rounded-md border">
-              <div className="grid grid-cols-12 bg-muted/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="bg-muted/60 text-muted-foreground grid grid-cols-12 text-xs font-semibold tracking-wide uppercase">
                 <div className="col-span-12 px-4 py-2">Title</div>
               </div>
-              <div className="grid grid-cols-12 items-center gap-3 border-t bg-background px-3 py-3">
+              <div className="bg-background grid grid-cols-12 items-center gap-3 border-t px-3 py-3">
                 <div className="col-span-12 flex items-center gap-3">
                   <CheckCircle2 className="h-5 w-5 text-[var(--color-action-600)]" />
                   <Input
@@ -287,5 +301,5 @@ export default function BillFileUploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

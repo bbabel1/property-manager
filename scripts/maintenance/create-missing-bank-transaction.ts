@@ -49,6 +49,11 @@ async function createMissingBankTransaction() {
     return
   }
 
+  if (!bankGL) {
+    console.error('❌ No GL account found for operating bank account')
+    return
+  }
+
   console.log(`\nBank account GL: ${bankGL.name} (${bankGL.id})`)
 
   // 4. Create the missing bank account transaction (Credit to increase cash)
@@ -109,4 +114,3 @@ async function createMissingBankTransaction() {
 }
 
 createMissingBankTransaction().catch(console.error)
-

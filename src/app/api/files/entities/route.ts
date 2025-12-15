@@ -68,13 +68,9 @@ function mapUnit(record: any): EntityItem {
 
 function mapLease(record: any): EntityItem {
   const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const leaseName =
-    typeof record?.name === 'string' && record.name.trim().length
-      ? record.name.trim()
-      : null;
-  const tenantName =
-    typeof record?.tenant_name === 'string' && record.tenant_name.trim().length
-      ? record.tenant_name.trim()
+  const unitNumber =
+    typeof record?.unit_number === 'string' && record.unit_number.trim().length
+      ? record.unit_number.trim()
       : null;
   const status =
     typeof record?.status === 'string' && record.status.trim().length
@@ -83,8 +79,8 @@ function mapLease(record: any): EntityItem {
 
   return {
     id,
-    label: leaseName ?? tenantName ?? `Lease ${id}`,
-    description: status ?? tenantName ?? null,
+    label: unitNumber ? `Lease ${unitNumber}` : `Lease ${id}`,
+    description: status ?? null,
   };
 }
 
@@ -176,7 +172,7 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(url.searchParams.get('limit'));
   const page = parsePage(url.searchParams.get('page'));
   const search = url.searchParams.get('search')?.trim() ?? '';
-  const propertyId = url.searchParams.get('propertyId')?.trim() ?? null;
+  const propertyId = url.searchParams.get('propertyId')?.trim() || null;
 
   if (typeParam === 'unit' && !propertyId) {
     return NextResponse.json({ error: 'propertyId is required for unit lookups' }, { status: 400 });
@@ -192,7 +188,7 @@ export async function GET(request: NextRequest) {
     case 'property': {
       query = db
         .from('properties')
-        .select('id, name, address_line1, city, state, status', { count: 'none' })
+        .select('id, name, address_line1, city, state, status')
         .order('created_at', { ascending: false });
       if (search) {
         query = query.or(
@@ -204,8 +200,8 @@ export async function GET(request: NextRequest) {
     case 'unit': {
       query = db
         .from('units')
-        .select('id, unit_number, status', { count: 'none' })
-        .eq('property_id', propertyId)
+        .select('id, unit_number, status')
+        .eq('property_id', propertyId as string)
         .order('unit_number', { ascending: true, nullsFirst: false });
       if (search) {
         query = query.ilike('unit_number', `%${search}%`);
@@ -215,11 +211,11 @@ export async function GET(request: NextRequest) {
     case 'lease': {
       query = db
         .from('lease')
-        .select('id, name, tenant_name, status', { count: 'none' })
+        .select('id, unit_number, status')
         .order('created_at', { ascending: false });
       if (search) {
         query = query.or(
-          `name.ilike.%${search}%,tenant_name.ilike.%${search}%`,
+          `status.ilike.%${search}%,unit_number.ilike.%${search}%`,
         );
       }
       break;
@@ -227,7 +223,7 @@ export async function GET(request: NextRequest) {
     case 'tenant': {
       query = db
         .from('tenants')
-        .select('id, full_name, first_name, last_name, email', { count: 'none' })
+        .select('id, full_name, first_name, last_name, email')
         .order('full_name', { ascending: true });
       if (search) {
         query = query.or(
@@ -248,9 +244,7 @@ export async function GET(request: NextRequest) {
             company_name,
             primary_email
           )
-        `,
-          { count: 'none' },
-        )
+        `)
         .order('created_at', { ascending: false });
       if (search) {
         query = query.or(
@@ -262,7 +256,7 @@ export async function GET(request: NextRequest) {
     case 'vendor': {
       query = db
         .from('vendors')
-        .select('id, name, company_name, email', { count: 'none' })
+        .select('id, name, company_name, email')
         .order('created_at', { ascending: false });
       if (search) {
         query = query.or(
@@ -289,11 +283,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const records = Array.isArray(data) ? data : [];
+    const records = (Array.isArray(data) ? data : []).map(
+      (record) => record as Record<string, unknown>,
+    );
     const hasMore = records.length > limit;
     const trimmed = hasMore ? records.slice(0, limit) : records;
 
     const items: EntityItem[] = trimmed.map((record) => {
+      const fallbackId =
+        typeof record.id === 'string' || typeof record.id === 'number'
+          ? record.id.toString()
+          : '';
       switch (typeParam) {
         case 'property':
           return mapProperty(record);
@@ -308,7 +308,7 @@ export async function GET(request: NextRequest) {
         case 'vendor':
           return mapVendor(record);
         default:
-          return { id: String(record?.id ?? ''), label: String(record?.id ?? '') };
+          return { id: fallbackId, label: fallbackId || 'Unknown record' };
       }
     });
 

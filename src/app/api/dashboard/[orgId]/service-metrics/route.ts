@@ -29,7 +29,7 @@ function getPeriodDates(period: 'month' | 'quarter' | 'year') {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { orgId: string } },
+  { params }: { params: Promise<{ orgId: string }> },
 ) {
   try {
     const auth = await requireAuth();
@@ -42,7 +42,7 @@ export async function GET(
       );
     }
 
-    const { orgId } = params;
+    const { orgId } = await params;
     if (!orgId) {
       return NextResponse.json(
         { error: { code: 'ORG_CONTEXT_REQUIRED', message: 'Organization context required' } },

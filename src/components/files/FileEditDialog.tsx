@@ -114,7 +114,7 @@ export default function FileEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[680px] max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Edit File</DialogTitle>
           <DialogDescription>Update file metadata and information</DialogDescription>

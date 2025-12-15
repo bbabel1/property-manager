@@ -6,7 +6,7 @@
  */
 
 import { config } from 'dotenv';
-import { supabaseAdmin } from '../src/lib/db';
+import { supabaseAdmin } from '@/lib/db';
 
 config({ path: '.env.local' });
 
@@ -42,11 +42,15 @@ async function analyzePerformance() {
   console.log('\n2️⃣  Index Analysis\n');
 
   console.log('Checking for missing indexes on foreign keys...');
-  const { data: indexes } = await supabaseAdmin
-    .rpc('get_table_indexes', {
+  let indexes: unknown = null;
+  try {
+    const { data } = await supabaseAdmin.rpc('get_table_indexes', {
       table_name: 'monthly_logs',
-    } as any)
-    .catch(() => ({ data: null }));
+    } as any);
+    indexes = data;
+  } catch {
+    indexes = null;
+  }
 
   if (indexes) {
     console.log('  Indexes on monthly_logs:');

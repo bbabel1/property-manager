@@ -79,8 +79,12 @@ export async function POST(request: Request) {
     };
   });
 
-  const uniquePropertyIds = Array.from(new Set(lines.map((line) => line.property_id).filter(Boolean)));
-  const uniqueUnitIds = Array.from(new Set(lines.map((line) => line.unit_id).filter(Boolean)));
+  const uniquePropertyIds = Array.from(
+    new Set(lines.map((line) => line.property_id).filter((id): id is string => typeof id === 'string')),
+  );
+  const uniqueUnitIds = Array.from(
+    new Set(lines.map((line) => line.unit_id).filter((id): id is string => typeof id === 'string')),
+  );
 
   const propertyBuildiumIdMap = new Map<string, number | null>();
   if (uniquePropertyIds.length) {
@@ -120,18 +124,20 @@ export async function POST(request: Request) {
   const dueDate = data.due_date.slice(0, 10);
   const { data: transactionRows, error: insertError } = await admin
     .from('transactions')
-    .insert({
-      transaction_type: 'Bill',
-      date: billDate,
-      due_date: dueDate,
-      vendor_id: toNullableNumber(data.vendor_id) ?? data.vendor_id,
-      reference_number: data.reference_number?.trim() || null,
-      memo: data.memo || null,
-      status: 'Due',
-      total_amount: totalAmount,
-      created_at: nowIso,
-      updated_at: nowIso,
-    })
+    .insert(
+      {
+        transaction_type: 'Bill',
+        date: billDate,
+        due_date: dueDate,
+        vendor_id: toNullableNumber(data.vendor_id) ?? data.vendor_id,
+        reference_number: data.reference_number?.trim() || null,
+        memo: data.memo || null,
+        status: 'Due',
+        total_amount: totalAmount,
+        created_at: nowIso,
+        updated_at: nowIso,
+      } as any,
+    )
     .select('id')
     .maybeSingle();
 
@@ -196,7 +202,7 @@ export async function POST(request: Request) {
   };
 
   try {
-    await admin.from('transaction_lines').insert([...debitRows, creditRow]);
+    await admin.from('transaction_lines').insert([...debitRows, creditRow] as any[]);
   } catch (error) {
     console.error('Failed to insert bill lines', error);
     await admin.from('transactions').delete().eq('id', billId);

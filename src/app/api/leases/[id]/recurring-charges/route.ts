@@ -1,6 +1,8 @@
+
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { RentCycleEnumDb } from '@/schemas/lease-api'
+import type { Database } from '@/types/database'
 import { getServerSupabaseClient } from '@/lib/supabase-client'
 
 const RecurringChargePayloadSchema = z.object({
@@ -31,22 +33,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const payload = parsed.data
   const supabase = getServerSupabaseClient('recurring-charges:create')
 
-  const insertPayload: Record<string, unknown> = {
+  const insertPayload: Database['public']['Tables']['recurring_transactions']['Insert'] = {
     lease_id: leaseId,
     amount: payload.amount,
-    gl_account_id: payload.gl_account_id,
     memo: payload.memo ?? null,
     frequency: payload.frequency,
     start_date: payload.next_date,
-    posting_days_in_advance: payload.posting_days_in_advance,
-    posting_type: 'days_in_advance',
-    type: 'charge',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
-
-  insertPayload.duration = payload.duration === 'occurrences' ? 'occurrences' : 'until_end'
-  insertPayload.occurrences = payload.duration === 'occurrences' ? payload.occurrences ?? 0 : null
 
   const { data, error } = await supabase
     .from('recurring_transactions')

@@ -131,7 +131,6 @@ export function useMonthlyLogDetail({
     unitId,
     loadLeaseUnassigned,
     loadUnitUnassigned,
-    periodStart,
   });
 
   const leaseUnassignedTransactions = useMemo(() => unassignedTransactions, [unassignedTransactions]);

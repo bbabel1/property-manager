@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // Buildium API Client
 // This file contains a comprehensive client for interacting with the Buildium API
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import type {
   BuildiumProperty,
   BuildiumPropertyCreate,
@@ -41,6 +43,7 @@ import type {
   BuildiumWorkOrderCreate,
   BuildiumWorkOrderUpdate,
   BuildiumFileShareSettingsUpdate,
+  BuildiumFile,
   BuildiumFileCategory,
   BuildiumApiResponse,
   BuildiumApiError,
@@ -81,6 +84,7 @@ import {
   validateBuildiumResponse,
   extractBuildiumId,
 } from './buildium-mappers';
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 export class BuildiumClient {
   private baseUrl: string;
@@ -126,8 +130,7 @@ export class BuildiumClient {
   }
 
   async createProperty(data: BuildiumPropertyCreateEnhancedInput): Promise<BuildiumProperty> {
-    const buildiumData = mapPropertyToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumProperty>(`POST`, `/properties`, sanitizedData);
   }
@@ -136,8 +139,7 @@ export class BuildiumClient {
     id: number,
     data: Partial<BuildiumPropertyCreateEnhancedInput>,
   ): Promise<BuildiumProperty> {
-    const buildiumData = mapPropertyToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumProperty>(`PUT`, `/properties/${id}`, sanitizedData);
   }
@@ -182,8 +184,7 @@ export class BuildiumClient {
     propertyId: number,
     data: BuildiumUnitCreateEnhancedInput,
   ): Promise<BuildiumUnit> {
-    const buildiumData = mapUnitToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
     void propertyId;
     return this.makeRequest<BuildiumUnit>(`POST`, `/rentals/units`, sanitizedData);
   }
@@ -193,8 +194,7 @@ export class BuildiumClient {
     unitId: number,
     data: Partial<BuildiumUnitCreateEnhancedInput>,
   ): Promise<BuildiumUnit> {
-    const buildiumData = mapUnitToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
     void propertyId;
     return this.makeRequest<BuildiumUnit>(`PUT`, `/rentals/units/${unitId}`, sanitizedData);
   }
@@ -229,8 +229,7 @@ export class BuildiumClient {
   }
 
   async createOwner(data: BuildiumOwnerCreateEnhancedInput): Promise<BuildiumOwner> {
-    const buildiumData = mapOwnerToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumOwner>(`POST`, `/owners`, sanitizedData);
   }
@@ -239,8 +238,7 @@ export class BuildiumClient {
     id: number,
     data: Partial<BuildiumOwnerCreateEnhancedInput>,
   ): Promise<BuildiumOwner> {
-    const buildiumData = mapOwnerToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumOwner>(`PUT`, `/owners/${id}`, sanitizedData);
   }
@@ -274,8 +272,7 @@ export class BuildiumClient {
   }
 
   async createVendor(data: BuildiumVendorCreateEnhancedInput): Promise<BuildiumVendor> {
-    const buildiumData = mapVendorToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumVendor>(`POST`, `/vendors`, sanitizedData);
   }
@@ -284,8 +281,7 @@ export class BuildiumClient {
     id: number,
     data: Partial<BuildiumVendorCreateEnhancedInput>,
   ): Promise<BuildiumVendor> {
-    const buildiumData = mapVendorToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumVendor>(`PUT`, `/vendors/${id}`, sanitizedData);
   }
@@ -321,8 +317,7 @@ export class BuildiumClient {
   }
 
   async createTask(data: BuildiumTaskCreateEnhancedInput): Promise<BuildiumTask> {
-    const buildiumData = mapTaskToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumTask>(`POST`, `/tasks`, sanitizedData);
   }
@@ -331,8 +326,7 @@ export class BuildiumClient {
     id: number,
     data: Partial<BuildiumTaskCreateEnhancedInput>,
   ): Promise<BuildiumTask> {
-    const buildiumData = mapTaskToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumTask>(`PUT`, `/tasks/${id}`, sanitizedData);
   }
@@ -387,13 +381,13 @@ export class BuildiumClient {
     return this.makeRequest<BuildiumGLAccount>(`GET`, `/glaccounts/${id}`);
   }
 
-  async createGLAccount(local: any): Promise<BuildiumGLAccount> {
-    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local));
+  async createGLAccount(local: Record<string, unknown>): Promise<BuildiumGLAccount> {
+    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local as any));
     return this.makeRequest<BuildiumGLAccount>(`POST`, `/glaccounts`, payload);
   }
 
-  async updateGLAccount(id: number, local: any): Promise<BuildiumGLAccount> {
-    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local));
+  async updateGLAccount(id: number, local: Record<string, unknown>): Promise<BuildiumGLAccount> {
+    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local as any));
     return this.makeRequest<BuildiumGLAccount>(`PUT`, `/glaccounts/${id}`, payload);
   }
 
@@ -424,7 +418,7 @@ export class BuildiumClient {
     );
   }
 
-  async createGLEntry(data: any): Promise<BuildiumGLEntry> {
+  async createGLEntry(data: Record<string, unknown>): Promise<BuildiumGLEntry> {
     // Assume caller passes GL-ready payload matching schema
     const payload = sanitizeForBuildium(data);
     return this.makeRequest<BuildiumGLEntry>(
@@ -434,7 +428,7 @@ export class BuildiumClient {
     );
   }
 
-  async updateGLEntry(id: number, data: any): Promise<BuildiumGLEntry> {
+  async updateGLEntry(id: number, data: Record<string, unknown>): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
     return this.makeRequest<BuildiumGLEntry>(
       `PUT`,
@@ -499,14 +493,13 @@ export class BuildiumClient {
   }
 
   async createBill(data: BuildiumBillCreateEnhancedInput): Promise<BuildiumBill> {
-    const buildiumData = mapBillToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumBill>(`POST`, `/bills`, sanitizedData);
   }
 
-  async getBillFiles(billId: number): Promise<any[]> {
-    return this.makeRequest<any[]>(`GET`, `/bills/${billId}/files`);
+  async getBillFiles(billId: number): Promise<BuildiumFile[]> {
+    return this.makeRequest<BuildiumFile[]>(`GET`, `/bills/${billId}/files`);
   }
 
   async createBillFileUploadRequest(
@@ -521,17 +514,17 @@ export class BuildiumClient {
       PropertyId?: number | null;
       FileTitle?: string | null;
     },
-  ): Promise<any> {
+  ): Promise<unknown> {
     const sanitizedData = sanitizeForBuildium(data);
     try {
-      return await this.makeRequest<any>(
+      return await this.makeRequest<unknown>(
         `POST`,
         `/bills/${billId}/files/uploadRequests`,
         sanitizedData,
       );
     } catch (error) {
       if (error instanceof Error && error.message.includes('404')) {
-        return this.makeRequest<any>(
+        return this.makeRequest<unknown>(
           `POST`,
           `/bills/${billId}/files/uploadrequests`,
           sanitizedData,
@@ -541,7 +534,7 @@ export class BuildiumClient {
     }
   }
 
-  async getLeaseDocuments(leaseId: number): Promise<any[]> {
+  async getLeaseDocuments(leaseId: number): Promise<BuildiumFile[]> {
     const prefixes = [
       `/rentals/leases/${leaseId}`,
       `/Rentals/Leases/${leaseId}`,
@@ -553,7 +546,7 @@ export class BuildiumClient {
 
     for (const endpoint of endpoints) {
       try {
-        return await this.makeRequest<any[]>(`GET`, endpoint);
+        return await this.makeRequest<BuildiumFile[]>(`GET`, endpoint);
       } catch (error) {
         const is404 =
           error instanceof Error &&
@@ -579,9 +572,10 @@ export class BuildiumClient {
       Title?: string | null;
       Description?: string | null;
       CategoryId?: number | null;
+      Category?: string | null;
       ContentType?: string | null;
     },
-  ): Promise<any> {
+  ): Promise<BuildiumFileCategory[]> {
     const payload = {
       ...data,
       EntityType: entityType,
@@ -589,10 +583,10 @@ export class BuildiumClient {
     };
     const sanitizedData = sanitizeForBuildium(payload);
     try {
-      return await this.makeRequest<any>(`POST`, `/files/uploadRequests`, sanitizedData);
+      return await this.makeRequest<BuildiumFileCategory[]>(`POST`, `/files/uploadRequests`, sanitizedData);
     } catch (error) {
       if (error instanceof Error && error.message.includes('404')) {
-        return this.makeRequest<any>(`POST`, `/files/uploadrequests`, sanitizedData);
+        return this.makeRequest<BuildiumFileCategory[]>(`POST`, `/files/uploadrequests`, sanitizedData);
       }
       throw error;
     }
@@ -621,12 +615,12 @@ export class BuildiumClient {
 
     for (const endpoint of endpoints) {
       try {
-        const result = await this.makeRequest<any>(`GET`, endpoint);
-        if (Array.isArray(result)) return result as BuildiumFileCategory[];
-        if (Array.isArray(result?.data)) return result.data as BuildiumFileCategory[];
-        if (Array.isArray(result?.value)) return result.value as BuildiumFileCategory[];
-        if (Array.isArray(result?.items)) return result.items as BuildiumFileCategory[];
-        if (Array.isArray(result?.Items)) return result.Items as BuildiumFileCategory[];
+        const result = await this.makeRequest<BuildiumFileCategory[] | { data?: BuildiumFileCategory[]; value?: BuildiumFileCategory[]; items?: BuildiumFileCategory[]; Items?: BuildiumFileCategory[] }>(`GET`, endpoint);
+        if (Array.isArray(result)) return result;
+        if (Array.isArray(result?.data)) return result.data;
+        if (Array.isArray(result?.value)) return result.value;
+        if (Array.isArray(result?.items)) return result.items;
+        if (Array.isArray(result?.Items)) return result.Items;
         return [];
       } catch (error) {
         lastError = error as Error;
@@ -657,7 +651,7 @@ export class BuildiumClient {
       PropertyId?: number | null;
       UnitId?: number | null;
     },
-  ): Promise<any> {
+  ): Promise<unknown> {
     const sanitizedData = sanitizeForBuildium(data);
     const prefixes = [
       `/rentals/leases/${leaseId}`,
@@ -680,7 +674,7 @@ export class BuildiumClient {
     let lastError: Error | null = null;
     for (const endpoint of endpoints) {
       try {
-        return await this.makeRequest<any>(`POST`, endpoint, sanitizedData);
+        return await this.makeRequest<unknown>(`POST`, endpoint, sanitizedData);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         // Check if this is a 404 error (case-sensitive endpoint issue)
@@ -717,7 +711,7 @@ export class BuildiumClient {
       Name?: string | null;
       IsPrivate?: boolean | null;
     },
-  ): Promise<any> {
+  ): Promise<unknown> {
     const payload: Record<string, unknown> = {};
     if (data.Title !== undefined && data.Title !== null) payload.Title = data.Title;
     if (data.Description !== undefined) payload.Description = data.Description ?? '';
@@ -732,27 +726,26 @@ export class BuildiumClient {
     }
 
     const sanitizedData = sanitizeForBuildium(payload);
-    return this.makeRequest<any>(`PUT`, `/files/${fileId}`, sanitizedData);
+    return this.makeRequest<unknown>(`PUT`, `/files/${fileId}`, sanitizedData);
   }
 
   async updateFileSharingSettings(
     fileId: number,
     settings: BuildiumFileShareSettingsUpdate,
-  ): Promise<any> {
+  ): Promise<unknown> {
     const sanitizedData = sanitizeForBuildium(settings);
-    return this.makeRequest<any>(`PUT`, `/files/${fileId}/sharing`, sanitizedData);
+    return this.makeRequest<unknown>(`PUT`, `/files/${fileId}/sharing`, sanitizedData);
   }
 
-  async getFileSharingSettings(fileId: number): Promise<any> {
-    return this.makeRequest<any>(`GET`, `/files/${fileId}/sharing`);
+  async getFileSharingSettings(fileId: number): Promise<BuildiumFileShareSettingsUpdate> {
+    return this.makeRequest<BuildiumFileShareSettingsUpdate>(`GET`, `/files/${fileId}/sharing`);
   }
 
   async updateBill(
     id: number,
     data: Partial<BuildiumBillCreateEnhancedInput>,
   ): Promise<BuildiumBill> {
-    const buildiumData = mapBillToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumBill>(`PUT`, `/bills/${id}`, sanitizedData);
   }
@@ -788,8 +781,7 @@ export class BuildiumClient {
   async createBankAccount(
     data: BuildiumBankAccountCreateEnhancedInput,
   ): Promise<BuildiumBankAccount> {
-    const buildiumData = mapBankAccountToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumBankAccount>(`POST`, `/bankaccounts`, sanitizedData);
   }
@@ -798,8 +790,7 @@ export class BuildiumClient {
     id: number,
     data: Partial<BuildiumBankAccountCreateEnhancedInput>,
   ): Promise<BuildiumBankAccount> {
-    const buildiumData = mapBankAccountToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumBankAccount>(`PUT`, `/bankaccounts/${id}`, sanitizedData);
   }
@@ -837,8 +828,7 @@ export class BuildiumClient {
   }
 
   async createLease(data: BuildiumLeaseCreateEnhancedInput): Promise<BuildiumLease> {
-    const buildiumData = mapLeaseToBuildium(data);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumLease>(`POST`, `/rentals/leases`, sanitizedData);
   }
@@ -847,8 +837,7 @@ export class BuildiumClient {
     id: number,
     data: Partial<BuildiumLeaseCreateEnhancedInput>,
   ): Promise<BuildiumLease> {
-    const buildiumData = mapLeaseToBuildium(data as any);
-    const sanitizedData = sanitizeForBuildium(buildiumData);
+    const sanitizedData = sanitizeForBuildium(data);
 
     return this.makeRequest<BuildiumLease>(`PUT`, `/rentals/leases/${id}`, sanitizedData);
   }
@@ -885,9 +874,16 @@ export class BuildiumClient {
     if (params?.offset) queryParams.append('offset', params.offset.toString());
 
     // Buildium returns an array for /workorders
-    const result = await this.makeRequest<any>(`GET`, `/workorders?${queryParams.toString()}`);
+    const result = await this.makeRequest<BuildiumWorkOrder[] | { Data?: BuildiumWorkOrder[] }>(
+      `GET`,
+      `/workorders?${queryParams.toString()}`,
+    );
     // Some environments might wrap or not; normalize to array
-    const data = Array.isArray(result?.Data) ? result.Data : Array.isArray(result) ? result : [];
+    const wrappedData =
+      !Array.isArray(result) && result && typeof result === 'object' && 'Data' in result
+        ? (result as { Data?: BuildiumWorkOrder[] }).Data
+        : null;
+    const data = Array.isArray(wrappedData) ? wrappedData : Array.isArray(result) ? result : [];
     return data as BuildiumWorkOrder[];
   }
 
@@ -1021,7 +1017,7 @@ export class BuildiumClient {
   // UTILITY METHODS
   // ============================================================================
 
-  private async makeRequest<T>(method: string, endpoint: string, data?: any): Promise<T> {
+  public async makeRequest<T>(method: string, endpoint: string, data?: unknown): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -1047,13 +1043,15 @@ export class BuildiumClient {
         const response = await fetch(url, config);
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+          const errorData: Record<string, unknown> = await response.json().catch(() => ({} as Record<string, unknown>));
           let extra = '';
           const errors =
-            (errorData as any)?.Errors || (errorData as any)?.errors || (errorData as any)?.Data;
+            (errorData as { Errors?: unknown; errors?: unknown; Data?: unknown })?.Errors ||
+            (errorData as { Errors?: unknown; errors?: unknown; Data?: unknown })?.errors ||
+            (errorData as { Errors?: unknown; errors?: unknown; Data?: unknown })?.Data;
           if (Array.isArray(errors) && errors.length) {
             extra = errors
-              .map((entry: any) => {
+              .map((entry: Record<string, unknown>) => {
                 const key = entry?.Key || entry?.Field || entry?.Code || 'Field';
                 const value =
                   entry?.Value || entry?.Message || entry?.Description || JSON.stringify(entry);
@@ -1136,15 +1134,22 @@ export class BuildiumClient {
   // SYNC HELPERS
   // ============================================================================
 
-  async syncPropertyToBuildium(localProperty: any): Promise<number | null> {
+  async syncPropertyToBuildium(localProperty: Record<string, unknown>): Promise<number | null> {
     try {
-      if (localProperty.buildium_property_id) {
+      const buildiumId =
+        typeof localProperty.buildium_property_id === 'number'
+          ? localProperty.buildium_property_id
+          : localProperty.buildium_property_id
+            ? Number(localProperty.buildium_property_id)
+            : null;
+
+      if (buildiumId) {
         // Update existing property
-        await this.updateProperty(localProperty.buildium_property_id, localProperty);
-        return localProperty.buildium_property_id;
+        await this.updateProperty(buildiumId, localProperty as any);
+        return buildiumId;
       } else {
         // Create new property
-        const buildiumProperty = await this.createProperty(localProperty);
+        const buildiumProperty = await this.createProperty(localProperty as any);
         return buildiumProperty.Id;
       }
     } catch (error) {
@@ -1153,15 +1158,25 @@ export class BuildiumClient {
     }
   }
 
-  async syncUnitToBuildium(propertyId: number, localUnit: any): Promise<number | null> {
+  async syncUnitToBuildium(
+    propertyId: number,
+    localUnit: Record<string, unknown>,
+  ): Promise<number | null> {
     try {
-      if (localUnit.buildium_unit_id) {
+      const buildiumUnitId =
+        typeof localUnit.buildium_unit_id === 'number'
+          ? localUnit.buildium_unit_id
+          : localUnit.buildium_unit_id
+            ? Number(localUnit.buildium_unit_id)
+            : null;
+
+      if (buildiumUnitId) {
         // Update existing unit
-        await this.updateUnit(propertyId, localUnit.buildium_unit_id, localUnit);
-        return localUnit.buildium_unit_id;
+        await this.updateUnit(propertyId, buildiumUnitId, localUnit as any);
+        return buildiumUnitId;
       } else {
         // Create new unit
-        const buildiumUnit = await this.createUnit(propertyId, localUnit);
+        const buildiumUnit = await this.createUnit(propertyId, localUnit as any);
         return buildiumUnit.Id;
       }
     } catch (error) {

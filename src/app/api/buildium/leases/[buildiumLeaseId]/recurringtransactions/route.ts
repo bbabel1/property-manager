@@ -5,13 +5,16 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumRecurringTransactionCreateSchema } from '@/schemas/buildium'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
     await requireRole('platform_admin')
-    const { id } = await params
+    const { buildiumLeaseId } = await params
     const { searchParams } = new URL(request.url)
     const orderby = searchParams.get('orderby') || undefined
     const offset = searchParams.get('offset') || undefined
@@ -21,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (offset) qs.append('offset', offset)
     if (limit) qs.append('limit', limit)
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${id}/recurring-transactions?${qs.toString()}`, {
+    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions?${qs.toString()}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -44,17 +47,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
     await requireRole('platform_admin')
-    const { id } = await params
+    const { buildiumLeaseId } = await params
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionCreateSchema)
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${id}/recurring-transactions`, {
+    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',

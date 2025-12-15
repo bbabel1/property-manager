@@ -10,7 +10,7 @@ import {
 import { logger } from '@/lib/logger';
 import type { TypedSupabaseClient } from '@/lib/db';
 import { supabaseAdminMaybe } from '@/lib/db';
-import type { BuildiumEntityType } from '@/types/buildium';
+import type { BuildiumFile, BuildiumFileEntityType } from '@/types/buildium';
 import {
   createFile,
   FILE_ENTITY_TYPES,
@@ -18,7 +18,7 @@ import {
   type FileRow,
 } from '@/lib/files';
 
-type BuildiumBillFile = { Id?: number; Href?: string | null } & Record<string, unknown>;
+type BuildiumBillFile = BuildiumFile & { Id?: number; Href?: string | null };
 
 type LocalEntityType =
   | 'property'
@@ -60,6 +60,12 @@ function isMimeTypeAllowed(mimeType: string | null | undefined): boolean {
   return false;
 }
 
+const toStringId = (value: string | number): string => String(value);
+const toNumberId = (value: unknown): number | null => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
 function sanitizeFileName(name: string): string {
   if (!name) return 'upload';
   const trimmed = name.trim().replace(/[/\\]/g, ' ');
@@ -74,8 +80,8 @@ async function blobToBase64(blob: Blob): Promise<string> {
 /**
  * Map local entity types to Buildium entity types
  */
-function mapLocalEntityTypeToBuildium(localType: LocalEntityType): BuildiumEntityType | null {
-  const mapping: Record<LocalEntityType, BuildiumEntityType | null> = {
+function mapLocalEntityTypeToBuildium(localType: LocalEntityType): BuildiumFileEntityType | null {
+  const mapping: Record<LocalEntityType, BuildiumFileEntityType | null> = {
     property: 'Rental',
     unit: 'RentalUnit',
     lease: 'Lease',
@@ -98,13 +104,15 @@ async function resolveBuildiumEntityId(
   admin: TypedSupabaseClient,
   localType: LocalEntityType,
   localId: string | number,
-): Promise<{ buildiumEntityType: BuildiumEntityType; buildiumEntityId: number } | null> {
+): Promise<{ buildiumEntityType: BuildiumFileEntityType; buildiumEntityId: number } | null> {
   switch (localType) {
     case 'lease': {
+      const leaseId = toNumberId(localId);
+      if (leaseId === null) return null;
       const { data } = await admin
         .from('lease')
         .select('buildium_lease_id')
-        .eq('id', localId)
+        .eq('id', leaseId)
         .maybeSingle();
       if (data?.buildium_lease_id) {
         return { buildiumEntityType: 'Lease', buildiumEntityId: data.buildium_lease_id };
@@ -113,10 +121,11 @@ async function resolveBuildiumEntityId(
     }
     case 'bill': {
       // For bills, we need to check the transaction and potentially map to Vendor
+      const transactionId = toStringId(localId);
       const { data: txn } = await admin
         .from('transactions')
         .select('buildium_bill_id, vendor_id')
-        .eq('id', localId)
+        .eq('id', transactionId)
         .maybeSingle();
       if (txn?.buildium_bill_id) {
         // Bills might be associated with Vendor entity type in Buildium
@@ -135,10 +144,11 @@ async function resolveBuildiumEntityId(
       return null;
     }
     case 'property': {
+      const propertyId = toStringId(localId);
       const { data } = await admin
         .from('properties')
         .select('buildium_property_id')
-        .eq('id', localId)
+        .eq('id', propertyId)
         .maybeSingle();
       if (data?.buildium_property_id) {
         return { buildiumEntityType: 'Rental', buildiumEntityId: data.buildium_property_id };
@@ -146,10 +156,11 @@ async function resolveBuildiumEntityId(
       return null;
     }
     case 'unit': {
+      const unitId = toStringId(localId);
       const { data } = await admin
         .from('units')
         .select('buildium_unit_id')
-        .eq('id', localId)
+        .eq('id', unitId)
         .maybeSingle();
       if (data?.buildium_unit_id) {
         return { buildiumEntityType: 'RentalUnit', buildiumEntityId: data.buildium_unit_id };
@@ -157,10 +168,11 @@ async function resolveBuildiumEntityId(
       return null;
     }
     case 'tenant': {
+      const tenantId = toStringId(localId);
       const { data } = await admin
         .from('tenants')
         .select('buildium_tenant_id')
-        .eq('id', localId)
+        .eq('id', tenantId)
         .maybeSingle();
       if (data?.buildium_tenant_id) {
         return { buildiumEntityType: 'Tenant', buildiumEntityId: data.buildium_tenant_id };
@@ -168,10 +180,11 @@ async function resolveBuildiumEntityId(
       return null;
     }
     case 'owner': {
+      const ownerId = toStringId(localId);
       const { data } = await admin
         .from('owners')
         .select('buildium_owner_id')
-        .eq('id', localId)
+        .eq('id', ownerId)
         .maybeSingle();
       if (data?.buildium_owner_id) {
         return { buildiumEntityType: 'RentalOwner', buildiumEntityId: data.buildium_owner_id };
@@ -179,10 +192,11 @@ async function resolveBuildiumEntityId(
       return null;
     }
     case 'vendor': {
+      const vendorId = toStringId(localId);
       const { data } = await admin
         .from('vendors')
         .select('buildium_vendor_id')
-        .eq('id', localId)
+        .eq('id', vendorId)
         .maybeSingle();
       if (data?.buildium_vendor_id) {
         return { buildiumEntityType: 'Vendor', buildiumEntityId: data.buildium_vendor_id };
@@ -201,18 +215,20 @@ async function resolveOrgForEntity(
 ): Promise<string | null> {
   switch (entityType) {
     case 'property': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('properties')
         .select('org_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       return data?.org_id ?? null;
     }
     case 'unit': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('units')
         .select('property_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       if (!data?.property_id) return null;
       const { data: p } = await client
@@ -223,10 +239,12 @@ async function resolveOrgForEntity(
       return p?.org_id ?? null;
     }
     case 'lease': {
+      const id = toNumberId(entityId);
+      if (id === null) return null;
       const { data } = await client
         .from('lease')
         .select('org_id, property_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       if (data?.org_id) return data.org_id;
       if (!data?.property_id) return null;
@@ -238,18 +256,20 @@ async function resolveOrgForEntity(
       return p?.org_id ?? null;
     }
     case 'tenant': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('tenants')
         .select('org_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       return data?.org_id ?? null;
     }
     case 'owner': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('owners')
         .select('org_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       return data?.org_id ?? null;
     }
@@ -258,18 +278,20 @@ async function resolveOrgForEntity(
       return null;
     }
     case 'work_order': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('work_orders')
         .select('org_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       return data?.org_id ?? null;
     }
     case 'task': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('tasks')
         .select('property_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       if (!data?.property_id) return null;
       const { data: p } = await client
@@ -280,10 +302,11 @@ async function resolveOrgForEntity(
       return p?.org_id ?? null;
     }
     case 'task_history': {
+      const id = toStringId(entityId);
       const { data } = await client
         .from('task_history')
         .select('task_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       if (!data?.task_id) return null;
       const { data: t } = await client
@@ -300,10 +323,11 @@ async function resolveOrgForEntity(
       return p?.org_id ?? null;
     }
     case 'bill': {
+      const id = toStringId(entityId);
       const { data: txn } = await client
         .from('transactions')
         .select('org_id, vendor_id, lease_id')
-        .eq('id', entityId)
+        .eq('id', id)
         .maybeSingle();
       if (txn?.org_id) return txn.org_id;
 
@@ -327,7 +351,7 @@ async function resolveOrgForEntity(
       const { data: txnLine } = await client
         .from('transaction_lines')
         .select('property_id')
-        .eq('transaction_id', entityId)
+        .eq('transaction_id', id)
         .not('property_id', 'is', null)
         .limit(1)
         .maybeSingle();
@@ -344,12 +368,10 @@ async function resolveOrgForEntity(
       return null;
     }
     case 'contact': {
-      const { data } = await client
-        .from('contacts')
-        .select('org_id')
-        .eq('id', entityId)
-        .maybeSingle();
-      return data?.org_id ?? null;
+      const contactId = toNumberId(entityId);
+      if (contactId === null) return null;
+      // Contacts are not scoped to orgs in the current schema; fall back to user/org headers.
+      return null;
     }
     default:
       return null;
@@ -375,7 +397,7 @@ async function maybeUploadBillFileToBuildium(options: {
     const { data: transactionRow, error: txnErr } = await admin
       .from('transactions')
       .select('buildium_bill_id')
-      .eq('id', transactionId)
+      .eq('id', toStringId(transactionId))
       .maybeSingle();
 
     if (txnErr) throw txnErr;
@@ -389,7 +411,7 @@ async function maybeUploadBillFileToBuildium(options: {
     const { data: lineRow, error: lineErr } = await admin
       .from('transaction_lines')
       .select('buildium_unit_id, buildium_property_id')
-      .eq('transaction_id', transactionId)
+      .eq('transaction_id', toStringId(transactionId))
       .not('buildium_unit_id', 'is', null)
       .order('created_at', { ascending: true })
       .limit(1)
@@ -442,10 +464,10 @@ async function maybeUploadBillFileToBuildium(options: {
       uploadRequestBody.PropertyId = buildiumPropertyId;
     }
 
-    const ticket = await buildiumClient.createBillFileUploadRequest(
+    const ticket = (await buildiumClient.createBillFileUploadRequest(
       buildiumBillId,
       uploadRequestBody,
-    );
+    )) as { Href?: string; BucketUrl?: string; FormData?: Record<string, string> };
     const ticketFileId = extractBuildiumFileIdFromPayload(ticket);
     const ticketHref =
       typeof (ticket as Record<string, unknown>)?.Href === 'string' ? String(ticket.Href) : null;
@@ -552,12 +574,14 @@ async function maybeUploadBillFileToBuildium(options: {
       'Uploaded bill file to Buildium',
     );
 
-    const buildiumFilePayload = buildiumFile ??
-      (resolvedFileId
-        ? { Id: resolvedFileId, Href: resolvedHref ?? undefined }
-        : null);
+    const buildiumFilePayload: Record<string, unknown> | null =
+      buildiumFile != null
+        ? (buildiumFile as unknown as Record<string, unknown>)
+        : resolvedFileId
+          ? ({ Id: resolvedFileId, Href: resolvedHref ?? undefined } as Record<string, unknown>)
+          : null;
 
-    return { buildiumFile: buildiumFilePayload, updatedFile };
+    return { buildiumFile: buildiumFilePayload, updatedFile: updatedFile || undefined };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error(
@@ -574,7 +598,7 @@ async function uploadFileToBuildiumEntity(options: {
   fileName: string;
   mimeType?: string;
   base64: string;
-  buildiumEntityType: BuildiumEntityType;
+  buildiumEntityType: BuildiumFileEntityType;
   buildiumEntityId: number;
   buildiumCategoryId: number | null;
   categoryName: string | null;
@@ -597,7 +621,16 @@ async function uploadFileToBuildiumEntity(options: {
   }
 
   const buildiumClient = createBuildiumClient(defaultBuildiumConfig);
-  const basePayload: Record<string, unknown> = {
+  type BuildiumUploadPayload = {
+    FileName: string;
+    Title?: string | null;
+    Description?: string | null;
+    CategoryId?: number | null;
+    Category?: string | null;
+    ContentType?: string | null;
+  };
+
+  const basePayload: BuildiumUploadPayload = {
     FileName: fileName,
     Title:
       (typeof file.title === 'string' && file.title.trim()) ||
@@ -612,8 +645,8 @@ async function uploadFileToBuildiumEntity(options: {
     basePayload.ContentType = mimeType;
   }
 
-  const applyCategory = (useId: boolean) => {
-    const payload = { ...basePayload };
+  const applyCategory = (useId: boolean): BuildiumUploadPayload => {
+    const payload: BuildiumUploadPayload = { ...basePayload };
     if (useId && buildiumCategoryId != null && Number.isFinite(buildiumCategoryId)) {
       payload.CategoryId = buildiumCategoryId;
     } else if (categoryName) {
@@ -622,16 +655,23 @@ async function uploadFileToBuildiumEntity(options: {
     return payload;
   };
 
-    let ticket: any;
+  type BuildiumUploadTicket = {
+    BucketUrl?: string;
+    FormData?: Record<string, unknown>;
+    PhysicalFileName?: string | number | null;
+    Href?: string | null;
+  };
+
+  let ticket: BuildiumUploadTicket | null = null;
   let usedCategoryId = false;
   try {
     const payload = applyCategory(true);
     usedCategoryId = payload.CategoryId != null;
-      ticket = await buildiumClient.createFileUploadRequest(
-        buildiumEntityType,
-        buildiumEntityId,
-        payload,
-      );
+    ticket = (await buildiumClient.createFileUploadRequest(
+      buildiumEntityType,
+      buildiumEntityId,
+      payload,
+    )) as BuildiumUploadTicket | null;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const categoryError =
@@ -651,11 +691,11 @@ async function uploadFileToBuildiumEntity(options: {
       'Retrying Buildium upload request without category id',
     );
     const fallbackPayload = applyCategory(false);
-    ticket = await buildiumClient.createFileUploadRequest(
+    ticket = (await buildiumClient.createFileUploadRequest(
       buildiumEntityType,
       buildiumEntityId,
       fallbackPayload,
-    );
+    )) as BuildiumUploadTicket | null;
     usedCategoryId = false;
   }
 
@@ -668,9 +708,9 @@ async function uploadFileToBuildiumEntity(options: {
     return { buildiumFile: null, error: errorMessage };
   }
 
-    const ticketFileId = extractBuildiumFileIdFromPayload(ticket);
+    const ticketFileId = extractBuildiumFileIdFromPayload(ticket as Record<string, unknown>);
     const ticketHref =
-      typeof (ticket as Record<string, unknown>)?.Href === 'string'
+      typeof ticket?.Href === 'string'
         ? String(ticket.Href)
         : null;
 
@@ -1018,7 +1058,7 @@ export async function POST(request: NextRequest) {
     const { data: billRow } = await admin
       .from('transactions')
       .select('buildium_bill_id, org_id')
-      .eq('id', entityId)
+      .eq('id', toStringId(entityId))
       .maybeSingle();
     if (billRow) {
       if (!orgId && billRow.org_id) {
@@ -1207,7 +1247,7 @@ export async function POST(request: NextRequest) {
 
   // If we can't map to a Buildium entity type, use a default.
   // For entities without direct Buildium mapping, use PublicAsset as fallback.
-  const finalBuildiumEntityType: BuildiumEntityType = buildiumEntityType ?? 'PublicAsset';
+  const finalBuildiumEntityType: BuildiumFileEntityType = buildiumEntityType ?? 'PublicAsset';
   const fileEntityType = mapBuildiumEntityTypeToFile(finalBuildiumEntityType);
 
   // For local entities without Buildium IDs, use -1 as a sentinel value

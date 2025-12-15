@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
@@ -5,7 +7,7 @@ import { logger } from '@/lib/logger'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check_files' }, 'Fetching Buildium check files');
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     logger.info({ userId: user.id, action: 'upload_buildium_check_file' }, 'Uploading Buildium check file');
 
     // Parse request body

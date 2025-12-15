@@ -168,25 +168,22 @@ async function main() {
       'Usage: npx tsx scripts/buildium/sync/sync-files-for-entity.ts <entityType> <entityId> <orgId>',
     );
     console.error(
-      'Example: npx tsx scripts/buildium/sync/sync-files-for-entity.ts Lease 12345 <org-uuid>',
+      'Example: npx tsx scripts/buildium/sync/sync-files-for-entity.ts lease 12345 <org-uuid>',
     );
     process.exit(1);
   }
 
   // Validate entity type
   const validEntityTypes: BuildiumEntityType[] = [
-    'Account',
-    'Association',
-    'AssociationOwner',
-    'AssociationUnit',
-    'Lease',
-    'OwnershipAccount',
-    'PublicAsset',
-    'Rental',
-    'RentalOwner',
-    'RentalUnit',
-    'Tenant',
-    'Vendor',
+    'property',
+    'unit',
+    'owner',
+    'lease',
+    'vendor',
+    'bill',
+    'task',
+    'bank_account',
+    'work_order',
   ];
 
   if (!validEntityTypes.includes(entityType)) {

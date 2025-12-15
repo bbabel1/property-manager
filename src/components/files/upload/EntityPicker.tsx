@@ -14,6 +14,10 @@ type EntityPickerType =
 type EntityPickerOption = {
   id: string;
   label: string;
+  name?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  details?: string | null;
   description?: string | null;
 };
 

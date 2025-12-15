@@ -8,17 +8,15 @@ import type { MonthlyLogFinancialSummary } from '@/types/monthly-log';
 interface MonthlyLogSummarySectionProps {
   summary: MonthlyLogFinancialSummary | null;
   loading: boolean;
-  onRefresh: () => Promise<void>;
 }
 
 function MonthlyLogSummarySectionComponent({
   summary,
   loading,
-  onRefresh,
 }: MonthlyLogSummarySectionProps) {
   return (
     <div className="space-y-6">
-      <EnhancedFinancialSummaryCard summary={summary} loading={loading} onRefresh={onRefresh} />
+      <EnhancedFinancialSummaryCard summary={summary} loading={loading} />
     </div>
   );
 }

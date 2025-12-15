@@ -4,8 +4,8 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
-import { ComplianceItemGenerator } from '../../src/lib/compliance-item-generator'
-import { logger } from '../../src/lib/logger'
+import { ComplianceItemGenerator } from '@/lib/compliance-item-generator'
+import { logger } from '@/lib/logger'
 
 async function main() {
   if (process.env.ENABLE_COMPLIANCE_ITEM_GENERATION === '0' || process.env.ENABLE_COMPLIANCE_ITEM_GENERATION === 'false') {
@@ -172,4 +172,3 @@ main().catch((e) => {
   console.error('Compliance item generation cron failed:', e)
   process.exit(1)
 })
-

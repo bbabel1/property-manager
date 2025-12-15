@@ -56,7 +56,7 @@ export async function validateCSRFToken(request: NextRequest): Promise<boolean> 
 }
 
 // Legacy function for backward compatibility
-export function isValidCSRFToken(token: string, sessionId: string): boolean {
+export function isValidCSRFToken(_token: string, _sessionId: string): boolean {
   // This is now handled by validateCSRFToken
   return false
 }

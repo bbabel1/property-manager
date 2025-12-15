@@ -12,9 +12,9 @@ export function verifyWebhookSignature(payload: string, signature: string | null
   }
 }
 
-export function parseWebhookEvent(body: string): any | null {
+export function parseWebhookEvent(body: string): Record<string, unknown> | null {
   try {
-    const evt = JSON.parse(body)
+    const evt = JSON.parse(body) as Record<string, unknown>
     if (!evt?.eventId || !evt?.eventType || !evt?.timestamp) return null
     return evt
   } catch {
@@ -22,7 +22,7 @@ export function parseWebhookEvent(body: string): any | null {
   }
 }
 
-export async function processWebhookEvent(event: any): Promise<void> {
+export async function processWebhookEvent(event: Record<string, unknown>): Promise<void> {
   const { eventType, data, eventId } = event || {}
   console.log(`Processing webhook event: ${eventType} (ID: ${eventId})`)
   try {
@@ -50,13 +50,13 @@ export async function processWebhookEvent(event: any): Promise<void> {
   }
 }
 
-async function handleBankAccountUpdate(data: any) { console.log('Bank account updated:', data) }
-async function handleLeasePaymentReceived(data: any) { console.log('Lease payment received:', data) }
-async function handleTaskStatusChange(data: any) { console.log('Task status changed:', data) }
-async function handlePropertyUpdate(data: any) { console.log('Property updated:', data) }
-async function handleTenantMovedIn(data: any) { console.log('Tenant moved in:', data) }
-async function handleBillCreated(data: any) { console.log('Bill created:', data) }
-async function handleWorkOrderAssigned(data: any) { console.log('Work order assigned:', data) }
+async function handleBankAccountUpdate(data: unknown) { console.log('Bank account updated:', data) }
+async function handleLeasePaymentReceived(data: unknown) { console.log('Lease payment received:', data) }
+async function handleTaskStatusChange(data: unknown) { console.log('Task status changed:', data) }
+async function handlePropertyUpdate(data: unknown) { console.log('Property updated:', data) }
+async function handleTenantMovedIn(data: unknown) { console.log('Tenant moved in:', data) }
+async function handleBillCreated(data: unknown) { console.log('Bill created:', data) }
+async function handleWorkOrderAssigned(data: unknown) { console.log('Work order assigned:', data) }
 
 export function generateWebhookSignature(payload: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex')
@@ -70,4 +70,3 @@ export function validateWebhookUrl(url: string): boolean {
     return false
   }
 }
-

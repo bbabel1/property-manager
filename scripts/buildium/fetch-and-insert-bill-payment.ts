@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import {
   resolveGLAccountId,
   mapPaymentMethodToEnum
-} from '../../src/lib/buildium-mappers'
+} from '@/lib/buildium-mappers'
 
 // Load environment variables first
 config()

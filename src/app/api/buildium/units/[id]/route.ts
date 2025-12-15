@@ -6,6 +6,7 @@ import { BuildiumUnitUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -30,7 +31,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { searchParams } = new URL(request.url)
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase())
     if (persist) {
-      try { await UnitService.persistBuildiumUnit(unit) } catch (e) { logger.error(`Persist updated unit failed: ${String(e)}`) }
+      let orgId: string | null = null
+      try {
+        orgId = await resolveOrgIdFromRequest(request, user.id, supabase)
+      } catch (e) {
+        return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 })
+      }
+
+      try { await UnitService.persistBuildiumUnit(unit, orgId as string) } catch (e) { logger.error(`Persist updated unit failed: ${String(e)}`) }
     }
 
     logger.info(`Buildium unit fetched successfully`);

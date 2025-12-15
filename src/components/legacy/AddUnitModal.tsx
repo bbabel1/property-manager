@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { X, Home } from 'lucide-react';
-import { Button } from './ui/button';
-import { Dropdown } from './ui/Dropdown';
+import { Button } from '@/components/ui/button';
+import { Dropdown } from '@/components/ui/Dropdown';
 
 import {
   type BedroomEnum,
@@ -213,7 +213,7 @@ export default function AddUnitModal({
                 <label className="mb-1 block text-sm font-medium text-gray-700">Bedrooms *</label>
                 <Dropdown
                   value={formData.unitBedrooms}
-                  onChange={(value) =>
+                  onChange={(value: string) =>
                     setFormData({ ...formData, unitBedrooms: value as BedroomEnum })
                   }
                   options={BEDROOM_OPTIONS.map((option) => ({ value: option, label: option }))}
@@ -225,7 +225,7 @@ export default function AddUnitModal({
                 <label className="mb-1 block text-sm font-medium text-gray-700">Bathrooms *</label>
                 <Dropdown
                   value={formData.unitBathrooms}
-                  onChange={(value) =>
+                  onChange={(value: string) =>
                     setFormData({ ...formData, unitBathrooms: value as BathroomEnum })
                   }
                   options={BATHROOM_OPTIONS.map((option) => ({ value: option, label: option }))}

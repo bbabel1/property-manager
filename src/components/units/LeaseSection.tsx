@@ -2157,7 +2157,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
         </div>
       )}
       <Dialog open={showAddTenant} onOpenChange={setShowAddTenant}>
-        <DialogContent className="w-[calc(100%-3rem)] sm:max-w-4xl md:max-w-5xl">
+        <DialogContent className="w-[680px] max-w-[680px]">
           <DialogHeader>
             <DialogTitle>Add applicant, tenant or cosigner</DialogTitle>
           </DialogHeader>

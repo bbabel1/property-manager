@@ -45,8 +45,10 @@ export function validateEnvironment() {
     .map(([key]) => key);
 
   if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingVars);
-    console.error('💡 Ensure these are set in .env.local and restart the dev server');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('ℹ️ Missing required environment variables:', missingVars);
+      console.log('💡 Ensure these are set in .env.local and restart the dev server');
+    }
     return false;
   }
 
@@ -68,11 +70,14 @@ validateEnvironment();
 
 // Try to parse environment, but don't throw if validation fails
 let env: z.infer<typeof envSchema>;
-try {
-  env = envSchema.parse(process.env);
-  console.log('✅ Environment validation successful');
-} catch (error) {
-  console.warn('❌ Environment validation failed:', error);
+const parseResult = envSchema.safeParse(process.env);
+
+if (parseResult.success) {
+  env = parseResult.data;
+  if (process.env.NODE_ENV === 'development') {
+    console.log('✅ Environment validation successful');
+  }
+} else {
   // Provide fallback values for required fields
   env = {
     NEXT_PUBLIC_SUPABASE_URL: '',
@@ -82,7 +87,11 @@ try {
     NEXTAUTH_SECRET: 'fallback-secret-key-for-development-only',
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   } as z.infer<typeof envSchema>;
-  console.log('🔄 Using fallback environment values');
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('ℹ️ Environment validation failed, using fallback values');
+    console.debug('Validation details:', parseResult.error.flatten());
+  }
 }
 
 export { env };

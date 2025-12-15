@@ -1,10 +1,11 @@
 "use client"
 
 import React from 'react'
-import { Button } from '@/components/ui/button'
+import { Button, type ButtonProps } from '@/components/ui/button'
 import { MoreHorizontal } from 'lucide-react'
+import { cn } from '@/components/ui/utils'
 
-type Props = React.ComponentProps<'button'> & {
+type Props = ButtonProps & {
   children?: React.ReactNode
   icon?: React.ReactNode
 }
@@ -14,7 +15,10 @@ export default function ActionButton({ children, icon = <MoreHorizontal classNam
     <Button
       variant="ghost"
       size="sm"
-      className={`h-8 w-8 p-0 rounded-full border border-border hover:bg-muted ${className}`}
+      className={cn(
+        'h-8 w-8 p-0 rounded-full border border-border bg-muted text-muted-foreground hover:!bg-muted/80 transition-colors',
+        className,
+      )}
       {...props}
     >
       {children || icon}

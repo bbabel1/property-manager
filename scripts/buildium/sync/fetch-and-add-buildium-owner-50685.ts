@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { mapOwnerFromBuildium, findOrCreateOwnerContact } from '@/lib/buildium-mappers'
+import type { BuildiumOwner } from '@/types/buildium'
 import * as dotenv from 'dotenv'
 
 // Load environment variables
@@ -9,50 +10,6 @@ dotenv.config({ path: '.env.local' })
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-interface BuildiumOwner {
-  Id: number
-  IsCompany: boolean
-  IsActive: boolean
-  FirstName: string
-  LastName: string
-  PhoneNumbers: Array<{
-    Number: string
-    Type: string
-  }>
-  Email: string
-  AlternateEmail?: string
-  Comment: string
-  Address: {
-    AddressLine1: string
-    AddressLine2: string
-    AddressLine3: string
-    City: string
-    State: string
-    PostalCode: string
-    Country: string
-  }
-  ManagementAgreementStartDate: string
-  ManagementAgreementEndDate?: string
-  CompanyName?: string
-  PropertyIds: number[]
-  TaxInformation: {
-    TaxPayerIdType: string
-    TaxPayerId: string
-    TaxPayerName1: string
-    TaxPayerName2?: string
-    IncludeIn1099: boolean
-    Address: {
-      AddressLine1: string
-      AddressLine2: string
-      AddressLine3: string
-      City: string
-      State: string
-      PostalCode: string
-      Country: string
-    }
-  }
-}
 
 async function fetchBuildiumOwner(ownerId: number): Promise<BuildiumOwner> {
   const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/owners/${ownerId}`
@@ -115,22 +72,27 @@ async function fetchAndAddBuildiumOwner(ownerId: number) {
 
     // Map owner data manually to match the actual schema
     console.log('🔄 Mapping owner data...')
+    const taxInfo = buildiumOwner.TaxInformation
+    const taxAddress = taxInfo?.Address
     const localData = {
       management_agreement_start_date: buildiumOwner.ManagementAgreementStartDate,
       management_agreement_end_date: buildiumOwner.ManagementAgreementEndDate,
-      comment: buildiumOwner.Comment,
-      tax_payer_name1: buildiumOwner.TaxInformation.TaxPayerName1,
-      tax_payer_name2: buildiumOwner.TaxInformation.TaxPayerName2,
-      tax_address_line_1: buildiumOwner.TaxInformation.Address.AddressLine1,
-      tax_address_line_2: buildiumOwner.TaxInformation.Address.AddressLine2,
-      tax_address_line_3: buildiumOwner.TaxInformation.Address.AddressLine3,
-      tax_city: buildiumOwner.TaxInformation.Address.City,
-      tax_state: buildiumOwner.TaxInformation.Address.State,
-      tax_postal_code: buildiumOwner.TaxInformation.Address.PostalCode,
-      tax_country: buildiumOwner.TaxInformation.Address.Country === 'UnitedStates' ? 'United States' : buildiumOwner.TaxInformation.Address.Country,
-      tax_payer_id: buildiumOwner.TaxInformation.TaxPayerId,
-      tax_payer_type: buildiumOwner.TaxInformation.TaxPayerIdType,
-      tax_include1099: buildiumOwner.TaxInformation.IncludeIn1099,
+      comment: (buildiumOwner as any).Comment ?? null,
+      tax_payer_name1: taxInfo?.TaxPayerName1 ?? null,
+      tax_payer_name2: taxInfo?.TaxPayerName2 ?? null,
+      tax_address_line_1: taxAddress?.AddressLine1,
+      tax_address_line_2: taxAddress?.AddressLine2,
+      tax_address_line_3: taxAddress?.AddressLine3,
+      tax_city: taxAddress?.City,
+      tax_state: taxAddress?.State,
+      tax_postal_code: taxAddress?.PostalCode,
+      tax_country:
+        taxAddress?.Country === 'UnitedStates'
+          ? 'United States'
+          : taxAddress?.Country,
+      tax_payer_id: taxInfo?.TaxPayerId ?? null,
+      tax_payer_type: taxInfo?.TaxPayerIdType ?? null,
+      tax_include1099: taxInfo?.IncludeIn1099 ?? null,
       is_active: buildiumOwner.IsActive,
       buildium_owner_id: buildiumOwner.Id,
       buildium_created_at: null, // Not available in the API response

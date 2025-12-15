@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Save, Users } from 'lucide-react';
-import { Button } from './ui/button';
+import { Button } from '@/components/ui/button';
 import type { CreateStaffFormValues, StaffSummary } from '@/components/forms/types';
 import { normalizeStaffRole } from '@/lib/staff-role';
 import { getAvailableUIStaffRoles } from '@/lib/enums/staff-roles';

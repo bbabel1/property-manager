@@ -41,6 +41,24 @@ import TaskWorkOrdersPanel, { type WorkOrderListItem } from '@/components/tasks/
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type TaskHistoryRow = Database['public']['Tables']['task_history']['Row'];
 type WorkOrderRow = Database['public']['Tables']['work_orders']['Row'];
+type WorkOrderListQueryRow = Pick<
+  WorkOrderRow,
+  | 'id'
+  | 'buildium_work_order_id'
+  | 'subject'
+  | 'status'
+  | 'priority'
+  | 'scheduled_date'
+  | 'created_at'
+  | 'updated_at'
+  | 'property_id'
+  | 'unit_id'
+  | 'vendor_id'
+  | 'category'
+  | 'assigned_to'
+  | 'description'
+  | 'notes'
+>;
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
 type UnitRow = Database['public']['Tables']['units']['Row'];
 type VendorRow = Database['public']['Tables']['vendors']['Row'];
@@ -754,24 +772,21 @@ async function loadWorkOrdersForTask(
     .select(
       'id, buildium_work_order_id, subject, status, priority, scheduled_date, created_at, updated_at, property_id, unit_id, vendor_id, category, assigned_to, description, notes',
     )
-    .order('created_at', { ascending: false }) as unknown as {
-    data: WorkOrderRow[] | null;
-    error: any;
-  };
+    .order('created_at', { ascending: false });
 
   if (task.unit_id) {
-    query = query.eq('unit_id', task.unit_id) as any;
+    query = query.eq('unit_id', task.unit_id);
   } else if (task.property_id) {
-    query = query.eq('property_id', task.property_id) as any;
+    query = query.eq('property_id', task.property_id);
   }
 
-  const { data: workOrderRows, error } = (await query) as { data: WorkOrderRow[] | null; error: any };
+  const { data: workOrderRows, error } = await query.returns<WorkOrderListQueryRow[]>();
   if (error?.message) {
     console.error(`Failed to load work orders for task ${task.id}`, error);
     return [];
   }
 
-  const rows: WorkOrderRow[] = workOrderRows ?? [];
+  const rows = workOrderRows ?? [];
   if (rows.length === 0) return [];
 
   const propertyIds = Array.from(
@@ -865,6 +880,7 @@ async function loadWorkOrdersForTask(
   }
 
   return rows.map((wo) => {
+    const safeId = wo.id ? String(wo.id) : '';
     const statusMeta = normalizeWorkOrderStatus(wo.status);
     const priorityMeta = normalizeWorkOrderPriority(wo.priority);
     const propertyLabel =
@@ -874,8 +890,10 @@ async function loadWorkOrdersForTask(
     const vendorLabel = wo.vendor_id ? vendorMap.get(wo.vendor_id) || 'Vendor' : '—';
 
     return {
-      id: wo.id,
-      reference: wo.buildium_work_order_id ? `#${wo.buildium_work_order_id}` : `#${wo.id.slice(0, 6)}`,
+      id: safeId,
+      reference: wo.buildium_work_order_id
+        ? `#${wo.buildium_work_order_id}`
+        : `#${safeId.slice(0, 6)}`,
       subject: wo.subject || 'Untitled work order',
       statusKey: statusMeta.key,
       statusLabel: statusMeta.label,
@@ -893,7 +911,7 @@ async function loadWorkOrdersForTask(
       categoryLabel: wo.category || '—',
       description: wo.description || null,
       notes: wo.notes || null,
-      bills: billsByWorkOrder.get(wo.id) || [],
+      bills: billsByWorkOrder.get(safeId) || [],
     };
   });
 }

@@ -5,7 +5,8 @@ async function fetchBuildiumBankAccount() {
   try {
     console.log('🔍 Fetching Buildium bank account 10407...')
     
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/banking/accounts/10407`, {
+    // Use the v1 bankaccounts endpoint (previous /banking/accounts path returns 404)
+    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/bankaccounts/10407`, {
       method: 'GET',
       headers: {
         'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,

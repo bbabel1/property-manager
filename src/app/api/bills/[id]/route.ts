@@ -32,7 +32,7 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  let debitTotal: number | null = null
+  let debitTotal = 0
   if (Array.isArray(payload?.lines)) {
     const { data: existingCredit } = await admin
       .from('transaction_lines')
@@ -99,8 +99,8 @@ export async function PATCH(
     }
 
     // Validate balanced debits/credits
-    const creditTotal = debitTotal > 0 ? debitTotal : 0
-    if (debitTotal !== creditTotal) {
+    const creditTotal = debitTotal && debitTotal > 0 ? debitTotal : 0
+    if (debitTotal !== null && debitTotal !== creditTotal) {
       return NextResponse.json(
         { error: 'Debits and credits must balance for bill updates' },
         { status: 400 }
@@ -355,8 +355,8 @@ async function zeroBillInBuildium(
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'x-buildium-client-id': env.clientId,
-      'x-buildium-client-secret': env.clientSecret,
+      'x-buildium-client-id': env.clientId ?? '',
+      'x-buildium-client-secret': env.clientSecret ?? '',
     },
     body: JSON.stringify(zeroPayload),
   })

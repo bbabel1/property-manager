@@ -179,8 +179,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
+    const unitRecord = Array.isArray(logRecord.units) ? logRecord.units[0] : logRecord.units;
+    const propertyRecord = Array.isArray(logRecord.properties)
+      ? logRecord.properties[0]
+      : logRecord.properties;
+
     const buildiumPropertyId =
-      logRecord.units?.buildium_property_id ?? logRecord.properties?.buildium_property_id ?? null;
+      unitRecord?.buildium_property_id ?? propertyRecord?.buildium_property_id ?? null;
     if (!buildiumPropertyId) {
       return NextResponse.json(
         {
@@ -193,13 +198,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    const buildiumUnitId = logRecord.units?.buildium_unit_id ?? null;
+    const buildiumUnitId = unitRecord?.buildium_unit_id ?? null;
 
-    const { data: vendorRecord, error: vendorError } = await (supabaseAdmin as any)
+    const { data: vendorRecord, error: vendorError } = await supabaseAdmin
       .from('vendors')
       .select('id, buildium_vendor_id')
       .eq('id', payload.vendor_id)
-      .maybeSingle();
+      .maybeSingle<{ id: string; buildium_vendor_id: number | null }>();
 
     if (vendorError) throw vendorError;
     if (!vendorRecord || typeof vendorRecord.buildium_vendor_id !== 'number') {
@@ -289,11 +294,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     });
 
     if (!response.ok) {
-      const details = await response.json().catch(() => ({}));
+      const details = await response.json().catch(() => ({} as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> }));
       const message =
         details?.UserMessage ||
         details?.error ||
-        details?.Errors?.map((entry: any) => `${entry.Key ?? 'Field'}: ${entry.Value ?? 'Invalid'}`).join('; ') ||
+        details?.Errors?.map((entry: { Key?: string | null; Value?: string | null }) => `${entry.Key ?? 'Field'}: ${entry.Value ?? 'Invalid'}`).join('; ') ||
         'Buildium rejected the bill. Check the request and try again.';
 
       console.error('Buildium bill creation failed', response.status, details);

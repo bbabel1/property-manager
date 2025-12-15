@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
@@ -25,6 +26,17 @@ const PLAN_DEFAULT_COLUMNS = `
   is_required,
   service_offerings!inner(name)
 `;
+
+const getOfferingName = (relation: unknown): string => {
+  if (Array.isArray(relation)) {
+    const first = relation[0] as { name?: string } | undefined;
+    return first?.name || 'Unknown';
+  }
+  if (relation && typeof relation === 'object') {
+    return (relation as { name?: string }).name || 'Unknown';
+  }
+  return 'Unknown';
+};
 
 const parseNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null;
@@ -229,7 +241,7 @@ export async function POST(request: NextRequest) {
     const transformed = {
       service_plan: data.service_plan,
       offering_id: data.offering_id,
-      offering_name: data.service_offerings?.name || 'Unknown',
+      offering_name: getOfferingName(data.service_offerings),
       billing_basis: data.billing_basis,
       default_rate: data.default_rate,
       plan_fee_percent: data.plan_fee_percent,
@@ -342,7 +354,7 @@ export async function PUT(request: NextRequest) {
     const transformed = {
       service_plan: data.service_plan,
       offering_id: data.offering_id,
-      offering_name: data.service_offerings?.name || 'Unknown',
+      offering_name: getOfferingName(data.service_offerings),
       billing_basis: data.billing_basis,
       default_rate: data.default_rate,
       plan_fee_percent: data.plan_fee_percent,

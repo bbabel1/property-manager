@@ -26,12 +26,24 @@ import RecurringTransactionsPanel, {
 } from '@/components/leases/RecurringTransactionsPanel';
 import LeaseLedgerPanel from '@/components/leases/LeaseLedgerPanel';
 import { RentCycleEnumDb, RentScheduleStatusEnumDb } from '@/schemas/lease-api';
-import { ArrowRight, ExternalLink, Mail, MoreHorizontal, Phone, Trash2 } from 'lucide-react';
+import { ArrowRight, ExternalLink, Mail, Phone, Trash2 } from 'lucide-react';
 import { getFilesByEntity, FILE_ENTITY_TYPES } from '@/lib/files';
 import ActionButton from '@/components/ui/ActionButton';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { FileRow } from '@/lib/files';
 
 type LeaseDetailsPageParams = { id: string };
+// Use a loose row type because this page stitches together multiple Supabase queries with partial selects.
+type UnknownRow = Record<string, any>;
+type LeaseFileCategory = {
+  id: string;
+  category_name: string;
+  buildium_category_id: number | null;
+  description?: string | null;
+  is_active?: boolean | null;
+  org_id?: string | null;
+};
 
 const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
 const normalizeCurrency = (value?: number | null) => {
@@ -51,43 +63,39 @@ export default async function LeaseDetailsPage({
   params,
   searchParams,
 }: {
-  params: Promise<LeaseDetailsPageParams>;
-  searchParams?: Promise<{ tab?: string }>;
+  params: LeaseDetailsPageParams;
+  searchParams?: { tab?: string };
 }) {
-  const { id } = await params;
-  const sp = searchParams ? await searchParams : undefined;
+  const { id } = params;
+  const sp = searchParams;
   const initialTab = sp?.tab === 'financials' ? 'financials' : 'summary';
   // Use admin when available to avoid RLS mismatches between source pages and details page
-  const supabase = supabaseAdmin || supaClient;
+  const supabase = (supabaseAdmin || supaClient) as unknown as SupabaseClient<any>;
 
   // Step 1: Load the base lease row first (avoid nested join issues)
   const numericId = Number(id);
-  let lease: any = null;
-  let error: any = null;
+  let lease: UnknownRow | null = null;
   try {
-    const { data, error: e } = await (supabase as any)
+    const { data, error: e } = await supabase
       .from('lease')
       .select(
         'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
       )
-      .eq('id', Number.isFinite(numericId) ? numericId : (id as any))
+      .eq('id', Number.isFinite(numericId) ? numericId : id)
       .maybeSingle();
     lease = data;
-    error = e || null;
     if (!lease && Number.isFinite(numericId)) {
       // Fallback: try string equality just in case of type coercion quirks
-      const { data: data2 } = await (supabase as any)
+      const { data: data2 } = await supabase
         .from('lease')
         .select(
           'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
         )
-        .eq('id', id as any)
+        .eq('id', id)
         .maybeSingle();
       lease = data2;
     }
-  } catch (e: any) {
-    error = e;
-  }
+  } catch {}
 
   if (!lease) {
     return (
@@ -100,11 +108,11 @@ export default async function LeaseDetailsPage({
   }
 
   // Step 2: Load related property + unit separately to avoid join failures
-  let property: any = null;
-  let unit: any = null;
+  let property: UnknownRow | null = null;
+  let unit: UnknownRow | null = null;
   try {
     if (lease.property_id) {
-      const { data: p } = await (supabase as any)
+      const { data: p } = await supabase
         .from('properties')
         .select('id, name, address_line1, city, state, postal_code, buildium_property_id, org_id')
         .eq('id', lease.property_id)
@@ -114,7 +122,7 @@ export default async function LeaseDetailsPage({
   } catch {}
   try {
     if (lease.unit_id) {
-      const { data: u } = await (supabase as any)
+      const { data: u } = await supabase
         .from('units')
         .select('id, unit_number, status')
         .eq('id', lease.unit_id)
@@ -125,13 +133,13 @@ export default async function LeaseDetailsPage({
 
   // Load files for this lease and category metadata
   // Note: Files are associated by entity_type='Lease' and entity_id=buildium_lease_id
-  let leaseFiles: any[] = [];
-  let fileCategories: any[] = [];
+  let leaseFiles: UnknownRow[] = [];
+  let fileCategories: UnknownRow[] = [];
   let propertyOrgId: string | null =
     typeof property?.org_id === 'string' && property.org_id ? property.org_id : null;
 
   if (!propertyOrgId && lease.property_id) {
-    const { data: propertyLookup, error: propertyErr } = await (supabase as any)
+    const { data: propertyLookupRaw, error: propertyErr } = await supabase
       .from('properties')
       .select('org_id')
       .eq('id', lease.property_id)
@@ -142,15 +150,16 @@ export default async function LeaseDetailsPage({
         propertyId: lease.property_id,
       });
     }
-    propertyOrgId =
-      typeof propertyLookup?.org_id === 'string' && propertyLookup.org_id
-        ? propertyLookup.org_id
-        : null;
+      const propertyLookup = propertyLookupRaw as { org_id?: string | null } | null;
+      propertyOrgId =
+        propertyLookup && typeof propertyLookup.org_id === 'string' && propertyLookup.org_id
+          ? propertyLookup.org_id
+          : null;
   }
 
   if (propertyOrgId) {
     try {
-      const { data: categoryRows, error: categoryErr } = await (supabase as any)
+      const { data: categoryRows, error: categoryErr } = await supabase
         .from('file_categories')
         .select('id, category_name, buildium_category_id, description, is_active')
         .eq('org_id', propertyOrgId)
@@ -170,7 +179,7 @@ export default async function LeaseDetailsPage({
 
   if (!fileCategories.length) {
     try {
-      const { data: fallbackCategories, error: fallbackErr } = await (supabase as any)
+      const { data: fallbackCategories, error: fallbackErr } = await supabase
         .from('file_categories')
         .select('id, category_name, buildium_category_id, description, is_active, org_id')
         .order('category_name', { ascending: true });
@@ -195,7 +204,7 @@ export default async function LeaseDetailsPage({
         console.warn('Invalid buildium_lease_id for files query:', lease.buildium_lease_id);
       } else {
         leaseFiles = await getFilesByEntity(
-          supabase as any,
+          supabase,
           propertyOrgId,
           FILE_ENTITY_TYPES.LEASES,
           entityId,
@@ -210,13 +219,14 @@ export default async function LeaseDetailsPage({
         console.debug('Property org_id unavailable, skipping file load');
       }
     }
-  } catch (fileErr: any) {
+  } catch (fileErr) {
     // Improved error logging with proper serialization
+    const fileError = fileErr as { message?: string; name?: string; stack?: string; cause?: unknown };
     const errorDetails = {
-      message: fileErr?.message || 'Unknown error',
-      name: fileErr?.name || 'Error',
-      stack: fileErr?.stack || null,
-      cause: fileErr?.cause || null,
+      message: fileError?.message || 'Unknown error',
+      name: fileError?.name || 'Error',
+      stack: fileError?.stack || null,
+      cause: fileError?.cause || null,
       leaseId: lease?.id,
       buildiumLeaseId: lease?.buildium_lease_id,
       propertyId: lease?.property_id,
@@ -239,15 +249,26 @@ export default async function LeaseDetailsPage({
   }
 
   // Format for compatibility with existing component structure
-  const initialFileBundle = {
-    files: leaseFiles || [],
+  const initialFileBundle: {
+    files: FileRow[];
+    links: {
+      id: string;
+      file_id: string;
+      entity_type: string;
+      entity_id: number;
+      added_at: string;
+      added_by: string | null;
+      category: string | null;
+    }[];
+  } = {
+    files: (leaseFiles || []) as FileRow[],
     links: (leaseFiles || []).map((f) => ({
-      id: f.id,
-      file_id: f.id,
+      id: String(f.id ?? ''),
+      file_id: String(f.id ?? ''),
       entity_type: 'Lease' as const,
-      entity_id: lease.buildium_lease_id,
-      added_at: f.created_at,
-      added_by: f.created_by,
+      entity_id: Number(lease.buildium_lease_id) || 0,
+      added_at: String(f.created_at ?? ''),
+      added_by: f.created_by ? String(f.created_by) : null,
       category:
         typeof f.buildium_category_id === 'number'
           ? (categoryNameLookup.get(f.buildium_category_id) ?? null)
@@ -256,9 +277,9 @@ export default async function LeaseDetailsPage({
   };
 
   // Step 3: Fetch contacts for header (tenant names)
-  let contacts: any[] = [];
+  let contacts: UnknownRow[] = [];
   try {
-    const { data: lc } = await (supabase as any)
+    const { data: lc } = await supabase
       .from('lease_contacts')
       .select(
         'id, role, status, move_in_date, move_out_date, notice_given_date, tenant_id, tenants( id, buildium_tenant_id, contact:contacts(display_name, first_name, last_name, company_name, is_company, primary_email, alt_email, primary_phone, alt_phone) )',
@@ -268,9 +289,9 @@ export default async function LeaseDetailsPage({
   } catch {}
 
   // Step 4: Fetch rent schedules for rent tab
-  let rentSchedules: any[] = [];
+  let rentSchedules: UnknownRow[] = [];
   try {
-    const { data: schedules } = await (supabase as any)
+    const { data: schedules } = await supabase
       .from('rent_schedules')
       .select('id, status, start_date, end_date, rent_cycle, total_amount, backdate_charges')
       .eq('lease_id', lease.id)
@@ -278,9 +299,9 @@ export default async function LeaseDetailsPage({
     rentSchedules = Array.isArray(schedules) ? schedules : [];
   } catch {}
 
-  let recurringTemplates: any[] = [];
+  let recurringTemplates: UnknownRow[] = [];
   try {
-    const { data: recurs } = await (supabase as any)
+    const { data: recurs } = await supabase
       .from('recurring_transactions')
       .select(
         'id, type, memo, amount, frequency, start_date, end_date, posting_day, posting_type, posting_days_in_advance, gl_account_id, gl_accounts ( name ), duration',
@@ -290,18 +311,18 @@ export default async function LeaseDetailsPage({
     recurringTemplates = Array.isArray(recurs) ? recurs : [];
   } catch {}
 
-  let glAccounts: any[] = [];
+  let glAccounts: UnknownRow[] = [];
   try {
-    const { data: accounts } = await (supabase as any)
+    const { data: accounts } = await supabase
       .from('gl_accounts')
       .select('id, name, type')
       .order('name', { ascending: true });
     glAccounts = Array.isArray(accounts) ? accounts : [];
   } catch {}
 
-  let bankAccounts: any[] = [];
+  let bankAccounts: UnknownRow[] = [];
   try {
-    const { data: banks } = await (supabase as any)
+    const { data: banks } = await supabase
       .from('bank_accounts')
       .select('id, name')
       .order('name', { ascending: true });
@@ -309,10 +330,10 @@ export default async function LeaseDetailsPage({
   } catch {}
 
   // Step 5: Fetch ledger transactions from local store (if available)
-  let transactions: any[] = [];
+  let transactions: UnknownRow[] = [];
   let transactionsError: string | null = null;
   try {
-    const { data: txRows, error: txError } = await (supabase as any)
+    const { data: txRows, error: txError } = await supabase
       .from('transactions')
       .select(
         `
@@ -338,8 +359,8 @@ export default async function LeaseDetailsPage({
 
     if (txError) throw txError;
     transactions = Array.isArray(txRows) ? txRows : [];
-  } catch (e: any) {
-    transactionsError = e?.message || 'Failed to load transactions';
+  } catch (e) {
+    transactionsError = e instanceof Error ? e.message : 'Failed to load transactions';
   }
 
   // Fetch property owners (primary owner) for header card
@@ -352,14 +373,18 @@ export default async function LeaseDetailsPage({
       if (res.ok) {
         const data = await res.json();
         const owners = Array.isArray(data?.owners) ? data.owners : [];
-        const po = owners.find((o: any) => o.primary) || owners[0];
+        const po =
+          owners.find(
+            (o: unknown) =>
+              typeof o === 'object' && o !== null && 'primary' in o && (o as { primary?: boolean }).primary === true,
+          ) || owners[0];
         if (po) {
           const name =
-            po.display_name ||
-            po.company_name ||
-            [po.first_name, po.last_name].filter(Boolean).join(' ').trim() ||
+            (po as { display_name?: string | null }).display_name ||
+            (po as { company_name?: string | null }).company_name ||
+            [ (po as { first_name?: string | null }).first_name, (po as { last_name?: string | null }).last_name].filter(Boolean).join(' ').trim() ||
             'Owner';
-          primaryOwner = { id: String(po.owner_id || po.id || ''), name };
+          primaryOwner = { id: String((po as { owner_id?: string | number; id?: string | number }).owner_id || (po as { id?: string | number }).id || ''), name };
         } else if (data?.primary_owner_name) {
           primaryOwner = { name: String(data.primary_owner_name) };
         }
@@ -370,17 +395,21 @@ export default async function LeaseDetailsPage({
           const { PropertyService } = await import('@/lib/property-service');
           const svc = await PropertyService.getPropertyById(String(lease.property_id));
           if (svc) {
-            const owners2 = Array.isArray((svc as any).owners) ? (svc as any).owners : [];
-            const po2 = owners2.find((o: any) => o.primary) || owners2[0];
+            const owners2 = Array.isArray((svc as { owners?: unknown }).owners) ? (svc as { owners?: unknown[] }).owners || [] : [];
+            const po2 =
+              owners2.find(
+                (o): o is { primary?: boolean; display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null; owner_id?: string | number; id?: string | number } =>
+                  typeof o === 'object' && o !== null && (o as { primary?: boolean }).primary === true,
+              ) || owners2[0];
             if (po2) {
               const name2 =
-                po2.display_name ||
-                po2.company_name ||
-                [po2.first_name, po2.last_name].filter(Boolean).join(' ').trim() ||
+                (po2 as { display_name?: string | null }).display_name ||
+                (po2 as { company_name?: string | null }).company_name ||
+                [ (po2 as { first_name?: string | null }).first_name, (po2 as { last_name?: string | null }).last_name].filter(Boolean).join(' ').trim() ||
                 'Owner';
-              primaryOwner = { id: String(po2.owner_id || po2.id || ''), name: name2 };
-            } else if ((svc as any).primary_owner_name) {
-              primaryOwner = { name: String((svc as any).primary_owner_name) };
+              primaryOwner = { id: String((po2 as { owner_id?: string | number; id?: string | number }).owner_id || (po2 as { id?: string | number }).id || ''), name: name2 };
+            } else if ((svc as { primary_owner_name?: string | null }).primary_owner_name) {
+              primaryOwner = { name: String((svc as { primary_owner_name?: string | null }).primary_owner_name) };
             }
           }
         } catch {}
@@ -388,22 +417,25 @@ export default async function LeaseDetailsPage({
       // Final fallback: query cache table directly (server/admin)
       if (!primaryOwner) {
         try {
-          const { data: poc } = await (supabase as any)
+          const { data: poc } = await supabase
             .from('property_ownerships_cache')
             .select('owner_id, display_name, primary')
             .eq('property_id', lease.property_id);
           const list = Array.isArray(poc) ? poc : [];
           if (list.length) {
-            const po3 = list.find((o: any) => o.primary) || list[0];
-            const name3 = po3?.display_name || 'Owner';
-            primaryOwner = { id: String(po3?.owner_id || ''), name: name3 };
+            const po3 =
+              list.find(
+                (o: any) => typeof o === 'object' && o !== null && (o as { primary?: boolean }).primary === true,
+              ) || list[0];
+            const name3 = (po3 as { display_name?: string | null })?.display_name || 'Owner';
+            primaryOwner = { id: String((po3 as { owner_id?: string | number })?.owner_id || ''), name: name3 };
           }
         } catch {}
       }
       // Deep fallback: join ownerships → owners → contacts for display name
       if (!primaryOwner) {
         try {
-          const { data: own } = await (supabase as any)
+          const { data: own } = await supabase
             .from('ownerships')
             .select(
               'primary, owner_id, owners ( contact_id, contacts ( display_name, first_name, last_name, company_name ) )',
@@ -411,14 +443,22 @@ export default async function LeaseDetailsPage({
             .eq('property_id', lease.property_id);
           const list = Array.isArray(own) ? own : [];
           if (list.length) {
-            const po4 = list.find((o: any) => o.primary) || list[0];
-            const c = (po4?.owners as any)?.contacts as any;
+            const po4 =
+              list.find((o) => typeof o === 'object' && o && (o as { primary?: boolean }).primary) ||
+              list[0];
+            const contact =
+              po4 &&
+              typeof po4 === 'object' &&
+              po4.owners &&
+              typeof po4.owners === 'object'
+                ? (po4.owners as { contacts?: { display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null } | null }).contacts ?? null
+                : null;
             const name4 =
-              c?.display_name ||
-              c?.company_name ||
-              [c?.first_name, c?.last_name].filter(Boolean).join(' ').trim() ||
+              contact?.display_name ||
+              contact?.company_name ||
+              [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
               'Owner';
-            primaryOwner = { id: String(po4?.owner_id || ''), name: name4 };
+            primaryOwner = { id: String((po4 as { owner_id?: string | number })?.owner_id || ''), name: name4 };
           }
         } catch {}
       }
@@ -437,9 +477,9 @@ export default async function LeaseDetailsPage({
         `/api/buildium/leases/${lease.buildium_lease_id}/transactions/outstanding-balances`,
         { cache: 'no-store' },
       );
-      const j = await res.json().catch(() => null as any);
-      const d = j?.data || j || {};
-      const toNum = (v: any) => (v == null ? 0 : Number(v));
+      const j = await res.json().catch(() => null as unknown);
+      const d = (j as { data?: UnknownRow })?.data || j || {};
+      const toNum = (v: unknown) => (v == null ? 0 : Number(v));
       balances = {
         balance: toNum(d.Balance ?? d.balance ?? d.TotalBalance ?? d.OutstandingBalance),
         prepayments: toNum(d.Prepayments ?? d.prepayments ?? d.PrepaymentBalance),
@@ -449,13 +489,20 @@ export default async function LeaseDetailsPage({
   } catch {}
 
   const tenantNames: string[] = Array.isArray(contacts)
-    ? (contacts as any[])
+    ? contacts
         .map((lc) => {
-          const c = lc?.tenants?.contact;
+          const tenantContact =
+            (lc?.tenants as { contact?: UnknownRow } | undefined)?.contact ?? null;
           return (
-            c?.display_name ||
-            c?.company_name ||
-            [c?.first_name, c?.last_name].filter(Boolean).join(' ').trim() ||
+            (tenantContact as UnknownRow)?.display_name ||
+            (tenantContact as UnknownRow)?.company_name ||
+            [
+              (tenantContact as UnknownRow)?.first_name,
+              (tenantContact as UnknownRow)?.last_name,
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .trim() ||
             'Tenant'
           );
         })
@@ -531,8 +578,25 @@ export default async function LeaseDetailsPage({
     return initials.join('') || '??';
   };
 
-  const contactRows = Array.isArray(contacts)
-    ? (contacts as any[])
+  type ContactRow = {
+    id: string | number
+    name: string
+    role: string
+    email: string | null
+    moveIn: string
+    moveOut: string
+    moveOutRaw: string | null
+    notice: string
+    noticeRaw: string | null
+    tenantId: string | number | null | undefined
+    buildiumTenantId: number | null
+    initials: string
+    phones: Array<{ number: string }>
+    roleKey: string
+  }
+
+  const contactRows: ContactRow[] = Array.isArray(contacts)
+    ? contacts
         .map((lc) => {
           const contact = lc?.tenants?.contact;
           if (!contact) return null;
@@ -578,7 +642,7 @@ export default async function LeaseDetailsPage({
             roleKey: String(lc?.role || 'Tenant').toLowerCase(),
           };
         })
-        .filter(Boolean)
+        .filter(Boolean) as ContactRow[]
     : [];
 
   const tenantOptionMap = new Map<string, LeaseTenantOption>();
@@ -782,7 +846,7 @@ export default async function LeaseDetailsPage({
     .filter((account) => account && account.id != null)
     .map((account) => ({ id: String(account.id), name: account.name || 'Bank account' }));
 
-  const recurringRows: RecurringRow[] = recurringTemplates.filter(Boolean).map((row: any) => {
+  const recurringRows: RecurringRow[] = recurringTemplates.filter(Boolean).map((row) => {
     const nextDate = row?.start_date ? formatScheduleDate(row.start_date) : '—';
     const frequencyLabel = formatRentCycleLabel(row?.frequency) || '—';
     const durationLabel = row?.duration ? String(toTitleCase(row.duration)) : '—';
@@ -824,7 +888,7 @@ export default async function LeaseDetailsPage({
     }
   };
 
-  const determineSignedAmount = (tx: any) => {
+  const determineSignedAmount = (tx: { TotalAmount?: unknown; total_amount?: unknown; TransactionTypeEnum?: unknown; TransactionType?: unknown; transaction_type?: unknown }) => {
     const rawAmount = Number(tx?.TotalAmount ?? tx?.total_amount ?? 0) || 0;
     const amount = Math.abs(rawAmount);
     const type: string = String(
@@ -868,14 +932,14 @@ export default async function LeaseDetailsPage({
           (primaryLine?.gl_accounts &&
           typeof primaryLine.gl_accounts === 'object' &&
           'name' in primaryLine.gl_accounts
-            ? (primaryLine.gl_accounts as any).name
+            ? (primaryLine.gl_accounts as { name?: string | null }).name
             : undefined) ||
           (primaryLine?.GLAccount &&
           typeof primaryLine.GLAccount === 'object' &&
           'Name' in primaryLine.GLAccount
-            ? primaryLine.GLAccount.Name
+            ? primaryLine.GLAccount.Name as string | undefined
             : undefined) ||
-          primaryLine?.GLAccountName ||
+          (primaryLine as { GLAccountName?: string | null } | null)?.GLAccountName ||
           '—';
         const memo =
           primaryLine?.memo || primaryLine?.Memo || tx?.memo || tx?.Memo || tx?.Description || null;
@@ -1109,7 +1173,7 @@ export default async function LeaseDetailsPage({
               leaseId={lease.id}
               isBuildiumLinked={Boolean(lease.buildium_lease_id)}
               initialFiles={initialFileBundle}
-              categories={fileCategories}
+              categories={fileCategories as LeaseFileCategory[]}
             />
           </div>
           <div>
@@ -1483,14 +1547,14 @@ export default async function LeaseDetailsPage({
           leaseId={lease.id}
           isBuildiumLinked={Boolean(lease.buildium_lease_id)}
           initialFiles={initialFileBundle}
-          categories={fileCategories}
+          categories={fileCategories as LeaseFileCategory[]}
         />
       </TabsContent>
     </Tabs>
   );
 }
 
-function PlaceholderPanel({ label }: { label: string }) {
+function _PlaceholderPanel({ label }: { label: string }) {
   return (
     <div className="border-border/70 bg-muted/10 text-muted-foreground rounded-lg border border-dashed px-6 py-20 text-center text-sm">
       {label} coming soon.

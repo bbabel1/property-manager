@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
@@ -5,7 +7,7 @@ import { logger } from '@/lib/logger'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     const quickDepositId = (await params).id;
     
     logger.info({ userId: user.id, quickDepositId, action: 'get_buildium_quick_deposit' }, 'Fetching Buildium quick deposit details');
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     const quickDepositId = (await params).id;
     
     logger.info({ userId: user.id, quickDepositId, action: 'update_buildium_quick_deposit' }, 'Updating Buildium quick deposit');

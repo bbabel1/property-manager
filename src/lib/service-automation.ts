@@ -7,8 +7,12 @@
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { getPropertyServicePricing, type ServicePricingConfig } from './service-pricing';
+import { getPropertyServicePricing } from './service-pricing';
 import { calculateServiceFee } from './service-pricing';
+import type { Database } from '@/types/database';
+import { toServicePlan } from './service-plan';
+
+type ServicePlanEnum = Database['public']['Enums']['service_plan_enum'];
 
 export interface AutomationRule {
   id: string;
@@ -105,7 +109,7 @@ export async function generateServiceBasedTasks(params: {
 
   for (const rule of rules as AutomationRule[]) {
     // Check if rule should run for this period based on frequency
-    if (!shouldRunForPeriod(rule.frequency, periodStart, periodEnd)) {
+    if (!shouldRunForPeriod(rule.frequency, periodStart)) {
       skipped++;
       continue;
     }
@@ -135,39 +139,49 @@ export async function generateServiceBasedTasks(params: {
         });
 
         // Check if task already exists (prevent duplicates for this rule/period)
-        const { data: existing } = await db
+        const existingQuery = db
           .from('tasks')
           .select('id')
           .eq('property_id', propertyId)
-          .eq('unit_id', unitId || null)
           .eq('monthly_log_rule_id', rule.id)
           .gte('scheduled_date', periodStart)
-          .lte('scheduled_date', periodEnd)
-          .maybeSingle();
+          .lte('scheduled_date', periodEnd);
 
-        if (!existing) {
-          const scheduledDate =
-            taskData.scheduled_date ||
-            taskData.due_date ||
-            taskData.dueDate ||
-            periodEnd ||
-            periodStart;
+        if (unitId) {
+          existingQuery.eq('unit_id', unitId);
+        } else {
+          existingQuery.is('unit_id', null);
+        }
 
-          const { error: insertError } = await db.from('tasks').insert({
+        const { data: existing } = await existingQuery.maybeSingle();
+
+          if (!existing) {
+            const scheduledDate =
+              (taskData.scheduled_date as string | null | undefined) ??
+              (taskData.due_date as string | null | undefined) ??
+              (taskData.dueDate as string | null | undefined) ??
+              periodEnd ??
+              periodStart;
+
+          const taskInsert: Database['public']['Tables']['tasks']['Insert'] = {
             property_id: propertyId,
             unit_id: unitId || null,
             monthly_log_id: monthlyLogId || null,
-            monthly_log_rule_id: rule.id,
+            monthly_log_rule_id: String(rule.id),
             source: 'monthly_log',
-            subject: taskData.subject || taskData.name || 'Service Task',
-            description: taskData.description || null,
+            subject:
+              (taskData.subject as string | undefined) ||
+              (taskData.name as string | undefined) ||
+              'Service Task',
+            description: (taskData.description as string | null | undefined) ?? null,
             scheduled_date: scheduledDate,
-            priority: taskData.priority || 'normal',
-            status: taskData.status || 'new',
-            category: taskData.category || null,
-            task_category_id: taskData.task_category_id || null,
-            service_offering_id: rule.offering_id,
-          });
+            priority: (taskData.priority as string | null | undefined) || 'normal',
+            status: (taskData.status as string | null | undefined) || 'new',
+            category: (taskData.category as string | null | undefined) || null,
+            task_category_id: (taskData.task_category_id as string | null | undefined) || null,
+          };
+
+          const { error: insertError } = await db.from('tasks').insert(taskInsert);
 
           if (insertError) {
             logger.error({ error: insertError, rule }, 'Error creating task from automation rule -> tasks');
@@ -198,7 +212,7 @@ export async function generateServiceBasedCharges(params: {
   monthlyLogId: string;
   periodStart: string; // YYYY-MM-DD
   periodEnd: string; // YYYY-MM-DD
-  servicePlan: string | null;
+  servicePlan: ServicePlanEnum | null;
   db?: TypedSupabaseClient;
 }): Promise<{ created: number; skipped: number; totalAmount: number }> {
   const {
@@ -210,6 +224,7 @@ export async function generateServiceBasedCharges(params: {
     servicePlan,
     db = supabaseAdmin,
   } = params;
+  const normalizedPlan = toServicePlan(servicePlan);
 
   // Get active service offerings
   const activePricing = await getPropertyServicePricing(
@@ -236,8 +251,16 @@ export async function generateServiceBasedCharges(params: {
     .eq('rule_type', 'recurring_charge');
 
   if (rulesError) {
-    logger.error({ error: rulesError }, 'Error fetching charge automation rules');
+    logger.error(
+      { error: rulesError, monthlyLogId, propertyId, unitId },
+      'Error fetching charge automation rules',
+    );
     throw new Error(`Failed to fetch charge automation rules: ${rulesError.message}`);
+  }
+
+  const chargeRules = (rules as AutomationRule[]) || [];
+  if (chargeRules.length === 0) {
+    return { created: 0, skipped: activeOfferings.length, totalAmount: 0 };
   }
 
   // Get property org_id
@@ -275,15 +298,21 @@ export async function generateServiceBasedCharges(params: {
   // Generate charges for each active offering
   for (const pricing of activeOfferings) {
     // Check if billing event already exists (prevent double-billing)
-    const { data: existing } = await db
+    const billingEventsQuery = db
       .from('billing_events')
       .select('id')
       .eq('org_id', property.org_id)
       .eq('period_start', periodStart)
       .eq('offering_id', pricing.offering_id)
-      .eq('property_id', propertyId)
-      .eq('unit_id', unitId || null)
-      .maybeSingle();
+      .eq('property_id', propertyId);
+
+    if (unitId) {
+      billingEventsQuery.eq('unit_id', unitId);
+    } else {
+      billingEventsQuery.is('unit_id', null);
+    }
+
+    const { data: existing } = await billingEventsQuery.maybeSingle();
 
     if (existing) {
       skipped++;
@@ -295,7 +324,7 @@ export async function generateServiceBasedCharges(params: {
       propertyId,
       unitId,
       offeringId: pricing.offering_id,
-      servicePlan,
+      servicePlan: normalizedPlan,
       periodStart,
       periodEnd,
       leaseRentAmount: lease?.rent_amount || null,
@@ -309,23 +338,28 @@ export async function generateServiceBasedCharges(params: {
     }
 
     // Create billing_event
-    const { error: beError } = await db.from('billing_events').insert({
+    const billingEventInsert: Database['public']['Tables']['billing_events']['Insert'] = {
       org_id: property.org_id,
       property_id: propertyId,
       unit_id: unitId || null,
       offering_id: pricing.offering_id,
-      plan_id: servicePlan,
+      plan_id: normalizedPlan,
       period_start: periodStart,
       period_end: periodEnd,
       amount: feeResult.amount,
       source_basis: pricing.billing_basis,
-      rent_basis: pricing.rent_basis || null,
-      rent_amount: feeResult.rentBase || null,
+      rent_basis: (pricing.rent_basis as Database['public']['Enums']['rent_basis_enum'] | null | undefined) ?? null,
+      rent_amount: feeResult.rentBase ?? null,
       calculated_at: new Date().toISOString(),
-    });
+    };
+
+    const { error: beError } = await db.from('billing_events').insert(billingEventInsert);
 
     if (beError) {
-      logger.error({ error: beError, pricing }, 'Error creating billing event');
+      logger.error(
+        { error: beError, pricing, monthlyLogId },
+        'Error creating billing event',
+      );
       skipped++;
     } else {
       created++;
@@ -339,9 +373,11 @@ export async function generateServiceBasedCharges(params: {
 /**
  * Check if rule should run for this period based on frequency
  */
-function shouldRunForPeriod(frequency: string, periodStart: string, periodEnd: string): boolean {
+function shouldRunForPeriod(
+  frequency: AutomationRule['frequency'],
+  periodStart: string,
+): boolean {
   const start = new Date(periodStart);
-  const end = new Date(periodEnd);
 
   switch (frequency) {
     case 'monthly':
@@ -384,8 +420,24 @@ function checkConditions(
   conditions: Record<string, unknown>,
   context: { propertyId: string; unitId?: string | null },
 ): boolean {
-  // Simple condition checking - can be extended
-  // For now, just return true (all conditions met)
+  const expectedProperty = (conditions.propertyId ?? conditions.property_id) as
+    | string
+    | undefined;
+  if (expectedProperty && expectedProperty !== context.propertyId) {
+    return false;
+  }
+
+  if ('unitId' in conditions || 'unit_id' in conditions) {
+    const expectedUnit = (conditions.unitId ?? conditions.unit_id) as string | null | undefined;
+    if ((expectedUnit ?? null) !== (context.unitId ?? null)) {
+      return false;
+    }
+  }
+
+  if ('isActive' in conditions && typeof conditions.isActive === 'boolean') {
+    return conditions.isActive;
+  }
+
   return true;
 }
 

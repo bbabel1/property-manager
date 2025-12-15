@@ -138,7 +138,7 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
 
   const leases: LeaseSummary[] = [];
   if (Array.isArray(leaseContacts)) {
-    const leaseRows = leaseContacts as LeaseContactRow[];
+    const leaseRows = leaseContacts as unknown as LeaseContactRow[];
     const propertyIds = new Set<string>();
     const unitIds = new Set<string>();
 

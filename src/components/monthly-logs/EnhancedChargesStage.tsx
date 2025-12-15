@@ -97,13 +97,6 @@ export default function EnhancedChargesStage({
           throw new Error(errorData.error || `Request failed with status ${response.status}`);
         }
 
-        const text = await response.text();
-        let _result: any = null;
-        try {
-          _result = text ? JSON.parse(text) : null;
-        } catch {
-          // Ignore parse errors for success responses
-        }
         toast.success(`Transaction assigned successfully`);
 
         // No need to refetch - optimistic update already handled it

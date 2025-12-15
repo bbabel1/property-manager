@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { findOrCreateContact, findOrCreateTenant } from '@/lib/buildium-mappers'
 import { rateLimitedBuildiumRequest } from '@/lib/buildium-rate-limiter'
+import type { BuildiumTenant } from '@/types/buildium'
 import * as dotenv from 'dotenv'
 
 // Load environment variables
@@ -10,41 +11,6 @@ dotenv.config({ path: '.env.local' })
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-interface BuildiumTenant {
-  Id: number
-  FirstName: string
-  LastName: string
-  Email: string
-  AlternateEmail?: string
-  PhoneNumbers: Array<{
-    Number: string
-    Type: string
-  }>
-  CreatedDateTime: string
-  EmergencyContact: {
-    Name: string
-    RelationshipDescription: string
-    Phone: string
-    Email: string
-  }
-  DateOfBirth: string
-  SMSOptInStatus: string
-  Address: {
-    AddressLine1: string
-    AddressLine2: string
-    AddressLine3: string
-    City: string
-    State: string
-    PostalCode: string
-    Country: string
-  }
-  AlternateAddress?: any
-  MailingPreference: string
-  Leases?: any
-  Comment: string
-  TaxId: string
-}
 
 async function fetchTenantFromBuildium(tenantId: number): Promise<BuildiumTenant> {
   console.log(`🔍 Fetching tenant ${tenantId} directly from Buildium API...`)
@@ -209,6 +175,21 @@ async function fetchAndAddBuildiumTenant(tenantId: number) {
     const leaseContactId = await createLeaseContactRelationship(localTenantId, supabase)
     console.log('✅ Lease_contact relationship created/found with ID:', leaseContactId)
 
+    const phoneEntries = Array.isArray(buildiumTenant.PhoneNumbers)
+      ? buildiumTenant.PhoneNumbers
+      : buildiumTenant.PhoneNumbers
+        ? [
+            { Number: buildiumTenant.PhoneNumbers.Home, Type: 'Home' },
+            { Number: buildiumTenant.PhoneNumbers.Work, Type: 'Work' },
+            { Number: buildiumTenant.PhoneNumbers.Mobile, Type: 'Cell' },
+          ].filter((p) => p.Number)
+        : []
+    const displayPhone = phoneEntries[0]?.Number || 'N/A'
+    const primaryAddress = buildiumTenant.PrimaryAddress || (buildiumTenant as any).Address
+    const addressString = primaryAddress
+      ? `${primaryAddress.AddressLine1 ?? ''}, ${primaryAddress.City ?? ''}, ${primaryAddress.State ?? ''}`
+      : 'N/A'
+
     console.log('🎉 Tenant sync completed successfully!')
     console.log('📊 Tenant details:')
     console.log(`   - Tenant ID: ${localTenantId}`)
@@ -216,8 +197,8 @@ async function fetchAndAddBuildiumTenant(tenantId: number) {
     console.log(`   - Buildium ID: ${buildiumTenant.Id}`)
     console.log(`   - Name: ${buildiumTenant.FirstName} ${buildiumTenant.LastName}`)
     console.log(`   - Email: ${buildiumTenant.Email}`)
-    console.log(`   - Phone: ${buildiumTenant.PhoneNumbers?.[0]?.Number || 'N/A'}`)
-    console.log(`   - Address: ${buildiumTenant.Address.AddressLine1}, ${buildiumTenant.Address.City}, ${buildiumTenant.Address.State}`)
+    console.log(`   - Phone: ${displayPhone}`)
+    console.log(`   - Address: ${addressString}`)
     console.log(`   - Lease Contact ID: ${leaseContactId}`)
     
     return localTenantId

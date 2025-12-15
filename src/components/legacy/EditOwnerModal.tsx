@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
-import { Button } from './components/ui/button';
-import { DatePicker } from './components/ui/date-picker';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import AddressAutocomplete from './HybridAddressAutocomplete';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 
@@ -267,11 +267,11 @@ export default function EditOwnerModal({
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={(open) => {
+      onOpenChange={(open: boolean) => {
         if (!open) onClose();
       }}
     >
-      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[92vw] overflow-y-auto rounded-none border p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl md:max-w-2xl lg:max-w-3xl">
+      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
           <DialogTitle className="text-foreground text-xl font-semibold">Edit Owner</DialogTitle>

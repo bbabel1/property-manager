@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -148,10 +149,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unable to create vendor' }, { status: 500 });
   }
 
+  const contact = Array.isArray(vendorRes.data.contact)
+    ? vendorRes.data.contact[0]
+    : vendorRes.data.contact;
+
   const label =
-    vendorRes.data.contact?.display_name ||
-    vendorRes.data.contact?.company_name ||
-    [vendorRes.data.contact?.first_name, vendorRes.data.contact?.last_name].filter(Boolean).join(' ') ||
+    contact?.display_name ||
+    contact?.company_name ||
+    [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') ||
     data.name.trim();
 
   return NextResponse.json(

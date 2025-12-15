@@ -73,7 +73,7 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
                   </Badge>
                 </div>
                 <div className="mt-3 flex justify-end">
-                  <Button size="xs" variant="secondary">Launch COI workflow</Button>
+                  <Button size="sm" variant="secondary">Launch COI workflow</Button>
                 </div>
               </div>
             ))}
@@ -106,8 +106,8 @@ export function VendorAutomation({ complianceAlerts, automationSignals }: Vendor
                   <p className="mt-2 text-xs text-muted-foreground">{signal.description}</p>
                   <p className="mt-2 text-xs font-medium text-foreground">Suggested action: {signal.suggestedAction}</p>
                   <div className="mt-3 flex gap-2">
-                    <Button size="xs" variant="secondary">Automate</Button>
-                    <Button size="xs" variant="ghost">Log note</Button>
+                    <Button size="sm" variant="secondary">Automate</Button>
+                    <Button size="sm" variant="ghost">Log note</Button>
                   </div>
                 </div>
               )

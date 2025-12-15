@@ -110,7 +110,7 @@ export default function EditTenantContactModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-l-primary border-l-4 sm:max-w-2xl">
+      <DialogContent className="border-l-primary w-[680px] max-w-[680px] border-l-4">
         <DialogHeader>
           <DialogTitle>Edit contact information</DialogTitle>
         </DialogHeader>
@@ -163,11 +163,11 @@ export default function EditTenantContactModal({
             <div>
               <div className="mb-1 text-xs">Date of Birth</div>
               <DatePicker
-                value={values.date_of_birth ? new Date(values.date_of_birth) : undefined}
+                value={values.date_of_birth ?? null}
                 onChange={(date) =>
                   setValues((v) => ({
                     ...v,
-                    date_of_birth: date ? date.toISOString().split('T')[0] : undefined,
+                    date_of_birth: date ?? undefined,
                   }))
                 }
                 placeholder="Select date of birth"

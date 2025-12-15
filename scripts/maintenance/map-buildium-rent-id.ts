@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
-import { createBuildiumClient, defaultBuildiumConfig } from '../src/lib/buildium-client'
+import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client'
 
 async function main() {
   const leaseIdArg = process.argv[2]
@@ -53,4 +53,3 @@ async function main() {
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })
-

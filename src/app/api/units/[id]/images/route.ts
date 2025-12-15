@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { data: unitRow, error: unitError } = await db
       .from('units')
-      .select('id, property_id, buildium_unit_id')
+      .select('id, property_id, buildium_unit_id, org_id')
       .eq('id', unitId)
       .maybeSingle()
 
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { data: unitRow, error: unitError } = await db
       .from('units')
-      .select('id, property_id, buildium_unit_id')
+      .select('id, property_id, buildium_unit_id, org_id')
       .eq('id', unitId)
       .maybeSingle()
 
@@ -197,8 +197,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .from('unit_images')
         .upsert(row, { onConflict: 'buildium_image_id' })
         .select('*')
-        .eq('unit_id', unitId)
-        .eq('buildium_image_id', row.buildium_image_id)
         .maybeSingle()
 
       if (storeError || !image) {
@@ -209,7 +207,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       uploaded.Href = prepared.originalDataUrl
       uploaded.FileType = prepared.originalMimeType
       uploaded.FileSize = prepared.originalSize
-      try { await UnitService.persistImages(unitRow.buildium_unit_id, [uploaded]) } catch {}
+      try {
+        await UnitService.persistImages(
+          unitRow.buildium_unit_id,
+          [uploaded],
+          (unitRow as { org_id?: string | null }).org_id || undefined,
+        );
+      } catch {}
 
       return NextResponse.json({ success: true, data: image })
     }

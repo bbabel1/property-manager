@@ -193,7 +193,7 @@ export async function POST(request: Request) {
     created_at: nowIso,
     updated_at: nowIso,
     org_id: resolvedOrgId,
-    status: '',
+    status: 'Due' as const,
     email_receipt: false,
     print_receipt: false,
   };

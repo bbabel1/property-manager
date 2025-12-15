@@ -30,8 +30,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, DollarSign, Zap, Plus, Edit } from 'lucide-react';
+import { Package, DollarSign, Zap, Plus, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/format-currency';
 import AutomationRulesAdmin from '@/components/settings/AutomationRulesAdmin';
@@ -129,10 +140,14 @@ export default function ServiceCatalogAdmin() {
   const [isOfferingDialogOpen, setIsOfferingDialogOpen] = useState(false);
   const [editingOffering, setEditingOffering] = useState<ServiceOffering | null>(null);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
-  const [planDialogState, setPlanDialogState] = useState<{ plan: string; defaultRow: PlanDefault | null }>({
+  const [planDialogState, setPlanDialogState] = useState<{
+    plan: string;
+    defaultRow: PlanDefault | null;
+  }>({
     plan: PLAN_NAMES[0],
     defaultRow: null,
   });
+  const [deletingOfferingId, setDeletingOfferingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -185,6 +200,29 @@ export default function ServiceCatalogAdmin() {
     setIsOfferingDialogOpen(false);
     setEditingOffering(null);
     await loadData();
+  };
+
+  const handleDeleteOffering = async (offering: ServiceOffering) => {
+    setDeletingOfferingId(offering.id);
+    try {
+      const response = await fetch(`/api/services/catalog/${offering.id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = result?.error?.message || result?.error || 'Failed to delete service offering';
+        throw new Error(message);
+      }
+
+      toast.success('Service offering deleted');
+      await loadData();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete service offering';
+      toast.error(message);
+    } finally {
+      setDeletingOfferingId(null);
+    }
   };
 
   const handleSavePlanDefault = async (
@@ -347,14 +385,54 @@ export default function ServiceCatalogAdmin() {
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => openEditOfferingDialog(offering)}
-                                >
-                                  <Edit className="mr-1 h-4 w-4" />
-                                  Edit
-                                </Button>
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditOfferingDialog(offering)}
+                                  >
+                                    <Edit className="mr-1 h-4 w-4" />
+                                    Edit
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-destructive hover:text-destructive"
+                                        disabled={deletingOfferingId === offering.id}
+                                        aria-label="Delete service offering"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          Delete {offering.name}?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will remove the service from the catalog and any related plan defaults. This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel
+                                          disabled={deletingOfferingId === offering.id}
+                                        >
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteOffering(offering)}
+                                          disabled={deletingOfferingId === offering.id}
+                                        >
+                                          {deletingOfferingId === offering.id
+                                            ? 'Deleting...'
+                                            : 'Delete'}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -378,7 +456,10 @@ export default function ServiceCatalogAdmin() {
                     Configure default pricing for Basic, Full, and other service plans.
                   </CardDescription>
                 </div>
-                <Button variant="outline" onClick={() => openCreatePlanDefault(planDialogState.plan)}>
+                <Button
+                  variant="outline"
+                  onClick={() => openCreatePlanDefault(planDialogState.plan)}
+                >
                   Configure Plan
                 </Button>
               </div>
@@ -436,21 +517,21 @@ export default function ServiceCatalogAdmin() {
                                       ? `${default_.plan_fee_percent}%`
                                       : '—'}
                                   </TableCell>
-                                <TableCell>
-                                  {default_.min_monthly_fee != null
-                                    ? formatCurrency(default_.min_monthly_fee)
-                                    : '—'}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openEditPlanDefault(plan, default_)}
-                                  >
-                                    <Edit className="mr-1 h-4 w-4" />
-                                    Edit
-                                  </Button>
-                                </TableCell>
+                                  <TableCell>
+                                    {default_.min_monthly_fee != null
+                                      ? formatCurrency(default_.min_monthly_fee)
+                                      : '—'}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openEditPlanDefault(plan, default_)}
+                                    >
+                                      <Edit className="mr-1 h-4 w-4" />
+                                      Edit
+                                    </Button>
+                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -477,9 +558,11 @@ export default function ServiceCatalogAdmin() {
           if (!open) setEditingOffering(null);
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="w-[680px] max-w-[680px]">
           <DialogHeader>
-            <DialogTitle>{editingOffering ? 'Edit Service Offering' : 'Add Service Offering'}</DialogTitle>
+            <DialogTitle>
+              {editingOffering ? 'Edit Service Offering' : 'Add Service Offering'}
+            </DialogTitle>
             <DialogDescription>
               {editingOffering
                 ? 'Update catalog details and default pricing for this service.'
@@ -504,7 +587,7 @@ export default function ServiceCatalogAdmin() {
           if (!open) setPlanDialogState({ plan: PLAN_NAMES[0], defaultRow: null });
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="w-[680px] max-w-[680px]">
           <DialogHeader>
             <DialogTitle>
               {planDialogState.defaultRow ? 'Edit Plan Default' : 'Configure Plan Pricing'}
@@ -714,7 +797,12 @@ function ServiceOfferingForm({ offering, onSave, onCancel }: ServiceOfferingForm
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="default-rate">
-            Default Rate {billingBasis === 'percent_rent' ? '(%)' : billingBasis === 'job_cost' ? '(%)' : '(USD)'}
+            Default Rate{' '}
+            {billingBasis === 'percent_rent'
+              ? '(%)'
+              : billingBasis === 'job_cost'
+                ? '(%)'
+                : '(USD)'}
           </Label>
           <Input
             id="default-rate"
@@ -916,13 +1004,7 @@ interface PlanDefaultFormProps {
   onCancel: () => void;
 }
 
-function PlanDefaultForm({
-  plan,
-  defaultRow,
-  offerings,
-  onSave,
-  onCancel,
-}: PlanDefaultFormProps) {
+function PlanDefaultForm({ plan, defaultRow, offerings, onSave, onCancel }: PlanDefaultFormProps) {
   const [servicePlan, setServicePlan] = useState(plan);
   const [offeringId, setOfferingId] = useState(defaultRow?.offering_id ?? '');
   const [billingBasis, setBillingBasis] = useState(
@@ -1016,10 +1098,14 @@ function PlanDefaultForm({
       }
       setRentBasis(selectedOffering.default_rent_basis || 'scheduled');
       if (!minAmount) {
-        setMinAmount(selectedOffering.min_amount != null ? String(selectedOffering.min_amount) : '');
+        setMinAmount(
+          selectedOffering.min_amount != null ? String(selectedOffering.min_amount) : '',
+        );
       }
       if (!maxAmount) {
-        setMaxAmount(selectedOffering.max_amount != null ? String(selectedOffering.max_amount) : '');
+        setMaxAmount(
+          selectedOffering.max_amount != null ? String(selectedOffering.max_amount) : '',
+        );
       }
     }
   }, [isEdit, selectedOffering, defaultRate, minAmount, maxAmount]);
@@ -1105,11 +1191,7 @@ function PlanDefaultForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="plan-offering">Service</Label>
-          <Select
-            value={offeringId}
-            onValueChange={setOfferingId}
-            disabled={isEdit}
-          >
+          <Select value={offeringId} onValueChange={setOfferingId} disabled={isEdit}>
             <SelectTrigger id="plan-offering">
               <SelectValue placeholder="Select service offering" />
             </SelectTrigger>
@@ -1156,7 +1238,8 @@ function PlanDefaultForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="plan-default-rate">
-            Default Rate {billingBasis === 'percent_rent' || billingBasis === 'job_cost' ? '(%)' : '(USD)'}
+            Default Rate{' '}
+            {billingBasis === 'percent_rent' || billingBasis === 'job_cost' ? '(%)' : '(USD)'}
           </Label>
           <Input
             id="plan-default-rate"

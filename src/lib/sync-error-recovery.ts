@@ -1,19 +1,75 @@
 // Sync Error Recovery System
 // Detects and recovers from failed sync operations
 
-interface SyncOperation {
+import type { Json, Database } from '@/types/database'
+import type { TypedSupabaseClient } from './db'
+import type {
+  BuildiumLease,
+  BuildiumOwner,
+  BuildiumProperty,
+  BuildiumTenant,
+  BuildiumTenantAddress,
+  BuildiumUnit
+} from '@/types/buildium'
+
+type SyncOperationType = 'CREATE' | 'UPDATE' | 'DELETE'
+type SyncEntity = 'property' | 'unit' | 'lease' | 'tenant' | 'contact' | 'owner'
+type SyncStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'ROLLED_BACK'
+type OperationTableName = 'properties' | 'units' | 'lease' | 'tenants' | 'contacts' | 'owners'
+type BuildiumContactPayload = Pick<
+  BuildiumTenant,
+  'FirstName' | 'LastName' | 'Email' | 'PhoneNumbers' | 'EmergencyContact' | 'Comment' | 'TaxId' | 'SMSOptInStatus'
+> & {
+  Address?: BuildiumTenantAddress
+  PrimaryAddress?: BuildiumTenantAddress
+}
+
+type OperationDataMap = {
+  property: Partial<BuildiumProperty>
+  unit: Partial<BuildiumUnit>
+  lease: Partial<BuildiumLease>
+  tenant: Partial<BuildiumTenant>
+  contact: BuildiumContactPayload
+  owner: Partial<BuildiumOwner> & { contact?: BuildiumContactPayload }
+}
+
+type SyncOperationRow = Database['public']['Tables']['sync_operations']['Row']
+type SyncOperationData = OperationDataMap[SyncEntity]
+type SyncOperationByEntity<E extends SyncEntity> = {
   id: string
-  type: 'CREATE' | 'UPDATE' | 'DELETE'
-  entity: 'property' | 'unit' | 'lease' | 'tenant' | 'contact' | 'owner'
+  type: SyncOperationType
+  entity: E
   buildiumId: number
-  localId?: string
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'ROLLED_BACK'
-  data: any
+  localId?: string | number
+  status: SyncStatus
+  data: OperationDataMap[E]
   dependencies?: string[] // IDs of operations this depends on
   error?: string
   attempts: number
   lastAttempt: Date
   createdAt: Date
+}
+
+type SyncOperation = {
+  [E in SyncEntity]: SyncOperationByEntity<E>
+}[SyncEntity]
+
+type ResolverInput = Partial<{
+  property: BuildiumProperty
+  unit: BuildiumUnit
+  lease: BuildiumLease
+  tenant: BuildiumTenant
+  contact: BuildiumContactPayload
+  owner: BuildiumOwner & { contact?: BuildiumContactPayload }
+}>
+type ResolverResult = {
+  propertyId?: string
+  unitId?: string
+  leaseId?: string
+  tenantId?: string
+  contactId?: string
+  ownerId?: string
+  errors: string[]
 }
 
 interface RecoveryResult {
@@ -24,12 +80,22 @@ interface RecoveryResult {
   operations: SyncOperation[]
 }
 
+const toErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
 export class SyncErrorRecovery {
-  private supabase: any
+  private supabase: TypedSupabaseClient
   private maxRetries = 3
   private retryDelay = 5000 // 5 seconds
+  private tableMap: Record<SyncEntity, OperationTableName> = {
+    property: 'properties',
+    unit: 'units',
+    lease: 'lease',
+    tenant: 'tenants',
+    contact: 'contacts',
+    owner: 'owners'
+  }
 
-  constructor(supabaseClient: any) {
+  constructor(supabaseClient: TypedSupabaseClient) {
     this.supabase = supabaseClient
   }
 
@@ -52,15 +118,16 @@ export class SyncErrorRecovery {
 
       // Filter operations that are truly stuck (in progress for > 10 minutes)
       const now = new Date()
-      const stuckOps = failedOps?.filter(op => {
-        if (op.status === 'FAILED') return true
-        if (op.status === 'IN_PROGRESS') {
-          const lastAttempt = new Date(op.last_attempt)
-          const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
-          return minutesSinceLastAttempt > 10
-        }
-        return false
-      }) || []
+      const stuckOps = (failedOps ?? [])
+        .map(op => this.mapOperationRowToModel(op as SyncOperationRow))
+        .filter(op => {
+          if (op.status === 'FAILED') return true
+          if (op.status === 'IN_PROGRESS') {
+            const minutesSinceLastAttempt = (now.getTime() - op.lastAttempt.getTime()) / (1000 * 60)
+            return minutesSinceLastAttempt > 10
+          }
+          return false
+        })
 
       return stuckOps
 
@@ -120,10 +187,11 @@ export class SyncErrorRecovery {
           await this.delay(1000)
           
         } catch (error) {
+          const message = toErrorMessage(error)
           result.failed++
-          result.errors.push(`${operation.entity} ${operation.buildiumId}: ${error.message}`)
+          result.errors.push(`${operation.entity} ${operation.buildiumId}: ${message}`)
           operation.status = 'FAILED'
-          operation.error = error.message
+          operation.error = message
           await this.updateOperationStatus(operation)
         }
       }
@@ -132,7 +200,7 @@ export class SyncErrorRecovery {
       return result
 
     } catch (error) {
-      result.errors.push(`Recovery process failed: ${error.message}`)
+      result.errors.push(`Recovery process failed: ${toErrorMessage(error)}`)
       return result
     }
   }
@@ -166,7 +234,7 @@ export class SyncErrorRecovery {
           return { success: false, error: `Unknown operation type: ${operation.type}` }
       }
     } catch (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: toErrorMessage(error) }
     }
   }
 
@@ -180,7 +248,7 @@ export class SyncErrorRecovery {
       
       if (existingRecord) {
         console.log(`Record already exists for ${operation.entity} ${operation.buildiumId}, marking as complete`)
-        operation.localId = existingRecord.id
+        operation.localId = String(existingRecord.id)
         return { success: true }
       }
 
@@ -200,7 +268,7 @@ export class SyncErrorRecovery {
       return { success: false, error: createResult.error || 'Create operation failed' }
 
     } catch (error) {
-      return { success: false, error: `Create recovery failed: ${error.message}` }
+      return { success: false, error: `Create recovery failed: ${toErrorMessage(error)}` }
     }
   }
 
@@ -224,7 +292,7 @@ export class SyncErrorRecovery {
       return updateResult
 
     } catch (error) {
-      return { success: false, error: `Update recovery failed: ${error.message}` }
+      return { success: false, error: `Update recovery failed: ${toErrorMessage(error)}` }
     }
   }
 
@@ -247,24 +315,15 @@ export class SyncErrorRecovery {
       return deleteResult
 
     } catch (error) {
-      return { success: false, error: `Delete recovery failed: ${error.message}` }
+      return { success: false, error: `Delete recovery failed: ${toErrorMessage(error)}` }
     }
   }
 
   /**
    * Find existing record by Buildium ID
    */
-  private async findExistingRecord(operation: SyncOperation): Promise<{ id: string } | null> {
-    const tableMap = {
-      property: 'properties',
-      unit: 'units',
-      lease: 'lease',
-      tenant: 'tenants',
-      contact: 'contacts',
-      owner: 'owners'
-    }
-
-    const buildiumIdMap = {
+  private async findExistingRecord(operation: SyncOperation): Promise<{ id: string | number } | null> {
+    const buildiumIdMap: Record<SyncEntity, string> = {
       property: 'buildium_property_id',
       unit: 'buildium_unit_id',
       lease: 'buildium_lease_id',
@@ -273,7 +332,7 @@ export class SyncErrorRecovery {
       owner: 'buildium_owner_id'
     }
 
-    const table = tableMap[operation.entity]
+    const table = this.tableMap[operation.entity]
     const buildiumField = buildiumIdMap[operation.entity]
 
     if (!table || !buildiumField) {
@@ -284,7 +343,7 @@ export class SyncErrorRecovery {
       const { data, error } = await this.supabase
         .from(table)
         .select('id')
-        .eq(buildiumField, operation.buildiumId)
+        .eq(buildiumField as string, operation.buildiumId)
         .single()
 
       if (error && error.code !== 'PGRST116') {
@@ -354,23 +413,15 @@ export class SyncErrorRecovery {
       }
 
     } catch (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: toErrorMessage(error) }
     }
   }
 
   /**
    * Update existing record
    */
-  private async updateRecord(operation: SyncOperation, localId: string): Promise<{ success: boolean; error?: string }> {
-    const tableMap = {
-      property: 'properties',
-      unit: 'units',
-      lease: 'lease',
-      tenant: 'tenants',
-      contact: 'contacts'
-    }
-
-    const table = tableMap[operation.entity]
+  private async updateRecord(operation: SyncOperation, localId: string | number): Promise<{ success: boolean; error?: string }> {
+    const table = this.tableMap[operation.entity]
     if (!table) {
       return { success: false, error: `Unknown entity type: ${operation.entity}` }
     }
@@ -385,29 +436,21 @@ export class SyncErrorRecovery {
         .eq('id', localId)
 
       if (error) {
-        return { success: false, error: error.message }
+        return { success: false, error: toErrorMessage(error) }
       }
 
       return { success: true }
 
     } catch (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: toErrorMessage(error) }
     }
   }
 
   /**
    * Delete record
    */
-  private async deleteRecord(operation: SyncOperation, localId: string): Promise<{ success: boolean; error?: string }> {
-    const tableMap = {
-      property: 'properties',
-      unit: 'units',
-      lease: 'lease',
-      tenant: 'tenants',
-      contact: 'contacts'
-    }
-
-    const table = tableMap[operation.entity]
+  private async deleteRecord(operation: SyncOperation, localId: string | number): Promise<{ success: boolean; error?: string }> {
+    const table = this.tableMap[operation.entity]
     if (!table) {
       return { success: false, error: `Unknown entity type: ${operation.entity}` }
     }
@@ -419,13 +462,13 @@ export class SyncErrorRecovery {
         .eq('id', localId)
 
       if (error) {
-        return { success: false, error: error.message }
+        return { success: false, error: toErrorMessage(error) }
       }
 
       return { success: true }
 
     } catch (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: toErrorMessage(error) }
     }
   }
 
@@ -472,7 +515,7 @@ export class SyncErrorRecovery {
         .from('sync_operations')
         .update({
           status: operation.status,
-          local_id: operation.localId,
+          local_id: operation.localId !== undefined ? String(operation.localId) : null,
           error: operation.error,
           attempts: operation.attempts,
           last_attempt: operation.lastAttempt.toISOString()
@@ -486,16 +529,30 @@ export class SyncErrorRecovery {
   /**
    * Map operation data for relationship resolver
    */
-  private mapOperationDataForResolver(operation: SyncOperation): any {
-    const result: any = {}
-    result[operation.entity] = operation.data
-    return result
+  private mapOperationDataForResolver(operation: SyncOperation): ResolverInput {
+    const data = operation.data
+    switch (operation.entity) {
+      case 'property':
+        return { property: data as unknown as BuildiumProperty }
+      case 'unit':
+        return { unit: data as unknown as BuildiumUnit }
+      case 'lease':
+        return { lease: data as unknown as BuildiumLease }
+      case 'tenant':
+        return { tenant: data as unknown as BuildiumTenant }
+      case 'contact':
+        return { contact: data as BuildiumContactPayload }
+      case 'owner':
+        return { owner: data as unknown as BuildiumOwner & { contact?: BuildiumContactPayload } }
+      default:
+        return {}
+    }
   }
 
   /**
    * Extract local ID from resolver result
    */
-  private extractLocalIdFromResult(entityType: string, result: any): string | undefined {
+  private extractLocalIdFromResult(entityType: SyncEntity, result: ResolverResult): string | undefined {
     switch (entityType) {
       case 'property': return result.propertyId
       case 'unit': return result.unitId
@@ -512,6 +569,35 @@ export class SyncErrorRecovery {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Convert a database row to the in-memory model with camelCase fields
+   */
+  private mapOperationRowToModel(row: SyncOperationRow): SyncOperation {
+    const entity = row.entity as SyncEntity
+    const data = this.normalizeData(row.data) as OperationDataMap[typeof entity]
+    return {
+      id: row.id,
+      type: row.type as SyncOperationType,
+      entity,
+      buildiumId: row.buildium_id,
+      localId: row.local_id ?? undefined,
+      status: row.status as SyncStatus,
+      data,
+      dependencies: row.dependencies ?? undefined,
+      error: row.error ?? undefined,
+      attempts: row.attempts,
+      lastAttempt: row.last_attempt ? new Date(row.last_attempt) : new Date(0),
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(0)
+    } as SyncOperation
+  }
+
+  private normalizeData(data: Json): SyncOperationData {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      return data as OperationDataMap[SyncEntity]
+    }
+    return {} as OperationDataMap[SyncEntity]
   }
 }
 
@@ -543,7 +629,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_operations_created_at ON sync_operations(cre
 /**
  * Utility function to run error recovery
  */
-export async function runSyncRecovery(supabaseClient: any): Promise<RecoveryResult> {
+export async function runSyncRecovery(supabaseClient: TypedSupabaseClient): Promise<RecoveryResult> {
   const recovery = new SyncErrorRecovery(supabaseClient)
   return await recovery.recoverFailedOperations()
 }

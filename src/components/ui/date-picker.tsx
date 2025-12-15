@@ -18,6 +18,7 @@ export type DatePickerProps = {
   id?: string;
   name?: string;
   clearable?: boolean;
+  hideYear?: boolean;
 };
 
 const ISO_PATTERN = "yyyy-MM-dd";
@@ -92,6 +93,7 @@ export function DatePicker({
   id,
   name,
   clearable = true,
+  hideYear = false,
 }: DatePickerProps) {
   const normalizedValue = (() => {
     const parsed = parseInput(value);
@@ -125,6 +127,7 @@ export function DatePicker({
     hideClear: !clearable,
     pastYearRange,
     futureYearRange,
+    hideYear,
   };
 
   return (

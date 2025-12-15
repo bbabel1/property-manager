@@ -347,6 +347,8 @@ export function GeneralJournalEntryForm({
       const ensured = {
         ...initialValues,
         lines: [...initialValues.lines],
+        unitId: initialValues.unitId ?? '',
+        propertyId: initialValues.propertyId ?? resolvedDefaultPropertyId,
       };
       while (ensured.lines.length < minLines) {
         ensured.lines.push(createEmptyLine());
@@ -365,7 +367,8 @@ export function GeneralJournalEntryForm({
   const resolver = useCallback<Resolver<JournalEntryFormValues>>(
     (values, context, options) => {
       const schema = buildJournalEntrySchema(currentUnitCountRef.current > 0);
-      return zodResolver(schema)(values, context, options);
+      const resolve = zodResolver(schema) as Resolver<JournalEntryFormValues>;
+      return resolve(values, context, options);
     },
     [],
   );
@@ -925,6 +928,7 @@ export function GeneralJournalEntryForm({
                 placeholder="Add a memo for this entry"
                 {...field}
                 disabled={buildiumLocked}
+                value={field.value ?? ''}
               />
             </FormControl>
             <FormMessage />
@@ -1096,4 +1100,3 @@ export function GeneralJournalEntryForm({
 }
 
 export default GeneralJournalEntryForm;
-

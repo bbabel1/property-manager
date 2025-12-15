@@ -1,15 +1,34 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency } from '@/lib/transactions/formatting';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Plus, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,7 +57,9 @@ export default function BulkPricingModal({
   const [minAmount, setMinAmount] = useState<string>('');
   const [maxAmount, setMaxAmount] = useState<string>('');
   const [hourlyMinHours, setHourlyMinHours] = useState<string>('');
-  const [effectiveStart, setEffectiveStart] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [effectiveStart, setEffectiveStart] = useState<string>(
+    new Date().toISOString().slice(0, 10),
+  );
   const [effectiveEnd, setEffectiveEnd] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
@@ -136,7 +157,17 @@ export default function BulkPricingModal({
     }
 
     return errors;
-  }, [billingBasis, billOn, effectiveEnd, effectiveStart, frequency, hourlyMinHours, rate, rentBasis, selectedUnits.size]);
+  }, [
+    billingBasis,
+    billOn,
+    effectiveEnd,
+    effectiveStart,
+    frequency,
+    hourlyMinHours,
+    rate,
+    rentBasis,
+    selectedUnits.size,
+  ]);
 
   const handleSave = async () => {
     setShowValidation(true);
@@ -147,8 +178,12 @@ export default function BulkPricingModal({
 
     try {
       setSaving(true);
-      const effectiveStartIso = effectiveStart ? new Date(`${effectiveStart}T00:00:00Z`).toISOString() : null;
-      const effectiveEndIso = effectiveEnd ? new Date(`${effectiveEnd}T23:59:59Z`).toISOString() : null;
+      const effectiveStartIso = effectiveStart
+        ? new Date(`${effectiveStart}T00:00:00Z`).toISOString()
+        : null;
+      const effectiveEndIso = effectiveEnd
+        ? new Date(`${effectiveEnd}T23:59:59Z`).toISOString()
+        : null;
       const pricing = Array.from(selectedUnits).map((unitId) => ({
         unitId,
         pricing: {
@@ -205,7 +240,7 @@ export default function BulkPricingModal({
           Bulk Pricing
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="w-[680px] max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Bulk Pricing: {offeringName}</DialogTitle>
         </DialogHeader>
@@ -382,8 +417,8 @@ export default function BulkPricingModal({
                       billingBasis === 'percent_rent'
                         ? `${rate || 0}%`
                         : billingBasis === 'hourly'
-                        ? `${formatCurrency(parseFloat(rate) || 0)} / hr`
-                        : formatCurrency(parseFloat(rate) || 0);
+                          ? `${formatCurrency(parseFloat(rate) || 0)} / hr`
+                          : formatCurrency(parseFloat(rate) || 0);
                     return (
                       <TableRow
                         key={unit.id}
@@ -414,7 +449,7 @@ export default function BulkPricingModal({
           </div>
 
           {showValidation && validationErrors.length > 0 && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm">
               <ul className="list-disc pl-4">
                 {validationErrors.map((err) => (
                   <li key={err}>{err}</li>
@@ -430,7 +465,9 @@ export default function BulkPricingModal({
             </Button>
             <Button onClick={handleSave} disabled={saving || validationErrors.length > 0}>
               <Save className="mr-2 h-4 w-4" />
-              {saving ? 'Saving...' : `Apply to ${selectedUnits.size} Unit${selectedUnits.size !== 1 ? 's' : ''}`}
+              {saving
+                ? 'Saving...'
+                : `Apply to ${selectedUnits.size} Unit${selectedUnits.size !== 1 ? 's' : ''}`}
             </Button>
           </div>
         </div>

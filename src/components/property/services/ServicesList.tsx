@@ -3,19 +3,14 @@
 import { useMemo } from 'react';
 import CompactServiceCard from './CompactServiceCard';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ServiceOffering, ServicePricingConfig } from '@/lib/management-service';
+import { ServiceOffering, ServicePricingConfig, ServicePricingPreview } from '@/lib/management-service';
 
 interface OfferingWithPricing extends ServiceOffering {
   isSelected: boolean;
   isIncluded: boolean;
   isOptional: boolean;
   pricing?: ServicePricingConfig;
-  defaultPricing?: {
-    rate: number | null;
-    frequency: string;
-    min_amount: number | null;
-    max_amount: number | null;
-  };
+  defaultPricing?: ServicePricingPreview;
 }
 
 interface ServicesListProps {
@@ -49,6 +44,19 @@ export default function ServicesList({
   onConfigureRules,
   onOverrideUnitLevel,
 }: ServicesListProps) {
+  const toPricingPreview = (pricing?: ServicePricingConfig): ServicePricingPreview | undefined => {
+    if (!pricing) return undefined;
+    return {
+      rate: pricing.rate,
+      billing_frequency: pricing.billing_frequency,
+      min_amount: pricing.min_amount ?? null,
+      max_amount: pricing.max_amount ?? null,
+      billing_basis: pricing.billing_basis,
+      effective_start: pricing.effective_start,
+      effective_end: pricing.effective_end,
+    };
+  };
+
   // Filter offerings
   const filteredOfferings = useMemo(() => {
     return offerings.filter((offering) => {
@@ -153,12 +161,7 @@ export default function ServicesList({
                       name: offering.name,
                       isSelected: offering.isSelected,
                       isIncluded: offering.isIncluded,
-                      pricing: offering.pricing
-                        ? {
-                            rate: offering.pricing.rate,
-                            frequency: offering.pricing.billing_frequency,
-                          }
-                        : undefined,
+                      pricing: toPricingPreview(offering.pricing),
                       defaultPricing: offering.defaultPricing,
                     }}
                     isEditMode={isEditMode}
@@ -176,4 +179,3 @@ export default function ServicesList({
     </Accordion>
   );
 }
-

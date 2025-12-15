@@ -23,6 +23,9 @@ export interface NYCAPIConfig {
 export type NYCOpenDataDatasets = {
   elevatorDevices: string
   elevatorInspections: string
+  elevatorViolationsActive: string
+  elevatorViolationsHistoric: string
+  elevatorComplaints: string
   dobSafetyViolations: string
   dobViolations: string
   dobActiveViolations: string
@@ -30,9 +33,16 @@ export type NYCOpenDataDatasets = {
   dobComplaints: string
   bedbugReporting: string
   dobNowApprovedPermits: string
+  dobNowJobFilings: string
   dobPermitIssuanceOld: string
+  dobJobApplications: string
+  dobElevatorPermitApplications: string
   dobCertificateOfOccupancyOld: string
   dobCertificateOfOccupancyNow: string
+  waterSewer: string
+  waterSewerOld: string
+  buildingsSubjectToHPD: string
+  indoorEnvironmentalComplaints: string
   dobNowSafetyBoiler: string
   dobNowSafetyFacade: string
   hpdViolations: string
@@ -41,6 +51,7 @@ export type NYCOpenDataDatasets = {
   fdnyViolations: string
   asbestosViolations: string
   sidewalkViolations: string
+  backflowPreventionViolations: string
   heatSensorProgram: string
 }
 
@@ -114,6 +125,9 @@ const DOB_NOW_SAFETY_FACADE_COLUMNS = [
 const DEFAULT_OPEN_DATA_DATASETS: NYCOpenDataDatasets = {
   elevatorDevices: 'juyv-2jek', // DOB NOW Build – Elevator Devices
   elevatorInspections: 'e5aq-a4j2', // DOB NOW Elevator Safety Compliance Filings
+  elevatorViolationsActive: 'rff7-h44d', // Active elevator violations
+  elevatorViolationsHistoric: '9ucd-umy4', // Historic elevator violations
+  elevatorComplaints: 'kqwi-7ncn', // Elevator complaints (311 → DOB)
   dobSafetyViolations: '855j-jady', // DOB Safety Violations
   dobViolations: '3h2n-5cm9',
   dobActiveViolations: '6drr-tyq2',
@@ -121,9 +135,16 @@ const DEFAULT_OPEN_DATA_DATASETS: NYCOpenDataDatasets = {
   dobComplaints: 'eabe-havv',
   bedbugReporting: 'wz6d-d3jb',
   dobNowApprovedPermits: 'rbx6-tga4',
+  dobNowJobFilings: 'w9ak-ipjd',
   dobPermitIssuanceOld: 'ipu4-2q9a',
+  dobJobApplications: 'ic3t-wcy2',
+  dobElevatorPermitApplications: 'kfp4-dz4h',
   dobCertificateOfOccupancyOld: 'bs8b-p36w',
   dobCertificateOfOccupancyNow: 'pkdm-hqz6',
+  waterSewer: 'hphy-6g7m',
+  waterSewerOld: '4k4u-823g',
+  buildingsSubjectToHPD: 'kj4p-ruqc',
+  indoorEnvironmentalComplaints: '9jgj-bmct',
   dobNowSafetyBoiler: '52dp-yji6',
   dobNowSafetyFacade: 'xubg-57si',
   hpdViolations: 'wvxf-dwi5',
@@ -132,7 +153,146 @@ const DEFAULT_OPEN_DATA_DATASETS: NYCOpenDataDatasets = {
   fdnyViolations: 'avgm-ztsb',
   asbestosViolations: 'r6c3-8mpt',
   sidewalkViolations: '6kbp-uz6m',
+  backflowPreventionViolations: '38n4-tikp',
   heatSensorProgram: 'h4mf-f24e',
+}
+
+type NYCOpenDataRecord = Record<string, unknown>
+type HPDRegistrationRecord = NYCOpenDataRecord & {
+  bin?: string
+  registrationid?: string
+  boro?: string
+  block?: string
+  lot?: string
+  lastregistrationdate?: string
+}
+type SafetyFacadeFilingRecord = NYCOpenDataRecord &
+  Partial<Record<(typeof DOB_NOW_SAFETY_FACADE_COLUMNS)[number], string | null>>
+type SafetyBoilerFilingRecord = NYCOpenDataRecord &
+  Partial<Record<(typeof DOB_NOW_SAFETY_BOILER_COLUMNS)[number], string | null>>
+type DOBComplaintRecord = NYCOpenDataRecord & {
+  bin?: string
+  boro?: string
+  borough?: string
+  complaint_number?: string
+  date_entered?: string
+  status?: string
+  house__?: string
+  house_number?: string
+  street?: string
+}
+type DOBPermitIssuanceRecord = NYCOpenDataRecord & {
+  bin__?: string
+  borough?: string
+  block?: string
+  lot?: string
+  job__?: string
+  permit_si_no?: string
+}
+type DOBJobApplicationRecord = NYCOpenDataRecord & {
+  bin__?: string
+  borough?: string
+  block?: string
+  lot?: string
+  job__?: string
+}
+type DOBNowJobFilingRecord = NYCOpenDataRecord & {
+  bin?: string
+  bbl?: string
+  job_filing_number?: string
+}
+type DOBSafetyViolationRecord = NYCOpenDataRecord & {
+  bin?: string
+  bbl?: string
+  violation_number?: string
+  violation_issue_date?: string
+  issue_date?: string
+  violation_remarks?: string
+  violation_type?: string
+  violation_status?: string
+  status?: string
+  cycle_end_date?: string
+  device_number?: string
+}
+type DOBViolationRecord = NYCOpenDataRecord & {
+  bin?: string
+  isn_dob_bis_viol?: string | number
+  violation_number?: string
+  violationid?: string
+  violation_date?: string
+  issue_date?: string
+  violation_description?: string
+  description?: string
+  device_number?: string
+  disposition_date?: string
+  status?: string
+}
+type DOBActiveViolationRecord = NYCOpenDataRecord & {
+  bin?: string
+  isn_dob_bis_viol?: string | number
+  violation_number?: string
+  violation_date?: string
+  issue_date?: string
+  violation_description?: string
+  description?: string
+  device_number?: string
+}
+type DOBECBViolationRecord = NYCOpenDataRecord & {
+  bin?: string
+  ecb_violation_number?: string
+  summons_number?: string
+  violation_date?: string
+  issue_date?: string
+  violation_description?: string
+  description?: string
+  hearing_status?: string
+  status?: string
+  cure_date?: string
+  device_number?: string
+}
+type SidewalkViolationRecord = NYCOpenDataRecord & {
+  bblid?: string
+  inspection_date?: string
+  violation_date?: string
+  status?: string
+}
+type BedbugReportRecord = NYCOpenDataRecord & {
+  bin?: string
+  bbl?: string
+  filing_date?: string
+  building_registration_id?: string
+  annual_bedbug_submitted?: string
+  infestation_history?: string
+}
+type WaterSewerRecord = NYCOpenDataRecord & {
+  propertyblock?: string
+  propertylot?: string
+  permit_type?: string
+  permit_status?: string
+}
+type WaterSewerOldRecord = NYCOpenDataRecord & {
+  block?: string
+  lot?: string
+  permit_type?: string
+  permit_status?: string
+}
+type DOBCertificateOfOccupancyRecord = NYCOpenDataRecord & {
+  bin?: string
+  job__?: string
+  co_number?: string
+  issue_date?: string
+}
+type DOBElevatorPermitApplicationRecord = NYCOpenDataRecord & {
+  bin?: string
+  block?: string
+  lot?: string
+  job_filing_number?: string
+}
+type HeatSensorProgramRecord = NYCOpenDataRecord & {
+  bin?: string
+  bbl?: string
+  buildingid?: string
+  cycle?: string
 }
 
 export interface ElevatorDevice {
@@ -169,7 +329,24 @@ export interface Violation {
   cureByDate?: string | null
   severityScore?: number
   deviceNumber?: string | null
+  category?: 'violation' | 'complaint'
   [key: string]: unknown
+}
+
+const asString = (value: unknown, fallback = ''): string => {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return fallback
+  return String(value)
+}
+
+const asNullableString = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null
+  return typeof value === 'string' ? value : String(value)
+}
+
+const asOptionalString = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) return undefined
+  return typeof value === 'string' ? value : String(value)
 }
 
 export class DOBNowClient {
@@ -285,21 +462,45 @@ export class NYCOpenDataClient {
 
   // Elevator devices (Open Data authoritative)
   async fetchElevatorDevicesByBin(bin: string, limit = 5000, offset = 0): Promise<ElevatorDevice[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.elevatorDevices, {
+    // The Elevator Safety Compliance dataset (e5aq-a4j2) supports BIN filtering.
+    const records = await this.fetchDatasetRecords(this.datasets.elevatorInspections, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
     })
-    return (records || []).map((rec) => ({
-      deviceId: (rec.device_id || rec.deviceid || rec.device_number || rec.device_num || '').toString(),
-      deviceNumber: (rec.device_number || rec.deviceid || rec.device_id || '').toString(),
-      bin: rec.bin ? String(rec.bin) : rec.building_bin ? String(rec.building_bin) : null,
-      deviceType: rec.device_type || rec.type || rec.device_category || 'Unknown',
-      status: rec.status || rec.device_status || rec.operational_status || 'unknown',
-      lastInspectionDate: rec.last_inspection_date || rec.inspection_date || null,
-      nextInspectionDue: rec.next_inspection_due || rec.next_inspection_date || null,
-      ...rec,
-    }))
+
+    const devices = new Map<string, ElevatorDevice>()
+    for (const rec of records || []) {
+      const deviceNumber =
+        rec.device_number ||
+        rec.deviceid ||
+        rec.device_id ||
+        rec.device_num ||
+        rec.device_no ||
+        null
+      if (!deviceNumber) continue
+
+      const normalizedDevice = String(deviceNumber)
+      if (devices.has(normalizedDevice)) continue
+
+      devices.set(normalizedDevice, {
+        deviceId: normalizedDevice,
+        deviceNumber: normalizedDevice,
+        bin: rec.bin ? String(rec.bin) : bin,
+        deviceType: asString(rec.device_type || rec.type || rec.device_category, 'Unknown'),
+        status: asString(rec.device_status || rec.status || rec.operational_status, 'unknown'),
+        lastInspectionDate: asNullableString(
+          rec.periodic_latest_inspection ||
+            rec.cat1_latest_report_filed ||
+            rec.cat5_latest_report_filed ||
+            rec.status_date,
+        ),
+        nextInspectionDue: asNullableString(rec.next_inspection_due || rec.next_inspection_date),
+        ...rec,
+      })
+    }
+
+    return Array.from(devices.values())
   }
 
   // Elevator inspections/tests (Open Data authoritative)
@@ -313,35 +514,53 @@ export class NYCOpenDataClient {
       device_number: deviceNumber,
       $limit: String(limit),
       $offset: String(offset),
-      $order: 'inspection_date DESC',
     }
     if (bin) filters.bin = bin
     const records = await this.fetchDatasetRecords(this.datasets.elevatorInspections, filters)
     return (records || []).map((rec) => {
       const filingNumber =
+        rec.filing_number ||
         rec.tracking_number ||
         rec.control_number ||
         rec.inspection_id ||
-        rec.filing_number ||
         rec.test_id ||
-        rec.id
-      const filingDate = rec.inspection_date || rec.test_date || rec.filing_date
-      const result = rec.inspection_result || rec.test_status || rec.result
-      const status = rec.test_status || rec.inspection_status || result || 'unknown'
+        rec.id ||
+        rec.device_number
+      const filingDateValue =
+        rec.cat1_latest_report_filed ||
+        rec.cat5_latest_report_filed ||
+        rec.periodic_latest_inspection ||
+        rec.status_date ||
+        rec.report_filing_date ||
+        rec.filing_date
+      const result =
+        rec.inspection_result || rec.test_status || rec.result || rec.device_status || rec.status
+      const status = rec.test_status || rec.inspection_status || rec.device_status || result || 'unknown'
       const defects =
         rec.defects === true ||
+        rec.defects_exist === true ||
         String(result || '').toLowerCase().includes('fail') ||
         String(status || '').toLowerCase().includes('fail')
+      const filingDate = asString(filingDateValue, '')
+      const normalizedStatus = asString(status, 'unknown')
+      const normalizedResult = asOptionalString(result)
       return {
         filingNumber: filingNumber ? String(filingNumber) : `${deviceNumber}-${filingDate || Date.now()}`,
-        deviceId: rec.device_number || rec.deviceid || deviceNumber,
-        filingType: rec.test_type || rec.inspection_type || rec.category || 'inspection',
+        deviceId: asString(rec.device_number || rec.deviceid || deviceNumber, deviceNumber),
+        filingType: asString(
+          rec.test_type ||
+            rec.inspection_type ||
+            rec.filing_type ||
+            rec.device_type ||
+            rec.category,
+          'inspection',
+        ),
         filingDate,
-        status,
-        result,
+        status: normalizedStatus,
+        result: normalizedResult,
         defects,
-        inspectorName: rec.inspector_name || rec.inspector || null,
-        inspectorCompany: rec.inspector_company || rec.company || null,
+        inspectorName: asOptionalString(rec.inspector_name || rec.inspector),
+        inspectorCompany: asOptionalString(rec.inspector_company || rec.company),
         ...rec,
       }
     })
@@ -363,79 +582,178 @@ export class NYCOpenDataClient {
     if (bin) filters.bin = bin
     if (bbl) filters.bbl = bbl
     if (deviceNumber) filters.device_number = deviceNumber
-    const records = await this.fetchDatasetRecords(this.datasets.dobSafetyViolations, filters)
+    const records = await this.fetchDatasetRecords<DOBSafetyViolationRecord>(this.datasets.dobSafetyViolations, filters)
     return (records || []).map((rec) => ({
-      violationNumber:
+      violationNumber: asString(
         rec.violation_number || `DOB-SAF-${bin || bbl || 'unknown'}-${rec.violation_issue_date || Date.now()}`,
+      ),
       bin: rec.bin ? String(rec.bin) : bin || null,
       agency: 'DOB',
-      issueDate: rec.violation_issue_date || rec.issue_date || null,
-      description: rec.violation_remarks || rec.violation_type || rec.description || '',
-      status: rec.violation_status || rec.status || 'open',
-      cureByDate: rec.cycle_end_date || null,
+      issueDate: asNullableString(rec.violation_issue_date || rec.issue_date),
+      description: asString(rec.violation_remarks || rec.violation_type || rec.description, ''),
+      status: asString(rec.violation_status || rec.status, 'open'),
+      cureByDate: asNullableString(rec.cycle_end_date),
       severityScore: undefined,
-      deviceNumber: rec.device_number || null,
+      deviceNumber: asNullableString(rec.device_number),
+      category: 'violation',
+      ...rec,
+    }))
+  }
+
+  async fetchElevatorActiveViolations(
+    bin?: string | null,
+    deviceNumber?: string,
+    limit = 5000,
+    offset = 0
+  ): Promise<Violation[]> {
+    const filters: Record<string, string> = { $limit: String(limit), $offset: String(offset) }
+    if (bin) filters.bin = bin
+    if (deviceNumber) filters.device_number = deviceNumber
+    const records = await this.fetchDatasetRecords(this.datasets.elevatorViolationsActive, filters)
+    return (records || []).map((rec) => ({
+      violationNumber: asString(
+        rec.violation_number ||
+          rec.summons_number ||
+          `ELV-ACT-${bin || deviceNumber || 'unknown'}-${rec.issue_date || Date.now()}`,
+      ),
+      bin: rec.bin ? String(rec.bin) : bin || null,
+      agency: 'DOB',
+      issueDate: asNullableString(rec.violation_issue_date || rec.issue_date),
+      description: asString(rec.violation_description || rec.description || rec.violation_type, ''),
+      status: asString(rec.violation_status || rec.status, 'open'),
+      cureByDate: asNullableString(rec.cure_date || rec.respond_by_date),
+      severityScore: undefined,
+      deviceNumber: asNullableString(rec.device_number || deviceNumber),
+      category: 'violation',
+      ...rec,
+    }))
+  }
+
+  async fetchElevatorHistoricViolations(
+    bin?: string | null,
+    deviceNumber?: string,
+    limit = 5000,
+    offset = 0
+  ): Promise<Violation[]> {
+    const filters: Record<string, string> = { $limit: String(limit), $offset: String(offset) }
+    if (bin) filters.bin = bin
+    if (deviceNumber) filters.device_number = deviceNumber
+    const records = await this.fetchDatasetRecords(this.datasets.elevatorViolationsHistoric, filters)
+    return (records || []).map((rec) => ({
+      violationNumber: asString(
+        rec.violation_number ||
+          rec.summons_number ||
+          `ELV-HIST-${bin || deviceNumber || 'unknown'}-${rec.issue_date || Date.now()}`,
+      ),
+      bin: rec.bin ? String(rec.bin) : bin || null,
+      agency: 'DOB',
+      issueDate: asNullableString(rec.issue_date || rec.violation_issue_date || rec.issue_date),
+      description: asString(rec.description || rec.violation_description || rec.violation_type, ''),
+      status: asString(rec.violation_status || rec.status || (rec.disposition_date ? 'closed' : 'open'), 'open'),
+      cureByDate: asNullableString(rec.cure_date),
+      severityScore: undefined,
+      deviceNumber: asNullableString(rec.device_number || deviceNumber),
+      category: 'violation',
+      ...rec,
+    }))
+  }
+
+  async fetchElevatorComplaints(
+    bin?: string | null,
+    deviceNumber?: string,
+    limit = 5000,
+    offset = 0
+  ): Promise<Violation[]> {
+    const filters: Record<string, string> = { $limit: String(limit), $offset: String(offset) }
+    if (bin) filters.bin = bin
+    if (deviceNumber) filters.device_number = deviceNumber
+    const records = await this.fetchDatasetRecords(this.datasets.elevatorComplaints, filters)
+    return (records || []).map((rec) => ({
+      violationNumber: asString(
+        rec.complaint_number ||
+          rec.complaintid ||
+          `ELV-COMP-${bin || deviceNumber || 'unknown'}-${rec.received_date || Date.now()}`,
+      ),
+      bin: rec.bin ? String(rec.bin) : bin || null,
+      agency: 'DOB',
+      issueDate: asNullableString(rec.received_date || rec.issue_date),
+      description: asString(
+        rec.complaint_category || rec.major_category || rec.description || 'Elevator complaint',
+        'Elevator complaint',
+      ),
+      status: asString(rec.status || rec.complaint_status, 'open'),
+      cureByDate: null,
+      severityScore: undefined,
+      deviceNumber: asNullableString(rec.device_number || deviceNumber),
+      category: 'complaint',
       ...rec,
     }))
   }
 
   async fetchDOBViolations(bin: string, limit = 5000, offset = 0): Promise<Violation[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.dobViolations, {
+    const records = await this.fetchDatasetRecords<DOBViolationRecord>(this.datasets.dobViolations, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
       $order: 'issue_date DESC',
     })
     return (records || []).map((rec) => ({
-      violationNumber: rec.isn_dob_bis_viol || rec.violation_number || rec.violationid || `DOB-${bin}-${rec.issue_date || Date.now()}`,
+      violationNumber: asString(
+        rec.isn_dob_bis_viol || rec.violation_number || rec.violationid || `DOB-${bin}-${rec.issue_date || Date.now()}`,
+      ),
       bin: rec.bin ? String(rec.bin) : null,
       agency: 'DOB',
-      issueDate: rec.issue_date || rec.violation_date || null,
-      description: rec.violation_description || rec.description || '',
+      issueDate: asNullableString(rec.issue_date || rec.violation_date),
+      description: asString(rec.violation_description || rec.description, ''),
       status: rec.disposition_date ? 'closed' : 'open',
       cureByDate: null,
       severityScore: undefined,
-      deviceNumber: rec.device_number || null,
+      deviceNumber: asNullableString(rec.device_number),
+      category: 'violation',
       ...rec,
     }))
   }
 
   async fetchDOBActiveViolations(bin: string, limit = 5000, offset = 0): Promise<Violation[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.dobActiveViolations, {
+    const records = await this.fetchDatasetRecords<DOBActiveViolationRecord>(this.datasets.dobActiveViolations, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
     })
     return (records || []).map((rec) => ({
-      violationNumber: rec.isn_dob_bis_viol || rec.violation_number || `DOB-${bin}-${rec.issue_date || Date.now()}`,
+      violationNumber: asString(rec.isn_dob_bis_viol || rec.violation_number || `DOB-${bin}-${rec.issue_date || Date.now()}`),
       bin: rec.bin ? String(rec.bin) : null,
       agency: 'DOB',
-      issueDate: rec.issue_date || rec.violation_date || null,
-      description: rec.violation_description || rec.description || '',
+      issueDate: asNullableString(rec.issue_date || rec.violation_date),
+      description: asString(rec.violation_description || rec.description, ''),
       status: 'open',
       cureByDate: null,
       severityScore: undefined,
-      deviceNumber: rec.device_number || null,
+      deviceNumber: asNullableString(rec.device_number),
+      category: 'violation',
       ...rec,
     }))
   }
 
   async fetchDOBECBViolations(bin: string, limit = 5000, offset = 0): Promise<Violation[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.dobEcbViolations, {
+    const records = await this.fetchDatasetRecords<DOBECBViolationRecord>(this.datasets.dobEcbViolations, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
     })
     return (records || []).map((rec) => ({
-      violationNumber: rec.ecb_violation_number || rec.summons_number || `ECB-${bin}-${rec.violation_date || Date.now()}`,
+      violationNumber: asString(
+        rec.ecb_violation_number || rec.summons_number || `ECB-${bin}-${rec.violation_date || Date.now()}`,
+      ),
       bin: rec.bin ? String(rec.bin) : null,
       agency: 'DOB',
-      issueDate: rec.violation_date || rec.issue_date || null,
-      description: rec.violation_description || rec.description || '',
-      status: rec.hearing_status || rec.status || 'open',
-      cureByDate: rec.cure_date || null,
+      issueDate: asNullableString(rec.violation_date || rec.issue_date),
+      description: asString(rec.violation_description || rec.description, ''),
+      status: asString(rec.hearing_status || rec.status, 'open'),
+      cureByDate: asNullableString(rec.cure_date),
       severityScore: undefined,
-      deviceNumber: rec.device_number || null,
+      deviceNumber: asNullableString(rec.device_number),
+      category: 'violation',
       ...rec,
     }))
   }
@@ -448,15 +766,16 @@ export class NYCOpenDataClient {
       $order: 'inspectiondate DESC',
     })
     return (records || []).map((rec) => ({
-      violationNumber: rec.violationid || rec.orderid || `HPD-${bbl}-${rec.inspectiondate || Date.now()}`,
+      violationNumber: asString(rec.violationid || rec.orderid || `HPD-${bbl}-${rec.inspectiondate || Date.now()}`),
       bin: rec.bin ? String(rec.bin) : null,
       agency: 'HPD',
-      issueDate: rec.novissueddate || rec.inspectiondate || null,
-      description: rec.novdescription || rec.description || '',
-      status: rec.violationstatus || rec.currentstatus || 'open',
+      issueDate: asNullableString(rec.novissueddate || rec.inspectiondate),
+      description: asString(rec.novdescription || rec.description, ''),
+      status: asString(rec.violationstatus || rec.currentstatus, 'open'),
       cureByDate: null,
       severityScore: rec.class === 'C' ? 5 : rec.class === 'B' ? 3 : 1,
       deviceNumber: null,
+      category: 'violation',
       ...rec,
     }))
   }
@@ -466,23 +785,53 @@ export class NYCOpenDataClient {
       bbl,
       $limit: String(limit),
       $offset: String(offset),
-      $order: 'receiveddate DESC',
+      $order: 'received_date DESC',
     })
     return (records || []).map((rec) => ({
-      violationNumber: rec.complaintid || `HPD-C-${bbl}-${rec.receiveddate || Date.now()}`,
+      violationNumber: asString(rec.complaintid || `HPD-C-${bbl}-${rec.receiveddate || Date.now()}`),
       bin: rec.bin ? String(rec.bin) : null,
       agency: 'HPD',
-      issueDate: rec.receiveddate || rec.createddate || null,
-      description:
+      issueDate: asNullableString(rec.receiveddate || rec.createddate),
+      description: asString(
         rec.majorcategory && rec.minorcategory
           ? `${rec.majorcategory} - ${rec.minorcategory}`
           : rec.majorcategory || rec.minorcategory || 'HPD complaint',
-      status: rec.status || 'open',
+        'HPD complaint',
+      ),
+      status: asString(rec.status, 'open'),
       cureByDate: null,
       severityScore: rec.majorcategory === 'HEAT/HOT WATER' ? 4 : rec.majorcategory === 'HAZARDOUS BUILDING' ? 5 : undefined,
       deviceNumber: null,
+      category: 'complaint',
       ...rec,
     }))
+  }
+
+  async fetchHPDRegistrations(
+    params: {
+      bin?: string
+      registrationId?: string
+      boro?: string
+      block?: string
+      lot?: string
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<HPDRegistrationRecord[]> {
+    const { bin, registrationId, boro, block, lot, limit = 5000, offset = 0 } = params
+    const query: Record<string, string | undefined> = {
+      $limit: String(limit),
+      $offset: String(offset),
+      $order: 'lastregistrationdate DESC',
+    }
+    if (bin) query.bin = bin
+    if (registrationId) query.registrationid = registrationId
+    if (boro) query.boro = boro
+    if (block) query.block = block
+    if (lot) query.lot = lot
+
+    const records = await this.fetchDatasetRecords<HPDRegistrationRecord>(this.datasets.hpdRegistrations, query)
+    return records
   }
 
   async fetchBedbugReporting(
@@ -490,7 +839,7 @@ export class NYCOpenDataClient {
     bbl?: string,
     limit = 5000,
     offset = 0
-  ): Promise<any[]> {
+  ): Promise<BedbugReportRecord[]> {
     const params: Record<string, string | undefined> = {
       $limit: String(limit),
       $offset: String(offset),
@@ -498,55 +847,177 @@ export class NYCOpenDataClient {
     }
     if (bin) params.bin = bin
     if (bbl) params.bbl = bbl
-    const records = await this.fetchDatasetRecords(this.datasets.bedbugReporting, params)
+    const records = await this.fetchDatasetRecords<BedbugReportRecord>(this.datasets.bedbugReporting, params)
     return records
   }
 
-  async fetchFDNYViolations(bin: string, limit = 5000, offset = 0): Promise<Violation[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.fdnyViolations, {
-      bin,
+  async fetchFDNYViolations(
+    params: {
+      bin?: string | null
+      block?: string | null
+      lot?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<Violation[]> {
+    const { bin, block, lot, limit = 5000, offset = 0 } = params
+    const query: Record<string, string | undefined> = {
       $limit: String(limit),
       $offset: String(offset),
-      $order: 'inspection_date DESC',
-    })
+      $order: 'violation_date DESC',
+    }
+    if (block || lot) {
+      if (block) query.violation_location_block_no = block
+      if (lot) query.violation_location_lot_no = lot
+    } else if (bin) {
+      query.respondent_address_or_facility_number_for_fdny_and_dob_tickets = bin
+    }
+
+    const records = await this.fetchDatasetRecords(this.datasets.fdnyViolations, query)
     return (records || []).map((rec) => ({
-      violationNumber: rec.violation_id || rec.summons_number || `FDNY-${bin}-${rec.inspection_date || Date.now()}`,
-      bin: rec.bin ? String(rec.bin) : null,
+      violationNumber: asString(
+        rec.violation_id ||
+          rec.summons_number ||
+          `FDNY-${bin || block || 'unknown'}-${rec.inspection_date || Date.now()}`,
+      ),
+      bin: rec.bin ? String(rec.bin) : bin || null,
       agency: 'FDNY',
-      issueDate: rec.inspection_date || rec.issue_date || null,
-      description: rec.violation_description || rec.description || '',
-      status: rec.violation_status || rec.status || 'open',
-      cureByDate: rec.cure_date || null,
+      issueDate: asNullableString(rec.violation_date || rec.inspection_date || rec.issue_date),
+      description: asString(rec.violation_description || rec.description, ''),
+      status: asString(rec.compliance_status || rec.violation_status || rec.status, 'open'),
+      cureByDate: asNullableString(rec.cure_date || rec.hearing_date),
       severityScore: rec.violation_level === 'IMMEDIATELY HAZARDOUS' ? 5 : undefined,
       deviceNumber: null,
+      category: 'violation',
       ...rec,
     }))
   }
 
-  async fetchAsbestosViolations(bin: string, limit = 5000, offset = 0): Promise<Violation[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.asbestosViolations, {
+  async fetchIndoorEnvironmentalComplaints(
+    bin?: string | null,
+    limit = 5000,
+    offset = 0
+  ): Promise<Violation[]> {
+    if (!bin) return []
+    const records = await this.fetchDatasetRecords(this.datasets.indoorEnvironmentalComplaints, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
     })
     return (records || []).map((rec) => ({
-      violationNumber: rec.violation_id || rec.case_number || `ASB-${bin}-${rec.issue_date || Date.now()}`,
-      bin: rec.bin ? String(rec.bin) : null,
-      agency: 'DEP',
-      issueDate: rec.issue_date || rec.violation_date || null,
-      description: rec.violation_code || rec.description || '',
-      status: rec.hearing_status || rec.status || 'open',
+      violationNumber: asString(rec.complaint_number || rec.unique_key || `DOHMH-IEC-${bin}-${rec.created_date || Date.now()}`),
+      bin: rec.bin ? String(rec.bin) : bin,
+      agency: 'DOHMH',
+      issueDate: asNullableString(rec.created_date || rec.received_date),
+      description: asString(
+        rec.descriptor ||
+          rec.complaint_type ||
+          rec.incident_address ||
+          rec.complaint_description ||
+          'Indoor environmental complaint',
+        'Indoor environmental complaint',
+      ),
+      status: asString(rec.status, 'open'),
       cureByDate: null,
       severityScore: undefined,
       deviceNumber: null,
+      category: 'complaint',
       ...rec,
     }))
   }
 
-  private async fetchDatasetRecords(datasetId: string, params: Record<string, string | undefined>): Promise<any[]> {
+  async fetchAsbestosViolations(
+    params: {
+      bin?: string | null
+      block?: string | null
+      lot?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<Violation[]> {
+    const { bin, block, lot, limit = 5000, offset = 0 } = params
+    const query: Record<string, string | undefined> = {
+      $limit: String(limit),
+      $offset: String(offset),
+      $order: 'violation_date DESC',
+    }
+    if (block || lot) {
+      if (block) query.violation_location_block_no = block
+      if (lot) query.violation_location_lot_no = lot
+    } else if (bin) {
+      query.respondent_address_or_facility_number_for_fdny_and_dob_tickets = bin
+    }
+
+    const records = await this.fetchDatasetRecords(this.datasets.asbestosViolations, query)
+    return (records || []).map((rec) => ({
+      violationNumber: asString(
+        rec.violation_id ||
+          rec.case_number ||
+          rec.ticket_number ||
+          `ASB-${bin || block || 'unknown'}-${rec.violation_date || rec.issue_date || Date.now()}`,
+      ),
+      bin: rec.bin ? String(rec.bin) : bin || null,
+      agency: 'DEP',
+      issueDate: asNullableString(rec.violation_date || rec.issue_date || rec.hearing_date),
+      description: asString(rec.violation_description || rec.violation_code || rec.description, ''),
+      status: asString(rec.compliance_status || rec.hearing_status || rec.status, 'open'),
+      cureByDate: null,
+      severityScore: undefined,
+      deviceNumber: null,
+      category: 'violation',
+      ...rec,
+    }))
+  }
+
+  async fetchBackflowPreventionViolations(
+    params: {
+      bin?: string | null
+      block?: string | null
+      lot?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<Violation[]> {
+    const { bin, block, lot, limit = 5000, offset = 0 } = params
+    const query: Record<string, string | undefined> = {
+      $limit: String(limit),
+      $offset: String(offset),
+      $order: 'violation_date DESC',
+    }
+    if (block || lot) {
+      if (block) query.violation_location_block_no = block
+      if (lot) query.violation_location_lot_no = lot
+    } else if (bin) {
+      query.respondent_address_or_facility_number_for_fdny_and_dob_tickets = bin
+    }
+
+    const records = await this.fetchDatasetRecords(this.datasets.backflowPreventionViolations, query)
+    return (records || []).map((rec) => ({
+      violationNumber: asString(
+        rec.ticket_number ||
+          rec.violation_id ||
+          `BACKFLOW-${bin || block || 'unknown'}-${rec.violation_date || rec.issue_date || Date.now()}`,
+      ),
+      bin: rec.bin ? String(rec.bin) : bin || null,
+      agency: 'DEP',
+      issueDate: asNullableString(rec.violation_date || rec.issue_date || rec.hearing_date),
+      description: asString(rec.violation_description || rec.violation_details || rec.charge_1_code_description, ''),
+      status: asString(rec.compliance_status || rec.hearing_status || rec.status, 'open'),
+      cureByDate: asNullableString(rec.hearing_date),
+      severityScore: undefined,
+      deviceNumber: null,
+      category: 'violation',
+      ...rec,
+    }))
+  }
+
+  private async fetchDatasetRecords<T extends NYCOpenDataRecord = NYCOpenDataRecord>(
+    datasetId: string,
+    params: Record<string, string | undefined>,
+  ): Promise<T[]> {
     const url = this.buildUrl(datasetId, params)
-    const rawRecords = await this.makeRequest<any[]>(url)
-    const records = Array.isArray(rawRecords) ? rawRecords : []
+    const rawRecords = await this.makeRequest<T[]>(url)
+    const records = (Array.isArray(rawRecords) ? rawRecords : []) as T[]
     return this.ensureAllDatasetColumns(datasetId, records)
   }
 
@@ -554,8 +1025,8 @@ export class NYCOpenDataClient {
     bbl: string,
     limit = 5000,
     offset = 0
-  ): Promise<any[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.sidewalkViolations, {
+  ): Promise<SidewalkViolationRecord[]> {
+    const records = await this.fetchDatasetRecords<SidewalkViolationRecord>(this.datasets.sidewalkViolations, {
       bblid: bbl,
       $limit: String(limit),
       $offset: String(offset),
@@ -563,8 +1034,8 @@ export class NYCOpenDataClient {
     return records
   }
 
-  async fetchDOBComplaints(bin: string, limit = 5000, offset = 0): Promise<any[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.dobComplaints, {
+  async fetchDOBComplaints(bin: string, limit = 5000, offset = 0): Promise<DOBComplaintRecord[]> {
+    const records = await this.fetchDatasetRecords<DOBComplaintRecord>(this.datasets.dobComplaints, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
@@ -582,7 +1053,7 @@ export class NYCOpenDataClient {
       limit?: number
       offset?: number
     } = {}
-  ): Promise<any[]> {
+  ): Promise<DOBNowJobFilingRecord[]> {
     const { bin, bbl, block, lot, jobFilingNumber, limit = 5000, offset = 0 } = params
     const query: Record<string, string | undefined> = {
       $limit: String(limit),
@@ -594,7 +1065,29 @@ export class NYCOpenDataClient {
     if (lot) query.lot = lot
     if (jobFilingNumber) query.job_filing_number = jobFilingNumber
 
-    const records = await this.fetchDatasetRecords(this.datasets.dobNowApprovedPermits, query)
+    const records = await this.fetchDatasetRecords<DOBNowJobFilingRecord>(this.datasets.dobNowApprovedPermits, query)
+    return records
+  }
+
+  async fetchDOBNowJobFilings(
+    params: {
+      bin?: string | null
+      bbl?: string | null
+      jobFilingNumber?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<DOBNowJobFilingRecord[]> {
+    const { bin, bbl, jobFilingNumber, limit = 5000, offset = 0 } = params
+    const query: Record<string, string | undefined> = {
+      $limit: String(limit),
+      $offset: String(offset),
+    }
+    if (bin) query.bin = bin
+    if (bbl) query.bbl = bbl
+    if (jobFilingNumber) query.job_filing_number = jobFilingNumber
+
+    const records = await this.fetchDatasetRecords<DOBNowJobFilingRecord>(this.datasets.dobNowJobFilings, query)
     return records
   }
 
@@ -607,7 +1100,7 @@ export class NYCOpenDataClient {
       limit?: number
       offset?: number
     } = {}
-  ): Promise<any[]> {
+  ): Promise<SafetyFacadeFilingRecord[]> {
     const { bin, controlNumber, trNumber, sequenceNumber, limit = 5000, offset = 0 } = params
     const query: Record<string, string | undefined> = {
       $limit: String(limit),
@@ -618,7 +1111,7 @@ export class NYCOpenDataClient {
     if (trNumber) query.tr6_no = trNumber
     if (sequenceNumber) query.sequence_no = sequenceNumber
 
-    const records = await this.fetchDatasetRecords(this.datasets.dobNowSafetyFacade, query)
+    const records = await this.fetchDatasetRecords<SafetyFacadeFilingRecord>(this.datasets.dobNowSafetyFacade, query)
     return this.fillMissingColumns(records, DOB_NOW_SAFETY_FACADE_COLUMNS)
   }
 
@@ -630,7 +1123,7 @@ export class NYCOpenDataClient {
       limit?: number
       offset?: number
     } = {}
-  ): Promise<any[]> {
+  ): Promise<SafetyBoilerFilingRecord[]> {
     const { bin, boilerId, trackingNumber, limit = 5000, offset = 0 } = params
     const query: Record<string, string | undefined> = {
       $limit: String(limit),
@@ -640,7 +1133,7 @@ export class NYCOpenDataClient {
     if (boilerId) query.boiler_id = boilerId
     if (trackingNumber) query.tracking_number = trackingNumber
 
-    const records = await this.fetchDatasetRecords(this.datasets.dobNowSafetyBoiler, query)
+    const records = await this.fetchDatasetRecords<SafetyBoilerFilingRecord>(this.datasets.dobNowSafetyBoiler, query)
     return this.fillMissingColumns(records, DOB_NOW_SAFETY_BOILER_COLUMNS)
   }
 
@@ -656,7 +1149,7 @@ export class NYCOpenDataClient {
       limit?: number
       offset?: number
     } = {}
-  ): Promise<any[]> {
+  ): Promise<DOBPermitIssuanceRecord[]> {
     const { bin, bbl, jobNumber, permitNumber, limit = 5000, offset = 0 } = params
     let { block, lot, borough } = params
 
@@ -680,12 +1173,88 @@ export class NYCOpenDataClient {
     if (jobNumber) query.job__ = jobNumber
     if (permitNumber) query.permit_si_no = permitNumber
 
-    const records = await this.fetchDatasetRecords(this.datasets.dobPermitIssuanceOld, query)
+    const records = await this.fetchDatasetRecords<DOBPermitIssuanceRecord>(this.datasets.dobPermitIssuanceOld, query)
     return records
   }
 
-  async fetchDOBCertificateOfOccupancyOld(bin: string, limit = 5000, offset = 0): Promise<any[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.dobCertificateOfOccupancyOld, {
+  async fetchDOBJobApplications(
+    params: {
+      bin?: string | null
+      bbl?: string | null
+      block?: string | null
+      lot?: string | null
+      borough?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<DOBJobApplicationRecord[]> {
+    const { bin, bbl, limit = 5000, offset = 0 } = params
+    let { block, lot, borough } = params
+
+    if ((!block || !lot || !borough) && bbl) {
+      const digits = bbl.replace(/\D+/g, '')
+      if (digits.length === 10) {
+        borough = borough || digits[0]
+        block = block || digits.slice(1, 6)
+        lot = lot || digits.slice(6)
+      }
+    }
+
+    const query: Record<string, string | undefined> = {
+      $limit: String(limit),
+      $offset: String(offset),
+    }
+    if (bin) query.bin__ = bin
+    if (borough) query.borough = borough
+    if (block) query.block = block
+    if (lot) query.lot = lot
+
+    return this.fetchDatasetRecords<DOBJobApplicationRecord>(this.datasets.dobJobApplications, query)
+  }
+
+  async fetchDOBElevatorPermitApplications(
+    params: {
+      bin?: string | null
+      bbl?: string | null
+      block?: string | null
+      lot?: string | null
+      jobFilingNumber?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<DOBElevatorPermitApplicationRecord[]> {
+    const { bin, bbl, jobFilingNumber, limit = 5000, offset = 0 } = params
+    let { block, lot } = params
+
+    if ((!block || !lot) && bbl) {
+      const digits = bbl.replace(/\D+/g, '')
+      if (digits.length === 10) {
+        block = block || digits.slice(1, 6)
+        lot = lot || digits.slice(6)
+      }
+    }
+
+    const query: Record<string, string | undefined> = {
+      $limit: String(limit),
+      $offset: String(offset),
+    }
+    if (bin) {
+      query.bin = bin
+    } else {
+      if (block) query.block = block
+      if (lot) query.lot = lot
+    }
+    if (jobFilingNumber) query.job_filing_number = jobFilingNumber
+
+    return this.fetchDatasetRecords<DOBElevatorPermitApplicationRecord>(this.datasets.dobElevatorPermitApplications, query)
+  }
+
+  async fetchDOBCertificateOfOccupancyOld(
+    bin: string,
+    limit = 5000,
+    offset = 0,
+  ): Promise<DOBCertificateOfOccupancyRecord[]> {
+    const records = await this.fetchDatasetRecords<DOBCertificateOfOccupancyRecord>(this.datasets.dobCertificateOfOccupancyOld, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
@@ -693,13 +1262,77 @@ export class NYCOpenDataClient {
     return records
   }
 
-  async fetchDOBCertificateOfOccupancyNow(bin: string, limit = 5000, offset = 0): Promise<any[]> {
-    const records = await this.fetchDatasetRecords(this.datasets.dobCertificateOfOccupancyNow, {
+  async fetchDOBCertificateOfOccupancyNow(
+    bin: string,
+    limit = 5000,
+    offset = 0,
+  ): Promise<DOBCertificateOfOccupancyRecord[]> {
+    const records = await this.fetchDatasetRecords<DOBCertificateOfOccupancyRecord>(this.datasets.dobCertificateOfOccupancyNow, {
       bin,
       $limit: String(limit),
       $offset: String(offset),
     })
     return records
+  }
+
+  async fetchDEPWaterSewerPermits(
+    params: {
+      taxBlock?: string | null
+      taxLot?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<WaterSewerRecord[]> {
+    const { taxBlock, taxLot, limit = 5000, offset = 0 } = params
+    const toDigits = (value?: string | null) => {
+      const text = value ? String(value).trim() : ''
+      const digits = text.replace(/\D+/g, '')
+      return digits.length ? String(Number(digits)) : null
+    }
+
+    const propertyBlock = toDigits(taxLot) // propertyblock maps from tax_lot
+    const propertyLot = toDigits(taxBlock) // propertylot maps from tax_block
+
+    if (!propertyBlock || !propertyLot) return []
+
+    const query: Record<string, string | undefined> = {
+      propertyblock: propertyBlock,
+      propertylot: propertyLot,
+      $limit: String(limit),
+      $offset: String(offset),
+    }
+
+    return this.fetchDatasetRecords<WaterSewerRecord>(this.datasets.waterSewer, query)
+  }
+
+  async fetchDEPWaterSewerPermitsOld(
+    params: {
+      taxBlock?: string | null
+      taxLot?: string | null
+      limit?: number
+      offset?: number
+    } = {}
+  ): Promise<WaterSewerOldRecord[]> {
+    const { taxBlock, taxLot, limit = 5000, offset = 0 } = params
+    const toDigits = (value?: string | null) => {
+      const text = value ? String(value).trim() : ''
+      const digits = text.replace(/\D+/g, '')
+      return digits.length ? String(Number(digits)) : null
+    }
+
+    const block = toDigits(taxBlock)
+    const lot = toDigits(taxLot)
+
+    if (!block || !lot) return []
+
+    const query: Record<string, string | undefined> = {
+      block,
+      lot,
+      $limit: String(limit),
+      $offset: String(offset),
+    }
+
+    return this.fetchDatasetRecords<WaterSewerOldRecord>(this.datasets.waterSewerOld, query)
   }
 
   async fetchHeatSensorProgram(
@@ -707,31 +1340,34 @@ export class NYCOpenDataClient {
     bbl?: string,
     limit = 5000,
     offset = 0
-  ): Promise<any[]> {
+  ): Promise<HeatSensorProgramRecord[]> {
     const params: Record<string, string | undefined> = {
       $limit: String(limit),
       $offset: String(offset),
     }
     if (bin) params.bin = bin
     if (bbl) params.bbl = bbl
-    const records = await this.fetchDatasetRecords(this.datasets.heatSensorProgram, params)
+    const records = await this.fetchDatasetRecords<HeatSensorProgramRecord>(this.datasets.heatSensorProgram, params)
     return records
   }
 
-  private fillMissingColumns(rows: any[], columns: readonly string[]): any[] {
+  private fillMissingColumns<T extends NYCOpenDataRecord>(rows: T[], columns: readonly string[]): T[] {
     if (!rows?.length) return rows
     return rows.map((row) => {
-      const normalized = { ...row }
+      const normalized: NYCOpenDataRecord = { ...row }
       for (const column of columns) {
         if (!(column in normalized)) {
           normalized[column] = null
         }
       }
-      return normalized
+      return normalized as T
     })
   }
 
-  private async ensureAllDatasetColumns(datasetId: string, records: any[]): Promise<any[]> {
+  private async ensureAllDatasetColumns<T extends NYCOpenDataRecord>(
+    datasetId: string,
+    records: T[],
+  ): Promise<T[]> {
     const rows = Array.isArray(records) ? records : []
     if (!rows.length) return rows
 
@@ -739,13 +1375,13 @@ export class NYCOpenDataClient {
     if (!columns || columns.length === 0) return rows
 
     return rows.map((row) => {
-      const normalized = { ...row }
+      const normalized: NYCOpenDataRecord = { ...row }
       for (const column of columns) {
         if (!(column in normalized)) {
           normalized[column] = null
         }
       }
-      return normalized
+      return normalized as T
     })
   }
 

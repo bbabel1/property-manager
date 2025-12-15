@@ -7,7 +7,10 @@
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { generateServiceBasedTasks, generateServiceBasedCharges } from './service-automation';
+import { generateServiceBasedTasks } from './service-automation';
+import type { Database } from '@/types/database';
+
+type ServicePlanEnum = Database['public']['Enums']['service_plan_enum'];
 
 /**
  * Handle service activation event
@@ -18,12 +21,15 @@ export async function handleServiceActivation(params: {
   unitId?: string | null;
   offeringId: string;
   effectiveDate: string; // ISO timestamp
-  servicePlan: string | null;
+  servicePlan: ServicePlanEnum | null;
   db?: TypedSupabaseClient;
 }): Promise<void> {
   const { propertyId, unitId, offeringId, effectiveDate, servicePlan, db = supabaseAdmin } = params;
 
-  logger.info({ propertyId, unitId, offeringId, effectiveDate }, 'Handling service activation');
+  logger.info(
+    { propertyId, unitId, offeringId, effectiveDate, servicePlan },
+    'Handling service activation',
+  );
 
   // Get next billing cycle start date (no proration - start next period)
   const effective = new Date(effectiveDate);
@@ -111,8 +117,8 @@ export async function handleServiceDeactivation(params: {
 export async function handleServicePlanChange(params: {
   propertyId: string;
   unitId?: string | null;
-  oldPlan: string | null;
-  newPlan: string | null;
+  oldPlan: ServicePlanEnum | null;
+  newPlan: ServicePlanEnum | null;
   effectiveDate: string;
   db?: TypedSupabaseClient;
 }): Promise<void> {
@@ -131,8 +137,7 @@ export async function handleServicePlanChange(params: {
       .eq('property_id', propertyId)
       .eq('is_active', true)
       .is('effective_end', null)
-      .is('unit_id', unitId ? null : null)
-      .eq('unit_id', unitId || null);
+      .match({ unit_id: unitId ?? null });
 
     if (activePricing) {
       for (const pricing of activePricing) {

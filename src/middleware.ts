@@ -159,7 +159,7 @@ export async function middleware(req: NextRequest) {
           pathname,
           hasCookies: req.cookies.getAll().length > 0,
           hasBearerToken: !!authHeader,
-          getUserError: getUserError?.message,
+          getUserError: getUserError instanceof Error ? getUserError.message : undefined,
         });
       }
       return new NextResponse(
@@ -250,7 +250,9 @@ export async function middleware(req: NextRequest) {
     // Forward an org hint to route handlers if not provided (best-effort)
     const requestHeaders = new Headers(req.headers);
     if (!requestHeaders.get('x-org-id')) {
-      const preferredOrg = (user?.app_metadata as LooseRecord)?.claims?.preferred_org_id;
+      const appMeta = (user?.app_metadata ?? {}) as LooseRecord;
+      const claims = (appMeta.claims ?? {}) as LooseRecord;
+      const preferredOrg = claims.preferred_org_id as string | undefined;
       const orgHint = preferredOrg || orgIds?.[0] || targetOrgId;
       if (orgHint) {
         requestHeaders.set('x-org-id', String(orgHint));

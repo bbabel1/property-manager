@@ -1,14 +1,13 @@
 /**
  * NYC Open Data Integration API
  *
- * GET    /api/nyc-data/integration - Fetch org-scoped Open Data config (masked token)
- * PUT    /api/nyc-data/integration - Upsert config (encrypts token)
- * DELETE /api/nyc-data/integration - Soft delete config
+ * GET    /api/nyc-data/integration - Fetch global Open Data config (masked token)
+ * PUT    /api/nyc-data/integration - Upsert dataset catalog entries
+ * DELETE /api/nyc-data/integration - No-op (legacy)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guards'
-import { supabaseAdmin } from '@/lib/db'
 import {
   deleteNYCOpenDataConfig,
   getNYCOpenDataConfig,
@@ -16,34 +15,11 @@ import {
   saveNYCOpenDataConfig,
 } from '@/lib/nyc-open-data/config-manager'
 
-async function resolveOrgId(request: NextRequest, userId: string): Promise<string> {
-  const headerOrgId = request.headers.get('x-org-id')
-  if (headerOrgId) return headerOrgId.trim()
-
-  const cookieOrgId = request.cookies.get('x-org-id')?.value
-  if (cookieOrgId) return cookieOrgId.trim()
-
-  const { data: membership, error } = await supabaseAdmin
-    .from('org_memberships')
-    .select('org_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (error || !membership) {
-    throw new Error('ORG_CONTEXT_REQUIRED')
-  }
-
-  return membership.org_id
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth()
-    const orgId = await resolveOrgId(request, auth.user.id)
+    await requireAuth()
 
-    const config = await getNYCOpenDataConfig(orgId)
+    const config = await getNYCOpenDataConfig()
 
     return NextResponse.json({
       is_enabled: config.isEnabled,
@@ -61,9 +37,6 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 })
     }
-    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
-      return NextResponse.json({ error: { code: 'missing_org', message: 'Organization context required' } }, { status: 400 })
-    }
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch NYC Open Data integration' } },
       { status: 500 }
@@ -74,7 +47,6 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const auth = await requireAuth()
-    const orgId = await resolveOrgId(request, auth.user.id)
     const body = await request.json()
 
     const baseUrl = typeof body.baseUrl === 'string' && body.baseUrl.trim().length > 0 ? body.baseUrl.trim() : undefined
@@ -92,16 +64,20 @@ export async function PUT(request: NextRequest) {
 
     const datasetsInput = body.datasets || {}
 
-    await saveNYCOpenDataConfig(orgId, {
+    await saveNYCOpenDataConfig('global', {
       baseUrl,
       appToken: body.appToken || undefined,
-      appTokenUnchanged: body.appTokenUnchanged === true,
       geoserviceBaseUrl: typeof body.geoserviceBaseUrl === 'string' ? body.geoserviceBaseUrl : undefined,
       geoserviceApiKey: body.geoserviceApiKey || undefined,
-      geoserviceApiKeyUnchanged: body.geoserviceApiKeyUnchanged === true,
       isEnabled: body.isEnabled,
       elevatorDevices: datasetsInput.elevatorDevices || datasetsInput.dataset_elevator_devices || undefined,
       elevatorInspections: datasetsInput.elevatorInspections || datasetsInput.dataset_elevator_inspections || undefined,
+      elevatorViolationsActive:
+        datasetsInput.elevatorViolationsActive || datasetsInput.dataset_elevator_violations_active || undefined,
+      elevatorViolationsHistoric:
+        datasetsInput.elevatorViolationsHistoric || datasetsInput.dataset_elevator_violations_historic || undefined,
+      elevatorComplaints:
+        datasetsInput.elevatorComplaints || datasetsInput.dataset_elevator_complaints || undefined,
       dobSafetyViolations:
         datasetsInput.dobSafetyViolations ||
         datasetsInput.elevatorViolations || // backward compatibility with old key
@@ -114,12 +90,16 @@ export async function PUT(request: NextRequest) {
       bedbugReporting: datasetsInput.bedbugReporting || datasetsInput.dataset_bedbug_reporting || undefined,
       dobNowApprovedPermits:
         datasetsInput.dobNowApprovedPermits || datasetsInput.dataset_dob_now_approved_permits || undefined,
+      dobNowJobFilings:
+        datasetsInput.dobNowJobFilings || datasetsInput.dataset_dob_now_job_filings || undefined,
       dobNowSafetyBoiler:
         datasetsInput.dobNowSafetyBoiler || datasetsInput.dataset_dob_now_safety_boiler || undefined,
       dobNowSafetyFacade:
         datasetsInput.dobNowSafetyFacade || datasetsInput.dataset_dob_now_safety_facade || undefined,
       dobPermitIssuanceOld:
         datasetsInput.dobPermitIssuanceOld || datasetsInput.dataset_dob_permit_issuance_old || undefined,
+      dobJobApplications:
+        datasetsInput.dobJobApplications || datasetsInput.dataset_dob_job_applications || undefined,
       dobCertificateOfOccupancyOld:
         datasetsInput.dobCertificateOfOccupancyOld ||
         datasetsInput.dataset_dob_certificate_of_occupancy_old ||
@@ -131,6 +111,9 @@ export async function PUT(request: NextRequest) {
       hpdViolations: datasetsInput.hpdViolations || datasetsInput.dataset_hpd_violations || undefined,
       hpdComplaints: datasetsInput.hpdComplaints || datasetsInput.dataset_hpd_complaints || undefined,
       hpdRegistrations: datasetsInput.hpdRegistrations || datasetsInput.dataset_hpd_registrations || undefined,
+      buildingsSubjectToHPD:
+        datasetsInput.buildingsSubjectToHPD || datasetsInput.dataset_buildings_subject_to_hpd || undefined,
+      heatSensorProgram: datasetsInput.heatSensorProgram || datasetsInput.dataset_heat_sensor_program || undefined,
       fdnyViolations: datasetsInput.fdnyViolations || datasetsInput.dataset_fdny_violations || undefined,
       asbestosViolations: datasetsInput.asbestosViolations || datasetsInput.dataset_asbestos_violations || undefined,
       sidewalkViolations: datasetsInput.sidewalkViolations || datasetsInput.dataset_sidewalk_violations || undefined,
@@ -141,9 +124,6 @@ export async function PUT(request: NextRequest) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 })
     }
-    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
-      return NextResponse.json({ error: { code: 'missing_org', message: 'Organization context required' } }, { status: 400 })
-    }
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Failed to save NYC Open Data integration' } },
       { status: 500 }
@@ -153,16 +133,12 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireAuth()
-    const orgId = await resolveOrgId(request, auth.user.id)
-    await deleteNYCOpenDataConfig(orgId)
+    await requireAuth()
+    await deleteNYCOpenDataConfig('global')
     return NextResponse.json({ success: true })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 })
-    }
-    if (error instanceof Error && error.message === 'ORG_CONTEXT_REQUIRED') {
-      return NextResponse.json({ error: { code: 'missing_org', message: 'Organization context required' } }, { status: 400 })
     }
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to delete NYC Open Data integration' } },

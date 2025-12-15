@@ -1,88 +1,96 @@
-"use client"
+'use client';
 
-import React, { useEffect, useMemo, useState } from 'react'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
-import { CalendarEvent } from '@/types/calendar'
-import { format } from 'date-fns'
-import { Loader2, Users, MapPin, AlignLeft } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { CalendarEvent } from '@/types/calendar';
+import { format } from 'date-fns';
+import { Loader2, Users, MapPin, AlignLeft } from 'lucide-react';
 
-type GuestOption = { name: string; email: string; photoUrl?: string }
+type GuestOption = { name: string; email: string; photoUrl?: string };
 
 type AddEventModalProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  defaultDate?: Date
-  onCreated: () => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  defaultDate?: Date;
+  onCreated: () => void;
+};
 
 export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: AddEventModalProps) {
-  const [title, setTitle] = useState('')
-  const [date, setDate] = useState<Date>(defaultDate || new Date())
-  const [startTime, setStartTime] = useState('10:00')
-  const [endTime, setEndTime] = useState('11:00')
-  const [allDay, setAllDay] = useState(false)
-  const [location, setLocation] = useState('')
-  const [description, setDescription] = useState('')
-  const [guests, setGuests] = useState<GuestOption[]>([])
-  const [guestQuery, setGuestQuery] = useState('')
-  const [guestResults, setGuestResults] = useState<GuestOption[]>([])
-  const [saving, setSaving] = useState(false)
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState<Date>(defaultDate || new Date());
+  const [startTime, setStartTime] = useState('10:00');
+  const [endTime, setEndTime] = useState('11:00');
+  const [allDay, setAllDay] = useState(false);
+  const [location, setLocation] = useState('');
+  const [description, setDescription] = useState('');
+  const [guests, setGuests] = useState<GuestOption[]>([]);
+  const [guestQuery, setGuestQuery] = useState('');
+  const [guestResults, setGuestResults] = useState<GuestOption[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setDate(defaultDate || new Date())
-  }, [defaultDate])
+    setDate(defaultDate || new Date());
+  }, [defaultDate]);
 
   useEffect(() => {
     const handler = setTimeout(async () => {
       if (guestQuery.trim().length < 2) {
-        setGuestResults([])
-        return
+        setGuestResults([]);
+        return;
       }
       try {
-        const res = await fetch(`/api/google/people/search?query=${encodeURIComponent(guestQuery)}`)
+        const res = await fetch(
+          `/api/google/people/search?query=${encodeURIComponent(guestQuery)}`,
+        );
         if (res.ok) {
-          const data = await res.json()
-          setGuestResults(data.people || [])
+          const data = await res.json();
+          setGuestResults(data.people || []);
         }
       } catch (err) {
-        console.error('Failed to search guests', err)
+        console.error('Failed to search guests', err);
       }
-    }, 250)
-    return () => clearTimeout(handler)
-  }, [guestQuery])
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [guestQuery]);
 
   const startIso = useMemo(() => {
-    const [h, m] = startTime.split(':').map((n) => parseInt(n, 10))
-    const d = new Date(date)
-    d.setHours(h || 0, m || 0, 0, 0)
-    return d.toISOString()
-  }, [date, startTime])
+    const [h, m] = startTime.split(':').map((n) => parseInt(n, 10));
+    const d = new Date(date);
+    d.setHours(h || 0, m || 0, 0, 0);
+    return d.toISOString();
+  }, [date, startTime]);
 
   const endIso = useMemo(() => {
-    const [h, m] = endTime.split(':').map((n) => parseInt(n, 10))
-    const d = new Date(date)
-    d.setHours(h || 0, m || 0, 0, 0)
-    return d.toISOString()
-  }, [date, endTime])
+    const [h, m] = endTime.split(':').map((n) => parseInt(n, 10));
+    const d = new Date(date);
+    d.setHours(h || 0, m || 0, 0, 0);
+    return d.toISOString();
+  }, [date, endTime]);
 
   const handleAddGuest = (guest: GuestOption) => {
-    if (guests.find((g) => g.email === guest.email)) return
-    setGuests((prev) => [...prev, guest])
-    setGuestQuery('')
-    setGuestResults([])
-  }
+    if (guests.find((g) => g.email === guest.email)) return;
+    setGuests((prev) => [...prev, guest]);
+    setGuestQuery('');
+    setGuestResults([]);
+  };
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      return
+      return;
     }
-    setSaving(true)
+    setSaving(true);
     try {
       const body = {
         summary: title,
@@ -93,50 +101,50 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
         attendees: guests,
         allDay,
         addConference: false,
-      }
+      };
 
       const res = await fetch('/api/calendar/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      })
+      });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error?.message || 'Failed to create event')
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error?.message || 'Failed to create event');
       }
 
-      onCreated()
-      onOpenChange(false)
-      setTitle('')
-      setDescription('')
-      setLocation('')
-      setGuests([])
-      setGuestQuery('')
+      onCreated();
+      onOpenChange(false);
+      setTitle('');
+      setDescription('');
+      setLocation('');
+      setGuests([]);
+      setGuestQuery('');
     } catch (err: any) {
-      console.error(err)
+      console.error(err);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl gap-0 p-0">
-        <DialogHeader className="px-5 py-4 border-b">
+      <DialogContent className="w-[680px] max-w-[680px] gap-0 p-0">
+        <DialogHeader className="border-b px-5 py-4">
           <DialogTitle className="text-lg font-medium">Add event</DialogTitle>
         </DialogHeader>
 
-        <div className="px-5 py-4 space-y-4">
+        <div className="space-y-4 px-5 py-4">
           <Input
             placeholder="Add title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="border-0 border-b rounded-none px-0 pb-2 text-lg font-medium focus-visible:ring-0"
+            className="rounded-none border-0 border-b px-0 pb-2 text-lg font-medium focus-visible:ring-0"
           />
 
           <div className="flex flex-wrap gap-2 text-sm text-gray-700">
-            <Badge variant="outline" className="bg-blue-50 text-[#1a73e8] border-blue-100">
+            <Badge variant="outline" className="border-blue-100 bg-blue-50 text-[#1a73e8]">
               Event
             </Badge>
             <Badge variant="outline">Task</Badge>
@@ -152,7 +160,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
               />
             </div>
             <div className="flex items-center gap-2">
-              <div className="space-y-1 flex-1">
+              <div className="flex-1 space-y-1">
                 <Label className="text-xs text-gray-600">Start</Label>
                 <Input
                   type="time"
@@ -161,7 +169,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
                   disabled={allDay}
                 />
               </div>
-              <div className="space-y-1 flex-1">
+              <div className="flex-1 space-y-1">
                 <Label className="text-xs text-gray-600">End</Label>
                 <Input
                   type="time"
@@ -170,7 +178,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
                   disabled={allDay}
                 />
               </div>
-              <div className="pt-6 flex items-center gap-2">
+              <div className="flex items-center gap-2 pt-6">
                 <Switch checked={allDay} onCheckedChange={setAllDay} />
                 <span className="text-xs text-gray-600">All day</span>
               </div>
@@ -179,7 +187,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
 
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-gray-700">
-              <Users className="w-4 h-4 text-gray-500" />
+              <Users className="h-4 w-4 text-gray-500" />
               <span>Add guests</span>
             </div>
             <Input
@@ -188,14 +196,14 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
               onChange={(e) => setGuestQuery(e.target.value)}
             />
             {guestResults.length > 0 && (
-              <div className="border rounded-md divide-y">
+              <div className="divide-y rounded-md border">
                 {guestResults.map((g) => (
                   <button
                     key={g.email}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-3 text-sm"
+                    className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50"
                     onClick={() => handleAddGuest(g)}
                   >
-                    <span className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-700">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700">
                       {g.name?.[0]?.toUpperCase() || g.email?.[0]?.toUpperCase()}
                     </span>
                     <div>
@@ -226,7 +234,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
 
           <div className="space-y-3 text-sm">
             <Label className="flex items-center gap-2 text-sm text-gray-700">
-              <MapPin className="w-4 h-4 text-gray-500" />
+              <MapPin className="h-4 w-4 text-gray-500" />
               <span className="flex-1">
                 <Input
                   placeholder="Add location"
@@ -238,7 +246,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
 
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-gray-700">
-                <AlignLeft className="w-4 h-4 text-gray-500" />
+                <AlignLeft className="h-4 w-4 text-gray-500" />
                 <span>Add description or attachments</span>
               </div>
               <Textarea
@@ -251,7 +259,7 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
           </div>
         </div>
 
-        <DialogFooter className="flex items-center justify-between px-5 py-3 border-t">
+        <DialogFooter className="flex items-center justify-between border-t px-5 py-3">
           <Button
             variant="ghost"
             className="text-[#1a73e8] hover:bg-blue-50"
@@ -259,12 +267,16 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
           >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving} className="bg-[#1a73e8] hover:bg-[#1557b0]">
-            {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          <Button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="bg-[#1a73e8] hover:bg-[#1557b0]"
+          >
+            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

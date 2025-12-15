@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     // Fetch monthly log to get unit and property
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')
-      .select('unit_id, property_id')
+      .select('unit_id, property_id, period_start')
       .eq('id', logId)
       .single();
 
@@ -81,7 +81,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       serviceAssignment === 'Building' ||
       serviceAssignment === null;
 
-    const feeAssignment = (property as any)?.fee_assignment ?? null;
+    const feeAssignment = property?.fee_assignment ?? null;
     const isFeePropertyLevel =
       feeAssignment === 'Property Level' || feeAssignment === 'Building' || feeAssignment === null;
 
@@ -158,7 +158,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       propertyContext: {
         feeType: property?.fee_type ?? null,
         feePercentage: property?.fee_percentage ?? null,
-        feeDollarAmount: property?.management_fee ?? property?.fee_dollar_amount ?? null,
+        feeDollarAmount: property?.fee_dollar_amount ?? null,
         billingFrequency: property?.billing_frequency ?? null,
         servicePlan: property?.service_plan ?? null,
         activeServices: parseActiveServices(property?.active_services),

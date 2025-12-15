@@ -61,14 +61,14 @@ export async function POST(request: NextRequest) {
         if (existing) {
           const { error } = await supabase
             .from('gl_accounts')
-            .update({ ...mapped, updated_at: now })
+            .update({ ...(mapped as any), updated_at: now } as any)
             .eq('id', existing.id);
           if (error) throw error;
           updated += 1;
         } else {
           const { error } = await supabase
             .from('gl_accounts')
-            .insert({ ...mapped, created_at: now, updated_at: now });
+            .insert({ ...(mapped as any), created_at: now, updated_at: now } as any);
           if (error) throw error;
           synced += 1;
         }

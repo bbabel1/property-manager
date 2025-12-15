@@ -1,15 +1,21 @@
 import type { Metadata } from 'next';
 import type { NextWebVitalsMetric } from 'next/app';
 import React from 'react';
-import { Source_Sans_3 } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import ClientProviders from '@/components/client-providers';
 import Script from 'next/script';
 
-const sourceSans = Source_Sans_3({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const sourceSans = localFont({
+  src: [
+    {
+      path: '../../public/fonts/source-sans-3/SourceSans3Latin-400-700.woff2',
+      weight: '400 700',
+      style: 'normal',
+    },
+  ],
   display: 'swap',
+  fallback: ['system-ui', 'sans-serif'],
 });
 
 export const metadata: Metadata = {

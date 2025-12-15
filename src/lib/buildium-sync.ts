@@ -37,6 +37,7 @@ import type {
   BuildiumSyncStatus,
   BuildiumEntityType
 } from '@/types/buildium'
+import type { Database } from '@/types/database'
 
 type PrimitiveId = string | number
 
@@ -186,7 +187,7 @@ interface TenantEdgeCreatePayload {
   PhoneNumbers?: PhoneNumbersObject
 }
 
-type BuildiumClientInstance = ReturnType<typeof createBuildiumClient>
+type BuildiumClientInstance = Awaited<ReturnType<typeof getOrgScopedBuildiumClient>>
 type PropertyCreateInput = Parameters<BuildiumClientInstance['createProperty']>[0]
 type PropertyUpdateInput = Parameters<BuildiumClientInstance['updateProperty']>[1]
 type UnitCreateInput = Parameters<BuildiumClientInstance['createUnit']>[1]
@@ -206,7 +207,48 @@ type LeaseUpdateInput = Parameters<BuildiumClientInstance['updateLease']>[1]
 type WorkOrderCreateInput = Parameters<BuildiumClientInstance['createWorkOrder']>[0]
 type WorkOrderUpdateInput = Parameters<BuildiumClientInstance['updateWorkOrder']>[1]
 
+type TableName = keyof Database['public']['Tables']
+type TableInsert<T extends TableName> = Database['public']['Tables'][T]['Insert']
+type TableUpdate<T extends TableName> = Database['public']['Tables'][T]['Update']
+type BuildiumSyncStatusRow = Database['public']['Tables']['buildium_sync_status']['Row']
+type UpdateBuildiumSyncStatusArgs = Database['public']['Functions']['update_buildium_sync_status']['Args']
+type UpdateBuildiumSyncStatusPayload = Omit<UpdateBuildiumSyncStatusArgs, 'p_error_message'> & {
+  p_buildium_id: number | null
+  p_error_message?: string | null
+}
+
+const entityTableMap: Record<BuildiumEntityType, TableName> = {
+  property: 'properties',
+  unit: 'units',
+  owner: 'owners',
+  vendor: 'vendors',
+  task: 'tasks',
+  bill: 'transactions',
+  bank_account: 'bank_accounts',
+  lease: 'lease',
+  work_order: 'work_orders'
+}
+
+type EntityRowMap = {
+  property: Database['public']['Tables']['properties']['Row']
+  unit: Database['public']['Tables']['units']['Row']
+  owner: Database['public']['Tables']['owners']['Row']
+  vendor: Database['public']['Tables']['vendors']['Row']
+  task: Database['public']['Tables']['tasks']['Row']
+  bill: Database['public']['Tables']['transactions']['Row']
+  bank_account: Database['public']['Tables']['bank_accounts']['Row']
+  lease: Database['public']['Tables']['lease']['Row']
+  work_order: Database['public']['Tables']['work_orders']['Row']
+}
+type EntityRow = EntityRowMap[BuildiumEntityType]
+
 const coerceBuildiumInput = <T>(value: unknown): T => value as T
+const coerceUpdatePayload = <T extends TableName>(value: unknown): TableUpdate<T> =>
+  value as unknown as TableUpdate<T>
+const coerceInsertPayload = <T extends TableName>(value: unknown): TableInsert<T> =>
+  value as unknown as TableInsert<T>
+const toStringId = (value: PrimitiveId): string => String(value)
+const toNumberId = (value: PrimitiveId): number => Number(value)
 
 export class BuildiumSyncService {
   /**
@@ -275,7 +317,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localProperty.id)
+        .eq('id', toStringId(localProperty.id))
 
       // Update sync status to synced
       await this.updateSyncStatus('property', localProperty.id, buildiumId, 'synced', orgId)
@@ -313,7 +355,7 @@ export class BuildiumSyncService {
         // Update existing property
         await supabase
           .from('properties')
-          .update(localData)
+          .update(coerceUpdatePayload<'properties'>(localData))
           .eq('id', existingProperty.id)
 
         logger.info({ propertyId: existingProperty.id, buildiumId: buildiumProperty.Id }, 'Property updated from Buildium')
@@ -322,7 +364,7 @@ export class BuildiumSyncService {
         // Create new property
         const { data: newProperty, error } = await supabase
           .from('properties')
-          .insert(localData)
+          .insert(coerceInsertPayload<'properties'>(localData))
           .select()
           .single()
 
@@ -339,7 +381,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncUnitFromBuildium(buildiumUnit: BuildiumUnit): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncUnitFromBuildium(buildiumUnit: BuildiumUnit, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping unit sync from Buildium')
       return { success: true }
@@ -359,7 +401,7 @@ export class BuildiumSyncService {
         // Update existing unit
         await supabase
           .from('units')
-          .update(localData)
+          .update(coerceUpdatePayload<'units'>(localData))
           .eq('id', existingUnit.id)
 
         logger.info({ unitId: existingUnit.id, buildiumId: buildiumUnit.Id }, 'Unit updated from Buildium')
@@ -368,7 +410,7 @@ export class BuildiumSyncService {
         // Create new unit
         const { data: newUnit, error } = await supabase
           .from('units')
-          .insert(localData)
+          .insert(coerceInsertPayload<'units'>(localData))
           .select()
           .single()
 
@@ -385,7 +427,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncOwnerFromBuildium(buildiumOwner: BuildiumOwner): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncOwnerFromBuildium(buildiumOwner: BuildiumOwner, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping owner sync from Buildium')
       return { success: true }
@@ -405,7 +447,7 @@ export class BuildiumSyncService {
         // Update existing owner
         await supabase
           .from('owners')
-          .update(localData)
+          .update(coerceUpdatePayload<'owners'>(localData))
           .eq('id', existingOwner.id)
 
         logger.info({ ownerId: existingOwner.id, buildiumId: buildiumOwner.Id }, 'Owner updated from Buildium')
@@ -414,7 +456,7 @@ export class BuildiumSyncService {
         // Create new owner
         const { data: newOwner, error } = await supabase
           .from('owners')
-          .insert(localData)
+          .insert(coerceInsertPayload<'owners'>(localData))
           .select()
           .single()
 
@@ -431,7 +473,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncVendorFromBuildium(buildiumVendor: BuildiumVendor): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncVendorFromBuildium(buildiumVendor: BuildiumVendor, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping vendor sync from Buildium')
       return { success: true }
@@ -451,7 +493,7 @@ export class BuildiumSyncService {
         // Update existing vendor
         await supabase
           .from('vendors')
-          .update(localData)
+          .update(coerceUpdatePayload<'vendors'>(localData))
           .eq('id', existingVendor.id)
 
         logger.info({ vendorId: existingVendor.id, buildiumId: buildiumVendor.Id }, 'Vendor updated from Buildium')
@@ -460,7 +502,7 @@ export class BuildiumSyncService {
         // Create new vendor
         const { data: newVendor, error } = await supabase
           .from('vendors')
-          .insert(localData)
+          .insert(coerceInsertPayload<'vendors'>(localData))
           .select()
           .single()
 
@@ -477,7 +519,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncTaskFromBuildium(buildiumTask: BuildiumTask): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncTaskFromBuildium(buildiumTask: BuildiumTask, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping task sync from Buildium')
       return { success: true }
@@ -497,7 +539,7 @@ export class BuildiumSyncService {
         // Update existing task
         await supabase
           .from('tasks')
-          .update(localData)
+          .update(coerceUpdatePayload<'tasks'>(localData))
           .eq('id', existingTask.id)
 
         logger.info({ taskId: existingTask.id, buildiumId: buildiumTask.Id }, 'Task updated from Buildium')
@@ -506,7 +548,7 @@ export class BuildiumSyncService {
         // Create new task
         const { data: newTask, error } = await supabase
           .from('tasks')
-          .insert(localData)
+          .insert(coerceInsertPayload<'tasks'>(localData))
           .select()
           .single()
 
@@ -523,7 +565,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncBillFromBuildium(buildiumBill: BuildiumBill): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncBillFromBuildium(buildiumBill: BuildiumBill, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping bill sync from Buildium')
       return { success: true }
@@ -531,7 +573,7 @@ export class BuildiumSyncService {
 
     try {
       // Upsert bill into transactions with lines
-      const upsertBillWithLines = async (bill: BuildiumBill, client: typeof supabase): Promise<{ transactionId: string }> => {
+      const upsertBillWithLines = async (_bill: BuildiumBill, _client: typeof supabase): Promise<{ transactionId: string }> => {
         // Implementation would go here
         return { transactionId: 'temp-id' }
       }
@@ -547,7 +589,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncWorkOrderFromBuildium(buildiumWO: BuildiumWorkOrder, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping work order sync from Buildium')
       return { success: true }
@@ -566,7 +608,7 @@ export class BuildiumSyncService {
       if (existing) {
         await supabase
           .from('work_orders')
-          .update(localData)
+          .update(coerceUpdatePayload<'work_orders'>(localData))
           .eq('id', existing.id)
 
         logger.info({ workOrderId: existing.id, buildiumId: buildiumWO.Id }, 'Work order updated from Buildium')
@@ -574,7 +616,7 @@ export class BuildiumSyncService {
       } else {
         const { data: inserted, error } = await supabase
           .from('work_orders')
-          .insert(localData)
+          .insert(coerceInsertPayload<'work_orders'>(localData))
           .select('id')
           .single()
         if (error) throw error
@@ -588,7 +630,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncBankAccountFromBuildium(buildiumBankAccount: BuildiumBankAccount): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncBankAccountFromBuildium(buildiumBankAccount: BuildiumBankAccount, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping bank account sync from Buildium')
       return { success: true }
@@ -608,7 +650,7 @@ export class BuildiumSyncService {
         // Update existing bank account
         await supabase
           .from('bank_accounts')
-          .update(localData)
+          .update(coerceUpdatePayload<'bank_accounts'>(localData))
           .eq('id', existingBankAccount.id)
 
         logger.info({ bankAccountId: existingBankAccount.id, buildiumId: buildiumBankAccount.Id }, 'Bank account updated from Buildium')
@@ -617,7 +659,7 @@ export class BuildiumSyncService {
         // Create new bank account
         const { data: newBankAccount, error } = await supabase
           .from('bank_accounts')
-          .insert(localData)
+          .insert(coerceInsertPayload<'bank_accounts'>(localData))
           .select()
           .single()
 
@@ -634,7 +676,7 @@ export class BuildiumSyncService {
     }
   }
 
-  async syncLeaseFromBuildium(buildiumLease: BuildiumLease): Promise<{ success: boolean; localId?: string; error?: string }> {
+  async syncLeaseFromBuildium(buildiumLease: BuildiumLease, orgId?: string): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping lease sync from Buildium')
       return { success: true }
@@ -650,27 +692,27 @@ export class BuildiumSyncService {
         .eq('buildium_lease_id', buildiumLease.Id)
         .single()
 
-      if (existingLease) {
-        // Update existing lease
-        await supabase
-          .from('lease')
-          .update(localData)
-          .eq('id', existingLease.id)
+        if (existingLease) {
+          // Update existing lease
+          await supabase
+            .from('lease')
+            .update(coerceUpdatePayload<'lease'>(localData))
+            .eq('id', existingLease.id)
 
         logger.info({ leaseId: existingLease.id, buildiumId: buildiumLease.Id }, 'Lease updated from Buildium')
-        return { success: true, localId: existingLease.id }
+        return { success: true, localId: String(existingLease.id) }
       } else {
         // Create new lease
         const { data: newLease, error } = await supabase
           .from('lease')
-          .insert(localData)
+          .insert(coerceInsertPayload<'lease'>(localData))
           .select()
           .single()
 
         if (error) throw error
 
         logger.info({ leaseId: newLease.id, buildiumId: buildiumLease.Id }, 'Lease created from Buildium')
-        return { success: true, localId: newLease.id }
+        return { success: true, localId: String(newLease.id) }
       }
 
     } catch (error) {
@@ -732,7 +774,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localUnit.id)
+        .eq('id', toStringId(localUnit.id))
 
       await this.updateSyncStatus('unit', localUnit.id, buildiumId, 'synced', orgId)
 
@@ -790,7 +832,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localOwner.id)
+        .eq('id', toStringId(localOwner.id))
 
       await this.updateSyncStatus('owner', localOwner.id, buildiumId, 'synced', orgId)
 
@@ -848,7 +890,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localVendor.id)
+        .eq('id', toStringId(localVendor.id))
 
       await this.updateSyncStatus('vendor', localVendor.id, buildiumId, 'synced', orgId)
 
@@ -868,7 +910,7 @@ export class BuildiumSyncService {
   // TASK SYNC
   // ============================================================================
 
-  async syncTaskToBuildium(localTask: LocalTaskRecord): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
+  async syncTaskToBuildium(localTask: LocalTaskRecord, orgId?: string): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
       logger.info('Buildium sync disabled, skipping task sync')
       return { success: true }
@@ -882,6 +924,7 @@ export class BuildiumSyncService {
     }
 
     try {
+      const client = await this.getClient(orgId)
       await this.updateSyncStatus('task', localTask.id, null, 'syncing', orgId)
 
       let buildiumId: number | null = null
@@ -912,7 +955,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localTask.id)
+        .eq('id', toStringId(localTask.id))
 
       await this.updateSyncStatus('task', localTask.id, buildiumId, 'synced', orgId)
 
@@ -969,7 +1012,7 @@ export class BuildiumSyncService {
           buildium_bill_id: buildiumId,
           updated_at: new Date().toISOString()
         })
-        .eq('id', localBill.id)
+        .eq('id', toStringId(localBill.id))
 
       await this.updateSyncStatus('bill', localBill.id, buildiumId, 'synced', orgId)
 
@@ -1027,7 +1070,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localBankAccount.id)
+        .eq('id', toStringId(localBankAccount.id))
 
       await this.updateSyncStatus('bank_account', localBankAccount.id, buildiumId, 'synced', orgId)
 
@@ -1197,7 +1240,7 @@ export class BuildiumSyncService {
         const { data: fullProperty } = await db
           .from('properties')
           .select('*')
-          .eq('id', localLease.property_id)
+          .eq('id', toStringId(localLease.property_id))
           .maybeSingle()
 
         if (!fullProperty) return
@@ -1232,7 +1275,7 @@ export class BuildiumSyncService {
         const { data: prop } = await db
           .from('properties')
           .select('address_line1, address_line2, city, state, postal_code, country, org_id, buildium_property_id')
-          .eq('id', localLease.property_id)
+          .eq('id', toStringId(localLease.property_id))
           .maybeSingle()
         if (prop) {
           propertyOrgId = propertyOrgId ?? (prop.org_id ?? null)
@@ -1288,7 +1331,7 @@ export class BuildiumSyncService {
         const { data: unitRow } = await db
           .from('units')
           .select('*')
-          .eq('id', localLease.unit_id)
+          .eq('id', toStringId(localLease.unit_id))
           .maybeSingle()
 
         if (!unitRow) return
@@ -1402,7 +1445,7 @@ export class BuildiumSyncService {
       const depositMemo = (depositTemplateRow?.memo && depositTemplateRow.memo.trim()) || 'Security Deposit'
       const depositAmount = toNumber(depositTemplateRow?.amount) ?? securityDepositAmount
 
-      const orgId = localLease.org_id ?? propertyOrgId ?? null
+      const leaseOrgId = localLease.org_id ?? propertyOrgId ?? null
       let rentGlAccountId: number | null = null
       let depositGlAccountId: number | null = null
       if (!rentGlAccountId && rentTemplateRow?.gl_account_id) {
@@ -1411,11 +1454,11 @@ export class BuildiumSyncService {
       if (!depositGlAccountId && depositTemplateRow?.gl_account_id) {
         depositGlAccountId = await resolveBuildiumGlId(String(depositTemplateRow.gl_account_id))
       }
-      if (orgId && (!rentGlAccountId || !depositGlAccountId)) {
+      if (leaseOrgId && (!rentGlAccountId || !depositGlAccountId)) {
         const { data: glSettings } = await db
           .from('settings_gl_accounts')
           .select('rent_income, tenant_deposit_liability')
-          .eq('org_id', orgId)
+          .eq('org_id', leaseOrgId)
           .maybeSingle()
 
         if (glSettings) {
@@ -1532,7 +1575,7 @@ export class BuildiumSyncService {
           buildium_created_at: new Date().toISOString(),
           buildium_updated_at: new Date().toISOString()
         })
-        .eq('id', localLease.id)
+        .eq('id', toNumberId(localLease.id))
 
       await this.updateSyncStatus('lease', localLease.id, buildiumId, 'synced', orgId)
 
@@ -1540,7 +1583,10 @@ export class BuildiumSyncService {
       try {
         if (buildiumId) {
           const leaseRent = await client.getLeaseRent(buildiumId)
-          const buildiumRentId = (leaseRent as any)?.Id ?? null
+          const buildiumRentId =
+            leaseRent && typeof leaseRent === 'object' && 'Id' in leaseRent
+              ? (leaseRent as { Id?: number | string | null }).Id ?? null
+              : null
           if (buildiumRentId) {
             // Update the most-recent unsynced schedule for this lease
             const { data: schedules } = await db
@@ -1586,7 +1632,10 @@ export class BuildiumSyncService {
       await this.updateSyncStatus('work_order', localWO.id, null, 'syncing', orgId)
 
       // Map local DB row to Buildium payload using resolvers
-      const buildiumPayload = await mapWorkOrderToBuildium(localWO, supabase)
+      const buildiumPayload = await mapWorkOrderToBuildium(
+        localWO as unknown as Parameters<typeof mapWorkOrderToBuildium>[0],
+        supabase
+      )
 
       let buildiumId: number | null = null
       const existingBuildiumId = localWO.buildium_work_order_id != null ? Number(localWO.buildium_work_order_id) : null
@@ -1611,7 +1660,7 @@ export class BuildiumSyncService {
           buildium_work_order_id: buildiumId,
           updated_at: new Date().toISOString()
         })
-        .eq('id', localWO.id)
+        .eq('id', toStringId(localWO.id))
 
       await this.updateSyncStatus('work_order', localWO.id, buildiumId, 'synced', orgId)
       return { success: true, buildiumId }
@@ -1655,7 +1704,7 @@ export class BuildiumSyncService {
           )
         )
       `)
-      .eq('lease_id', localLease.id)
+      .eq('lease_id', toNumberId(localLease.id))
 
     if (error) throw error
     const leaseContacts = (leaseContactsRaw ?? null) as LeaseContactQueryResult
@@ -1842,10 +1891,12 @@ export class BuildiumSyncService {
       const buildiumTenantId = Number(result.data.Id)
       if (Number.isNaN(buildiumTenantId)) return null
 
+      if (!tenantRecord?.id) return null
+
       const { error: updateError } = await db
         .from('tenants')
         .update({ buildium_tenant_id: buildiumTenantId, updated_at: new Date().toISOString() })
-        .eq('id', tenantRecord.id)
+        .eq('id', toStringId(tenantRecord.id))
 
       if (updateError) {
         logger.error({ tenantId: tenantRecord.id, buildiumTenantId, error: updateError }, 'Failed to update tenant with buildium_tenant_id')
@@ -1874,15 +1925,32 @@ export class BuildiumSyncService {
   ): Promise<void> {
     try {
       const normalizedEntityId = String(entityId)
-      await supabase.rpc('update_buildium_sync_status', {
+      const payload = {
         p_entity_type: entityType,
         p_entity_id: normalizedEntityId,
-        p_buildium_id: buildiumId,
+        p_buildium_id: buildiumId ?? null,
         p_status: status,
-        p_error_message: errorMessage || null
-      })
+        p_error_message: errorMessage ?? undefined
+      } as unknown as UpdateBuildiumSyncStatusPayload
+      await supabase.rpc(
+        'update_buildium_sync_status',
+        payload as UpdateBuildiumSyncStatusArgs
+      )
     } catch (error) {
       logger.error({ entityType, entityId, error }, 'Failed to update sync status')
+    }
+  }
+
+  private mapSyncRowToStatus(row: BuildiumSyncStatusRow): BuildiumSyncStatus {
+    return {
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      buildiumId: row.buildium_id ?? undefined,
+      lastSyncedAt: row.last_synced_at ?? undefined,
+      syncStatus: (row.sync_status as BuildiumSyncStatus['syncStatus']) || 'pending',
+      errorMessage: row.error_message ?? undefined,
+      createdAt: row.created_at ?? new Date().toISOString(),
+      updatedAt: row.updated_at ?? new Date().toISOString(),
     }
   }
 
@@ -1896,8 +1964,8 @@ export class BuildiumSyncService {
         .eq('entity_id', normalizedEntityId)
         .single()
 
-      if (error) return null
-      return data
+      if (error || !data) return null
+      return this.mapSyncRowToStatus(data)
     } catch (error) {
       logger.error({ entityType, entityId, error }, 'Failed to get sync status')
       return null
@@ -1917,8 +1985,8 @@ export class BuildiumSyncService {
 
       const { data, error } = await query
 
-      if (error) return []
-      return data || []
+      if (error || !data) return []
+      return (data || []).map((row) => this.mapSyncRowToStatus(row))
     } catch (error) {
       logger.error({ entityType, error }, 'Failed to get failed syncs')
       return []
@@ -1932,47 +2000,84 @@ export class BuildiumSyncService {
 
     for (const sync of failedSyncs) {
       try {
+        if (!(sync.entityType in entityTableMap)) {
+          errors.push(`Unknown entity type: ${sync.entityType}`)
+          continue
+        }
+
+        const entityType = sync.entityType as BuildiumEntityType
+        const tableName = entityTableMap[entityType]
+
         // Get the entity data
         const { data: entity } = await supabase
-          .from(sync.entityType)
+          .from(tableName)
           .select('*')
-                      .eq('id', sync.entityId)
+          .eq('id', sync.entityId)
           .single()
 
-        if (!entity) {
+        const entityRow = (entity ?? null) as EntityRow | null
+
+        if (!entityRow) {
           errors.push(`Entity not found: ${sync.entityType}/${sync.entityId}`)
           continue
         }
 
         // Retry the sync based on entity type
         let result
-        switch (sync.entityType) {
+        switch (entityType) {
           case 'property':
-            result = await this.syncPropertyToBuildium(entity)
+            result = await this.syncPropertyToBuildium(
+              entityRow as EntityRowMap['property'],
+              (entityRow as EntityRowMap['property']).org_id
+            )
             break
           case 'unit':
-            result = await this.syncUnitToBuildium(entity)
+            result = await this.syncUnitToBuildium(
+              entityRow as EntityRowMap['unit'],
+              (entityRow as EntityRowMap['unit']).org_id
+            )
             break
           case 'owner':
-            result = await this.syncOwnerToBuildium(entity)
+            result = await this.syncOwnerToBuildium(
+              entityRow as EntityRowMap['owner'],
+              (entityRow as EntityRowMap['owner']).org_id ?? undefined
+            )
             break
           case 'vendor':
-            result = await this.syncVendorToBuildium(entity)
+            result = await this.syncVendorToBuildium(
+              entityRow as EntityRowMap['vendor'],
+              undefined
+            )
             break
           case 'task':
-            result = await this.syncTaskToBuildium(entity)
+            result = await this.syncTaskToBuildium(
+              entityRow as EntityRowMap['task'],
+              undefined
+            )
             break
           case 'bill':
-            result = await this.syncBillToBuildium(entity)
+            result = await this.syncBillToBuildium(
+              entityRow as EntityRowMap['bill'],
+              (entityRow as EntityRowMap['bill']).org_id ?? undefined
+            )
             break
           case 'bank_account':
-            result = await this.syncBankAccountToBuildium(entity)
+            result = await this.syncBankAccountToBuildium(
+              entityRow as EntityRowMap['bank_account'],
+              (entityRow as EntityRowMap['bank_account']).org_id ?? undefined
+            )
             break
           case 'lease':
-            result = await this.syncLeaseToBuildium(entity)
+            result = await this.syncLeaseToBuildium(
+              entityRow as EntityRowMap['lease'],
+              (entityRow as EntityRowMap['lease']).org_id ?? undefined
+            )
             break
           case 'work_order':
-            result = await this.syncWorkOrderToBuildium(entity)
+            result = await this.syncWorkOrderToBuildium(
+              entityRow as EntityRowMap['work_order'],
+              (entityRow as EntityRowMap['work_order']).org_id ?? undefined
+            )
             break
           default:
             errors.push(`Unknown entity type: ${sync.entityType}`)

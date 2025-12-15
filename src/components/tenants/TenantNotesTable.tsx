@@ -287,7 +287,7 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
           {/* Hidden trigger to allow programmatic open via state */}
           <span className="hidden" />
         </DialogTrigger>
-        <DialogContent className="top-[35%] max-w-3xl translate-y-[-35%] sm:max-w-4xl">
+        <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
           <DialogHeader>
             <DialogTitle className="text-foreground text-lg font-semibold">
               {editing ? 'Edit note' : 'Add note'}

@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -12,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ExternalLink, Eye } from 'lucide-react'
+import ActionButton from '@/components/ui/ActionButton'
 import type { ComplianceItemWithRelations } from '@/types/compliance'
 
 interface ComplianceChecklistTableProps {
@@ -131,22 +131,15 @@ export function ComplianceChecklistTable({
                 <TableCell>
                   <div className="flex items-center gap-2">
                     {onViewItem && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <ActionButton
+                        icon={<Eye className="h-4 w-4" />}
                         onClick={() => onViewItem(item.id)}
                         title="View details"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                        aria-label="View details"
+                      />
                     )}
                     {item.external_tracking_number && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        title="View in DOB NOW"
-                      >
+                      <ActionButton asChild title="View in DOB NOW" aria-label="View in DOB NOW">
                         <a
                           href={`https://a810-bisweb.nyc.gov/bisweb/`}
                           target="_blank"
@@ -154,7 +147,7 @@ export function ComplianceChecklistTable({
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
-                      </Button>
+                      </ActionButton>
                     )}
                   </div>
                 </TableCell>

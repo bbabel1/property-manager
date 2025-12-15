@@ -5,6 +5,23 @@ import type { AppRole } from '@/lib/auth/roles';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 
+type OwnerContact = {
+  display_name?: string | null;
+  company_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+type OwnershipRow = {
+  owner_id: string | null;
+  disbursement_percentage: number | null;
+  owners: {
+    id: string | number;
+    buildium_owner_id: number | null;
+    contact?: OwnerContact | null;
+  } | null;
+};
+
 const nameFromContact = (contact?: {
   display_name?: string | null;
   company_name?: string | null;
@@ -71,18 +88,18 @@ export async function GET(
       );
     }
 
+    const unitRecord = Array.isArray(monthlyLog.units) ? monthlyLog.units[0] : monthlyLog.units;
+    const propertyRecord = Array.isArray(monthlyLog.properties)
+      ? monthlyLog.properties[0]
+      : monthlyLog.properties;
+
     let propertyId =
-      monthlyLog.property_id ??
-      monthlyLog.units?.property_id ??
-      monthlyLog.properties?.id ??
-      null;
-    let orgId = monthlyLog.org_id ?? monthlyLog.properties?.org_id ?? null;
+      monthlyLog.property_id ?? unitRecord?.property_id ?? propertyRecord?.id ?? null;
+    let orgId = monthlyLog.org_id ?? propertyRecord?.org_id ?? null;
     let buildiumPropertyId =
-      monthlyLog.units?.buildium_property_id ??
-      monthlyLog.properties?.buildium_property_id ??
-      null;
-    const buildiumUnitId = monthlyLog.units?.buildium_unit_id ?? null;
-    let operatingBankAccountId = monthlyLog.properties?.operating_bank_account_id ?? null;
+      unitRecord?.buildium_property_id ?? propertyRecord?.buildium_property_id ?? null;
+    const buildiumUnitId = unitRecord?.buildium_unit_id ?? null;
+    let operatingBankAccountId = propertyRecord?.operating_bank_account_id ?? null;
 
     if (!operatingBankAccountId && propertyId) {
       const { data: propertyRow, error: propertyError } = await supabaseAdmin
@@ -101,7 +118,7 @@ export async function GET(
       }
     }
 
-    const unitId = monthlyLog.unit_id ?? monthlyLog.units?.id ?? null;
+    const unitId = monthlyLog.unit_id ?? unitRecord?.id ?? null;
 
     const propertyContext = {
       propertyId,
@@ -130,23 +147,28 @@ export async function GET(
           )
         `,
         )
-        .eq('property_id', propertyId);
+        .eq('property_id', propertyId) as { data: OwnershipRow[] | null; error: unknown };
 
       if (ownershipError) throw ownershipError;
 
       owners =
         ownershipRows
-          ?.map((row: any) => row.owners)
+          ?.map((row) => row.owners)
           ?.filter(
-            (owner: any) =>
-              owner && typeof owner.buildium_owner_id === 'number' && Number.isFinite(owner.buildium_owner_id),
+            (owner): owner is NonNullable<OwnershipRow['owners']> &
+              Required<Pick<NonNullable<OwnershipRow['owners']>, 'buildium_owner_id'>> =>
+              Boolean(
+                owner &&
+                  typeof owner.buildium_owner_id === 'number' &&
+                  Number.isFinite(owner.buildium_owner_id),
+              ),
           )
-          ?.map((owner: any) => ({
+          ?.map((owner) => ({
             id: String(owner.id),
-            name: nameFromContact(owner.contact),
+            name: nameFromContact(owner.contact ?? undefined),
             buildiumOwnerId: Number(owner.buildium_owner_id),
             disbursementPercentage:
-              ownershipRows.find((row: any) => row.owner_id === owner.id)?.disbursement_percentage ??
+              ownershipRows.find((row) => row.owner_id === owner.id)?.disbursement_percentage ??
               null,
           })) ?? [];
     }

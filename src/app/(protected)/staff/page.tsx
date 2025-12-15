@@ -339,7 +339,7 @@ function EditStaffModal({
         if (!o) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="w-[680px] max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Edit Staff</DialogTitle>
         </DialogHeader>

@@ -2,10 +2,13 @@
 
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from '../src/types/database'
+import type { Database } from '@/types/database'
 
 // Load environment variables
 config({ path: '.env.local' })
+
+type BankAccountType = 'checking' | 'savings' | 'money_market' | 'certificate_of_deposit'
+type Country = Database['public']['Enums']['countries']
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,7 +57,7 @@ async function fetchBuildiumBankAccount(): Promise<BuildiumBankAccount> {
   }
 }
 
-function normalizeBankAccountType(input: string): string {
+function normalizeBankAccountType(input: string): BankAccountType {
   const normalized = String(input).trim().toLowerCase()
   
   // Map Buildium values to database enum values
@@ -138,7 +141,7 @@ async function syncBankAccountToDatabase(buildiumAccount: BuildiumBankAccount, g
     balance: buildiumAccount.Balance || 0,
     buildium_balance: buildiumAccount.Balance || 0,
     gl_account: glAccountId,
-    country: buildiumAccount.Country || 'United States',
+    country: (buildiumAccount.Country || 'United States') as Country,
     created_at: now,
     updated_at: now,
     last_source: 'buildium' as const,
@@ -158,6 +161,10 @@ async function syncBankAccountToDatabase(buildiumAccount: BuildiumBankAccount, g
 
   if (error) {
     throw new Error(`Failed to insert bank account: ${error.message}`)
+  }
+
+  if (!data.account_number) {
+    throw new Error('Insert did not return an account number')
   }
 
   console.log('✅ Bank account synced successfully:', {

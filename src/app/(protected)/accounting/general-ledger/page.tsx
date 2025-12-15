@@ -61,7 +61,7 @@ export default async function GeneralLedgerPage({
   const fromStr = from.toISOString().slice(0, 10);
   const toStr = to.toISOString().slice(0, 10);
 
-  const { data: propertyData } = await (db as any)
+  const { data: propertyData } = await db
     .from('properties')
     .select('id, name, org_id')
     .order('name', { ascending: true });
@@ -103,7 +103,7 @@ export default async function GeneralLedgerPage({
 
   let unitsData: UnitRecord[] = [];
   if (allPropertyIds.length) {
-    const unitsQuery = (db as any)
+    const unitsQuery = db
       .from('units')
       .select('id, unit_number, unit_name, property_id');
     const { data: unitsResponse } = await unitsQuery;
@@ -170,7 +170,7 @@ export default async function GeneralLedgerPage({
   }
 
   const accountsQuery = (() => {
-    let query = (db as any)
+    let query = db
       .from('gl_accounts')
       .select('id, name, account_number, type')
       .order('type', { ascending: true })
@@ -222,7 +222,7 @@ export default async function GeneralLedgerPage({
     selectedPropertyIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
   const qBase = () =>
-    (db as any)
+    db
       .from('transaction_lines')
       .select(
         `transaction_id,
@@ -240,7 +240,7 @@ export default async function GeneralLedgerPage({
          properties(id, name)`,
       );
 
-  const mapLine = (row: any): LedgerLine => {
+  const mapLine = (row: Record<string, unknown>): LedgerLine => {
     const mapped = mapTransactionLine(row);
     const propertyId = mapped.propertyId ?? (row?.property_id ? String(row.property_id) : null);
     return {
@@ -425,19 +425,44 @@ export default async function GeneralLedgerPage({
                               line.transactionId && line.propertyId
                                 ? `/properties/${line.propertyId}/financials/entries/${line.transactionId}`
                                 : null;
-                            const RowComponent = detailHref ? TableRowLink : TableRow;
                             const unitPrimary = line.unitLabel || '—';
                             const propertyLabel =
                               line.propertyLabel && selectedPropertyIds.length !== 1
                                 ? line.propertyLabel
                                 : null;
 
+                            if (detailHref) {
+                              return (
+                                <TableRowLink
+                                  key={`${group.id}-${line.date}-${idx}`}
+                                  href={detailHref}
+                                  className="cursor-pointer hover:bg-muted/60"
+                                >
+                                  <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <span>{unitPrimary}</span>
+                                      {propertyLabel ? (
+                                        <span className="text-muted-foreground text-xs">{propertyLabel}</span>
+                                      ) : null}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>{txnLabel || '—'}</TableCell>
+                                  <TableCell>{memo}</TableCell>
+                                  <TableCell
+                                    className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                  >
+                                    {fmtSigned(signed)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {fmtSigned(running)}
+                                  </TableCell>
+                                </TableRowLink>
+                              );
+                            }
+
                             return (
-                              <RowComponent
-                                key={`${group.id}-${line.date}-${idx}`}
-                                href={detailHref ?? undefined}
-                                className={detailHref ? 'cursor-pointer hover:bg-muted/60' : undefined}
-                              >
+                              <TableRow key={`${group.id}-${line.date}-${idx}`}>
                                 <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
                                 <TableCell>
                                   <div className="flex flex-col">
@@ -457,7 +482,7 @@ export default async function GeneralLedgerPage({
                                 <TableCell className="text-right font-medium">
                                   {fmtSigned(running)}
                                 </TableCell>
-                              </RowComponent>
+                              </TableRow>
                             );
                           })
                         )}

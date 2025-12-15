@@ -98,7 +98,6 @@ export default function JournalEntryDetailDialog({
         
         // Check content type to ensure we're getting JSON
         const contentType = response.headers.get('content-type') ?? '';
-        const isJson = contentType.includes('application/json');
         const isHtml = contentType.includes('text/html');
         
         if (isHtml) {

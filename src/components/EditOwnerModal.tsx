@@ -1,52 +1,70 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import { User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
-import { Button } from './ui/button'
-import AddressAutocomplete from './HybridAddressAutocomplete'
-import DatePicker from './ui/date-picker'
-import { mapGoogleCountryToEnum } from '@/lib/utils'
-import type { Database } from '@/types/database'
+import React, { useState, useEffect } from 'react';
+import { User, Building, Mail, MapPin, FileText, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Button } from './ui/button';
+import AddressAutocomplete from './HybridAddressAutocomplete';
+import DatePicker from './ui/date-picker';
+import { mapGoogleCountryToEnum } from '@/lib/utils';
+import type { Database } from '@/types/database';
 
-const COUNTRIES = ['United States', 'Canada', 'Mexico', 'United Kingdom', 'Germany', 'France', 'Spain', 'Italy', 'Australia', 'Japan', 'China', 'India', 'Brazil', 'Argentina', 'South Africa']
+const COUNTRIES = [
+  'United States',
+  'Canada',
+  'Mexico',
+  'United Kingdom',
+  'Germany',
+  'France',
+  'Spain',
+  'Italy',
+  'Australia',
+  'Japan',
+  'China',
+  'India',
+  'Brazil',
+  'Argentina',
+  'South Africa',
+];
 
-const MAILING_PREFERENCES = ['primary', 'alternative']
-const TAX_PAYER_TYPES = ['SSN', 'EIN']
+const MAILING_PREFERENCES = ['primary', 'alternative'];
+const TAX_PAYER_TYPES = ['SSN', 'EIN'];
 // const ETF_ACCOUNT_TYPES = ['Checking', 'Saving']
 
-type OwnerRow = Database['public']['Tables']['owners']['Row']
-type ContactRow = Database['public']['Tables']['contacts']['Row']
+type OwnerRow = Database['public']['Tables']['owners']['Row'];
+type ContactRow = Database['public']['Tables']['contacts']['Row'];
 export type OwnerModalData = Partial<OwnerRow> &
   Partial<Omit<ContactRow, 'id'>> & {
-    contact_id?: number | null
-    etf_account_type?: 'Checking' | 'Saving' | null
-    etf_account_number?: number | null
-    etf_routing_number?: number | null
-    mailing_preference?: string | null
-    alt_address_line_3?: string | null
-    management_agreement_start_date?: string | null
-    management_agreement_end_date?: string | null
-  }
+    contact_id?: number | null;
+    etf_account_type?: 'Checking' | 'Saving' | null;
+    etf_account_number?: number | null;
+    etf_routing_number?: number | null;
+    mailing_preference?: string | null;
+    alt_address_line_3?: string | null;
+    management_agreement_start_date?: string | null;
+    management_agreement_end_date?: string | null;
+  };
 
 interface EditOwnerModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onUpdateOwner: (ownerData: OwnerModalData) => void
-  ownerData?: OwnerModalData | null
-  isUpdating?: boolean
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdateOwner: (ownerData: OwnerModalData) => void;
+  ownerData?: OwnerModalData | null;
+  isUpdating?: boolean;
 }
 
-export default function EditOwnerModal({ 
-  isOpen, 
-  onClose, 
-  onUpdateOwner, 
-  ownerData = null, 
-  isUpdating = false 
+export default function EditOwnerModal({
+  isOpen,
+  onClose,
+  onUpdateOwner,
+  ownerData = null,
+  isUpdating = false,
 }: EditOwnerModalProps) {
-  const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'address' | 'tax' | 'owner'>('basic')
-  const [error, setError] = useState<string | null>(null)
-  const [showAlternateAddress, setShowAlternateAddress] = useState(false)
+  const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'address' | 'tax' | 'owner'>(
+    'basic',
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [showAlternateAddress, setShowAlternateAddress] = useState(false);
 
   const [formData, setFormData] = useState({
     // Basic Information
@@ -55,14 +73,14 @@ export default function EditOwnerModal({
     lastName: '',
     companyName: '',
     dateOfBirth: '',
-    
+
     // Contact Information
     primaryEmail: '',
     altEmail: '',
     primaryPhone: '',
     altPhone: '',
     mailingPreference: 'primary',
-    
+
     // Primary Address
     primaryAddressLine1: '',
     primaryAddressLine2: '',
@@ -70,7 +88,7 @@ export default function EditOwnerModal({
     primaryState: '',
     primaryPostalCode: '',
     primaryCountry: 'United States',
-    
+
     // Alternative Address
     altAddressLine1: '',
     altAddressLine2: '',
@@ -78,10 +96,10 @@ export default function EditOwnerModal({
     altState: '',
     altPostalCode: '',
     altCountry: '',
-    
+
     // Address Checkboxes
     taxSameAsPrimary: true,
-    
+
     // Tax Information
     taxPayerId: '',
     taxPayerType: '',
@@ -93,7 +111,7 @@ export default function EditOwnerModal({
     taxState: '',
     taxPostalCode: '',
     taxCountry: '',
-    
+
     // Owner-Specific Information
     managementAgreementStartDate: '',
     managementAgreementEndDate: '',
@@ -102,8 +120,8 @@ export default function EditOwnerModal({
     etfCheckingAccount: false,
     etfSavingAccount: false,
     etfAccountNumber: '',
-    etfRoutingNumber: ''
-  })
+    etfRoutingNumber: '',
+  });
 
   // Load owner data when modal opens
   useEffect(() => {
@@ -115,14 +133,14 @@ export default function EditOwnerModal({
         lastName: String(ownerData.last_name || ''),
         companyName: String(ownerData.company_name || ''),
         dateOfBirth: String(ownerData.date_of_birth || ''),
-        
+
         // Contact Information
         primaryEmail: String(ownerData.primary_email || ''),
         altEmail: String(ownerData.alt_email || ''),
         primaryPhone: String(ownerData.primary_phone || ''),
         altPhone: String(ownerData.alt_phone || ''),
         mailingPreference: String(ownerData.mailing_preference || 'primary'),
-        
+
         // Primary Address
         primaryAddressLine1: String(ownerData.primary_address_line_1 || ''),
         primaryAddressLine2: String(ownerData.primary_address_line_2 || ''),
@@ -130,7 +148,7 @@ export default function EditOwnerModal({
         primaryState: String(ownerData.primary_state || ''),
         primaryPostalCode: String(ownerData.primary_postal_code || ''),
         primaryCountry: String(ownerData.primary_country || 'United States'),
-        
+
         // Alternative Address
         altAddressLine1: String(ownerData.alt_address_line_1 || ''),
         altAddressLine2: String(ownerData.alt_address_line_2 || ''),
@@ -138,11 +156,11 @@ export default function EditOwnerModal({
         altState: String(ownerData.alt_state || ''),
         altPostalCode: String(ownerData.alt_postal_code || ''),
         altCountry: String(ownerData.alt_country || ''),
-        
+
         // Address Checkboxes - Determine if addresses are same as primary
 
         taxSameAsPrimary: !ownerData.tax_address_line1 && !ownerData.tax_city,
-        
+
         // Tax Information
         taxPayerId: String(ownerData.tax_payer_id || ''),
         taxPayerType: String(ownerData.tax_payer_type || ''),
@@ -154,7 +172,7 @@ export default function EditOwnerModal({
         taxState: String(ownerData.tax_state || ''),
         taxPostalCode: String(ownerData.tax_postal_code || ''),
         taxCountry: String(ownerData.tax_country || ''),
-        
+
         // Owner-Specific Information
         managementAgreementStartDate: String(ownerData.management_agreement_start_date || ''),
         managementAgreementEndDate: String(ownerData.management_agreement_end_date || ''),
@@ -163,65 +181,65 @@ export default function EditOwnerModal({
         etfCheckingAccount: ownerData.etf_account_type === 'Checking',
         etfSavingAccount: ownerData.etf_account_type === 'Saving',
         etfAccountNumber: String(ownerData.etf_account_number || ''),
-        etfRoutingNumber: String(ownerData.etf_routing_number || '')
-      })
-      setActiveTab('basic')
-      setError(null)
-      setShowAlternateAddress(ownerData.mailing_preference === 'alternative')
+        etfRoutingNumber: String(ownerData.etf_routing_number || ''),
+      });
+      setActiveTab('basic');
+      setError(null);
+      setShowAlternateAddress(ownerData.mailing_preference === 'alternative');
     }
-  }, [isOpen, ownerData])
+  }, [isOpen, ownerData]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     // Basic validation
     if (formData.isCompany && !formData.companyName) {
-      setError('Company name is required for company owners')
-      return
+      setError('Company name is required for company owners');
+      return;
     }
-    
+
     if (!formData.isCompany && (!formData.firstName || !formData.lastName)) {
-      setError('First name and last name are required for individual owners')
-      return
+      setError('First name and last name are required for individual owners');
+      return;
     }
-    
+
     if (!formData.primaryEmail) {
-      setError('Primary email is required')
-      return
+      setError('Primary email is required');
+      return;
     }
-    
+
     if (!formData.primaryAddressLine1 || !formData.primaryPostalCode) {
-      setError('Primary address line 1 and postal code are required')
-      return
+      setError('Primary address line 1 and postal code are required');
+      return;
     }
 
     // Clean up empty fields
     const cleanedData = Object.fromEntries(
-      Object.entries(formData).filter(([_, value]) => value !== '')
-    ) as OwnerModalData
+      Object.entries(formData).filter(([_, value]) => value !== ''),
+    ) as OwnerModalData;
 
     // Add the owner ID for the update
     if (!ownerData || !ownerData.id) {
-      onUpdateOwner(cleanedData)
-      return
+      onUpdateOwner(cleanedData);
+      return;
     }
 
     const updateData: OwnerModalData = {
       ...cleanedData,
       id: ownerData.id,
-      contact_id: ownerData.contact_id ?? null
-    }
+      contact_id: ownerData.contact_id ?? null,
+    };
 
-    onUpdateOwner(updateData)
-  }
+    onUpdateOwner(updateData);
+  };
 
   const handleMailingPreferenceChange = (value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      mailingPreference: value
-    }))
-    setShowAlternateAddress(value === 'alternative')
-  }
+      mailingPreference: value,
+    }));
+    setShowAlternateAddress(value === 'alternative');
+  };
 
   // keep controlled dialog open state; backdrop/Escape close handled by Dialog
 
@@ -230,43 +248,50 @@ export default function EditOwnerModal({
     { id: 'contact', name: 'Contact', icon: Mail },
     { id: 'address', name: 'Addresses', icon: MapPin },
     { id: 'tax', name: 'Tax Info', icon: FileText },
-    { id: 'owner', name: 'Banking Details', icon: DollarSign }
-  ]
+    { id: 'owner', name: 'Banking Details', icon: DollarSign },
+  ];
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-y-auto p-0">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
-        <DialogHeader className="p-6 border-b border-border">
-          <DialogTitle className="text-xl font-semibold text-foreground">Edit Owner</DialogTitle>
+        <DialogHeader className="border-border border-b p-6">
+          <DialogTitle className="text-foreground text-xl font-semibold">Edit Owner</DialogTitle>
         </DialogHeader>
 
         {/* Error Message */}
         {error && (
-          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+          <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 p-4">
             <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
         {/* Tabs */}
-        <div className="border-b border-border">
-          <div className="flex px-6 space-x-8">
+        <div className="border-border border-b">
+          <div className="flex space-x-8 px-6">
             {tabs.map((tab) => {
-              const Icon = tab.icon
+              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as 'basic' | 'contact' | 'address' | 'tax' | 'owner')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                  onClick={() =>
+                    setActiveTab(tab.id as 'basic' | 'contact' | 'address' | 'tax' | 'owner')
+                  }
+                  className={`flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium ${
                     activeTab === tab.id
                       ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                      : 'text-muted-foreground hover:text-foreground hover:border-border border-transparent'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="h-4 w-4" />
                   {tab.name}
                 </button>
-              )
+              );
             })}
           </div>
         </div>
@@ -276,39 +301,43 @@ export default function EditOwnerModal({
           {/* Basic Information Tab */}
           {activeTab === 'basic' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-foreground">Basic Information</h3>
-              
+              <h3 className="text-foreground text-lg font-medium">Basic Information</h3>
+
               {/* Owner Type */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-3">Owner Type</label>
+                <label className="text-foreground mb-3 block text-sm font-medium">Owner Type</label>
                 <div className="flex items-center space-x-6">
                   <label className="flex items-center">
                     <input
                       type="radio"
                       checked={!formData.isCompany}
-                      onChange={() => setFormData(prev => ({ 
-                        ...prev, 
-                        isCompany: false,
-                        taxPayerType: 'SSN' // Default to SSN for individuals
-                      }))}
+                      onChange={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          isCompany: false,
+                          taxPayerType: 'SSN', // Default to SSN for individuals
+                        }))
+                      }
                       className="mr-2"
                     />
-                    <User className="w-4 h-4 mr-1" />
-                    <span className="text-sm text-muted-foreground">Individual</span>
+                    <User className="mr-1 h-4 w-4" />
+                    <span className="text-muted-foreground text-sm">Individual</span>
                   </label>
                   <label className="flex items-center">
                     <input
                       type="radio"
                       checked={formData.isCompany}
-                      onChange={() => setFormData(prev => ({ 
-                        ...prev, 
-                        isCompany: true,
-                        taxPayerType: 'EIN' // Default to EIN for companies
-                      }))}
+                      onChange={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          isCompany: true,
+                          taxPayerType: 'EIN', // Default to EIN for companies
+                        }))
+                      }
                       className="mr-2"
                     />
-                    <Building className="w-4 h-4 mr-1" />
-                    <span className="text-sm text-muted-foreground">Company</span>
+                    <Building className="mr-1 h-4 w-4" />
+                    <span className="text-muted-foreground text-sm">Company</span>
                   </label>
                 </div>
               </div>
@@ -316,14 +345,16 @@ export default function EditOwnerModal({
               {/* Company Name - Only shown when company is selected */}
               {formData.isCompany && (
                 <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Company Name *
-                </label>
+                  <label className="text-foreground mb-1 block text-sm font-medium">
+                    Company Name *
+                  </label>
                   <input
                     type="text"
                     value={formData.companyName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, companyName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, companyName: e.target.value }))
+                    }
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="Enter company name"
                     required
                   />
@@ -333,27 +364,29 @@ export default function EditOwnerModal({
               {/* Name Fields - Always shown, required when individual is selected */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     First Name {!formData.isCompany && '*'}
                   </label>
                   <input
                     type="text"
                     value={formData.firstName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, firstName: e.target.value }))
+                    }
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="Enter first name"
                     required={!formData.isCompany}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Last Name {!formData.isCompany && '*'}
                   </label>
                   <input
                     type="text"
                     value={formData.lastName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="Enter last name"
                     required={!formData.isCompany}
                   />
@@ -362,46 +395,48 @@ export default function EditOwnerModal({
 
               {/* Date of Birth - Always shown, never required */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
+                <label className="text-foreground mb-1 block text-sm font-medium">
                   Date of Birth
                 </label>
                 <DatePicker
                   value={formData.dateOfBirth || ''}
-                  onChange={(v) => setFormData(prev => ({ ...prev, dateOfBirth: v ?? '' }))}
+                  onChange={(v) => setFormData((prev) => ({ ...prev, dateOfBirth: v ?? '' }))}
                 />
               </div>
 
               {/* Management Agreement Dates */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Management Agreement Start Date
                   </label>
                   <DatePicker
                     value={formData.managementAgreementStartDate || ''}
-                    onChange={(v) => setFormData(prev => ({ ...prev, managementAgreementStartDate: v ?? '' }))}
+                    onChange={(v) =>
+                      setFormData((prev) => ({ ...prev, managementAgreementStartDate: v ?? '' }))
+                    }
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Management Agreement End Date
                   </label>
                   <DatePicker
                     value={formData.managementAgreementEndDate || ''}
-                    onChange={(v) => setFormData(prev => ({ ...prev, managementAgreementEndDate: v ?? '' }))}
+                    onChange={(v) =>
+                      setFormData((prev) => ({ ...prev, managementAgreementEndDate: v ?? '' }))
+                    }
                   />
                 </div>
               </div>
 
               {/* Comments */}
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  Comments
-                </label>
+                <label className="text-foreground mb-1 block text-sm font-medium">Comments</label>
                 <textarea
                   value={formData.comment}
-                  onChange={(e) => setFormData(prev => ({ ...prev, comment: e.target.value }))}
-                  className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                  onChange={(e) => setFormData((prev) => ({ ...prev, comment: e.target.value }))}
+                  className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   rows={3}
                   placeholder="Additional notes about this owner..."
                 />
@@ -412,94 +447,100 @@ export default function EditOwnerModal({
           {/* Contact Information Tab */}
           {activeTab === 'contact' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-foreground">Contact Information</h3>
-              
+              <h3 className="text-foreground text-lg font-medium">Contact Information</h3>
+
               {/* Email Addresses */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Primary Email *
                   </label>
                   <input
                     type="email"
                     value={formData.primaryEmail}
-                    onChange={(e) => setFormData(prev => ({ ...prev, primaryEmail: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, primaryEmail: e.target.value }))
+                    }
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="primary@example.com"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Alternative Email
                   </label>
                   <input
                     type="email"
                     value={formData.altEmail}
-                    onChange={(e) => setFormData(prev => ({ ...prev, altEmail: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) => setFormData((prev) => ({ ...prev, altEmail: e.target.value }))}
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="alt@example.com"
                   />
                 </div>
               </div>
 
               {/* Phone Numbers */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Primary Phone
                   </label>
                   <input
                     type="tel"
                     value={formData.primaryPhone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, primaryPhone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, primaryPhone: e.target.value }))
+                    }
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="(555) 123-4567"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">
+                  <label className="text-foreground mb-1 block text-sm font-medium">
                     Alternative Phone
                   </label>
                   <input
                     type="tel"
                     value={formData.altPhone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, altPhone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) => setFormData((prev) => ({ ...prev, altPhone: e.target.value }))}
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="(555) 987-6543"
                   />
                 </div>
               </div>
-
-
             </div>
           )}
 
           {/* Address Information Tab */}
           {activeTab === 'address' && (
             <div className="space-y-8">
-              <h3 className="text-lg font-medium text-foreground">Address Information</h3>
-              
+              <h3 className="text-foreground text-lg font-medium">Address Information</h3>
+
               {/* Primary Address */}
               <div className="space-y-4">
-                <h4 className="font-medium text-foreground flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
+                <h4 className="text-foreground flex items-center gap-2 font-medium">
+                  <MapPin className="h-4 w-4" />
                   Primary Address *
                 </h4>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Street Address *</label>
+                  <label className="text-foreground mb-1 block text-sm font-medium">
+                    Street Address *
+                  </label>
                   <AddressAutocomplete
                     value={formData.primaryAddressLine1}
-                    onChange={value => setFormData(prev => ({ ...prev, primaryAddressLine1: value }))}
-                    onPlaceSelect={place => {
+                    onChange={(value) =>
+                      setFormData((prev) => ({ ...prev, primaryAddressLine1: value }))
+                    }
+                    onPlaceSelect={(place) => {
                       const mappedCountry = mapGoogleCountryToEnum(place.country);
-                      setFormData(prev => ({
+                      setFormData((prev) => ({
                         ...prev,
                         primaryAddressLine1: place.address,
                         primaryCity: place.city,
                         primaryState: place.state,
                         primaryPostalCode: place.postalCode,
-                        primaryCountry: mappedCountry
+                        primaryCountry: mappedCountry,
                       }));
                     }}
                     placeholder="123 Main Street"
@@ -507,58 +548,79 @@ export default function EditOwnerModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Address Line 2</label>
+                  <label className="text-foreground mb-1 block text-sm font-medium">
+                    Address Line 2
+                  </label>
                   <input
                     type="text"
                     value={formData.primaryAddressLine2}
-                    onChange={e => setFormData(prev => ({ ...prev, primaryAddressLine2: e.target.value }))}
-                    className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, primaryAddressLine2: e.target.value }))
+                    }
+                    className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     placeholder="Primary address line 2"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">City</label>
+                    <label className="text-foreground mb-1 block text-sm font-medium">City</label>
                     <input
                       type="text"
                       value={formData.primaryCity}
-                      onChange={e => setFormData(prev => ({ ...prev, primaryCity: e.target.value }))}
-                      className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, primaryCity: e.target.value }))
+                      }
+                      className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                       placeholder="Los Angeles"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">State</label>
+                    <label className="text-foreground mb-1 block text-sm font-medium">State</label>
                     <input
                       type="text"
                       value={formData.primaryState}
-                      onChange={e => setFormData(prev => ({ ...prev, primaryState: e.target.value }))}
-                      className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, primaryState: e.target.value }))
+                      }
+                      className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                       placeholder="CA"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1">ZIP Code *</label>
+                    <label className="text-foreground mb-1 block text-sm font-medium">
+                      ZIP Code *
+                    </label>
                     <input
                       type="text"
                       value={formData.primaryPostalCode}
-                      onChange={e => setFormData(prev => ({ ...prev, primaryPostalCode: e.target.value }))}
-                      className="w-full px-3 py-2 border border-input rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary"
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, primaryPostalCode: e.target.value }))
+                      }
+                      className="border-input focus-visible:ring-primary focus-visible:border-primary w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                       placeholder="90210"
                       required
                     />
                   </div>
                   <div>
-                    <label htmlFor="edit-owner-primary-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                    <label
+                      htmlFor="edit-owner-primary-country"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Country
+                    </label>
                     <select
                       id="edit-owner-primary-country"
                       value={formData.primaryCountry}
-                      onChange={e => setFormData(prev => ({ ...prev, primaryCountry: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, primaryCountry: e.target.value }))
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     >
-                      {COUNTRIES.map(country => (
-                        <option key={country} value={country}>{country}</option>
+                      {COUNTRIES.map((country) => (
+                        <option key={country} value={country}>
+                          {country}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -567,16 +629,19 @@ export default function EditOwnerModal({
 
               {/* Mailing Preference */}
               <div>
-                <label htmlFor="edit-owner-mailing-preference" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="edit-owner-mailing-preference"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
                   Mailing Preference
                 </label>
                 <select
                   id="edit-owner-mailing-preference"
                   value={formData.mailingPreference}
                   onChange={(e) => handleMailingPreferenceChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
-                  {MAILING_PREFERENCES.map(pref => (
+                  {MAILING_PREFERENCES.map((pref) => (
                     <option key={pref} value={pref}>
                       {pref.charAt(0).toUpperCase() + pref.slice(1)} Address
                     </option>
@@ -587,82 +652,107 @@ export default function EditOwnerModal({
               {/* Alternate Address */}
               {showAlternateAddress && (
                 <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
+                  <h4 className="flex items-center gap-2 font-medium text-gray-900">
+                    <MapPin className="h-4 w-4" />
                     Alternate Address
                   </h4>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Street Address
+                    </label>
                     <AddressAutocomplete
                       value={formData.altAddressLine1}
-                      onChange={value => setFormData(prev => ({ ...prev, altAddressLine1: value }))}
-                      onPlaceSelect={place => {
+                      onChange={(value) =>
+                        setFormData((prev) => ({ ...prev, altAddressLine1: value }))
+                      }
+                      onPlaceSelect={(place) => {
                         const mappedCountry = mapGoogleCountryToEnum(place.country);
-                        setFormData(prev => ({
+                        setFormData((prev) => ({
                           ...prev,
                           altAddressLine1: place.address,
                           altCity: place.city,
                           altState: place.state,
                           altPostalCode: place.postalCode,
-                          altCountry: mappedCountry
+                          altCountry: mappedCountry,
                         }));
                       }}
                       placeholder="Mailing address line 1"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                      Address Line 2
+                    </label>
                     <input
                       type="text"
                       value={formData.altAddressLine2}
-                      onChange={e => setFormData(prev => ({ ...prev, altAddressLine2: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, altAddressLine2: e.target.value }))
+                      }
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       placeholder="Mailing address line 2"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">City</label>
                       <input
                         type="text"
                         value={formData.altCity}
-                        onChange={e => setFormData(prev => ({ ...prev, altCity: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, altCity: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Mailing city"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">State</label>
                       <input
                         type="text"
                         value={formData.altState}
-                        onChange={e => setFormData(prev => ({ ...prev, altState: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, altState: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Mailing state"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        ZIP Code
+                      </label>
                       <input
                         type="text"
                         value={formData.altPostalCode}
-                        onChange={e => setFormData(prev => ({ ...prev, altPostalCode: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, altPostalCode: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Mailing ZIP"
                       />
                     </div>
                     <div>
-                      <label htmlFor="edit-owner-alt-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                      <label
+                        htmlFor="edit-owner-alt-country"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Country
+                      </label>
                       <select
                         id="edit-owner-alt-country"
                         value={formData.altCountry}
-                        onChange={e => setFormData(prev => ({ ...prev, altCountry: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, altCountry: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       >
                         <option value="">Select country</option>
-                        {COUNTRIES.map(country => (
-                          <option key={country} value={country}>{country}</option>
+                        {COUNTRIES.map((country) => (
+                          <option key={country} value={country}>
+                            {country}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -676,34 +766,43 @@ export default function EditOwnerModal({
           {activeTab === 'tax' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Tax Information</h3>
-              
+
               {/* Tax Payer Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
                     Tax Payer ID
                   </label>
                   <input
                     type="text"
                     value={formData.taxPayerId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, taxPayerId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, taxPayerId: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     placeholder="123-45-6789"
                   />
                 </div>
                 <div>
-                  <label htmlFor="edit-owner-taxpayer-type" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="edit-owner-taxpayer-type"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
                     Tax Payer Type
                   </label>
                   <select
                     id="edit-owner-taxpayer-type"
                     value={formData.taxPayerType}
-                    onChange={(e) => setFormData(prev => ({ ...prev, taxPayerType: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, taxPayerType: e.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="">Select type</option>
-                    {TAX_PAYER_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
+                    {TAX_PAYER_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -711,45 +810,49 @@ export default function EditOwnerModal({
 
               {/* Tax Payer Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Tax Payer Name
                 </label>
                 <input
                   type="text"
                   value={formData.taxPayerName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, taxPayerName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, taxPayerName: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="Full name or business name"
                 />
               </div>
 
               {/* Tax Address */}
               <div className="space-y-4">
-                <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
+                <h4 className="flex items-center gap-2 font-medium text-gray-900">
+                  <MapPin className="h-4 w-4" />
                   Tax Address
                 </h4>
-                
+
                 {/* Tax Address Checkbox */}
                 <div className="flex items-center">
                   <input
                     type="checkbox"
                     id="taxSameAsPrimary"
                     checked={formData.taxSameAsPrimary}
-                    onChange={(e) => setFormData(prev => ({ 
-                      ...prev, 
-                      taxSameAsPrimary: e.target.checked,
-                      // Clear tax address fields if same as primary
-                      ...(e.target.checked && {
-                        taxAddressLine1: '',
-                        taxAddressLine2: '',
-                        taxAddressLine3: '',
-                        taxCity: '',
-                        taxState: '',
-                        taxPostalCode: '',
-                        taxCountry: ''
-                      })
-                    }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        taxSameAsPrimary: e.target.checked,
+                        // Clear tax address fields if same as primary
+                        ...(e.target.checked && {
+                          taxAddressLine1: '',
+                          taxAddressLine2: '',
+                          taxAddressLine3: '',
+                          taxCity: '',
+                          taxState: '',
+                          taxPostalCode: '',
+                          taxCountry: '',
+                        }),
+                      }))
+                    }
                     className="mr-2"
                   />
                   <label htmlFor="taxSameAsPrimary" className="text-sm text-gray-700">
@@ -761,87 +864,118 @@ export default function EditOwnerModal({
                 {!formData.taxSameAsPrimary && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        Street Address
+                      </label>
                       <AddressAutocomplete
                         value={formData.taxAddressLine1}
-                        onChange={value => setFormData(prev => ({ ...prev, taxAddressLine1: value }))}
-                        onPlaceSelect={place => {
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, taxAddressLine1: value }))
+                        }
+                        onPlaceSelect={(place) => {
                           const mappedCountry = mapGoogleCountryToEnum(place.country);
-                          setFormData(prev => ({
+                          setFormData((prev) => ({
                             ...prev,
                             taxAddressLine1: place.address,
                             taxCity: place.city,
                             taxState: place.state,
                             taxPostalCode: place.postalCode,
-                            taxCountry: mappedCountry
+                            taxCountry: mappedCountry,
                           }));
                         }}
                         placeholder="Tax address line 1"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        Address Line 2
+                      </label>
                       <input
                         type="text"
                         value={formData.taxAddressLine2}
-                        onChange={e => setFormData(prev => ({ ...prev, taxAddressLine2: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, taxAddressLine2: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Tax address line 2"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 3</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
+                        Address Line 3
+                      </label>
                       <input
                         type="text"
                         value={formData.taxAddressLine3}
-                        onChange={(e) => setFormData(prev => ({ ...prev, taxAddressLine3: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, taxAddressLine3: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Tax address line 3"
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">City</label>
                         <input
                           type="text"
                           value={formData.taxCity}
-                          onChange={(e) => setFormData(prev => ({ ...prev, taxCity: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, taxCity: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           placeholder="Tax city"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                          State
+                        </label>
                         <input
                           type="text"
                           value={formData.taxState}
-                          onChange={(e) => setFormData(prev => ({ ...prev, taxState: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, taxState: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           placeholder="Tax state"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                          ZIP Code
+                        </label>
                         <input
                           type="text"
                           value={formData.taxPostalCode}
-                          onChange={(e) => setFormData(prev => ({ ...prev, taxPostalCode: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, taxPostalCode: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           placeholder="Tax ZIP"
                         />
                       </div>
                       <div>
-                        <label htmlFor="edit-owner-tax-country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                        <label
+                          htmlFor="edit-owner-tax-country"
+                          className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                          Country
+                        </label>
                         <select
                           id="edit-owner-tax-country"
                           value={formData.taxCountry}
-                          onChange={(e) => setFormData(prev => ({ ...prev, taxCountry: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, taxCountry: e.target.value }))
+                          }
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         >
                           <option value="">Select country</option>
-                          {COUNTRIES.map(country => (
-                            <option key={country} value={country}>{country}</option>
+                          {COUNTRIES.map((country) => (
+                            <option key={country} value={country}>
+                              {country}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -856,25 +990,29 @@ export default function EditOwnerModal({
           {activeTab === 'owner' && (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-gray-900">Banking Details</h3>
-              
+
               {/* ETF Account Information */}
               <div className="space-y-4">
                 <h4 className="font-medium text-gray-900">ETF Account Information</h4>
-                
+
                 {/* Account Type Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Account Type</label>
+                  <label className="mb-3 block text-sm font-medium text-gray-700">
+                    Account Type
+                  </label>
                   <div className="flex items-center space-x-6">
                     <label className="flex items-center">
                       <input
                         type="radio"
                         name="accountType"
                         checked={formData.etfCheckingAccount}
-                        onChange={() => setFormData(prev => ({ 
-                          ...prev, 
-                          etfCheckingAccount: true,
-                          etfSavingAccount: false
-                        }))}
+                        onChange={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            etfCheckingAccount: true,
+                            etfSavingAccount: false,
+                          }))
+                        }
                         className="mr-2"
                       />
                       <span className="text-sm text-gray-700">Checking</span>
@@ -884,11 +1022,13 @@ export default function EditOwnerModal({
                         type="radio"
                         name="accountType"
                         checked={formData.etfSavingAccount}
-                        onChange={() => setFormData(prev => ({ 
-                          ...prev, 
-                          etfCheckingAccount: false,
-                          etfSavingAccount: true
-                        }))}
+                        onChange={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            etfCheckingAccount: false,
+                            etfSavingAccount: true,
+                          }))
+                        }
                         className="mr-2"
                       />
                       <span className="text-sm text-gray-700">Saving</span>
@@ -900,26 +1040,30 @@ export default function EditOwnerModal({
                 {(formData.etfCheckingAccount || formData.etfSavingAccount) && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
                         Account Number
                       </label>
                       <input
                         type="text"
                         value={formData.etfAccountNumber}
-                        onChange={(e) => setFormData(prev => ({ ...prev, etfAccountNumber: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, etfAccountNumber: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Account number"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
                         Routing Number
                       </label>
                       <input
                         type="text"
                         value={formData.etfRoutingNumber}
-                        onChange={(e) => setFormData(prev => ({ ...prev, etfRoutingNumber: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, etfRoutingNumber: e.target.value }))
+                        }
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         placeholder="Routing number"
                       />
                     </div>
@@ -930,7 +1074,7 @@ export default function EditOwnerModal({
           )}
 
           {/* Navigation and Submit */}
-          <div className="flex items-center justify-between pt-6 border-t border-border">
+          <div className="border-border flex items-center justify-between border-t pt-6">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
@@ -941,5 +1085,5 @@ export default function EditOwnerModal({
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

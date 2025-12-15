@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/db';
+
+type LineRow = {
+  id: string;
+  property_id: string | null;
+  posting_type: string | null;
+  amount: number;
+  memo: string | null;
+  gl_account_id: string | null;
+  unit_id: string | null;
+  gl_accounts?: { name: string | null; account_number: string | null } | null;
+  units?: { unit_number: string | null; unit_name: string | null } | null;
+};
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 
 export async function GET(
@@ -64,7 +76,9 @@ export async function GET(
 
     const { data: lineRows } = await lineQuery;
 
-    const safeLineRows: LineRow[] = Array.isArray(lineRows) ? (lineRows as LineRow[]) : [];
+    const safeLineRows: LineRow[] = Array.isArray(lineRows)
+      ? (lineRows as unknown as LineRow[])
+      : [];
 
     if (!propertyId && safeLineRows.length) {
       propertyId = safeLineRows.find((line) => line?.property_id)?.property_id ?? null;
@@ -135,4 +149,3 @@ export async function GET(
     );
   }
 }
-

@@ -3,13 +3,13 @@ import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
 
-type LeaseRouteContext = { params: Promise<{ leaseId: string }> }
+type LeaseRouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, context: LeaseRouteContext) {
   const db = requireSupabaseAdmin('lease route GET')
-  const { leaseId } = await context.params
-  const id = Number(leaseId)
-  const { data, error } = await db.from('lease').select('*').eq('id', id).single()
+  const { id } = await context.params
+  const leaseId = Number(id)
+  const { data, error } = await db.from('lease').select('*').eq('id', leaseId).single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
   return NextResponse.json(data)
 }
@@ -17,13 +17,13 @@ export async function GET(_req: NextRequest, context: LeaseRouteContext) {
 export async function PUT(request: NextRequest, context: LeaseRouteContext) {
   try {
     const db = requireSupabaseAdmin('lease route PUT')
-    const { leaseId } = await context.params
-    const id = Number(leaseId)
+    const { id } = await context.params
+    const leaseId = Number(id)
     const url = new URL(request.url)
     const syncBuildium = url.searchParams.get('syncBuildium') === 'true'
     const body = await request.json()
     const patch = { ...body, updated_at: new Date().toISOString() }
-    const { data: updated, error } = await db.from('lease').update(patch).eq('id', id).select().single()
+    const { data: updated, error } = await db.from('lease').update(patch).eq('id', leaseId).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
     let buildiumSyncError: string | null = null
@@ -63,7 +63,7 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
             await db
               .from('lease')
               .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
-              .eq('id', id)
+              .eq('id', leaseId)
             buildiumLeaseId = Number(res.data.Id)
           } else if (!res.success) {
             buildiumSyncError = res.error || 'Failed to sync lease to Buildium'
@@ -74,7 +74,7 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
             await db
               .from('lease')
               .update({ buildium_lease_id: res.data.Id, buildium_updated_at: new Date().toISOString() })
-              .eq('id', id)
+              .eq('id', leaseId)
             buildiumLeaseId = Number(res.data.Id)
           } else if (!res.success) {
             buildiumSyncError = res.error || 'Failed to create lease in Buildium'

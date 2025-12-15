@@ -283,3 +283,5 @@ export function PageColumns({
     </div>
   );
 }
+
+export default PageShell;

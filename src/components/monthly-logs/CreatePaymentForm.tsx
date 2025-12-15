@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PAYMENT_METHOD_OPTIONS } from '@/lib/enums/payment-method';
 import { toast } from 'sonner';
+import { safeParseJson } from '@/types/monthly-log';
 
 interface CreatePaymentFormProps {
   monthlyLogId: string;
@@ -80,10 +81,8 @@ export default function CreatePaymentForm({
       const response = await fetch('/api/gl-accounts?type=asset&subtype=receivable');
       if (response.ok) {
         const text = await response.text();
-        let data: { accounts?: any[] } = {};
-        try {
-          data = text ? JSON.parse(text) : {};
-        } catch {
+        const data = safeParseJson<{ accounts?: GLAccount[] }>(text);
+        if (!data) {
           setGlError('Invalid response from server');
           return;
         }
@@ -261,7 +260,7 @@ export default function CreatePaymentForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-green-600" />

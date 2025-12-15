@@ -35,7 +35,9 @@ export async function PATCH(
         dueAnchor:
           payload.dueAnchor === 'period_start' || payload.dueAnchor === 'period_end'
             ? payload.dueAnchor
-            : (payload.due_anchor as any),
+            : payload.due_anchor === 'period_start' || payload.due_anchor === 'period_end'
+              ? payload.due_anchor
+              : undefined,
         dueOffsetDays:
           typeof payload.dueOffsetDays === 'number'
             ? payload.dueOffsetDays

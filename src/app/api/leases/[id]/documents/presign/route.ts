@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
@@ -15,13 +17,17 @@ function extFromMime(mime: string) {
   return 'bin'
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ leaseId: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   const corr = request.headers.get('Idempotency-Key') || `presign:${Date.now()}:${Math.random()}`
   try {
     if (!hasSupabaseAdmin()) return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 })
     const supabaseAdmin = requireSupabaseAdmin('lease documents presign')
     const supabase = await getSupabaseServerClient()
-    const leaseIdNum = Number(params.leaseId)
+    const { id } = await params
+    const leaseIdNum = Number(id)
     if (!leaseIdNum) return NextResponse.json({ error: 'Invalid leaseId' }, { status: 400 })
 
     const body = await request.json().catch(() => ({}))

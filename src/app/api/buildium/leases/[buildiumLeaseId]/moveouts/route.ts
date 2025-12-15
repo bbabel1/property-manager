@@ -5,7 +5,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseMoveOutCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -19,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id } = await params;
+    const { buildiumLeaseId } = await params;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (orderby) queryParams.append('orderby', orderby);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/moveouts?${queryParams.toString()}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts?${queryParams.toString()}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',
@@ -78,7 +81,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -92,7 +98,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id } = await params;
+    const { buildiumLeaseId } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseMoveOutCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/moveouts`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts`;
     
     const response = await fetch(buildiumUrl, {
       method: 'POST',

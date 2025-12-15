@@ -8,43 +8,58 @@
 // Note: Install DOMPurify: npm install dompurify @types/dompurify
 // For server-side usage, use: npm install isomorphic-dompurify
 
-let DOMPurify: any;
+type Sanitizer = { sanitize: (html: string, options?: unknown) => string };
+
+let DOMPurify: Sanitizer | null = null;
+
+function isSanitizer(candidate: unknown): candidate is Sanitizer {
+  return typeof candidate === 'object' && candidate !== null && 'sanitize' in candidate && typeof (candidate as Sanitizer).sanitize === 'function'
+}
+
+function resolveSanitizer(candidate: unknown): Sanitizer | null {
+  if (isSanitizer(candidate)) {
+    return candidate;
+  }
+  if (typeof candidate === 'function') {
+    const instance = candidate((globalThis as { window?: unknown }).window ?? undefined);
+    if (isSanitizer(instance)) {
+      return instance;
+    }
+  }
+  return null;
+}
 
 // Lazy load DOMPurify (works in both browser and Node.js)
-async function getDOMPurify() {
+async function getDOMPurify(): Promise<Sanitizer> {
   if (DOMPurify?.sanitize) {
     return DOMPurify;
   }
 
-  try {
-    // Try isomorphic-dompurify first (works in Node.js)
-    const mod = await import('isomorphic-dompurify');
-    const candidate = (mod as any).default ?? mod;
-    if (candidate?.sanitize) {
-      DOMPurify = candidate;
-      return DOMPurify;
-    }
-    if (typeof candidate === 'function') {
-      const instance = candidate((globalThis as any).window);
-      if (instance?.sanitize) {
-        DOMPurify = instance;
+  let lastError: unknown;
+  const loaders: Array<() => Promise<unknown>> = [
+    () => import('isomorphic-dompurify'),
+    () => import('dompurify'),
+  ];
+
+  for (const load of loaders) {
+    try {
+      const mod = await load();
+      const candidate = (mod as { default?: unknown } | undefined)?.default ?? mod;
+      const resolved = resolveSanitizer(candidate);
+      if (resolved) {
+        DOMPurify = resolved;
         return DOMPurify;
       }
-    }
-  } catch {
-    try {
-      // Fallback to regular DOMPurify (browser only)
-      const createDOMPurify = await import('dompurify');
-      const candidate = (createDOMPurify as any).default ?? createDOMPurify;
-      if (candidate?.sanitize) {
-        DOMPurify = candidate;
-        return DOMPurify;
+      if (!lastError) {
+        lastError = new Error('DOMPurify module did not expose a sanitizer');
       }
     } catch (error) {
-      console.error('Failed to load DOMPurify:', error);
-      throw new Error('DOMPurify is required for HTML sanitization. Install: npm install isomorphic-dompurify');
+      lastError = error;
     }
   }
+
+  console.error('Failed to load DOMPurify:', lastError);
+  throw new Error('DOMPurify is required for HTML sanitization. Install: npm install isomorphic-dompurify');
 }
 
 /**
@@ -174,8 +189,13 @@ export async function sanitizeEmailTemplateHtml(html: string): Promise<string> {
 
   try {
     const purify = await getDOMPurify();
+    if (!purify?.sanitize) {
+      throw new Error('DOMPurify did not return a sanitizer instance');
+    }
 
-    const sanitized = purify.sanitize(html, {
+    const safeHtml = String(html);
+
+    const sanitized = purify.sanitize(safeHtml, {
       ALLOWED_TAGS,
       ALLOWED_ATTR,
       ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
@@ -214,7 +234,7 @@ export function sanitizeEmailTemplateHtmlSync(html: string): string {
     return '';
   }
 
-  if (!DOMPurify) {
+  if (!DOMPurify?.sanitize) {
     console.warn('DOMPurify not loaded. HTML sanitization skipped.');
     // Fallback: basic tag stripping
     return html
@@ -223,7 +243,8 @@ export function sanitizeEmailTemplateHtmlSync(html: string): string {
   }
 
   try {
-    const sanitized = DOMPurify.sanitize(html, {
+    const safeHtml = String(html);
+    const sanitized = DOMPurify.sanitize(safeHtml, {
       ALLOWED_TAGS,
       ALLOWED_ATTR,
       ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,

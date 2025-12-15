@@ -3,14 +3,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/components/providers'
 import { X, Save, MapPin, Home, Users } from 'lucide-react'
-import { Button } from './ui/button'
+import { Button } from '@/components/ui/button'
 import { type PropertyWithDetails } from '@/lib/property-service'
 import { type StatusEnum } from '@/types/properties'
 import CreateOwnerModal from './CreateOwnerModal'
 import AddressAutocomplete from './HybridAddressAutocomplete'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
 import { Listbox } from '@headlessui/react'
-import { Dropdown } from './ui/Dropdown';
+import { Dropdown } from '@/components/ui/Dropdown';
 
 interface Owner {
   id: string;
@@ -443,7 +443,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                 <span className="mb-1 block">Status *</span>
                 <Dropdown
                   value={formData.status}
-                  onChange={value => handleInputChange('status', value)}
+                  onChange={(value: string) => handleInputChange('status', value)}
                   options={STATUS_OPTIONS.map(option => ({ value: option, label: option }))}
                   placeholder="Select status"
                 />
@@ -468,7 +468,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                 <span className="mb-1 block">Property Type *</span>
                 <Dropdown
                   value={formData.property_type || ''}
-                  onChange={value => handleInputChange('property_type', value)}
+                  onChange={(value: string) => handleInputChange('property_type', value)}
                   options={PROPERTY_TYPES.map(type => ({ value: type, label: type }))}
                   placeholder="Select type"
                 />
@@ -578,7 +578,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
                 <span className="mb-1 block">Country *</span>
                 <Dropdown
                   value={formData.country}
-                  onChange={value => handleInputChange('country', value)}
+                  onChange={(value: string) => handleInputChange('country', value)}
                   options={COUNTRY_OPTIONS.map(country => ({ value: country, label: country }))}
                   placeholder="Select country"
                 />
@@ -761,7 +761,9 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
       <CreateOwnerModal
         isOpen={showCreateOwnerModal}
         onClose={() => setShowCreateOwnerModal(false)}
-        onCreateOwner={createNewOwner}
+        onCreateOwner={(ownerData) => {
+          void createNewOwner(ownerData as any);
+        }}
         isLoading={isCreatingOwner}
         error={createOwnerError}
       />

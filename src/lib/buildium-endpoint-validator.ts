@@ -5,7 +5,7 @@ interface EndpointTest {
   name: string
   endpoint: string
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  testData?: any
+  testData?: Record<string, unknown>
   expectedStatus: number[]
   critical: boolean
 }

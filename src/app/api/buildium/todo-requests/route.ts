@@ -109,12 +109,12 @@ export async function GET(request: NextRequest) {
           if (existing?.id) {
             await supabaseAdmin
               .from('tasks')
-              .update({ ...localData, updated_at: now })
+              .update({ ...localData, updated_at: now } as any)
               .eq('id', existing.id)
           } else {
             await supabaseAdmin
               .from('tasks')
-              .insert({ ...localData, created_at: now, updated_at: now })
+              .insert({ ...localData, created_at: now, updated_at: now } as any)
           }
         })
       )
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString()
       await supabaseAdmin
         .from('tasks')
-        .insert({ ...localData, created_at: now, updated_at: now })
+        .insert({ ...localData, created_at: now, updated_at: now } as any)
     } catch (persistErr) {
       logger.warn({ err: String(persistErr) }, 'Failed to persist created To-Do request to tasks')
     }

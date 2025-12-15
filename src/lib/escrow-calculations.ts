@@ -68,6 +68,7 @@ export async function getEscrowBalance(unitId: string, upToDate: string): Promis
     withdrawals = 0;
 
   lines?.forEach((line) => {
+    if (line.amount === null) return;
     const amt = Math.abs(line.amount);
     // Credit = deposit (liability increases)
     // Debit = withdrawal (liability decreases)
@@ -127,7 +128,7 @@ export async function getEscrowMovements(
     date: line.date,
     memo: line.memo || 'Escrow transaction',
     type: line.posting_type === 'Credit' ? 'deposit' : 'withdrawal',
-    amount: Math.abs(line.amount),
+    amount: Math.abs(line.amount ?? 0),
   }));
 }
 
@@ -174,6 +175,8 @@ export async function createEscrowTransaction(params: {
       memo: params.memo,
       amount: params.amount,
       posting_type: postingType,
+      account_entity_type: 'Rental',
+      updated_at: new Date().toISOString(),
     })
     .select('id')
     .single();

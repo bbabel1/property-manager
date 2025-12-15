@@ -6,6 +6,8 @@
 
 import React from 'react';
 import { addMonths, format, subDays } from 'date-fns';
+import Head from 'next/head';
+import Image from 'next/image';
 
 export interface StatementData {
   // Monthly Log Info
@@ -189,12 +191,19 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
       : [{ label: 'Property Tax Escrow', amount: 0, date: '' }];
 
   const totalIncome = incomeItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
-  const totalExpenses = expenseItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
   const totalEscrow = escrowItems.reduce((sum, item) => sum + (item.amount ?? 0), 0);
-  const ownerDrawAmount = Number(data.financialSummary.ownerDraw ?? 0);
-  const endingBalanceRaw = totalIncome + totalExpenses + totalEscrow - Math.abs(ownerDrawAmount);
+  const ownerDrawRaw = Number(data.financialSummary.ownerDraw ?? 0);
+  const ownerDrawAmount = -Math.abs(ownerDrawRaw);
+  const totalIncomeDisplay = Number(data.financialSummary.totalPayments ?? totalIncome);
+  const totalExpensesDisplay =
+    -Math.abs(Number(data.financialSummary.totalBills ?? 0)) -
+    Math.abs(Number(data.financialSummary.managementFees ?? 0));
+  const totalEscrowDisplayValue = Number(
+    data.financialSummary.escrowAmount ?? totalEscrow ?? 0,
+  );
+  const endingBalanceRaw = Number(data.financialSummary.netToOwner ?? 0);
   const endingBalance = Object.is(endingBalanceRaw, -0) ? 0 : endingBalanceRaw;
-  const totalEscrowDisplay = Object.is(totalEscrow, -0) ? 0 : totalEscrow;
+  const totalEscrowDisplay = Object.is(totalEscrowDisplayValue, -0) ? 0 : totalEscrowDisplayValue;
 
   const accountTotals =
     data.accountTotals && data.accountTotals.length > 0
@@ -207,7 +216,7 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
 
   return (
     <html lang="en">
-      <head>
+      <Head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{`Monthly Statement - ${hasValidPeriod ? format(periodStartDate, 'MMMM yyyy') : ''}`}</title>
@@ -380,11 +389,19 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
             border-bottom: none;
           }
         `}</style>
-      </head>
+      </Head>
       <body>
         <div className="statement-header">
           <div className="logo-block">
-            {statementLogo && <img src={statementLogo} alt="Ora Statement Logo" />}
+            {statementLogo ? (
+              <Image
+                src={statementLogo}
+                alt="Ora Statement Logo"
+                width={160}
+                height={48}
+                unoptimized
+              />
+            ) : null}
           </div>
           <div className="info-block">
             <div>
@@ -429,7 +446,7 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
               ))}
               <tr className="total-row top-border-row">
                 <td>Total Income</td>
-                <td className="amount">{formatCurrency(totalIncome)}</td>
+                <td className="amount">{formatCurrency(totalIncomeDisplay)}</td>
               </tr>
 
               <tr className="section-row">
@@ -444,7 +461,7 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
               ))}
               <tr className="total-row top-border-row">
                 <td>Total Expenses</td>
-                <td className="amount">{formatCurrency(totalExpenses)}</td>
+                <td className="amount">{formatCurrency(totalExpensesDisplay)}</td>
               </tr>
 
               <tr className="section-row">

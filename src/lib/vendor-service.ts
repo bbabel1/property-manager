@@ -324,7 +324,7 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
     throw vendorError
   }
 
-  const vendorIds = (rawVendors as RawVendor[]).map((v) => v.id)
+  const vendorIds = (rawVendors as unknown as RawVendor[]).map((v) => v.id)
 
   let transactions: RawTransaction[] = []
   if (vendorIds.length > 0) {
@@ -407,7 +407,7 @@ export async function getVendorDashboardData(): Promise<VendorDashboardData> {
   let ytdSpend = 0
   let pendingApprovals = 0
 
-  for (const raw of rawVendors as RawVendor[]) {
+  for (const raw of rawVendors as unknown as RawVendor[]) {
     const vendorTx = txByVendor.get(raw.id) ?? []
     const vendorWos = workOrdersByVendor.get(raw.id) ?? []
 

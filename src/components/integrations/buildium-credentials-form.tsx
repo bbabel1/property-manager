@@ -73,7 +73,7 @@ export function BuildiumCredentialsForm({
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    
+
     // If field is cleared and was marked as unchanged, remove from unchanged set
     if (value === '' && unchangedFields.has(field)) {
       setUnchangedFields((prev) => {
@@ -82,7 +82,7 @@ export function BuildiumCredentialsForm({
         return next;
       });
     }
-    
+
     // If field has value and was unchanged, mark as changed
     if (value !== '' && unchangedFields.has(field)) {
       setUnchangedFields((prev) => {
@@ -132,8 +132,8 @@ export function BuildiumCredentialsForm({
           testData.error?.code === 'auth_failed'
             ? 'Authentication failed. Please check your Client ID and Client Secret.'
             : testData.error?.code === 'network_error'
-            ? `Network error: ${testData.error?.message || 'Failed to connect to Buildium API'}`
-            : testData.error?.message || 'Connection test failed';
+              ? `Network error: ${testData.error?.message || 'Failed to connect to Buildium API'}`
+              : testData.error?.message || 'Connection test failed';
         setTestError(errorMessage);
         toast.error('Connection test failed', { description: errorMessage });
         return;
@@ -191,7 +191,11 @@ export function BuildiumCredentialsForm({
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete the Buildium integration? This action cannot be undone.')) {
+    if (
+      !confirm(
+        'Are you sure you want to delete the Buildium integration? This action cannot be undone.',
+      )
+    ) {
       return;
     }
 
@@ -230,32 +234,38 @@ export function BuildiumCredentialsForm({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Buildium Integration Settings</DialogTitle>
           <DialogDescription>
-            Configure your Buildium API credentials. Leave fields empty to keep existing values unchanged.
+            Configure your Buildium API credentials. Leave fields empty to keep existing values
+            unchanged.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Status Information */}
           {initialStatus && (
-            <div className="space-y-2 p-4 bg-muted rounded-lg">
+            <div className="bg-muted space-y-2 rounded-lg p-4">
               <div className="text-sm font-medium">Status Information</div>
               {initialStatus.last_tested_at && (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   Last tested: {formatDate(initialStatus.last_tested_at)}
                 </div>
               )}
               {initialStatus.webhook_secret_rotated_at && (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   Webhook secret rotated: {formatDate(initialStatus.webhook_secret_rotated_at)}
                 </div>
               )}
               {initialStatus.has_credentials && (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-muted-foreground text-xs">
                   Current credentials: {initialStatus.masked_client_id || '***'}
                 </div>
               )}
@@ -273,7 +283,7 @@ export function BuildiumCredentialsForm({
               placeholder="https://apisandbox.buildium.com/v1"
               required
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Must be apisandbox.buildium.com (sandbox) or api.buildium.com (production)
             </p>
           </div>
@@ -289,7 +299,7 @@ export function BuildiumCredentialsForm({
               placeholder={initialStatus?.masked_client_id || 'Enter Client ID'}
               required={!initialStatus?.has_credentials}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {initialStatus?.has_credentials
                 ? 'Leave empty to keep existing value'
                 : 'Required for new integration'}
@@ -307,7 +317,7 @@ export function BuildiumCredentialsForm({
               placeholder={initialStatus?.masked_client_secret || 'Enter Client Secret'}
               required={!initialStatus?.has_credentials}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {initialStatus?.has_credentials
                 ? 'Leave empty to keep existing value'
                 : 'Required for new integration'}
@@ -325,7 +335,7 @@ export function BuildiumCredentialsForm({
               placeholder={initialStatus?.masked_webhook_secret || 'Enter Webhook Secret'}
               required={!initialStatus?.has_credentials}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {initialStatus?.has_credentials
                 ? 'Leave empty to keep existing value'
                 : 'Required for new integration'}
@@ -333,10 +343,10 @@ export function BuildiumCredentialsForm({
           </div>
 
           {/* Enable/Disable Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="isEnabled">Enable Integration</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 When enabled, Buildium sync operations will use these credentials
               </p>
             </div>
@@ -355,7 +365,7 @@ export function BuildiumCredentialsForm({
             </Alert>
           )}
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -365,7 +375,7 @@ export function BuildiumCredentialsForm({
               >
                 {isTesting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Testing...
                   </>
                 ) : (
@@ -384,13 +394,18 @@ export function BuildiumCredentialsForm({
               )}
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading || isTesting}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isLoading || isTesting}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading || isTesting}>
                 {isLoading ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
                   </>
                 ) : (
@@ -404,4 +419,3 @@ export function BuildiumCredentialsForm({
     </Dialog>
   );
 }
-

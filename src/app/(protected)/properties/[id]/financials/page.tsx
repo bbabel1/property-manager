@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { Fragment } from 'react';
 import Link from 'next/link';
 import { endOfMonth, startOfMonth } from 'date-fns';
@@ -463,13 +465,8 @@ export default async function FinancialsTab({
                             const detailHref = line.transactionId
                               ? `/properties/${id}/financials/entries/${line.transactionId}`
                               : null;
-                            const RowComponent = detailHref ? TableRowLink : TableRow;
-                            return (
-                              <RowComponent
-                                key={`${group.id}-${line.date}-${idx}`}
-                                href={detailHref ?? undefined}
-                                className={detailHref ? 'cursor-pointer hover:bg-muted/60' : undefined}
-                              >
+                            const rowContent = (
+                              <>
                                 <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
                                 <TableCell>{line.unitLabel || '—'}</TableCell>
                                 <TableCell>{txnLabel || '—'}</TableCell>
@@ -482,8 +479,22 @@ export default async function FinancialsTab({
                                 <TableCell className="text-right font-medium">
                                   {fmtSigned(running)}
                                 </TableCell>
-                              </RowComponent>
+                              </>
                             );
+
+                            if (detailHref) {
+                              return (
+                                <TableRowLink
+                                  key={`${group.id}-${line.date}-${idx}`}
+                                  href={detailHref}
+                                  className="cursor-pointer hover:bg-muted/60"
+                                >
+                                  {rowContent}
+                                </TableRowLink>
+                              );
+                            }
+
+                            return <TableRow key={`${group.id}-${line.date}-${idx}`}>{rowContent}</TableRow>;
                           })
                         )}
                         <TableRow className="bg-muted/30">

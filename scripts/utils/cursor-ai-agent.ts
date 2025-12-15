@@ -1,6 +1,6 @@
 import { watch } from 'fs';
 import { spawn } from 'child_process';
-import { logger } from './utils/logger';
+import { logger } from './logger';
 
 interface AIAnalysisResult {
   type: 'api' | 'component' | 'database' | 'architecture' | 'business';

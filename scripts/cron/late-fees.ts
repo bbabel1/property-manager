@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --loader tsx
 import 'dotenv/config'
-import { postLateFees } from '../../src/lib/recurring-engine'
-import { logger } from '../../src/lib/logger'
+import { postLateFees } from '@/lib/recurring-engine'
+import { logger } from '@/lib/logger'
 
 async function main() {
   if (process.env.ENABLE_LATE_FEES === '0' || process.env.ENABLE_LATE_FEES === 'false') {

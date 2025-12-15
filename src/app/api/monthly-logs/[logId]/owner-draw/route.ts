@@ -17,6 +17,19 @@ import {
 } from '@/lib/monthly-log-calculations';
 import { assignTransactionToMonthlyLog, fetchTransactionWithLines } from '@/lib/lease-transaction-helpers';
 import { BuildiumCheckCreateSchema } from '@/schemas/buildium';
+import type { MonthlyLogTransaction } from '@/types/monthly-log';
+
+type OwnershipRow = {
+  owner_id: string | null;
+  owners: { id?: string | null; buildium_owner_id?: number | null } | null;
+};
+
+type BuildiumErrorDetail = {
+  UserMessage?: string;
+  error?: string;
+  Errors?: Array<{ Key?: string | null; Value?: string | null }>;
+  [key: string]: unknown;
+};
 
 const OwnerDrawCreateSchema = z.object({
   payeeId: z.string().min(1, 'Payee is required'),
@@ -153,19 +166,19 @@ export async function POST(
       );
     }
 
+    const unitRecord = Array.isArray(monthlyLog.units) ? monthlyLog.units[0] : monthlyLog.units;
+    const propertyRecord = Array.isArray(monthlyLog.properties)
+      ? monthlyLog.properties[0]
+      : monthlyLog.properties;
+
     let propertyId =
-      monthlyLog.property_id ??
-      monthlyLog.units?.property_id ??
-      monthlyLog.properties?.id ??
-      null;
-    const unitId = monthlyLog.unit_id ?? monthlyLog.units?.id ?? null;
-    let orgId = monthlyLog.org_id ?? monthlyLog.properties?.org_id ?? null;
+      monthlyLog.property_id ?? unitRecord?.property_id ?? propertyRecord?.id ?? null;
+    const unitId = monthlyLog.unit_id ?? unitRecord?.id ?? null;
+    let orgId = monthlyLog.org_id ?? propertyRecord?.org_id ?? null;
     let buildiumPropertyId =
-      monthlyLog.units?.buildium_property_id ??
-      monthlyLog.properties?.buildium_property_id ??
-      null;
-    const buildiumUnitId = monthlyLog.units?.buildium_unit_id ?? null;
-    let operatingBankAccountId = monthlyLog.properties?.operating_bank_account_id ?? null;
+      unitRecord?.buildium_property_id ?? propertyRecord?.buildium_property_id ?? null;
+    const buildiumUnitId = unitRecord?.buildium_unit_id ?? null;
+    let operatingBankAccountId = propertyRecord?.operating_bank_account_id ?? null;
 
     if (!operatingBankAccountId && propertyId) {
       const { data: propertyRow, error: propertyError } = await supabaseAdmin
@@ -387,10 +400,10 @@ export async function POST(
       )
       .eq('property_id', propertyId)
       .eq('owner_id', payload.payeeId)
-      .maybeSingle();
+      .maybeSingle<OwnershipRow>();
 
     if (ownershipError) throw ownershipError;
-    const payee = (ownershipRow as any)?.owners ?? null;
+    const payee = ownershipRow?.owners ?? null;
 
     if (!payee || typeof payee.buildium_owner_id !== 'number') {
       return NextResponse.json(
@@ -466,13 +479,17 @@ export async function POST(
     });
 
     if (!response.ok) {
-      const details = await response.json().catch(() => ({}));
+      const details: BuildiumErrorDetail = await response
+        .json()
+        .catch(() => ({} as BuildiumErrorDetail));
       const message =
         details?.UserMessage ||
         details?.error ||
-        details?.Errors?.map(
-          (entry: any) => `${entry.Key ?? 'Field'}: ${entry.Value ?? 'Invalid'}`,
-        ).join('; ') ||
+        (Array.isArray(details?.Errors)
+          ? details.Errors.map((entry: { Key?: string | null; Value?: string | null }) =>
+              `${entry?.Key ?? 'Field'}: ${entry?.Value ?? 'Invalid'}`,
+            ).join('; ')
+          : undefined) ||
         'Buildium rejected the owner draw check. Verify mappings and try again.';
 
       console.error('Buildium owner draw creation failed', response.status, details);
@@ -580,18 +597,30 @@ export async function POST(
     await assignTransactionToMonthlyLog(transactionRow.id, logId, supabaseAdmin);
     await refreshMonthlyLogTotals(logId);
     const record = await fetchTransactionWithLines(transactionRow.id, supabaseAdmin);
-    const transaction =
-      record?.transaction ??
-      ({
-        id: transactionRow.id,
-        total_amount: payload.amount,
-        memo: payload.memo ?? null,
-        date: payload.date,
-        transaction_type: 'GeneralJournalEntry',
-        lease_id: null,
-        monthly_log_id: logId,
-        reference_number: payload.referenceNumber ?? null,
-      } as any);
+    const transaction: MonthlyLogTransaction =
+      record?.transaction
+        ? {
+            id: record.transaction.id,
+            total_amount: record.transaction.total_amount,
+            memo: record.transaction.memo ?? null,
+            date: record.transaction.date,
+            transaction_type: record.transaction.transaction_type,
+            lease_id: record.transaction.lease_id ?? null,
+            monthly_log_id: record.transaction.monthly_log_id ?? null,
+            reference_number: record.transaction.reference_number ?? null,
+            account_name: (record.transaction as { account_name?: string | null }).account_name ?? null,
+          }
+        : {
+            id: transactionRow.id,
+            total_amount: payload.amount,
+            memo: payload.memo ?? null,
+            date: payload.date,
+            transaction_type: 'GeneralJournalEntry',
+            lease_id: null,
+            monthly_log_id: logId,
+            reference_number: payload.referenceNumber ?? null,
+            account_name: ownerDrawAccount.name ?? 'Owner Draw',
+          };
 
     return NextResponse.json(
       {

@@ -1,3 +1,4 @@
+
 /**
  * Generate Management Fee Transaction API
  *
@@ -12,8 +13,14 @@ import { supabaseAdmin } from '@/lib/db';
 import { isNewServiceCatalogEnabled, writeServiceFeeDual } from '@/lib/service-compatibility';
 import { calculateServiceFee } from '@/lib/service-pricing';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/types/database';
 
-export async function POST(request: Request, { params }: { params: { logId: string } }) {
+type ServicePlan = Database['public']['Enums']['service_plan_enum'] | null;
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ logId: string }> },
+) {
   try {
     // Auth check
     const auth = await requireAuth();
@@ -26,7 +33,7 @@ export async function POST(request: Request, { params }: { params: { logId: stri
     }
 
     // Parse parameters
-    const { logId } = params;
+    const { logId } = await params;
 
     // Fetch monthly log to get unit and period
     const { data: monthlyLog, error: logError } = await supabaseAdmin
@@ -63,15 +70,17 @@ export async function POST(request: Request, { params }: { params: { logId: stri
     let useNewCatalog = isNewServiceCatalogEnabled();
 
     let feeAmount: number = 0;
-    let servicePlan: string | null = property?.service_plan || null;
+    let servicePlan: ServicePlan = (property?.service_plan as ServicePlan) || null;
     let offeringId: string | null = null;
     let feeCategory: 'plan_fee' | 'service_fee' | 'override' | 'legacy' = 'legacy';
+
+    let lease: { rent_amount: number | null } | null = null;
 
     if (useNewCatalog) {
       // Use new service catalog calculation
       try {
         // Get active lease for rent calculation
-        const { data: lease } = await supabaseAdmin
+        const { data: leaseRow } = await supabaseAdmin
           .from('lease')
           .select('rent_amount, lease_from_date, lease_to_date')
           .eq('unit_id', monthlyLog.unit_id)
@@ -79,6 +88,7 @@ export async function POST(request: Request, { params }: { params: { logId: stri
           .order('lease_from_date', { ascending: false })
           .limit(1)
           .maybeSingle();
+        lease = leaseRow || null;
 
         // Get market rent for capping
         const { data: unit } = await supabaseAdmin
@@ -166,7 +176,7 @@ export async function POST(request: Request, { params }: { params: { logId: stri
 
       if (usePropertyLevel) {
         feeDollarAmount = property?.fee_dollar_amount || null;
-        servicePlan = property?.service_plan || null;
+        servicePlan = (property?.service_plan as ServicePlan) || null;
       } else {
         const { data: unit } = await supabaseAdmin
           .from('units')
@@ -175,7 +185,7 @@ export async function POST(request: Request, { params }: { params: { logId: stri
           .single();
 
         feeDollarAmount = unit?.fee_dollar_amount || null;
-        servicePlan = unit?.service_plan || null;
+        servicePlan = (unit?.service_plan as ServicePlan) || null;
       }
 
       if (!feeDollarAmount || feeDollarAmount <= 0) {

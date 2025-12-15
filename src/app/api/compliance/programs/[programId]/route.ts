@@ -57,6 +57,9 @@ export async function PATCH(
     if (typeof body.is_enabled === 'boolean') {
       updates.is_enabled = body.is_enabled
     }
+    if (typeof body.name === 'string') {
+      updates.name = body.name
+    }
     if (typeof body.notes === 'string') {
       updates.notes = body.notes
     }

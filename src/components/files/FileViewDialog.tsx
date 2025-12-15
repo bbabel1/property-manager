@@ -18,25 +18,23 @@ interface FileViewDialogProps {
   onOpenChange: (open: boolean) => void;
   fileId: string | null;
   fileName?: string;
-  file?:
-    | {
-        id: string;
-        file_name: string;
-        title?: string | null;
-        description?: string | null;
-        category_name?: string | null;
-        size_bytes?: number | null;
-        mime_type?: string | null;
-        updated_at?: string;
-        created_at?: string;
-        location?: string;
-        is_shared?: boolean;
-        shareWithTenants?: boolean | null;
-        shareWithRentalOwners?: boolean | null;
-        buildium_file_id?: number | null;
-        entity_type?: string | null;
-      }
-    | null;
+  file?: {
+    id: string;
+    file_name: string;
+    title?: string | null;
+    description?: string | null;
+    category_name?: string | null;
+    size_bytes?: number | null;
+    mime_type?: string | null;
+    updated_at?: string;
+    created_at?: string;
+    location?: string;
+    is_shared?: boolean;
+    shareWithTenants?: boolean | null;
+    shareWithRentalOwners?: boolean | null;
+    buildium_file_id?: number | null;
+    entity_type?: string | null;
+  } | null;
   onEdit?: () => void;
   onShare?: () => void;
   onShareStatusChange?: (status: {
@@ -160,7 +158,7 @@ export default function FileViewDialog({
 
     const extension =
       typeof file.file_name === 'string' && file.file_name.includes('.')
-        ? file.file_name.split('.').pop()?.toUpperCase() ?? null
+        ? (file.file_name.split('.').pop()?.toUpperCase() ?? null)
         : null;
 
     return [
@@ -272,7 +270,7 @@ export default function FileViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[96vh] w-[min(calc(100vw-3rem),1200px)] max-w-none overflow-hidden p-0 sm:max-w-none">
+      <DialogContent className="max-h-[96vh] w-full max-w-[800px] overflow-hidden p-0">
         <div className="flex h-full flex-col md:flex-row">
           <div className="flex-1 overflow-hidden">
             <DialogHeader className="px-6 pt-6">
@@ -331,10 +329,10 @@ export default function FileViewDialog({
             </div>
           </div>
 
-          <aside className="border-t px-6 py-6 md:w-[320px] md:border-l md:border-t-0">
+          <aside className="border-t px-6 py-6 md:w-[320px] md:border-t-0 md:border-l">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">Summary</p>
+                <p className="text-muted-foreground text-xs font-medium uppercase">Summary</p>
               </div>
               <Button
                 type="button"
@@ -353,7 +351,7 @@ export default function FileViewDialog({
               <dl className="mt-4 space-y-3 text-sm">
                 {summaryItems.map(({ label, value }) => (
                   <div key={label} className="border-b pb-3 last:border-b-0 last:pb-0">
-                    <dt className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                    <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                       {label}
                     </dt>
                     <dd className="mt-1 text-sm leading-relaxed">
@@ -374,7 +372,7 @@ export default function FileViewDialog({
 
             <div className="mt-8 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase text-muted-foreground">Sharing</p>
+                <p className="text-muted-foreground text-xs font-medium uppercase">Sharing</p>
                 <Button
                   type="button"
                   variant="ghost"
@@ -387,13 +385,13 @@ export default function FileViewDialog({
                   Manage
                 </Button>
               </div>
-              <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+              <div className="bg-muted/30 text-muted-foreground rounded-md border p-3 text-xs leading-relaxed">
                 {shareSummary}
               </div>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="pr-3">
-                    <div className="font-medium text-foreground">Rental owners</div>
+                    <div className="text-foreground font-medium">Rental owners</div>
                     <div className="text-muted-foreground text-xs">
                       Share with rental owners {file?.location ? `of ${file.location}` : ''} via the
                       portal.
@@ -407,7 +405,7 @@ export default function FileViewDialog({
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="pr-3">
-                    <div className="font-medium text-foreground">Tenants</div>
+                    <div className="text-foreground font-medium">Tenants</div>
                     <div className="text-muted-foreground text-xs">
                       Share with tenants {file?.location ? `of ${file.location}` : ''} via the
                       Resident Center.
@@ -425,9 +423,7 @@ export default function FileViewDialog({
                     <span>{shareStatusMessage}</span>
                   </div>
                 ) : null}
-                {shareError ? (
-                  <p className="text-destructive text-xs">{shareError}</p>
-                ) : null}
+                {shareError ? <p className="text-destructive text-xs">{shareError}</p> : null}
               </div>
             </div>
           </aside>

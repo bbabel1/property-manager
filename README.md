@@ -62,6 +62,8 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 - `npm run dev` – Next.js dev server
 - `npm run lint` – ESLint (TS + Next rules)
 - `npm run typecheck` – Strict TS project check
+- `npm run typecheck:scripts` – Type check operational scripts (`scripts/tsconfig.json`)
+- `npm run typecheck:all` – Runs both typecheck targets
 - `npm run format` / `npm run format:check` – Prettier
 - `npm run ci:env-check` – Validates env with zod
 - Tests: Playwright/Vitest currently stubbed; see `tests/README.md` for expectations when re-enabled.

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { BuildiumEntityType } from '@/types/buildium';
+import type { BuildiumFileEntityType } from '@/types/buildium';
 
 type SupabaseClient = ReturnType<typeof createClient<any>> | any;
 
@@ -45,7 +45,7 @@ const ENTITY_TYPE_NORMALIZATION: Record<string, EntityTypeEnum> = {
   Vendor: FILE_ENTITY_TYPES.VENDORS,
 };
 
-const FILE_TO_BUILDIUM_ENTITY_TYPES: Record<EntityTypeEnum, BuildiumEntityType[]> = {
+const FILE_TO_BUILDIUM_ENTITY_TYPES: Record<EntityTypeEnum, BuildiumFileEntityType[]> = {
   [FILE_ENTITY_TYPES.PROPERTIES]: ['Rental', 'PublicAsset'],
   [FILE_ENTITY_TYPES.UNITS]: ['RentalUnit'],
   [FILE_ENTITY_TYPES.LEASES]: ['Lease'],
@@ -59,7 +59,7 @@ const FILE_TO_BUILDIUM_ENTITY_TYPES: Record<EntityTypeEnum, BuildiumEntityType[]
   [FILE_ENTITY_TYPES.VENDORS]: ['Vendor'],
 };
 
-const BUILDIUM_TO_FILE_ENTITY_TYPE: Record<BuildiumEntityType, EntityTypeEnum> = {
+const BUILDIUM_TO_FILE_ENTITY_TYPE: Record<BuildiumFileEntityType, EntityTypeEnum> = {
   Rental: FILE_ENTITY_TYPES.PROPERTIES,
   PublicAsset: FILE_ENTITY_TYPES.PROPERTIES,
   RentalUnit: FILE_ENTITY_TYPES.UNITS,
@@ -90,12 +90,12 @@ export function normalizeEntityType(entityType: string | null | undefined): Enti
   return ENTITY_TYPE_NORMALIZATION[entityType] ?? null;
 }
 
-export function mapFileEntityTypeToBuildium(entityType: EntityTypeEnum): BuildiumEntityType[] {
+export function mapFileEntityTypeToBuildium(entityType: EntityTypeEnum): BuildiumFileEntityType[] {
   return FILE_TO_BUILDIUM_ENTITY_TYPES[entityType] ?? ['Rental'];
 }
 
 export function mapBuildiumEntityTypeToFile(
-  entityType: BuildiumEntityType | null | undefined,
+  entityType: BuildiumFileEntityType | null | undefined,
 ): EntityTypeEnum {
   if (!entityType) {
     return FILE_ENTITY_TYPES.PROPERTIES;
@@ -114,7 +114,7 @@ export interface FileRow {
   size_bytes: number | null;
   entity_type: EntityTypeEnum;
   entity_id: number;
-  buildium_entity_type?: BuildiumEntityType | null;
+  buildium_entity_type?: BuildiumFileEntityType | null;
   buildium_entity_id?: number | null;
   buildium_category_id: number | null;
   storage_provider: string | null;
@@ -185,7 +185,7 @@ function isUnsupportedEntityTypeError(error: unknown): boolean {
 export async function getFilesByEntity(
   client: SupabaseClient,
   orgId: string,
-  entityTypeInput: EntityTypeEnum | BuildiumEntityType | string,
+  entityTypeInput: EntityTypeEnum | BuildiumFileEntityType | string,
   entityId: number,
 ): Promise<FileRow[]> {
   // Validate inputs
@@ -321,7 +321,7 @@ export async function createFile(
     size_bytes?: number | null;
     entity_type: EntityTypeEnum;
     entity_id: number;
-    buildium_entity_type?: BuildiumEntityType | null;
+    buildium_entity_type?: BuildiumFileEntityType | null;
     buildium_entity_id?: number | null;
     buildium_category_id?: number | null;
     storage_provider?: string;

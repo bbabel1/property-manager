@@ -10,14 +10,14 @@ import {
   normalizeEntityType,
   type EntityTypeEnum,
 } from '@/lib/files';
-import type { BuildiumEntityType, BuildiumFileCategory } from '@/types/buildium';
+import type { BuildiumFileEntityType, BuildiumFileCategory } from '@/types/buildium';
 
 // Resolve Buildium entity ID from local entity
 async function resolveBuildiumEntityId(
   admin: any,
   entityType: EntityTypeEnum,
   entityId: number,
-): Promise<{ buildiumEntityType: BuildiumEntityType; buildiumEntityId: number } | null> {
+): Promise<{ buildiumEntityType: BuildiumFileEntityType; buildiumEntityId: number } | null> {
   if (entityId === -1) {
     return null; // Local entity without Buildium ID
   }
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const buildiumEntityType = buildiumTypes[0] || 'Rental';
 
     const buildiumEntityInfo = {
-      buildiumEntityType: buildiumEntityType as BuildiumEntityType,
+      buildiumEntityType: buildiumEntityType as BuildiumFileEntityType,
       buildiumEntityId: entityId,
     };
 

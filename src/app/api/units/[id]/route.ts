@@ -66,10 +66,13 @@ async function ensureOrgAccess(
   return Boolean(membership && ADMIN_ROLE_SET.has(String(membership.role)));
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const user = await requireUser(request);
-    const unitId = params.id;
+    const { id: unitId } = await params;
     const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
     const db = supabaseAdmin || supabase;
@@ -163,10 +166,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const user = await requireUser(request);
-    const unitId = params.id;
+    const { id: unitId } = await params;
     const db = supabaseAdmin || supabase;
 
     const { data: unitRow, error } = await db

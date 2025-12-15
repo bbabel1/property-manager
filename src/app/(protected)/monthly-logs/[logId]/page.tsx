@@ -12,6 +12,37 @@ import {
 import { listMonthlyLogTasks } from '@/server/monthly-logs/tasks';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
 
+type MonthlyLogStatus = 'pending' | 'complete' | 'in_progress';
+type MonthlyLogRecord = {
+  id: string | number;
+  period_start: string | Date | null;
+  stage: string | null;
+  status: MonthlyLogStatus | string | null;
+  notes: string | null;
+  property_id: string | number | null;
+  unit_id: string | number | null;
+  tenant_id: string | number | null;
+  org_id: string | number | null;
+  lease_id: number | null;
+  properties?: { id: string | number; name: string | null } | null;
+  units?: {
+    id: string | number;
+    unit_number: string | null;
+    unit_name: string | null;
+    service_plan: string | null;
+    active_services: unknown;
+    fee_dollar_amount: number | string | null;
+  } | null;
+  tenants?: {
+    id: string | number;
+    contact?: {
+      display_name?: string | null;
+      first_name?: string | null;
+      last_name?: string | null;
+      company_name?: string | null;
+    } | null;
+  } | null;
+};
 type LeaseContactRecord = {
   role: string | null;
   tenant_id?: string | number | null;
@@ -47,17 +78,28 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
     const { logId } = await params;
     const supabase = getSupabaseServiceRoleClient('loading monthly log details');
 
+    const normalizeDate = (value: unknown): string | null => {
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === 'string') return value;
+      return value != null ? String(value) : null;
+    };
+
+    const normalizeStatus = (value: unknown): MonthlyLogStatus => {
+      if (value === 'complete' || value === 'in_progress') return value;
+      return 'pending';
+    };
+
     const monthlyLog = await fetchMonthlyLogRecord(logId, supabase);
     if (!monthlyLog) {
       notFound();
     }
 
     const activeLeaseContext = monthlyLog.unit_id
-    ? await loadActiveLeaseSummary(supabase, {
-        unitId: monthlyLog.unit_id,
-        leaseId: monthlyLog.lease_id ?? null,
-      })
-    : { summary: null, tenantOptions: [] };
+      ? await loadActiveLeaseSummary(supabase, {
+          unitId: monthlyLog.unit_id ? String(monthlyLog.unit_id) : '',
+          leaseId: monthlyLog.lease_id ?? null,
+        })
+      : { summary: null, tenantOptions: [] };
 
   const [assignedBundle, unassignedPage] = await Promise.all([
     loadAssignedTransactionsBundle(logId, supabase),
@@ -82,7 +124,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 
     const unitData = monthlyLog.units
       ? {
-          id: monthlyLog.units.id,
+          id: String(monthlyLog.units.id),
           unit_number: monthlyLog.units.unit_number ?? null,
           unit_name: monthlyLog.units.unit_name ?? null,
           service_plan: monthlyLog.units.service_plan ?? null,
@@ -98,7 +140,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 
     const tenantData = monthlyLog.tenants
       ? {
-          id: monthlyLog.tenants.id,
+          id: String(monthlyLog.tenants.id),
           first_name: monthlyLog.tenants.contact?.first_name ?? null,
           last_name: monthlyLog.tenants.contact?.last_name ?? null,
           company_name: monthlyLog.tenants.contact?.company_name ?? null,
@@ -109,11 +151,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
     // Convert any Date objects to strings and ensure all values are serializable
     const monthlyLogWithRelations = {
       id: String(monthlyLog.id),
-      period_start: typeof monthlyLog.period_start === 'string' 
-        ? monthlyLog.period_start 
-        : monthlyLog.period_start instanceof Date 
-          ? monthlyLog.period_start.toISOString() 
-          : String(monthlyLog.period_start ?? ''),
+      period_start: normalizeDate(monthlyLog.period_start) ?? '',
       stage: monthlyLog.stage ?? null,
       status: monthlyLog.status ?? null,
       notes: monthlyLog.notes ?? null,
@@ -130,18 +168,8 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
       tenants: tenantData,
       activeLease: activeLeaseContext.summary ? {
         id: Number(activeLeaseContext.summary.id),
-        lease_from_date: typeof activeLeaseContext.summary.lease_from_date === 'string' 
-          ? activeLeaseContext.summary.lease_from_date 
-          : activeLeaseContext.summary.lease_from_date instanceof Date
-            ? activeLeaseContext.summary.lease_from_date.toISOString()
-            : String(activeLeaseContext.summary.lease_from_date ?? ''),
-        lease_to_date: activeLeaseContext.summary.lease_to_date 
-          ? (typeof activeLeaseContext.summary.lease_to_date === 'string'
-              ? activeLeaseContext.summary.lease_to_date
-              : activeLeaseContext.summary.lease_to_date instanceof Date
-                ? activeLeaseContext.summary.lease_to_date.toISOString()
-                : String(activeLeaseContext.summary.lease_to_date))
-          : null,
+        lease_from_date: normalizeDate(activeLeaseContext.summary.lease_from_date) ?? '',
+        lease_to_date: normalizeDate(activeLeaseContext.summary.lease_to_date),
         rent_amount: typeof activeLeaseContext.summary.rent_amount === 'number' 
           ? activeLeaseContext.summary.rent_amount 
           : null,
@@ -171,7 +199,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
       id: String(monthlyLogWithRelations.id),
       period_start: String(monthlyLogWithRelations.period_start ?? ''),
       stage: String(monthlyLogWithRelations.stage ?? 'charges'),
-      status: String(monthlyLogWithRelations.status ?? 'pending'),
+      status: normalizeStatus(monthlyLogWithRelations.status),
       notes: monthlyLogWithRelations.notes ?? null,
       property_id: monthlyLogWithRelations.property_id ?? null,
       unit_id: monthlyLogWithRelations.unit_id ?? null,
@@ -205,7 +233,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
     const safeTenantOptions = Array.isArray(activeLeaseContext.tenantOptions)
       ? activeLeaseContext.tenantOptions.map(option => ({
           id: String(option.id ?? ''),
-          label: String(option.label ?? ''),
+          name: String((option as any).name ?? (option as any).label ?? ''),
           buildiumTenantId: option.buildiumTenantId ?? null,
         }))
       : [];
@@ -237,7 +265,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 async function fetchMonthlyLogRecord(
   logId: string,
   supabase: TypedSupabaseClient,
-) {
+): Promise<MonthlyLogRecord | null> {
   const baseSelect = `
     id,
     period_start,
@@ -276,7 +304,7 @@ async function fetchMonthlyLogRecord(
     ${baseSelect}
   `;
 
-  const runSelect = (selectFields: string) =>
+  const runSelect = async (selectFields: string) =>
     supabase.from('monthly_logs').select(selectFields).eq('id', logId).maybeSingle();
 
   const primaryResult = await traceAsync('monthlyLog.fetch.record', () =>
@@ -298,9 +326,11 @@ async function fetchMonthlyLogRecord(
     throw error;
   }
 
-  if (!data) return null;
+  if (!data || typeof data !== 'object' || 'error' in (data as any)) {
+    return null;
+  }
 
-  return data;
+  return data as MonthlyLogRecord;
 }
 
 async function loadActiveLeaseSummary(
@@ -342,14 +372,14 @@ async function loadActiveLeaseSummary(
   let leaseRow: ActiveLeaseRow | null = null;
 
   if (leaseId) {
-    const { data } = await traceAsync('monthlyLog.activeLease.row', () =>
+    const { data } = await traceAsync('monthlyLog.activeLease.row', async () =>
       buildBaseQuery().eq('id', leaseId).limit(1).maybeSingle(),
     );
     leaseRow = (data as ActiveLeaseRow | null) ?? null;
   }
 
   if (!leaseRow) {
-    const { data } = await traceAsync('monthlyLog.activeLease.row.fallback', () =>
+    const { data } = await traceAsync('monthlyLog.activeLease.row.fallback', async () =>
       buildBaseQuery().order('lease_from_date', { ascending: false }).limit(1).maybeSingle(),
     );
     leaseRow = (data as ActiveLeaseRow | null) ?? null;
@@ -366,7 +396,7 @@ async function loadActiveLeaseSummary(
 
   const tenantOptions = buildTenantOptions(normalizedLease);
 
-  const { data: chargeRows } = await traceAsync('monthlyLog.activeLease.chargeTotals', () =>
+  const { data: chargeRows } = await traceAsync('monthlyLog.activeLease.chargeTotals', async () =>
     supabase
       .from('transactions')
       .select('total_amount, transaction_type')

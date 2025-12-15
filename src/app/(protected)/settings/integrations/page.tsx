@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 "use client"
 
 import { useState, useEffect } from 'react'
@@ -248,7 +250,7 @@ export default function WorkspaceIntegrationsPage() {
         isOpen={geoFormOpen}
         onClose={() => setGeoFormOpen(false)}
         onSuccess={() => {
-          loadNYCGeoserviceStatus()
+          loadNYCIntegrationStatus()
           setGeoFormOpen(false)
         }}
       />

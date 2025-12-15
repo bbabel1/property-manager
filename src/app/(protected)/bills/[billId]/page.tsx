@@ -157,6 +157,17 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     notFound();
   }
 
+  const paymentsPromise = bill.buildium_bill_id
+    ? db
+        .from('transactions')
+        .select(
+          'id, date, paid_date, total_amount, bank_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
+        )
+        .eq('transaction_type', 'Payment')
+        .eq('buildium_bill_id', bill.buildium_bill_id)
+        .order('date', { ascending: false })
+    : Promise.resolve({ data: [], error: null });
+
   const [linesRes, vendorRes, paymentsRes, workOrderRes] = await Promise.all([
     db
       .from('transaction_lines')
@@ -182,14 +193,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
           .eq('id', bill.vendor_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    db
-      .from('transactions')
-      .select(
-        'id, date, paid_date, total_amount, bank_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
-      )
-      .eq('transaction_type', 'Payment')
-      .eq('buildium_bill_id', bill.buildium_bill_id)
-      .order('date', { ascending: false }),
+    paymentsPromise,
     bill.work_order_id
       ? db.from('work_orders').select('id, subject').eq('id', bill.work_order_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -243,7 +247,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
         console.error('Failed to load bill files', filesError);
       } else if (filesData?.length) {
         billFiles = filesData
-          .map((file: any) => ({
+          .map((file) => ({
             id: file.id,
             title: file.title || file.file_name || 'File',
             uploadedAt: file.created_at,
@@ -273,7 +277,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     if (bankErr) {
       console.error('Failed to load bank accounts for payments', bankErr);
     } else if (banks?.length) {
-      bankAccountMap = new Map(banks.map((b: any) => [b.id, { name: b.name ?? null }]));
+      bankAccountMap = new Map(banks.map((b) => [b.id, { name: b.name ?? null }]));
     }
   }
   // Fetch payment lines to derive amounts if total_amount is missing
@@ -287,7 +291,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     if (payLineErr) {
       console.error('Failed to load payment lines', payLineErr);
     } else if (paymentLines) {
-      paymentLineSums = paymentLines.reduce((map, line: any) => {
+      paymentLineSums = paymentLines.reduce((map, line) => {
         const amt = Number(line?.amount ?? 0);
         const key = line?.transaction_id as string;
         const prev = map.get(key) ?? 0;
@@ -325,7 +329,6 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     return normalizeBillStatus(bill.status);
   })();
   const statusLabel = deriveBillStatusFromDates(statusNormalized, bill.due_date ?? null, bill.paid_date ?? null);
-  const paidDateLabel = formatDate(bill.paid_date);
 
   // First, calculate line items and totals
   const mappedLineItems = rawLines
@@ -389,11 +392,6 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     (sum, item) => sum + (item.initialAmount || 0),
     0,
   );
-  const lineItemsRemainingTotal = debitLineItems.reduce(
-    (sum, item) => sum + (item.remainingAmount || 0),
-    0,
-  );
-
   // Now calculate derived values that depend on the totals
   const baseDue = lineItemsInitialTotal || billAmount;
   const remainingAmount =

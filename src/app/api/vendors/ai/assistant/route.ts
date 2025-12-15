@@ -25,10 +25,16 @@ export async function POST(request: Request) {
   }
 
   const { prompt, snapshot } = parsed.data
-  const context = buildContext(snapshot)
+  const normalizedSnapshot: VendorDashboardData['aiSnapshot'] = {
+    topVendors: (snapshot?.topVendors as VendorInsight[] | undefined) ?? [],
+    highRiskVendors: (snapshot?.highRiskVendors as VendorInsight[] | undefined) ?? [],
+    totalOutstanding: snapshot?.totalOutstanding ?? 0,
+    totalOpenWorkOrders: snapshot?.totalOpenWorkOrders ?? 0,
+  }
+  const context = buildContext(normalizedSnapshot)
 
   if (!process.env.OPENAI_API_KEY) {
-    const fallback = buildHeuristicResponse(prompt, snapshot)
+    const fallback = buildHeuristicResponse(prompt, normalizedSnapshot)
     return NextResponse.json({ answer: fallback, usedModel: 'heuristic' })
   }
 
@@ -63,11 +69,12 @@ export async function POST(request: Request) {
       throw new Error(payload?.error?.message || 'OpenAI API error')
     }
 
-    const answer = payload?.choices?.[0]?.message?.content || buildHeuristicResponse(prompt, snapshot)
+    const answer =
+      payload?.choices?.[0]?.message?.content || buildHeuristicResponse(prompt, normalizedSnapshot)
     return NextResponse.json({ answer, usedModel: OPENAI_MODEL })
   } catch (error) {
     console.error('[vendors.ai.assistant] failed', error)
-    const fallback = buildHeuristicResponse(prompt, snapshot)
+    const fallback = buildHeuristicResponse(prompt, normalizedSnapshot)
     return NextResponse.json({ answer: fallback, usedModel: 'heuristic', warning: 'OpenAI request failed' })
   }
 }
@@ -117,4 +124,3 @@ function buildHeuristicResponse(prompt: string, snapshot?: VendorDashboardData['
 
   return `${baseIntro}\n\nRecommended focus areas:\n- Address compliance for ${snapshot?.highRiskVendors?.length ?? 0} flagged vendors via automated COI workflow.\n- Review ${snapshot?.totalOutstanding ? `$${Math.round(snapshot.totalOutstanding).toLocaleString()} outstanding approvals` : 'pending approvals'} before next disbursement run.\n- Use the automation panel to trigger reminders for overdue invoices and high-priority work orders.`
 }
-

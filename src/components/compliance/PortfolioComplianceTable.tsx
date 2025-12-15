@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
-import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -10,20 +10,20 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { AlertCircle, CheckCircle, Clock, MoreVertical } from 'lucide-react'
+} from '@/components/ui/table';
+import { AlertCircle, CheckCircle, Clock, MoreVertical } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import type { CompliancePropertySummary } from '@/types/compliance'
+} from '@/components/ui/dropdown-menu';
+import type { CompliancePropertySummary } from '@/types/compliance';
 
 interface PortfolioComplianceTableProps {
-  properties: CompliancePropertySummary[]
-  onSyncProperty?: (propertyId: string) => void
-  onCreateWorkOrder?: (propertyId: string) => void
+  properties: CompliancePropertySummary[];
+  onSyncProperty?: (propertyId: string) => void;
+  onCreateWorkOrder?: (propertyId: string) => void;
 }
 
 export function PortfolioComplianceTable({
@@ -34,22 +34,22 @@ export function PortfolioComplianceTable({
   const getStatusIndicator = (status: 'critical' | 'warning' | 'ok') => {
     switch (status) {
       case 'critical':
-        return <AlertCircle className="h-4 w-4 text-destructive" />
+        return <AlertCircle className="text-destructive h-4 w-4" />;
       case 'warning':
-        return <Clock className="h-4 w-4 text-warning" />
+        return <Clock className="text-warning h-4 w-4" />;
       case 'ok':
-        return <CheckCircle className="h-4 w-4 text-success" />
+        return <CheckCircle className="text-success h-4 w-4" />;
     }
-  }
+  };
 
   const formatDate = (date: string | null) => {
-    if (!date) return '—'
+    if (!date) return '—';
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-    })
-  }
+    });
+  };
 
   return (
     <div className="rounded-md border">
@@ -59,7 +59,7 @@ export function PortfolioComplianceTable({
             <TableHead>Property</TableHead>
             <TableHead>Borough</TableHead>
             <TableHead className="text-right">Assets</TableHead>
-            <TableHead className="text-right">Open Violations</TableHead>
+            <TableHead className="w-[100px] text-right text-sm">Open Violations</TableHead>
             <TableHead className="text-right">Overdue</TableHead>
             <TableHead className="text-right">Due Next 30 Days</TableHead>
             <TableHead>Last Elevator Inspection</TableHead>
@@ -70,7 +70,7 @@ export function PortfolioComplianceTable({
         <TableBody>
           {properties.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-muted-foreground py-8 text-center">
                 No properties found
               </TableCell>
             </TableRow>
@@ -84,7 +84,7 @@ export function PortfolioComplianceTable({
                   >
                     {property.property_name}
                   </Link>
-                  <div className="text-sm text-muted-foreground">{property.address_line1}</div>
+                  <div className="text-muted-foreground text-sm">{property.address_line1}</div>
                 </TableCell>
                 <TableCell>{property.borough || '—'}</TableCell>
                 <TableCell className="text-right">{property.asset_count}</TableCell>
@@ -147,6 +147,5 @@ export function PortfolioComplianceTable({
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }
-

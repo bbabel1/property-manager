@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ComplianceChecklistTable } from '@/components/compliance/ComplianceChecklistTable'
 import { ViolationsList } from '@/components/compliance/ViolationsList'
-import { Loader2, ExternalLink, Wrench, FileText } from 'lucide-react'
+import { Loader2, ExternalLink, Wrench } from 'lucide-react'
 import type { ComplianceAssetWithRelations } from '@/types/compliance'
 
 export default function AssetDetailPage() {
@@ -219,4 +219,3 @@ export default function AssetDetailPage() {
     </PageShell>
   )
 }
-

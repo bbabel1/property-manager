@@ -147,7 +147,11 @@ export function mapUnitToDB(unit: Partial<Unit>): UnitUpdateDB {
     dbUnit.buildium_property_id = unit.buildiumPropertyId ?? null;
   if (unit.serviceStart !== undefined) dbUnit.service_start = unit.serviceStart ?? null;
   if (unit.serviceEnd !== undefined) dbUnit.service_end = unit.serviceEnd ?? null;
-  if (unit.servicePlan !== undefined) dbUnit.service_plan = unit.servicePlan ?? null;
+  if (unit.servicePlan !== undefined) {
+    const normalizedPlan: Exclude<ServicePlan, 'Custom'> | null =
+      unit.servicePlan === 'Custom' ? null : unit.servicePlan ?? null;
+    dbUnit.service_plan = normalizedPlan;
+  }
   if (unit.feeType !== undefined) dbUnit.fee_type = unit.feeType ?? null;
   if (unit.feePercent !== undefined) dbUnit.fee_percent = unit.feePercent ?? null;
   if (unit.feeDollarAmount !== undefined) dbUnit.fee_dollar_amount = unit.feeDollarAmount ?? null;

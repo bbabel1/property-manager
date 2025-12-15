@@ -7,6 +7,7 @@ import { ServiceBadges } from './ServiceBadges';
 import { formatCurrency } from '@/lib/transactions/formatting';
 import { Edit, Settings, Copy } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
+import { ServicePricingPreview } from '@/lib/service-pricing';
 
 interface ServiceCardProps {
   offering: {
@@ -16,19 +17,8 @@ interface ServiceCardProps {
     category?: string | null;
     isSelected: boolean;
     isIncluded: boolean;
-    pricing?: {
-      rate: number | null;
-      frequency: string;
-      min_amount: number | null;
-      max_amount: number | null;
-      billing_basis?: string;
-    };
-    defaultPricing?: {
-      rate: number | null;
-      frequency: string;
-      min_amount: number | null;
-      max_amount: number | null;
-    };
+    pricing?: ServicePricingPreview;
+    defaultPricing?: ServicePricingPreview;
   };
   isEditMode: boolean;
   isPending: boolean;
@@ -119,7 +109,7 @@ export default function ServiceCard({
                     ? formatCurrency(pricing.rate)
                     : 'N/A'}{' '}
                   <span className="text-muted-foreground text-xs">
-                    / {pricing.frequency || 'N/A'}
+                    / {pricing.billing_frequency || 'N/A'}
                   </span>
                 </div>
                 {(pricing.min_amount || pricing.max_amount) && (
@@ -185,4 +175,3 @@ export default function ServiceCard({
     </div>
   );
 }
-

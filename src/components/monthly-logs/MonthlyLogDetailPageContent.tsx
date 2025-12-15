@@ -13,24 +13,16 @@ import EnhancedHeader from '@/components/monthly-logs/EnhancedHeader';
 import MonthlyLogDialogs from '@/components/monthly-logs/MonthlyLogDialogs';
 import MonthlyLogSummarySection from '@/components/monthly-logs/MonthlyLogSummarySection';
 import StatementsStage from '@/components/monthly-logs/StatementsStage';
-import TransactionDetailDialog from '@/components/monthly-logs/TransactionDetailDialog';
-import JournalEntryDetailDialog from '@/components/monthly-logs/JournalEntryDetailDialog';
 import RecurringTasksForUnit from '@/components/monthly-logs/RecurringTasksForUnit';
 import MonthlyLogTransactionsSection from '@/components/monthly-logs/MonthlyLogTransactionsSection';
 import TaskCreateDialog from '@/components/monthly-logs/TaskCreateDialog';
 import type { MonthlyLogStatus, MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import { useMonthlyLogDetail } from '@/hooks/useMonthlyLogDetail';
-import MonthlyLogTransactionOverlay, { type TransactionMode } from '@/components/monthly-logs';
+import type { TransactionMode } from '@/components/monthly-logs';
 import type { LeaseTenantOption } from '@/components/leases/types';
 import { formatCurrency, formatDate } from '@/lib/transactions/formatting';
 import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
 import { addMonths, subDays } from 'date-fns';
-
-type RelatedLogOption = {
-  id: string;
-  label: string;
-  status: MonthlyLogStatus | string;
-};
 
 const LEASE_TRANSACTION_MODES: TransactionMode[] = [
   'payment',
@@ -46,18 +38,6 @@ const UNIT_TRANSACTION_MODES: TransactionMode[] = [
   'propertyTaxEscrow',
   'ownerDraw',
 ];
-
-const TRANSACTION_MODE_LABELS: Record<TransactionMode, string> = {
-  payment: 'Payment',
-  charge: 'Charge',
-  credit: 'Credit',
-  refund: 'Refund',
-  deposit: 'Deposit',
-  bill: 'Bill',
-  managementFee: 'Management fee',
-  propertyTaxEscrow: 'Escrow',
-  ownerDraw: 'Owner draw',
-};
 
 interface MonthlyLogDetailPageContentProps {
   monthlyLog: {
@@ -237,37 +217,6 @@ export default function MonthlyLogDetailPageContent({
     }
   }, [allowedModes, transactionMode]);
 
-  const filterUnassignedTransactions = useCallback(
-    (transactions: MonthlyLogTransaction[]) => {
-      if (!transactions.length) return [];
-      const search = unassignedSearch.trim().toLowerCase();
-      return transactions.filter((transaction) => {
-        if (!search) return true;
-
-        const fields = [
-          transaction.memo,
-          transaction.reference_number,
-          transaction.transaction_type,
-        ]
-          .filter((field): field is string => Boolean(field))
-          .map((field) => field.toLowerCase());
-
-        return fields.some((field) => field.includes(search));
-      });
-    },
-    [unassignedSearch],
-  );
-
-  const filteredLeaseUnassigned = useMemo(
-    () => filterUnassignedTransactions(leaseUnassignedTransactions),
-    [filterUnassignedTransactions, leaseUnassignedTransactions],
-  );
-
-  const filteredUnitUnassigned = useMemo(
-    () => filterUnassignedTransactions(unitUnassignedTransactions),
-    [filterUnassignedTransactions, unitUnassignedTransactions],
-  );
-
   const activeUnassignedRaw =
     transactionScope === 'lease' ? leaseUnassignedTransactions : unitUnassignedTransactions;
 
@@ -367,41 +316,6 @@ export default function MonthlyLogDetailPageContent({
     setTransactionDetailDialogOpen(true);
   }, []);
 
-  const handleUnassignTransaction = useCallback(
-    async (transactionId: string) => {
-      const transactionToUnassign = assignedTransactions.find(
-        (transaction) => transaction.id === transactionId,
-      );
-      if (!transactionToUnassign) {
-        toast.error('Transaction not found');
-        return;
-      }
-
-      moveTransactionToUnassigned(transactionId);
-
-      try {
-        const response = await fetch(
-          `/api/monthly-logs/${monthlyLog.id}/transactions/${transactionId}/unassign`,
-          {
-            method: 'DELETE',
-          },
-        );
-
-        if (!response.ok) {
-          moveTransactionToAssigned(transactionToUnassign);
-          throw new Error('Failed to unassign transaction');
-        }
-
-        await refetchFinancial();
-        toast.success('Transaction unassigned');
-      } catch (error) {
-        console.error('Error unassigning transaction', error);
-        toast.error('Failed to unassign transaction');
-      }
-    },
-    [assignedTransactions, monthlyLog.id, moveTransactionToAssigned, moveTransactionToUnassigned],
-  );
-
   const handleBulkUnassign = useCallback(async () => {
     if (selectedAssigned.size === 0) return;
 
@@ -433,6 +347,7 @@ export default function MonthlyLogDetailPageContent({
     monthlyLog.id,
     moveTransactionToAssigned,
     moveTransactionToUnassigned,
+    refetchFinancial,
     selectedAssigned,
   ]);
 
@@ -598,7 +513,7 @@ export default function MonthlyLogDetailPageContent({
   );
 
   const handleEditTransaction = useCallback(
-    (transaction: MonthlyLogTransaction | null) => {
+    (transaction: MonthlyLogTransaction) => {
       if (!transaction) return;
       const target = resolveEditTarget(transaction);
 
@@ -868,7 +783,6 @@ export default function MonthlyLogDetailPageContent({
           <MonthlyLogSummarySection
             summary={financialSummary}
             loading={loadingFinancial}
-            onRefresh={refetchFinancial}
           />
         </div>
       </div>

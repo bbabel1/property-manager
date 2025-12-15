@@ -45,3 +45,5 @@ export function Dropdown({ value, onChange, options, placeholder, className }: D
     </Select>
   )
 }
+
+export default Dropdown

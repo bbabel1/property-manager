@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
-import { logger } from './utils/logger'
+import { logger } from '../../utils/logger'
 
 config()
 
@@ -118,7 +118,7 @@ async function main() {
     console.log('All charges have been successfully mapped to the transactions table')
     
   } catch (error) {
-    logger.error('Failed to create transaction records:', error)
+    logger.error({ error }, 'Failed to create transaction records')
     console.error('Full error details:', error)
     process.exit(1)
   }

@@ -4,8 +4,11 @@ import { supabase, supabaseAdmin } from '@/lib/db'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ vendorId: string }> }) {
-  const { vendorId } = params
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ vendorId: string }> },
+) {
+  const { vendorId } = await params
   const payload = await request.json().catch(() => ({}))
 
   const {

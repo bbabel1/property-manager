@@ -217,10 +217,10 @@ export function VendorSourcingPanel({ snapshot }: VendorSourcingPanelProps) {
                     ) : null}
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="xs" variant="secondary">
+                    <Button size="sm" variant="secondary">
                       Invite to quote
                     </Button>
-                    <Button size="xs" variant="ghost">
+                    <Button size="sm" variant="ghost">
                       Preview outreach
                     </Button>
                   </div>

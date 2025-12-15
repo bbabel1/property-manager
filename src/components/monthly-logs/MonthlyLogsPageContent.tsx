@@ -45,7 +45,7 @@ const statusStyles: Record<MonthlyLogStatus, { label: string; className: string 
   },
 };
 
-const STATUS_TAB_ORDER = ['incomplete', 'complete'] as const;
+type TabKey = 'incomplete' | 'complete';
 const MONTH_OPTIONS = [
   { value: '01', label: 'January' },
   { value: '02', label: 'February' },
@@ -60,8 +60,6 @@ const MONTH_OPTIONS = [
   { value: '11', label: 'November' },
   { value: '12', label: 'December' },
 ] as const;
-
-type TabKey = (typeof STATUS_TAB_ORDER)[number];
 
 type MonthlyLogsPageContentProps = {
   monthLabel: string;

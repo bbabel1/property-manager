@@ -1,5 +1,38 @@
+import { config } from 'dotenv'
+config({ path: '.env.local' })
+
+type JournalQuery = {
+  startDate: string
+  endDate: string
+  glAccountIds: number[]
+  selectionEntityId?: number
+  selectionEntityType?: 'Rental' | 'RentalOwner' | 'Association'
+  selectionEntityUnitId?: number
+  lastUpdatedFrom?: string
+  lastUpdatedTo?: string
+  orderBy?: string
+  offset?: number
+  limit?: number
+}
+
+function toQuery(params: JournalQuery): string {
+  const qp = new URLSearchParams()
+  qp.set('startdate', params.startDate)
+  qp.set('enddate', params.endDate)
+  qp.set('glaccountids', params.glAccountIds.join(','))
+  if (params.selectionEntityId != null) qp.set('selectionentityid', String(params.selectionEntityId))
+  if (params.selectionEntityType) qp.set('selectionentitytype', params.selectionEntityType)
+  if (params.selectionEntityUnitId != null) qp.set('selectionentityunitid', String(params.selectionEntityUnitId))
+  if (params.lastUpdatedFrom) qp.set('lastupdatedfrom', params.lastUpdatedFrom)
+  if (params.lastUpdatedTo) qp.set('lastupdatedto', params.lastUpdatedTo)
+  if (params.orderBy) qp.set('orderby', params.orderBy)
+  if (params.offset != null) qp.set('offset', String(params.offset))
+  if (params.limit != null) qp.set('limit', String(params.limit))
+  return qp.toString()
+}
+
 async function fetchJournalEntryFromBuildium(journalEntryId: string) {
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/journalentries/${journalEntryId}`
+  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/transactions/${journalEntryId}`
 
   const response = await fetch(buildiumUrl, {
     method: 'GET',
@@ -18,8 +51,8 @@ async function fetchJournalEntryFromBuildium(journalEntryId: string) {
   return response.json()
 }
 
-async function fetchJournalEntriesFromBuildium() {
-  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/journalentries`
+async function fetchJournalEntriesFromBuildium(params: JournalQuery) {
+  const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/transactions?${toQuery(params)}`
 
   const response = await fetch(buildiumUrl, {
     method: 'GET',
@@ -40,8 +73,20 @@ async function fetchJournalEntriesFromBuildium() {
 
 async function main() {
   try {
+    // Default: last 30 days, GL account IDs sourced from Buildium bank accounts
+    const glAccounts = [10407, 10408, 10409, 10410, 10411, 10412, 10413, 10414, 10415, 10416, 13162, 13163, 14011, 14368]
+    const now = new Date()
+    const end = now.toISOString().split('T')[0]
+    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
     console.log('Fetching journal entries from Buildium...')
-    const journalEntries = await fetchJournalEntriesFromBuildium()
+    const journalEntries = await fetchJournalEntriesFromBuildium({
+      startDate: start,
+      endDate: end,
+      glAccountIds: glAccounts,
+      limit: 50,
+      offset: 0,
+    })
     
     console.log(`\n=== FOUND ${journalEntries.length} JOURNAL ENTRIES ===`)
     
@@ -55,7 +100,8 @@ async function main() {
       console.log(`Total Amount: ${entry.TotalAmount}`)
       console.log(`Lines:`)
       
-      entry.Lines.forEach((line: any, lineIndex: number) => {
+      const lines = Array.isArray(entry.Lines) ? entry.Lines : []
+      lines.forEach((line: any, lineIndex: number) => {
         console.log(`  Line ${lineIndex + 1}:`)
         console.log(`    GL Account ID: ${line.GLAccountId}`)
         console.log(`    Amount: ${line.Amount}`)
@@ -64,10 +110,10 @@ async function main() {
       })
       
       // Verify double-entry bookkeeping
-      const totalCredits = entry.Lines
+      const totalCredits = lines
         .filter((line: any) => line.PostingType === 'Credit')
         .reduce((sum: number, line: any) => sum + line.Amount, 0)
-      const totalDebits = entry.Lines
+      const totalDebits = lines
         .filter((line: any) => line.PostingType === 'Debit')
         .reduce((sum: number, line: any) => sum + line.Amount, 0)
       

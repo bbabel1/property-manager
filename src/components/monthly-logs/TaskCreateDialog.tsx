@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import type { TaskPriorityKey, TaskStatusKey } from '@/lib/tasks/utils';
 import type { MonthlyLogTaskSummary } from './types';
+import { safeParseJson } from '@/types/monthly-log';
 
 interface TaskCreateDialogProps {
   open: boolean;
@@ -85,14 +86,9 @@ export default function TaskCreateDialog({
         });
 
         const bodyText = await response.text();
-        let parsed: any = {};
-        try {
-          parsed = bodyText ? JSON.parse(bodyText) : {};
-        } catch {
-          parsed = {};
-        }
+        const parsed = safeParseJson<MonthlyLogTaskSummary | { error?: string }>(bodyText) ?? {};
         if (!response.ok) {
-          throw new Error(parsed?.error || 'Failed to create task');
+          throw new Error((parsed as { error?: string }).error || 'Failed to create task');
         }
 
         const created = parsed as MonthlyLogTaskSummary;
@@ -120,7 +116,7 @@ export default function TaskCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[680px] max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Create Task</DialogTitle>
           <DialogDescription>Add a new task linked to this monthly log.</DialogDescription>
@@ -249,4 +245,3 @@ export default function TaskCreateDialog({
     </Dialog>
   );
 }
-
