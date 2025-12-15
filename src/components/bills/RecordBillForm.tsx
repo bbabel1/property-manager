@@ -47,7 +47,13 @@ import {
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
-import { Drawer, DrawerContent, DrawerTrigger, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerTrigger,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { cn } from '@/components/ui/utils';
 import { ChevronDown, ChevronUp, Paperclip, Plus, Trash2, UploadCloud } from 'lucide-react';
 
@@ -134,7 +140,16 @@ const MAX_ATTACHMENT_COUNT = 10;
 const MAX_ATTACHMENT_SIZE_MB = 25;
 const MAX_ATTACHMENT_SIZE_BYTES = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024;
 const ACCEPTED_ATTACHMENT_TYPES = ['application/pdf', 'image/'] as const;
-const ACCEPTED_ATTACHMENT_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.heic', '.heif', '.webp'];
+const ACCEPTED_ATTACHMENT_EXTENSIONS = [
+  '.pdf',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.heic',
+  '.heif',
+  '.webp',
+];
 
 type AttachmentPreview = {
   id: string;
@@ -247,9 +262,7 @@ const isAttachmentTypeAllowed = (file: File) => {
   const type = file.type?.toLowerCase() ?? '';
   if (
     ACCEPTED_ATTACHMENT_TYPES.some((accepted) =>
-      accepted.endsWith('/')
-        ? type.startsWith(accepted)
-        : type === accepted,
+      accepted.endsWith('/') ? type.startsWith(accepted) : type === accepted,
     )
   ) {
     return true;
@@ -275,7 +288,8 @@ function usePersistentBoolean(key: string, defaultValue: boolean) {
   const update = useCallback(
     (next: boolean | ((previous: boolean) => boolean)) => {
       setValue((previous) => {
-        const resolved = typeof next === 'function' ? (next as (prev: boolean) => boolean)(previous) : next;
+        const resolved =
+          typeof next === 'function' ? (next as (prev: boolean) => boolean)(previous) : next;
         if (typeof window !== 'undefined') {
           try {
             window.localStorage.setItem(key, resolved ? '1' : '0');
@@ -314,15 +328,22 @@ function RecordBillSectionCard({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className={cn('border-border border shadow-sm', className)}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
+        <div className="border-border/60 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
           <div>
             <h2 className="text-foreground text-sm font-semibold">{title}</h2>
             {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
           </div>
           <CollapsibleTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" className="gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground gap-2 text-xs font-semibold tracking-wide uppercase"
+            >
               {open ? 'Hide' : 'Show'}
-              <ChevronDown className={cn('h-4 w-4 transition-transform', open ? 'rotate-180' : 'rotate-0')} />
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform', open ? 'rotate-180' : 'rotate-0')}
+              />
             </Button>
           </CollapsibleTrigger>
         </div>
@@ -374,27 +395,37 @@ export default function RecordBillForm({
     memo: '',
     apply_markups: false,
   }));
-  const buildInitialLine = () => ({
-    id: makeId(),
-    kind: 'expense',
-    property_id: ensureNull(resolvedDefaultPropertyId),
-    unit_id: null,
-    gl_account_id: glAccounts[0]?.id ?? '',
-    description: '',
-    amount: '',
-  });
-  const [lines, setLines] = useState<DraftBillLine[]>(() => [buildInitialLine(), buildInitialLine()]);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [lineErrors, setLineErrors] = useState<Record<string, Partial<Record<keyof DraftBillLine, string>>>>(
-    {},
+  const buildInitialLine = useCallback(
+    (): DraftBillLine =>
+      ({
+        id: makeId(),
+        kind: 'expense',
+        property_id: ensureNull(resolvedDefaultPropertyId),
+        unit_id: null,
+        gl_account_id: glAccounts[0]?.id ?? '',
+        description: '',
+        amount: '',
+      } satisfies DraftBillLine),
+    [glAccounts, resolvedDefaultPropertyId],
   );
+  const [lines, setLines] = useState<DraftBillLine[]>(() => [
+    buildInitialLine(),
+    buildInitialLine(),
+  ]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [lineErrors, setLineErrors] = useState<
+    Record<string, Partial<Record<keyof DraftBillLine, string>>>
+  >({});
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>(() => vendors);
   const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [isSummaryDrawerOpen, setIsSummaryDrawerOpen] = useState(false);
-  const [attachmentsOpen, setAttachmentsOpen] = usePersistentBoolean(ATTACHMENTS_SECTION_KEY, false);
+  const [attachmentsOpen, setAttachmentsOpen] = usePersistentBoolean(
+    ATTACHMENTS_SECTION_KEY,
+    false,
+  );
 
   useEffect(() => {
     setVendorOptions(vendors);
@@ -469,10 +500,7 @@ export default function RecordBillForm({
 
   useEffect(() => {
     setNewVendorForm((previous) => {
-      if (
-        previous.categoryId !== NO_VENDOR_CATEGORY_SENTINEL ||
-        vendorCategories.length === 0
-      ) {
+      if (previous.categoryId !== NO_VENDOR_CATEGORY_SENTINEL || vendorCategories.length === 0) {
         return previous;
       }
       return {
@@ -613,7 +641,7 @@ export default function RecordBillForm({
       const { id: _ignored, ...rest } = overrides;
       return {
         id: makeId(),
-        kind: rest.kind ?? 'expense',
+        kind: (rest.kind ?? 'expense') as DraftLineKind,
         property_id: rest.property_id ?? ensureNull(form.property_id),
         unit_id: rest.unit_id ?? ensureNull(form.unit_id),
         gl_account_id: rest.gl_account_id ?? glAccounts[0]?.id ?? '',
@@ -777,7 +805,11 @@ export default function RecordBillForm({
       });
 
       const json = (await response.json().catch(() => ({}))) as {
-        data?: { id?: string | number | null; label?: string | null; defaultTermDays?: number | null };
+        data?: {
+          id?: string | number | null;
+          label?: string | null;
+          defaultTermDays?: number | null;
+        };
         error?: string;
       };
 
@@ -916,13 +948,13 @@ export default function RecordBillForm({
     const filteredLines = rawLines.filter((line) => parseCurrencyInput(line.amount) > 0);
 
     const payloadCandidate = {
-        bill_date: toIsoDate(form.bill_date),
-        due_date: toIsoDate(form.due_date),
-        vendor_id: form.vendor_id,
-        post_to_account_id: form.post_to_account_id,
-        property_id: ensureNull(form.property_id),
-        unit_id: ensureNull(form.unit_id),
-        terms: form.terms,
+      bill_date: toIsoDate(form.bill_date),
+      due_date: toIsoDate(form.due_date),
+      vendor_id: form.vendor_id,
+      post_to_account_id: form.post_to_account_id,
+      property_id: ensureNull(form.property_id),
+      unit_id: ensureNull(form.unit_id),
+      terms: form.terms,
       reference_number: form.reference_number?.trim() || '',
       memo: form.memo?.trim() || '',
       apply_markups: Boolean(form.apply_markups),
@@ -933,10 +965,7 @@ export default function RecordBillForm({
     if (!parseResult.success) {
       const issues = parseResult.error.issues;
       const nextFieldErrors: Record<string, string> = {};
-      const nextLineErrors: Record<
-        string,
-        Partial<Record<keyof DraftBillLine, string>>
-      > = {};
+      const nextLineErrors: Record<string, Partial<Record<keyof DraftBillLine, string>>> = {};
       for (const issue of issues) {
         const [pathRoot, maybeIndex, maybeField] = issue.path as Array<string | number>;
         if (pathRoot === 'lines' && typeof maybeIndex === 'number') {
@@ -1012,8 +1041,7 @@ export default function RecordBillForm({
 
         completeNavigation(billId, intent);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unable to save bill right now.';
+        const message = error instanceof Error ? error.message : 'Unable to save bill right now.';
         setFormError(message);
         setSubmitIntent('save');
       }
@@ -1023,439 +1051,475 @@ export default function RecordBillForm({
   return (
     <>
       <form ref={formRef} className="space-y-6 pb-24" onSubmit={submit} noValidate>
+        {formError ? (
+          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+            {formError}
+          </div>
+        ) : null}
 
-      {formError ? (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
-          {formError}
-        </div>
-      ) : null}
-
-
-      <RecordBillSectionCard
-        storageKey={FORM_SECTION_KEY}
-        title="Bill workspace"
-        description="Capture who you're paying, allocate costs, and attach supporting docs."
-      >
-        <div className="space-y-10">
-          <section className="space-y-6">
-            <div className="flex flex-wrap gap-4">
-              <label className="block space-y-1">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
-                  Date *
-                </span>
-                <DateInput value={form.bill_date} onChange={onBillDateChange} className="w-[18rem]" />
-                {fieldErrors.bill_date ? (
-                  <p className="text-destructive text-xs">{fieldErrors.bill_date}</p>
-                ) : null}
-              </label>
-              <label className="block space-y-1">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
-                  Due *
-                </span>
-                <DateInput
-                  value={form.due_date}
-                  onChange={(value) => setFormValue('due_date', toIsoDate(value))}
-                  className="w-[18rem]"
-                />
-                {fieldErrors.due_date ? (
-                  <p className="text-destructive text-xs">{fieldErrors.due_date}</p>
-                ) : null}
-              </label>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block space-y-1">
-                <span className="text-muted-foreground block text-xs font-semibold uppercase tracking-wide">
-                  Pay to *
-                </span>
-                <Select value={form.vendor_id} onValueChange={onVendorChange}>
-                  <SelectTrigger className="w-full sm:w-[28rem]">
-                    <SelectValue placeholder="Select vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendorItems.map((vendor) => (
-                      <SelectItem key={vendor.value} value={vendor.value}>
-                        {vendor.label}
-                      </SelectItem>
-                    ))}
-                    <SelectSeparator />
-                    <SelectItem value={ADD_VENDOR_SENTINEL} className="text-primary">
-                      + Add new vendor
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {fieldErrors.vendor_id ? (
-                  <p className="text-destructive text-xs">{fieldErrors.vendor_id}</p>
-                ) : null}
-              </label>
-              <div className="flex flex-wrap items-center gap-4 text-sm font-medium">
-                <button
-                  type="button"
-                  onClick={openAddVendorDialog}
-                  className="text-primary flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add vendor
-                </button>
-                <Link href="/maintenance/add-work-order" className="text-primary flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add work order
-                </Link>
+        <RecordBillSectionCard
+          storageKey={FORM_SECTION_KEY}
+          title="Bill workspace"
+          description="Capture who you're paying, allocate costs, and attach supporting docs."
+        >
+          <div className="space-y-10">
+            <section className="space-y-6">
+              <div className="flex flex-wrap gap-4">
+                <label className="block space-y-1">
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Date *
+                  </span>
+                  <DateInput
+                    value={form.bill_date}
+                    onChange={onBillDateChange}
+                    className="w-[18rem]"
+                  />
+                  {fieldErrors.bill_date ? (
+                    <p className="text-destructive text-xs">{fieldErrors.bill_date}</p>
+                  ) : null}
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Due *
+                  </span>
+                  <DateInput
+                    value={form.due_date}
+                    onChange={(value) => setFormValue('due_date', toIsoDate(value))}
+                    className="w-[18rem]"
+                  />
+                  {fieldErrors.due_date ? (
+                    <p className="text-destructive text-xs">{fieldErrors.due_date}</p>
+                  ) : null}
+                </label>
               </div>
-            </div>
 
-            <label className="block space-y-1">
-              <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
-                Reference number
-              </span>
-              <Input
-                value={form.reference_number}
-                onChange={(event) => setFormValue('reference_number', event.target.value)}
-                placeholder="Optional"
-                className="w-full"
-              />
-              {fieldErrors.reference_number ? (
-                <p className="text-destructive text-xs">{fieldErrors.reference_number}</p>
-              ) : null}
-            </label>
+              <div className="space-y-2">
+                <label className="block space-y-1">
+                  <span className="text-muted-foreground block text-xs font-semibold tracking-wide uppercase">
+                    Pay to *
+                  </span>
+                  <Select value={form.vendor_id} onValueChange={onVendorChange}>
+                    <SelectTrigger className="w-full sm:w-[28rem]">
+                      <SelectValue placeholder="Select vendor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendorItems.map((vendor) => (
+                        <SelectItem key={vendor.value} value={vendor.value}>
+                          {vendor.label}
+                        </SelectItem>
+                      ))}
+                      <SelectSeparator />
+                      <SelectItem value={ADD_VENDOR_SENTINEL} className="text-primary">
+                        + Add new vendor
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {fieldErrors.vendor_id ? (
+                    <p className="text-destructive text-xs">{fieldErrors.vendor_id}</p>
+                  ) : null}
+                </label>
+                <div className="flex flex-wrap items-center gap-4 text-sm font-medium">
+                  <button
+                    type="button"
+                    onClick={openAddVendorDialog}
+                    className="text-primary flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add vendor
+                  </button>
+                  <Link
+                    href="/maintenance/add-work-order"
+                    className="text-primary flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add work order
+                  </Link>
+                </div>
+              </div>
 
-            <label className="block space-y-1">
-              <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
-                Memo
-              </span>
-              <Textarea
-                rows={4}
-                value={form.memo}
-                onChange={(event) => setFormValue('memo', event.target.value)}
-                placeholder="Optional notes for this bill"
-              />
-            </label>
+              <label className="block space-y-1">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Reference number
+                </span>
+                <Input
+                  value={form.reference_number}
+                  onChange={(event) => setFormValue('reference_number', event.target.value)}
+                  placeholder="Optional"
+                  className="w-full"
+                />
+                {fieldErrors.reference_number ? (
+                  <p className="text-destructive text-xs">{fieldErrors.reference_number}</p>
+                ) : null}
+              </label>
 
-          </section>
+              <label className="block space-y-1">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                  Memo
+                </span>
+                <Textarea
+                  rows={4}
+                  value={form.memo}
+                  onChange={(event) => setFormValue('memo', event.target.value)}
+                  placeholder="Optional notes for this bill"
+                />
+              </label>
+            </section>
 
-          <section className="space-y-4">
-            <div className="relative overflow-hidden rounded-lg border border-border/70">
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow className="bg-muted/30">
-                    <TableHead className="w-[18rem]">Property or company</TableHead>
-                    <TableHead className="w-[12rem]">Unit</TableHead>
-                    <TableHead className="w-[18rem]">Account</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="w-[10rem] text-right">Initial amount</TableHead>
-                    <TableHead className="w-[8rem]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((line) => {
-                    const unitsForRow = line.property_id
-                      ? unitsByProperty.get(line.property_id) ?? []
-                      : [];
-                    const errorsForRow = lineErrors[line.id] || {};
-                    const isMarkupRow = line.kind === 'markup';
-                    return (
-                      <TableRow
-                        key={line.id}
-                        className={cn('align-middle', isMarkupRow ? 'bg-primary/5' : undefined)}
-                      >
-                        <TableCell className="align-middle">
-                          <Select
-                            value={line.property_id ?? COMPANY_SENTINEL}
-                            onValueChange={(value) =>
-                              setLineValue(line.id, {
-                                property_id: ensureNull(value),
-                                unit_id: null,
-                              })
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Company (no property)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {propertySelectItems.map((property) => (
-                                <SelectItem key={property.value} value={property.value}>
-                                  {property.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {errorsForRow.property_id ? (
-                            <p className="text-destructive text-xs">{errorsForRow.property_id}</p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="align-middle">
-                          <Select
-                            value={line.unit_id ?? PROPERTY_LEVEL_SENTINEL}
-                            onValueChange={(value) =>
-                              setLineValue(line.id, { unit_id: ensureNull(value) })
-                            }
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Property level" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={PROPERTY_LEVEL_SENTINEL}>Property level</SelectItem>
-                              {unitsForRow.map((unit) => (
-                                <SelectItem key={unit.id} value={unit.id}>
-                                  {unit.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {errorsForRow.unit_id ? (
-                            <p className="text-destructive text-xs">{errorsForRow.unit_id}</p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="align-middle">
-                        <Select
-                          value={line.gl_account_id}
-                          onValueChange={(value) => setLineValue(line.id, { gl_account_id: value })}
+            <section className="space-y-4">
+              <div className="border-border/70 relative overflow-hidden rounded-lg border">
+                <Table className="text-sm">
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead className="w-[18rem]">Property or company</TableHead>
+                      <TableHead className="w-[12rem]">Unit</TableHead>
+                      <TableHead className="w-[18rem]">Account</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="w-[10rem] text-right">Initial amount</TableHead>
+                      <TableHead className="w-[8rem]" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((line) => {
+                      const unitsForRow = line.property_id
+                        ? (unitsByProperty.get(line.property_id) ?? [])
+                        : [];
+                      const errorsForRow = lineErrors[line.id] || {};
+                      const isMarkupRow = line.kind === 'markup';
+                      return (
+                        <TableRow
+                          key={line.id}
+                          className={cn('align-middle', isMarkupRow ? 'bg-primary/5' : undefined)}
                         >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select account" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {glAccountSections.map((section) => (
-                              <div key={section.label}>
-                                <div className="text-foreground px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                  {section.label}
-                                </div>
-                                {section.items.map((account) => (
-                                  <SelectItem key={account.value} value={account.value}>
-                                    {account.label}
+                          <TableCell className="align-middle">
+                            <Select
+                              value={line.property_id ?? COMPANY_SENTINEL}
+                              onValueChange={(value) =>
+                                setLineValue(line.id, {
+                                  property_id: ensureNull(value),
+                                  unit_id: null,
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Company (no property)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {propertySelectItems.map((property) => (
+                                  <SelectItem key={property.value} value={property.value}>
+                                    {property.label}
                                   </SelectItem>
                                 ))}
-                              </div>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                          {errorsForRow.gl_account_id ? (
-                            <p className="text-destructive text-xs">{errorsForRow.gl_account_id}</p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="align-middle">
-                          <Input
-                            value={line.description}
-                            onChange={(event) =>
-                              setLineValue(line.id, { description: event.target.value })
-                            }
-                            placeholder="Optional description"
-                          />
-                          {isMarkupRow ? (
-                            <Badge variant="secondary" className="mt-2 text-[0.65rem] uppercase">
-                              Markup
-                            </Badge>
-                          ) : null}
-                          {errorsForRow.description ? (
-                            <p className="text-destructive text-xs">{errorsForRow.description}</p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="align-middle text-right">
-                          <Input
-                            value={line.amount}
-                            onChange={(event) => setLineValue(line.id, { amount: event.target.value })}
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            className="text-right"
-                          />
-                          {errorsForRow.amount ? (
-                            <p className="text-destructive text-xs text-right">{errorsForRow.amount}</p>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="align-middle">
-                          <div className="flex items-center justify-end gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="ghost"
-                                    aria-label="Remove line"
-                                    onClick={() => removeLine(line.id)}
-                                    disabled={lines.length === 1}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {lines.length === 1 ? 'At least one line item is required' : 'Remove line'}
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </section>
+                              </SelectContent>
+                            </Select>
+                            {errorsForRow.property_id ? (
+                              <p className="text-destructive text-xs">{errorsForRow.property_id}</p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="align-middle">
+                            <Select
+                              value={line.unit_id ?? PROPERTY_LEVEL_SENTINEL}
+                              onValueChange={(value) =>
+                                setLineValue(line.id, { unit_id: ensureNull(value) })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Property level" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={PROPERTY_LEVEL_SENTINEL}>
+                                  Property level
+                                </SelectItem>
+                                {unitsForRow.map((unit) => (
+                                  <SelectItem key={unit.id} value={unit.id}>
+                                    {unit.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {errorsForRow.unit_id ? (
+                              <p className="text-destructive text-xs">{errorsForRow.unit_id}</p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="align-middle">
+                            <Select
+                              value={line.gl_account_id}
+                              onValueChange={(value) =>
+                                setLineValue(line.id, { gl_account_id: value })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select account" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {glAccountSections.map((section) => (
+                                  <div key={section.label}>
+                                    <div className="text-foreground text-muted-foreground px-3 py-2 text-xs font-semibold tracking-wide uppercase">
+                                      {section.label}
+                                    </div>
+                                    {section.items.map((account) => (
+                                      <SelectItem key={account.value} value={account.value}>
+                                        {account.label}
+                                      </SelectItem>
+                                    ))}
+                                  </div>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {errorsForRow.gl_account_id ? (
+                              <p className="text-destructive text-xs">
+                                {errorsForRow.gl_account_id}
+                              </p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="align-middle">
+                            <Input
+                              value={line.description}
+                              onChange={(event) =>
+                                setLineValue(line.id, { description: event.target.value })
+                              }
+                              placeholder="Optional description"
+                            />
+                            {isMarkupRow ? (
+                              <Badge variant="secondary" className="mt-2 text-[0.65rem] uppercase">
+                                Markup
+                              </Badge>
+                            ) : null}
+                            {errorsForRow.description ? (
+                              <p className="text-destructive text-xs">{errorsForRow.description}</p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-right align-middle">
+                            <Input
+                              value={line.amount}
+                              onChange={(event) =>
+                                setLineValue(line.id, { amount: event.target.value })
+                              }
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              className="text-right"
+                            />
+                            {errorsForRow.amount ? (
+                              <p className="text-destructive text-right text-xs">
+                                {errorsForRow.amount}
+                              </p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="align-middle">
+                            <div className="flex items-center justify-end gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      aria-label="Remove line"
+                                      onClick={() => removeLine(line.id)}
+                                      disabled={lines.length === 1}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {lines.length === 1
+                                    ? 'At least one line item is required'
+                                    : 'Remove line'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
 
-          <section className="rounded-lg border border-border/70 bg-background px-6 py-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-foreground text-sm font-semibold">Attachments</h2>
-                <p className="text-muted-foreground text-xs">
-                  Drop invoices, receipts, or supporting docs to keep everything with the bill.
+            <section className="border-border/70 bg-background rounded-lg border px-6 py-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-foreground text-sm font-semibold">Attachments</h2>
+                  <p className="text-muted-foreground text-xs">
+                    Drop invoices, receipts, or supporting docs to keep everything with the bill.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAttachmentsOpen((previous) => !previous)}
+                >
+                  {attachmentsOpen ? 'Hide attachments' : 'Show attachments'}
+                </Button>
+              </div>
+              {attachmentsOpen ? (
+                <div className="mt-4 space-y-4">
+                  <div
+                    className={cn(
+                      'rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors',
+                      isDragActive ? 'border-primary bg-primary/5' : 'border-border/70',
+                    )}
+                    onDragEnter={handleDragEnter}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    <UploadCloud className="text-muted-foreground mx-auto mb-3 h-6 w-6" />
+                    <p className="text-foreground text-sm font-medium">
+                      Drag &amp; drop vendor files, or{' '}
+                      <button
+                        type="button"
+                        className="text-primary underline"
+                        onClick={openAttachmentPicker}
+                      >
+                        browse your computer
+                      </button>
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Up to {MAX_ATTACHMENT_COUNT} files, {MAX_ATTACHMENT_SIZE_MB}MB each. PDF or
+                      image formats are supported.
+                    </p>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      multiple
+                      accept="application/pdf,image/*"
+                      onChange={onAttachmentInputChange}
+                      className="sr-only"
+                    />
+                  </div>
+                  {attachmentError ? (
+                    <p className="text-destructive text-sm">{attachmentError}</p>
+                  ) : null}
+                  {attachments.length ? (
+                    <ul className="space-y-2">
+                      {attachments.map((attachment) => (
+                        <li
+                          key={attachment.id}
+                          className="border-border/70 flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Paperclip className="text-muted-foreground h-4 w-4" />
+                            <div>
+                              <p className="text-foreground font-medium">{attachment.file.name}</p>
+                              <p className="text-muted-foreground text-xs">
+                                {formatFileSize(attachment.file.size)}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAttachment(attachment.id)}
+                          >
+                            Remove
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          </div>
+        </RecordBillSectionCard>
+
+        <div className="border-border bg-muted/10 sticky bottom-0 z-10 hidden flex-wrap items-center justify-between gap-3 border px-4 py-4 md:flex">
+          <div className="text-sm">
+            <span className="text-muted-foreground">Balance due:</span>{' '}
+            <span className="font-semibold">{formatCurrency(balanceDue)}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="submit"
+              variant="default"
+              disabled={isSubmitDisabled}
+              onClick={() => setSubmitIntent('save')}
+            >
+              {isPending ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmitDisabled}
+              onClick={() => {
+                setSubmitIntent('save-and-new');
+                formRef.current?.requestSubmit();
+              }}
+            >
+              Save &amp; new
+            </Button>
+            <Button type="button" variant="ghost" disabled={isPending} asChild>
+              <Link href="/bills">Cancel</Link>
+            </Button>
+          </div>
+        </div>
+        <Drawer open={isSummaryDrawerOpen} onOpenChange={setIsSummaryDrawerOpen}>
+          <DrawerTrigger asChild>
+            <button
+              type="button"
+              className="border-border/70 bg-background/95 sticky bottom-0 z-20 flex w-full items-center justify-between border-t px-4 py-3 shadow-lg backdrop-blur md:hidden"
+              aria-label="Open bill summary drawer"
+            >
+              <div className="text-left">
+                <p className="text-muted-foreground text-[0.65rem] font-semibold tracking-wide uppercase">
+                  Balance due
+                </p>
+                <p className="text-foreground text-base font-semibold">
+                  {formatCurrency(balanceDue)}
                 </p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setAttachmentsOpen((previous) => !previous)}
-              >
-                {attachmentsOpen ? 'Hide attachments' : 'Show attachments'}
-              </Button>
-            </div>
-            {attachmentsOpen ? (
-              <div className="mt-4 space-y-4">
-                <div
-                  className={cn(
-                    'rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors',
-                    isDragActive ? 'border-primary bg-primary/5' : 'border-border/70',
-                  )}
-                  onDragEnter={handleDragEnter}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
+              <ChevronUp className="text-muted-foreground h-5 w-5" />
+            </button>
+          </DrawerTrigger>
+          <DrawerContent className="md:hidden">
+            <DrawerHeader className="pb-2">
+              <DrawerTitle>Bill actions</DrawerTitle>
+              <p className="text-muted-foreground text-sm">
+                Balance due:{' '}
+                <span className="text-foreground font-semibold">{formatCurrency(balanceDue)}</span>
+              </p>
+            </DrawerHeader>
+            <div className="px-4 pb-6">
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="submit"
+                  variant="default"
+                  disabled={isSubmitDisabled}
+                  onClick={() => setSubmitIntent('save')}
+                  className="w-full"
                 >
-                  <UploadCloud className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-                  <p className="text-sm font-medium text-foreground">
-                    Drag &amp; drop vendor files, or{' '}
-                    <button type="button" className="text-primary underline" onClick={openAttachmentPicker}>
-                      browse your computer
-                    </button>
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    Up to {MAX_ATTACHMENT_COUNT} files, {MAX_ATTACHMENT_SIZE_MB}MB each. PDF or image formats are supported.
-                  </p>
-                  <input
-                    ref={attachmentInputRef}
-                    type="file"
-                    multiple
-                    accept="application/pdf,image/*"
-                    onChange={onAttachmentInputChange}
-                    className="sr-only"
-                  />
-                </div>
-                {attachmentError ? <p className="text-destructive text-sm">{attachmentError}</p> : null}
-                {attachments.length ? (
-                  <ul className="space-y-2">
-                    {attachments.map((attachment) => (
-                      <li
-                        key={attachment.id}
-                        className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2 text-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Paperclip className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-foreground font-medium">{attachment.file.name}</p>
-                            <p className="text-muted-foreground text-xs">{formatFileSize(attachment.file.size)}</p>
-                          </div>
-                        </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(attachment.id)}>
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+                  {isPending ? 'Saving…' : 'Save'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitDisabled}
+                  className="w-full"
+                  onClick={() => {
+                    setSubmitIntent('save-and-new');
+                    formRef.current?.requestSubmit();
+                  }}
+                >
+                  Save &amp; new
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  asChild
+                  className="w-full"
+                  disabled={isPending}
+                >
+                  <Link href="/bills">Cancel</Link>
+                </Button>
               </div>
-            ) : null}
-          </section>
-        </div>
-      </RecordBillSectionCard>
-
-      <div className="border-border bg-muted/10 sticky bottom-0 z-10 hidden md:flex flex-wrap items-center justify-between gap-3 border px-4 py-4">
-        <div className="text-sm">
-          <span className="text-muted-foreground">Balance due:</span>{' '}
-          <span className="font-semibold">{formatCurrency(balanceDue)}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="submit"
-            variant="default"
-            disabled={isSubmitDisabled}
-            onClick={() => setSubmitIntent('save')}
-          >
-            {isPending ? 'Saving…' : 'Save'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSubmitDisabled}
-            onClick={() => {
-              setSubmitIntent('save-and-new');
-              formRef.current?.requestSubmit();
-            }}
-          >
-            Save &amp; new
-          </Button>
-          <Button type="button" variant="ghost" disabled={isPending} asChild>
-            <Link href="/bills">Cancel</Link>
-          </Button>
-        </div>
-      </div>
-      <Drawer open={isSummaryDrawerOpen} onOpenChange={setIsSummaryDrawerOpen}>
-        <DrawerTrigger asChild>
-          <button
-            type="button"
-            className="border-border/70 bg-background/95 md:hidden sticky bottom-0 z-20 flex w-full items-center justify-between border-t px-4 py-3 shadow-lg backdrop-blur"
-            aria-label="Open bill summary drawer"
-          >
-            <div className="text-left">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                Balance due
-              </p>
-              <p className="text-base font-semibold text-foreground">
-                {formatCurrency(balanceDue)}
-              </p>
             </div>
-            <ChevronUp className="h-5 w-5 text-muted-foreground" />
-          </button>
-        </DrawerTrigger>
-        <DrawerContent className="md:hidden">
-          <DrawerHeader className="pb-2">
-            <DrawerTitle>Bill actions</DrawerTitle>
-            <p className="text-muted-foreground text-sm">
-              Balance due:{' '}
-              <span className="font-semibold text-foreground">{formatCurrency(balanceDue)}</span>
-            </p>
-          </DrawerHeader>
-          <div className="px-4 pb-6">
-            <div className="flex flex-col gap-2">
-              <Button
-                type="submit"
-                variant="default"
-                disabled={isSubmitDisabled}
-                onClick={() => setSubmitIntent('save')}
-                className="w-full"
-              >
-                {isPending ? 'Saving…' : 'Save'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isSubmitDisabled}
-                className="w-full"
-                onClick={() => {
-                  setSubmitIntent('save-and-new');
-                  formRef.current?.requestSubmit();
-                }}
-              >
-                Save &amp; new
-              </Button>
-              <Button type="button" variant="ghost" asChild className="w-full" disabled={isPending}>
-                <Link href="/bills">Cancel</Link>
-              </Button>
-            </div>
-          </div>
-        </DrawerContent>
-      </Drawer>
-    </form>
+          </DrawerContent>
+        </Drawer>
+      </form>
       <Dialog
         open={isAddVendorOpen}
         onOpenChange={(open) => {
@@ -1463,7 +1527,7 @@ export default function RecordBillForm({
           if (!open) resetNewVendorForm();
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="w-[680px] max-w-[680px]">
           <DialogHeader>
             <DialogTitle>Add vendor</DialogTitle>
             <DialogDescription>
@@ -1474,7 +1538,7 @@ export default function RecordBillForm({
           <form onSubmit={submitNewVendor} className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Vendor name *
                 </span>
                 <Input
@@ -1487,7 +1551,7 @@ export default function RecordBillForm({
                 ) : null}
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Category
                 </span>
                 <Select
@@ -1511,7 +1575,7 @@ export default function RecordBillForm({
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Contact first name
                 </span>
                 <Input
@@ -1521,7 +1585,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Contact last name
                 </span>
                 <Input
@@ -1531,7 +1595,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Email
                 </span>
                 <Input
@@ -1542,7 +1606,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Phone
                 </span>
                 <Input
@@ -1555,7 +1619,7 @@ export default function RecordBillForm({
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1 text-sm md:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Address line 1
                 </span>
                 <Input
@@ -1565,7 +1629,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm md:col-span-2">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Address line 2
                 </span>
                 <Input
@@ -1575,7 +1639,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   City
                 </span>
                 <Input
@@ -1584,7 +1648,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   State / Region
                 </span>
                 <Input
@@ -1593,7 +1657,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Postal code
                 </span>
                 <Input
@@ -1602,7 +1666,7 @@ export default function RecordBillForm({
                 />
               </label>
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Country
                 </span>
                 <Input
@@ -1614,7 +1678,7 @@ export default function RecordBillForm({
             </div>
 
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                 Notes
               </span>
               <Textarea
@@ -1625,9 +1689,7 @@ export default function RecordBillForm({
               />
             </label>
 
-            {newVendorStatus ? (
-              <p className="text-destructive text-sm">{newVendorStatus}</p>
-            ) : null}
+            {newVendorStatus ? <p className="text-destructive text-sm">{newVendorStatus}</p> : null}
 
             <DialogFooter>
               <Button

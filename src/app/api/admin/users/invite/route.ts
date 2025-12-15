@@ -25,22 +25,23 @@ const InviteSchema = z.object({
 })
 
 function normalizeRole(value: string): AppRole | null {
-  const normalized = value
+  const normalizedRaw = value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') as AppRole
+    .replace(/^_+|_+$/g, '')
+  const normalized = normalizedRaw as AppRole
 
   if (ALLOWED_ROLES.includes(normalized)) {
     return normalized
   }
-  if (normalized === 'property_manager' || normalized === 'propertymanager') {
+  if (normalizedRaw === 'property_manager' || normalizedRaw === 'propertymanager') {
     return 'org_manager'
   }
-  if (normalized === 'assistant_property_manager' || normalized === 'assistantpropertymanager') {
+  if (normalizedRaw === 'assistant_property_manager' || normalizedRaw === 'assistantpropertymanager') {
     return 'org_staff'
   }
-  if (normalized === 'vendor_portal' || normalized === 'vendor') {
+  if (normalizedRaw === 'vendor_portal' || normalizedRaw === 'vendor') {
     return 'vendor_portal'
   }
   return null

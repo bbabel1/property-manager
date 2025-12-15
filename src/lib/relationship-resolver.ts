@@ -1,26 +1,47 @@
 // Relationship Resolution System
 import { mapCountryFromBuildium, mapPropertyFromBuildiumWithBankAccount } from './buildium-mappers'
+import type { TypedSupabaseClient } from './db'
+import type {
+  BuildiumLease,
+  BuildiumOwner,
+  BuildiumProperty,
+  BuildiumTenant,
+  BuildiumTenantAddress,
+  BuildiumUnit
+} from '@/types/buildium'
 // Handles complex entity relationships during Buildium sync operations
 
 interface ResolutionContext {
-  supabase: any
-  rateLimiter?: any
+  supabase: TypedSupabaseClient
+  rateLimiter?: unknown
   dryRun?: boolean
-}
-
-interface EntityReference {
-  table: string
-  localId?: string
-  buildiumId?: number
-  requiredFields?: Record<string, any>
 }
 
 interface ResolutionResult {
   success: boolean
   localId?: string
-  created: boolean
+  created?: boolean
   error?: string
   dependenciesResolved?: string[]
+}
+
+type BuildiumContactPayload = Pick<
+  BuildiumTenant,
+  'FirstName' | 'LastName' | 'Email' | 'PhoneNumbers' | 'EmergencyContact' | 'Comment' | 'TaxId' | 'SMSOptInStatus'
+> & {
+  Address?: BuildiumTenantAddress
+  PrimaryAddress?: BuildiumTenantAddress
+}
+
+type BuildiumOwnerWithContact = BuildiumOwner & { contact?: BuildiumContactPayload }
+
+type ResolverInput = {
+  property?: BuildiumProperty
+  unit?: BuildiumUnit
+  lease?: BuildiumLease
+  tenant?: BuildiumTenant
+  contact?: BuildiumContactPayload
+  owner?: BuildiumOwnerWithContact
 }
 
 export class RelationshipResolver {
@@ -34,14 +55,7 @@ export class RelationshipResolver {
   /**
    * Resolve complete entity chain: Property → Unit → Lease → Tenant → Contact
    */
-  async resolveEntityChain(buildiumData: {
-    property?: any
-    unit?: any
-    lease?: any
-    tenant?: any
-    contact?: any
-    owner?: any
-  }): Promise<{
+  async resolveEntityChain(buildiumData: ResolverInput): Promise<{
     propertyId?: string
     unitId?: string
     leaseId?: string
@@ -149,7 +163,7 @@ export class RelationshipResolver {
       return result
 
     } catch (error) {
-      result.errors.push(`Entity chain resolution failed: ${error.message}`)
+      result.errors.push(`Entity chain resolution failed: ${(error as Error).message}`)
       return result
     }
   }
@@ -157,7 +171,7 @@ export class RelationshipResolver {
   /**
    * Resolve Property entity
    */
-  async resolveProperty(buildiumProperty: any): Promise<ResolutionResult> {
+  async resolveProperty(buildiumProperty: BuildiumProperty): Promise<ResolutionResult> {
     const cacheKey = `property_${buildiumProperty.Id}`
     if (this.resolvedCache.has(cacheKey)) {
       return { success: true, localId: this.resolvedCache.get(cacheKey), created: false }
@@ -200,14 +214,14 @@ export class RelationshipResolver {
       return { success: true, localId: newProperty.id, created: true }
 
     } catch (error) {
-      return { success: false, error: `Property resolution error: ${error.message}` }
+      return { success: false, error: `Property resolution error: ${(error as Error).message}` }
     }
   }
 
   /**
    * Resolve Unit entity (requires property)
    */
-  async resolveUnit(buildiumUnit: any, propertyId: string): Promise<ResolutionResult> {
+  async resolveUnit(buildiumUnit: BuildiumUnit, propertyId: string): Promise<ResolutionResult> {
     const cacheKey = `unit_${buildiumUnit.Id}`
     if (this.resolvedCache.has(cacheKey)) {
       return { success: true, localId: this.resolvedCache.get(cacheKey), created: false }
@@ -250,14 +264,14 @@ export class RelationshipResolver {
       return { success: true, localId: newUnit.id, created: true }
 
     } catch (error) {
-      return { success: false, error: `Unit resolution error: ${error.message}` }
+      return { success: false, error: `Unit resolution error: ${(error as Error).message}` }
     }
   }
 
   /**
    * Resolve Contact entity
    */
-  async resolveContact(contactData: any): Promise<ResolutionResult> {
+  async resolveContact(contactData: BuildiumContactPayload): Promise<ResolutionResult> {
     if (!contactData) {
       return { success: false, error: 'No contact data provided' }
     }
@@ -297,14 +311,14 @@ export class RelationshipResolver {
       return { success: true, localId: newContact.id.toString(), created: true }
 
     } catch (error) {
-      return { success: false, error: `Contact resolution error: ${error.message}` }
+      return { success: false, error: `Contact resolution error: ${(error as Error).message}` }
     }
   }
 
   /**
    * Resolve Tenant entity (requires contact)
    */
-  async resolveTenant(buildiumTenant: any, contactId: string): Promise<ResolutionResult> {
+  async resolveTenant(buildiumTenant: BuildiumTenant, contactId: string): Promise<ResolutionResult> {
     const cacheKey = `tenant_${buildiumTenant.Id}`
     if (this.resolvedCache.has(cacheKey)) {
       return { success: true, localId: this.resolvedCache.get(cacheKey), created: false }
@@ -347,7 +361,7 @@ export class RelationshipResolver {
       return { success: true, localId: newTenant.id, created: true }
 
     } catch (error) {
-      return { success: false, error: `Tenant resolution error: ${error.message}` }
+      return { success: false, error: `Tenant resolution error: ${(error as Error).message}` }
     }
   }
 
@@ -355,7 +369,7 @@ export class RelationshipResolver {
    * Resolve Lease entity (requires property, unit, optionally tenant)
    */
   async resolveLease(
-    buildiumLease: any, 
+    buildiumLease: BuildiumLease, 
     propertyId: string, 
     unitId: string,
     tenantId?: string
@@ -412,14 +426,14 @@ export class RelationshipResolver {
       return { success: true, localId: newLease.id.toString(), created: true }
 
     } catch (error) {
-      return { success: false, error: `Lease resolution error: ${error.message}` }
+      return { success: false, error: `Lease resolution error: ${(error as Error).message}` }
     }
   }
 
   /**
    * Resolve Owner entity (requires contact)
    */
-  async resolveOwner(buildiumOwner: any, contactId: string): Promise<ResolutionResult> {
+  async resolveOwner(buildiumOwner: BuildiumOwnerWithContact, contactId: string): Promise<ResolutionResult> {
     const cacheKey = `owner_${buildiumOwner.Id}`
     if (this.resolvedCache.has(cacheKey)) {
       return { success: true, localId: this.resolvedCache.get(cacheKey), created: false }
@@ -462,7 +476,7 @@ export class RelationshipResolver {
       return { success: true, localId: newOwner.id, created: true }
 
     } catch (error) {
-      return { success: false, error: `Owner resolution error: ${error.message}` }
+      return { success: false, error: `Owner resolution error: ${(error as Error).message}` }
     }
   }
 
@@ -493,7 +507,8 @@ export class RelationshipResolver {
           })
       }
     } catch (error) {
-      console.warn(`Failed to create lease_contact relationship: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`Failed to create lease_contact relationship: ${message}`)
     }
   }
 
@@ -523,12 +538,13 @@ export class RelationshipResolver {
           })
       }
     } catch (error) {
-      console.warn(`Failed to create ownership relationship: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`Failed to create ownership relationship: ${message}`)
     }
   }
 
   // Mapping functions (simplified versions - use full mappers from buildium-mappers.ts)
-  private mapPropertyFromBuildium(buildiumProperty: any) {
+  private mapPropertyFromBuildium(buildiumProperty: BuildiumProperty) {
     return {
       name: buildiumProperty.Name,
       buildium_property_id: buildiumProperty.Id,
@@ -542,11 +558,12 @@ export class RelationshipResolver {
     }
   }
 
-  private mapUnitFromBuildium(buildiumUnit: any, propertyId: string) {
+  private mapUnitFromBuildium(buildiumUnit: BuildiumUnit, propertyId: string) {
+    const unitNumber = (buildiumUnit as any)?.Number ?? buildiumUnit.UnitNumber ?? ''
     return {
       property_id: propertyId,
       buildium_unit_id: buildiumUnit.Id,
-      unit_number: buildiumUnit.Number || buildiumUnit.UnitNumber || '',
+      unit_number: unitNumber,
       address_line1: buildiumUnit.Address?.AddressLine1 || '',
       city: buildiumUnit.Address?.City || '',
       state: buildiumUnit.Address?.State || '',
@@ -557,13 +574,14 @@ export class RelationshipResolver {
     }
   }
 
-  private mapContactFromBuildium(contactData: any) {
+  private mapContactFromBuildium(contactData: BuildiumContactPayload) {
+    const primaryPhone = (contactData.PhoneNumbers as any)?.[0]?.Number
     return {
       is_company: false,
       first_name: contactData.FirstName,
       last_name: contactData.LastName,
       primary_email: contactData.Email,
-      primary_phone: contactData.PhoneNumbers?.[0]?.Number,
+      primary_phone: primaryPhone,
       primary_address_line_1: contactData.Address?.AddressLine1,
       primary_city: contactData.Address?.City,
       primary_state: contactData.Address?.State,
@@ -573,7 +591,7 @@ export class RelationshipResolver {
     }
   }
 
-  private mapTenantFromBuildium(buildiumTenant: any, contactId: string) {
+  private mapTenantFromBuildium(buildiumTenant: BuildiumTenant, contactId: string) {
     return {
       contact_id: parseInt(contactId),
       buildium_tenant_id: buildiumTenant.Id,
@@ -587,7 +605,7 @@ export class RelationshipResolver {
     }
   }
 
-  private mapLeaseFromBuildium(buildiumLease: any, propertyId: string, unitId: string) {
+  private mapLeaseFromBuildium(buildiumLease: BuildiumLease, propertyId: string, unitId: string) {
     return {
       propertyId: propertyId,
       unitId: unitId,
@@ -601,7 +619,7 @@ export class RelationshipResolver {
     }
   }
 
-  private mapOwnerFromBuildium(buildiumOwner: any, contactId: string) {
+  private mapOwnerFromBuildium(buildiumOwner: BuildiumOwner, contactId: string) {
     return {
       contact_id: parseInt(contactId),
       buildium_owner_id: buildiumOwner.Id,
@@ -614,13 +632,16 @@ export class RelationshipResolver {
     }
   }
 
-  private extractContactFromTenant(buildiumTenant: any) {
+  private extractContactFromTenant(buildiumTenant?: BuildiumTenant): BuildiumContactPayload {
+    if (!buildiumTenant) {
+      return {} as BuildiumContactPayload
+    }
     return {
       FirstName: buildiumTenant.FirstName,
       LastName: buildiumTenant.LastName,
       Email: buildiumTenant.Email,
       PhoneNumbers: buildiumTenant.PhoneNumbers,
-      Address: buildiumTenant.Address
+      Address: (buildiumTenant as any).Address
     }
   }
 }
@@ -629,8 +650,8 @@ export class RelationshipResolver {
  * Utility function for easy relationship resolution
  */
 export async function resolveEntityRelationships(
-  buildiumData: any,
-  supabase: any,
+  buildiumData: ResolverInput,
+  supabase: TypedSupabaseClient,
   options: { dryRun?: boolean } = {}
 ) {
   const resolver = new RelationshipResolver({ supabase, dryRun: options.dryRun })

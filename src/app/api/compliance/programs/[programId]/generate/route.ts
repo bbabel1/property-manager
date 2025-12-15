@@ -29,7 +29,9 @@ export async function POST(
     const { periods_ahead } = await request.json().catch(() => ({}))
     const periodsAhead = typeof periods_ahead === 'number' ? periods_ahead : 12
 
-    const { data: membership, error: membershipError } = await supabaseAdmin
+    const admin = supabaseAdmin as any
+
+    const { data: membership, error: membershipError } = await admin
       .from('org_memberships')
       .select('org_id')
       .eq('user_id', user.id)
@@ -42,7 +44,7 @@ export async function POST(
 
     const orgId = membership.org_id
 
-    const { data: program, error: programError } = await supabaseAdmin
+    const { data: program, error: programError } = await admin
       .from('compliance_programs')
       .select('*')
       .eq('id', programId)
@@ -63,7 +65,7 @@ export async function POST(
     const errors: string[] = []
 
     // Fetch properties for the org
-    const { data: properties, error: propertiesError } = await supabaseAdmin
+    const { data: properties, error: propertiesError } = await admin
       .from('properties')
       .select('id')
       .eq('org_id', orgId)
@@ -73,43 +75,39 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 })
     }
 
-    // If program applies to assets, load assets too
-    let assets: { id: string; property_id: string }[] = []
-    if (program.applies_to === 'asset' || program.applies_to === 'both') {
-      const { data: assetRows, error: assetsError } = await supabaseAdmin
-        .from('compliance_assets')
-        .select('id, property_id')
-        .eq('org_id', orgId)
-        .eq('active', true)
+    // Load active assets so criteria rows can be applied regardless of scope
+    const { data: assetRows, error: assetsError } = await admin
+      .from('compliance_assets')
+      .select('id, property_id')
+      .eq('org_id', orgId)
+      .eq('active', true)
 
-      if (assetsError) {
-        logger.error({ error: assetsError, orgId }, 'Failed to fetch assets for generation')
-        return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 })
-      }
-      assets = assetRows || []
+    if (assetsError) {
+      logger.error({ error: assetsError, orgId }, 'Failed to fetch assets for generation')
+      return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 })
     }
+    const assets: { id: string; property_id: string }[] = Array.isArray(assetRows) ? (assetRows as any[]) : []
 
-    for (const property of properties || []) {
+    const propertyList = Array.isArray(properties) ? properties : []
+    for (const property of propertyList) {
       try {
-        if (program.applies_to === 'asset') {
-          const relatedAssets = assets.filter((a) => a.property_id === property.id)
-          for (const asset of relatedAssets) {
-            const result = await generator.generateItemsForProgram(
-              programId,
-              property.id,
-              asset.id,
-              orgId,
-              periodsAhead,
-            )
-            itemsCreated += result.items_created
-            itemsSkipped += result.items_skipped
-            if (result.errors) errors.push(...result.errors)
-          }
-        } else {
+        const propertyResult = await generator.generateItemsForProgram(
+          programId,
+          property.id,
+          undefined,
+          orgId,
+          periodsAhead,
+        )
+        itemsCreated += propertyResult.items_created
+        itemsSkipped += propertyResult.items_skipped
+        if (propertyResult.errors) errors.push(...propertyResult.errors)
+
+        const relatedAssets = assets.filter((a) => a.property_id === property.id)
+        for (const asset of relatedAssets) {
           const result = await generator.generateItemsForProgram(
             programId,
             property.id,
-            undefined,
+            asset.id,
             orgId,
             periodsAhead,
           )

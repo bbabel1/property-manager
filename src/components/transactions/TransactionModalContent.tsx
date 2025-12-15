@@ -20,7 +20,7 @@ export default function TransactionModalContent({
   return (
     <LargeDialogContent
       className={cn(
-        'max-w-3xl overflow-hidden p-0 sm:max-w-4xl',
+        'w-[680px] max-w-[680px] overflow-hidden p-0',
         'focus:outline-none focus-visible:outline-none',
         className,
       )}

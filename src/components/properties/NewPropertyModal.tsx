@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
-import { BuildingIcon, HomeIcon } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import React, { useState } from 'react';
+import { BuildingIcon, HomeIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface NewPropertyModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onNext?: (selectedType: string | null) => void
+  isOpen: boolean;
+  onClose: () => void;
+  onNext?: (selectedType: string | null) => void;
 }
 
 const propertyTypes = [
@@ -18,10 +18,10 @@ const propertyTypes = [
   'ShoppingCenter',
   'Storage',
   'ParkingSpace',
-]
+];
 
 const Stepper = () => {
-  const steps = [1, 2, 3, 4, 5]
+  const steps = [1, 2, 3, 4, 5];
   return (
     <div className="flex items-center justify-center gap-3">
       {steps.map((s, i) => (
@@ -29,29 +29,32 @@ const Stepper = () => {
           <div
             className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-medium ${
               s === 1
-                ? 'bg-blue-700 text-white border-blue-700'
-                : 'bg-gray-100 text-gray-500 border-gray-200'
+                ? 'border-blue-700 bg-blue-700 text-white'
+                : 'border-gray-200 bg-gray-100 text-gray-500'
             }`}
           >
             {s}
           </div>
-          {i < steps.length - 1 && (
-            <div className="h-0.5 w-10 rounded bg-gray-200" />
-          )}
+          {i < steps.length - 1 && <div className="h-0.5 w-10 rounded bg-gray-200" />}
         </React.Fragment>
       ))}
     </div>
-  )
-}
+  );
+};
 
 const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) => {
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="bg-card sm:rounded-2xl rounded-none border border-border/80 shadow-2xl w-[92vw] sm:max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto p-0">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b border-border">
+        <DialogHeader className="border-border border-b px-6 py-4">
           <DialogTitle className="text-lg font-semibold">Add New Property</DialogTitle>
         </DialogHeader>
 
@@ -61,14 +64,12 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
             <Stepper />
           </div>
 
-          <div className="flex flex-col items-center text-center mb-6">
+          <div className="mb-6 flex flex-col items-center text-center">
             <div className="mb-3 rounded-full bg-blue-50 p-3 text-blue-700">
               <BuildingIcon className="h-7 w-7" />
             </div>
             <h3 className="text-base font-medium">Property Type</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              What type of property are you adding?
-            </p>
+            <p className="mt-1 text-sm text-gray-500">What type of property are you adding?</p>
           </div>
 
           {/* Options */}
@@ -92,11 +93,11 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-4">
+        <div className="border-border flex items-center justify-between gap-3 border-t px-6 py-4">
           <button
             type="button"
             disabled
-            className="flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm text-muted-foreground"
+            className="border-border bg-background text-muted-foreground flex items-center gap-2 rounded-md border px-4 py-2 text-sm"
           >
             Previous
           </button>
@@ -104,7 +105,7 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
             <button
               type="button"
               onClick={() => onNext?.(selected)}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+              className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-60"
               disabled={!selected}
             >
               Next
@@ -113,7 +114,7 @@ const NewPropertyModal = ({ isOpen, onClose, onNext }: NewPropertyModalProps) =>
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
 
-export default NewPropertyModal
+export default NewPropertyModal;

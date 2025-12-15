@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import CollapsibleSummaryStats from './services/CollapsibleSummaryStats';
 import RightPanelOverview from './services/RightPanelOverview';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/transactions/formatting';
 import { useIsMobile } from '@/components/ui/use-mobile';
 import { ManagementServiceConfig, ServiceOffering } from '@/lib/management-service';
-import { ServicePricingConfig } from '@/lib/service-pricing';
+import { ServicePricingConfig, ServicePricingPreview } from '@/lib/service-pricing';
 import ServicesLeftPanel from './services/ServicesLeftPanel';
 import ServicesRightPanel from './services/ServicesRightPanel';
 import ServicesList from './services/ServicesList';
@@ -35,13 +35,16 @@ interface OfferingWithPricing extends ServiceOffering {
   isIncluded: boolean;
   isOptional: boolean;
   pricing?: ServicePricingConfig;
-  defaultPricing?: {
-    rate: number | null;
-    frequency: string;
-    min_amount: number | null;
-    max_amount: number | null;
-  };
+  defaultPricing?: ServicePricingPreview;
 }
+
+type LeaseForEstimate = {
+  id?: number | string;
+  unit_id?: string | null;
+  property_id?: string | null;
+  status?: string | null;
+  rent_amount?: number | null;
+};
 
 export default function PropertyServicesTab({ propertyId, property }: PropertyServicesTabProps) {
   const router = useRouter();
@@ -57,6 +60,23 @@ export default function PropertyServicesTab({ propertyId, property }: PropertySe
   const [services, setServices] = useState<ServiceOffering[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [leases, setLeases] = useState<LeaseForEstimate[]>([]);
+
+  const toPricingPreview = useCallback(
+    (pricing?: ServicePricingConfig | null): ServicePricingPreview | undefined => {
+      if (!pricing) return undefined;
+      return {
+        rate: pricing.rate,
+        billing_frequency: pricing.billing_frequency,
+        min_amount: pricing.min_amount ?? null,
+        max_amount: pricing.max_amount ?? null,
+        billing_basis: pricing.billing_basis,
+        effective_start: pricing.effective_start,
+        effective_end: pricing.effective_end,
+      };
+    },
+    [],
+  );
 
   // UI state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -125,6 +145,30 @@ export default function PropertyServicesTab({ propertyId, property }: PropertySe
       const pricingConfigsData: ServicePricingConfig[] = pricingResult.data || [];
       setPricingConfigs(pricingConfigsData);
 
+      // Fetch leases for rent-based estimates (filter to active leases tied to this property)
+      try {
+        const leasesResponse = await fetch(`/api/leases?propertyId=${propertyId}`);
+        if (leasesResponse.ok) {
+          const leasesResult = await leasesResponse.json();
+          const leasesData: LeaseForEstimate[] = Array.isArray(leasesResult)
+            ? leasesResult
+            : [];
+          const activeLeases = leasesData.filter((lease) => {
+            const status = typeof lease.status === 'string' ? lease.status.toLowerCase() : '';
+            if (status !== 'active') return false;
+            const unitId = lease.unit_id ? String(lease.unit_id) : '';
+            const propId = lease.property_id ? String(lease.property_id) : '';
+            return Boolean(unitId) && propId === propertyId;
+          });
+          setLeases(activeLeases);
+        } else {
+          setLeases([]);
+        }
+      } catch (leaseErr) {
+        console.warn('Failed to load leases for monthly estimate:', leaseErr);
+        setLeases([]);
+      }
+
       // Map pricing configs by offering_id
       const pricingByOffering = new Map<string, ServicePricingConfig>();
       pricingConfigsData.forEach((pricing) => {
@@ -167,10 +211,11 @@ export default function PropertyServicesTab({ propertyId, property }: PropertySe
             isOptional: !isIncluded,
             pricing: pricing || undefined,
             defaultPricing: {
-              rate: offering.default_rate,
-              frequency: offering.default_freq,
-              min_amount: offering.min_amount,
-              max_amount: offering.max_amount,
+              rate: offering.default_rate ?? null,
+              billing_frequency: offering.default_freq,
+              min_amount: offering.min_amount ?? null,
+              max_amount: offering.max_amount ?? null,
+              billing_basis: offering.billing_basis,
             },
           };
         });
@@ -318,8 +363,8 @@ export default function PropertyServicesTab({ propertyId, property }: PropertySe
 
   // Calculate monthly cost estimate
   const costEstimate = useMemo(() => {
-    return calculateMonthlyCost(pricingConfigs, services);
-  }, [pricingConfigs, services]);
+    return calculateMonthlyCost(pricingConfigs, services, leases);
+  }, [pricingConfigs, services, leases]);
 
   // Get unique categories
   const categories = useMemo(() => {
@@ -466,17 +511,8 @@ export default function PropertyServicesTab({ propertyId, property }: PropertySe
                   category: selectedService.category,
                   isSelected: selectedService.isSelected,
                   isIncluded: selectedService.isIncluded,
-                  pricing: selectedService.pricing
-                    ? {
-                        rate: selectedService.pricing.rate,
-                        frequency: selectedService.pricing.billing_frequency,
-                        min_amount: selectedService.pricing.min_amount,
-                        max_amount: selectedService.pricing.max_amount,
-                        billing_basis: selectedService.pricing.billing_basis,
-                        effective_start: selectedService.pricing.effective_start,
-                        effective_end: selectedService.pricing.effective_end,
-                      }
-                    : undefined,
+                  pricing: toPricingPreview(selectedService.pricing),
+                  pricingConfig: selectedService.pricing,
                   defaultPricing: selectedService.defaultPricing,
                 }}
                 propertyId={propertyId}

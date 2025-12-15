@@ -1,7 +1,9 @@
 // Data Integrity Validation System
 // Ensures consistency across all entity relationships and Buildium sync operations
 
-import { createClient } from '@supabase/supabase-js'
+import type { TypedSupabaseClient } from './db'
+
+const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 interface ValidationResult {
   isValid: boolean
@@ -17,18 +19,10 @@ interface OrphanedRecord {
   reason: string
 }
 
-interface EntityRelationship {
-  parentTable: string
-  parentId: string
-  childTable: string
-  childId: string
-  relationshipType: 'required' | 'optional'
-}
-
 export class DataIntegrityValidator {
-  private supabase: any
+  private supabase: TypedSupabaseClient
 
-  constructor(supabaseClient: any) {
+  constructor(supabaseClient: TypedSupabaseClient) {
     this.supabase = supabaseClient
   }
 
@@ -96,7 +90,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Property validation failed: ${error.message}`)
+      result.errors.push(`Property validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -130,7 +124,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Unit validation failed: ${error.message}`)
+      result.errors.push(`Unit validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -174,7 +168,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Lease validation failed: ${error.message}`)
+      result.errors.push(`Lease validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -223,7 +217,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Tenant validation failed: ${error.message}`)
+      result.errors.push(`Tenant validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -251,7 +245,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Contact validation failed: ${error.message}`)
+      result.errors.push(`Contact validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -290,7 +284,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Owner validation failed: ${error.message}`)
+      result.errors.push(`Owner validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -326,7 +320,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Ownership validation failed: ${error.message}`)
+      result.errors.push(`Ownership validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -357,7 +351,7 @@ export class DataIntegrityValidator {
       }
 
     } catch (error) {
-      result.errors.push(`Buildium ID validation failed: ${error.message}`)
+      result.errors.push(`Buildium ID validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -397,7 +391,7 @@ export class DataIntegrityValidator {
       })
 
     } catch (error) {
-      result.errors.push(`Required field validation failed: ${error.message}`)
+      result.errors.push(`Required field validation failed: ${getErrorMessage(error)}`)
     }
   }
 
@@ -443,7 +437,7 @@ export class DataIntegrityValidator {
 /**
  * Utility function to create and run validation
  */
-export async function validateDataIntegrity(supabaseClient: any): Promise<ValidationResult> {
+export async function validateDataIntegrity(supabaseClient: TypedSupabaseClient): Promise<ValidationResult> {
   const validator = new DataIntegrityValidator(supabaseClient)
   return await validator.validateCompleteIntegrity()
 }

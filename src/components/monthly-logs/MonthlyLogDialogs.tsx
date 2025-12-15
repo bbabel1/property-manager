@@ -28,7 +28,10 @@ interface MonthlyLogDialogsProps {
   onCloseOverlay: () => void;
   allowedModes: TransactionMode[];
   leaseId: string;
-  leaseSummary: string[];
+  leaseSummary: {
+    propertyUnit?: string | null;
+    tenants?: string | null;
+  };
   tenantOptions: LeaseTenantOption[];
   hasActiveLease: boolean;
   monthlyLogId: string;
@@ -49,7 +52,7 @@ interface MonthlyLogDialogsProps {
   selectedTransactionDetail: MonthlyLogTransaction | null;
   selectedTransactionScope: 'assigned' | 'unassigned' | null;
   onDeleteTransaction: () => void;
-  onEditTransaction: () => void;
+  onEditTransaction: (transaction: MonthlyLogTransaction) => void;
   editDisabledReason: string | null;
   confirmState: {
     open: boolean;

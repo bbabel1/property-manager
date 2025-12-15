@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import UnitService from '@/lib/unit-service'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 
 // POST /api/units/sync/from-buildium
 // Body: { propertyIds?: number[]|string, lastUpdatedFrom?, lastUpdatedTo?, orderby?, limit?, offset? }
@@ -11,7 +12,8 @@ export async function POST(request: NextRequest) {
     const rate = await checkRateLimit(request)
     if (!rate.success) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
 
-    await requireUser(request)
+    const user = await requireUser(request)
+    const orgId = await resolveOrgIdFromRequest(request, user.id)
 
     const body = (await request.json().catch(() => ({}))) as Record<string, any>
     const params = {
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
       persist: true as const
     }
 
-    const items = await UnitService.listFromBuildium(params)
+    const items = await UnitService.listFromBuildium({ ...params, orgId })
     logger.info(`Synced ${items.length} units from Buildium to DB`)
     return NextResponse.json({ success: true, synced: items.length })
   } catch (error) {

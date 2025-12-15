@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
@@ -172,7 +174,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .single()
 
     if (error) {
-      logger.error({ error, propertyId, userId: user.id }, 'Failed to create property note in database')
+      logger.error({ error, propertyId, userId: auth.user.id }, 'Failed to create property note in database')
       return NextResponse.json({ error: 'Failed to create property note' }, { status: 500 })
     }
 

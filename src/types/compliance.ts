@@ -1,9 +1,11 @@
 /**
  * Compliance Management TypeScript Types
- * 
+ *
  * Types for compliance assets, programs, items, events, and violations.
  * These types match the database schema defined in the compliance tables migration.
  */
+
+import type { Json } from '@/types/database';
 
 // ============================================================================
 // ENUMS
@@ -63,9 +65,15 @@ export type ComplianceViolationStatus =
   | 'cleared'
   | 'closed'
 
+export type ComplianceViolationCategory =
+  | 'violation'
+  | 'complaint'
+
 export type ComplianceWorkOrderRole =
   | 'primary'
   | 'related'
+
+export type ComplianceStatus = string | null
 
 export type ExternalSyncSource =
   | 'dob_now'
@@ -144,7 +152,10 @@ export interface CompliancePropertyProgramOverride {
   org_id: string
   property_id: string
   program_id: string
+  is_assigned: boolean
   is_enabled: boolean | null
+  assigned_at: string
+  assigned_by: string | null
   created_at: string
   updated_at: string
 }
@@ -152,6 +163,15 @@ export interface CompliancePropertyProgramOverride {
 export type ComplianceProgramWithOverride = ComplianceProgram & {
   override?: CompliancePropertyProgramOverride | null
   effective_is_enabled?: boolean
+}
+
+export type ComplianceProgramWithPropertyContext = ComplianceProgram & {
+  override?: CompliancePropertyProgramOverride | null
+  is_assigned: boolean
+  suppressed?: boolean
+  effective_is_enabled: boolean
+  matches_criteria: boolean
+  warning_message?: string | null
 }
 
 export interface ComplianceProgramCriteria {
@@ -173,6 +193,7 @@ export interface ComplianceProgramCriteria {
     exclude_device_categories?: ComplianceDeviceCategory[]
     device_technologies?: string[]
     is_private_residence?: boolean
+    pressure_type?: string
   }
 }
 
@@ -190,7 +211,7 @@ export interface ComplianceAsset {
   device_technology?: string | null
   device_subtype?: string | null
   is_private_residence?: boolean | null
-  metadata: Record<string, unknown> // jsonb
+  metadata: Json | null // jsonb
   created_at: string
   updated_at: string
 }
@@ -235,7 +256,7 @@ export interface ComplianceEvent {
   inspection_type: string | null
   inspection_date: string | null // date
   filed_date: string | null // date
-  compliance_status: string | null
+  compliance_status: ComplianceStatus
   defects: boolean
   inspector_name: string | null
   inspector_company: string | null
@@ -251,6 +272,7 @@ export interface ComplianceViolation {
   asset_id: string | null
   org_id: string
   agency: ComplianceViolationAgency
+  category: ComplianceViolationCategory
   violation_number: string
   issue_date: string // date
   description: string
@@ -260,7 +282,7 @@ export interface ComplianceViolation {
   cleared_date: string | null // date
   linked_item_id: string | null
   linked_work_order_id: string | null
-  metadata: Record<string, unknown> // jsonb
+  metadata: Json | null // jsonb
   created_at: string
   updated_at: string
 }
@@ -433,6 +455,7 @@ export interface ComplianceViolationFilters {
   asset_id?: string
   agency?: ComplianceViolationAgency[]
   status?: ComplianceViolationStatus[]
+  category?: ComplianceViolationCategory[]
   open_only?: boolean
 }
 

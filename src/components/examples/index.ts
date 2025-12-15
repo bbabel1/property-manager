@@ -1,2 +1,2 @@
-export { default as SectionDetailExample } from './SectionDetailExample'
+export { SectionDetailExample } from './SectionDetailExample'
 export * from './SectionDetailExample'

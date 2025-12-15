@@ -8,6 +8,7 @@ type Violation = {
   id: string
   violation_number: string
   agency: string
+  category?: 'violation' | 'complaint'
   device?: string | null
   issue_date: string
   status: string
@@ -40,6 +41,7 @@ export function ComplianceViolationsPanel({ violations }: { violations: Violatio
               <TableRow>
                 <TableHead>Violation #</TableHead>
                 <TableHead>Agency</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Device</TableHead>
                 <TableHead>Issued</TableHead>
                 <TableHead>Status</TableHead>
@@ -58,6 +60,11 @@ export function ComplianceViolationsPanel({ violations }: { violations: Violatio
                 <TableRow key={v.id}>
                   <TableCell className="font-medium">{v.violation_number}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{v.agency}</TableCell>
+                  <TableCell className="text-sm">
+                    <Badge variant="secondary" className="text-xs">
+                      {(v.category || 'violation') === 'complaint' ? 'Complaint' : 'Violation'}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{v.device || '—'}</TableCell>
                   <TableCell className="text-sm">{v.issue_date ? new Date(v.issue_date).toLocaleDateString() : '—'}</TableCell>
                   <TableCell><StatusPill value={v.status} /></TableCell>
@@ -71,4 +78,3 @@ export function ComplianceViolationsPanel({ violations }: { violations: Violatio
     </Card>
   )
 }
-

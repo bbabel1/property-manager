@@ -38,7 +38,7 @@ export function GeneralJournalEntryModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <LargeDialogContent className="w-full max-h-screen overflow-hidden rounded-none border-none p-0 sm:w-[min(1100px,95vw)] sm:max-h-[95vh] sm:rounded-2xl sm:border">
+      <LargeDialogContent className="max-h-screen w-[680px] max-w-[680px] overflow-hidden rounded-none border-none p-0 sm:max-h-[95vh] sm:rounded-2xl sm:border">
         <DialogHeader className="border-border px-4 py-4 pr-12 sm:px-6">
           <DialogTitle>General Journal Entry</DialogTitle>
         </DialogHeader>
@@ -64,4 +64,3 @@ export function GeneralJournalEntryModal({
 }
 
 export default GeneralJournalEntryModal;
-

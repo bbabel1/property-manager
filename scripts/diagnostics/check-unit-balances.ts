@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 
@@ -142,5 +143,4 @@ async function checkUnitBalances() {
 }
 
 checkUnitBalances().catch(console.error)
-
 

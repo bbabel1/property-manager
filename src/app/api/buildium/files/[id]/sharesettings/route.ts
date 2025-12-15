@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -41,10 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       } catch (parseError) {
         errorData = { raw: rawText || 'Unauthorized' };
       }
-      logger.error('Buildium file share settings fetch failed', {
-        status: response.status,
-        errorData,
-      });
+      logger.error({ status: response.status, errorData }, 'Buildium file share settings fetch failed');
 
       return NextResponse.json(
         { 
@@ -86,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -118,10 +117,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       } catch (parseError) {
         errorData = { raw: rawText || 'Unauthorized' };
       }
-      logger.error('Buildium file share settings update failed', {
-        status: response.status,
-        errorData,
-      });
+      logger.error({ status: response.status, errorData }, 'Buildium file share settings update failed');
 
       return NextResponse.json(
         { 

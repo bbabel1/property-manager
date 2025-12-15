@@ -1,5 +1,6 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+import globals from "globals";
 import { FlatCompat } from "@eslint/eslintrc";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -10,6 +11,14 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // Keep Next.js plugin aware of the app root (flat config in monorepos)
+  {
+    settings: {
+      next: {
+        rootDir: [__dirname]
+      }
+    }
+  },
   // Global ignores (Flat config replacement for .eslintignore)
   {
     ignores: [
@@ -103,6 +112,26 @@ const eslintConfig = [
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-empty-object-type": "off"
+    }
+  },
+  // Tooling and config files run in Node; relax browser/React-centric rules
+  {
+    files: [
+      "*.config.{js,cjs,mjs,ts}",
+      "postcss.config.mjs",
+      "stylelint.config.mjs",
+      "tailwind.config.ts",
+      "vitest.config.ts",
+      "next.config.ts",
+      "instrumentation.ts"
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
+    },
+    rules: {
+      "@typescript-eslint/no-var-requires": "off"
     }
   }
 ];

@@ -6,7 +6,10 @@ import type {
 } from '@/types/buildium';
 import type { PaymentMethodValue } from '@/lib/enums/payment-method';
 
-type MonthlyLogRow = Database['public']['Tables']['monthly_logs']['Row'] & {
+type MonthlyLogRow = Pick<
+  Database['public']['Tables']['monthly_logs']['Row'],
+  'id' | 'lease_id' | 'unit_id' | 'property_id' | 'org_id' | 'tenant_id'
+> & {
   lease_id?: number | null;
 };
 
@@ -72,17 +75,22 @@ export async function fetchMonthlyLogContext(
   logId: string,
   db: TypedSupabaseClient = supabaseAdmin,
 ): Promise<MonthlyLogContext> {
+  type MonthlyLogSlice = Pick<
+    MonthlyLogRow,
+    'id' | 'unit_id' | 'property_id' | 'org_id' | 'tenant_id' | 'lease_id'
+  >;
+
   const { data: log, error } = await db
     .from('monthly_logs')
     .select('id, unit_id, property_id, org_id, tenant_id, lease_id')
     .eq('id', logId)
-    .maybeSingle();
+    .maybeSingle<MonthlyLogSlice>();
 
   if (error || !log) {
     throw new Error('Monthly log not found');
   }
 
-  let leaseId = (log as MonthlyLogRow).lease_id ?? null;
+  let leaseId = log.lease_id ?? null;
 
   if (!leaseId && log.unit_id) {
     leaseId = await resolveActiveLeaseIdForUnit(log.unit_id, db);

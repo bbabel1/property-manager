@@ -14,6 +14,7 @@ import {
   EmailTemplateVariableSchema,
   TemplateRenderSchema,
   type EmailTemplate,
+  type TemplateVariableValues,
 } from '@/types/email-templates';
 import { sanitizeEmailTemplateHtml } from '@/lib/email-templates/sanitization';
 import { renderEmailTemplate } from '@/lib/email-template-service';
@@ -93,12 +94,12 @@ export async function POST(request: NextRequest) {
     };
 
     // Build variable values with defaults then merge provided overrides
-    const variableValues: Record<string, unknown> = {};
+    const variableValues: TemplateVariableValues = {};
     for (const varDef of availableVariables) {
       variableValues[varDef.key] = varDef.example || varDef.nullDefault;
     }
     if (validated.variables) {
-      Object.assign(variableValues, validated.variables);
+      Object.assign(variableValues, validated.variables as TemplateVariableValues);
     }
 
     const result = await renderEmailTemplate(template, variableValues);

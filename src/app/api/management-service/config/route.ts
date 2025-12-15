@@ -1,8 +1,10 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ManagementService } from '@/lib/management-service';
+import { toServicePlan } from '@/lib/service-plan';
 import { z } from 'zod';
 
 const ServiceConfigSchema = z.object({
@@ -77,7 +79,11 @@ export async function PUT(request: NextRequest) {
     });
 
     const body = await request.json();
-    const config = ServiceConfigSchema.parse(body);
+    const parsed = ServiceConfigSchema.parse(body);
+    const config = {
+      ...parsed,
+      service_plan: toServicePlan(parsed.service_plan),
+    };
 
     const service = new ManagementService(query.propertyId, query.unitId);
     await service.updateServiceConfiguration(config);

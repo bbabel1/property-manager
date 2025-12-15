@@ -111,7 +111,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
   }
 
   const lines = Array.isArray(linesRes?.data)
-    ? (linesRes.data as TransactionLineWithProperty[])
+    ? (linesRes.data as unknown as TransactionLineWithProperty[])
     : [];
 
   const propertyTotals = new Map<string, number>();

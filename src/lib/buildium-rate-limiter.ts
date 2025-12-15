@@ -9,17 +9,17 @@ interface RateLimitConfig {
   requestSpacingMs: number
 }
 
-interface QueuedRequest {
+interface QueuedRequest<T = unknown> {
   id: string
-  execute: () => Promise<any>
-  resolve: (value: any) => void
-  reject: (error: any) => void
+  execute: () => Promise<T>
+  resolve: (value: T) => void
+  reject: (error: unknown) => void
   retryCount: number
 }
 
 export class BuildiumRateLimiter {
   private config: RateLimitConfig
-  private queue: QueuedRequest[] = []
+  private queue: Array<QueuedRequest<unknown>> = []
   private activeRequests = 0
   private lastRequestTime = 0
 
@@ -39,7 +39,7 @@ export class BuildiumRateLimiter {
    */
   async executeRequest<T>(requestFn: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
-      const request: QueuedRequest = {
+      const request: QueuedRequest<T> = {
         id: Math.random().toString(36).substr(2, 9),
         execute: requestFn,
         resolve,
@@ -47,7 +47,7 @@ export class BuildiumRateLimiter {
         retryCount: 0
       }
 
-      this.queue.push(request)
+      this.queue.push(request as QueuedRequest<unknown>)
       this.processQueue()
     })
   }
@@ -77,9 +77,10 @@ export class BuildiumRateLimiter {
       this.lastRequestTime = Date.now()
       request.resolve(result)
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle rate limiting (429 errors)
-      if (error.status === 429 && request.retryCount < this.config.retryAttempts) {
+      const status = typeof error === 'object' && error !== null && 'status' in error ? (error as { status?: number }).status : undefined
+      if (status === 429 && request.retryCount < this.config.retryAttempts) {
         console.log(`Rate limited, retrying request ${request.id} (attempt ${request.retryCount + 1}/${this.config.retryAttempts})`)
         
         request.retryCount++

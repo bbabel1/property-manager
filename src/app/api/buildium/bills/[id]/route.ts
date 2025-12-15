@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBillUpdateSchema, BuildiumBillPatchSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumFetch } from '@/lib/buildium-http';
+import { buildiumFetch, type BuildiumMethod } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -168,8 +168,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumBillPatchSchema);
 
+    const patchMethod: BuildiumMethod = 'PATCH';
     const result = await buildiumFetch(
-      'PATCH',
+      patchMethod,
       `/bills/${id}`,
       undefined,
       validatedData,

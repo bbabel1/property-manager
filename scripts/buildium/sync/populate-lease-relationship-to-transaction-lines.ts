@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 
-dotenv.config()
+config()
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -38,11 +38,13 @@ async function populateLeaseRelationshipToTransactionLines() {
 
     // Update each transaction line with lease relationship
     for (const entry of transactionLines) {
+      const transactionRel = Array.isArray(entry.transaction) ? entry.transaction[0] : entry.transaction
+      const transaction = (transactionRel ?? {}) as { lease_id: string | null; buildium_lease_id: number | null }
       const { error: updateError } = await supabase
         .from('transaction_lines')
         .update({
-          lease_id: entry.transaction.lease_id,
-          buildium_lease_id: entry.transaction.buildium_lease_id,
+          lease_id: transaction?.lease_id,
+          buildium_lease_id: transaction?.buildium_lease_id,
           updated_at: new Date().toISOString()
         })
         .eq('id', entry.id)
@@ -50,7 +52,7 @@ async function populateLeaseRelationshipToTransactionLines() {
       if (updateError) {
         console.error(`❌ Failed to update transaction line ${entry.id}: ${updateError.message}`)
       } else {
-        console.log(`✅ Updated transaction line ${entry.id} with lease_id: ${entry.transaction.lease_id}, buildium_lease_id: ${entry.transaction.buildium_lease_id}`)
+        console.log(`✅ Updated transaction line ${entry.id} with lease_id: ${transaction?.lease_id}, buildium_lease_id: ${transaction?.buildium_lease_id}`)
       }
     }
 
@@ -79,11 +81,14 @@ async function populateLeaseRelationshipToTransactionLines() {
     
     if (verificationData && verificationData.length > 0) {
       console.log(`Sample entry:`)
+      const verificationTransaction = Array.isArray(verificationData[0].transaction)
+        ? verificationData[0].transaction[0]
+        : verificationData[0].transaction
       console.log(`  Transaction Line ID: ${verificationData[0].id}`)
       console.log(`  Lease ID: ${verificationData[0].lease_id}`)
       console.log(`  Buildium Lease ID: ${verificationData[0].buildium_lease_id}`)
-      console.log(`  Transaction Lease ID: ${verificationData[0].transaction?.lease_id}`)
-      console.log(`  Transaction Buildium Lease ID: ${verificationData[0].transaction?.buildium_lease_id}`)
+      console.log(`  Transaction Lease ID: ${verificationTransaction?.lease_id}`)
+      console.log(`  Transaction Buildium Lease ID: ${verificationTransaction?.buildium_lease_id}`)
     }
 
   } catch (error) {

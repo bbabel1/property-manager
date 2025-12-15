@@ -5,7 +5,7 @@ export function useSupabaseQuery<T>(
   table: string,
   query?: {
     select?: string
-    filters?: Record<string, any>
+    filters?: Record<string, unknown>
     orderBy?: { column: string; ascending?: boolean }
     limit?: number
   }
@@ -54,7 +54,7 @@ export function useSupabaseQuery<T>(
     }
 
     fetchData()
-  }, [table, JSON.stringify(query)])
+  }, [table, query?.filters, query?.limit, query?.orderBy, query?.select])
 
   return { data, loading, error }
 }

@@ -34,7 +34,7 @@ export async function PATCH(
     }
     const orgId = membership.org_id
 
-    const { data: asset, error: assetError } = await supabaseAdmin
+    const { data: asset, error: assetError } = await (supabaseAdmin as any)
       .from('compliance_assets')
       .select('id, org_id')
       .eq('id', assetId)
@@ -56,7 +56,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
     }
 
-    const { data: updated, error: updateError } = await supabaseAdmin
+    const { data: updated, error: updateError } = await (supabaseAdmin as any)
       .from('compliance_assets')
       .update(updates)
       .eq('id', assetId)

@@ -122,17 +122,18 @@ export default function TenantPersonalInfoInlineEditor({
               </button>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-2">
                 <div>
-                  <div className="text-xs mb-1">Date of birth</div>
-                  <DatePicker
-                    value={values.date_of_birth ? new Date(values.date_of_birth) : undefined}
-                    onChange={(date) =>
-                      setValues((prev) => ({
-                        ...prev,
-                        date_of_birth: date ? date.toISOString().split('T')[0] : null
-                      }))
-                    }
-                    placeholder="Select date"
-                  />
+          <div className="text-xs mb-1">Date of birth</div>
+          <DatePicker
+            value={values.date_of_birth ?? null}
+            onChange={(date) => {
+              const iso = date ? new Date(date as Date | string).toISOString() : null
+              setValues((prev) => ({
+                ...prev,
+                date_of_birth: iso,
+              }))
+            }}
+            placeholder="Select date"
+          />
                 </div>
                 <div>
                   <div className="text-xs mb-1">Taxpayer ID</div>

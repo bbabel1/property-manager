@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ComplianceSummaryCards } from '@/components/compliance/ComplianceSummaryCards'
 import { PortfolioComplianceTable } from '@/components/compliance/PortfolioComplianceTable'
@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2, RefreshCw, Search } from 'lucide-react'
-import type { CompliancePortfolioSummary, CompliancePropertySummary } from '@/types/compliance'
+import type { CompliancePortfolioSummary } from '@/types/compliance'
 
 export default function ComplianceDashboardPage() {
   const router = useRouter()
@@ -27,7 +27,7 @@ export default function ComplianceDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [boroughFilter, setBoroughFilter] = useState<string>('all')
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -57,11 +57,11 @@ export default function ComplianceDashboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [boroughFilter, jurisdictionFilter, statusFilter])
 
   useEffect(() => {
     fetchData()
-  }, [jurisdictionFilter, statusFilter, boroughFilter])
+  }, [fetchData])
 
   const filteredProperties = summary?.properties.filter((property) => {
     if (!searchTerm) return true

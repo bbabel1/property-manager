@@ -234,7 +234,7 @@ export default function TenantFilesPanel({
       </div>
 
       <Dialog open={isOpen} onOpenChange={(value) => (value ? setIsOpen(true) : closeModal())}>
-        <DialogContent className="top-[35%] max-w-3xl translate-y-[-35%] sm:max-w-4xl">
+        <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
           <DialogHeader>
             <DialogTitle>Upload File</DialogTitle>
             <DialogDescription>

@@ -36,7 +36,12 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       );
     }
 
-    const { supabase: supabaseOrg } = await requireOrg(String(event.properties?.org_id));
+    const orgId =
+      (event as any)?.properties?.org_id ??
+      (Array.isArray(event.properties) && event.properties.length > 0
+        ? event.properties[0]?.org_id
+        : null);
+    const { supabase: supabaseOrg } = await requireOrg(String(orgId));
 
     // Delete the billing event (or mark as voided if we add a status field)
     const { error: deleteError } = await supabaseOrg.from('billing_events').delete().eq('id', id);

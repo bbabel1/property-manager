@@ -248,7 +248,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     );
 
     let normalized = null;
-    let linesResponse: any[] = [];
+    let linesResponse: Array<{
+      id?: string;
+      transaction_id?: string;
+      gl_account_id?: string | null;
+      amount?: number | null;
+      posting_type?: string | null;
+      memo?: string | null;
+    }> = [];
 
     if (result.localId) {
       await assignTransactionToMonthlyLog(result.localId, logId);

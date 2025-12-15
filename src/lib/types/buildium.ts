@@ -43,7 +43,6 @@ export type {
   BuildiumWorkOrderStatus,
   BuildiumTask,
   BuildiumTaskStatus,
-  BuildiumTaskRequestedByEntity,
   BuildiumPropertyImage,
 } from '@/types/buildium'
 

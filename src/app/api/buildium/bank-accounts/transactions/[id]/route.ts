@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
@@ -5,10 +7,11 @@ import { logger } from '@/lib/logger'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const auth = await requireRole('platform_admin')
+    const userId = auth.user.id
     const transactionId = (await params).id;
     
-    logger.info({ userId: user.id, transactionId, action: 'get_buildium_transaction' }, 'Fetching Buildium transaction details');
+    logger.info({ userId, transactionId, action: 'get_buildium_transaction' }, 'Fetching Buildium transaction details');
 
     // Buildium API call
     const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/transactions/${transactionId}`, {

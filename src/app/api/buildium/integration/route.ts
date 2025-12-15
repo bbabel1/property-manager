@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 /**
  * Buildium Integration Management API
  * 
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     // Return masked secrets only (show that credentials exist without decrypting)
     // Extract a portion of the encrypted string for masking display
-    const getMaskedFromEncrypted = (encrypted: string): string => {
+    const getMaskedFromEncrypted = (encrypted: string | null): string | null => {
       if (!encrypted) return null;
       // Encrypted format is salt:iv:tag:encrypted, extract last part
       const parts = encrypted.split(':');
@@ -230,4 +232,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-

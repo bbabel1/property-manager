@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --loader tsx
 import 'dotenv/config'
-import { generateRecurringCharges } from '../../src/lib/recurring-engine'
-import { logger } from '../../src/lib/logger'
+import { generateRecurringCharges } from '@/lib/recurring-engine'
+import { logger } from '@/lib/logger'
 
 async function main() {
   if (process.env.ENABLE_RECURRING === '0' || process.env.ENABLE_RECURRING === 'false') {

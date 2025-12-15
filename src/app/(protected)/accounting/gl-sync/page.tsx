@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
+type SyncResult = Record<string, unknown> | null
+
 export default function GLSyncPage() {
   const [loading, setLoading] = useState<string | null>(null)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<SyncResult>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function run(kind: 'accounts' | 'entries') {
@@ -24,8 +26,8 @@ export default function GLSyncPage() {
         if (!res.success) throw new Error(res.error || 'Failed')
         setResult(res.data)
       }
-    } catch (e: any) {
-      setError(e?.message || 'Unknown error')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
       setLoading(null)
     }

@@ -25,7 +25,7 @@ BEGIN
     ),
     (
       'NYC_BOILER_HP_ANNUAL',
-      'Annual High-Pressure Boiler Internal/External Inspection',
+      'Annual High-Pressure Boiler Inspection',
       'NYC_DOB',
       12,
       30,

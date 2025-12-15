@@ -81,21 +81,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Deduplicate by offering_id, keeping most recent
-    const deduplicated = (data || []).reduce(
-      (acc, item) => {
-        const existing = acc.find((i) => i.offering_id === item.offering_id);
-        if (!existing || new Date(item.effective_start) > new Date(existing.effective_start)) {
-          if (existing) {
-            const index = acc.indexOf(existing);
-            acc[index] = item;
-          } else {
-            acc.push(item);
-          }
+    const deduplicated = (data || []).reduce<typeof data>((acc, item) => {
+      const existing = acc.find(
+        (existingItem) => (existingItem as { offering_id?: string }).offering_id === item.offering_id,
+      );
+      if (!existing || new Date(item.effective_start) > new Date(existing.effective_start)) {
+        if (existing) {
+          const index = acc.indexOf(existing);
+          acc[index] = item;
+        } else {
+          acc.push(item);
         }
-        return acc;
-      },
-      [] as typeof data,
-    );
+      }
+      return acc;
+    }, [] as typeof data);
 
     return NextResponse.json({ data: deduplicated });
   } catch (error) {

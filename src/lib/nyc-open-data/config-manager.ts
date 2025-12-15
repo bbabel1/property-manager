@@ -1,7 +1,7 @@
 /**
  * NYC Open Data Config Manager
  *
- * Stores org-scoped NYC Open Data dataset IDs, base URL, and encrypted app token.
+ * Stores developer-scoped NYC Open Data dataset IDs (global), base URL, and encrypted app token.
  * Provides env fallback and masking for safe UI responses.
  */
 
@@ -11,6 +11,9 @@ import { logger } from '@/lib/logger'
 export type NYCOpenDataDatasets = {
   elevatorDevices: string
   elevatorInspections: string
+  elevatorViolationsActive: string
+  elevatorViolationsHistoric: string
+  elevatorComplaints: string
   dobSafetyViolations: string
   dobViolations: string
   dobActiveViolations: string
@@ -18,17 +21,25 @@ export type NYCOpenDataDatasets = {
   dobComplaints: string
   bedbugReporting: string
   dobNowApprovedPermits: string
+  dobNowJobFilings: string
   dobNowSafetyBoiler: string
   dobNowSafetyFacade: string
   dobPermitIssuanceOld: string
+  dobJobApplications: string
+  dobElevatorPermitApplications: string
   dobCertificateOfOccupancyOld: string
   dobCertificateOfOccupancyNow: string
+  waterSewer: string
+  waterSewerOld: string
   hpdViolations: string
   hpdComplaints: string
   hpdRegistrations: string
+  buildingsSubjectToHPD: string
+  indoorEnvironmentalComplaints: string
   fdnyViolations: string
   asbestosViolations: string
   sidewalkViolations: string
+  backflowPreventionViolations: string
   heatSensorProgram: string
 }
 
@@ -47,18 +58,21 @@ export type NYCOpenDataConfig = {
 export type NYCOpenDataConfigUpsert = Partial<NYCOpenDataDatasets> & {
   baseUrl?: string
   appToken?: string
-  isEnabled?: boolean
-  appTokenUnchanged?: boolean
   geoserviceBaseUrl?: string
   geoserviceApiKey?: string
-  geoserviceApiKeyUnchanged?: boolean
+  isEnabled?: boolean
   // Legacy compatibility
   elevatorViolations?: string
+  elevatorViolationsActive?: string
+  elevatorViolationsHistoric?: string
+  elevatorComplaints?: string
   sidewalkViolations?: string
+  backflowPreventionViolations?: string
   dobComplaints?: string
   dobCertificateOfOccupancyOld?: string
   dobCertificateOfOccupancyNow?: string
   heatSensorProgram?: string
+  buildingsSubjectToHPD?: string
 }
 
 const DEFAULT_BASE_URL = process.env.NYC_OPEN_DATA_BASE_URL || 'https://data.cityofnewyork.us/'
@@ -68,65 +82,63 @@ const DEFAULT_GEOSERVICE_BASE_URL =
 export const DEFAULT_DATASET_IDS: NYCOpenDataDatasets = {
   elevatorDevices: 'juyv-2jek', // DOB NOW Build – Elevator Devices
   elevatorInspections: 'e5aq-a4j2', // DOB NOW Elevator Safety Compliance Filings
-  dobSafetyViolations: '855j-jady', // DOB Safety Violations (NYC Open Data)
+  elevatorViolationsActive: 'rff7-h44d', // Active elevator violations
+  elevatorViolationsHistoric: '9ucd-umy4', // Historic elevator violations by date
+  elevatorComplaints: 'kqwi-7ncn', // Elevator complaints (311 → DOB)
+  dobSafetyViolations: '855j-jady', // DOB Safety Violations (NYC Open Data - general)
   dobViolations: '3h2n-5cm9',
   dobActiveViolations: '6drr-tyq2',
   dobEcbViolations: '6bgk-3dad',
   dobComplaints: 'eabe-havv', // DOB Complaints Received
   bedbugReporting: 'wz6d-d3jb', // Bedbug Reporting (HPD)
   dobNowApprovedPermits: 'rbx6-tga4', // DOB NOW: Build – Approved Permits
+  dobNowJobFilings: 'w9ak-ipjd', // DOB NOW: Build – Job Application Filings
   dobNowSafetyBoiler: '52dp-yji6', // DOB NOW: Safety Boiler
   dobNowSafetyFacade: 'xubg-57si', // DOB NOW: Safety – Facades Compliance Filings
   dobPermitIssuanceOld: 'ipu4-2q9a', // DOB Permit Issuance (OLD/BIS)
+  dobJobApplications: 'ic3t-wcy2', // DOB Job Application Filings (BIS)
+  dobElevatorPermitApplications: 'kfp4-dz4h', // DOB NOW: Build Elevator Permit Applications
   dobCertificateOfOccupancyOld: 'bs8b-p36w', // DOB Certificate Of Occupancy (Old)
   dobCertificateOfOccupancyNow: 'pkdm-hqz6', // DOB NOW: Certificate of Occupancy
+  waterSewer: 'hphy-6g7m', // DEP Water and Sewer permits
+  waterSewerOld: '4k4u-823g', // DEP Water and Sewer permits (OLD)
   hpdViolations: 'wvxf-dwi5',
   hpdComplaints: 'ygpa-z7cr',
   hpdRegistrations: 'tesw-yqqr', // HPD Registrations
+  buildingsSubjectToHPD: 'kj4p-ruqc', // Buildings Subject to HPD Jurisdiction
+  indoorEnvironmentalComplaints: '9jgj-bmct', // DOHMH Indoor Environmental Complaints
   fdnyViolations: 'avgm-ztsb',
   asbestosViolations: 'r6c3-8mpt',
   sidewalkViolations: '6kbp-uz6m', // Sidewalk Management Database - Violations
+  backflowPreventionViolations: '38n4-tikp', // Backflow prevention device-related violations
   heatSensorProgram: 'h4mf-f24e', // Buildings Selected for the Heat Sensor Program (HSP)
 }
 
-function buildConfigFromRow(row: any): NYCOpenDataConfig {
-  return {
-    baseUrl: row?.base_url || DEFAULT_BASE_URL,
-    appToken: row?.app_token_encrypted || null,
-    hasAppToken: Boolean((row?.app_token_encrypted || '').length),
-    geoserviceBaseUrl: row?.geoservice_base_url || DEFAULT_GEOSERVICE_BASE_URL,
-    geoserviceApiKey: row?.geoservice_api_key_encrypted || null,
-    hasGeoserviceApiKey: Boolean((row?.geoservice_api_key_encrypted || '').length),
-    datasets: {
-      elevatorDevices: row?.dataset_elevator_devices || DEFAULT_DATASET_IDS.elevatorDevices,
-      elevatorInspections: row?.dataset_elevator_inspections || DEFAULT_DATASET_IDS.elevatorInspections,
-      dobSafetyViolations: row?.dataset_elevator_violations || DEFAULT_DATASET_IDS.dobSafetyViolations,
-      dobViolations: row?.dataset_dob_violations || DEFAULT_DATASET_IDS.dobViolations,
-      dobActiveViolations: row?.dataset_dob_active_violations || DEFAULT_DATASET_IDS.dobActiveViolations,
-      dobEcbViolations: row?.dataset_dob_ecb_violations || DEFAULT_DATASET_IDS.dobEcbViolations,
-      dobComplaints: row?.dataset_dob_complaints || DEFAULT_DATASET_IDS.dobComplaints,
-      bedbugReporting: row?.dataset_bedbug_reporting || DEFAULT_DATASET_IDS.bedbugReporting,
-      dobNowApprovedPermits:
-        row?.dataset_dob_now_approved_permits || DEFAULT_DATASET_IDS.dobNowApprovedPermits,
-      dobPermitIssuanceOld:
-        row?.dataset_dob_permit_issuance_old || DEFAULT_DATASET_IDS.dobPermitIssuanceOld,
-      dobCertificateOfOccupancyOld:
-        row?.dataset_dob_certificate_of_occupancy_old || DEFAULT_DATASET_IDS.dobCertificateOfOccupancyOld,
-      dobCertificateOfOccupancyNow:
-        row?.dataset_dob_certificate_of_occupancy_now || DEFAULT_DATASET_IDS.dobCertificateOfOccupancyNow,
-      dobNowSafetyBoiler: row?.dataset_dob_now_safety_boiler || DEFAULT_DATASET_IDS.dobNowSafetyBoiler,
-      dobNowSafetyFacade: row?.dataset_dob_now_safety_facade || DEFAULT_DATASET_IDS.dobNowSafetyFacade,
-      hpdViolations: row?.dataset_hpd_violations || DEFAULT_DATASET_IDS.hpdViolations,
-      hpdComplaints: row?.dataset_hpd_complaints || DEFAULT_DATASET_IDS.hpdComplaints,
-      hpdRegistrations: row?.dataset_hpd_registrations || DEFAULT_DATASET_IDS.hpdRegistrations,
-      fdnyViolations: row?.dataset_fdny_violations || DEFAULT_DATASET_IDS.fdnyViolations,
-      asbestosViolations: row?.dataset_asbestos_violations || DEFAULT_DATASET_IDS.asbestosViolations,
-      sidewalkViolations: row?.dataset_sidewalk_violations || DEFAULT_DATASET_IDS.sidewalkViolations,
-      heatSensorProgram: row?.dataset_heat_sensor_program || DEFAULT_DATASET_IDS.heatSensorProgram,
-    },
-    isEnabled: row?.is_enabled ?? true,
-    source: 'db',
+async function loadDatasetsFromCatalog(): Promise<NYCOpenDataDatasets | null> {
+  const { data, error } = await supabaseAdmin
+    .from('data_sources')
+    .select('key, dataset_id, is_enabled')
+    .is('deleted_at', null)
+    .order('key', { ascending: true })
+
+  if (error) {
+    logger.error({ error }, 'Failed to fetch data_sources catalog')
+    return null
   }
+
+  if (!data || data.length === 0) return null
+
+  const result: NYCOpenDataDatasets = { ...DEFAULT_DATASET_IDS }
+  for (const row of data) {
+    if (row?.is_enabled === false) continue
+    if (row?.key && typeof row.key === 'string' && row?.dataset_id) {
+      const key = row.key as keyof NYCOpenDataDatasets
+      if (key in result) {
+        result[key] = row.dataset_id as string
+      }
+    }
+  }
+  return result
 }
 
 export function maskAppToken(token: string | null): string | null {
@@ -136,182 +148,83 @@ export function maskAppToken(token: string | null): string | null {
 }
 
 /**
- * Resolve config for an org with env fallback.
+ * Resolve config (global, developer-managed) with env fallback.
  */
-export async function getNYCOpenDataConfig(orgId?: string): Promise<NYCOpenDataConfig> {
-  if (orgId) {
-    try {
-      const { data: row, error } = await supabaseAdmin
-        .from('nyc_open_data_integrations')
-        .select('*')
-        .eq('org_id', orgId)
-        .is('deleted_at', null)
-        .maybeSingle()
+export async function getNYCOpenDataConfig(_orgId?: string): Promise<NYCOpenDataConfig> {
+  const datasets = (await loadDatasetsFromCatalog()) || DEFAULT_DATASET_IDS
 
-      if (!error && row) {
-        return buildConfigFromRow(row)
-      }
-
-      if (error) {
-        logger.error({ orgId, error }, 'Failed to fetch NYC Open Data config from DB')
-      }
-    } catch (error) {
-      logger.error({ orgId, error }, 'Unexpected error fetching NYC Open Data config')
-    }
-  }
-
-  // Env fallback
+  const envBaseUrl = process.env.NYC_OPEN_DATA_BASE_URL
+  const envGeoBaseUrl = process.env.NYC_GEOSERVICE_BASE_URL
   const envToken = process.env.NYC_OPEN_DATA_APP_TOKEN || process.env.NYC_OPEN_DATA_API_KEY || null
   const envGeoserviceKey = process.env.NYC_GEOSERVICE_API_KEY || process.env.NYC_GEOSERVICE_KEY || null
+
   return {
-    baseUrl: DEFAULT_BASE_URL,
+    baseUrl: envBaseUrl || DEFAULT_BASE_URL,
     appToken: envToken,
     hasAppToken: Boolean(envToken),
-    geoserviceBaseUrl: DEFAULT_GEOSERVICE_BASE_URL,
+    geoserviceBaseUrl: envGeoBaseUrl || DEFAULT_GEOSERVICE_BASE_URL,
     geoserviceApiKey: envGeoserviceKey,
     hasGeoserviceApiKey: Boolean(envGeoserviceKey),
-    datasets: DEFAULT_DATASET_IDS,
+    datasets,
     isEnabled: true,
-    source: envToken ? 'env' : 'default',
+    source: envToken ? 'env' : 'db',
   }
 }
 
 /**
- * Upsert org config (encrypts token at application layer).
+ * Upsert dataset catalog entries (global). Tokens and base URLs remain env-driven.
  */
-export async function saveNYCOpenDataConfig(orgId: string, payload: NYCOpenDataConfigUpsert): Promise<void> {
-  const { data: existing } = await supabaseAdmin
-    .from('nyc_open_data_integrations')
-    .select('*')
-    .eq('org_id', orgId)
-    .is('deleted_at', null)
-    .maybeSingle()
+export async function saveNYCOpenDataConfig(_orgId: string, payload: NYCOpenDataConfigUpsert): Promise<void> {
+  const rows: Array<{ key: string; dataset_id: string; is_enabled?: boolean }> = []
+  const datasetEntries: [keyof NYCOpenDataDatasets, string | undefined][] = [
+    ['elevatorDevices', payload.elevatorDevices],
+    ['elevatorInspections', payload.elevatorInspections],
+    ['elevatorViolationsActive', payload.elevatorViolationsActive || payload.dobSafetyViolations],
+    ['elevatorViolationsHistoric', payload.elevatorViolationsHistoric],
+    ['elevatorComplaints', payload.elevatorComplaints],
+    ['dobSafetyViolations', payload.dobSafetyViolations || payload.elevatorViolations],
+    ['dobViolations', payload.dobViolations],
+    ['dobActiveViolations', payload.dobActiveViolations],
+    ['dobEcbViolations', payload.dobEcbViolations],
+    ['dobComplaints', payload.dobComplaints],
+    ['bedbugReporting', payload.bedbugReporting],
+    ['dobNowApprovedPermits', payload.dobNowApprovedPermits],
+    ['dobNowJobFilings', payload.dobNowJobFilings],
+    ['dobNowSafetyBoiler', payload.dobNowSafetyBoiler],
+    ['dobNowSafetyFacade', payload.dobNowSafetyFacade],
+    ['dobPermitIssuanceOld', payload.dobPermitIssuanceOld],
+    ['dobJobApplications', payload.dobJobApplications],
+    ['dobElevatorPermitApplications', payload.dobElevatorPermitApplications],
+    ['dobCertificateOfOccupancyOld', payload.dobCertificateOfOccupancyOld],
+    ['dobCertificateOfOccupancyNow', payload.dobCertificateOfOccupancyNow],
+    ['waterSewer', payload.waterSewer],
+    ['waterSewerOld', payload.waterSewerOld],
+    ['hpdViolations', payload.hpdViolations],
+    ['hpdComplaints', payload.hpdComplaints],
+    ['hpdRegistrations', payload.hpdRegistrations],
+    ['buildingsSubjectToHPD', payload.buildingsSubjectToHPD],
+    ['indoorEnvironmentalComplaints', payload.indoorEnvironmentalComplaints],
+    ['fdnyViolations', payload.fdnyViolations],
+    ['asbestosViolations', payload.asbestosViolations],
+    ['sidewalkViolations', payload.sidewalkViolations],
+    ['heatSensorProgram', payload.heatSensorProgram],
+  ]
 
-  const normalizedAppToken = payload.appToken === '' ? null : payload.appToken
-  const normalizedGeoKey = payload.geoserviceApiKey === '' ? null : payload.geoserviceApiKey
-
-  const nextAppTokenEncrypted =
-    payload.appTokenUnchanged && existing?.app_token_encrypted
-      ? existing.app_token_encrypted
-      : normalizedAppToken !== undefined
-      ? normalizedAppToken
-      : existing?.app_token_encrypted || null
-  const nextGeoserviceTokenEncrypted =
-    payload.geoserviceApiKeyUnchanged && existing?.geoservice_api_key_encrypted
-      ? existing.geoservice_api_key_encrypted
-      : normalizedGeoKey !== undefined
-      ? normalizedGeoKey
-      : existing?.geoservice_api_key_encrypted || null
-
-  const datasets: NYCOpenDataDatasets = {
-    elevatorDevices: payload.elevatorDevices || existing?.dataset_elevator_devices || DEFAULT_DATASET_IDS.elevatorDevices,
-    elevatorInspections:
-      payload.elevatorInspections || existing?.dataset_elevator_inspections || DEFAULT_DATASET_IDS.elevatorInspections,
-    dobSafetyViolations:
-      payload.dobSafetyViolations ||
-      payload.elevatorViolations || // backward compatibility
-      existing?.dataset_elevator_violations ||
-      DEFAULT_DATASET_IDS.dobSafetyViolations,
-    dobViolations: payload.dobViolations || existing?.dataset_dob_violations || DEFAULT_DATASET_IDS.dobViolations,
-    dobActiveViolations:
-      payload.dobActiveViolations || existing?.dataset_dob_active_violations || DEFAULT_DATASET_IDS.dobActiveViolations,
-    dobEcbViolations:
-      payload.dobEcbViolations || existing?.dataset_dob_ecb_violations || DEFAULT_DATASET_IDS.dobEcbViolations,
-    dobComplaints:
-      payload.dobComplaints || existing?.dataset_dob_complaints || DEFAULT_DATASET_IDS.dobComplaints,
-    bedbugReporting:
-      payload.bedbugReporting || existing?.dataset_bedbug_reporting || DEFAULT_DATASET_IDS.bedbugReporting,
-    dobNowApprovedPermits:
-      payload.dobNowApprovedPermits ||
-      existing?.dataset_dob_now_approved_permits ||
-      DEFAULT_DATASET_IDS.dobNowApprovedPermits,
-    dobPermitIssuanceOld:
-      payload.dobPermitIssuanceOld ||
-      existing?.dataset_dob_permit_issuance_old ||
-      DEFAULT_DATASET_IDS.dobPermitIssuanceOld,
-    dobCertificateOfOccupancyOld:
-      payload.dobCertificateOfOccupancyOld ||
-      existing?.dataset_dob_certificate_of_occupancy_old ||
-      DEFAULT_DATASET_IDS.dobCertificateOfOccupancyOld,
-    dobCertificateOfOccupancyNow:
-      payload.dobCertificateOfOccupancyNow ||
-      existing?.dataset_dob_certificate_of_occupancy_now ||
-      DEFAULT_DATASET_IDS.dobCertificateOfOccupancyNow,
-    dobNowSafetyBoiler:
-      payload.dobNowSafetyBoiler || existing?.dataset_dob_now_safety_boiler || DEFAULT_DATASET_IDS.dobNowSafetyBoiler,
-    dobNowSafetyFacade:
-      payload.dobNowSafetyFacade || existing?.dataset_dob_now_safety_facade || DEFAULT_DATASET_IDS.dobNowSafetyFacade,
-    hpdViolations: payload.hpdViolations || existing?.dataset_hpd_violations || DEFAULT_DATASET_IDS.hpdViolations,
-    hpdComplaints: payload.hpdComplaints || existing?.dataset_hpd_complaints || DEFAULT_DATASET_IDS.hpdComplaints,
-    hpdRegistrations:
-      payload.hpdRegistrations || existing?.dataset_hpd_registrations || DEFAULT_DATASET_IDS.hpdRegistrations,
-    fdnyViolations: payload.fdnyViolations || existing?.dataset_fdny_violations || DEFAULT_DATASET_IDS.fdnyViolations,
-    asbestosViolations:
-      payload.asbestosViolations || existing?.dataset_asbestos_violations || DEFAULT_DATASET_IDS.asbestosViolations,
-    sidewalkViolations:
-      payload.sidewalkViolations || existing?.dataset_sidewalk_violations || DEFAULT_DATASET_IDS.sidewalkViolations,
-    heatSensorProgram:
-      payload.heatSensorProgram || existing?.dataset_heat_sensor_program || DEFAULT_DATASET_IDS.heatSensorProgram,
+  for (const [key, value] of datasetEntries) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      rows.push({ key, dataset_id: value.trim(), is_enabled: payload.isEnabled ?? true })
+    }
   }
 
-  const upsertPayload = {
-    org_id: orgId,
-    base_url: payload.baseUrl || existing?.base_url || DEFAULT_BASE_URL,
-    app_token_encrypted: nextAppTokenEncrypted,
-    geoservice_api_key_encrypted: nextGeoserviceTokenEncrypted,
-    geoservice_base_url: payload.geoserviceBaseUrl || existing?.geoservice_base_url || DEFAULT_GEOSERVICE_BASE_URL,
-    dataset_elevator_devices: datasets.elevatorDevices,
-    dataset_elevator_inspections: datasets.elevatorInspections,
-    dataset_elevator_violations: datasets.dobSafetyViolations,
-    dataset_dob_violations: datasets.dobViolations,
-    dataset_dob_active_violations: datasets.dobActiveViolations,
-    dataset_dob_ecb_violations: datasets.dobEcbViolations,
-    dataset_dob_complaints: datasets.dobComplaints,
-    dataset_bedbug_reporting: datasets.bedbugReporting,
-    dataset_dob_now_approved_permits: datasets.dobNowApprovedPermits,
-    dataset_dob_permit_issuance_old: datasets.dobPermitIssuanceOld,
-    dataset_dob_certificate_of_occupancy_old: datasets.dobCertificateOfOccupancyOld,
-    dataset_dob_certificate_of_occupancy_now: datasets.dobCertificateOfOccupancyNow,
-    dataset_dob_now_safety_boiler: datasets.dobNowSafetyBoiler,
-    dataset_dob_now_safety_facade: datasets.dobNowSafetyFacade,
-    dataset_hpd_violations: datasets.hpdViolations,
-    dataset_hpd_complaints: datasets.hpdComplaints,
-    dataset_hpd_registrations: datasets.hpdRegistrations,
-    dataset_fdny_violations: datasets.fdnyViolations,
-    dataset_asbestos_violations: datasets.asbestosViolations,
-    dataset_sidewalk_violations: datasets.sidewalkViolations,
-    dataset_heat_sensor_program: datasets.heatSensorProgram,
-    is_enabled: payload.isEnabled ?? existing?.is_enabled ?? true,
-    deleted_at: null,
-  }
+  if (!rows.length) return
 
-  if (existing) {
-    const { error } = await supabaseAdmin
-      .from('nyc_open_data_integrations')
-      .update(upsertPayload)
-      .eq('id', existing.id)
-    if (error) {
-      logger.error({ orgId, error }, 'Failed to update NYC Open Data config')
-      throw error
-    }
-  } else {
-    const { error } = await supabaseAdmin.from('nyc_open_data_integrations').insert(upsertPayload)
-    if (error) {
-      logger.error({ orgId, error }, 'Failed to insert NYC Open Data config')
-      throw error
-    }
+  const { error } = await supabaseAdmin.from('data_sources').upsert(rows)
+  if (error) {
+    logger.error({ error }, 'Failed to upsert data_sources')
+    throw error
   }
 }
 
 export async function deleteNYCOpenDataConfig(orgId: string): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from('nyc_open_data_integrations')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('org_id', orgId)
-    .is('deleted_at', null)
-
-  if (error) {
-    logger.error({ orgId, error }, 'Failed to soft delete NYC Open Data config')
-    throw error
-  }
+  logger.warn({ orgId }, 'deleteNYCOpenDataConfig is a no-op in global data_sources mode')
 }

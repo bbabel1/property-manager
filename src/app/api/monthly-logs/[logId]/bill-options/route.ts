@@ -5,17 +5,28 @@ import type { AppRole } from '@/lib/auth/roles';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 
-const nameFromContact = (contact?: {
-  display_name?: string | null;
-  company_name?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-}): string => {
+const nameFromContact = (
+  contact?:
+    | {
+        display_name?: string | null;
+        company_name?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+      }
+    | Array<{
+        display_name?: string | null;
+        company_name?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+      }>,
+): string => {
   if (!contact) return 'Vendor';
+  const contactRecord = Array.isArray(contact) ? contact[0] : contact;
+  if (!contactRecord) return 'Vendor';
   return (
-    contact.display_name ||
-    contact.company_name ||
-    [contact.first_name, contact.last_name].filter(Boolean).join(' ') ||
+    contactRecord.display_name ||
+    contactRecord.company_name ||
+    [contactRecord.first_name, contactRecord.last_name].filter(Boolean).join(' ') ||
     'Vendor'
   );
 };
@@ -70,13 +81,17 @@ export async function GET(
       );
     }
 
-    const propertyId =
-      monthlyLog.property_id ??
-      monthlyLog.units?.property_id ??
-      monthlyLog.properties?.id ??
-      null;
+    const unitRelation = Array.isArray(monthlyLog.units)
+      ? monthlyLog.units[0]
+      : monthlyLog.units ?? null;
+    const propertyRelation = Array.isArray(monthlyLog.properties)
+      ? monthlyLog.properties[0]
+      : monthlyLog.properties ?? null;
 
-    let orgId = monthlyLog.org_id ?? monthlyLog.properties?.org_id ?? null;
+    const propertyId =
+      monthlyLog.property_id ?? unitRelation?.property_id ?? propertyRelation?.id ?? null;
+
+    let orgId = monthlyLog.org_id ?? propertyRelation?.org_id ?? null;
 
     if (!orgId && propertyId) {
       const { data: propertyRow, error: propertyError } = await supabaseAdmin
@@ -106,7 +121,7 @@ export async function GET(
         .select('id, name, type, buildium_gl_account_id, org_id')
         .eq('org_id', orgId)
         .order('name', { ascending: true }),
-      (supabaseAdmin as any)
+      supabaseAdmin
         .from('vendors')
         .select(
           'id, buildium_vendor_id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
@@ -139,14 +154,27 @@ export async function GET(
     ).length;
 
     const vendors =
-      vendorsResult.data
-        ?.filter((vendor: any) => typeof vendor.buildium_vendor_id === 'number')
-        .map((vendor: any) => ({
-          id: String(vendor.id),
-          name: nameFromContact(vendor.contact),
-          buildiumVendorId: vendor.buildium_vendor_id as number,
-        }))
-        .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)) ?? [];
+      (vendorsResult.data ?? [])
+        .map((vendor) => {
+          const buildiumVendorId =
+            typeof vendor.buildium_vendor_id === 'number'
+              ? vendor.buildium_vendor_id
+              : vendor.buildium_vendor_id != null && !Number.isNaN(Number(vendor.buildium_vendor_id))
+                ? Number(vendor.buildium_vendor_id)
+                : null;
+
+          if (buildiumVendorId == null) return null;
+
+          return {
+            id: String(vendor.id),
+            name: nameFromContact(vendor.contact ?? undefined),
+            buildiumVendorId,
+          };
+        })
+        .filter(
+          (vendor): vendor is { id: string; name: string; buildiumVendorId: number } => vendor !== null,
+        )
+        .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
 
     const categories =
       categoriesResult.data?.map((category) => ({
@@ -166,11 +194,8 @@ export async function GET(
       propertyContext: {
         propertyId,
         unitId: monthlyLog.unit_id,
-        buildiumPropertyId:
-          monthlyLog.units?.buildium_property_id ??
-          monthlyLog.properties?.buildium_property_id ??
-          null,
-        buildiumUnitId: monthlyLog.units?.buildium_unit_id ?? null,
+        buildiumPropertyId: unitRelation?.buildium_property_id ?? propertyRelation?.buildium_property_id ?? null,
+        buildiumUnitId: unitRelation?.buildium_unit_id ?? null,
       },
     });
   } catch (error) {

@@ -4,7 +4,6 @@ import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { traceAsync } from '@/lib/metrics/trace';
 import {
   calculateFinancialSummary,
-  getOwnerDrawSummary,
 } from '@/lib/monthly-log-calculations';
 import {
   calculateNetToOwnerValue,
@@ -429,11 +428,12 @@ export async function loadUnassignedTransactionsPage(
     .limit(limit);
 
   if (scope === 'lease') {
+    if (leaseId == null) {
+      return { items: [], nextCursor: null };
+    }
     query = query.eq('lease_id', leaseId);
   } else if (scope === 'unit') {
     const ors: string[] = [];
-    // Include transactions directly stored against the unit with no lease or lines
-    ors.push(`and(unit_id.eq.${unitId},lease_id.is.null)`);
     if (leaseIdsForUnit.length) {
       ors.push(`lease_id.in.(${leaseIdsForUnit.join(',')})`);
     }

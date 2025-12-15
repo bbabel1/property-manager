@@ -5,6 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency } from '@/lib/transactions/formatting';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
+import { ServicePricingPreview } from '@/lib/service-pricing';
 
 interface CompactServiceCardProps {
   offering: {
@@ -12,14 +13,8 @@ interface CompactServiceCardProps {
     name: string;
     isSelected: boolean;
     isIncluded: boolean;
-    pricing?: {
-      rate: number | null;
-      frequency: string;
-    };
-    defaultPricing?: {
-      rate: number | null;
-      frequency: string;
-    };
+    pricing?: ServicePricingPreview;
+    defaultPricing?: ServicePricingPreview;
   };
   isEditMode: boolean;
   isPending: boolean;
@@ -97,7 +92,9 @@ export default function CompactServiceCard({
       {hasPricing && (
         <div className="text-right text-xs">
           <div className="font-medium">{formatCurrency(pricing.rate!)}</div>
-          <div className="text-muted-foreground text-[10px]">{pricing.frequency}</div>
+          <div className="text-muted-foreground text-[10px]">
+            {pricing.billing_frequency || 'N/A'}
+          </div>
         </div>
       )}
 
@@ -106,4 +103,3 @@ export default function CompactServiceCard({
     </div>
   );
 }
-

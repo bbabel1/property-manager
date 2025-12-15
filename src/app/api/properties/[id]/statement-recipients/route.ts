@@ -56,6 +56,38 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { recipients } = validation.data;
 
+    // Ensure the property exists before attempting to update recipients
+    const { data: property, error: propertyError } = await supabaseAdmin
+      .from('properties')
+      .select('id, bin, borough, city')
+      .eq('id', propertyId)
+      .maybeSingle();
+
+    if (propertyError || !property) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Property not found' } },
+        { status: 404 },
+      );
+    }
+
+    // Comply with NYC BIN constraint to avoid DB check failures
+    const nycBoroughs = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'];
+    const isNyProperty =
+      (property.borough && nycBoroughs.includes(property.borough)) ||
+      (property.city && property.city.toLowerCase() === 'new york');
+
+    if (isNyProperty && !property.bin) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'BIN_REQUIRED',
+            message: 'NYC properties must have a BIN before updating statement recipients.',
+          },
+        },
+        { status: 400 },
+      );
+    }
+
     // Update property statement recipients
     const { error: updateError } = await supabaseAdmin
       .from('properties')

@@ -2,10 +2,18 @@ import Link from 'next/link'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import InfoCard from '@/components/layout/InfoCard'
 
+type BankAccountRow = {
+  id: string
+  name: string | null
+  bank_account_type: string | null
+  account_number: string | null
+  is_active: boolean | null
+}
+
 export default async function BankAccountsIndex() {
   const supabase = await getSupabaseServerClient()
   // Prefer API for masking, but server-side select is fine and fast
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('bank_accounts')
     .select('id, name, bank_account_type, account_number, is_active')
     .order('name', { ascending: true })
@@ -24,7 +32,7 @@ export default async function BankAccountsIndex() {
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-foreground">Bank Accounts</h1>
       <div className="rounded-lg border divide-y">
-        {(data || []).map((a: any) => (
+        {(data as BankAccountRow[] | null | undefined)?.map((a) => (
           <div key={a.id} className="p-3 flex items-center justify-between hover:bg-muted/40">
             <div>
               <div className="text-sm font-medium text-foreground">{a.name}</div>

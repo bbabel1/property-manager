@@ -1,3 +1,4 @@
+ 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth';
@@ -175,7 +176,7 @@ async function resolveOrgId(
         .from('users_with_auth')
         .select('user_id, org_ids')
         .eq('email', user.email)
-        .maybeSingle();
+        .maybeSingle<{ user_id?: string; org_ids?: unknown[] }>();
       if (userRow?.user_id) {
         addCandidateUserId(userRow.user_id);
       }

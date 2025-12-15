@@ -318,7 +318,11 @@ export default function LeaseLedgerPanel({
                   : row.account || 'Account';
               return (
                 <div
-                  key={line?.Id ?? idx}
+                  key={
+                    line && typeof line === 'object' && 'Id' in line && line?.Id != null
+                      ? (line as { Id: number }).Id
+                      : idx
+                  }
                   className="flex items-center justify-between gap-2 text-xs text-slate-700"
                 >
                   <span className="truncate">{glName || 'Account'}</span>
@@ -344,6 +348,7 @@ export default function LeaseLedgerPanel({
       detailItems.push({
         label: 'Allocations',
         value: <div className="space-y-1">{allocationList}</div>,
+        mono: false,
       });
     }
 

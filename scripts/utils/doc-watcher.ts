@@ -1,7 +1,7 @@
 import { watch } from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
-import { logger } from './utils/logger';
+import { logger } from './logger';
 
 class DocumentationWatcher {
   private isRunning = false;

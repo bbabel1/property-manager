@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from './db'
 import type { Database } from '@/types/database'
 import { normalizeStaffRole } from './staff-role'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type Property = Database['public']['Tables']['properties']['Row']
 export type Building = Database['public']['Tables']['buildings']['Row']
@@ -119,7 +120,7 @@ export class PropertyService {
       console.log('✅ Supabase connection test successful')
 
       // Prefer admin client on the server to bypass RLS
-      const dbClient = supabaseAdmin || supabase
+      const dbClient = (supabaseAdmin || supabase) as SupabaseClient<Database>
 
       // Fetch property details first
       const { data: property, error: propertyError } = await dbClient
@@ -164,10 +165,10 @@ export class PropertyService {
           .eq('property_id', id)
       ])
 
-      let units = (unitsRes as any).data as Unit[] | null
-      const unitsError = (unitsRes as any).error
-      const ownership = (ownershipRes as any).data as any[] | null
-      const ownershipError = (ownershipRes as any).error
+      let units = unitsRes.data as Unit[] | null
+      const unitsError = unitsRes.error
+      const ownership = ownershipRes.data as (Owner & { owners?: { contacts?: Record<string, unknown> | null } | null })[] | null
+      const ownershipError = ownershipRes.error
 
       if (unitsError) console.error('❌ Error fetching units:', unitsError)
       if (ownershipError) console.error('❌ Error fetching ownership:', ownershipError)
@@ -175,22 +176,23 @@ export class PropertyService {
 
       // Attach tenants to units (latest lease contacts per unit)
       if (units?.length) {
-        const unitIds = units.map((u) => u.id).filter(Boolean) as (string | number)[]
+        const unitIds = units.map((u) => u.id).filter((id): id is string => Boolean(id))
         if (unitIds.length) {
           try {
             const { data: leaseRows } = await dbClient
               .from('lease')
               .select('id, unit_id, status')
-              .in('unit_id', unitIds as any)
+              .in('unit_id', unitIds)
             const leaseById = new Map<string, { unit_id: string | number | null; status?: string | null }>()
-            const leaseIds: (string | number)[] = []
+            const leaseIds: number[] = []
             for (const row of leaseRows || []) {
-              const leaseId = (row as any)?.id
-              if (leaseId != null) {
-                leaseIds.push(leaseId)
-                leaseById.set(String(leaseId), {
-                  unit_id: (row as any)?.unit_id ?? null,
-                  status: (row as any)?.status ?? null,
+              const leaseId = (row as { id?: string | number } | null)?.id
+              const leaseIdNumber = Number(leaseId)
+              if (!Number.isNaN(leaseIdNumber)) {
+                leaseIds.push(leaseIdNumber)
+                leaseById.set(String(leaseIdNumber), {
+                  unit_id: (row as { unit_id?: string | number | null } | null)?.unit_id ?? null,
+                  status: (row as { status?: string | null } | null)?.status ?? null,
                 })
               }
             }
@@ -200,18 +202,21 @@ export class PropertyService {
                 .select(
                   'lease_id, status, tenants( id, contact:contacts(display_name, first_name, last_name, company_name, is_company) )',
                 )
-                .in('lease_id', leaseIds as any)
-              const tenantsByUnit = new Map<string, Array<{ name?: string | null; is_active?: boolean | null }>>()
-              for (const lc of leaseContacts || []) {
-                const leaseId = (lc as any)?.lease_id
+                .in('lease_id', leaseIds)
+            const tenantsByUnit = new Map<string, Array<{ name?: string | null; is_active?: boolean | null }>>()
+            for (const lc of leaseContacts || []) {
+                const leaseId = (lc as { lease_id?: string | number } | null)?.lease_id
                 const leaseMeta = leaseById.get(String(leaseId))
                 const unitId = leaseMeta?.unit_id
                 if (!unitId) continue
-                const contact = (lc as any)?.tenants?.contact
+                const contact = (lc as { tenants?: { contact?: Record<string, unknown> | null } } | null)?.tenants?.contact
                 const name =
-                  contact?.display_name ||
-                  contact?.company_name ||
-                  [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+                  (contact as { display_name?: string | null })?.display_name ||
+                  (contact as { company_name?: string | null })?.company_name ||
+                  [(contact as { first_name?: string | null })?.first_name, (contact as { last_name?: string | null })?.last_name]
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim() ||
                   'Tenant'
                 const isActive = (leaseMeta?.status || '').toLowerCase() !== 'inactive'
                 const list = tenantsByUnit.get(String(unitId)) || []
@@ -235,9 +240,9 @@ export class PropertyService {
       const aggVacant = property.total_vacant_units ?? undefined
 
       // Fallbacks using units table if aggregates not present
-      const occupiedFromUnits = (units || []).filter(u => (u as any).status === 'Occupied').length
-      const vacantFromUnits = (units || []).filter(u => (u as any).status === 'Vacant').length
-      const activeFromUnits = (units || []).filter(u => (u as any).status !== 'Inactive').length
+      const occupiedFromUnits = (units || []).filter(u => u.status === 'Occupied').length
+      const vacantFromUnits = (units || []).filter(u => u.status === 'Vacant').length
+      const activeFromUnits = (units || []).filter(u => u.status !== 'Inactive').length
 
       const units_summary = {
         total: property.total_active_units ?? (aggTotal || activeFromUnits),
@@ -253,26 +258,26 @@ export class PropertyService {
       })
 
       // Use DB computed occupancy_rate when available; otherwise derive from summary
-      const occRaw = (property as any).occupancy_rate
+      const occRaw = (property as { occupancy_rate?: number | string | null }).occupancy_rate
       const occupancy_rate = (typeof occRaw === 'number' ? occRaw : (occRaw != null ? Number(occRaw) : undefined)) ?? (
         units_summary.total > 0
           ? Math.round((units_summary.occupied / units_summary.total) * 100)
           : 0
       )
 
-      let owners: Owner[] = (ownership?.map(o => {
-        const ownerSource = (o.owners ?? {}) as Record<string, unknown>
-        const { contacts, ...ownerRow } = ownerSource
-        const contactRow = (contacts as Record<string, unknown> | null) ?? {}
-        return {
-          ...(ownerRow as Partial<Owner>),
-          ...(contactRow as Partial<Owner>),
-          ownership_percentage: o.ownership_percentage,
-          disbursement_percentage: o.disbursement_percentage,
-          primary: o.primary,
-        } as Owner
-      }).filter(Boolean) as Owner[] | undefined)
-        ?.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)) || []
+      let owners: Owner[] =
+        (ownership?.map((o) => {
+          const ownerSource = (o.owners ?? {}) as Record<string, unknown>
+          const { contacts, ...ownerRow } = ownerSource
+          const contactRow = (contacts as Record<string, unknown> | null) ?? {}
+          return {
+            ...(ownerRow as Partial<Owner>),
+            ...(contactRow as Partial<Owner>),
+            ownership_percentage: o.ownership_percentage,
+            disbursement_percentage: o.disbursement_percentage,
+            primary: o.primary,
+          } as Owner
+        }).filter(Boolean) as Owner[] | undefined)?.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0)) || []
 
       // Fallback: if ownerships table is empty (e.g., cache drift), pull from property_ownerships_cache
       if (!owners.length) {
@@ -283,8 +288,8 @@ export class PropertyService {
         if (pocError) {
           console.error('❌ Error fetching property_ownerships_cache:', pocError)
         }
-        const cacheOwners =
-          poc?.map(o => ({
+        const cacheOwners: Owner[] =
+          (poc?.map(o => ({
             id: o.owner_id,
             contact_id: o.contact_id,
             ownership_percentage: o.ownership_percentage,
@@ -292,7 +297,7 @@ export class PropertyService {
             primary: !!o.primary,
             display_name: o.display_name ?? undefined,
             primary_email: o.primary_email ?? undefined,
-          })) || []
+          })) as unknown as Owner[]) || []
         owners = cacheOwners.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0))
       }
 
@@ -321,25 +326,39 @@ export class PropertyService {
       let property_manager_name: string | undefined = undefined
       let property_manager_email: string | undefined = undefined
       let property_manager_phone: string | undefined = undefined
-      if (property.property_manager_id) {
-        try {
-          const { data: manager } = await dbClient
-            .from('staff')
-            .select('id, display_name, first_name, last_name, email, phone, role')
-            .eq('id', property.property_manager_id)
-            .maybeSingle()
-          const normalizedRole = normalizeStaffRole((manager as any)?.role)
-          if (manager && normalizedRole === 'Property Manager') {
-            property_manager_name =
-              (manager as any)?.display_name ||
-              [(manager as any)?.first_name, (manager as any)?.last_name].filter(Boolean).join(' ').trim() ||
-              'Property Manager'
-            property_manager_email = (manager as any)?.email ?? undefined
-            property_manager_phone = (manager as any)?.phone ?? undefined
-          }
-        } catch (err) {
-          console.warn('Failed to load property manager', err)
+      try {
+        const { data: managerAssignments } = await dbClient
+          .from('property_staff')
+          .select('role, staff:staff(id, first_name, last_name, email, phone)')
+          .eq('property_id', id)
+
+        const managerAssignmentsArray = Array.isArray(managerAssignments)
+          ? managerAssignments
+          : [];
+
+        const managerAssignment =
+          managerAssignmentsArray.find(
+            (assignment) => normalizeStaffRole((assignment as { role?: string | null }).role) === 'Property Manager'
+          ) ?? null
+        const staffEntry = (managerAssignment as any)?.staff ?? null
+        const staffRecord = (Array.isArray(staffEntry) ? staffEntry[0] : staffEntry) as
+          | {
+              first_name?: string | null
+              last_name?: string | null
+              email?: string | null
+              phone?: string | null
+            }
+          | null
+          | undefined
+
+        if (staffRecord) {
+          property_manager_name =
+            [staffRecord.first_name, staffRecord.last_name].filter(Boolean).join(' ').trim() || 'Property Manager'
+          property_manager_email = staffRecord.email ?? undefined
+          property_manager_phone = staffRecord.phone ?? undefined
         }
+      } catch (err) {
+        console.warn('Failed to load property manager', err)
       }
 
       // Enrich: primary image URL (disabled until product defines property image strategy)
@@ -348,13 +367,13 @@ export class PropertyService {
       // Compute primary owner name for display
       let primary_owner_name: string | undefined
       if (owners.length) {
-        const po = owners.find(o => (o as any).primary) || owners[0]
+        const po = owners.find(o => o.primary) || owners[0]
         primary_owner_name =
-          (po as any).display_name
-          || (po as any).company_name
+          po.display_name
+          || po.company_name
           || [
-            (po as any).first_name,
-            (po as any).last_name
+            po.first_name,
+            po.last_name
           ].filter(Boolean).join(' ').trim()
           || undefined
       }

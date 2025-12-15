@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import useSWR from 'swr';
 import { Bell, CalendarClock, ChevronDown, ChevronRight, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,8 +34,6 @@ type RecurringTaskFormState = {
   autoAssignManager: boolean;
   reminders: number[];
 };
-
-type StaffOption = { id: number; name: string };
 
 type Props = {
   propertyId: string | null;
@@ -85,25 +83,13 @@ export default function RecurringTasksForUnit({
 }: Props) {
   const [formState, setFormState] = useState<RecurringTaskFormState>(defaultFormState);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [reminderDraft, setReminderDraft] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const canManage = Boolean(propertyId && unitId);
 
-  const { data: staffData, isLoading: staffLoading } = useSWR<
-    { id: number; displayName?: string; email?: string }[]
-  >(canManage ? '/api/staff?isActive=true' : null, fetcher);
-
-  const staffOptions: StaffOption[] = useMemo(() => {
-    return (staffData || []).map((member) => ({
-      id: member.id,
-      name: member.displayName || member.email || `Staff ${member.id}`,
-    }));
-  }, [staffData]);
-
-  const { data, isLoading, mutate } = useSWR<{ items?: RecurringTaskTemplate[] }>(
+  const { data, mutate } = useSWR<{ items?: RecurringTaskTemplate[] }>(
     canManage
       ? `/api/monthly-logs/recurring-tasks?propertyId=${propertyId}&unitId=${unitId}`
       : null,
@@ -116,7 +102,6 @@ export default function RecurringTasksForUnit({
   const resetForm = () => {
     setFormState(defaultFormState);
     setEditingId(null);
-    setReminderDraft('');
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -187,7 +172,6 @@ export default function RecurringTasksForUnit({
       autoAssignManager: task.autoAssignManager,
       reminders: task.reminders || [],
     });
-    setReminderDraft('');
   };
 
   const handleDelete = async (taskId: string) => {
@@ -210,65 +194,6 @@ export default function RecurringTasksForUnit({
       setDeletingId(null);
     }
   };
-
-  const toggleAdditionalStaff = (id: number) => {
-    setFormState((prev) => {
-      const next = prev.additionalStaffIds.includes(id)
-        ? prev.additionalStaffIds.filter((value) => value !== id)
-        : [...prev.additionalStaffIds, id];
-      return { ...prev, additionalStaffIds: next };
-    });
-  };
-
-  const addReminder = () => {
-    const value = Number(reminderDraft);
-    if (!Number.isFinite(value) || value < 0) {
-      toast.error('Reminder must be a non-negative number of days.');
-      return;
-    }
-    setFormState((prev) => ({
-      ...prev,
-      reminders: Array.from(new Set([...prev.reminders, value])).sort((a, b) => a - b),
-    }));
-    setReminderDraft('');
-  };
-
-  const removeReminder = (value: number) => {
-    setFormState((prev) => ({
-      ...prev,
-      reminders: prev.reminders.filter((item) => item !== value),
-    }));
-  };
-
-  const StaffSelect = ({
-    value,
-    onChange,
-    placeholder,
-  }: {
-    value: number | null;
-    onChange: (value: number | null) => void;
-    placeholder: string;
-  }) => (
-    <Select
-      value={value != null ? String(value) : ''}
-      onValueChange={(val) => {
-        if (val === 'none') onChange(null);
-        else onChange(Number(val));
-      }}
-    >
-      <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="none">Unassigned</SelectItem>
-        {staffOptions.map((staff) => (
-          <SelectItem key={staff.id} value={String(staff.id)}>
-            {staff.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 
   return (
     <section className="rounded-lg border border-slate-300 bg-slate-100 p-3">

@@ -1,9 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import { Client } from 'pg'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 
-dotenv.config({ path: '.env' })
+config({ path: '.env' })
 
 async function run(file) {
   const sqlPath = path.resolve(file)

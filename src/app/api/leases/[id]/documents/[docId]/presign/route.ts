@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
@@ -11,7 +12,7 @@ import { logger } from '@/lib/logger';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ leaseId: string; docId: string }> },
+  { params }: { params: Promise<{ id: string; docId: string }> },
 ) {
   const corr =
     request.headers.get('Idempotency-Key') || `presign-get:${Date.now()}:${Math.random()}`;
@@ -21,8 +22,9 @@ export async function GET(
     }
     const supabaseAdmin = requireSupabaseAdmin('lease documents presign get');
     const supabase = await getSupabaseServerClient();
-    const leaseIdNum = Number((await params).leaseId);
-    const fileId = (await params).docId;
+    const { id, docId } = await params;
+    const leaseIdNum = Number(id);
+    const fileId = docId;
     if (!leaseIdNum || !fileId) {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
@@ -44,7 +46,17 @@ export async function GET(
       return NextResponse.json({ error: 'Lease not found' }, { status: 404 });
     }
 
-    if (!lease.buildium_lease_id) {
+    const buildiumLeaseId =
+      typeof lease.buildium_lease_id === 'number'
+        ? lease.buildium_lease_id
+        : Number(lease.buildium_lease_id);
+    const orgId = typeof lease.org_id === 'string' ? lease.org_id : null;
+
+    if (!orgId) {
+      return NextResponse.json({ error: 'Lease organization missing' }, { status: 400 });
+    }
+
+    if (!Number.isFinite(buildiumLeaseId)) {
       return NextResponse.json({ error: 'Lease not linked to Buildium' }, { status: 400 });
     }
 
@@ -53,9 +65,9 @@ export async function GET(
       .from('files')
       .select('id, storage_provider, bucket, storage_key, external_url, sha256, buildium_file_id')
       .eq('id', fileId)
-      .eq('org_id', lease.org_id)
-      .eq('entity_type', 'Lease')
-      .eq('entity_id', lease.buildium_lease_id)
+      .eq('org_id', orgId)
+      .eq('entity_type', 'Leases')
+      .eq('entity_id', buildiumLeaseId)
       .is('deleted_at', null)
       .maybeSingle();
 

@@ -1,6 +1,10 @@
 // OpenTelemetry instrumentation for Next.js (Node runtime)
 // Enabled when OTEL_ENABLED=1 (and optional OTLP endpoint is provided)
 
+const globalWithTelemetryFlags = globalThis as typeof globalThis & {
+  __otelShutdownHookRegistered?: boolean;
+};
+
 export async function register() {
   try {
     const nodeProcess = typeof globalThis === 'object' ? (globalThis.process as NodeJS.Process | undefined) : undefined
@@ -42,19 +46,19 @@ export async function register() {
         new FetchInstrumentation({}),
         new HttpInstrumentation({}),
         new PgInstrumentation({}),
-        new PinoInstrumentation({}) as any,
+        new PinoInstrumentation({}),
       ],
     })
 
     await sdk.start()
 
-    if (typeof nodeProcess?.on === 'function') {
-      nodeProcess.on('SIGTERM', () => {
+    if (typeof nodeProcess?.on === 'function' && !globalWithTelemetryFlags.__otelShutdownHookRegistered) {
+      globalWithTelemetryFlags.__otelShutdownHookRegistered = true
+      const shutdown = () => {
         void sdk.shutdown()
-      })
-      nodeProcess.on('SIGINT', () => {
-        void sdk.shutdown()
-      })
+      }
+      nodeProcess.once('SIGTERM', shutdown)
+      nodeProcess.once('SIGINT', shutdown)
     }
   } catch (e) {
     // Never block startup due to telemetry errors

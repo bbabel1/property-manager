@@ -56,8 +56,16 @@ const getDaysInMonth = (year: string | undefined, month: string | undefined) => 
   return new Date(numericYear, numericMonth, 0).getDate();
 };
 
-const formatDisplayDate = (month: string, day: string, year: string) => {
-  if (!month || !day || !year) {
+const formatDisplayDate = (month: string, day: string, year: string, includeYear = true) => {
+  if (!month || !day) {
+    return "";
+  }
+
+  if (!includeYear) {
+    return `${month}/${day}`;
+  }
+
+  if (!year) {
     return "";
   }
 
@@ -81,6 +89,7 @@ export type DateInputProps = Omit<NativeInputProps, "type" | "value" | "onChange
   futureYearRange?: number;
   containerClassName?: string;
   hideClear?: boolean;
+  hideYear?: boolean;
 };
 
 const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInput(
@@ -99,6 +108,7 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
     onClick,
     onKeyDown,
     name,
+    hideYear,
     ...inputProps
   },
   ref,
@@ -176,7 +186,10 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
     return [year, ...baseYearOptions].sort((a, b) => Number(b) - Number(a));
   }, [baseYearOptions, year]);
 
-  const displayValue = useMemo(() => formatDisplayDate(month, day, year), [month, day, year]);
+  const displayValue = useMemo(
+    () => formatDisplayDate(month, day, year, !hideYear),
+    [day, hideYear, month, year],
+  );
   const isoValue = useMemo(() => (month && day && year ? `${year}-${month}-${day}` : ""), [
     day,
     month,
@@ -273,6 +286,8 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
     onBlur?.(event);
   };
 
+  const gridColumnsClass = hideYear ? "grid-cols-2" : "grid-cols-3";
+
   return (
     <div className={cn("relative", containerClassName)}>
       <Calendar className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
@@ -298,7 +313,7 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
           />
         </PopoverTrigger>
         <PopoverContent id={popoverId} align="start" className="w-[280px] space-y-3">
-          <div className="grid grid-cols-3 gap-2">
+          <div className={cn("grid gap-2", gridColumnsClass)}>
             <div className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground">Month</span>
               <Select value={month} onValueChange={handleMonthChange} disabled={disabled}>
@@ -329,21 +344,23 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">Year</span>
-              <Select value={year} onValueChange={handleYearChange} disabled={disabled}>
-                <SelectTrigger id={`${inputProps?.id || ""}-year`}>
-                  <SelectValue placeholder="Year" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {yearOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {hideYear ? null : (
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Year</span>
+                <Select value={year} onValueChange={handleYearChange} disabled={disabled}>
+                  <SelectTrigger id={`${inputProps?.id || ""}-year`}>
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {yearOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           {hideClear ? null : (
             <div className="flex items-center justify-end">

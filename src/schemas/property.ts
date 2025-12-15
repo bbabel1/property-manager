@@ -34,7 +34,7 @@ export const PropertyCreateSchema = z.object({
   // Management/Service/Fee fields
   management_scope: z.enum(['Building', 'Unit']).optional(),
   service_assignment: z.enum(['Property Level', 'Unit Level']).optional(),
-  service_plan: z.enum(['Full', 'Basic', 'A-la-carte']).optional(),
+  service_plan: z.enum(['Full', 'Basic', 'A-la-carte', 'Custom']).optional(),
   active_services: z
     .array(
       z.enum([

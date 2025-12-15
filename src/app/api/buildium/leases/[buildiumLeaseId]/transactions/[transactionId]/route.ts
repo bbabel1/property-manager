@@ -7,7 +7,10 @@ import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumLeaseTransactionUpdateSchema } from '@/schemas/buildium';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; transactionId: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string; transactionId: string }> },
+) {
   try {
     const supabaseAdmin = requireSupabaseAdmin('lease transaction sync')
     // Check rate limiting
@@ -22,12 +25,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id, transactionId } = await params;
+    const { buildiumLeaseId, transactionId } = await params;
     const { searchParams } = new URL(request.url);
     const persist = (searchParams.get('persist') || '').toLowerCase() === 'true';
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/transactions/${transactionId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/transactions/${transactionId}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',
@@ -85,7 +88,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; transactionId: string }> }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string; transactionId: string }> },
+) {
   try {
     const rateLimitResult = await checkRateLimit(request)
     if (!rateLimitResult.success) {
@@ -93,12 +99,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     await requireRole('platform_admin')
-    const { id, transactionId } = await params
+    const { buildiumLeaseId, transactionId } = await params
 
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumLeaseTransactionUpdateSchema)
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/transactions/${transactionId}`
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/transactions/${transactionId}`
     const response = await fetch(buildiumUrl, {
       method: 'PUT',
       headers: {

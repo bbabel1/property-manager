@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { X, Save, DollarSign } from 'lucide-react'
-import { Button } from './ui/button'
+import { Button } from '@/components/ui/button'
 import { type PropertyWithDetails } from '@/lib/property-service'
-import CreateBankAccountModal from './components/CreateBankAccountModal'
-import { Dropdown } from './ui/Dropdown'
+import CreateBankAccountModal from '@/components/CreateBankAccountModal'
+import { Dropdown } from '@/components/ui/Dropdown'
 import type { BankAccountSummary, BankingDetailsFormValues } from '@/components/forms/types'
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
@@ -190,7 +190,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
                 </label>
                 <Dropdown
                   value={formData.operating_bank_account_id}
-                  onChange={value => handleBankAccountChange('operating_bank_account_id', value)}
+                  onChange={(value: string) => handleBankAccountChange('operating_bank_account_id', value)}
                   options={[
                     ...bankAccounts.map(account => ({
                       value: account.id,
@@ -208,7 +208,7 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
                 </label>
                 <Dropdown
                   value={formData.deposit_trust_account_id}
-                  onChange={value => handleBankAccountChange('deposit_trust_account_id', value)}
+                  onChange={(value: string) => handleBankAccountChange('deposit_trust_account_id', value)}
                   options={[
                     ...bankAccounts.map(account => ({
                       value: account.id,

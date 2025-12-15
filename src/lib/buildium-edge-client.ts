@@ -909,6 +909,25 @@ export class BuildiumEdgeClient {
     }
   }
 
+  async syncGLAccountToBuildium(glAccount: any): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const { data, error } = await supabase.functions.invoke('buildium-sync', {
+        body: {
+          entityType: 'glAccount',
+          operation: glAccount?.Id ? 'update' : 'create',
+          entityData: glAccount,
+        },
+      });
+
+      if (error) return { success: false, error: error.message };
+      if (data?.error) return { success: false, error: data.error };
+      return { success: true, data: data?.data ?? data };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      return { success: false, error: msg };
+    }
+  }
+
   async syncBankAccountToBuildium(bankAccountData: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {

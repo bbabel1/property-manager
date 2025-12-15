@@ -8,8 +8,7 @@
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { getOwnerDrawSummary } from '@/lib/monthly-log-calculations';
 import { calculateNetToOwnerValue } from '@/types/monthly-log';
-import { formatCurrency, formatDate, formatUrl } from './formatting';
-import { addMonths, endOfMonth, parseISO, format } from 'date-fns';
+import { endOfMonth, parseISO, format } from 'date-fns';
 import type { TemplateVariableValues } from '@/types/email-templates';
 
 /**
@@ -43,17 +42,22 @@ async function getPrimaryOwnerName(
       .order('primary', { ascending: false })
       .limit(1);
 
-    if (ownerships && ownerships.length > 0) {
-      const owner = ownerships[0];
-      const contacts = (owner.owners as any)?.contacts;
-      if (contacts) {
-        const firstName = contacts.first_name?.trim() || '';
-        const lastName = contacts.last_name?.trim() || '';
-        const combined = `${firstName} ${lastName}`.trim();
-        if (combined) return combined;
-        if (contacts.company_name) return contacts.company_name;
-        if (contacts.display_name) return contacts.display_name;
-      }
+    const owner = ownerships?.[0];
+    const contacts =
+      owner &&
+      typeof owner === 'object' &&
+      owner.owners &&
+      typeof owner.owners === 'object' &&
+      'contacts' in owner.owners
+        ? (owner.owners as { contacts?: { first_name?: string | null; last_name?: string | null; company_name?: string | null; display_name?: string | null } }).contacts
+        : undefined;
+    if (contacts) {
+      const firstName = contacts.first_name?.trim() || '';
+      const lastName = contacts.last_name?.trim() || '';
+      const combined = `${firstName} ${lastName}`.trim();
+      if (combined) return combined;
+      if (contacts.company_name) return contacts.company_name;
+      if (contacts.display_name) return contacts.display_name;
     }
   } catch (error) {
     console.error('Error fetching primary owner name:', error);
@@ -152,10 +156,20 @@ export async function buildTemplateVariables(
     throw new Error('Monthly log not found');
   }
 
-  const property = monthlyLog.properties as any;
-  const unit = monthlyLog.units as any;
-  const tenant = monthlyLog.tenants as any;
-  const tenantContact = tenant?.contacts as any;
+  const property = monthlyLog.properties as {
+    name?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    operating_bank_account_id?: string | null;
+    buildium_property_id?: string | number | null;
+    id?: string | null;
+  } | null;
+  const unit = monthlyLog.units as { unit_number?: string | null; unit_name?: string | null } | null;
+  const tenant = monthlyLog.tenants as { contacts?: { first_name?: string | null; last_name?: string | null; display_name?: string | null; primary_email?: string | null; primary_phone?: string | null } | null } | null;
+  const tenantContact = tenant?.contacts;
   const tenantName =
     tenantContact?.display_name ||
     `${tenantContact?.first_name || ''} ${tenantContact?.last_name || ''}`.trim();
@@ -163,12 +177,12 @@ export async function buildTemplateVariables(
   // Fetch organization data
   const { data: organization } = await db
     .from('organizations')
-    .select('name, address, phone, email')
+    .select('name, slug')
     .eq('id', orgId)
     .single();
 
   // Fetch lease data if available
-  let leaseData: any = null;
+  let leaseData: { start_date: string | null; end_date: string | null; deposit_amount: number | null; rent_amount: number | null } | null = null;
   if (monthlyLog.lease_id) {
     const { data: lease } = await db
       .from('lease')
@@ -187,7 +201,7 @@ export async function buildTemplateVariables(
 
   // Fetch primary owner contact info
   const primaryOwnerName = await getPrimaryOwnerName(monthlyLog.property_id, db);
-  let ownerContact: any = null;
+  let ownerContact: Record<string, any> | null = null;
   try {
     const { data: ownerships } = await db
       .from('ownerships')
@@ -198,15 +212,17 @@ export async function buildTemplateVariables(
       .order('primary', { ascending: false })
       .limit(1);
 
-    if (ownerships && ownerships.length > 0) {
-      ownerContact = (ownerships[0].owners as any)?.contacts;
-    }
+    const owner = ownerships?.[0];
+    ownerContact =
+      owner && owner.owners && typeof owner.owners === 'object' && 'contacts' in owner.owners
+        ? ((owner.owners as { contacts?: Record<string, any> | null }).contacts ?? null)
+        : null;
   } catch (error) {
     console.error('Error fetching owner contact:', error);
   }
 
   // Fetch bank account if available
-  let bankAccount: any = null;
+  let bankAccount: { name?: string | null; account_number?: string | null } | null = null;
   if (property?.operating_bank_account_id) {
     const { data: bank } = await db
       .from('bank_accounts')
@@ -245,6 +261,19 @@ export async function buildTemplateVariables(
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
   const statementUrl = baseUrl ? `${baseUrl}/monthly-logs/${monthlyLogId}` : '';
 
+  const propertyAddress = formatAddress({
+    address_line1: property?.address_line1,
+    address_line2: property?.address_line2,
+    city: property?.city,
+    state: property?.state,
+    postal_code: property?.postal_code,
+  });
+
+  const companyName = organization?.name || 'Property Management Company';
+  const companyAddress = propertyAddress;
+  const companyPhone = '';
+  const companyEmail = '';
+
   // Build variable map
   const variables: TemplateVariableValues = {
     // Statement Metadata
@@ -260,13 +289,7 @@ export async function buildTemplateVariables(
     propertyCity: property?.city || '',
     propertyState: property?.state || '',
     propertyPostalCode: property?.postal_code || '',
-    propertyAddress: formatAddress({
-      address_line1: property?.address_line1,
-      address_line2: property?.address_line2,
-      city: property?.city,
-      state: property?.state,
-      postal_code: property?.postal_code,
-    }),
+    propertyAddress,
     propertyParcelId: property?.buildium_property_id || property?.id || '',
 
     // Unit Information
@@ -326,15 +349,15 @@ export async function buildTemplateVariables(
     ownerDistributionAmount: monthlyLog.owner_distribution_amount || 0,
 
     // Organization/Company Information
-    companyName: organization?.name || 'Property Management Company',
-    companyAddress: organization?.address || '',
-    companyPhone: organization?.phone || '',
-    companyEmail: organization?.email || '',
+    companyName,
+    companyAddress,
+    companyPhone,
+    companyEmail,
 
     // Bank/Remittance Information
     bankAccountName: bankAccount?.name || '',
     bankAccountNumber: maskAccountNumber(bankAccount?.account_number),
-    remitToAddress: organization?.address || '',
+    remitToAddress: companyAddress,
 
     // Statement Notes/Memo
     statementNotes: monthlyLog.notes || '',

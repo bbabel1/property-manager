@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -56,7 +57,16 @@ export async function POST(
   if (!lease) {
     return NextResponse.json({ error: 'Lease not found' }, { status: 404 });
   }
-  if (!lease.buildium_lease_id) {
+  const buildiumLeaseId =
+    typeof lease.buildium_lease_id === 'number'
+      ? lease.buildium_lease_id
+      : Number(lease.buildium_lease_id);
+  const orgId = typeof lease.org_id === 'string' ? lease.org_id : null;
+
+  if (!orgId) {
+    return NextResponse.json({ error: 'Lease organization missing' }, { status: 400 });
+  }
+  if (!Number.isFinite(buildiumLeaseId)) {
     return NextResponse.json({ error: 'Lease not linked to Buildium' }, { status: 400 });
   }
 
@@ -67,9 +77,9 @@ export async function POST(
       'id, storage_provider, bucket, storage_key, file_name, mime_type, buildium_file_id, buildium_href, description, buildium_category_id',
     )
     .eq('id', docId)
-    .eq('org_id', lease.org_id)
-    .eq('entity_type', 'Lease')
-    .eq('entity_id', lease.buildium_lease_id)
+    .eq('org_id', orgId)
+    .eq('entity_type', 'Leases')
+    .eq('entity_id', buildiumLeaseId)
     .is('deleted_at', null)
     .maybeSingle();
 
@@ -116,7 +126,7 @@ export async function POST(
       .from('file_categories')
       .select('category_name')
       .eq('buildium_category_id', fileRow.buildium_category_id)
-      .eq('org_id', lease.org_id)
+      .eq('org_id', orgId)
       .maybeSingle();
     category = categoryRecord?.category_name ?? null;
   }

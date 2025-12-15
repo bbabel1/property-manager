@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 
-config()
+config({ path: '.env.local' })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,6 +31,9 @@ async function fetchAllTransactionsFromBuildium(leaseId: string) {
 }
 
 async function createTransactionRecord(transaction: any) {
+  const validPaymentMethods = new Set(['Check', 'Cash', 'MoneyOrder', 'CashierCheck', 'DirectDeposit', 'CreditCard', 'ElectronicPayment'])
+  const paymentMethod = validPaymentMethods.has(transaction.PaymentMethod) ? transaction.PaymentMethod : null
+
   const transactionData = {
     buildium_transaction_id: transaction.Id,
     date: transaction.Date,
@@ -39,7 +42,7 @@ async function createTransactionRecord(transaction: any) {
     check_number: transaction.CheckNumber,
     buildium_lease_id: parseInt(leaseId),
     payee_tenant_id: transaction.PayeeTenantId,
-    payment_method: transaction.PaymentMethod,
+    payment_method: paymentMethod,
     memo: transaction.Memo,
     buildium_bill_id: transaction.BillId,
     created_at: new Date().toISOString(),

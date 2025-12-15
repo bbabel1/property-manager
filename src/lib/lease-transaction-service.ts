@@ -62,14 +62,18 @@ export function resolveTransactionCreateSuffix(
 export function ensureDateField(
   payload: BuildiumLeaseTransactionCreate,
 ): BuildiumLeaseTransactionCreate & { Date?: string } {
-  if (payload == null) return payload;
-  if (payload.Date && payload.Date.length > 0) {
-    return payload;
+  const normalized = payload as BuildiumLeaseTransactionCreate & {
+    Date?: string;
+    TransactionDate?: string;
+  };
+  if (normalized == null) return normalized;
+  if (normalized.Date && normalized.Date.length > 0) {
+    return normalized;
   }
-  if (payload.TransactionDate && payload.TransactionDate.length > 0) {
-    return { ...payload, Date: payload.TransactionDate };
+  if (normalized.TransactionDate && normalized.TransactionDate.length > 0) {
+    return { ...normalized, Date: normalized.TransactionDate };
   }
-  return payload;
+  return normalized;
 }
 
 const buildLeaseEndpoint = (leaseId: number, rawSuffix: string): string => {
@@ -127,24 +131,30 @@ export class LeaseTransactionService {
       for (const tx of items) {
         try {
           const header = mapLeaseTransactionFromBuildium(tx);
-          const { data: existing } = await supabaseAdmin
-            .from('transactions')
-            .select('id')
-            .eq('buildium_transaction_id', header.buildium_transaction_id)
-            .single();
+          const buildiumTxId = header.buildium_transaction_id;
+          let existing: { id: string } | null = null;
+          if (buildiumTxId != null) {
+            const { data } = await supabaseAdmin
+              .from('transactions')
+              .select('id')
+              .eq('buildium_transaction_id', buildiumTxId)
+              .maybeSingle();
+            existing = data ?? null;
+          }
 
+          const timestamp = new Date().toISOString();
           if (existing) {
             await supabaseAdmin
               .from('transactions')
-              .update({ ...header, updated_at: new Date().toISOString() })
+              .update({ ...header, updated_at: timestamp })
               .eq('id', existing.id);
           } else {
             await supabaseAdmin
               .from('transactions')
               .insert({
                 ...header,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
+                created_at: timestamp,
+                updated_at: timestamp,
               });
           }
         } catch (e) {

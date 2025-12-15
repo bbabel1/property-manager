@@ -1,7 +1,7 @@
 #!/usr/bin/env -S npx tsx
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
-import { createCharge } from '../../src/lib/posting-service'
+import { createCharge } from '@/lib/posting-service'
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const service = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -49,4 +49,3 @@ async function main() {
 }
 
 main().catch(e => { console.error(e); process.exit(1) })
-

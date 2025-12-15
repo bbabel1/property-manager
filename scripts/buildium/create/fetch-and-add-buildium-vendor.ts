@@ -61,9 +61,18 @@ async function fetchAndAddBuildiumVendor(vendorId: number) {
     const localData = await mapVendorFromBuildiumWithCategory(buildiumVendor, supabase)
     const now = new Date().toISOString()
 
+    if (localData.contact_id == null) {
+      throw new Error('Mapped vendor is missing contact_id; cannot upsert without contact reference')
+    }
+    const contactId = localData.contact_id
+    const taxPayerType: 'SSN' | 'EIN' | null = localData.tax_payer_type === 'SSN' || localData.tax_payer_type === 'EIN'
+      ? localData.tax_payer_type
+      : null
+    const normalizedData = { ...localData, contact_id: contactId, tax_payer_type: taxPayerType }
+
     if (existingVendor) {
       console.log(`✏️ Vendor already exists (id: ${existingVendor.id}). Updating record...`)
-      const updatePayload = { ...localData, updated_at: now }
+      const updatePayload = { ...normalizedData, updated_at: now }
       const { data: updated, error: updateError } = await supabase
         .from('vendors')
         .update(updatePayload)
@@ -87,7 +96,7 @@ async function fetchAndAddBuildiumVendor(vendorId: number) {
     }
 
     console.log('➕ Vendor not found locally. Creating new record...')
-    const insertPayload = { ...localData, created_at: now, updated_at: now }
+    const insertPayload = { ...normalizedData, created_at: now, updated_at: now }
     const { data: created, error: insertError } = await supabase
       .from('vendors')
       .insert(insertPayload)

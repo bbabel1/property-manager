@@ -1,14 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 
 import { cn } from "./utils";
 
 type CalendarProps = React.ComponentProps<typeof DayPicker>;
-
-type IconProps = React.ComponentPropsWithoutRef<"svg">;
 
 function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
   return (
@@ -54,14 +51,6 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         day_hidden: "invisible",
         footer: "border-t border-border/70 px-3 pb-2 pt-2 text-sm",
         ...classNames,
-      }}
-      components={{
-        IconLeft: ({ className, ...iconProps }: IconProps) => (
-          <ChevronLeft className={cn("size-4", className)} {...iconProps} />
-        ),
-        IconRight: ({ className, ...iconProps }: IconProps) => (
-          <ChevronRight className={cn("size-4", className)} {...iconProps} />
-        ),
       }}
       {...props}
     />

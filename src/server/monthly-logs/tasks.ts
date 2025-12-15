@@ -10,8 +10,21 @@ import {
 import type { TypedSupabaseClient } from '@/lib/db';
 import type { MonthlyLogTaskSummary } from '@/components/monthly-logs/types';
 import type { Database } from '@/types/database';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
+type TaskSelection = Pick<
+  TaskRow,
+  | 'id'
+  | 'subject'
+  | 'status'
+  | 'priority'
+  | 'scheduled_date'
+  | 'updated_at'
+  | 'created_at'
+  | 'category'
+  | 'assigned_to'
+>;
 type CreateMonthlyLogTaskInput = {
   subject: string;
   description?: string | null;
@@ -23,7 +36,7 @@ type CreateMonthlyLogTaskInput = {
   taskCategoryId?: string | null;
 };
 
-function toMonthlyLogTaskSummary(row: TaskRow): MonthlyLogTaskSummary {
+function toMonthlyLogTaskSummary(row: TaskSelection): MonthlyLogTaskSummary {
   const statusMeta = normalizeTaskStatus(row.status);
   const priorityMeta = normalizeTaskPriority(row.priority);
   const updatedIso = row.updated_at || row.created_at;
@@ -46,13 +59,13 @@ export async function listMonthlyLogTasks(
   monthlyLogId: string,
   supabase: TypedSupabaseClient,
 ): Promise<MonthlyLogTaskSummary[]> {
-  const { data, error } = (await supabase
+  const { data, error }: { data: TaskSelection[] | null; error: PostgrestError | null } = await supabase
     .from('tasks')
     .select(
       'id, subject, status, priority, scheduled_date, updated_at, created_at, category, assigned_to',
     )
     .eq('monthly_log_id', monthlyLogId)
-    .order('updated_at', { ascending: false })) as { data: TaskRow[] | null; error: any };
+    .order('updated_at', { ascending: false });
 
   if (error) {
     throw error;
@@ -101,16 +114,16 @@ export async function createMonthlyLogTask(
       monthly_log_id: monthlyLogId,
       source: 'monthly_log',
     })
-    .select(
-      'id, subject, status, priority, scheduled_date, updated_at, created_at, category, assigned_to',
-    )
+    .select('id, subject, status, priority, scheduled_date, updated_at, created_at, category, assigned_to')
     .single();
 
-  if (error || !data) {
+  const typedData = data as TaskSelection | null;
+
+  if (error || !typedData) {
     throw error;
   }
 
-  return toMonthlyLogTaskSummary(data as TaskRow);
+  return toMonthlyLogTaskSummary(typedData);
 }
 
 export type { CreateMonthlyLogTaskInput };

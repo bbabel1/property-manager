@@ -25,6 +25,7 @@ import {
   stripHtmlTags,
   escapeHtml,
 } from '@/lib/email-templates/sanitization';
+import type { Json } from '@/types/database';
 
 /**
  * Get an active email template by org and template key
@@ -146,7 +147,7 @@ export async function createEmailTemplate(
       subject_template: template.subject_template,
       body_html_template: sanitizedHtml,
       body_text_template: template.body_text_template || null,
-      available_variables: template.available_variables,
+      available_variables: template.available_variables as unknown as Json,
       status: template.status || 'active',
       created_by_user_id: userId,
       updated_by_user_id: userId,

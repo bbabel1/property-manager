@@ -3,7 +3,10 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -17,10 +20,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id } = await params;
+    const { buildiumLeaseId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/leases/${id}/transactions/outstanding-balances`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/leases/${buildiumLeaseId}/transactions/outstanding-balances`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',

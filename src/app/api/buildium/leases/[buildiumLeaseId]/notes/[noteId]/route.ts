@@ -5,7 +5,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseNoteUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; noteId: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string; noteId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -19,10 +22,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id, noteId } = await params;
+    const { buildiumLeaseId, noteId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/notes/${noteId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/notes/${noteId}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',
@@ -65,7 +68,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; noteId: string }> }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string; noteId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -79,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id, noteId } = await params;
+    const { buildiumLeaseId, noteId } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -88,7 +94,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseNoteUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/notes/${noteId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/notes/${noteId}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'PUT',

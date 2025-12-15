@@ -84,6 +84,14 @@ interface UploadPayload {
   description: string;
 }
 
+type UpdateFilePayload = {
+  title?: string;
+  description?: string | null;
+  categoryId?: number | null;
+  shareWithTenants?: boolean;
+  shareWithRentalOwners?: boolean;
+};
+
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf'];
 const ALLOWED_MIME_TYPES = new Set<string>([
@@ -296,7 +304,7 @@ function LeaseFileUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={(value) => (value ? onOpenChange(true) : close())}>
-      <DialogContent className="top-[35%] max-w-3xl translate-y-[-35%] sm:max-w-4xl">
+      <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
           <DialogTitle>Upload lease file</DialogTitle>
           <DialogDescription>
@@ -925,7 +933,7 @@ function LeaseFileEditDialog({
       setLoading(true);
       setError(null);
       const selectedCategory = categoryOptions.find((option) => option.name === categoryName);
-      const payload: Record<string, unknown> = {};
+      const payload: UpdateFilePayload = {};
       if (title.trim() && title.trim() !== file.title) payload.title = title.trim();
       const trimmedDescription = description.trim();
       if ((file.description ?? '') !== trimmedDescription) {
@@ -973,6 +981,15 @@ function LeaseFileEditDialog({
       const updatedCategoryName =
         payload.categoryId !== undefined ? (selectedCategory?.name ?? null) : file.category;
 
+      const resolvedShareWithTenants =
+        typeof payload.shareWithTenants === 'boolean'
+          ? payload.shareWithTenants
+          : shareWithTenants;
+      const resolvedShareWithRentalOwners =
+        typeof payload.shareWithRentalOwners === 'boolean'
+          ? payload.shareWithRentalOwners
+          : shareWithRentalOwners;
+
       onFileUpdated({
         ...file,
         title: payload.title ? String(payload.title) : file.title,
@@ -984,8 +1001,8 @@ function LeaseFileEditDialog({
           updatedCategoryName ??
           file.category ??
           (categoryOptions.length ? categoryOptions[0].name : 'Lease'),
-        shareWithTenants: payload.shareWithTenants ?? shareWithTenants,
-        shareWithRentalOwners: payload.shareWithRentalOwners ?? shareWithRentalOwners,
+        shareWithTenants: resolvedShareWithTenants,
+        shareWithRentalOwners: resolvedShareWithRentalOwners,
       });
 
       resetAndClose();
@@ -1000,7 +1017,7 @@ function LeaseFileEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(value) => (value ? onOpenChange(true) : resetAndClose())}>
-      <DialogContent className="top-[35%] max-w-2xl translate-y-[-35%]">
+      <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
           <DialogTitle>Edit file details</DialogTitle>
           <DialogDescription>

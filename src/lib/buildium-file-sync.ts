@@ -301,9 +301,9 @@ export async function uploadLeaseDocumentToBuildium(options: {
       return { buildiumFile: null, error: 'File not found' }
     }
 
-    const existingDocuments: Record<string, unknown>[] = await buildiumClient
+    const existingDocuments = (await buildiumClient
       .getLeaseDocuments(buildiumLeaseId)
-      .catch(() => [])
+      .catch(() => [])) as any[]
     const existingIds = new Set<number>()
     for (const entry of existingDocuments) {
       const id = extractDocumentId(entry)
@@ -447,7 +447,11 @@ export async function uploadLeaseDocumentToBuildium(options: {
 
     if (shouldUseGenericUpload) {
       try {
-        ticket = await buildiumClient.createFileUploadRequest('Lease', buildiumLeaseId, genericUploadPayload)
+        ticket = await buildiumClient.createFileUploadRequest(
+          'Lease',
+          buildiumLeaseId,
+          genericUploadPayload as any,
+        )
       } catch (primaryError) {
         logger.warn(
           {
@@ -482,7 +486,10 @@ export async function uploadLeaseDocumentToBuildium(options: {
         leaseScopedPayload.UnitId = buildiumUnitId
       }
 
-      ticket = await buildiumClient.createLeaseDocumentUploadRequest(buildiumLeaseId, leaseScopedPayload)
+      ticket = await buildiumClient.createLeaseDocumentUploadRequest(
+        buildiumLeaseId,
+        leaseScopedPayload as any,
+      )
     }
 
     if (!ticket) {
@@ -521,9 +528,9 @@ export async function uploadLeaseDocumentToBuildium(options: {
     const locateUploadedDocument = async (): Promise<Record<string, unknown> | null> => {
       const attempts = 8
       for (let attempt = 0; attempt < attempts; attempt++) {
-        const docs: Record<string, unknown>[] = await buildiumClient
+        const docs = (await buildiumClient
           .getLeaseDocuments(buildiumLeaseId)
-          .catch(() => [])
+          .catch(() => [])) as any[]
         for (const entry of docs) {
           const docId = extractDocumentId(entry)
           if (docId != null && !existingIds.has(docId)) {

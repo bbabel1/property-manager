@@ -31,7 +31,7 @@ import type { PaymentMethodValue } from '@/lib/enums/payment-method';
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1, 'Date required'),
   amount: z.coerce.number().positive('Amount must be greater than 0'),
-  payment_method: z.enum(PAYMENT_METHOD_VALUES, { required_error: 'Payment method required' }),
+  payment_method: z.enum(PAYMENT_METHOD_VALUES),
   resident_id: z.string().optional(),
   memo: z.string().optional(),
   allocations: z

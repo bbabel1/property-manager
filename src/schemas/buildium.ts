@@ -214,8 +214,8 @@ export const BuildiumGeneralLedgerEntryCreateSchema = z.object({
     .array(
       z.object({
         GLAccountId: z.number().int().positive('GLAccountId must be a positive integer'),
-        Amount: z.number({ required_error: 'Amount is required' }),
-        PostingType: z.enum(['Credit', 'Debit'], { required_error: 'PostingType is required' }),
+        Amount: z.number(),
+        PostingType: z.enum(['Credit', 'Debit']),
         Memo: z.string().optional(),
         AccountingEntity: z
           .object({
@@ -240,7 +240,7 @@ export const BuildiumGeneralLedgerEntryUpdateSchema = z.object({
       z.object({
         Id: z.number().int().positive().optional(),
         GLAccountId: z.number().int().positive('GLAccountId must be a positive integer'),
-        Amount: z.number({ required_error: 'Amount is required' }),
+        Amount: z.number(),
         PostingType: z.enum(['Credit', 'Debit']).optional(),
         Memo: z.string().optional(),
         AccountingEntity: z
@@ -1618,7 +1618,7 @@ export const BuildiumWebhookEventSchema = z.object({
   EntityId: z.number().int().positive('Entity ID must be a positive integer'),
   EntityType: z.string().min(1, 'Entity type is required'),
   EventDate: z.string().datetime('Event date must be in ISO 8601 format'),
-  Data: z.any(), // The actual entity data
+  Data: z.record(z.string(), z.unknown()), // The actual entity data
 });
 
 // Webhook Payload Schema

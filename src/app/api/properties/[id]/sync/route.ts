@@ -55,8 +55,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           try {
             const buildiumPayload = mapBankAccountToBuildium(payload)
             const res = await buildiumFetch('POST', '/bankaccounts', undefined, buildiumPayload)
-            if (res.ok && res.json?.Id) {
-              const bid = Number(res.json.Id)
+            const resJson = res.json as any
+            if (res.ok && resJson?.Id) {
+              const bid = Number(resJson.Id)
               await db.from('bank_accounts').update({ buildium_bank_id: bid, updated_at: new Date().toISOString() }).eq('id', ba.id)
               buildiumOperatingBankAccountId = bid
             } else {
@@ -169,10 +170,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     } else {
       const res = await buildiumFetch('POST', `/rentals`, undefined, payload)
-      if (!res.ok || !res.json?.Id) {
+      const resJson = res.json as any
+      if (!res.ok || !resJson?.Id) {
         return NextResponse.json({ error: 'Failed to create property in Buildium', status: res.status, details: res.errorText || res.json }, { status: 422 })
       }
-      buildiumId = Number(res.json.Id)
+      buildiumId = Number(resJson.Id)
       await db.from('properties').update({ buildium_property_id: buildiumId, updated_at: new Date().toISOString() }).eq('id', id)
     }
 
@@ -189,8 +191,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (buildiumId && prelinkedOwnerIds.length) {
-      const ownerUpdatePayload = {
-        ...(payload as Record<string, unknown>),
+      const ownerUpdatePayload: Record<string, unknown> = {
+        ...(payload as unknown as Record<string, unknown>),
         RentalOwnerIds: Array.from(new Set(prelinkedOwnerIds))
       }
 
@@ -376,10 +378,11 @@ async function createOwnerDirectly(ownerPayload: any, buildiumPropertyId: number
       PropertyIds: Array.from(new Set([...(ownerPayload?.PropertyIds || []), buildiumPropertyId])),
     }
     const createRes = await buildiumFetch('POST', `/rentals/owners`, undefined, payload)
-    if (!createRes.ok || !createRes.json?.Id) {
+    const createJson = createRes.json as any
+    if (!createRes.ok || !createJson?.Id) {
       return { success: false, error: JSON.stringify(createRes.json ?? createRes.errorText ?? 'Unknown error') }
     }
-    const newId = Number(createRes.json.Id)
+    const newId = Number(createJson.Id)
     const db = supabaseAdmin || supabase
     await db
       .from('owners')

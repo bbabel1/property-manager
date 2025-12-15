@@ -24,6 +24,11 @@ import {
   type LeaseAccountOption,
   type LeaseFormSuccessPayload,
 } from '@/components/leases/types';
+import {
+  getMonthlyLogErrorMessage,
+  safeParseJson,
+  type MonthlyLogTransactionResponse,
+} from '@/types/monthly-log';
 
 type VendorOption = {
   id: string;
@@ -332,7 +337,7 @@ export default function ManagementFeeForm({
       }));
       setErrors((previous) => ({ ...previous, allocations: '' }));
     },
-    [buildMemo],
+    [buildMemo, managementFeesIsPercentage],
   );
 
   const addRow = useCallback(() => {
@@ -423,27 +428,16 @@ export default function ManagementFeeForm({
 
       if (!response.ok) {
         const text = await response.text();
-        let payload: any = {};
-        try {
-          payload = text ? JSON.parse(text) : {};
-        } catch {
-          payload = {};
-        }
+        const payload = safeParseJson<MonthlyLogTransactionResponse>(text) ?? {};
         const message =
-          payload?.error?.message ||
-          payload?.error ||
+          getMonthlyLogErrorMessage(payload) ||
           'Failed to create bill. Double-check the entries and try again.';
         setFormError(message);
         return;
       }
 
       const text = await response.text();
-      let payload: any = {};
-      try {
-        payload = text ? JSON.parse(text) : {};
-      } catch {
-        payload = {};
-      }
+      const payload = safeParseJson<MonthlyLogTransactionResponse>(text) ?? {};
       const transaction = extractLeaseTransactionFromResponse(payload);
       if (transaction) {
         onSuccess?.({ transaction });

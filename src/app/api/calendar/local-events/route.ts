@@ -71,8 +71,9 @@ export async function GET(request: Request) {
         .gte('scheduled_date', timeMin)
         .lte('scheduled_date', timeMax);
 
-      if (!tasksError && tasks) {
-        for (const task of tasks) {
+      if (!tasksError && Array.isArray(tasks)) {
+        for (const task of tasks as Array<{ id: string; subject: string; description?: string | null; scheduled_date: string | null }>) {
+          if (!task.scheduled_date) continue;
           const start = new Date(task.scheduled_date);
           const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 hour
           
@@ -101,8 +102,9 @@ export async function GET(request: Request) {
         .gte('scheduled_date', timeMin)
         .lte('scheduled_date', timeMax);
 
-      if (!workOrdersError && workOrders) {
-        for (const wo of workOrders) {
+      if (!workOrdersError && Array.isArray(workOrders)) {
+        for (const wo of workOrders as Array<{ id: string; subject: string; description?: string | null; scheduled_date: string | null }>) {
+          if (!wo.scheduled_date) continue;
           const start = new Date(wo.scheduled_date);
           const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // +2 hours
           
@@ -128,27 +130,28 @@ export async function GET(request: Request) {
       
       const { data: transactions, error: transactionsError } = await supabaseAdmin
         .from('transactions')
-        .select('id, description, due_date, amount, org_id')
+        .select('id, memo, due_date, total_amount, org_id')
         .eq('org_id', orgId)
         .not('due_date', 'is', null)
         .gte('due_date', timeMinDate)
         .lte('due_date', timeMaxDate);
 
-      if (!transactionsError && transactions) {
-        for (const tx of transactions) {
-          const start = new Date(tx.due_date + 'T00:00:00Z');
+      if (!transactionsError && Array.isArray(transactions)) {
+        for (const tx of transactions as Array<{ id: string | number; due_date: string | null; memo?: string | null; total_amount?: number | null }>) {
+          if (!tx.due_date) continue;
+          const start = new Date(`${tx.due_date}T00:00:00Z`);
           const end = new Date(start);
           
           events.push({
             id: `transaction-${tx.id}`,
-            title: tx.description || `Bill due: $${tx.amount || 0}`,
+            title: tx.memo || `Bill due: $${tx.total_amount || 0}`,
             start: start.toISOString(),
             end: end.toISOString(),
             allDay: true,
             source: 'transaction',
-            sourceId: tx.id,
+            sourceId: String(tx.id),
             color: '#10b981', // green
-            description: tx.amount ? `Amount: $${tx.amount}` : undefined,
+            description: tx.total_amount ? `Amount: $${tx.total_amount}` : undefined,
           });
         }
       }
@@ -158,13 +161,14 @@ export async function GET(request: Request) {
     if (types.includes('leases')) {
       const { data: leases, error: leasesError } = await supabaseAdmin
         .from('lease')
-        .select('id, lease_from_date, lease_to_date, unit_number, propertyId')
+        .select('id, lease_from_date, lease_to_date, unit_id')
         .not('lease_to_date', 'is', null)
         .lte('lease_from_date', timeMax)
         .gte('lease_to_date', timeMin);
 
-      if (!leasesError && leases) {
-        for (const lease of leases) {
+      if (!leasesError && Array.isArray(leases)) {
+        for (const lease of leases as Array<{ id: string | number; lease_from_date: string; lease_to_date: string; unit_id?: string | null }>) {
+          if (!lease.lease_from_date || !lease.lease_to_date) continue;
           const start = new Date(lease.lease_from_date);
           start.setUTCHours(0, 0, 0, 0);
           const end = new Date(lease.lease_to_date);
@@ -172,7 +176,7 @@ export async function GET(request: Request) {
           
           events.push({
             id: `lease-${lease.id}`,
-            title: `Lease${lease.unit_number ? ` - Unit ${lease.unit_number}` : ''}`,
+            title: `Lease${lease.unit_id ? ` - Unit ${lease.unit_id}` : ''}`,
             start: start.toISOString(),
             end: end.toISOString(),
             allDay: true,
@@ -201,4 +205,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

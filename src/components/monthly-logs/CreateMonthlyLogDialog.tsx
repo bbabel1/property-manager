@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 
 type PropertyOption = { id: string; name: string };
@@ -198,7 +197,7 @@ export default function CreateMonthlyLogDialog({ properties, units, defaultPerio
           New Log
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[92vw] overflow-y-auto rounded-none border p-0 shadow-2xl sm:max-w-md sm:rounded-2xl md:max-w-lg">
+      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         <DialogHeader className="border-border border-b p-6">
           <DialogTitle className="text-foreground text-xl font-semibold">
             Create Monthly Log

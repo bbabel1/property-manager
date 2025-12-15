@@ -11,6 +11,9 @@
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/types/database';
+
+type ServicePlanEnum = Database['public']['Enums']['service_plan_enum'];
 
 export type BillingBasis =
   | 'per_property'
@@ -49,10 +52,12 @@ export interface ServicePricingConfig {
   is_active: boolean;
   effective_start: string;
   effective_end: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface PlanDefaultPricing {
-  service_plan: string;
+  service_plan: ServicePlanEnum;
   offering_id: string;
   billing_basis: BillingBasis;
   default_rate: number | null;
@@ -75,7 +80,7 @@ export interface CalculateServiceFeeParams {
   propertyId: string;
   unitId?: string | null;
   offeringId: string;
-  servicePlan: string | null;
+  servicePlan: ServicePlanEnum | null;
   periodStart: string; // YYYY-MM-DD
   periodEnd: string; // YYYY-MM-DD
   // Context for calculations
@@ -102,7 +107,7 @@ export async function getActiveServicePricing(params: {
   propertyId: string;
   unitId?: string | null;
   offeringId: string;
-  servicePlan: string | null;
+  servicePlan: ServicePlanEnum | null;
   effectiveDate?: string; // ISO timestamp, defaults to now
   db?: TypedSupabaseClient;
 }): Promise<ServicePricingConfig | PlanDefaultPricing | null> {
@@ -187,6 +192,24 @@ export async function calculateServiceFee(
     db = supabaseAdmin,
   } = params;
 
+  const startDate = new Date(periodStart);
+  const endDate = new Date(periodEnd);
+  const invalidRange =
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime()) ||
+    endDate < startDate;
+
+  if (invalidRange) {
+    logger.warn(
+      { propertyId, unitId, offeringId, periodStart, periodEnd },
+      'Invalid period range for service fee calculation',
+    );
+    return {
+      amount: 0,
+      calculationMethod: 'invalid_period_range',
+    };
+  }
+
   // Get pricing configuration
   const pricing = await getActiveServicePricing({
     propertyId,
@@ -210,15 +233,28 @@ export async function calculateServiceFee(
   let appliedMinFee = false;
   let appliedMaxCap = false;
 
+  const isPlanDefault = (p: ServicePricingConfig | PlanDefaultPricing): p is PlanDefaultPricing =>
+    'default_freq' in p;
+
+  const billingBasis = pricing.billing_basis;
+  const rate = isPlanDefault(pricing) ? pricing.default_rate : pricing.rate;
+  const minAmount = pricing.min_amount ?? null;
+  const maxAmount = pricing.max_amount ?? null;
+  const minMonthlyFee = pricing.min_monthly_fee ?? null;
+  const markupPct = pricing.markup_pct ?? null;
+  const markupPctCap = pricing.markup_pct_cap ?? null;
+  const hourlyRate = pricing.hourly_rate ?? null;
+  const hourlyMinHours = pricing.hourly_min_hours ?? null;
+
   // Calculate based on billing basis
-  switch (pricing.billing_basis) {
+  switch (billingBasis) {
     case 'per_property':
-      calculatedAmount = pricing.rate || 0;
+      calculatedAmount = rate || 0;
       calculationMethod = 'per_property_flat';
       break;
 
     case 'per_unit':
-      calculatedAmount = pricing.rate || 0;
+      calculatedAmount = rate || 0;
       calculationMethod = 'per_unit_flat';
       break;
 
@@ -226,8 +262,8 @@ export async function calculateServiceFee(
       // Handle percentage of rent
       if (!leaseRentAmount || leaseRentAmount <= 0) {
         // No active lease or zero rent
-        if (pricing.min_monthly_fee && pricing.min_monthly_fee > 0) {
-          calculatedAmount = pricing.min_monthly_fee;
+        if (minMonthlyFee && minMonthlyFee > 0) {
+          calculatedAmount = minMonthlyFee;
           calculationMethod = 'percent_rent_min_fee_fallback';
           appliedMinFee = true;
         } else {
@@ -243,16 +279,12 @@ export async function calculateServiceFee(
       rentBase = rentBaseAmount;
 
       // Calculate percentage
-      const percentage = pricing.rate || (pricing as PlanDefaultPricing).plan_fee_percent || 0;
+      const percentage = rate || (pricing as PlanDefaultPricing).plan_fee_percent || 0;
       calculatedAmount = (rentBaseAmount * percentage) / 100;
 
       // Apply min_monthly_fee if calculated amount is below minimum
-      if (
-        pricing.min_monthly_fee &&
-        pricing.min_monthly_fee > 0 &&
-        calculatedAmount < pricing.min_monthly_fee
-      ) {
-        calculatedAmount = pricing.min_monthly_fee;
+      if (minMonthlyFee && minMonthlyFee > 0 && calculatedAmount < minMonthlyFee) {
+        calculatedAmount = minMonthlyFee;
         appliedMinFee = true;
         calculationMethod = 'percent_rent_with_min_fee';
       } else {
@@ -269,10 +301,10 @@ export async function calculateServiceFee(
         break;
       }
 
-      const markupPct = pricing.markup_pct || 0;
-      const markupCap = pricing.markup_pct_cap || null;
+      const markup = markupPct || 0;
+      const markupCap = markupPctCap || null;
 
-      calculatedAmount = (jobCost * markupPct) / 100;
+      calculatedAmount = (jobCost * markup) / 100;
 
       // Apply markup cap if specified
       if (markupCap && calculatedAmount > markupCap) {
@@ -293,17 +325,17 @@ export async function calculateServiceFee(
         break;
       }
 
-      const hourlyRate = pricing.hourly_rate || 0;
-      const minHours = pricing.hourly_min_hours || 0;
+      const hourlyRateValue = hourlyRate || 0;
+      const minHours = hourlyMinHours || 0;
       const billableHours = Math.max(hoursWorked, minHours);
 
-      calculatedAmount = billableHours * hourlyRate;
+      calculatedAmount = billableHours * hourlyRateValue;
       calculationMethod = minHours > hoursWorked ? 'hourly_with_minimum' : 'hourly';
       break;
     }
 
     case 'one_time':
-      calculatedAmount = pricing.rate || 0;
+      calculatedAmount = rate || 0;
       calculationMethod = 'one_time_flat';
       break;
 
@@ -313,13 +345,13 @@ export async function calculateServiceFee(
   }
 
   // Apply min/max caps
-  if (pricing.min_amount && pricing.min_amount > 0 && calculatedAmount < pricing.min_amount) {
-    calculatedAmount = pricing.min_amount;
+  if (minAmount && minAmount > 0 && calculatedAmount < minAmount) {
+    calculatedAmount = minAmount;
     appliedMinFee = true;
   }
 
-  if (pricing.max_amount && pricing.max_amount > 0 && calculatedAmount > pricing.max_amount) {
-    calculatedAmount = pricing.max_amount;
+  if (maxAmount && maxAmount > 0 && calculatedAmount > maxAmount) {
+    calculatedAmount = maxAmount;
     appliedMaxCap = true;
   }
 
@@ -330,6 +362,16 @@ export async function calculateServiceFee(
     appliedMinFee,
     appliedMaxCap,
   };
+}
+
+export interface ServicePricingPreview {
+  rate: number | null;
+  billing_frequency: BillingFrequency | string;
+  min_amount: number | null;
+  max_amount: number | null;
+  billing_basis?: BillingBasis;
+  effective_start?: string;
+  effective_end?: string | null;
 }
 
 /**
@@ -367,8 +409,10 @@ export async function getPropertyServicePricing(
   }
 
   // Deduplicate by offering_id, keeping the most recent effective_start
-  const deduplicated = (data || []).reduce((acc, item) => {
-    const existing = acc.find((i) => i.offering_id === item.offering_id);
+  const deduplicated = (data || []).reduce<ServicePricingConfig[]>((acc, item) => {
+    const existing = acc.find(
+      (existingItem: ServicePricingConfig) => existingItem.offering_id === item.offering_id,
+    );
     if (!existing || new Date(item.effective_start) > new Date(existing.effective_start)) {
       if (existing) {
         const index = acc.indexOf(existing);
@@ -378,7 +422,7 @@ export async function getPropertyServicePricing(
       }
     }
     return acc;
-  }, [] as ServicePricingConfig[]);
+  }, []);
 
   return deduplicated;
 }

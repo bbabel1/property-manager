@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { mapPropertyToDB, type CountryEnum, type StatusEnum } from '@/types/properties'
+import type { CountryEnum, StatusEnum } from '@/types/properties'
 import * as dotenv from 'dotenv'
 
 // Load environment variables
@@ -76,11 +76,28 @@ async function addBuildiumProperty(propertyId?: number) {
       reserve: buildiumProperty.reserve,
       yearBuilt: buildiumProperty.yearBuilt,
       status: (buildiumProperty.isActive ? 'Active' : 'Inactive') as StatusEnum,
-      totalUnits: buildiumProperty.numberUnits
-    }
+    totalUnits: buildiumProperty.numberUnits
+  }
 
-    // Map to database format
-    const dbData = mapPropertyToDB(propertyData)
+  // Map to database format
+  const dbData = {
+    name: propertyData.name,
+    structure_description: propertyData.structureDescription ?? null,
+    address_line1: propertyData.addressLine1,
+    address_line2: propertyData.addressLine2 ?? null,
+    address_line3: propertyData.addressLine3 ?? null,
+    city: propertyData.city ?? null,
+    state: propertyData.state ?? null,
+    postal_code: propertyData.postalCode,
+    country: propertyData.country,
+    buildium_property_id: propertyData.buildiumPropertyId,
+    rental_sub_type: propertyData.rentalSubType,
+    operating_bank_account_id: propertyData.operatingBankAccountId,
+    reserve: propertyData.reserve,
+    year_built: propertyData.yearBuilt ?? null,
+    status: propertyData.status,
+    total_units: propertyData.totalUnits
+  }
 
     // Add required timestamp fields
     const now = new Date().toISOString()

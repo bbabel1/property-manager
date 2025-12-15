@@ -44,15 +44,16 @@ export async function sendEmailViaGmail(
     };
 
     // Format recipients
-    const toAddresses = options.to.map((recipient) =>
-      recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email
-    );
+  const toAddresses = options.to.map((recipient) =>
+    recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email
+  );
 
-    // Build message parts
-    const hasAttachments = options.attachments && options.attachments.length > 0;
-    const outerBoundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const innerBoundary = `----=_Part_${Date.now() + 1}_${Math.random().toString(36).substring(7)}`;
-    let message = '';
+  // Build message parts
+  const hasAttachments = Array.isArray(options.attachments) && options.attachments.length > 0;
+  const attachments = hasAttachments ? options.attachments ?? [] : [];
+  const outerBoundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const innerBoundary = `----=_Part_${Date.now() + 1}_${Math.random().toString(36).substring(7)}`;
+  let message = '';
 
     // Headers
     message += `From: ${from.name} <${from.email}>\r\n`;
@@ -94,12 +95,12 @@ export async function sendEmailViaGmail(
     message += `Content-Type: text/html; charset=UTF-8\r\n`;
     message += `Content-Transfer-Encoding: 7bit\r\n`;
     message += `\r\n`;
-    message += `${options.html}\r\n`;
-    message += `--${textBoundary}--\r\n`;
+  message += `${options.html}\r\n`;
+  message += `--${textBoundary}--\r\n`;
 
-    // Attachments (if any)
-    if (hasAttachments) {
-      for (const attachment of options.attachments) {
+  // Attachments (if any)
+  if (hasAttachments) {
+    for (const attachment of attachments) {
         message += `--${outerBoundary}\r\n`;
         message += `Content-Type: ${attachment.contentType || 'application/octet-stream'}\r\n`;
         message += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
@@ -155,4 +156,3 @@ export async function sendEmailViaGmail(
     };
   }
 }
-

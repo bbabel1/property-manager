@@ -1,10 +1,19 @@
 import { supabaseAdmin } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { isNewServiceCatalogEnabled } from './service-compatibility';
-import { getPropertyServicePricing, type ServicePricingConfig } from './service-pricing';
+import {
+  getPropertyServicePricing,
+  type BillingBasis,
+  type BillingFrequency,
+  type BillOn,
+  type RentBasis,
+  type ServicePricingConfig,
+} from './service-pricing';
+import { type ServicePlan, toServicePlan } from './service-plan';
+export type { ServicePricingConfig, ServicePricingPreview } from './service-pricing';
 
 export interface ManagementServiceConfig {
-  service_plan: string | null;
+  service_plan: ServicePlan | null;
   active_services: string[] | null;
   bill_pay_list: string | null;
   bill_pay_notes: string | null;
@@ -22,14 +31,14 @@ export interface ServiceOffering {
   name: string;
   category: string;
   description: string | null;
-  billing_basis: string;
+  billing_basis: BillingBasis;
   default_rate: number | null;
-  default_freq: string;
-  min_amount?: number | null;
-  max_amount?: number | null;
-  default_rent_basis?: string | null;
+  default_freq: BillingFrequency | string;
+  min_amount: number | null;
+  max_amount: number | null;
+  default_rent_basis?: RentBasis | null;
   applies_to: string;
-  bill_on: string;
+  bill_on: BillOn;
   is_active: boolean;
 }
 
@@ -41,7 +50,7 @@ export interface PlanDefaults {
 }
 
 export interface PropertyServiceData {
-  service_plan: string | null;
+  service_plan: ServicePlan | null;
   active_services: string[] | null;
   service_assignment: 'Property Level' | 'Unit Level' | null;
   bill_pay_list: string | null;
@@ -49,7 +58,7 @@ export interface PropertyServiceData {
 }
 
 export interface UnitServiceData {
-  service_plan: string | null;
+  service_plan: ServicePlan | null;
   active_services: string | null;
   fee_notes: string | null;
   bill_pay_list: string | null;
@@ -136,11 +145,12 @@ export class ManagementService {
       config.service_offerings = (offerings || []) as ServiceOffering[];
 
       // Fetch plan-based inclusions if service plan is set
-      if (config.service_plan) {
+      const plan = config.service_plan;
+      if (plan) {
         const { data: planOfferings } = await supabaseAdmin
           .from('service_plan_offerings')
-          .select('offering_id, is_included, is_required, service_offerings(*)')
-          .eq('service_plan', config.service_plan)
+          .select('offering_id, is_included, is_optional, service_offerings(*)')
+          .eq('service_plan', plan)
           .eq('is_included', true);
 
         if (planOfferings) {
@@ -158,7 +168,7 @@ export class ManagementService {
         const { data: planDefaults } = await supabaseAdmin
           .from('service_plan_default_pricing')
           .select('plan_fee_percent, min_monthly_fee, offering_id, is_required')
-          .eq('service_plan', config.service_plan)
+          .eq('service_plan', plan)
           .limit(1)
           .maybeSingle();
 

@@ -394,12 +394,12 @@ export async function POST(req: NextRequest) {
     if (existing?.id) {
       await admin
         .from('gl_accounts')
-        .update({ ...mapped, org_id: orgId ?? mapped.org_id ?? null, updated_at: now })
+        .update({ ...mapped, org_id: orgId ?? (mapped as any)?.org_id ?? null, updated_at: now })
         .eq('id', existing.id)
     } else {
       await admin
         .from('gl_accounts')
-        .insert({ ...mapped, org_id: orgId ?? mapped.org_id ?? null, created_at: now, updated_at: now })
+        .insert({ ...mapped, org_id: orgId ?? (mapped as any)?.org_id ?? null, created_at: now, updated_at: now })
     }
   }
 
@@ -443,7 +443,7 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString()
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
     const mapped = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, admin)
-    const payload = { ...mapped, org_id: orgId ?? mapped.org_id ?? null, updated_at: now }
+    const payload = { ...mapped, org_id: orgId ?? (mapped as any)?.org_id ?? null, updated_at: now }
     const { data: existing, error: findErr } = await admin
       .from('properties')
       .select('id')
@@ -464,7 +464,7 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString()
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
     const mapped = mapUnitFromBuildium(buildiumUnit)
-    const payload = { ...mapped, org_id: orgId ?? mapped.org_id ?? null, updated_at: now }
+    const payload = { ...mapped, org_id: orgId ?? (mapped as any)?.org_id ?? null, updated_at: now }
     // Resolve local property_id to link unit
     const propertyIdLocal = await (async () => {
       if (!buildiumUnit?.PropertyId) return null
@@ -665,7 +665,7 @@ export async function POST(req: NextRequest) {
           .from('ownerships')
           .select('id')
           .eq('owner_id', ownerId)
-          .eq('property_id', prop.id)
+          .eq('property_id', prop.data.id)
           .maybeSingle()
         if (findOwnErr && findOwnErr.code !== 'PGRST116') throw findOwnErr
         if (!existingOwn) {
@@ -1380,7 +1380,12 @@ export async function POST(req: NextRequest) {
       return data.id
     }
 
-    const ensureLeaseContactLocal = async (leaseId: number, tenantId: string, role: string, orgId: string | null) => {
+    const ensureLeaseContactLocal = async (
+      leaseId: number,
+      tenantId: string,
+      role: string,
+      orgId?: string | null,
+    ) => {
       const { data: existing } = await admin
         .from('lease_contacts')
         .select('id, status')
@@ -1507,6 +1512,9 @@ export async function POST(req: NextRequest) {
         existing = data ?? null
       }
 
+      let debitSum = 0
+      let creditSum = 0
+
       const totalAmount = totalFromLines || Number(payment?.Amount ?? 0) || debitSum || creditSum || 0
 
       const header = {
@@ -1550,8 +1558,6 @@ export async function POST(req: NextRequest) {
 
       // Build lines from payment lines (debits), plus balancing credit to bank
       const pendingLines: any[] = []
-      let debitSum = 0
-      let creditSum = 0
       const paymentLines = Array.isArray(payment?.Lines) ? payment.Lines : []
       for (const line of paymentLines) {
         const glBuildiumId = line?.GLAccountId ?? line?.GLAccount?.Id ?? null
@@ -1907,7 +1913,8 @@ export async function POST(req: NextRequest) {
                 const moveOutDate = moveOutEntry?.MoveOutDate || null
                 const noticeDate = moveOutEntry?.NoticeGivenDate || null
                 const orgId = await resolveLeaseOrgId(lease?.Id, lease?.PropertyId)
-                await ensureLeaseContactLocal(leaseLocalId, tenantIdLocal, 'Tenant', orgId)
+                if (!tenantIdLocal) continue
+                await ensureLeaseContactLocal(leaseLocalId, tenantIdLocal, 'Tenant', orgId ?? null)
                 await admin.from('lease_contacts').update({
                   move_in_date: moveInDate ? normalizeDate(moveInDate) : null,
                   move_out_date: moveOutDate ? normalizeDate(moveOutDate) : null,

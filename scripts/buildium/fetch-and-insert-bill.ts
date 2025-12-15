@@ -6,7 +6,7 @@ import { config } from 'dotenv'
 config()
 
 import { logger } from '../utils/logger'
-import { supabaseAdmin } from '../../src/lib/db'
+import { supabaseAdmin } from '@/lib/db'
 
 const billId = 723092
 

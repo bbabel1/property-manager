@@ -123,7 +123,8 @@ export async function POST(request: NextRequest) {
       tax_postal_code: null,
       tax_country: normalizeCountry(data.taxCountry),
       tax_payer_id: null,
-      tax_payer_type: data.taxPayerType ?? null,
+      tax_payer_type:
+        data.taxPayerType === 'SSN' || data.taxPayerType === 'EIN' ? data.taxPayerType : null,
       tax_payer_name1: null,
       tax_payer_name2: null,
       created_at: now,

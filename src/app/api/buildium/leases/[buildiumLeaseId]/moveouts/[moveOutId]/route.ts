@@ -3,7 +3,10 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; moveOutId: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string; moveOutId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -17,10 +20,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id, moveOutId } = await params;
+    const { buildiumLeaseId, moveOutId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/moveouts/${moveOutId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts/${moveOutId}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',
@@ -63,7 +66,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string; moveOutId: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string; moveOutId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -77,10 +83,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id, moveOutId } = await params;
+    const { buildiumLeaseId, moveOutId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/moveouts/${moveOutId}`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts/${moveOutId}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'DELETE',

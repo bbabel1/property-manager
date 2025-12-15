@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { checkRateLimit } from '@/lib/rate-limit'
@@ -15,7 +17,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    await requireRole('platform_admin')
+  const auth = await requireRole('platform_admin')
+  const userId = auth.user.id
 
     const body = await request.json().catch(() => ({}))
     const ids: number[] | undefined = Array.isArray(body?.ids) ? body.ids : undefined
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    logger.info({ created, updated, count: owners.length, userId: user.id }, 'Bulk owner sync completed')
+    logger.info({ created, updated, count: owners.length, userId }, 'Bulk owner sync completed')
     return NextResponse.json({ success: true, inputCount: owners.length, created, updated, results })
   } catch (err) {
     if (err instanceof Error && err.message === 'UNAUTHENTICATED') {

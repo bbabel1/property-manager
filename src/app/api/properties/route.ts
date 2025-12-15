@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { mapPropertyToBuildium, mapCountryToBuildium } from '@/lib/buildium-mappers'
@@ -25,6 +26,7 @@ import {
 } from '@/lib/normalizers'
 import { normalizeStaffRole } from '@/lib/staff-role'
 import { enrichBuildingForProperty } from '@/lib/building-enrichment'
+import { ComplianceSyncService } from '@/lib/compliance-sync-service'
 import { buildNormalizedAddressKey } from '@/lib/normalized-address'
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert']
@@ -43,6 +45,8 @@ type PropertyWithOwners = PropertyRow & {
     }
   > | null
 }
+
+const NYC_BOROUGHS = new Set(['manhattan', 'bronx', 'brooklyn', 'queens', 'staten island'])
 
 interface PropertyRequestBody {
   propertyType: string
@@ -78,6 +82,10 @@ interface PropertyRequestBody {
   fee_percentage?: number | string | null
   fee_dollar_amount?: number | string | null
   billing_frequency?: string | null
+  bin?: string | null
+  bbl?: string | null
+  block?: string | null
+  lot?: string | null
 }
 
 interface OrgMembershipRow {
@@ -118,7 +126,11 @@ export async function POST(request: NextRequest) {
       fee_type,
       fee_percentage,
       fee_dollar_amount,
-      billing_frequency
+      billing_frequency,
+      bin,
+      bbl,
+      block,
+      lot
     } = body
 
     const typedBody = body as PropertyRequestBody & {
@@ -155,6 +167,16 @@ export async function POST(request: NextRequest) {
     if (!orgId) {
       return NextResponse.json({ error: 'Organization context required' }, { status: 400 })
     }
+
+    const cleanId = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null
+      const trimmed = value.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+    const manualBin = cleanId(bin)
+    const manualBbl = cleanId(bbl)
+    const manualBlock = cleanId(block)
+    const manualLot = cleanId(lot)
 
     // Create property data object matching database schema (snake_case)
     const normalizedCountry = normalizeCountryWithDefault(mapGoogleCountryToEnum(country ?? ''))
@@ -245,8 +267,19 @@ export async function POST(request: NextRequest) {
           latitude: toNumberOrNull(body?.latitude),
           longitude: toNumberOrNull(body?.longitude),
           normalizedAddressKey: normalizedAddress?.normalizedAddressKey || null,
+          bin: manualBin,
+          bbl: manualBbl,
+          block: manualBlock,
+          lot: manualLot,
         },
-        { db, normalizedAddressKey: normalizedAddress?.normalizedAddressKey || null }
+        {
+          db,
+          normalizedAddressKey: normalizedAddress?.normalizedAddressKey || null,
+          binOverride: manualBin,
+          bblOverride: manualBbl,
+          blockOverride: manualBlock,
+          lotOverride: manualLot,
+        }
       )
     } catch (enrichErr) {
       const message = enrichErr instanceof Error ? enrichErr.message : 'Address enrichment failed'
@@ -263,6 +296,19 @@ export async function POST(request: NextRequest) {
           ;(propertyData as any)[key] = value as any
         }
       }
+    }
+
+    const boroughName = (propertyData as any).borough as string | null
+    const boroughLc = boroughName ? boroughName.toLowerCase() : null
+    const isNYC = boroughLc ? NYC_BOROUGHS.has(boroughLc) : false
+    if (isNYC && !(propertyData as any).bin) {
+      return NextResponse.json(
+        {
+          error: 'BIN required for NYC properties to sync elevators',
+          details: 'Provide a BIN or use the address autocomplete so Geoservice can resolve it',
+        },
+        { status: 422 }
+      )
     }
 
     const insertPayload: Record<string, unknown> = { ...propertyData }
@@ -696,9 +742,10 @@ export async function POST(request: NextRequest) {
           // Mark syncing and attempt create
           try { await recordSyncStatus(db, createdProperty.id, null, 'syncing') } catch {}
           const propRes = await buildiumFetch('POST', '/rentals', undefined, propertyPayload)
+          const propResJson = propRes.json as any
           // propAttempted = true
-          if (propRes.ok && propRes.json?.Id) {
-            const buildiumId = Number(propRes.json.Id)
+          if (propRes.ok && propResJson?.Id) {
+            const buildiumId = Number(propResJson.Id)
             await db.from('properties').update({ buildium_property_id: buildiumId }).eq('id', createdProperty.id)
             try { await recordSyncStatus(db, createdProperty.id, buildiumId, 'synced') } catch {}
           } else {
@@ -727,7 +774,13 @@ export async function POST(request: NextRequest) {
 
         // 3) Map Units via initial property create: if we included units, fetch them from Buildium and link IDs
         if (buildiumPropertyId) {
-          const insertedUnits: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> = typedBody.__insertedUnits || []
+          const insertedUnits: Array<{ id: string; unit_number?: string; buildium_unit_id?: number }> =
+            (typedBody.__insertedUnits || []).map((u: any) => ({
+              id: u.id,
+              unit_number: u.unit_number,
+              buildium_unit_id:
+                u.buildium_unit_id == null ? undefined : Number(u.buildium_unit_id),
+            }));
           if (includedUnitsInCreate && insertedUnits.length > 0) {
             try { await Promise.all(insertedUnits.map(u => recordSyncStatus(db, u.id, null, 'syncing'))) } catch {}
             // Buildium units listing is property-scoped via query param
@@ -798,8 +851,9 @@ export async function POST(request: NextRequest) {
                   PropertyIds: [buildiumPropertyId]
                 }
                 const ownerSync = await buildiumFetch('POST', '/rentals/owners', undefined, ownerPayload)
-                if (ownerSync.ok && ownerSync.json?.Id) {
-                  buildiumOwnerId = Number(ownerSync.json.Id)
+                const ownerSyncJson = ownerSync.json as any
+                if (ownerSync.ok && ownerSyncJson?.Id) {
+                  buildiumOwnerId = Number(ownerSyncJson.Id)
                   await db.from('owners').update({ buildium_owner_id: buildiumOwnerId }).eq('id', localOwner?.id)
                 } else {
                   console.warn('Buildium owner create failed:', ownerSync.status, ownerSync.errorText)
@@ -830,6 +884,23 @@ export async function POST(request: NextRequest) {
 
       if (staffError) {
         console.error('Error creating property staff record:', staffError)
+      }
+    }
+
+    // Kick off compliance sync for NYC properties so assets/filings exist before program assignment
+    if (boroughLc && NYC_BOROUGHS.has(boroughLc)) {
+      try {
+        const complianceSync = new ComplianceSyncService()
+        await complianceSync.syncPropertyCompliance(createdProperty.id, orgId)
+      } catch (syncErr) {
+        logger.warn(
+          {
+            error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+            propertyId: createdProperty.id,
+            orgId
+          },
+          'Compliance sync after property creation failed'
+        )
       }
     }
 
@@ -873,7 +944,7 @@ async function _searchBuildiumOwnerId(params: {
     if (ownername) q.ownername = ownername
 
     // Use /v1/rentals/owners with filters
-    const res = await buildiumFetch('GET', '/rentals/owners', q)
+    const res = await buildiumFetch('GET', '/rentals/owners', q as any)
     if (!res.ok || !Array.isArray(res.json)) break
     const arr: Array<Record<string, unknown>> = res.json
 
@@ -909,7 +980,7 @@ async function recordSyncStatus(db: typeof supabase, entityId: string, buildiumI
       p_buildium_id: buildiumId,
       p_status: status,
       p_error_message: errorMessage || null
-    })
+    } as any)
   } catch (e) {
     console.warn('recordSyncStatus failed', (e as Error).message)
   }

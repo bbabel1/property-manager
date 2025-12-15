@@ -72,7 +72,7 @@ export default function BillFileViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-none sm:max-w-none w-[min(calc(100vw-3rem),1200px)] max-h-[96vh] p-0">
+      <DialogContent className="max-h-[96vh] w-full max-w-[800px] p-0">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>{title}</DialogTitle>
           {file ? (

@@ -70,7 +70,7 @@ export default function AddTenantModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-3rem)] sm:max-w-4xl md:max-w-5xl">
+      <DialogContent className="w-[680px] max-w-[680px]">
         <DialogHeader className="mb-2">
           <DialogTitle>Add applicant, tenant or cosigner</DialogTitle>
         </DialogHeader>
@@ -329,14 +329,10 @@ export default function AddTenantModal({
                     city: tenantSameAddress ? null : toNull(tenantCity),
                     state: tenantSameAddress ? null : toNull(tenantState),
                     postal: tenantSameAddress ? null : toNull(tenantPostal),
-                    alt_addr1:
-                      tenantSameAddress && showAltAddress ? toNull(tenantAltAddr1) : null,
-                    alt_addr2:
-                      tenantSameAddress && showAltAddress ? toNull(tenantAltAddr2) : null,
-                    alt_city:
-                      tenantSameAddress && showAltAddress ? toNull(tenantAltCity) : null,
-                    alt_state:
-                      tenantSameAddress && showAltAddress ? toNull(tenantAltState) : null,
+                    alt_addr1: tenantSameAddress && showAltAddress ? toNull(tenantAltAddr1) : null,
+                    alt_addr2: tenantSameAddress && showAltAddress ? toNull(tenantAltAddr2) : null,
+                    alt_city: tenantSameAddress && showAltAddress ? toNull(tenantAltCity) : null,
+                    alt_state: tenantSameAddress && showAltAddress ? toNull(tenantAltState) : null,
                     alt_postal:
                       tenantSameAddress && showAltAddress ? toNull(tenantAltPostal) : null,
                   });

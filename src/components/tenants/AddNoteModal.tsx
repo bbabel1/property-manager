@@ -1,88 +1,86 @@
-"use client"
+'use client';
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
-import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import type { Database } from '@/types/database'
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import type { Database } from '@/types/database';
 
-type Note = Database['public']['Tables']['tenant_notes']['Row']
+type Note = Database['public']['Tables']['tenant_notes']['Row'];
 
 interface AddNoteModalProps {
-  tenantId: string
-  isOpen: boolean
-  onClose: () => void
-  onNoteAdded?: (note: Note) => void
+  tenantId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onNoteAdded?: (note: Note) => void;
 }
 
-export default function AddNoteModal({ 
-  tenantId, 
-  isOpen, 
-  onClose, 
-  onNoteAdded 
+export default function AddNoteModal({
+  tenantId,
+  isOpen,
+  onClose,
+  onNoteAdded,
 }: AddNoteModalProps) {
-  const [note, setNote] = useState('')
-  const [saving, setSaving] = useState(false)
-  const supabase = getSupabaseBrowserClient()
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const supabase = getSupabaseBrowserClient();
 
   const handleSave = async () => {
     if (!note.trim()) {
-      toast.error('Please enter a note')
-      return
+      toast.error('Please enter a note');
+      return;
     }
 
     try {
-      setSaving(true)
-      const now = new Date().toISOString()
+      setSaving(true);
+      const now = new Date().toISOString();
 
       const { data, error } = await supabase
         .from('tenant_notes')
-        .insert({ 
-          tenant_id: tenantId, 
+        .insert({
+          tenant_id: tenantId,
           note: note.trim(),
-          created_at: now, 
-          updated_at: now 
+          created_at: now,
+          updated_at: now,
         })
         .select('*')
-        .single()
+        .single();
 
       if (error) {
-        throw error
+        throw error;
       }
 
-      toast.success('Note added successfully')
-      setNote('')
-      onNoteAdded?.(data as Note)
-      onClose()
+      toast.success('Note added successfully');
+      setNote('');
+      onNoteAdded?.(data as Note);
+      onClose();
     } catch (error) {
-      console.error('Error saving note:', error)
-      toast.error('Failed to save note')
+      console.error('Error saving note:', error);
+      toast.error('Failed to save note');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleClose = () => {
     if (!saving) {
-      setNote('')
-      onClose()
+      setNote('');
+      onClose();
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl sm:max-w-4xl top-[35%] translate-y-[-35%]">
+      <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-foreground">
-            Add note
-          </DialogTitle>
+          <DialogTitle className="text-foreground text-lg font-semibold">Add note</DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
+            <label className="text-muted-foreground mb-2 block text-xs font-medium tracking-wider uppercase">
               NOTE
             </label>
             <Textarea
@@ -96,21 +94,14 @@ export default function AddNoteModal({
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <Button
-            variant="ghost"
-            onClick={handleClose}
-            disabled={saving}
-          >
+          <Button variant="ghost" onClick={handleClose} disabled={saving}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !note.trim()}
-          >
+          <Button onClick={handleSave} disabled={saving || !note.trim()}>
             {saving ? 'Saving...' : 'Save'}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

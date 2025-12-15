@@ -30,7 +30,11 @@ import type {
   LeaseFormSuccessPayload,
   LeaseTenantOption,
 } from '@/components/leases/types';
-import type { MonthlyLogFinancialSummary, MonthlyLogTransaction } from '@/types/monthly-log';
+import {
+  normalizeMonthlyLogTransaction,
+  type MonthlyLogFinancialSummary,
+  type MonthlyLogTransaction,
+} from '@/types/monthly-log';
 import { parseCurrencyInput } from '@/lib/journal-entries';
 import TransactionModalContent from '@/components/transactions/TransactionModalContent';
 
@@ -228,11 +232,13 @@ export default function MonthlyLogTransactionOverlay({
       ),
     [financialOptions?.accountOptions],
   );
-  const billAccountOptions = billOptions?.accountOptions ?? [];
+  const billAccountOptions = useMemo(
+    () => billOptions?.accountOptions ?? [],
+    [billOptions?.accountOptions],
+  );
   const mappedBillAccounts = billAccountOptions.filter(
     (option) => option.buildiumGlAccountId != null,
   );
-  const hasMappedBillAccounts = mappedBillAccounts.length > 0;
   const accountOptions =
     leaseAccountOptions.length > 0 ? leaseAccountOptions : mappedBillAccounts;
   const managementAccountNames = useMemo(
@@ -399,11 +405,22 @@ export default function MonthlyLogTransactionOverlay({
 
   const handleOwnerDrawSuccess = useCallback(
     async (payload?: OwnerDrawSuccessPayload) => {
-      const transactionIdRaw =
-        payload?.transactionId ??
-        payload?.transaction?.id ??
-        (payload?.transaction as any)?.transaction_id ??
-        null;
+      const normalizedTransaction = normalizeMonthlyLogTransaction(payload?.transaction, {
+        id: payload?.transactionId,
+        total_amount:
+          payload?.amount ??
+          (typeof payload?.values?.amount === 'number' || typeof payload?.values?.amount === 'string'
+            ? parseCurrencyInput(String(payload.values.amount))
+            : undefined),
+        date: payload?.date,
+        reference_number: payload?.referenceNumber ?? null,
+        memo: payload?.memo ?? null,
+        account_name: payload?.accountName ?? ownerDrawOptions?.ownerDrawAccount?.name ?? 'Owner Draw',
+        transaction_type: payload?.transactionType ?? 'GeneralJournalEntry',
+        monthly_log_id: monthlyLogId,
+      });
+
+      const transactionIdRaw = payload?.transactionId ?? normalizedTransaction?.id ?? null;
 
       if (!transactionIdRaw) {
         await settleData();
@@ -414,38 +431,34 @@ export default function MonthlyLogTransactionOverlay({
       const transactionId = String(transactionIdRaw);
       setAssigningTransactionId(transactionId);
 
-      const amount =
+      const derivedAmount =
+        normalizedTransaction?.total_amount ??
         payload?.amount ??
-        parseCurrencyInput(
-          payload?.transaction?.total_amount ??
-            (payload?.transaction as any)?.TotalAmount ??
-            payload?.values?.amount ??
-            '',
-        );
-      const memo = payload?.memo ?? payload?.transaction?.memo ?? null;
+        (typeof payload?.values?.amount === 'number' || typeof payload?.values?.amount === 'string'
+          ? parseCurrencyInput(String(payload.values.amount))
+          : 0);
+      const memo = normalizedTransaction?.memo ?? payload?.memo ?? null;
       const date =
+        normalizedTransaction?.date ??
         payload?.date ??
-        payload?.transaction?.date ??
-        (payload?.transaction as any)?.Date ??
         new Date().toISOString().slice(0, 10);
       const referenceNumber =
+        normalizedTransaction?.reference_number ??
         payload?.referenceNumber ??
-        payload?.transaction?.reference_number ??
-        (payload?.transaction as any)?.ReferenceNumber ??
         null;
       const accountName =
+        normalizedTransaction?.account_name ??
         payload?.accountName ??
-        payload?.transaction?.account_name ??
         ownerDrawOptions?.ownerDrawAccount?.name ??
         'Owner Draw';
       const transactionType =
+        normalizedTransaction?.transaction_type ??
         payload?.transactionType ??
-        payload?.transaction?.transaction_type ??
         'GeneralJournalEntry';
 
       addAssignedTransaction({
         id: transactionId,
-        total_amount: amount,
+        total_amount: derivedAmount,
         memo,
         date,
         transaction_type: transactionType,

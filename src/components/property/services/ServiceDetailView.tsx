@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/transactions/formatting';
 import { Edit, Trash2, Copy, Calendar, DollarSign } from 'lucide-react';
 import { ServiceBadges } from './ServiceBadges';
 import InlinePricingEditor from './InlinePricingEditor';
-import { ServicePricingConfig } from '@/lib/service-pricing';
+import { ServicePricingConfig, ServicePricingPreview } from '@/lib/service-pricing';
 
 interface ServiceDetailViewProps {
   offering: {
@@ -18,21 +18,9 @@ interface ServiceDetailViewProps {
     category?: string | null;
     isSelected: boolean;
     isIncluded: boolean;
-    pricing?: {
-      rate: number | null;
-      frequency: string;
-      min_amount: number | null;
-      max_amount: number | null;
-      billing_basis?: string;
-      effective_start?: string;
-      effective_end?: string | null;
-    };
-    defaultPricing?: {
-      rate: number | null;
-      frequency: string;
-      min_amount: number | null;
-      max_amount: number | null;
-    };
+    pricing?: ServicePricingPreview;
+    pricingConfig?: ServicePricingConfig;
+    defaultPricing?: ServicePricingPreview;
   };
   propertyId: string;
   isEditMode?: boolean;
@@ -55,6 +43,7 @@ export default function ServiceDetailView({
 }: ServiceDetailViewProps) {
   const [isEditingPricing, setIsEditingPricing] = useState(false);
   const pricing = offering.pricing || offering.defaultPricing;
+  const { pricingConfig } = offering;
 
   const handlePricingSave = async (pricingData: Partial<ServicePricingConfig>) => {
     if (onPricingSave) {
@@ -129,7 +118,7 @@ export default function ServiceDetailView({
               </div>
               {isEditingPricing && onPricingSave ? (
                 <InlinePricingEditor
-                  pricing={offering.pricing as ServicePricingConfig | undefined}
+                  pricing={pricingConfig}
                   onSave={handlePricingSave}
                   onCancel={() => setIsEditingPricing(false)}
                   propertyId={propertyId}
@@ -143,7 +132,7 @@ export default function ServiceDetailView({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Frequency</span>
-                  <Badge variant="outline">{pricing.frequency || 'N/A'}</Badge>
+                  <Badge variant="outline">{pricing.billing_frequency || 'N/A'}</Badge>
                 </div>
                 {pricing.rate !== null && pricing.rate !== undefined && (
                   <div className="flex items-center justify-between">
@@ -203,4 +192,3 @@ export default function ServiceDetailView({
     </div>
   );
 }
-

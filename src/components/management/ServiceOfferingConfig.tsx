@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ManagementServiceConfig, ServiceOffering } from '@/lib/management-service';
-import { ServicePricingConfig } from '@/lib/service-pricing';
+import { ServicePricingConfig, ServicePricingPreview } from '@/lib/service-pricing';
 import { formatCurrency } from '@/lib/transactions/formatting';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -34,12 +34,7 @@ interface OfferingWithPricing extends ServiceOffering {
   isIncluded: boolean;
   isOptional: boolean;
   pricing?: ServicePricingConfig;
-  defaultPricing?: {
-    rate: number | null;
-    frequency: string;
-    min_amount: number | null;
-    max_amount: number | null;
-  };
+  defaultPricing?: ServicePricingPreview;
 }
 
 export default function ServiceOfferingConfig({
@@ -68,6 +63,22 @@ export default function ServiceOfferingConfig({
   useEffect(() => {
     onConfigChangeRef.current = onConfigChange;
   }, [onConfigChange]);
+
+  const toPricingPreview = useCallback(
+    (pricing?: ServicePricingConfig | null): ServicePricingPreview | undefined => {
+      if (!pricing) return undefined;
+      return {
+        rate: pricing.rate,
+        billing_frequency: pricing.billing_frequency,
+        min_amount: pricing.min_amount ?? null,
+        max_amount: pricing.max_amount ?? null,
+        billing_basis: pricing.billing_basis,
+        effective_start: pricing.effective_start,
+        effective_end: pricing.effective_end,
+      };
+    },
+    [],
+  );
 
   const loadOfferings = useCallback(async () => {
     try {
@@ -152,10 +163,11 @@ export default function ServiceOfferingConfig({
               isOptional: !isIncluded,
               pricing: pricing || undefined,
               defaultPricing: {
-                rate: offering.default_rate,
-                frequency: offering.default_freq,
-                min_amount: offering.min_amount,
-                max_amount: offering.max_amount,
+                rate: offering.default_rate ?? null,
+                billing_frequency: offering.default_freq,
+                min_amount: offering.min_amount ?? null,
+                max_amount: offering.max_amount ?? null,
+                billing_basis: offering.billing_basis,
               },
             };
           },
@@ -495,7 +507,7 @@ export default function ServiceOfferingConfig({
               ) : (
                 filteredOfferings.map((offering) => {
                   const isSelected = selectedOfferings.has(offering.id);
-                  const pricing = offering.pricing || offering.defaultPricing;
+                  const pricing = toPricingPreview(offering.pricing) || offering.defaultPricing;
                   const isIncludedInPlan = offering.isIncluded;
                   const isPending = pendingToggles.has(offering.id);
 
@@ -560,14 +572,18 @@ export default function ServiceOfferingConfig({
                                 ? formatCurrency(pricing.rate)
                                 : 'N/A'}{' '}
                               <span className="text-muted-foreground text-xs">
-                                / {pricing.frequency || offering.defaultPricing?.frequency || 'N/A'}
+                                / {pricing.billing_frequency || offering.defaultPricing?.billing_frequency || 'N/A'}
                               </span>
                             </div>
-                            {(pricing.min_amount || pricing.max_amount) && (
+                            {(pricing.min_amount !== null || pricing.max_amount !== null) && (
                               <div className="text-muted-foreground text-xs">
-                                {pricing.min_amount && `Min: ${formatCurrency(pricing.min_amount)}`}
-                                {pricing.min_amount && pricing.max_amount && ' • '}
-                                {pricing.max_amount && `Max: ${formatCurrency(pricing.max_amount)}`}
+                                {pricing.min_amount !== null &&
+                                  `Min: ${formatCurrency(pricing.min_amount)}`}
+                                {pricing.min_amount !== null &&
+                                  pricing.max_amount !== null &&
+                                  ' • '}
+                                {pricing.max_amount !== null &&
+                                  `Max: ${formatCurrency(pricing.max_amount)}`}
                               </div>
                             )}
                           </div>
@@ -605,17 +621,8 @@ export default function ServiceOfferingConfig({
                       category: selectedOffering.category,
                       isSelected: selectedOffering.isSelected,
                       isIncluded: selectedOffering.isIncluded,
-                      pricing: selectedOffering.pricing
-                        ? {
-                            rate: selectedOffering.pricing.rate,
-                            frequency: selectedOffering.pricing.billing_frequency,
-                            min_amount: selectedOffering.pricing.min_amount,
-                            max_amount: selectedOffering.pricing.max_amount,
-                            billing_basis: selectedOffering.pricing.billing_basis,
-                            effective_start: selectedOffering.pricing.effective_start,
-                            effective_end: selectedOffering.pricing.effective_end,
-                          }
-                        : undefined,
+                      pricing: toPricingPreview(selectedOffering.pricing),
+                      pricingConfig: selectedOffering.pricing,
                       defaultPricing: selectedOffering.defaultPricing,
                     }}
                     propertyId={propertyId}

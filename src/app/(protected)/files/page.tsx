@@ -46,6 +46,14 @@ export const MAX_RETRY_ATTEMPTS = 3;
 export const BASE_RETRY_DELAY_MS = 2000;
 export const MAX_RETRY_DELAY_MS = 10000;
 
+type FilesListResponse = {
+  success: boolean;
+  data?: FileRow[];
+  pagination?: { total?: number | null } | null;
+  error?: string;
+  message?: string;
+};
+
 export default function FilesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -148,11 +156,11 @@ export default function FilesPage() {
 
         const rawBody = await response.text();
 
-        let parsed: any = {};
+        let parsed: FilesListResponse | null = null;
         if (rawBody) {
           try {
-            parsed = JSON.parse(rawBody);
-          } catch (parseError) {
+            parsed = JSON.parse(rawBody) as FilesListResponse;
+          } catch {
             parsed = { success: false, error: rawBody };
           }
         }
@@ -164,8 +172,11 @@ export default function FilesPage() {
         }
 
         if (parsed?.success) {
-          setFiles(parsed.data || []);
-          setMatches(parsed.pagination?.total || parsed.data?.length || 0);
+          const filesData = Array.isArray(parsed.data) ? parsed.data : [];
+          const totalMatches =
+            typeof parsed.pagination?.total === 'number' ? parsed.pagination.total : filesData.length;
+          setFiles(filesData);
+          setMatches(totalMatches);
           retryAttemptsRef.current = 0;
           clearRetryTimeout();
           setError(null);

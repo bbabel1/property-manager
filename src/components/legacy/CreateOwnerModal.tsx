@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { User, Building, Mail, MapPin, FileText, DollarSign, Plus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
-import { Button } from './components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import AddressAutocomplete from './HybridAddressAutocomplete';
-import { DatePicker } from './components/ui/date-picker';
+import { DatePicker } from '@/components/ui/date-picker';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 
 const COUNTRIES = [
@@ -245,14 +245,14 @@ export default function CreateOwnerModal({
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={(open) => {
+      onOpenChange={(open: boolean) => {
         if (!open) {
           resetForm();
           onClose();
         }
       }}
     >
-      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[92vw] overflow-y-auto rounded-none border p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl md:max-w-2xl lg:max-w-3xl">
+      <DialogContent className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl">
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
           <DialogTitle className="text-foreground text-xl font-semibold">
@@ -392,10 +392,12 @@ export default function CreateOwnerModal({
                 <label className="text-foreground mb-1 block text-sm font-medium">
                   Date of Birth
                 </label>
-                <DatePicker
-                  value={formData.dateOfBirth || ''}
-                  onChange={(v) => setFormData((prev) => ({ ...prev, dateOfBirth: v ?? '' }))}
-                />
+                  <DatePicker
+                    value={formData.dateOfBirth || ''}
+                    onChange={(v: string | null) =>
+                      setFormData((prev) => ({ ...prev, dateOfBirth: v ?? '' }))
+                    }
+                  />
               </div>
 
               {/* Management Agreement Dates */}
@@ -406,7 +408,7 @@ export default function CreateOwnerModal({
                   </label>
                   <DatePicker
                     value={formData.managementAgreementStartDate || ''}
-                    onChange={(v) =>
+                    onChange={(v: string | null) =>
                       setFormData((prev) => ({ ...prev, managementAgreementStartDate: v ?? '' }))
                     }
                   />
@@ -417,7 +419,7 @@ export default function CreateOwnerModal({
                   </label>
                   <DatePicker
                     value={formData.managementAgreementEndDate || ''}
-                    onChange={(v) =>
+                    onChange={(v: string | null) =>
                       setFormData((prev) => ({ ...prev, managementAgreementEndDate: v ?? '' }))
                     }
                   />
@@ -620,7 +622,9 @@ export default function CreateOwnerModal({
                 </label>
                 <select
                   value={formData.mailingPreference}
-                  onChange={(e) => handleMailingPreferenceChange(e.target.value)}
+                  onChange={(e) =>
+                    handleMailingPreferenceChange(e.target.value as MailingPreference)
+                  }
                   className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   aria-label="Mailing preference"
                 >
@@ -772,7 +776,10 @@ export default function CreateOwnerModal({
                   <select
                     value={formData.taxPayerType}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, taxPayerType: e.target.value }))
+                      setFormData((prev) => ({
+                        ...prev,
+                        taxPayerType: e.target.value as OwnerFormData['taxPayerType'],
+                      }))
                     }
                     className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                     aria-label="Tax payer type"

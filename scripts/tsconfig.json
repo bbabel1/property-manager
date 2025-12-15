@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2018",
+    "downlevelIteration": true,
+    "types": ["node"],
+    "noEmit": true,
+    "esModuleInterop": true,
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@types/db": ["./src/types/database.ts"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["../node_modules", "../src/lib/nyc-api-client.ts"]
+}

@@ -52,9 +52,15 @@ export async function updateStatementRecipients(
     const text = await response.text();
     try {
       const errorJson = text ? JSON.parse(text) : {};
-      throw new Error(errorJson?.error?.message || 'Failed to save recipients');
+      const serverMessage = errorJson?.error?.message;
+      const code = errorJson?.error?.code;
+      const message =
+        serverMessage || (code ? `Failed to save recipients (${code})` : 'Failed to save recipients');
+      throw new Error(message);
     } catch {
       throw new Error('Failed to save recipients');
     }
   }
 }
+
+export type { StatementRecipient };

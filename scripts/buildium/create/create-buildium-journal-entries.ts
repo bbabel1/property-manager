@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
-import * as dotenv from 'dotenv'
-import { resolveGLAccountId } from '../../../src/lib/buildium-mappers'
+import { config } from 'dotenv'
+import { resolveGLAccountId } from '@/lib/buildium-mappers'
 
-dotenv.config()
+config()
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!

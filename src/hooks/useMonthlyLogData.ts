@@ -7,10 +7,10 @@ import { toast } from 'sonner';
 
 import {
   normalizeFinancialSummary,
-  calculateNetToOwnerValue,
   type MonthlyLogFinancialSummary,
   type MonthlyLogTransaction,
 } from '@/types/monthly-log';
+import { buildStatementFinancialSummary } from '@/lib/statement-summary';
 
 type AssignedResponse = {
   transactions: MonthlyLogTransaction[];
@@ -73,6 +73,15 @@ const TAX_ESCROW_KEYWORD = 'tax escrow';
 const OWNER_DRAW_KEYWORD = 'owner draw';
 const EXCLUDED_BILL_KEYWORDS = ['management fee', 'property tax'];
 
+const fetchJson = async <T>(url: string): Promise<T> => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || 'Request failed');
+  }
+  return response.json() as Promise<T>;
+};
+
 const buildAssignedFallback = (
   transactions?: MonthlyLogTransaction[],
   summary?: MonthlyLogFinancialSummary | null,
@@ -115,7 +124,7 @@ const deriveLocalSummary = (
   let totalPayments = 0;
   let totalBills = 0;
   let escrowAmount = 0;
-  const managementFees = 0;
+  const managementFees = Math.abs(baseSummary?.managementFees ?? 0);
   let ownerDraw = 0;
 
   const previousBalance = baseSummary?.previousBalance ?? 0;
@@ -153,28 +162,16 @@ const deriveLocalSummary = (
     }
   });
 
-  const netToOwner = calculateNetToOwnerValue({
-    previousBalance,
-    totalPayments,
-    totalBills,
-    escrowAmount,
-    managementFees,
-    ownerDraw,
-  });
-  const balance = totalCharges - totalCredits - totalPayments;
-
-  return {
+  return buildStatementFinancialSummary({
     totalCharges,
     totalCredits,
     totalPayments,
     totalBills,
     escrowAmount,
     managementFees,
-    netToOwner,
-    balance,
-    previousBalance,
     ownerDraw,
-  };
+    previousLeaseBalance: previousBalance,
+  });
 };
 
 const mergeSummaryWithTransactions = (
@@ -214,7 +211,7 @@ export function useMonthlyLogData(
     mutate: mutateAssigned,
   } = useSWR<AssignedResponse>(
     monthlyLogId ? `/api/monthly-logs/${monthlyLogId}/transactions` : null,
-    undefined,
+    monthlyLogId ? (url) => fetchJson<AssignedResponse>(url) : null,
     {
       fallbackData: assignedFallback,
       revalidateOnFocus: false,
@@ -262,9 +259,13 @@ export function useMonthlyLogData(
         params.set('cursor', previousPageData.nextCursor);
       }
 
-      return `/api/transactions/unassigned?${params.toString()}`;
+      return shouldLoadLeaseUnassigned
+        ? ([`/api/transactions/unassigned?${params.toString()}`] as const)
+        : null;
     },
-    undefined,
+    shouldLoadLeaseUnassigned
+      ? (url) => fetchJson<UnassignedPage>(Array.isArray(url) ? url[0] : String(url))
+      : null,
     {
       fallbackData: shouldLoadLeaseUnassigned ? leaseUnassignedFallback : undefined,
       revalidateFirstPage: false,
@@ -298,9 +299,13 @@ export function useMonthlyLogData(
         params.set('cursor', previousPageData.nextCursor);
       }
 
-      return `/api/transactions/unassigned?${params.toString()}`;
+      return shouldLoadUnitUnassigned
+        ? ([`/api/transactions/unassigned?${params.toString()}`] as const)
+        : null;
     },
-    undefined,
+    shouldLoadUnitUnassigned
+      ? (url) => fetchJson<UnassignedPage>(Array.isArray(url) ? url[0] : String(url))
+      : null,
     {
       fallbackData: shouldLoadUnitUnassigned ? unitUnassignedFallback : undefined,
       revalidateFirstPage: false,

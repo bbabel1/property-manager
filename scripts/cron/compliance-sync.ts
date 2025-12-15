@@ -4,8 +4,8 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
-import { ComplianceSyncService } from '../../src/lib/compliance-sync-service'
-import { logger } from '../../src/lib/logger'
+import { ComplianceSyncService } from '@/lib/compliance-sync-service'
+import { logger } from '@/lib/logger'
 
 async function main() {
   if (process.env.ENABLE_COMPLIANCE_SYNC === '0' || process.env.ENABLE_COMPLIANCE_SYNC === 'false') {
@@ -134,4 +134,3 @@ main().catch((e) => {
   console.error('Compliance sync cron failed:', e)
   process.exit(1)
 })
-

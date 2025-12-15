@@ -169,7 +169,7 @@ export default function AutomationRulesAdmin() {
                   Add Rule
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[680px] max-w-[680px]">
                 <DialogHeader>
                   <DialogTitle>
                     {editingRule ? 'Edit Automation Rule' : 'Create Automation Rule'}

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+import { config } from 'dotenv'
 
-dotenv.config()
+config()
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -108,14 +108,19 @@ async function populateRelationships() {
           continue
         }
 
+        const unit = Array.isArray(lease.unit) ? lease.unit[0] : lease.unit
+        const property = (unit && Array.isArray(unit.property) ? unit.property[0] : unit?.property) as
+          | { id?: string | number | null; buildium_property_id?: number | null }
+          | null
+
         // Update the transaction line with property and unit relationships
         const { error: updateError } = await supabase
           .from('transaction_lines')
           .update({
             property_id: lease.property_id,
             unit_id: lease.unit_id,
-            buildium_property_id: lease.unit?.property?.buildium_property_id,
-            buildium_unit_id: lease.unit?.buildium_unit_id
+            buildium_property_id: property?.buildium_property_id,
+            buildium_unit_id: unit?.buildium_unit_id
           })
           .eq('id', line.id)
 

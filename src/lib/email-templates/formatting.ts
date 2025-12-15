@@ -37,8 +37,8 @@ export function formatCurrency(
       style: 'currency',
       currency,
     }).format(numValue);
-  } catch (error) {
-    console.error('Error formatting currency:', error);
+  } catch {
+    console.error('Error formatting currency');
     return nullDefault;
   }
 }
@@ -105,8 +105,7 @@ export function formatDate(
       default:
         return date.toLocaleDateString();
     }
-  } catch (error) {
-    console.error('Error formatting date:', error);
+  } catch {
     return nullDefault;
   }
 }
@@ -202,7 +201,7 @@ export function formatUrl(value: unknown, nullDefault: string = ''): string {
   try {
     const url = new URL(urlString);
     return url.toString();
-  } catch (error) {
+  } catch {
     // If URL parsing fails, try adding https:// prefix
     if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
       try {
@@ -248,4 +247,3 @@ export function formatTemplateVariable(
       return String(value);
   }
 }
-

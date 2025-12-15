@@ -1,15 +1,13 @@
 'use client';
 
-import { ArrowUpRight, ArrowDownRight, Minus, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/components/ui/utils';
 import type { MonthlyLogFinancialSummary } from '@/types/monthly-log';
 
 interface FinancialSummaryCardProps {
   summary: MonthlyLogFinancialSummary | null;
   loading: boolean;
-  onRefresh?: () => Promise<void> | void;
 }
 
 interface FinancialMetric {
@@ -24,7 +22,6 @@ interface FinancialMetric {
 export default function EnhancedFinancialSummaryCard({
   summary,
   loading,
-  onRefresh,
 }: FinancialSummaryCardProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

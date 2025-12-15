@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
@@ -7,7 +9,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     const withdrawalId = (await params).id;
     
     logger.info({ userId: user.id, withdrawalId, action: 'get_buildium_withdrawal' }, 'Fetching Buildium withdrawal details');
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
     const withdrawalId = (await params).id;
     
     logger.info({ userId: user.id, withdrawalId, action: 'update_buildium_withdrawal' }, 'Updating Buildium withdrawal');

@@ -8,9 +8,20 @@
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/types/database';
+
+type BillingBasis = Database['public']['Enums']['billing_basis_enum'];
+type RentBasis = Database['public']['Enums']['rent_basis_enum'];
+type ServicePlan = Database['public']['Enums']['service_plan_enum'];
 
 // Feature flag check
 const USE_NEW_SERVICE_CATALOG = process.env.USE_NEW_SERVICE_CATALOG === 'true';
+
+const endOfMonthFromPeriodStart = (periodStart: string): string => {
+  const start = new Date(`${periodStart}T00:00:00Z`);
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
+  return end.toISOString().slice(0, 10);
+};
 
 /**
  * Service name mapping from legacy enum to new offering codes
@@ -40,12 +51,12 @@ export async function writeServiceFeeDual(params: {
   propertyId: string;
   unitId?: string | null;
   amount: number;
-  planId?: string | null;
+  planId?: ServicePlan | null;
   offeringId?: string | null;
   feeCategory: 'plan_fee' | 'service_fee' | 'override' | 'legacy';
   legacyMemo?: string;
-  sourceBasis?: string;
-  rentBasis?: string | null;
+  sourceBasis?: BillingBasis;
+  rentBasis?: RentBasis | null;
   rentAmount?: number | null;
   db?: TypedSupabaseClient;
 }): Promise<{ transactionId: string; billingEventId?: string }> {
@@ -64,6 +75,7 @@ export async function writeServiceFeeDual(params: {
     db = supabaseAdmin,
   } = params;
 
+  let propertyOrgId: string | null = null;
   // Always create billing_event when feature flag is enabled
   let billingEventId: string | undefined;
   if (USE_NEW_SERVICE_CATALOG && offeringId) {
@@ -75,16 +87,18 @@ export async function writeServiceFeeDual(params: {
       .single();
 
     if (property?.org_id) {
+      propertyOrgId = property.org_id;
       // Get period from monthly log
       const { data: monthlyLog } = await db
         .from('monthly_logs')
-        .select('period_start, period_end')
+        .select('period_start')
         .eq('id', monthlyLogId)
         .single();
 
       if (monthlyLog) {
+        const periodEnd = endOfMonthFromPeriodStart(monthlyLog.period_start);
         // Determine source basis from caller or offering billing_basis
-        let basis: string = sourceBasis || 'percent_rent';
+        let basis: BillingBasis = sourceBasis ?? 'percent_rent';
         if (!sourceBasis) {
           const { data: offering } = await db
             .from('service_offerings')
@@ -99,15 +113,21 @@ export async function writeServiceFeeDual(params: {
         }
 
         // Avoid duplicate billing event (uniqueness constraint)
-        const { data: existing } = await db
+        const billingEventsQuery = db
           .from('billing_events')
           .select('id')
           .eq('org_id', property.org_id)
           .eq('period_start', monthlyLog.period_start)
           .eq('offering_id', offeringId)
-          .eq('property_id', propertyId)
-          .eq('unit_id', unitId || null)
-          .maybeSingle();
+          .eq('property_id', propertyId);
+
+        if (unitId) {
+          billingEventsQuery.eq('unit_id', unitId);
+        } else {
+          billingEventsQuery.is('unit_id', null);
+        }
+
+        const { data: existing } = await billingEventsQuery.maybeSingle();
 
         if (existing?.id) {
           billingEventId = existing.id;
@@ -116,17 +136,17 @@ export async function writeServiceFeeDual(params: {
             .from('billing_events')
             .upsert(
               {
-                org_id: property.org_id,
+                org_id: propertyOrgId,
                 property_id: propertyId,
                 unit_id: unitId || null,
                 offering_id: offeringId,
-                plan_id: planId || null,
+                plan_id: planId ?? null,
                 period_start: monthlyLog.period_start,
-                period_end: monthlyLog.period_end,
+                period_end: periodEnd,
                 amount,
                 source_basis: basis,
-                rent_basis: rentBasis || null,
-                rent_amount: rentAmount || null,
+                rent_basis: rentBasis ?? null,
+                rent_amount: rentAmount ?? null,
                 calculated_at: new Date().toISOString(),
               },
               { onConflict: 'org_id,period_start,offering_id,property_id,unit_id' },
@@ -141,24 +161,32 @@ export async function writeServiceFeeDual(params: {
             billingEventId = billingEvent?.id;
           }
         }
+      } else {
+        logger.warn({ monthlyLogId }, 'Monthly log not found; skipping billing event creation');
       }
+    } else {
+      logger.warn({ propertyId }, 'Property org_id not found; skipping billing event creation');
     }
   }
 
   // Create transaction (always, for backward compatibility)
   const memo = legacyMemo || `Management Fee - ${planId || 'Standard'} Plan`;
+  const nowIso = new Date().toISOString();
   const { data: transaction, error: txError } = await db
     .from('transactions')
     .insert({
       monthly_log_id: monthlyLogId,
       transaction_type: 'Charge',
       total_amount: amount,
-      date: new Date().toISOString().split('T')[0],
+      date: nowIso.split('T')[0],
       memo,
       service_offering_id: offeringId || null,
-      plan_id: planId || null,
+      plan_id: planId ?? null,
       fee_category: feeCategory,
       legacy_memo: legacyMemo || null,
+      org_id: propertyOrgId,
+      status: 'Due',
+      updated_at: nowIso,
     })
     .select('id')
     .single();
@@ -198,22 +226,21 @@ export async function readServiceFeeDual(params: {
 
   if (USE_NEW_SERVICE_CATALOG) {
     // Try to read from billing_events
+    const { data: matchingTransaction } = await db
+      .from('transactions')
+      .select('id')
+      .eq('monthly_log_id', monthlyLogId)
+      .eq('transaction_type', 'Charge')
+      .ilike('memo', '%management fee%')
+      .limit(1)
+      .maybeSingle()
+
+    const transactionIdForQuery = matchingTransaction?.id ?? ''
+
     const { data: billingEvents } = await db
       .from('billing_events')
       .select('amount, offering_id, plan_id')
-      .eq(
-        'transaction_id',
-        (
-          await db
-            .from('transactions')
-            .select('id')
-            .eq('monthly_log_id', monthlyLogId)
-            .eq('transaction_type', 'Charge')
-            .ilike('memo', '%management fee%')
-            .limit(1)
-            .maybeSingle()
-        )?.id || '',
-      );
+      .eq('transaction_id', transactionIdForQuery);
 
     if (billingEvents && billingEvents.length > 0) {
       const total = billingEvents.reduce((sum, be) => sum + (be.amount || 0), 0);
@@ -266,10 +293,17 @@ export async function getLegacyServiceList(params: {
       : await pricingQuery.is('unit_id', null);
 
     if (pricing && pricing.length > 0) {
-      return pricing
+      type PricingRow = {
+        offering_id: string;
+        service_offerings: { code?: string | null } | null;
+      };
+
+      const pricingRows = pricing as PricingRow[];
+
+      return pricingRows
         .map((p) => {
-          const code = (p.service_offerings as any)?.code;
-          return OFFERING_TO_LEGACY_MAPPING[code] || null;
+          const code = p.service_offerings?.code || null;
+          return (code && OFFERING_TO_LEGACY_MAPPING[code]) || null;
         })
         .filter(Boolean) as string[];
     }
@@ -293,11 +327,25 @@ export async function getLegacyServiceList(params: {
   } else {
     const { data: property } = await db
       .from('properties')
-      .select('included_services')
+      .select('active_services')
       .eq('id', propertyId)
       .single();
 
-    return (property?.included_services as string[]) || [];
+    const services = property?.active_services as unknown;
+    if (Array.isArray(services)) {
+      return services as string[];
+    }
+    if (services) {
+      try {
+        return JSON.parse(services as string);
+      } catch {
+        return String(services)
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+      }
+    }
+    return [];
   }
 
   return [];
@@ -346,10 +394,14 @@ export async function getLegacyFeeCalculation(params: {
         feeAmount = serviceAssignment?.fee_dollar_amount || null;
       }
     } else {
+      if (!unitId) {
+        return 0;
+      }
+
       const { data: unit } = await db
         .from('units')
         .select('fee_type, fee_percent, fee_dollar_amount')
-        .eq('id', unitId!)
+        .eq('id', unitId)
         .single();
 
       if (unit?.fee_type === 'Percentage') {
@@ -383,7 +435,7 @@ export async function convertLegacyToNew(params: {
   unitId?: string | null;
   db?: TypedSupabaseClient;
 }): Promise<void> {
-  const { propertyId, unitId, db = supabaseAdmin } = params;
+  const { propertyId, unitId, db: _db = supabaseAdmin } = params;
 
   // This is handled by the migration script (Phase 7.1)
   // This function is for programmatic conversion if needed

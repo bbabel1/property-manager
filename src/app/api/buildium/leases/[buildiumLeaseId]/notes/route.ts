@@ -4,9 +4,12 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id } = await params;
+    const { buildiumLeaseId } = await params;
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -35,8 +38,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (orderby) queryParams.append('orderby', orderby);
 
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase())
-    const payload: any = { leaseId: Number(id), limit, offset, orderby }
-    const res = await buildiumEdgeClient.listLeaseNotes(Number(id), { limit: Number(limit), offset: Number(offset), orderby: orderby || undefined })
+    const payload: any = { leaseId: Number(buildiumLeaseId), limit, offset, orderby }
+    const res = await buildiumEdgeClient.listLeaseNotes(Number(buildiumLeaseId), { limit: Number(limit), offset: Number(offset), orderby: orderby || undefined })
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to fetch lease notes from Buildium' }, { status: 502 })
     const notes = res.data || []
 
@@ -58,7 +61,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ buildiumLeaseId: string }> },
+) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Require platform admin
     await requireRole('platform_admin');
 
-    const { id } = await params;
+    const { buildiumLeaseId } = await params;
 
     // Parse and validate request body
     const body = await request.json();
@@ -81,7 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseNoteCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${id}/notes`;
+    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/notes`;
     
     const response = await fetch(buildiumUrl, {
       method: 'POST',

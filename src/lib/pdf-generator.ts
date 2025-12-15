@@ -11,7 +11,7 @@ import { chromium, type Browser, type BrowserContext } from 'playwright';
 
 const DEFAULT_LAUNCH_ARGS = ['--no-sandbox', '--disable-setuid-sandbox'] as const;
 
-const PLATFORM_BROWSER_CANDIDATES: Record<NodeJS.Platform, string[]> = {
+const PLATFORM_BROWSER_CANDIDATES: Partial<Record<NodeJS.Platform, string[]>> = {
   win32: [
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -53,7 +53,9 @@ function getChromiumExecutablePath(): string | undefined {
 }
 
 let sharedBrowserPromise: Promise<Browser> | null = null;
-let shutdownHookRegistered = false;
+const globalPdfFlags = globalThis as typeof globalThis & {
+  __pdfShutdownHookRegistered?: boolean;
+};
 let activeBrowserUsers = 0;
 let browserIdleTimer: NodeJS.Timeout | null = null;
 
@@ -83,15 +85,15 @@ async function launchChromiumBrowser() {
 }
 
 function registerBrowserShutdownHook() {
-  if (shutdownHookRegistered) return;
-  shutdownHookRegistered = true;
+  if (globalPdfFlags.__pdfShutdownHookRegistered) return;
+  globalPdfFlags.__pdfShutdownHookRegistered = true;
 
   const shutdown = async () => {
     await closeSharedBrowser();
   };
 
   ['beforeExit', 'SIGINT', 'SIGTERM'].forEach((event) => {
-    process.on(event as NodeJS.Signals | 'beforeExit', shutdown);
+    process.once(event as NodeJS.Signals | 'beforeExit', shutdown);
   });
 }
 

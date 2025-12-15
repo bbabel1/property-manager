@@ -9,6 +9,13 @@ import { Button } from '@/components/ui/button';
 import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  extractTransactionFromResponse,
+  getMonthlyLogErrorMessage,
+  safeParseJson,
+  type MonthlyLogTransaction,
+  type MonthlyLogTransactionResponse,
+} from '@/types/monthly-log';
 
 export type OwnerDrawOptions = {
   owners: Array<{ id: string; name: string; buildiumOwnerId: number; disbursementPercentage: number | null }>;
@@ -40,7 +47,7 @@ export type OwnerDrawSuccessPayload = {
   referenceNumber?: string | null;
   accountName?: string | null;
   transactionType?: string;
-  transaction?: Record<string, unknown>;
+  transaction?: MonthlyLogTransaction;
   values?: Record<string, unknown>;
 };
 
@@ -103,7 +110,7 @@ export default function OwnerDrawForm({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const ownerOptions = options?.owners ?? [];
+  const ownerOptions = useMemo(() => options?.owners ?? [], [options?.owners]);
   const propertyContext = options?.propertyContext ?? {
     propertyId,
     unitId,
@@ -293,43 +300,33 @@ export default function OwnerDrawForm({
 
       if (!response.ok) {
         const text = await response.text();
-        let payload: any = {};
-        try {
-          payload = text ? JSON.parse(text) : {};
-        } catch {
-          payload = {};
-        }
+        const payload = safeParseJson<MonthlyLogTransactionResponse>(text) ?? {};
         const message =
-          payload?.error?.message ||
-          payload?.error ||
+          getMonthlyLogErrorMessage(payload) ||
           'Unable to create owner draw. Double-check the entries and try again.';
         setFormError(message);
         return;
       }
 
       const text = await response.text();
-      let payload: any = {};
-      try {
-        payload = text ? JSON.parse(text) : {};
-      } catch {
-        payload = {};
-      }
-      const transaction =
-        payload?.data?.transaction ?? payload?.transaction ?? payload ?? undefined;
-      const transactionId: string | undefined =
-        transaction?.id ??
-        transaction?.transactionId ??
-        transaction?.transaction_id ??
-        transaction?.transactionID;
+      const payload = safeParseJson<MonthlyLogTransactionResponse>(text) ?? {};
+      const transaction = extractTransactionFromResponse(payload, {
+        total_amount: parsed.data.amount,
+        memo: parsed.data.memo ?? null,
+        date: parsed.data.date,
+        reference_number: parsed.data.referenceNumber ?? null,
+        account_name: ownerDrawAccount.name,
+        transaction_type: 'GeneralJournalEntry',
+      }) ?? undefined;
 
       onSuccess?.({
-        transactionId: transactionId ? String(transactionId) : undefined,
+        transactionId: transaction?.id,
         amount: parsed.data.amount,
         memo: parsed.data.memo || null,
         date: parsed.data.date,
         referenceNumber: parsed.data.referenceNumber || null,
-        accountName: ownerDrawAccount.name,
-        transactionType: transaction?.transaction_type ?? undefined,
+        accountName: transaction?.account_name ?? ownerDrawAccount.name,
+        transactionType: transaction?.transaction_type,
         transaction,
       });
     } catch (submitError) {

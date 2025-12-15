@@ -135,8 +135,11 @@ export default async function RecordBillPage({
 }: {
   searchParams?: Promise<{ propertyId?: string }>;
 }) {
-  const sp = (await (searchParams || Promise.resolve({}))) || {};
-  const preferredPropertyId = typeof (sp as any)?.propertyId === 'string' ? (sp as any).propertyId : null;
+  const sp =
+    ((await (searchParams || Promise.resolve<{ propertyId?: string }>({}))) as {
+      propertyId?: string;
+    }) || {};
+  const preferredPropertyId = typeof sp.propertyId === 'string' ? sp.propertyId : null;
   let db: TypedSupabaseClient;
   try {
     db = getSupabaseServiceRoleClient('loading record bill form data');
@@ -199,7 +202,9 @@ export default async function RecordBillPage({
       property_id: row.property_id != null ? String(row.property_id) : null,
     })) ?? [];
 
-  const vendorRows = (vendorRes.data ?? []) as VendorRow[];
+  const vendorRows: VendorRow[] = Array.isArray(vendorRes.data)
+    ? (vendorRes.data as unknown as VendorRow[])
+    : [];
   const vendors =
     vendorRows.map((row) => {
       const contact = row?.contact ?? row?.contacts ?? {};

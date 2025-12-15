@@ -7,6 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import type { BuildiumUnit } from '@/types/buildium';
 
 export async function GET(request: NextRequest) {
   try {
@@ -140,13 +141,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const unit = result.json;
+    const unit = result.json as BuildiumUnit;
 
     // Optional persist to DB if query param persist=true|1
     const { searchParams } = new URL(request.url);
     const persist = ['1', 'true', 'yes'].includes((searchParams.get('persist') || '').toLowerCase());
     if (persist) {
-      try { await UnitService.persistBuildiumUnit(unit); } catch (e) { logger.error(`Persist created unit failed: ${String(e)}`); }
+      try { await UnitService.persistBuildiumUnit(unit, orgId); } catch (e) { logger.error(`Persist created unit failed: ${String(e)}`); }
     }
 
     logger.info(`Buildium unit created successfully`);

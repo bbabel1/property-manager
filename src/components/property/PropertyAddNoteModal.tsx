@@ -1,107 +1,117 @@
-"use client"
+'use client';
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
-import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 type PropertyNotePayload = {
-  subject: string
-  body: string
-  is_private: boolean
-}
+  subject: string;
+  body: string;
+  is_private: boolean;
+};
 
 type PropertyNoteResponse = {
-  id: string
-  subject: string | null
-  body: string | null
-  created_at: string
-  created_by_name: string | null
-  is_private: boolean | null
-}
+  id: string;
+  subject: string | null;
+  body: string | null;
+  created_at: string;
+  created_by_name: string | null;
+  is_private: boolean | null;
+};
 
 interface PropertyAddNoteModalProps {
-  propertyId: string
-  isOpen: boolean
-  onClose: () => void
-  onNoteAdded?: (note: PropertyNoteResponse) => void
+  propertyId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onNoteAdded?: (note: PropertyNoteResponse) => void;
 }
 
-export default function PropertyAddNoteModal({ propertyId, isOpen, onClose, onNoteAdded }: PropertyAddNoteModalProps) {
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
-  const [isPrivate, setIsPrivate] = useState(false)
-  const [saving, setSaving] = useState(false)
+export default function PropertyAddNoteModal({
+  propertyId,
+  isOpen,
+  onClose,
+  onNoteAdded,
+}: PropertyAddNoteModalProps) {
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const reset = () => {
-    setSubject('')
-    setBody('')
-    setIsPrivate(false)
-  }
+    setSubject('');
+    setBody('');
+    setIsPrivate(false);
+  };
 
   const handleClose = () => {
-    if (saving) return
-    reset()
-    onClose()
-  }
+    if (saving) return;
+    reset();
+    onClose();
+  };
 
   const handleSave = async () => {
     if (!subject.trim() || !body.trim()) {
-      toast.error('Subject and body are required')
-      return
+      toast.error('Subject and body are required');
+      return;
     }
 
     if (!propertyId) {
-      toast.error('Property is required before adding notes.')
-      return
+      toast.error('Property is required before adding notes.');
+      return;
     }
 
     const payload: PropertyNotePayload = {
       subject: subject.trim(),
       body: body.trim(),
       is_private: isPrivate,
-    }
+    };
 
     try {
-      setSaving(true)
+      setSaving(true);
       const res = await fetchWithSupabaseAuth(`/api/properties/${propertyId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Failed to create note')
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to create note');
 
-      toast.success('Note added successfully')
-      const created = json?.data as PropertyNoteResponse | undefined
+      toast.success('Note added successfully');
+      const created = json?.data as PropertyNoteResponse | undefined;
       if (created) {
-        onNoteAdded?.(created)
+        onNoteAdded?.(created);
       }
-      reset()
-      onClose()
+      reset();
+      onClose();
     } catch (error) {
-      console.error('Failed to create property note', error)
-      toast.error('Failed to create note')
+      console.error('Failed to create property note', error);
+      toast.error('Failed to create note');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl sm:max-w-4xl top-[35%] translate-y-[-35%]">
+      <DialogContent className="top-[35%] w-[680px] max-w-[680px] translate-y-[-35%]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-foreground">Add property note</DialogTitle>
+          <DialogTitle className="text-foreground text-lg font-semibold">
+            Add property note
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <Label htmlFor="property-note-subject" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <Label
+              htmlFor="property-note-subject"
+              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+            >
               Subject
             </Label>
             <Input
@@ -114,7 +124,10 @@ export default function PropertyAddNoteModal({ propertyId, isOpen, onClose, onNo
             />
           </div>
           <div>
-            <Label htmlFor="property-note-body" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <Label
+              htmlFor="property-note-body"
+              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+            >
               Note
             </Label>
             <Textarea
@@ -127,8 +140,13 @@ export default function PropertyAddNoteModal({ propertyId, isOpen, onClose, onNo
             />
           </div>
           <div className="flex items-center gap-2">
-            <Switch id="property-note-private" checked={isPrivate} onCheckedChange={setIsPrivate} disabled={saving} />
-            <Label htmlFor="property-note-private" className="text-sm text-muted-foreground">
+            <Switch
+              id="property-note-private"
+              checked={isPrivate}
+              onCheckedChange={setIsPrivate}
+              disabled={saving}
+            />
+            <Label htmlFor="property-note-private" className="text-muted-foreground text-sm">
               Mark as private
             </Label>
           </div>
@@ -144,5 +162,5 @@ export default function PropertyAddNoteModal({ propertyId, isOpen, onClose, onNo
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

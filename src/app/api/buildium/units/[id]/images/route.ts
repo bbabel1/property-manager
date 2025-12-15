@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitImageUploadSchema, BuildiumUnitImageOrderUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function GET(
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -54,7 +55,13 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
-      try { await UnitService.persistImages(Number(id), images) } catch {}
+      let orgId: string | null = null;
+      try {
+        orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+      } catch {
+        return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
+      }
+      try { await UnitService.persistImages(Number(id), images, orgId) } catch {}
     }
 
     logger.info(`Buildium unit images fetched successfully`);
@@ -90,7 +97,7 @@ export async function POST(
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -128,7 +135,13 @@ export async function POST(
     }
 
     const image = await response.json();
-    try { await UnitService.persistImages(Number(id), [image]) } catch {}
+    let orgId: string | null = null;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    } catch {
+      return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
+    }
+    try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
 
     logger.info(`Buildium unit image uploaded successfully`);
 
@@ -162,7 +175,7 @@ export async function PUT(
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { supabase, user } = await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -200,7 +213,13 @@ export async function PUT(
     }
 
     const images = await response.json();
-    try { await UnitService.persistImages(Number(id), images) } catch {}
+    let orgId: string | null = null;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    } catch {
+      return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
+    }
+    try { await UnitService.persistImages(Number(id), images, orgId) } catch {}
 
     logger.info(`Buildium unit image order updated successfully`);
 

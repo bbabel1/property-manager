@@ -3,7 +3,8 @@
 import { getOrgScopedBuildiumConfig } from './buildium/credentials-manager';
 import { logger } from '@/lib/logger';
 
-export type BuildiumMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+export type BuildiumMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+type BuildiumParams = Record<string, string | number | boolean | null | undefined>
 
 /**
  * Buildium HTTP fetch helper
@@ -20,10 +21,10 @@ export type BuildiumMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 export async function buildiumFetch(
   method: BuildiumMethod,
   path: string,
-  params?: Record<string, any>,
-  payload?: any,
+  params?: BuildiumParams,
+  payload?: unknown,
   orgId?: string | undefined
-): Promise<{ ok: boolean; status: number; json?: any; errorText?: string }> {
+): Promise<{ ok: boolean; status: number; json?: unknown; errorText?: string }> {
   // Get credentials from central manager
   const config = await getOrgScopedBuildiumConfig(orgId);
   
@@ -66,7 +67,7 @@ export async function buildiumFetch(
       body: payload && method !== 'GET' ? JSON.stringify(payload) : undefined
     })
     const text = await res.text()
-    let json: any
+  let json: any
     try { json = text ? JSON.parse(text) : undefined } catch { json = undefined }
     if (res.ok) {
       console.log(`[Buildium] ${method} ${path} -> ${res.status}`, json?.Id ? { Id: json.Id } : json)
@@ -87,9 +88,9 @@ export async function buildiumFetch(
 export async function buildiumFetchLegacy(
   method: BuildiumMethod,
   path: string,
-  params?: Record<string, any>,
-  payload?: any
-): Promise<{ ok: boolean; status: number; json?: any; errorText?: string }> {
+  params?: BuildiumParams,
+  payload?: unknown
+): Promise<{ ok: boolean; status: number; json?: unknown; errorText?: string }> {
   logger.warn('buildiumFetchLegacy called - please migrate to buildiumFetch with orgId parameter');
   return buildiumFetch(method, path, params, payload, undefined);
 }
