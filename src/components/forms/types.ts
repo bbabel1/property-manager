@@ -1,20 +1,33 @@
 import type { Database } from '@/types/database'
+type GlAccountRow = Database['public']['Tables']['gl_accounts']['Row']
 
-type BankAccountRow = Database['public']['Tables']['bank_accounts']['Row']
+export type BankAccountSummary = {
+  id: GlAccountRow['id']
+  name: GlAccountRow['name']
+  description: GlAccountRow['description']
+  bank_account_type: GlAccountRow['bank_account_type']
+  account_number: GlAccountRow['bank_account_number']
+  routing_number: GlAccountRow['bank_routing_number']
+  is_active: GlAccountRow['is_active']
+  country: GlAccountRow['bank_country']
+  created_at: GlAccountRow['created_at']
+  updated_at: GlAccountRow['updated_at']
+}
 
-export type BankAccountSummary = Pick<
-  BankAccountRow,
+export type BankGlAccountSummary = Pick<
+  GlAccountRow,
   | 'id'
   | 'name'
   | 'description'
-  | 'bank_account_type'
-  | 'account_number'
-  | 'routing_number'
   | 'is_active'
-  | 'country'
   | 'created_at'
   | 'updated_at'
->
+> & {
+  bank_account_type?: Database['public']['Enums']['bank_account_type_enum'] | null
+  account_number?: string | null
+  routing_number?: string | null
+  country?: Database['public']['Enums']['countries'] | null
+}
 
 export type CreateBankAccountFormValues = {
   name: string
@@ -27,8 +40,8 @@ export type CreateBankAccountFormValues = {
 
 export type BankingDetailsFormValues = {
   reserve: number
-  operating_bank_account_id: string
-  deposit_trust_account_id: string
+  operating_bank_gl_account_id: string
+  deposit_trust_gl_account_id: string
 }
 
 export type CreateStaffFormValues = {

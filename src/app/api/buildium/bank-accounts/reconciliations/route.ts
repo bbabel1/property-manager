@@ -75,42 +75,51 @@ export async function POST(request: NextRequest) {
         const buildiumBankAccountId = (body?.BankAccountId ?? body?.bankAccountId ?? newReconciliation?.BankAccountId ?? newReconciliation?.bankAccountId) as number | undefined
         const statementEndingDate = (body?.StatementEndingDate ?? body?.statementEndingDate ?? newReconciliation?.StatementEndingDate ?? newReconciliation?.statementEndingDate) as string | undefined
 
-        // Resolve local bank/gl/property
-        let bank_account_id: string | null = null
+	        // Resolve local bank/gl/property
+        let bank_gl_account_id: string | null = null
         let gl_account_id: string | null = null
         let property_id: string | null = null
         if (buildiumBankAccountId != null) {
-          const { data: bank } = await admin
-            .from('bank_accounts')
-            .select('id, gl_account')
-            .eq('buildium_bank_id', buildiumBankAccountId)
+          const { data: bankGl } = await admin
+            .from('gl_accounts')
+            .select('id')
+            .eq('buildium_gl_account_id', buildiumBankAccountId)
             .maybeSingle()
-          if (bank) {
-            bank_account_id = bank.id
-            gl_account_id = bank.gl_account
-            // Map to property via operating/deposit account linkage
-            const { data: prop } = await admin
-              .from('properties')
-              .select('id')
-              .or(`operating_bank_account_id.eq.${bank_account_id},deposit_trust_account_id.eq.${bank_account_id}`)
-              .limit(1)
-              .maybeSingle()
-            if (prop) property_id = prop.id
-          }
-        }
+
+          if (bankGl) {
+            bank_gl_account_id = bankGl.id
+            gl_account_id = bankGl.id
+	          }
+
+	          // Map to property via operating/deposit linkage (bank GL FK model)
+	          if (bank_gl_account_id) {
+	            const { data: prop } = await admin
+	              .from('properties')
+	              .select('id')
+	              .or(
+	                [
+	                  bank_gl_account_id ? `operating_bank_gl_account_id.eq.${bank_gl_account_id}` : null,
+	                  bank_gl_account_id ? `deposit_trust_gl_account_id.eq.${bank_gl_account_id}` : null,
+	                ].filter(Boolean).join(','),
+	              )
+	              .limit(1)
+	              .maybeSingle()
+	            if (prop) property_id = prop.id
+	          }
+	        }
 
         const payload: any = {
           buildium_reconciliation_id: buildiumReconciliationId,
           buildium_bank_account_id: buildiumBankAccountId ?? null,
           statement_ending_date: statementEndingDate ?? null,
           is_finished: Boolean(newReconciliation?.IsFinished ?? newReconciliation?.isFinished ?? false),
-          ending_balance: null,
-          total_checks_withdrawals: null,
-          total_deposits_additions: null,
-          bank_account_id,
-          gl_account_id,
-          property_id,
-        }
+	          ending_balance: null,
+	          total_checks_withdrawals: null,
+	          total_deposits_additions: null,
+	          bank_gl_account_id,
+	          gl_account_id,
+	          property_id,
+	        }
 
         await admin.from('reconciliation_log')
           .upsert(payload, { onConflict: 'buildium_reconciliation_id' })

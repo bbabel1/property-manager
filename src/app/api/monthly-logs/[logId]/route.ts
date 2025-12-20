@@ -59,10 +59,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
           units:units (
             id,
             unit_number,
-            unit_name,
-            service_plan,
-            active_services,
-            fee_dollar_amount
+            unit_name
           ),
           tenants:tenants (
             id,

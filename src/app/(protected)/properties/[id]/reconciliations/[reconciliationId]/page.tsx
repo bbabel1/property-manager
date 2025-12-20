@@ -12,7 +12,7 @@ export default async function ReconciliationPage({ params }: { params: Promise<{
   // Load reconciliation record from our log
   const { data: rl } = await (supabase as any)
     .from('reconciliation_log')
-    .select('property_id, bank_account_id, gl_account_id, statement_ending_date, is_finished, ending_balance, total_checks_withdrawals, total_deposits_additions')
+    .select('property_id, bank_gl_account_id, gl_account_id, statement_ending_date, is_finished, ending_balance, total_checks_withdrawals, total_deposits_additions')
     .eq('buildium_reconciliation_id', Number(reconciliationId))
     .maybeSingle()
 
@@ -26,13 +26,13 @@ export default async function ReconciliationPage({ params }: { params: Promise<{
   let bankName = 'Bank Account', acctMasked = '••••'
   try {
     const { data: ba } = await (supabase as any)
-      .from('bank_accounts')
-      .select('name, account_number')
-      .eq('id', rl.bank_account_id)
+      .from('gl_accounts')
+      .select('name, bank_account_number')
+      .eq('id', rl.bank_gl_account_id)
       .maybeSingle()
     if (ba) {
       bankName = ba.name || bankName
-      const acct = ba.account_number || ''
+      const acct = (ba as any).bank_account_number || ''
       const last4 = acct ? acct.slice(-4) : ''
       acctMasked = last4 ? `•••• ${last4}` : '••••'
     }

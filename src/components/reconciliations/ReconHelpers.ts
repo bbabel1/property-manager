@@ -1,6 +1,6 @@
 export type ReconciliationLog = {
   property_id: string
-  bank_account_id: string
+  bank_gl_account_id: string
   gl_account_id: string
   statement_ending_date: string
   is_finished: boolean
@@ -14,4 +14,3 @@ export function fmtCurrency(n: number | null | undefined) {
   const v = Number(n || 0)
   return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
-

@@ -78,6 +78,15 @@ const cleanNullable = (value: unknown): unknown | null => {
 const toJson = (value: unknown): Json =>
   JSON.parse(JSON.stringify(value ?? null)) as Json
 
+const extractLeaseIdFromResponse = (response: unknown): number | null => {
+  if (!response || typeof response !== 'object') return null
+  const maybeLease = (response as { lease?: { id?: number | string | null }; lease_id?: number | string | null }).lease
+  const rawId =
+    (maybeLease && (maybeLease as { id?: number | string | null }).id) ??
+    (response as { lease_id?: number | string | null }).lease_id
+  return toNumericId(rawId)
+}
+
 
 // Normalize UI rent cycle labels to DB enum values
 // DB enum: 'Monthly' | 'Weekly' | 'Every2Weeks' | 'Quarterly' | 'Yearly' | 'Every2Months' | 'Daily' | 'Every6Months'
@@ -659,7 +668,18 @@ export async function POST(request: NextRequest) {
       .select('org_id')
       .eq('id', property_id)
       .maybeSingle()
-    const resolvedOrgId = propertyRowForOrg?.org_id ?? null
+
+    const { data: unitRowForOrg } = await (supabaseAdmin || supabase)
+      .from('units')
+      .select('org_id, property_id')
+      .eq('id', unit_id)
+      .maybeSingle()
+
+    const resolvedOrgId = propertyRowForOrg?.org_id ?? unitRowForOrg?.org_id ?? null
+    // Backfill property_id from the unit if caller only provided unit-level context
+    if (!property_id && unitRowForOrg?.property_id) {
+      property_id = unitRowForOrg.property_id
+    }
 
     const idemKey =
       request.headers.get('Idempotency-Key') ||
@@ -676,15 +696,33 @@ export async function POST(request: NextRequest) {
           .gte('expires_at', nowIso)
           .maybeSingle()
         if (idem?.response) {
-          // Touch last_used_at but do not block response on failure
-          try {
-            await admin
-              .from('idempotency_keys')
-              .update({ last_used_at: nowIso })
-              .eq('key', idemKey)
-              .eq('org_id', resolvedOrgId)
-          } catch {}
-          return NextResponse.json(idem.response, { status: 201 })
+          // Ensure cached lease still exists; if missing, drop idempotency entry and continue with create
+          const cachedLeaseId = extractLeaseIdFromResponse(idem.response)
+          if (cachedLeaseId) {
+            const { data: leaseRow } = await admin
+              .from('lease')
+              .select('id, org_id')
+              .eq('id', cachedLeaseId)
+              .maybeSingle()
+            if (leaseRow && (!leaseRow.org_id || leaseRow.org_id === resolvedOrgId)) {
+              try {
+                await admin
+                  .from('idempotency_keys')
+                  .update({ last_used_at: nowIso })
+                  .eq('key', idemKey)
+                  .eq('org_id', resolvedOrgId)
+              } catch {}
+              return NextResponse.json(idem.response, { status: 201 })
+            }
+            // Cached response is stale — clean it up so we can create a fresh lease
+            try {
+              await admin
+                .from('idempotency_keys')
+                .delete()
+                .eq('key', idemKey)
+                .eq('org_id', resolvedOrgId)
+            } catch {}
+          }
         }
       } catch {}
     }
@@ -988,6 +1026,7 @@ export async function POST(request: NextRequest) {
       const depositTemplateCtx = recurringList.find(
         (row: any) => typeof row?.frequency === 'string' && row.frequency.toLowerCase() === 'onetime'
       )
+      const orgIdForSync = ((lease as any)?.org_id ?? resolvedOrgId) as string | null
 
       const syncResult = await buildiumSync.syncLeaseToBuildium(
         {
@@ -996,6 +1035,7 @@ export async function POST(request: NextRequest) {
           send_welcome_email:
             typeof body?.send_welcome_email === 'boolean' ? body.send_welcome_email : true,
         } as any,
+        orgIdForSync ?? undefined,
         {
           rentTemplate: rentTemplateCtx,
           depositTemplate: depositTemplateCtx,

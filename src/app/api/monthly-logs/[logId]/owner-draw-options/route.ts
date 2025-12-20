@@ -67,7 +67,7 @@ export async function GET(
           id,
           org_id,
           buildium_property_id,
-          operating_bank_account_id
+          operating_bank_gl_account_id
         ),
         units:units(
           id,
@@ -99,12 +99,12 @@ export async function GET(
     let buildiumPropertyId =
       unitRecord?.buildium_property_id ?? propertyRecord?.buildium_property_id ?? null;
     const buildiumUnitId = unitRecord?.buildium_unit_id ?? null;
-    let operatingBankAccountId = propertyRecord?.operating_bank_account_id ?? null;
+    let operatingBankGlAccountId = (propertyRecord as any)?.operating_bank_gl_account_id ?? null;
 
-    if (!operatingBankAccountId && propertyId) {
+    if (!operatingBankGlAccountId && propertyId) {
       const { data: propertyRow, error: propertyError } = await supabaseAdmin
         .from('properties')
-        .select('id, org_id, buildium_property_id, operating_bank_account_id')
+        .select('id, org_id, buildium_property_id, operating_bank_gl_account_id')
         .eq('id', propertyId)
         .maybeSingle();
 
@@ -114,7 +114,8 @@ export async function GET(
         propertyId = propertyRow.id;
         orgId = orgId ?? propertyRow.org_id ?? null;
         buildiumPropertyId = buildiumPropertyId ?? propertyRow.buildium_property_id ?? null;
-        operatingBankAccountId = propertyRow.operating_bank_account_id ?? operatingBankAccountId;
+        operatingBankGlAccountId =
+          (propertyRow as any).operating_bank_gl_account_id ?? operatingBankGlAccountId;
       }
     }
 
@@ -181,86 +182,40 @@ export async function GET(
       glAccountBuildiumId: number | null;
     } | null = null;
 
-    const bankAccountId = operatingBankAccountId ?? null;
-    if (bankAccountId) {
-      const { data: bankAccountRow, error: bankAccountError } = await supabaseAdmin
-        .from('bank_accounts')
-        .select('id, name, buildium_bank_id, gl_account')
-        .eq('id', bankAccountId)
+    const parseBuildiumId = (value: unknown): number | null => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      if (typeof value === 'string' && Number.isFinite(Number(value))) return Number(value);
+      return null;
+    };
+
+    const bankGlAccountIdCandidate = operatingBankGlAccountId ?? null;
+    let bankGlAccountRow:
+      | {
+          id: string;
+          name: string | null;
+          buildium_gl_account_id: unknown;
+          is_bank_account: unknown;
+        }
+      | null = null;
+
+    if (bankGlAccountIdCandidate) {
+      const { data: glRow, error: glErr } = await supabaseAdmin
+        .from('gl_accounts')
+        .select('id, name, buildium_gl_account_id, is_bank_account')
+        .eq('id', bankGlAccountIdCandidate)
         .maybeSingle();
+      if (glErr) throw glErr;
+      bankGlAccountRow = (glRow as any) ?? null;
+    }
 
-      if (bankAccountError) throw bankAccountError;
-
-      if (bankAccountRow) {
-        let glAccountBuildiumId: number | null = null;
-        let glAccountId: string | null = bankAccountRow.gl_account ?? null;
-
-        if (bankAccountRow.buildium_bank_id != null) {
-          const bankBuildiumIdNum =
-            typeof bankAccountRow.buildium_bank_id === 'number'
-              ? bankAccountRow.buildium_bank_id
-              : typeof bankAccountRow.buildium_bank_id === 'string' &&
-                  Number.isFinite(Number(bankAccountRow.buildium_bank_id))
-                ? Number(bankAccountRow.buildium_bank_id)
-                : null;
-          if (bankBuildiumIdNum != null) {
-            const { data: bankGlByBuildium, error: bankGlByBuildiumError } = await supabaseAdmin
-              .from('gl_accounts')
-              .select('id, buildium_gl_account_id')
-              .eq('buildium_gl_account_id', bankBuildiumIdNum)
-              .maybeSingle();
-            if (bankGlByBuildiumError) throw bankGlByBuildiumError;
-            if (bankGlByBuildium?.id) {
-              glAccountId = bankGlByBuildium.id;
-            }
-            if (
-              bankGlByBuildium &&
-              typeof bankGlByBuildium.buildium_gl_account_id === 'number' &&
-              Number.isFinite(bankGlByBuildium.buildium_gl_account_id)
-            ) {
-              glAccountBuildiumId = bankGlByBuildium.buildium_gl_account_id;
-            }
-          }
-        }
-
-        if (!glAccountBuildiumId && bankAccountRow.gl_account) {
-          const { data: glAccountRow, error: glAccountError } = await supabaseAdmin
-            .from('gl_accounts')
-            .select('id, buildium_gl_account_id')
-            .eq('id', bankAccountRow.gl_account)
-            .maybeSingle();
-
-          if (glAccountError) throw glAccountError;
-
-          const mappedGl =
-            glAccountRow?.buildium_gl_account_id ??
-            (typeof glAccountRow?.buildium_gl_account_id === 'string'
-              ? Number(glAccountRow.buildium_gl_account_id)
-              : null);
-
-          glAccountBuildiumId =
-            typeof mappedGl === 'number' && Number.isFinite(mappedGl) ? mappedGl : glAccountBuildiumId;
-
-          if (glAccountRow?.id) {
-            glAccountId = glAccountRow.id;
-          }
-        }
-
-        bankAccount = {
-          id: bankAccountRow.id,
-          name: bankAccountRow.name,
-          buildiumBankId: (() => {
-            const candidate = bankAccountRow.buildium_bank_id;
-            if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
-            if (typeof candidate === 'string' && Number.isFinite(Number(candidate))) {
-              return Number(candidate);
-            }
-            return null;
-          })(),
-          glAccountId,
-          glAccountBuildiumId,
-        };
-      }
+    if (bankGlAccountRow?.id && Boolean((bankGlAccountRow as any).is_bank_account)) {
+      bankAccount = {
+        id: bankGlAccountRow.id,
+        name: bankGlAccountRow.name ?? null,
+        buildiumBankId: parseBuildiumId((bankGlAccountRow as any).buildium_gl_account_id),
+        glAccountId: bankGlAccountRow.id,
+        glAccountBuildiumId: parseBuildiumId((bankGlAccountRow as any).buildium_gl_account_id),
+      };
     }
 
     let ownerDrawAccount: { id: string; name: string; buildiumGlAccountId: number | null } | null =

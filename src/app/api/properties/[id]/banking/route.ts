@@ -31,9 +31,13 @@ export async function PUT(
 
     logger.info({ userId: user.id, propertyId, action: 'update_banking_details' }, 'Updating property banking details');
 
-    // Parse request body
-    const body = await request.json();
-    const { reserve, operating_bank_account_id, deposit_trust_account_id } = body;
+	    // Parse request body
+	    const body = await request.json();
+	    const {
+	      reserve,
+	      operating_bank_gl_account_id,
+	      deposit_trust_gl_account_id,
+	    } = body;
 
     // Validate required fields
     if (reserve === undefined) {
@@ -107,15 +111,37 @@ export async function PUT(
       );
     }
 
-    // Update property banking details
-    const { data, error } = await client
-      .from('properties')
-      .update({
-        reserve: reserve,
-        operating_bank_account_id: operating_bank_account_id || null,
-        deposit_trust_account_id: deposit_trust_account_id || null,
-        updated_at: new Date().toISOString()
-      })
+	    // Phase 5: bank accounts are gl_accounts rows; legacy bank_accounts columns are removed.
+	    const operatingGlId: string | null = operating_bank_gl_account_id || null
+	    const trustGlId: string | null = deposit_trust_gl_account_id || null
+
+	    // Validate selected GL accounts are bank accounts (when provided)
+	    const selectedIds = [operatingGlId, trustGlId].filter((v): v is string => typeof v === 'string' && v.length > 0)
+	    if (selectedIds.length) {
+	      const { data: glRows, error: glErr } = await client
+	        .from('gl_accounts')
+	        .select('id, is_bank_account')
+	        .eq('org_id', orgId)
+	        .in('id', selectedIds)
+	      if (glErr) {
+	        logger.error({ error: glErr, userId: user.id, propertyId }, 'Error validating bank GL accounts');
+	        return NextResponse.json({ error: 'Failed to update banking details' }, { status: 500 })
+	      }
+	      const invalid = (glRows ?? []).filter((row: any) => !row?.is_bank_account).map((row: any) => row?.id)
+	      if (invalid.length) {
+	        return NextResponse.json({ error: 'Selected GL account is not a bank account', invalid }, { status: 422 })
+	      }
+	    }
+
+	    // Update property banking details
+	    const { data, error } = await client
+	      .from('properties')
+	      .update({
+	        reserve: reserve,
+	        operating_bank_gl_account_id: operatingGlId,
+	        deposit_trust_gl_account_id: trustGlId,
+	        updated_at: new Date().toISOString()
+	      } as any)
       .eq('id', propertyId)
       .select()
       .single();

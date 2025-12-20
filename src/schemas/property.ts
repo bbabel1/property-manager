@@ -17,6 +17,15 @@ export const PropertyCreateSchema = z.object({
   country: z.string().min(1, 'Country is required'),
   yearBuilt: z.string().optional(),
   structureDescription: z.string().optional(),
+  management_scope: z.enum(['Building', 'Unit'], {
+    message: 'Management scope is required',
+  }),
+  service_assignment: z.enum(['Property Level', 'Unit Level'], {
+    message: 'Service assignment is required',
+  }),
+  service_plan: z.enum(['Full', 'Basic', 'A-la-carte', 'Custom'], {
+    message: 'Service plan is required',
+  }),
   owners: z
     .array(
       z.object({
@@ -31,28 +40,6 @@ export const PropertyCreateSchema = z.object({
   operatingBankAccountId: z.string().optional(),
   reserve: z.number().min(0).optional(),
   propertyManagerId: z.string().optional(),
-  // Management/Service/Fee fields
-  management_scope: z.enum(['Building', 'Unit']).optional(),
-  service_assignment: z.enum(['Property Level', 'Unit Level']).optional(),
-  service_plan: z.enum(['Full', 'Basic', 'A-la-carte', 'Custom']).optional(),
-  active_services: z
-    .array(
-      z.enum([
-        'Rent Collection',
-        'Maintenance',
-        'Turnovers',
-        'Compliance',
-        'Bill Pay',
-        'Condition Reports',
-        'Renewals',
-      ]),
-    )
-    .optional(),
-  fee_assignment: z.enum(['Building', 'Unit']).optional(),
-  fee_type: z.enum(['Percentage', 'Flat Rate']).optional(),
-  fee_percentage: z.number().min(0).max(100).optional(),
-  fee_dollar_amount: z.number().min(0).optional(),
-  billing_frequency: z.enum(['Annual', 'Monthly']).optional(),
 });
 
 export const PropertyUpdateSchema = PropertyCreateSchema.partial();

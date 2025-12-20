@@ -20,7 +20,7 @@ import IssueCreditForm from '@/components/leases/IssueCreditForm';
 import IssueRefundForm from '@/components/leases/IssueRefundForm';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import CreateBillForm from '@/components/monthly-logs/CreateBillForm';
-import ManagementFeeForm from '@/components/monthly-logs/ManagementFeeForm';
+import ManagementFeesStage from '@/components/monthly-logs/ManagementFeesStage';
 import OwnerDrawForm, { type OwnerDrawSuccessPayload } from '@/components/monthly-logs/OwnerDrawForm';
 import PropertyTaxEscrowForm, {
   type PropertyTaxEscrowSuccessPayload,
@@ -129,35 +129,6 @@ type OwnerDrawOptionsResponse = {
   };
 };
 
-type ManagementFeeOptionsResponse = {
-  servicePlan: string | null;
-  activeServices: string[];
-  feeType: string | null;
-  feePercentage: number | null;
-  feeDollarAmount: number | null;
-  billingFrequency: string | null;
-  serviceAssignment?: string | null;
-  feeAssignment?: string | null;
-  sources?: { service?: 'property' | 'unit'; fee?: 'property' | 'unit' };
-  propertyContext?: {
-    feeType: string | null;
-    feePercentage: number | null;
-    feeDollarAmount: number | null;
-    billingFrequency: string | null;
-    servicePlan: string | null;
-    activeServices: string[];
-  };
-  unitContext?: {
-    feeType: string | null;
-    feePercent: number | null;
-    feeDollarAmount: number | null;
-    billingFrequency: string | null;
-    servicePlan: string | null;
-    activeServices: string[];
-  };
-  periodStart?: string | null;
-};
-
 const LEASE_MODE_VALUES: TransactionMode[] = ['payment', 'charge', 'credit', 'refund', 'deposit'];
 
 export default function MonthlyLogTransactionOverlay({
@@ -197,7 +168,7 @@ export default function MonthlyLogTransactionOverlay({
     shouldLoadFinancialOptions ? `/api/leases/${leaseResourceId}/financial-options` : null,
   );
 
-  const shouldLoadBillOptions = isOpen && (mode === 'bill' || mode === 'managementFee');
+  const shouldLoadBillOptions = isOpen && mode === 'bill';
   const {
     data: billOptions,
     isLoading: loadingBillOptions,
@@ -216,15 +187,6 @@ export default function MonthlyLogTransactionOverlay({
     shouldLoadOwnerDrawOptions ? `/api/monthly-logs/${monthlyLogId}/owner-draw-options` : null,
   );
 
-  const shouldLoadManagementFees = isOpen && mode === 'managementFee';
-  const {
-    data: managementFeeOptions,
-    isLoading: loadingManagementFees,
-    error: managementFeesError,
-  } = useSWR<ManagementFeeOptionsResponse>(
-    shouldLoadManagementFees ? `/api/monthly-logs/${monthlyLogId}/management-fees` : null,
-  );
-
   const leaseAccountOptions = useMemo(
     () =>
       (financialOptions?.accountOptions ?? []).filter(
@@ -241,26 +203,6 @@ export default function MonthlyLogTransactionOverlay({
   );
   const accountOptions =
     leaseAccountOptions.length > 0 ? leaseAccountOptions : mappedBillAccounts;
-  const managementAccountNames = useMemo(
-    () =>
-      new Set(
-        ['Management Fees', 'Lease Generation', 'Lease Renewal', 'Condition Report', 'Rent Collection'].map(
-          (name) => name.toLowerCase(),
-        ),
-      ),
-    [],
-  );
-  const managementAccountOptions = useMemo(
-    () =>
-      billAccountOptions.filter((option) =>
-        managementAccountNames.has((option.name ?? '').toLowerCase()),
-      ),
-    [billAccountOptions, managementAccountNames],
-  );
-  const mappedManagementAccounts = useMemo(
-    () => managementAccountOptions.filter((option) => option.buildiumGlAccountId != null),
-    [managementAccountOptions],
-  );
   const bankAccountOptions = financialOptions?.bankAccountOptions ?? [];
   const leaseOptionsReady = Boolean(financialOptions);
   const billOptionsReady = Boolean(billOptions);
@@ -502,16 +444,6 @@ export default function MonthlyLogTransactionOverlay({
   const managementFeeDisabledReason = (() => {
     if (!propertyId || !unitId)
       return 'Link this monthly log to a property and unit to record management fees.';
-    if (!shouldLoadBillOptions && !billOptions && !billOptionsError && !managementFeesError)
-      return null;
-    if (loadingBillOptions || loadingManagementFees)
-      return 'Loading management fee options…';
-    if (billOptionsError) return 'Unable to load bill options.';
-    if (managementFeesError) return 'Unable to load management fee configuration.';
-    if (!billOptions?.vendors?.length)
-      return 'Add a vendor with a Buildium mapping before creating management fees.';
-    if (!managementAccountOptions.length)
-      return 'Add Management Fees accounts before creating management fees.';
     return null;
   })();
 
@@ -759,69 +691,7 @@ export default function MonthlyLogTransactionOverlay({
           />
         );
       case 'managementFee':
-        if (!billOptionsReady || !managementFeeOptions) {
-          return (
-            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
-              {loadingBillOptions || loadingManagementFees
-                ? 'Loading management fee options…'
-                : 'Unable to load management fee options.'}
-            </div>
-          );
-        }
-        return (
-          <ManagementFeeForm
-            key="management-fee"
-            monthlyLogId={monthlyLogId}
-            vendors={billOptions?.vendors ?? []}
-            accounts={managementAccountOptions}
-            mappedAccountCount={mappedManagementAccounts.length}
-            managementServices={{
-              assignmentLevel:
-                managementFeeOptions.serviceAssignment ??
-                (managementFeeOptions.sources?.service === 'unit'
-                  ? 'Unit Level'
-                  : managementFeeOptions.sources?.service === 'property'
-                    ? 'Property Level'
-                    : null),
-              servicePlan:
-                managementFeeOptions.servicePlan ??
-                managementFeeOptions.unitContext?.servicePlan ??
-                managementFeeOptions.propertyContext?.servicePlan ??
-                null,
-              activeServices:
-                managementFeeOptions.activeServices ??
-                managementFeeOptions.unitContext?.activeServices ??
-                managementFeeOptions.propertyContext?.activeServices ??
-                [],
-            }}
-            managementFees={{
-              assignmentLevel:
-                managementFeeOptions.feeAssignment ??
-                (managementFeeOptions.sources?.fee === 'unit'
-                  ? 'Unit Level'
-                  : managementFeeOptions.sources?.fee === 'property'
-                    ? 'Property Level'
-                    : null),
-              feeType: managementFeeOptions.feeType,
-              feePercent:
-                managementFeeOptions.unitContext?.feePercent ??
-                managementFeeOptions.feePercentage ??
-                null,
-              feePercentage: managementFeeOptions.feePercentage ?? null,
-              feeAmount: managementFeeOptions.feeDollarAmount ?? null,
-              billingFrequency: managementFeeOptions.billingFrequency ?? null,
-              propertyFeeType: managementFeeOptions.propertyContext?.feeType ?? null,
-              propertyFeePercent:
-                managementFeeOptions.propertyContext?.feePercentage ?? null,
-              unitFeeType: managementFeeOptions.unitContext?.feeType ?? null,
-              unitFeePercent: managementFeeOptions.unitContext?.feePercent ?? null,
-            }}
-            periodStart={periodStart ?? managementFeeOptions.periodStart ?? null}
-            activeLeaseRent={activeLease?.rent_amount ?? null}
-            onCancel={handleOverlayClose}
-            onSuccess={handleTransactionSuccess}
-          />
-        );
+        return <ManagementFeesStage key="management-fee" monthlyLogId={monthlyLogId} />;
       case 'propertyTaxEscrow':
         return (
           <PropertyTaxEscrowForm

@@ -4,11 +4,6 @@ import type { Database as DatabaseSchema } from '@/types/database';
 export type BedroomEnum = 'Studio' | '1' | '2' | '3' | '4' | '5+' | '6' | '7' | '8' | '9+';
 export type BathroomEnum = '1' | '1.5' | '2' | '2.5' | '3' | '3.5' | '4+' | '4.5' | '5' | '5+';
 
-// Service-related enums
-export type ServicePlan = 'Full' | 'Basic' | 'A-la-carte' | 'Custom';
-export type FeeFrequency = 'Monthly' | 'Annually';
-export type FeeType = 'Percentage' | 'Flat Rate';
-
 // Array constants for use in dropdowns
 export const BEDROOM_OPTIONS: BedroomEnum[] = [
   'Studio',
@@ -34,9 +29,6 @@ export const BATHROOM_OPTIONS: BathroomEnum[] = [
   '5',
   '5+',
 ];
-export const SERVICE_PLAN_OPTIONS: ServicePlan[] = ['Full', 'Basic', 'A-la-carte', 'Custom'];
-export const FEE_FREQUENCY_OPTIONS: FeeFrequency[] = ['Monthly', 'Annually'];
-export const FEE_TYPE_OPTIONS: FeeType[] = ['Percentage', 'Flat Rate'];
 
 export type CountryEnum = DatabaseSchema['public']['Enums']['countries'];
 export type UnitDB = DatabaseSchema['public']['Tables']['units']['Row'];
@@ -63,13 +55,6 @@ export interface Unit {
   buildiumPropertyId?: number | null;
   serviceStart?: string | null;
   serviceEnd?: string | null;
-  servicePlan?: ServicePlan | null;
-  feeType?: FeeType | null;
-  feePercent?: number | null;
-  feeDollarAmount?: number | null;
-  feeFrequency?: FeeFrequency | null;
-  activeServices?: string | null;
-  feeNotes?: string | null;
   billPayList?: string | null;
   billPayNotes?: string | null;
   unitType?: string | null;
@@ -103,13 +88,6 @@ export function mapUnitFromDB(dbUnit: UnitDB): Unit {
     buildiumPropertyId: dbUnit.buildium_property_id,
     serviceStart: dbUnit.service_start,
     serviceEnd: dbUnit.service_end,
-    servicePlan: dbUnit.service_plan,
-    feeType: dbUnit.fee_type,
-    feePercent: dbUnit.fee_percent,
-    feeDollarAmount: dbUnit.fee_dollar_amount,
-    feeFrequency: dbUnit.fee_frequency,
-    activeServices: dbUnit.active_services,
-    feeNotes: dbUnit.fee_notes,
     billPayList: dbUnit.bill_pay_list,
     billPayNotes: dbUnit.bill_pay_notes,
     unitType: dbUnit.unit_type,
@@ -147,17 +125,6 @@ export function mapUnitToDB(unit: Partial<Unit>): UnitUpdateDB {
     dbUnit.buildium_property_id = unit.buildiumPropertyId ?? null;
   if (unit.serviceStart !== undefined) dbUnit.service_start = unit.serviceStart ?? null;
   if (unit.serviceEnd !== undefined) dbUnit.service_end = unit.serviceEnd ?? null;
-  if (unit.servicePlan !== undefined) {
-    const normalizedPlan: Exclude<ServicePlan, 'Custom'> | null =
-      unit.servicePlan === 'Custom' ? null : unit.servicePlan ?? null;
-    dbUnit.service_plan = normalizedPlan;
-  }
-  if (unit.feeType !== undefined) dbUnit.fee_type = unit.feeType ?? null;
-  if (unit.feePercent !== undefined) dbUnit.fee_percent = unit.feePercent ?? null;
-  if (unit.feeDollarAmount !== undefined) dbUnit.fee_dollar_amount = unit.feeDollarAmount ?? null;
-  if (unit.feeFrequency !== undefined) dbUnit.fee_frequency = unit.feeFrequency ?? null;
-  if (unit.activeServices !== undefined) dbUnit.active_services = unit.activeServices ?? null;
-  if (unit.feeNotes !== undefined) dbUnit.fee_notes = unit.feeNotes ?? null;
   if (unit.billPayList !== undefined) dbUnit.bill_pay_list = unit.billPayList ?? null;
   if (unit.billPayNotes !== undefined) dbUnit.bill_pay_notes = unit.billPayNotes ?? null;
   if (unit.unitType !== undefined) dbUnit.unit_type = unit.unitType ?? null;

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { type PropertyWithDetails } from '@/lib/property-service'
 import CreateBankAccountModal from '@/components/CreateBankAccountModal'
 import { Dropdown } from '@/components/ui/Dropdown'
-import type { BankAccountSummary, BankingDetailsFormValues } from '@/components/forms/types'
+import type { BankGlAccountSummary, BankingDetailsFormValues } from '@/components/forms/types'
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch'
 
 type BankingDetailsModalProps = {
@@ -19,12 +19,12 @@ type BankingDetailsModalProps = {
 export default function BankingDetailsModal({ isOpen, onClose, onSuccess, property }: BankingDetailsModalProps) {
   const [formData, setFormData] = useState<BankingDetailsFormValues>({
     reserve: 0,
-    operating_bank_account_id: '',
-    deposit_trust_account_id: ''
+    operating_bank_gl_account_id: '',
+    deposit_trust_gl_account_id: ''
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([])
+  const [bankAccounts, setBankAccounts] = useState<BankGlAccountSummary[]>([])
   const [_isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false)
   const [showCreateBankAccountModal, setShowCreateBankAccountModal] = useState(false)
   const [selectedAccountType, setSelectedAccountType] = useState<'operating' | 'trust' | null>(null)
@@ -41,8 +41,8 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     if (isOpen && property) {
       setFormData({
         reserve: property.reserve || 0,
-        operating_bank_account_id: property.operating_bank_account_id || '',
-        deposit_trust_account_id: property.deposit_trust_account_id || ''
+        operating_bank_gl_account_id: (property as any).operating_bank_gl_account_id || '',
+        deposit_trust_gl_account_id: (property as any).deposit_trust_gl_account_id || ''
       })
       setError(null)
     }
@@ -51,13 +51,13 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
   const fetchBankAccounts = async () => {
     try {
       setIsLoadingBankAccounts(true)
-      const response = await fetchWithSupabaseAuth('/api/bank-accounts')
+      const response = await fetchWithSupabaseAuth('/api/gl-accounts/bank-accounts')
       
       if (!response.ok) {
         throw new Error('Failed to fetch bank accounts')
       }
       
-      const bankAccountsData = (await response.json()) as BankAccountSummary[]
+      const bankAccountsData = (await response.json()) as BankGlAccountSummary[]
       setBankAccounts(bankAccountsData)
     } catch (error) {
       console.error('Error fetching bank accounts:', error)
@@ -108,24 +108,24 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     }))
   }
 
-  const handleBankAccountChange = (field: 'operating_bank_account_id' | 'deposit_trust_account_id', value: string) => {
+  const handleBankAccountChange = (field: 'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id', value: string) => {
     if (value === 'create-new-account') {
-      setSelectedAccountType(field === 'operating_bank_account_id' ? 'operating' : 'trust')
+      setSelectedAccountType(field === 'operating_bank_gl_account_id' ? 'operating' : 'trust')
       setShowCreateBankAccountModal(true)
     } else {
       handleInputChange(field, value)
     }
   }
 
-  const handleCreateBankAccountSuccess = (newAccount: BankAccountSummary) => {
+  const handleCreateBankAccountSuccess = (newAccount: BankGlAccountSummary) => {
     // Add the new account to the list
     setBankAccounts(prev => [...prev, newAccount])
     
     // Auto-select the new account for the appropriate field
     if (selectedAccountType === 'operating') {
-      handleInputChange('operating_bank_account_id', newAccount.id)
+      handleInputChange('operating_bank_gl_account_id', newAccount.id)
     } else if (selectedAccountType === 'trust') {
-      handleInputChange('deposit_trust_account_id', newAccount.id)
+      handleInputChange('deposit_trust_gl_account_id', newAccount.id)
     }
     
     setSelectedAccountType(null)
@@ -189,8 +189,8 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
                   Operating Bank Account
                 </label>
                 <Dropdown
-                  value={formData.operating_bank_account_id}
-                  onChange={(value: string) => handleBankAccountChange('operating_bank_account_id', value)}
+                  value={formData.operating_bank_gl_account_id}
+                  onChange={(value: string) => handleBankAccountChange('operating_bank_gl_account_id', value)}
                   options={[
                     ...bankAccounts.map(account => ({
                       value: account.id,
@@ -207,8 +207,8 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
                   Deposit Trust Account
                 </label>
                 <Dropdown
-                  value={formData.deposit_trust_account_id}
-                  onChange={(value: string) => handleBankAccountChange('deposit_trust_account_id', value)}
+                  value={formData.deposit_trust_gl_account_id}
+                  onChange={(value: string) => handleBankAccountChange('deposit_trust_gl_account_id', value)}
                   options={[
                     ...bankAccounts.map(account => ({
                       value: account.id,

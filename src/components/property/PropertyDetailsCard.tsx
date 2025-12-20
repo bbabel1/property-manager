@@ -573,13 +573,6 @@ export default function PropertyDetailsCard({ property }: { property: Property }
                   </span>
                 )}
               </div>
-              <Button size="sm" onClick={handleSyncToBuildium} disabled={syncing}>
-                {syncing
-                  ? 'Syncing…'
-                  : property.buildium_property_id
-                    ? 'Resync to Buildium'
-                    : 'Sync to Buildium'}
-              </Button>
             </div>
             <div className="relative md:col-span-2">
               <div className="bg-card w-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)]">

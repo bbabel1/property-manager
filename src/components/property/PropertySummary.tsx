@@ -86,13 +86,15 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
 
   // Helper functions to get bank account information
   const getOperatingBankAccount = () => {
-    if (!property.operating_bank_account_id) return null;
-    return bankAccounts.find((account) => account.id === property.operating_bank_account_id);
+    const operatingGlId = (property as any).operating_bank_gl_account_id;
+    if (!operatingGlId) return null;
+    return bankAccounts.find((account) => account.id === operatingGlId);
   };
 
   const getDepositTrustBankAccount = () => {
-    if (!property.deposit_trust_account_id) return null;
-    return bankAccounts.find((account) => account.id === property.deposit_trust_account_id);
+    const depositGlId = (property as any).deposit_trust_gl_account_id;
+    if (!depositGlId) return null;
+    return bankAccounts.find((account) => account.id === depositGlId);
   };
 
   return (

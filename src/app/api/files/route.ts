@@ -7,16 +7,18 @@ import {
   type EntityTypeEnum,
 } from '@/lib/files';
 import { requireUser } from '@/lib/auth';
+import type { AuthenticatedUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request);
+    const user = (await requireUser(request)) as AuthenticatedUser;
     const supabase = await getSupabaseServerClient();
     const url = new URL(request.url);
 
     const entityTypeParam = url.searchParams.get('entityType');
     const entityIdParam = url.searchParams.get('entityId');
-    const orgId = url.searchParams.get('orgId');
+    const orgIdHeader = request.headers.get('x-org-id');
+    const orgId = url.searchParams.get('orgId') || orgIdHeader || user?.app_metadata?.org_id;
 
     if (!entityTypeParam || !entityIdParam) {
       return NextResponse.json({ error: 'Missing entityType or entityId' }, { status: 400 });
@@ -52,7 +54,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Get org_id - either from query param or user's org
-    // TODO: Get org_id from user context when available
     if (!orgId) {
       return NextResponse.json({ error: 'orgId is required' }, { status: 400 });
     }

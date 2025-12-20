@@ -40,9 +40,10 @@ export async function GET(
         .eq('org_id', orgId)
         .order('name', { ascending: true }),
       supabase
-        .from('bank_accounts')
+        .from('gl_accounts')
         .select('id, name')
         .eq('org_id', orgId)
+        .eq('is_bank_account', true)
         .order('name', { ascending: true }),
     ]);
 

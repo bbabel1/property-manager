@@ -211,19 +211,28 @@ export async function fetchBankAccountBuildiumId(
   bankAccountId: string,
   db: TypedSupabaseClient = supabaseAdmin,
 ): Promise<number> {
-  const { data, error } = await db
-    .from('bank_accounts')
-    .select('id, buildium_bank_id')
-    .eq('id', bankAccountId)
-    .maybeSingle();
+  // Phase 4: prefer gl_accounts (is_bank_account=true) as the bank account source of truth.
+  {
+    const { data: glRow, error: glError } = await db
+      .from('gl_accounts')
+      .select('id, buildium_gl_account_id, is_bank_account')
+      .eq('id', bankAccountId)
+      .maybeSingle();
 
-  if (error || !data) {
-    throw new Error('Bank account not found');
+    if (!glError && glRow && Boolean((glRow as any).is_bank_account)) {
+      // Buildium treats the bank account ID as the bank GL account ID.
+      const candidate = (glRow as any).buildium_gl_account_id;
+      const parsed =
+        typeof candidate === 'number'
+          ? candidate
+          : typeof candidate === 'string' && Number.isFinite(Number(candidate))
+            ? Number(candidate)
+            : null;
+      if (parsed != null) return parsed;
+    }
   }
-  if (data.buildium_bank_id == null) {
-    throw new Error('Bank account is missing a Buildium mapping');
-  }
-  return data.buildium_bank_id;
+
+  throw new Error('Bank account not found');
 }
 
 export async function fetchTransactionWithLines(

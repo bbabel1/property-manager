@@ -65,7 +65,22 @@ export async function GET(
 
     const { start, end } = getPeriodDates(period);
 
-    const response: Record<string, unknown> = { data: {} };
+    type ProfitabilityRow = {
+      offering_id: string;
+      offering_name: string;
+      category: string;
+      revenue_amount: number;
+      cost_amount: number;
+      margin_amount: number;
+      margin_percentage: number;
+    };
+
+    type MetricsData = {
+      profitability?: ProfitabilityRow[];
+      revenue?: unknown[];
+      utilization?: unknown[];
+    };
+    const response: { data: MetricsData } = { data: {} };
 
     if (type === 'all' || type === 'profitability') {
       const profitabilityQuery = supabase
@@ -91,22 +106,26 @@ export async function GET(
         );
       }
 
-      const aggregated = (data || []).reduce((acc: any, row: any) => {
-        const key = row.offering_id;
+      const aggregated = (data || []).reduce<Record<string, ProfitabilityRow>>((acc, row) => {
+        const key = String((row as { offering_id?: string }).offering_id || '');
+        if (!key) return acc;
         if (!acc[key]) {
           acc[key] = {
             offering_id: key,
-            offering_name: row.offering_name || row.offering_id,
-            category: row.category || '',
+            offering_name:
+              (row as { offering_name?: string }).offering_name ||
+              (row as { offering_id?: string }).offering_id ||
+              key,
+            category: (row as { category?: string }).category || '',
             revenue_amount: 0,
             cost_amount: 0,
             margin_amount: 0,
             margin_percentage: 0,
           };
         }
-        acc[key].revenue_amount += Number(row.revenue_amount || 0);
-        acc[key].cost_amount += Number(row.cost_amount || 0);
-        acc[key].margin_amount += Number(row.margin_amount || 0);
+        acc[key].revenue_amount += Number((row as { revenue_amount?: number }).revenue_amount || 0);
+        acc[key].cost_amount += Number((row as { cost_amount?: number }).cost_amount || 0);
+        acc[key].margin_amount += Number((row as { margin_amount?: number }).margin_amount || 0);
         return acc;
       }, {});
 
@@ -126,12 +145,12 @@ export async function GET(
         });
       }
 
-      Object.values(aggregated).forEach((item: any) => {
+      Object.values(aggregated).forEach((item) => {
         item.margin_percentage =
           item.revenue_amount > 0 ? (item.margin_amount / item.revenue_amount) * 100 : 0;
       });
 
-      (response.data as any).profitability = Object.values(aggregated);
+      response.data.profitability = Object.values(aggregated);
     }
 
     if (type === 'all' || type === 'revenue') {
@@ -160,137 +179,12 @@ export async function GET(
         );
       }
 
-      (response.data as any).revenue = data || [];
+      response.data.revenue = data || [];
     }
 
     if (type === 'all' || type === 'utilization') {
-      const nowIso = new Date().toISOString();
-      const utilizationQuery = supabase
-        .from('property_service_pricing')
-        .select(
-          `
-          offering_id,
-          property_id,
-          unit_id,
-          is_active,
-          effective_start,
-          effective_end,
-          service_offerings!inner(id, name, category),
-          properties!inner(org_id)
-        `,
-        )
-        .eq('properties.org_id', orgId)
-        .eq('is_active', true)
-        .lte('effective_start', nowIso)
-        .or(`effective_end.is.null,effective_end.gt.${nowIso}`)
-        .limit(1000);
-
-      if (propertyId) {
-        utilizationQuery.eq('property_id', propertyId);
-      }
-
-      const { data, error } = await utilizationQuery;
-
-      if (error) {
-        logger.error({ error }, 'Error fetching utilization');
-        return NextResponse.json(
-          { error: { code: 'QUERY_ERROR', message: 'Failed to load utilization data' } },
-          { status: 500 },
-        );
-      }
-
-      const utilizationMap = new Map<
-        string,
-        {
-          offering_id: string;
-          offering_name: string;
-          category: string;
-          propertyIds: Set<string>;
-          unitIds: Set<string>;
-        }
-      >();
-
-      (data || []).forEach((row: any) => {
-        const offering = row.service_offerings;
-        if (!offering) return;
-        const key = offering.id;
-        if (!utilizationMap.has(key)) {
-          utilizationMap.set(key, {
-            offering_id: key,
-            offering_name: offering.name,
-            category: offering.category,
-            propertyIds: new Set<string>(),
-            unitIds: new Set<string>(),
-          });
-        }
-        const item = utilizationMap.get(key)!;
-        if (row.property_id) {
-          item.propertyIds.add(row.property_id);
-        }
-        if (row.unit_id) {
-          item.unitIds.add(row.unit_id);
-        }
-      });
-
-      const { data: propertiesInScope, error: propertiesError } = await supabase
-        .from('properties')
-        .select('id')
-        .eq('org_id', orgId)
-        .limit(2000);
-
-      if (propertiesError) {
-        logger.error({ error: propertiesError }, 'Error fetching properties for utilization totals');
-        return NextResponse.json(
-          { error: { code: 'QUERY_ERROR', message: 'Failed to load utilization data' } },
-          { status: 500 },
-        );
-      }
-
-      const filteredProperties = propertyId
-        ? (propertiesInScope || []).filter((p) => p.id === propertyId)
-        : propertiesInScope || [];
-
-      const { data: unitsInScope, error: unitsError } = await supabase
-        .from('units')
-        .select('id, property_id, properties!inner(org_id)')
-        .eq('properties.org_id', orgId)
-        .limit(5000);
-
-      if (unitsError) {
-        logger.error({ error: unitsError }, 'Error fetching units for utilization totals');
-        return NextResponse.json(
-          { error: { code: 'QUERY_ERROR', message: 'Failed to load utilization data' } },
-          { status: 500 },
-        );
-      }
-
-      const filteredUnits = propertyId
-        ? (unitsInScope || []).filter((u) => u.property_id === propertyId)
-        : unitsInScope || [];
-
-      const totalProperties = filteredProperties.length;
-      const totalUnits = filteredUnits.length;
-
-      const utilization = Array.from(utilizationMap.values()).map((item) => {
-        const activeProperties = item.propertyIds.size;
-        const activeUnits = item.unitIds.size;
-        const propertyUtilizationRate =
-          totalProperties > 0 ? (activeProperties / totalProperties) * 100 : 0;
-        const unitUtilizationRate = totalUnits > 0 ? (activeUnits / totalUnits) * 100 : 0;
-        const utilizationRate = totalUnits > 0 ? unitUtilizationRate : propertyUtilizationRate;
-        return {
-          offering_id: item.offering_id,
-          offering_name: item.offering_name,
-          category: item.category,
-          total_properties: totalProperties,
-          active_properties: activeProperties,
-          total_units: totalUnits,
-          active_units: activeUnits,
-          utilization_rate: utilizationRate,
-        };
-      });
-
-      (response.data as any).utilization = utilization;
+      // Per-service utilization is no longer tracked; return an empty set.
+      response.data.utilization = [];
     }
 
     return NextResponse.json(response);

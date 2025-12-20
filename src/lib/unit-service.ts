@@ -178,42 +178,48 @@ export default class UnitService {
         supabase,
       )) as any
 
-      if (mappedProperty.operating_bank_account_id) {
-        const { data: bankAccount } = await supabase
-          .from('bank_accounts')
-          .select('org_id')
-          .eq('id', mappedProperty.operating_bank_account_id)
-          .maybeSingle<{ org_id: string | null }>()
-        if (bankAccount?.org_id && bankAccount.org_id !== orgId) {
+      const mappedOperatingBankGlId = (mappedProperty as any).operating_bank_gl_account_id ?? null
+      if (mappedOperatingBankGlId) {
+        const { data: bankGl } = await supabase
+          .from('gl_accounts')
+          .select('org_id, is_bank_account')
+          .eq('id', mappedOperatingBankGlId)
+          .maybeSingle<{ org_id: string | null; is_bank_account: boolean | null }>()
+        if (bankGl?.org_id && bankGl.org_id !== orgId) {
           throw new Error(
-            `Operating bank account org mismatch for Buildium property ${buildiumUnit.PropertyId}: expected ${orgId}, found ${bankAccount.org_id}`,
+            `Operating bank GL org mismatch for Buildium property ${buildiumUnit.PropertyId}: expected ${orgId}, found ${bankGl.org_id}`,
+          )
+        }
+        if (bankGl && bankGl.is_bank_account === false) {
+          throw new Error(
+            `Operating bank GL is not marked as a bank account for Buildium property ${buildiumUnit.PropertyId}`,
           )
         }
       }
 
       const now = new Date().toISOString()
-      const propertyPayload = {
-        name: mappedProperty.name,
-        structure_description: mappedProperty.structure_description ?? null,
+	      const propertyPayload: any = {
+	        name: mappedProperty.name,
+	        structure_description: mappedProperty.structure_description ?? null,
         address_line1: mappedProperty.address_line1,
         address_line2: mappedProperty.address_line2 ?? null,
         address_line3: mappedProperty.address_line3 ?? null,
         city: mappedProperty.city ?? null,
         state: mappedProperty.state ?? null,
         postal_code: mappedProperty.postal_code,
-        country: (mappedProperty.country as Database['public']['Enums']['countries']) || 'United States',
-        property_type: (mappedProperty.property_type as Database['public']['Enums']['property_type_enum']) ?? null,
-        rental_type: mappedProperty.rental_type ?? null,
-        operating_bank_account_id: mappedProperty.operating_bank_account_id ?? null,
-        buildium_property_id: mappedProperty.buildium_property_id,
-        reserve: mappedProperty.reserve ?? null,
-        year_built: mappedProperty.year_built ?? null,
+	        country: (mappedProperty.country as Database['public']['Enums']['countries']) || 'United States',
+	        property_type: (mappedProperty.property_type as Database['public']['Enums']['property_type_enum']) ?? null,
+	        rental_type: mappedProperty.rental_type ?? null,
+	        operating_bank_gl_account_id: (mappedProperty as any).operating_bank_gl_account_id ?? null,
+	        buildium_property_id: mappedProperty.buildium_property_id,
+	        reserve: mappedProperty.reserve ?? null,
+	        year_built: mappedProperty.year_built ?? null,
         total_units: mappedProperty.total_units ?? undefined,
         is_active: mappedProperty.is_active ?? true,
         org_id: orgId,
         created_at: now,
-        updated_at: now
-      } as Database['public']['Tables']['properties']['Insert']
+	        updated_at: now
+	      }
 
       const { data: newProp, error: propErr } = await supabase
         .from('properties')

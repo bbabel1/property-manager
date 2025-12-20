@@ -1,4 +1,5 @@
 import type { Database } from '@/types/database';
+import { signedAmountFromLine } from '@/lib/finance/model';
 
 type TransactionLineRow = {
   id?: string | number | null;
@@ -15,6 +16,8 @@ type TransactionLineRow = {
     name?: string | null;
     account_number?: string | null;
     type?: string | null;
+    is_bank_account?: boolean | null;
+    exclude_from_cash_balances?: boolean | null;
   } | null;
   units?: {
     unit_number?: string | null;
@@ -47,6 +50,8 @@ export type LedgerLine = {
   glAccountName: string;
   glAccountNumber: string | null;
   glAccountType: string | null;
+  glIsBankAccount: boolean;
+  glExcludeFromCash: boolean;
   transactionId: string | null;
   transactionType: string | null;
   transactionMemo: string | null;
@@ -86,6 +91,8 @@ export function mapTransactionLine(row: TransactionLineRow): LedgerLine {
     glAccountName: row.gl_accounts?.name || 'Unknown account',
     glAccountNumber: row.gl_accounts?.account_number || null,
     glAccountType: row.gl_accounts?.type || null,
+    glIsBankAccount: Boolean(row.gl_accounts?.is_bank_account),
+    glExcludeFromCash: Boolean(row.gl_accounts?.exclude_from_cash_balances),
     transactionId: transactionId != null ? String(transactionId) : null,
     transactionType: row.transactions?.transaction_type
       ? String(row.transactions.transaction_type)
@@ -97,21 +104,89 @@ export function mapTransactionLine(row: TransactionLineRow): LedgerLine {
   };
 }
 
-export function signedAmount(line: LedgerLine): number {
+export const signedAmount = (line: LedgerLine): number =>
+  signedAmountFromLine({
+    amount: line.amount,
+    posting_type: line.postingType,
+    gl_accounts: {
+      type: line.glAccountType,
+      name: line.glAccountName,
+      is_bank_account: line.glIsBankAccount,
+    },
+  });
+
+const shouldExcludePaymentToIncome = (line: LedgerLine, basis: 'cash' | 'accrual'): boolean => {
+  if (basis === 'cash') return false;
+
+  const txType = (line.transactionType || '').toLowerCase();
+  if (!txType.includes('payment')) return false;
+
+  const glType = (line.glAccountType || '').toLowerCase();
+  const glName = (line.glAccountName || '').toLowerCase();
+
+  // On accrual-basis reporting we omit payments posted directly to income (e.g., Rent Income).
+  return glType === 'income' || glName.includes('income');
+};
+
+const filterOutInvalidPaymentLines = (lines: LedgerLine[], basis: 'cash' | 'accrual'): LedgerLine[] =>
+  lines.filter((line) => !shouldExcludePaymentToIncome(line, basis));
+
+const isArOrAp = (line: LedgerLine): boolean => {
+  const name = (line.glAccountName || '').toLowerCase();
+  return name.includes('accounts receivable') || name.includes('accounts payable');
+};
+
+const isBankLine = (line: LedgerLine): boolean => {
+  if (line.glExcludeFromCash) return false;
+  if (line.glIsBankAccount) return true;
   const type = (line.glAccountType || '').toLowerCase();
-  const creditNormal =
-    type === 'liability' || type === 'equity' || type === 'income';
-  const isDebit = line.postingType === 'Debit';
-  if (creditNormal) {
-    return isDebit ? -line.amount : line.amount;
+  const name = (line.glAccountName || '').toLowerCase();
+  const isReceivable = name.includes('receivable');
+  if (isReceivable) return false;
+  if (type === 'asset') {
+    return (
+      name.includes('bank') ||
+      name.includes('checking') ||
+      name.includes('operating') ||
+      name.includes('trust') ||
+      name.includes('cash')
+    );
   }
-  return isDebit ? line.amount : -line.amount;
-}
+  return false;
+};
+
+const filterForCashBasis = (lines: LedgerLine[]): LedgerLine[] => {
+  if (!lines.length) return lines;
+
+  const txBankMap = new Map<string, boolean>();
+  for (const line of lines) {
+    if (!line.transactionId) continue;
+    if (isBankLine(line)) {
+      txBankMap.set(line.transactionId, true);
+    }
+  }
+
+  return lines.filter((line) => {
+    if (line.glExcludeFromCash) return false;
+    if (isArOrAp(line)) return false;
+    const hasBank = line.transactionId ? txBankMap.get(line.transactionId) === true : false;
+    if (isBankLine(line)) return true;
+    return hasBank;
+  });
+};
 
 export function buildLedgerGroups(
   priorLines: LedgerLine[],
   periodLines: LedgerLine[],
+  options?: { basis?: 'cash' | 'accrual' },
 ): LedgerGroup[] {
+  const basis: 'cash' | 'accrual' = options?.basis === 'cash' ? 'cash' : 'accrual';
+  const basisFilteredPrior = basis === 'cash' ? filterForCashBasis(priorLines) : priorLines;
+  const basisFilteredPeriod = basis === 'cash' ? filterForCashBasis(periodLines) : periodLines;
+
+  const sanitizedPrior = filterOutInvalidPaymentLines(basisFilteredPrior, basis);
+  const sanitizedPeriod = filterOutInvalidPaymentLines(basisFilteredPeriod, basis);
+
   const groupMap = new Map<string, LedgerGroup>();
 
   const ensureGroup = (line: LedgerLine): LedgerGroup => {
@@ -132,12 +207,12 @@ export function buildLedgerGroups(
     return created;
   };
 
-  for (const line of priorLines) {
+  for (const line of sanitizedPrior) {
     const group = ensureGroup(line);
     group.prior += signedAmount(line);
   }
 
-  for (const line of periodLines) {
+  for (const line of sanitizedPeriod) {
     const group = ensureGroup(line);
     const signed = signedAmount(line);
     group.net += signed;
@@ -155,4 +230,3 @@ export function buildLedgerGroups(
 
 export type SupabaseTransactionLine =
   Database['public']['Tables']['transaction_lines']['Row'];
-

@@ -44,6 +44,22 @@ This guide will help you connect your Ora Property Management application to Sup
 You can create tables in Supabase using the SQL editor or the table interface. Here's an example SQL for the properties
 table:
 
+### Service Plans v2 migrations (important)
+
+This repo uses SQL migrations in `supabase/migrations/` as the source of truth. If you are setting up a fresh/local DB or syncing schema changes to a linked project, make sure the following migrations are applied and then regenerate types:
+
+- `supabase/migrations/20270127122000_backfill_service_plan_assignments_from_legacy.sql` — Backfilled `service_plan_assignments` from legacy columns
+- `supabase/migrations/20270127123000_drop_legacy_management_fee_columns.sql` — Dropped legacy management-fee/service columns (kept `management_scope`, `service_assignment`, and `bill_pay_*`)
+
+After applying migrations, regenerate Supabase types:
+
+```bash
+npm run types:local
+npm run types:remote
+```
+
+Note: These two migrations have been applied to the remote database already.
+
 ```sql
 
 -- Create properties table

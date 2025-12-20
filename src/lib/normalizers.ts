@@ -91,6 +91,8 @@ const ASSIGNMENT_SCOPE_VALUES: AssignmentLevel[] = ['Property Level', 'Unit Leve
 const ASSIGNMENT_SCOPE_ALIASES: Record<string, AssignmentLevel> = {
   propertylevel: 'Property Level',
   property: 'Property Level',
+  building: 'Property Level',
+  buildinglevel: 'Property Level',
   unitlevel: 'Unit Level',
   unit: 'Unit Level',
 }

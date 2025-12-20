@@ -20,6 +20,8 @@ type TransactionLineRow = {
   gl_accounts?: {
     name?: string | null;
     account_number?: string | null;
+    is_bank_account?: boolean | null;
+    type?: string | null;
     gl_account_category?: {
       category?: string | null;
     } | null;
@@ -124,6 +126,15 @@ const pickDisplayLine = (
     const bUnitMatch = unitId && b.unit_id && b.unit_id === unitId ? 0 : 1;
     if (aUnitMatch !== bUnitMatch) {
       return aUnitMatch - bUnitMatch;
+    }
+
+    // Prefer non-bank lines for display (e.g., show Rent Income instead of bank GL on payments)
+    const bankWeight = (line?: TransactionLineRow | null) =>
+      line?.gl_accounts?.is_bank_account ? 1 : 0;
+    const aBank = bankWeight(a);
+    const bBank = bankWeight(b);
+    if (aBank !== bBank) {
+      return aBank - bBank;
     }
 
     const aPosting = postingWeight(a);
@@ -295,6 +306,8 @@ async function fallbackAssignedBundle(
             created_at,
             gl_accounts(
               name,
+              is_bank_account,
+              type,
               account_number,
               gl_account_category(
                 category
@@ -407,18 +420,20 @@ export async function loadUnassignedTransactionsPage(
       monthly_log_id,
       reference_number,
       created_at,
-      transaction_lines(
-        amount,
-        posting_type,
-        unit_id,
-        created_at,
-        gl_accounts(
-          name,
-          account_number,
-          gl_account_category(
-            category
+        transaction_lines(
+          amount,
+          posting_type,
+          unit_id,
+          created_at,
+          gl_accounts(
+            name,
+            is_bank_account,
+            type,
+            account_number,
+            gl_account_category(
+              category
+            )
           )
-        )
       )
     `,
     )

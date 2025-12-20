@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeaseHeaderMeta from '@/components/leases/LeaseHeaderMeta';
 import InfoCard from '@/components/layout/InfoCard';
 import { supabaseAdmin, supabase as supaClient } from '@/lib/db';
+import { signedAmountFromTransaction } from '@/lib/finance/model';
 import RentTabInteractive from '@/components/leases/RentTabInteractive';
 import RecurringTransactionsPanel, {
   type RecurringRow,
@@ -32,6 +33,10 @@ import ActionButton from '@/components/ui/ActionButton';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FileRow } from '@/lib/files';
+import { resolveLeaseBalances } from '@/lib/lease-balance';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type LeaseDetailsPageParams = { id: string };
 // Use a loose row type because this page stitches together multiple Supabase queries with partial selects.
@@ -63,11 +68,11 @@ export default async function LeaseDetailsPage({
   params,
   searchParams,
 }: {
-  params: LeaseDetailsPageParams;
-  searchParams?: { tab?: string };
+  params: Promise<LeaseDetailsPageParams>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
-  const { id } = params;
-  const sp = searchParams;
+  const { id } = await params;
+  const sp = searchParams ? await searchParams : undefined;
   const initialTab = sp?.tab === 'financials' ? 'financials' : 'summary';
   // Use admin when available to avoid RLS mismatches between source pages and details page
   const supabase = (supabaseAdmin || supaClient) as unknown as SupabaseClient<any>;
@@ -150,11 +155,11 @@ export default async function LeaseDetailsPage({
         propertyId: lease.property_id,
       });
     }
-      const propertyLookup = propertyLookupRaw as { org_id?: string | null } | null;
-      propertyOrgId =
-        propertyLookup && typeof propertyLookup.org_id === 'string' && propertyLookup.org_id
-          ? propertyLookup.org_id
-          : null;
+    const propertyLookup = propertyLookupRaw as { org_id?: string | null } | null;
+    propertyOrgId =
+      propertyLookup && typeof propertyLookup.org_id === 'string' && propertyLookup.org_id
+        ? propertyLookup.org_id
+        : null;
   }
 
   if (propertyOrgId) {
@@ -221,7 +226,12 @@ export default async function LeaseDetailsPage({
     }
   } catch (fileErr) {
     // Improved error logging with proper serialization
-    const fileError = fileErr as { message?: string; name?: string; stack?: string; cause?: unknown };
+    const fileError = fileErr as {
+      message?: string;
+      name?: string;
+      stack?: string;
+      cause?: unknown;
+    };
     const errorDetails = {
       message: fileError?.message || 'Unknown error',
       name: fileError?.name || 'Error',
@@ -315,7 +325,7 @@ export default async function LeaseDetailsPage({
   try {
     const { data: accounts } = await supabase
       .from('gl_accounts')
-      .select('id, name, type')
+      .select('id, name, type, buildium_gl_account_id')
       .order('name', { ascending: true });
     glAccounts = Array.isArray(accounts) ? accounts : [];
   } catch {}
@@ -323,8 +333,9 @@ export default async function LeaseDetailsPage({
   let bankAccounts: UnknownRow[] = [];
   try {
     const { data: banks } = await supabase
-      .from('bank_accounts')
+      .from('gl_accounts')
       .select('id, name')
+      .eq('is_bank_account', true)
       .order('name', { ascending: true });
     bankAccounts = Array.isArray(banks) ? banks : [];
   } catch {}
@@ -345,11 +356,14 @@ export default async function LeaseDetailsPage({
         memo,
         check_number,
         reference_number,
+        tenant_id,
+        payee_tenant_id,
         transaction_lines (
           amount,
           memo,
           gl_account_id,
-          gl_accounts ( id, name )
+          posting_type,
+          gl_accounts ( id, name, type, sub_type, is_security_deposit_liability )
         )
       `,
       )
@@ -361,6 +375,49 @@ export default async function LeaseDetailsPage({
     transactions = Array.isArray(txRows) ? txRows : [];
   } catch (e) {
     transactionsError = e instanceof Error ? e.message : 'Failed to load transactions';
+  }
+
+  // Build a tenant name map for payment attribution
+  const tenantNameById: Record<string, string> = {};
+  try {
+    const tenantIds = new Set<string>();
+    transactions.forEach((tx) => {
+      const tid = (tx as any)?.tenant_id;
+      if (tid) tenantIds.add(String(tid));
+    });
+    if (tenantIds.size > 0) {
+      const { data: tenantRows, error: tenantErr } = await supabase
+        .from('tenants')
+        .select(
+          `
+          id,
+          contacts:contacts!tenants_contact_id_fkey (
+            display_name,
+            first_name,
+            last_name,
+            company_name
+          )
+        `,
+        )
+        .in('id', Array.from(tenantIds));
+      if (tenantErr) throw tenantErr;
+      (tenantRows || []).forEach((t: any) => {
+        const contact = (t?.contacts || {}) as {
+          display_name?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          company_name?: string | null;
+        };
+        const name =
+          contact.display_name ||
+          [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim() ||
+          contact.company_name ||
+          null;
+        if (name && t?.id) tenantNameById[String(t.id)] = name;
+      });
+    }
+  } catch (err) {
+    console.error('Failed to build tenant name map for ledger', err);
   }
 
   // Fetch property owners (primary owner) for header card
@@ -376,15 +433,31 @@ export default async function LeaseDetailsPage({
         const po =
           owners.find(
             (o: unknown) =>
-              typeof o === 'object' && o !== null && 'primary' in o && (o as { primary?: boolean }).primary === true,
+              typeof o === 'object' &&
+              o !== null &&
+              'primary' in o &&
+              (o as { primary?: boolean }).primary === true,
           ) || owners[0];
         if (po) {
           const name =
             (po as { display_name?: string | null }).display_name ||
             (po as { company_name?: string | null }).company_name ||
-            [ (po as { first_name?: string | null }).first_name, (po as { last_name?: string | null }).last_name].filter(Boolean).join(' ').trim() ||
+            [
+              (po as { first_name?: string | null }).first_name,
+              (po as { last_name?: string | null }).last_name,
+            ]
+              .filter(Boolean)
+              .join(' ')
+              .trim() ||
             'Owner';
-          primaryOwner = { id: String((po as { owner_id?: string | number; id?: string | number }).owner_id || (po as { id?: string | number }).id || ''), name };
+          primaryOwner = {
+            id: String(
+              (po as { owner_id?: string | number; id?: string | number }).owner_id ||
+                (po as { id?: string | number }).id ||
+                '',
+            ),
+            name,
+          };
         } else if (data?.primary_owner_name) {
           primaryOwner = { name: String(data.primary_owner_name) };
         }
@@ -395,21 +468,50 @@ export default async function LeaseDetailsPage({
           const { PropertyService } = await import('@/lib/property-service');
           const svc = await PropertyService.getPropertyById(String(lease.property_id));
           if (svc) {
-            const owners2 = Array.isArray((svc as { owners?: unknown }).owners) ? (svc as { owners?: unknown[] }).owners || [] : [];
+            const owners2 = Array.isArray((svc as { owners?: unknown }).owners)
+              ? (svc as { owners?: unknown[] }).owners || []
+              : [];
             const po2 =
               owners2.find(
-                (o): o is { primary?: boolean; display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null; owner_id?: string | number; id?: string | number } =>
-                  typeof o === 'object' && o !== null && (o as { primary?: boolean }).primary === true,
+                (
+                  o,
+                ): o is {
+                  primary?: boolean;
+                  display_name?: string | null;
+                  company_name?: string | null;
+                  first_name?: string | null;
+                  last_name?: string | null;
+                  owner_id?: string | number;
+                  id?: string | number;
+                } =>
+                  typeof o === 'object' &&
+                  o !== null &&
+                  (o as { primary?: boolean }).primary === true,
               ) || owners2[0];
             if (po2) {
               const name2 =
                 (po2 as { display_name?: string | null }).display_name ||
                 (po2 as { company_name?: string | null }).company_name ||
-                [ (po2 as { first_name?: string | null }).first_name, (po2 as { last_name?: string | null }).last_name].filter(Boolean).join(' ').trim() ||
+                [
+                  (po2 as { first_name?: string | null }).first_name,
+                  (po2 as { last_name?: string | null }).last_name,
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+                  .trim() ||
                 'Owner';
-              primaryOwner = { id: String((po2 as { owner_id?: string | number; id?: string | number }).owner_id || (po2 as { id?: string | number }).id || ''), name: name2 };
+              primaryOwner = {
+                id: String(
+                  (po2 as { owner_id?: string | number; id?: string | number }).owner_id ||
+                    (po2 as { id?: string | number }).id ||
+                    '',
+                ),
+                name: name2,
+              };
             } else if ((svc as { primary_owner_name?: string | null }).primary_owner_name) {
-              primaryOwner = { name: String((svc as { primary_owner_name?: string | null }).primary_owner_name) };
+              primaryOwner = {
+                name: String((svc as { primary_owner_name?: string | null }).primary_owner_name),
+              };
             }
           }
         } catch {}
@@ -425,10 +527,16 @@ export default async function LeaseDetailsPage({
           if (list.length) {
             const po3 =
               list.find(
-                (o: any) => typeof o === 'object' && o !== null && (o as { primary?: boolean }).primary === true,
+                (o: any) =>
+                  typeof o === 'object' &&
+                  o !== null &&
+                  (o as { primary?: boolean }).primary === true,
               ) || list[0];
             const name3 = (po3 as { display_name?: string | null })?.display_name || 'Owner';
-            primaryOwner = { id: String((po3 as { owner_id?: string | number })?.owner_id || ''), name: name3 };
+            primaryOwner = {
+              id: String((po3 as { owner_id?: string | number })?.owner_id || ''),
+              name: name3,
+            };
           }
         } catch {}
       }
@@ -444,21 +552,31 @@ export default async function LeaseDetailsPage({
           const list = Array.isArray(own) ? own : [];
           if (list.length) {
             const po4 =
-              list.find((o) => typeof o === 'object' && o && (o as { primary?: boolean }).primary) ||
-              list[0];
+              list.find(
+                (o) => typeof o === 'object' && o && (o as { primary?: boolean }).primary,
+              ) || list[0];
             const contact =
-              po4 &&
-              typeof po4 === 'object' &&
-              po4.owners &&
-              typeof po4.owners === 'object'
-                ? (po4.owners as { contacts?: { display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null } | null }).contacts ?? null
+              po4 && typeof po4 === 'object' && po4.owners && typeof po4.owners === 'object'
+                ? ((
+                    po4.owners as {
+                      contacts?: {
+                        display_name?: string | null;
+                        company_name?: string | null;
+                        first_name?: string | null;
+                        last_name?: string | null;
+                      } | null;
+                    }
+                  ).contacts ?? null)
                 : null;
             const name4 =
               contact?.display_name ||
               contact?.company_name ||
               [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
               'Owner';
-            primaryOwner = { id: String((po4 as { owner_id?: string | number })?.owner_id || ''), name: name4 };
+            primaryOwner = {
+              id: String((po4 as { owner_id?: string | number })?.owner_id || ''),
+              name: name4,
+            };
           }
         } catch {}
       }
@@ -496,10 +614,7 @@ export default async function LeaseDetailsPage({
           return (
             (tenantContact as UnknownRow)?.display_name ||
             (tenantContact as UnknownRow)?.company_name ||
-            [
-              (tenantContact as UnknownRow)?.first_name,
-              (tenantContact as UnknownRow)?.last_name,
-            ]
+            [(tenantContact as UnknownRow)?.first_name, (tenantContact as UnknownRow)?.last_name]
               .filter(Boolean)
               .join(' ')
               .trim() ||
@@ -579,24 +694,24 @@ export default async function LeaseDetailsPage({
   };
 
   type ContactRow = {
-    id: string | number
-    name: string
-    role: string
-    email: string | null
-    moveIn: string
-    moveOut: string
-    moveOutRaw: string | null
-    notice: string
-    noticeRaw: string | null
-    tenantId: string | number | null | undefined
-    buildiumTenantId: number | null
-    initials: string
-    phones: Array<{ number: string }>
-    roleKey: string
-  }
+    id: string | number;
+    name: string;
+    role: string;
+    email: string | null;
+    moveIn: string;
+    moveOut: string;
+    moveOutRaw: string | null;
+    notice: string;
+    noticeRaw: string | null;
+    tenantId: string | number | null | undefined;
+    buildiumTenantId: number | null;
+    initials: string;
+    phones: Array<{ number: string }>;
+    roleKey: string;
+  };
 
   const contactRows: ContactRow[] = Array.isArray(contacts)
-    ? contacts
+    ? (contacts
         .map((lc) => {
           const contact = lc?.tenants?.contact;
           if (!contact) return null;
@@ -642,7 +757,7 @@ export default async function LeaseDetailsPage({
             roleKey: String(lc?.role || 'Tenant').toLowerCase(),
           };
         })
-        .filter(Boolean) as ContactRow[]
+        .filter(Boolean) as ContactRow[])
     : [];
 
   const tenantOptionMap = new Map<string, LeaseTenantOption>();
@@ -688,30 +803,30 @@ export default async function LeaseDetailsPage({
 
   const tenantsByRole = contactRows
     .filter((row): row is NonNullable<typeof row> => row !== null)
-      .reduce(
-        (acc, row) => {
-          const moveOutDateObj = row.moveOutRaw ? new Date(row.moveOutRaw) : null;
-          const moveOutBadge =
-            row.moveOutRaw && moveOutDateObj
-              ? moveOutDateObj < new Date()
-                ? 'Moved out'
-                : 'Moving out'
-              : null;
-          const info: TenantCardInfo = {
-            id: String(row.id),
-            name: row.name,
-            initials: row.initials,
-            moveIn: row.moveIn && row.moveIn !== '—' ? row.moveIn : null,
-            moveOut: row.moveOut && row.moveOut !== '—' ? row.moveOut : null,
-            moveOutRaw: row.moveOutRaw || null,
-            notice: row.notice && row.notice !== '—' ? row.notice : null,
-            noticeRaw: row.noticeRaw || null,
-            email: row.email,
-            phones: row.phones,
-            roleLabel: row.role,
-            tenantId: row.tenantId ? String(row.tenantId) : null,
-            moveOutBadge,
-          };
+    .reduce(
+      (acc, row) => {
+        const moveOutDateObj = row.moveOutRaw ? new Date(row.moveOutRaw) : null;
+        const moveOutBadge =
+          row.moveOutRaw && moveOutDateObj
+            ? moveOutDateObj < new Date()
+              ? 'Moved out'
+              : 'Moving out'
+            : null;
+        const info: TenantCardInfo = {
+          id: String(row.id),
+          name: row.name,
+          initials: row.initials,
+          moveIn: row.moveIn && row.moveIn !== '—' ? row.moveIn : null,
+          moveOut: row.moveOut && row.moveOut !== '—' ? row.moveOut : null,
+          moveOutRaw: row.moveOutRaw || null,
+          notice: row.notice && row.notice !== '—' ? row.notice : null,
+          noticeRaw: row.noticeRaw || null,
+          email: row.email,
+          phones: row.phones,
+          roleLabel: row.role,
+          tenantId: row.tenantId ? String(row.tenantId) : null,
+          moveOutBadge,
+        };
         const bucket = row.roleKey.includes('cosigner') ? 'cosigners' : 'tenants';
         acc[bucket].push(info);
         return acc;
@@ -834,11 +949,21 @@ export default async function LeaseDetailsPage({
   };
 
   const recurringAccountOptions: LeaseAccountOption[] = glAccounts
-    .filter((account) => account && account.id != null)
+    .filter(
+      (account) =>
+        account &&
+        account.id != null &&
+        account.buildium_gl_account_id != null &&
+        Number.isFinite(Number(account.buildium_gl_account_id)),
+    )
     .map((account) => ({
       id: String(account.id),
       name: account.name || 'Account',
       type: account.type || null,
+      buildiumGlAccountId:
+        typeof account.buildium_gl_account_id === 'number'
+          ? account.buildium_gl_account_id
+          : Number(account.buildium_gl_account_id) || null,
     }));
 
   const recurringTenantLabel = tenantNames.length ? tenantNames.join(', ') : null;
@@ -888,57 +1013,131 @@ export default async function LeaseDetailsPage({
     }
   };
 
-  const determineSignedAmount = (tx: { TotalAmount?: unknown; total_amount?: unknown; TransactionTypeEnum?: unknown; TransactionType?: unknown; transaction_type?: unknown }) => {
-    const rawAmount = Number(tx?.TotalAmount ?? tx?.total_amount ?? 0) || 0;
-    const amount = Math.abs(rawAmount);
-    const type: string = String(
-      tx?.TransactionTypeEnum || tx?.TransactionType || tx?.transaction_type || '',
-    ).toLowerCase();
-    if (!amount) return 0;
-    if (
-      type.includes('payment') ||
-      type.includes('credit') ||
-      type.includes('refund') ||
-      type.includes('adjustment')
-    ) {
-      return amount * -1;
-    }
-    return amount;
+  const parseDateValue = (date?: string | null) => {
+    if (!date) return null;
+    const parsed = new Date(date);
+    const timestamp = parsed.getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  };
+
+  const extractTransactionLines = (tx: any) => {
+    if (!tx) return [];
+    const lines =
+      Array.isArray(tx?.transaction_lines) && tx.transaction_lines.length
+        ? tx.transaction_lines
+        : Array.isArray(tx?.Lines) && tx.Lines.length
+          ? tx.Lines
+          : Array.isArray(tx?.Journal?.Lines)
+            ? tx.Journal.Lines
+            : [];
+    return Array.isArray(lines) ? lines.filter(Boolean) : [];
+  };
+
+  const normalizePostingType = (line: any) => {
+    const raw =
+      line?.posting_type ??
+      line?.PostingType ??
+      line?.LineType ??
+      line?.postingType ??
+      line?.posting_type_enum ??
+      '';
+    return typeof raw === 'string' ? raw.toLowerCase() : '';
+  };
+
+  const extractAccountFromLine = (line: any) => {
+    const account =
+      (line?.gl_accounts && typeof line.gl_accounts === 'object' ? line.gl_accounts : null) ||
+      (line?.GLAccount && typeof line.GLAccount === 'object' ? line.GLAccount : null) ||
+      (line?.Account && typeof line.Account === 'object' ? line.Account : null);
+    const rawName =
+      typeof (account as any)?.name === 'string'
+        ? (account as any).name
+        : typeof (account as any)?.Name === 'string'
+          ? (account as any).Name
+          : '';
+    const rawType =
+      typeof (account as any)?.type === 'string'
+        ? (account as any).type
+        : typeof (account as any)?.Type === 'string'
+          ? (account as any).Type
+          : '';
+    const rawSubType =
+      typeof (account as any)?.sub_type === 'string'
+        ? (account as any).sub_type
+        : typeof (account as any)?.SubType === 'string'
+          ? (account as any).SubType
+          : '';
+
+    return {
+      account,
+      displayName: rawName || '',
+      name: rawName.toLowerCase(),
+      type: rawType.toLowerCase(),
+      subType: rawSubType.toLowerCase(),
+      isDeposit: Boolean((account as any)?.is_security_deposit_liability),
+    };
   };
 
   // If Buildium balances are unavailable or zero, fall back to local
   // transactions to compute a current balance so the UI reflects
   // newly entered charges immediately.
   try {
-    const currentOutstanding = Number(balances.balance ?? 0);
-    if (!currentOutstanding && Array.isArray(transactions) && transactions.length) {
-      const localBalance = transactions.reduce((sum, tx) => sum + determineSignedAmount(tx), 0);
-      balances = { ...balances, balance: localBalance };
+    balances = resolveLeaseBalances(balances, transactions);
+  } catch {}
+
+  // If deposits/prepayments are missing from the Buildium response, infer them from transaction lines.
+  try {
+    const needsDeposits = !balances.depositsHeld;
+    const needsPrepayments = !balances.prepayments;
+    if ((needsDeposits || needsPrepayments) && Array.isArray(transactions) && transactions.length) {
+      let depositBalance = 0;
+      let prepaymentBalance = 0;
+
+      for (const tx of transactions) {
+        const lines = extractTransactionLines(tx);
+        if (!lines.length) continue;
+
+        for (const line of lines) {
+          const amountRaw = Number((line as any)?.amount ?? (line as any)?.Amount ?? 0);
+          const amount = Math.abs(amountRaw);
+          if (!amount) continue;
+
+          const postingType = normalizePostingType(line);
+          const isCredit = postingType === 'credit' || postingType === 'cr';
+          const signed = postingType ? (isCredit ? amount : -amount) : amountRaw;
+
+          const { name, type, subType, isDeposit } = extractAccountFromLine(line);
+          const depositFlag = isDeposit || name.includes('deposit') || subType.includes('deposit');
+          if (depositFlag) {
+            // For liabilities, credits increase the balance; ignore debits so a "charge" doesn't wipe out the held deposit.
+            depositBalance += isCredit ? amount : 0;
+            continue;
+          }
+
+          const prepayFlag =
+            name.includes('prepay') ||
+            subType.includes('prepay') ||
+            (type === 'liability' && !depositFlag);
+          if (prepayFlag) prepaymentBalance += signed;
+        }
+      }
+
+      if (needsDeposits && depositBalance) {
+        balances = { ...balances, depositsHeld: depositBalance };
+      }
+      if (needsPrepayments && prepaymentBalance) {
+        balances = { ...balances, prepayments: prepaymentBalance };
+      }
     }
   } catch {}
 
   const ledgerRows = Array.isArray(transactions)
-    ? transactions.filter(Boolean).map((tx) => {
-        const lines =
-          Array.isArray(tx?.transaction_lines) && tx.transaction_lines.length
-            ? tx.transaction_lines
-            : Array.isArray(tx?.Lines) && tx.Lines.length
-              ? tx.Lines
-              : Array.isArray(tx?.Journal?.Lines)
-                ? tx.Journal.Lines
-                : [];
+    ? transactions.filter(Boolean).map((tx, idx) => {
+        const lines = extractTransactionLines(tx);
         const primaryLine = lines?.[0] || null;
+        const primaryAccount = primaryLine ? extractAccountFromLine(primaryLine) : null;
         const accountName =
-          (primaryLine?.gl_accounts &&
-          typeof primaryLine.gl_accounts === 'object' &&
-          'name' in primaryLine.gl_accounts
-            ? (primaryLine.gl_accounts as { name?: string | null }).name
-            : undefined) ||
-          (primaryLine?.GLAccount &&
-          typeof primaryLine.GLAccount === 'object' &&
-          'Name' in primaryLine.GLAccount
-            ? primaryLine.GLAccount.Name as string | undefined
-            : undefined) ||
+          primaryAccount?.displayName ||
           (primaryLine as { GLAccountName?: string | null } | null)?.GLAccountName ||
           '—';
         const memo =
@@ -949,57 +1148,97 @@ export default async function LeaseDetailsPage({
             ? Number(buildiumIdRaw)
             : null;
         const localId = tx?.id ?? tx?.Id ?? randomUUID();
-        // Invoice column should be blank unless an explicit invoice
-        // reference exists. Do not fabricate labels from IDs.
-        const invoiceLabel =
-          tx?.CheckNumber || tx?.check_number || tx?.ReferenceNumber || tx?.reference_number || '';
-        const typeLabel =
+        const baseType =
           tx?.TransactionTypeEnum || tx?.TransactionType || tx?.transaction_type || 'Transaction';
+        const tenantId = (tx as any)?.tenant_id ? String((tx as any)?.tenant_id) : null;
+        const tenantName = tenantId ? tenantNameById[tenantId] : null;
+        const typeLabel =
+          typeof baseType === 'string' && baseType.toLowerCase().includes('payment') && tenantName
+            ? `${baseType} (made by ${tenantName})`
+            : baseType;
+        const rawDate =
+          (tx as any)?.Date ??
+          (tx as any)?.date ??
+          (tx as any)?.TransactionDate ??
+          (tx as any)?.TransactionDateTime ??
+          (tx as any)?.entry_date ??
+          null;
+        const sequence =
+          Number.isFinite(Number(buildiumIdRaw))
+            ? Number(buildiumIdRaw)
+            : Number.isFinite(Number(tx?.id))
+              ? Number(tx?.id)
+              : null;
         return {
           id: String(localId),
-          date: formatLedgerDate(tx?.Date ?? tx?.date),
-          invoice: invoiceLabel,
+          date: formatLedgerDate(rawDate),
           account: accountName,
           type: typeLabel,
           memo,
           amount: Number(tx?.TotalAmount ?? tx?.total_amount ?? 0) || 0,
-          signedAmount: determineSignedAmount(tx),
+          signedAmount: signedAmountFromTransaction(tx),
           transactionId: buildiumId,
+          sortKey: parseDateValue(rawDate) ?? 0,
+          originalIndex: idx,
+          sequence,
+          tenantId,
         };
       })
     : [];
 
-  // Compute running balance (newest first, assume charges increase balance)
-  let runningBalance = normalizeCurrency(balances.balance ?? 0);
-  const ledgerRowsWithBalance = ledgerRows.map((row) => {
+  // Compute running balance in chronological order so historical row balances stay fixed
+  const ledgerRowsChrono = ledgerRows
+    .slice()
+    .sort((a, b) => {
+      const aKey = Number.isFinite(a.sortKey) ? (a.sortKey as number) : 0;
+      const bKey = Number.isFinite(b.sortKey) ? (b.sortKey as number) : 0;
+      if (aKey !== bKey) return aKey - bKey;
+      const aSeq = Number.isFinite(a.sequence) ? (a.sequence as number) : null;
+      const bSeq = Number.isFinite(b.sequence) ? (b.sequence as number) : null;
+      if (aSeq !== null && bSeq !== null && aSeq !== bSeq) return aSeq - bSeq;
+      return (b.originalIndex ?? 0) - (a.originalIndex ?? 0);
+    });
+
+  let runningBalance = 0;
+  const ledgerRowsWithBalance = ledgerRowsChrono.map((row) => {
     const signed = normalizeCurrency(row.signedAmount);
-    const balanceForRow = fmtUsd(runningBalance);
     const amountAbs = Math.abs(signed);
     const amountFormatted = fmtUsd(amountAbs);
+    const updatedBalance = normalizeCurrency(runningBalance + signed);
     const displayAmount = signed < 0 ? `-${amountFormatted}` : amountFormatted;
-    runningBalance = normalizeCurrency(runningBalance - signed);
+    runningBalance = updatedBalance;
     return {
       ...row,
       displayAmount,
-      balance: balanceForRow,
+      balance: fmtUsd(updatedBalance),
       transactionId: row.transactionId ?? row.id,
       amountRaw: row.amount,
     };
   });
 
-  const ledgerRowsForPanel = ledgerRowsWithBalance.map((row) => ({
-    id: row.id,
-    date: row.date,
-    invoice: row.invoice,
-    account: row.account,
-    type: row.type,
-    memo: row.memo,
-    displayAmount: row.displayAmount,
-    balance: row.balance,
-    transactionId: row.transactionId,
-    amountRaw: row.amountRaw,
-    signedAmount: row.signedAmount,
-  }));
+  const ledgerRowsForPanel = ledgerRowsWithBalance
+    .slice()
+    .sort((a, b) => {
+      const aKey = Number.isFinite(a.sortKey) ? (a.sortKey as number) : 0;
+      const bKey = Number.isFinite(b.sortKey) ? (b.sortKey as number) : 0;
+      if (aKey !== bKey) return bKey - aKey;
+      const aSeq = Number.isFinite(a.sequence) ? (a.sequence as number) : null;
+      const bSeq = Number.isFinite(b.sequence) ? (b.sequence as number) : null;
+      if (aSeq !== null && bSeq !== null && aSeq !== bSeq) return bSeq - aSeq;
+      return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
+    })
+    .map(({ sortKey: _sortKey, originalIndex: _originalIndex, ...row }) => ({
+      id: row.id,
+      date: row.date,
+      account: row.account,
+      type: row.type,
+      memo: row.memo,
+      displayAmount: row.displayAmount,
+      balance: row.balance,
+      transactionId: row.transactionId,
+      amountRaw: row.amountRaw,
+      signedAmount: row.signedAmount,
+    }));
 
   const depositsHeldTotal = Number(balances.depositsHeld ?? 0) || 0;
   const prepaymentsTotal = Number(balances.prepayments ?? 0) || 0;
@@ -1007,35 +1246,113 @@ export default async function LeaseDetailsPage({
     id: string;
     account: string;
     date?: string;
-    invoice?: string;
     type?: string;
     memo?: string;
     amount: number;
     balance: number;
   }> = [];
-  if (depositsHeldTotal > 0) {
-    depositsTableRows.push({
-      id: 'deposit-summary',
-      account: 'Security Deposit Liability',
-      date: undefined,
-      invoice: undefined,
-      type: 'Credit',
-      memo: 'Opening balance: Security deposit',
-      amount: depositsHeldTotal,
-      balance: depositsHeldTotal,
-    });
-  }
-  if (prepaymentsTotal > 0) {
-    depositsTableRows.push({
-      id: 'prepayment-summary',
-      account: 'Prepayments',
-      date: undefined,
-      invoice: undefined,
-      type: 'Credit',
-      memo: 'Prepayment balance',
-      amount: prepaymentsTotal,
-      balance: prepaymentsTotal,
-    });
+
+  // Build deposits/prepayments table from actual transaction lines (deposit/prepay accounts)
+  try {
+    if (Array.isArray(transactions) && transactions.length) {
+      let running = 0;
+      for (const tx of transactions) {
+        const lines = extractTransactionLines(tx);
+        if (!lines.length) continue;
+        const rawDate =
+          (tx as any)?.Date ??
+          (tx as any)?.date ??
+          (tx as any)?.TransactionDate ??
+          (tx as any)?.TransactionDateTime ??
+          (tx as any)?.entry_date;
+        const dateLabel = formatLedgerDate(rawDate);
+        const typeLabel =
+          tx?.TransactionTypeEnum || tx?.TransactionType || tx?.transaction_type || 'Transaction';
+
+        for (const line of lines) {
+          const amountRaw = Number((line as any)?.amount ?? (line as any)?.Amount ?? 0);
+          const amount = Math.abs(amountRaw);
+          if (!amount) continue;
+          const postingType = normalizePostingType(line);
+          const isCredit = postingType === 'credit' || postingType === 'cr';
+          const signed = postingType ? (isCredit ? amount : -amount) : amountRaw;
+
+          const { displayName, name, type, subType, isDeposit } = extractAccountFromLine(line);
+          const accountLabel = displayName || name || 'Account';
+          const depositFlag = isDeposit || name.includes('deposit') || subType.includes('deposit');
+          const prepayFlag =
+            name.includes('prepay') ||
+            subType.includes('prepay') ||
+            (type === 'liability' && !depositFlag);
+
+          if (!depositFlag && !prepayFlag) continue;
+
+          // For liabilities, treat credits as increases and debits as decreases.
+          running += signed;
+          const normalizedType = readableTransactionType(typeLabel).toLowerCase();
+          const baseType = normalizedType.includes('payment')
+            ? 'Payment'
+            : normalizedType.includes('credit')
+              ? 'Payment'
+              : readableTransactionType(typeLabel);
+          const payerLabel =
+            baseType === 'Payment' && tenantNames.length
+              ? `${baseType} made by ${tenantNames.join(', ')}`
+              : baseType;
+          const amountForDisplay = isCredit ? amount : amount * -1;
+
+          depositsTableRows.push({
+            id: `${tx?.Id ?? tx?.id ?? randomUUID()}-${depositsTableRows.length}`,
+            account: accountLabel,
+            date: dateLabel,
+            type: payerLabel,
+            memo:
+              (line as any)?.memo ||
+              (line as any)?.Memo ||
+              tx?.memo ||
+              tx?.Memo ||
+              tx?.Description ||
+              '',
+            amount: amountForDisplay,
+            balance: running,
+          });
+        }
+      }
+    }
+  } catch {}
+
+  // Fallback to summary rows if no detailed lines were found
+  if (depositsTableRows.length === 0) {
+    if (depositsHeldTotal > 0) {
+      depositsTableRows.push({
+        id: 'deposit-summary',
+        account: 'Security Deposit Liability',
+        date: formatLedgerDate(
+          Array.isArray(transactions) && transactions[0]
+            ? ((transactions[0] as any)?.Date ??
+                (transactions[0] as any)?.date ??
+                (transactions[0] as any)?.TransactionDate ??
+                (transactions[0] as any)?.TransactionDateTime ??
+                (transactions[0] as any)?.entry_date)
+            : null,
+        ),
+        type: 'Payment',
+        memo: 'Security deposit balance',
+        amount: depositsHeldTotal,
+        balance: depositsHeldTotal,
+      });
+    }
+    if (prepaymentsTotal > 0) {
+      depositsTableRows.push({
+        id: 'prepayment-summary',
+        account: 'Prepayments',
+        date: undefined,
+        type: 'Credit',
+        memo: 'Prepayment balance',
+        amount: prepaymentsTotal,
+        balance: prepaymentsTotal,
+      });
+    }
   }
   const ledgerMatchesLabel = transactionsError
     ? 'Unable to load ledger'
@@ -1176,22 +1493,22 @@ export default async function LeaseDetailsPage({
               categories={fileCategories as LeaseFileCategory[]}
             />
           </div>
-          <div>
-            <div className="bg-primary/5 rounded-lg p-6 text-sm">
-              <div className="mb-3 flex items-center justify-between font-medium">
-                <span>Balance:</span>
+          <div className="surface-card surface-card--muted inline-block h-fit rounded-2xl p-4 text-sm shadow-sm">
+            <div className="space-y-2.5">
+              <div className="text-foreground flex items-center justify-between font-semibold">
+                <span>Balance</span>
                 <span>{fmtUsd(balances.balance)}</span>
               </div>
-              <div className="mb-2 flex items-center justify-between">
-                <span>Prepayments:</span>
+              <div className="text-foreground flex items-center justify-between">
+                <span>Prepayments</span>
                 <span className="font-medium">{fmtUsd(balances.prepayments)}</span>
               </div>
-              <div className="mb-2 flex items-center justify-between">
-                <span>Deposits held:</span>
+              <div className="text-foreground flex items-center justify-between">
+                <span>Deposits held</span>
                 <span className="font-medium">{fmtUsd(balances.depositsHeld)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Rent:</span>
+              <div className="text-foreground flex items-center justify-between">
+                <span>Rent</span>
                 <span className="font-medium">{fmtUsd(lease.rent_amount)}</span>
               </div>
             </div>
@@ -1257,11 +1574,12 @@ export default async function LeaseDetailsPage({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button disabled>Receive payment</Button>
-                  <Button variant="outline" disabled>
-                    Enter charge
+                  <Button asChild>
+                    <Link href={`/leases/${lease.id}?tab=financials`}>Receive payment</Link>
                   </Button>
-                  <ActionButton aria-label="More actions" disabled />
+                  <Button asChild variant="outline">
+                    <Link href={`/leases/${lease.id}?tab=financials`}>Enter charge</Link>
+                  </Button>
                 </div>
               </div>
               <div className="border-border overflow-hidden rounded-lg border">
@@ -1269,7 +1587,7 @@ export default async function LeaseDetailsPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-28">Date</TableHead>
-                      <TableHead>Invoice</TableHead>
+                      <TableHead>Account</TableHead>
                       <TableHead>Transaction</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Balance</TableHead>
@@ -1285,7 +1603,7 @@ export default async function LeaseDetailsPage({
                               {row.date || '—'}
                             </TableCell>
                             <TableCell className="text-foreground text-sm">
-                              {row.invoice || '—'}
+                              {row.account || '—'}
                             </TableCell>
                             <TableCell>
                               <div className="text-foreground flex items-center gap-2 text-sm">
@@ -1393,18 +1711,27 @@ export default async function LeaseDetailsPage({
                           )}
                           <div className="flex items-center gap-2">
                             {tenant.moveOutRaw ? (
-                              <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
-                                {new Date(tenant.moveOutRaw) < new Date() ? 'Moved out' : 'Moving out'}
+                              <Badge
+                                variant="secondary"
+                                className="border-green-200 bg-green-50 text-green-700"
+                              >
+                                {new Date(tenant.moveOutRaw) < new Date()
+                                  ? 'Moved out'
+                                  : 'Moving out'}
                               </Badge>
                             ) : null}
                           </div>
                           <div className="mt-1 space-y-1">
                             <TenantMoveInEditor contactId={tenant.id} value={tenant.moveIn} />
                             {tenant.moveOut ? (
-                              <div className="text-muted-foreground text-xs">Move-out: {tenant.moveOut}</div>
+                              <div className="text-muted-foreground text-xs">
+                                Move-out: {tenant.moveOut}
+                              </div>
                             ) : null}
                             {tenant.notice ? (
-                              <div className="text-muted-foreground text-xs">Notice given: {tenant.notice}</div>
+                              <div className="text-muted-foreground text-xs">
+                                Notice given: {tenant.notice}
+                              </div>
                             ) : null}
                           </div>
                           <div className="text-muted-foreground mt-4 flex flex-col gap-2 text-sm">

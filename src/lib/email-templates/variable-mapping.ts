@@ -122,17 +122,17 @@ export async function buildTemplateVariables(
       tenant_id,
       lease_id,
       org_id,
-      properties (
-        id,
-        name,
-        address_line1,
-        address_line2,
-        city,
-        state,
-        postal_code,
-        operating_bank_account_id,
-        buildium_property_id
-      ),
+	      properties (
+	        id,
+	        name,
+	        address_line1,
+	        address_line2,
+	        city,
+	        state,
+	        postal_code,
+	        operating_bank_gl_account_id,
+	        buildium_property_id
+	      ),
       units (
         unit_number,
         unit_name
@@ -156,17 +156,17 @@ export async function buildTemplateVariables(
     throw new Error('Monthly log not found');
   }
 
-  const property = monthlyLog.properties as {
-    name?: string | null;
-    address_line1?: string | null;
-    address_line2?: string | null;
-    city?: string | null;
-    state?: string | null;
-    postal_code?: string | null;
-    operating_bank_account_id?: string | null;
-    buildium_property_id?: string | number | null;
-    id?: string | null;
-  } | null;
+	  const property = monthlyLog.properties as {
+	    name?: string | null;
+	    address_line1?: string | null;
+	    address_line2?: string | null;
+	    city?: string | null;
+	    state?: string | null;
+	    postal_code?: string | null;
+	    operating_bank_gl_account_id?: string | null;
+	    buildium_property_id?: string | number | null;
+	    id?: string | null;
+	  } | null;
   const unit = monthlyLog.units as { unit_number?: string | null; unit_name?: string | null } | null;
   const tenant = monthlyLog.tenants as { contacts?: { first_name?: string | null; last_name?: string | null; display_name?: string | null; primary_email?: string | null; primary_phone?: string | null } | null } | null;
   const tenantContact = tenant?.contacts;
@@ -221,16 +221,18 @@ export async function buildTemplateVariables(
     console.error('Error fetching owner contact:', error);
   }
 
-  // Fetch bank account if available
-  let bankAccount: { name?: string | null; account_number?: string | null } | null = null;
-  if (property?.operating_bank_account_id) {
-    const { data: bank } = await db
-      .from('bank_accounts')
-      .select('name, account_number')
-      .eq('id', property.operating_bank_account_id)
-      .maybeSingle();
-    bankAccount = bank;
-  }
+	  // Fetch bank account if available
+	  let bankAccount: { name?: string | null; account_number?: string | null } | null = null;
+	  if (property?.operating_bank_gl_account_id) {
+	    const { data: bank } = await db
+	      .from('gl_accounts')
+	      .select('name, bank_account_number')
+	      .eq('id', property.operating_bank_gl_account_id)
+	      .maybeSingle();
+	    bankAccount = bank
+	      ? { name: (bank as any).name ?? null, account_number: (bank as any).bank_account_number ?? null }
+	      : null;
+	  }
 
   const maskAccountNumber = (value?: string | null): string => {
     if (!value) return '';

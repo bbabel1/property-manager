@@ -2,7 +2,7 @@
  * Management Fees Stage Data API
  *
  * Returns management fee configuration and assigned fee transactions.
- * Uses service_assignment field to determine whether to fetch data from properties or units table.
+ * Uses service plan assignments (service_plan_assignments) as the source of truth.
  */
 
 import { NextResponse } from 'next/server';
@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     // Fetch monthly log to get unit and property
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')
-      .select('unit_id, property_id, period_start')
+      .select('unit_id, property_id, period_start, org_id')
       .eq('id', logId)
       .single();
 
@@ -39,12 +39,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       );
     }
 
-    // Fetch property with service_assignment to determine data source
+    // Fetch property with service_assignment to determine which assignment level should apply.
     const { data: property, error: propertyError } = await supabaseAdmin
       .from('properties')
-      .select(
-        'service_assignment, service_plan, active_services, fee_assignment, fee_type, fee_percentage, fee_dollar_amount, billing_frequency',
-      )
+      .select('service_assignment')
       .eq('id', monthlyLog.property_id)
       .single();
 
@@ -56,70 +54,112 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       );
     }
 
-    const { data: unit, error: unitError } = monthlyLog.unit_id
-      ? await supabaseAdmin
-          .from('units')
-          .select(
-            'service_plan, active_services, fee_type, fee_percent, fee_dollar_amount, fee_frequency',
-          )
-          .eq('id', monthlyLog.unit_id)
-          .maybeSingle()
-      : { data: null, error: null };
+    const orgId = monthlyLog.org_id;
+    const unitId = monthlyLog.unit_id ?? null;
+    const propertyId = monthlyLog.property_id;
+    const serviceAssignment = property?.service_assignment ?? null;
 
-    if (unitError) {
-      console.error('Error fetching unit:', unitError);
-      return NextResponse.json(
-        { error: { code: 'QUERY_ERROR', message: 'Failed to fetch unit data' } },
-        { status: 500 },
-      );
-    }
+    const wantsUnitLevel = serviceAssignment === 'Unit Level';
 
-    // Determine data source based on service_assignment
-    const serviceAssignment = property?.service_assignment;
-    const isServicePropertyLevel =
-      serviceAssignment === 'Property Level' ||
-      serviceAssignment === 'Building' ||
-      serviceAssignment === null;
+    const loadAssignment = async (scope: 'unit' | 'property') => {
+      const query = supabaseAdmin
+        .from('service_plan_assignments')
+        .select('id, plan_id, plan_fee_amount, plan_fee_percent, plan_fee_frequency')
+        .eq('org_id', orgId)
+        .is('effective_end', null)
+        .order('effective_start', { ascending: false })
+        .limit(1);
 
-    const feeAssignment = property?.fee_assignment ?? null;
-    const isFeePropertyLevel =
-      feeAssignment === 'Property Level' || feeAssignment === 'Building' || feeAssignment === null;
+      const scoped =
+        scope === 'unit' && unitId
+          ? query.eq('unit_id', unitId)
+          : query.eq('property_id', propertyId).is('unit_id', null);
 
-    const parseActiveServices = (value: unknown): string[] => {
-      if (!value) return [];
-      if (Array.isArray(value)) return value.map((v) => String(v));
-      if (typeof value === 'string') {
-        try {
-          const parsed = JSON.parse(value);
-          if (Array.isArray(parsed)) return parsed.map((v) => String(v));
-        } catch {
-          // noop
-        }
-        return value
-          .split(',')
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-      }
-      return [];
+      const { data } = await scoped.maybeSingle();
+      return data ?? null;
     };
 
-    const servicePlan = isServicePropertyLevel
-      ? property?.service_plan || null
-      : unit?.service_plan || null;
-    const activeServices = isServicePropertyLevel
-      ? parseActiveServices(property?.active_services)
-      : parseActiveServices(unit?.active_services);
+    const unitAssignment = unitId ? await loadAssignment('unit') : null;
+    const propertyAssignment = await loadAssignment('property');
+    const assignment = wantsUnitLevel ? unitAssignment : propertyAssignment;
+    const effectiveAssignment = assignment ?? unitAssignment ?? propertyAssignment;
 
-    const feeType = isFeePropertyLevel ? property?.fee_type || null : unit?.fee_type || null;
-    const feePercentage = isFeePropertyLevel
-      ? property?.fee_percentage || null
-      : unit?.fee_percent || null;
-    const feeDollarAmount = isFeePropertyLevel
-      ? property?.fee_dollar_amount ?? null
-      : unit?.fee_dollar_amount ?? null;
-    const billingFrequency = isFeePropertyLevel
-      ? property?.billing_frequency || null
-      : unit?.fee_frequency || null;
+    const assignmentId = effectiveAssignment?.id ?? null;
+    const planId = effectiveAssignment?.plan_id ? String(effectiveAssignment.plan_id) : null;
+
+    let servicePlan: string | null = null;
+    if (planId) {
+      const { data: planRow } = await supabaseAdmin
+        .from('service_plans')
+        .select('name')
+        .eq('id', planId)
+        .maybeSingle();
+      servicePlan = planRow?.name ? String(planRow.name) : null;
+    }
+
+    const isALaCarte = (servicePlan || '').trim().toLowerCase() === 'a-la-carte';
+
+    let activeServices: string[] = [];
+    if (planId) {
+      if (isALaCarte && assignmentId) {
+        const { data: rows } = await supabaseAdmin
+          .from('service_offering_assignments')
+          .select('offering_id, is_active')
+          .eq('assignment_id', assignmentId)
+          .order('created_at', { ascending: true });
+        const offeringIds = (rows || [])
+          .filter((r: any) => r?.is_active !== false)
+          .map((r: any) => String(r.offering_id))
+          .filter(Boolean);
+        if (offeringIds.length) {
+          const { data: offerings } = await supabaseAdmin
+            .from('service_offerings')
+            .select('id, name')
+            .in('id', offeringIds);
+          activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+        }
+      } else {
+        const { data: rows } = await supabaseAdmin
+          .from('service_plan_services')
+          .select('offering_id')
+          .eq('plan_id', planId);
+        const offeringIds = (rows || []).map((r: any) => String(r.offering_id)).filter(Boolean);
+        if (offeringIds.length) {
+          const { data: offerings } = await supabaseAdmin
+            .from('service_offerings')
+            .select('id, name')
+            .in('id', offeringIds);
+          activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+        }
+      }
+    }
+
+    const amountFlat =
+      effectiveAssignment?.plan_fee_amount != null ? Number(effectiveAssignment.plan_fee_amount) : 0;
+    const percent =
+      effectiveAssignment?.plan_fee_percent != null ? Number(effectiveAssignment.plan_fee_percent) : 0;
+    const billingFrequency = effectiveAssignment?.plan_fee_frequency
+      ? String(effectiveAssignment.plan_fee_frequency)
+      : null;
+
+    let rentAmount: number | null = null;
+    if (unitId) {
+      const { data: leaseRow } = await supabaseAdmin
+        .from('lease')
+        .select('rent_amount, lease_from_date')
+        .eq('unit_id', unitId)
+        .eq('status', 'active')
+        .order('lease_from_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      rentAmount = leaseRow?.rent_amount != null ? Number(leaseRow.rent_amount) : null;
+    }
+
+    const computedFromPercent =
+      percent > 0 && rentAmount != null ? (percent * rentAmount) / 100 : 0;
+    const feeDollarAmount = amountFlat > 0 ? amountFlat : computedFromPercent;
+    const feeType = amountFlat > 0 ? 'Flat Rate' : percent > 0 ? 'Percentage' : null;
+    const feePercentage = percent > 0 ? percent : null;
 
     // Fetch assigned management fee transactions
     const { data: assignedFees, error: feesError } = await supabaseAdmin
@@ -127,7 +167,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       .select('*')
       .eq('monthly_log_id', logId)
       .eq('transaction_type', 'Charge')
-      .ilike('memo', '%management fee%')
+      .in('fee_category', ['plan_fee', 'legacy'])
+      .or('memo.ilike.%management fee%,legacy_memo.ilike.%management fee%')
       .order('date', { ascending: false });
 
     if (feesError) {
@@ -150,28 +191,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
       assignedFees: assignedFees || [],
       totalFees,
       serviceAssignment,
-      feeAssignment,
-      sources: {
-        service: isServicePropertyLevel ? 'property' : 'unit',
-        fee: isFeePropertyLevel ? 'property' : 'unit',
-      },
-      propertyContext: {
-        feeType: property?.fee_type ?? null,
-        feePercentage: property?.fee_percentage ?? null,
-        feeDollarAmount: property?.fee_dollar_amount ?? null,
-        billingFrequency: property?.billing_frequency ?? null,
-        servicePlan: property?.service_plan ?? null,
-        activeServices: parseActiveServices(property?.active_services),
-      },
-      unitContext: {
-        feeType: unit?.fee_type ?? null,
-        feePercent: unit?.fee_percent ?? null,
-        feeDollarAmount: unit?.fee_dollar_amount ?? null,
-        billingFrequency: unit?.fee_frequency ?? null,
-        servicePlan: unit?.service_plan ?? null,
-        activeServices: parseActiveServices(unit?.active_services),
-      },
       periodStart: monthlyLog?.period_start ?? null,
+      assignmentId,
+      planId,
+      rentAmount,
     });
   } catch (error) {
     console.error('Error in GET /api/monthly-logs/[logId]/management-fees:', error);

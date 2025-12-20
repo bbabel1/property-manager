@@ -41,7 +41,28 @@ export type PropertyWithDetails = Property & {
 
 export type PropertyListItem = Pick<Property, 'id' | 'name' | 'status' | 'property_type' | 'created_at'>
 
-type PropertyShell = Pick<Property, 'id' | 'name' | 'status' | 'property_type' | 'buildium_property_id' | 'service_assignment' | 'service_plan'>
+type PropertyShell = Pick<
+  Property,
+  'id' | 'name' | 'status' | 'property_type' | 'buildium_property_id' | 'service_assignment'
+> & {
+  // Computed from service_plan_assignments → service_plans
+  service_plan?: string | null
+}
+
+async function loadPropertyPlanName(db: SupabaseClient<Database>, propertyId: string) {
+  const { data: assignment } = await db
+    .from('service_plan_assignments')
+    .select('plan_id, service_plans(name)')
+    .eq('property_id', propertyId)
+    .is('unit_id', null)
+    .is('effective_end', null)
+    .order('effective_start', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const plan = (assignment as { service_plans?: { name?: string | null } | null })?.service_plans
+  return plan?.name ?? null
+}
 
 export class PropertyService {
   // Lightweight shell: just enough for header/tabs without heavy joins
@@ -61,19 +82,26 @@ export class PropertyService {
               property_type: (data as any)?.property_type,
               buildium_property_id: (data as any)?.buildium_property_id ?? null,
               service_assignment: (data as any)?.service_assignment ?? null,
-              service_plan: (data as any)?.service_plan ?? null
+              service_plan: (data as any)?.service_plan ?? null,
             }
           }
         } catch {}
         return null
       }
-      const { data, error } = await supabase
+      const dbClient = (supabaseAdmin || supabase) as SupabaseClient<Database>
+      const { data, error } = await dbClient
         .from('properties')
-        .select('id,name,status,property_type,buildium_property_id,service_assignment,service_plan')
+        .select('id,name,status,property_type,buildium_property_id,service_assignment')
         .eq('id', id)
         .maybeSingle()
       if (error || !data) return null
-      return data as PropertyShell
+      const base = data as PropertyShell
+      const serviceAssignment = (base.service_assignment ?? null) as string | null
+      if (serviceAssignment === 'Property Level') {
+        const planName = await loadPropertyPlanName(dbClient, id)
+        return { ...base, service_plan: planName }
+      }
+      return { ...base, service_plan: null }
     } catch {
       return null
     }
@@ -306,21 +334,35 @@ export class PropertyService {
       // Enrich: banking accounts (names + masked last4)
       let operating_account: PropertyWithDetails['operating_account'] | undefined
       let deposit_trust_account: PropertyWithDetails['deposit_trust_account'] | undefined
-      if (property.operating_bank_account_id) {
+      if ((property as any).operating_bank_gl_account_id) {
         const { data: op } = await dbClient
-          .from('bank_accounts')
-          .select('id, name, account_number')
-          .eq('id', property.operating_bank_account_id)
+          .from('gl_accounts')
+          .select('id, name, bank_account_number')
+          .eq('id', (property as any).operating_bank_gl_account_id)
           .maybeSingle()
-        if (op) operating_account = { id: op.id, name: op.name, last4: op.account_number ? String(op.account_number).slice(-4) : null }
+        const opRow = op as { id?: string; name?: string | null; bank_account_number?: string | null } | null
+        if (opRow) {
+          operating_account = {
+            id: String(opRow.id ?? ''),
+            name: opRow.name ?? 'Bank account',
+            last4: opRow.bank_account_number ? String(opRow.bank_account_number).slice(-4) : null,
+          }
+        }
       }
-      if (property.deposit_trust_account_id) {
+      if ((property as any).deposit_trust_gl_account_id) {
         const { data: tr } = await dbClient
-          .from('bank_accounts')
-          .select('id, name, account_number')
-          .eq('id', property.deposit_trust_account_id)
+          .from('gl_accounts')
+          .select('id, name, bank_account_number')
+          .eq('id', (property as any).deposit_trust_gl_account_id)
           .maybeSingle()
-        if (tr) deposit_trust_account = { id: tr.id, name: tr.name, last4: tr.account_number ? String(tr.account_number).slice(-4) : null }
+        const trRow = tr as { id?: string; name?: string | null; bank_account_number?: string | null } | null
+        if (trRow) {
+          deposit_trust_account = {
+            id: String(trRow.id ?? ''),
+            name: trRow.name ?? 'Bank account',
+            last4: trRow.bank_account_number ? String(trRow.bank_account_number).slice(-4) : null,
+          }
+        }
       }
 
       let property_manager_name: string | undefined = undefined

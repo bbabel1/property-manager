@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
 import { logger } from '@/lib/logger';
 import { supabaseAdmin } from '@/lib/db';
+import { normalizeFeeType } from '@/lib/normalizers';
 
 const parseNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null;
@@ -28,7 +29,6 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const billingBasis = body.billing_basis;
     const updateData: Record<string, any> = {};
 
     const set = (key: string, value: any) => {
@@ -39,43 +39,15 @@ export async function PUT(
     set('name', typeof body.name === 'string' ? body.name.trim() : undefined);
     set('category', body.category);
     set('description', typeof body.description === 'string' ? body.description.trim() : body.description);
-    if (billingBasis !== undefined) set('billing_basis', billingBasis);
     set('default_rate', parseNumber(body.default_rate));
     set('default_freq', body.default_freq);
-    set('min_amount', parseNumber(body.min_amount));
-    set('max_amount', parseNumber(body.max_amount));
-    set('applies_to', body.applies_to);
-    set('bill_on', body.bill_on);
-
-    if (billingBasis === 'job_cost') {
-      set('markup_pct', parseNumber(body.markup_pct));
-      set('markup_pct_cap', parseNumber(body.markup_pct_cap));
-    } else if (billingBasis !== undefined) {
-      set('markup_pct', null);
-      set('markup_pct_cap', null);
-    } else if (body.markup_pct !== undefined || body.markup_pct_cap !== undefined) {
-      set('markup_pct', parseNumber(body.markup_pct));
-      set('markup_pct_cap', parseNumber(body.markup_pct_cap));
-    }
-
-    if (billingBasis === 'hourly') {
-      set('hourly_rate', parseNumber(body.hourly_rate));
-      set('hourly_min_hours', parseNumber(body.hourly_min_hours));
-    } else if (billingBasis !== undefined) {
-      set('hourly_rate', null);
-      set('hourly_min_hours', null);
-    } else if (body.hourly_rate !== undefined || body.hourly_min_hours !== undefined) {
-      set('hourly_rate', parseNumber(body.hourly_rate));
-      set('hourly_min_hours', parseNumber(body.hourly_min_hours));
-    }
-
-    if (billingBasis === 'percent_rent') {
-      set('default_rent_basis', body.default_rent_basis || 'scheduled');
-    } else if (billingBasis !== undefined) {
-      set('default_rent_basis', null);
-    } else if (body.default_rent_basis !== undefined) {
-      set('default_rent_basis', body.default_rent_basis);
-    }
+    const feeType =
+      body.fee_type === undefined ? undefined : normalizeFeeType(body.fee_type) ?? null;
+    set('fee_type', feeType);
+    set('markup_pct', parseNumber(body.markup_pct));
+    set('markup_pct_cap', parseNumber(body.markup_pct_cap));
+    set('hourly_rate', parseNumber(body.hourly_rate));
+    set('hourly_min_hours', parseNumber(body.hourly_min_hours));
 
     set('is_active', typeof body.is_active === 'boolean' ? body.is_active : undefined);
     set('updated_at', new Date().toISOString());

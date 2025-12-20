@@ -11,6 +11,7 @@ import { requireAuth } from '@/lib/auth/guards';
 import type { AppRole } from '@/lib/auth/roles';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
+import { assertTransactionBalanced, assertTransactionHasBankLine } from '@/lib/accounting-validation';
 import {
   calculateFinancialSummary,
   refreshMonthlyLogTotals,
@@ -145,7 +146,7 @@ export async function POST(
           id,
           org_id,
           buildium_property_id,
-          operating_bank_account_id
+          operating_bank_gl_account_id
         ),
         units:units(
           id,
@@ -178,12 +179,12 @@ export async function POST(
     let buildiumPropertyId =
       unitRecord?.buildium_property_id ?? propertyRecord?.buildium_property_id ?? null;
     const buildiumUnitId = unitRecord?.buildium_unit_id ?? null;
-    let operatingBankAccountId = propertyRecord?.operating_bank_account_id ?? null;
+    let operatingBankGlAccountId = (propertyRecord as any)?.operating_bank_gl_account_id ?? null;
 
-    if (!operatingBankAccountId && propertyId) {
+    if (!operatingBankGlAccountId && propertyId) {
       const { data: propertyRow, error: propertyError } = await supabaseAdmin
         .from('properties')
-        .select('id, org_id, buildium_property_id, operating_bank_account_id')
+        .select('id, org_id, buildium_property_id, operating_bank_gl_account_id')
         .eq('id', propertyId)
         .maybeSingle();
 
@@ -193,7 +194,8 @@ export async function POST(
         propertyId = propertyRow.id;
         orgId = orgId ?? propertyRow.org_id ?? null;
         buildiumPropertyId = buildiumPropertyId ?? propertyRow.buildium_property_id ?? null;
-        operatingBankAccountId = propertyRow.operating_bank_account_id ?? operatingBankAccountId;
+        operatingBankGlAccountId =
+          (propertyRow as any).operating_bank_gl_account_id ?? operatingBankGlAccountId;
       }
     }
 
@@ -222,8 +224,8 @@ export async function POST(
       );
     }
 
-    const bankAccountId = operatingBankAccountId ?? null;
-    if (!bankAccountId) {
+    const bankGlAccountIdCandidate = operatingBankGlAccountId ?? null;
+    if (!bankGlAccountIdCandidate) {
       return NextResponse.json(
         {
           error: {
@@ -235,130 +237,74 @@ export async function POST(
       );
     }
 
-    const { data: bankAccountRow, error: bankAccountError } = await supabaseAdmin
-      .from('bank_accounts')
-      .select('id, name, buildium_bank_id, gl_account, org_id')
-      .eq('id', bankAccountId)
+    const parseBuildiumId = (value: unknown): number | null => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      if (typeof value === 'string' && Number.isFinite(Number(value))) return Number(value);
+      return null;
+    };
+
+    let bankGlAccount:
+      | {
+          id: string;
+          org_id: string | null;
+          name: string | null;
+          buildium_gl_account_id: unknown;
+          is_bank_account: unknown;
+        }
+      | null = null;
+
+    const { data, error } = await supabaseAdmin
+      .from('gl_accounts')
+      .select('id, org_id, name, buildium_gl_account_id, is_bank_account')
+      .eq('id', bankGlAccountIdCandidate)
       .maybeSingle();
+    if (error) throw error;
+    bankGlAccount = (data as any) ?? null;
 
-    if (bankAccountError) throw bankAccountError;
-    if (!bankAccountRow) {
+    if (!bankGlAccount?.id) {
       return NextResponse.json(
         {
           error: {
             code: 'UNPROCESSABLE_ENTITY',
-            message: 'Operating bank account not found.',
+            message: 'Operating bank account GL not found. Sync GL accounts before recording an owner draw.',
           },
         },
         { status: 422 },
       );
     }
 
-    const bankAccountBuildiumIdRaw = bankAccountRow.buildium_bank_id;
-    const bankAccountBuildiumId =
-      typeof bankAccountBuildiumIdRaw === 'number'
-        ? bankAccountBuildiumIdRaw
-        : typeof bankAccountBuildiumIdRaw === 'string' &&
-            Number.isFinite(Number(bankAccountBuildiumIdRaw))
-          ? Number(bankAccountBuildiumIdRaw)
-          : null;
-
-    if (bankAccountBuildiumId == null) {
+    if (!Boolean((bankGlAccount as any).is_bank_account)) {
       return NextResponse.json(
         {
           error: {
             code: 'UNPROCESSABLE_ENTITY',
-            message: 'Operating bank account is missing a Buildium Bank ID.',
+            message: 'Selected GL account is not marked as a bank account.',
           },
         },
         { status: 422 },
       );
     }
 
-    // Resolve GL account by Buildium bank ID first (preferred), then fall back to stored gl_account.
-    let bankGlAccountId: string | null = null;
-    let bankGlAccountBuildiumId: number | null = null;
+    const buildiumBankAccountId = parseBuildiumId((bankGlAccount as any).buildium_gl_account_id);
 
-    if (bankAccountBuildiumId != null) {
-      const { data: glAccountByBuildium, error: glAccountByBuildiumError } = await supabaseAdmin
-        .from('gl_accounts')
-        .select('id, buildium_gl_account_id')
-        .eq('buildium_gl_account_id', bankAccountBuildiumId)
-        .maybeSingle();
-      if (glAccountByBuildiumError) throw glAccountByBuildiumError;
-      if (glAccountByBuildium?.id) {
-        bankGlAccountId = glAccountByBuildium.id;
-      }
-      if (
-        glAccountByBuildium &&
-        typeof glAccountByBuildium.buildium_gl_account_id === 'number' &&
-        Number.isFinite(glAccountByBuildium.buildium_gl_account_id)
-      ) {
-        bankGlAccountBuildiumId = glAccountByBuildium.buildium_gl_account_id;
-      }
-    }
-
-    if (!bankGlAccountBuildiumId && bankAccountRow.gl_account) {
-      const { data: bankGlAccountRow, error: bankGlError } = await supabaseAdmin
-        .from('gl_accounts')
-        .select('id, buildium_gl_account_id')
-        .eq('id', bankAccountRow.gl_account)
-        .maybeSingle();
-
-      if (bankGlError) throw bankGlError;
-
-      const mappedBuildium =
-        bankGlAccountRow?.buildium_gl_account_id ??
-        (typeof bankGlAccountRow?.buildium_gl_account_id === 'string'
-          ? Number(bankGlAccountRow.buildium_gl_account_id)
-          : null);
-
-      if (typeof mappedBuildium === 'number' && Number.isFinite(mappedBuildium)) {
-        bankGlAccountBuildiumId = mappedBuildium;
-      }
-      bankGlAccountId = bankGlAccountRow?.id ?? bankGlAccountId;
-    }
-
-    if (!bankGlAccountBuildiumId) {
+    if (buildiumBankAccountId == null) {
       return NextResponse.json(
         {
           error: {
             code: 'UNPROCESSABLE_ENTITY',
-            message: 'Operating bank account GL is missing a Buildium mapping.',
+            message: 'Operating bank account is missing a Buildium GL Account ID.',
           },
         },
         { status: 422 },
       );
     }
 
-    if (!bankGlAccountId || typeof bankGlAccountId !== 'string') {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'UNPROCESSABLE_ENTITY',
-            message: 'Operating bank account GL must be synced locally before creating an owner draw.',
-          },
-        },
-        { status: 422 },
-      );
-    }
-
-    if (!bankGlAccountBuildiumId) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'UNPROCESSABLE_ENTITY',
-            message: 'Operating bank account GL is missing a Buildium mapping.',
-          },
-        },
-        { status: 422 },
-      );
-    }
+    const bankGlAccountId = bankGlAccount.id;
 
     const { data: ownerDrawAccount, error: ownerDrawError } = await supabaseAdmin
       .from('gl_accounts')
       .select('id, name, buildium_gl_account_id')
-      .eq('org_id', orgId ?? bankAccountRow.org_id ?? '')
+      .eq('org_id', orgId ?? (bankGlAccount as any).org_id ?? '')
       .ilike('name', 'owner draw')
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -419,7 +365,6 @@ export async function POST(
     }
 
     const buildiumOwnerId = Number(payee.buildium_owner_id);
-    const buildiumBankAccountId = bankAccountBuildiumId;
     const buildiumUnitIdNumber = Number(buildiumUnitId);
     const buildiumPropertyIdNumber = Number(buildiumPropertyId);
 
@@ -518,7 +463,7 @@ export async function POST(
         transaction_type: 'GeneralJournalEntry',
         created_at: nowIso,
         updated_at: nowIso,
-        org_id: orgId ?? bankAccountRow.org_id ?? null,
+        org_id: orgId ?? (bankGlAccount as any).org_id ?? null,
         status: 'Paid',
         email_receipt: false,
         print_receipt: false,
@@ -529,7 +474,7 @@ export async function POST(
           buildiumCheck?.CheckNumber ??
           buildiumCheck?.checkNumber ??
           null,
-        bank_account_id: bankAccountRow.id,
+        bank_gl_account_id: bankGlAccountId,
         buildium_transaction_id:
           typeof buildiumCheck?.Id === 'number'
             ? buildiumCheck.Id
@@ -556,7 +501,7 @@ export async function POST(
         gl_account_id: ownerDrawAccount.id,
         memo: payload.memo ?? null,
         amount: payload.amount,
-        posting_type: 'Credit',
+        posting_type: 'Debit',
         account_entity_type: 'Rental' as const,
         account_entity_id: buildiumPropertyIdNumber,
         property_id: propertyId,
@@ -572,7 +517,7 @@ export async function POST(
         gl_account_id: bankGlAccountId,
         memo: payload.memo ?? null,
         amount: payload.amount,
-        posting_type: 'Debit',
+        posting_type: 'Credit',
         account_entity_type: 'Rental' as const,
         account_entity_id: buildiumPropertyIdNumber,
         property_id: propertyId,
@@ -590,6 +535,27 @@ export async function POST(
       await supabaseAdmin.from('transactions').delete().eq('id', transactionRow.id);
       return NextResponse.json(
         { error: { code: 'QUERY_ERROR', message: 'Failed to save owner draw lines' } },
+        { status: 500 },
+      );
+    }
+
+    try {
+      await assertTransactionBalanced(transactionRow.id, supabaseAdmin);
+      await assertTransactionHasBankLine(transactionRow.id, supabaseAdmin);
+    } catch (validationError) {
+      console.error('Owner draw transaction validation failed', validationError);
+      await supabaseAdmin.from('transaction_lines').delete().eq('transaction_id', transactionRow.id);
+      await supabaseAdmin.from('transactions').delete().eq('id', transactionRow.id);
+      return NextResponse.json(
+        {
+          error: {
+            code: 'ACCOUNTING_ERROR',
+            message:
+              validationError instanceof Error
+                ? validationError.message
+                : 'Owner draw transaction failed accounting validation.',
+          },
+        },
         { status: 500 },
       );
     }

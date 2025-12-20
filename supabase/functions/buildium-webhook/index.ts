@@ -79,32 +79,31 @@ async function mapPropertyFromBuildiumWithBankAccount(
     buildium_updated_at: buildiumProperty.ModifiedDate
   }
 
-  // Resolve bank account ID if OperatingBankAccountId exists
-  let operatingBankAccountId = null
+  // Resolve bank GL account id if OperatingBankAccountId exists (Phase 4: source of truth is gl_accounts)
+  let operatingBankGlAccountId = null
   if (buildiumProperty.OperatingBankAccountId) {
     try {
-      // Check if bank account exists locally
-      const { data: existingBankAccount } = await supabase
-        .from('bank_accounts')
+      const { data: existingGl } = await supabase
+        .from('gl_accounts')
         .select('id')
-        .eq('buildium_bank_id', buildiumProperty.OperatingBankAccountId)
-        .single()
-      
-      if (existingBankAccount) {
-        operatingBankAccountId = existingBankAccount.id
+        .eq('buildium_bank_account_id', buildiumProperty.OperatingBankAccountId)
+        .maybeSingle()
+
+      if (existingGl) {
+        operatingBankGlAccountId = existingGl.id
       } else {
-        console.log(`Bank account ${buildiumProperty.OperatingBankAccountId} not found locally - skipping relationship`)
+        console.log(`Bank GL account for Buildium bank account ${buildiumProperty.OperatingBankAccountId} not found locally - skipping relationship`)
         // Note: In webhook context, we don't fetch missing bank accounts to avoid complexity
-        // The full sync process should handle creating missing bank accounts
+        // A full sync process should handle creating missing GL/bank info.
       }
     } catch (error) {
-      console.warn('Error resolving bank account:', error)
+      console.warn('Error resolving bank GL account:', error)
     }
   }
 
   return {
     ...baseProperty,
-    operating_bank_account_id: operatingBankAccountId
+    operating_bank_gl_account_id: operatingBankGlAccountId
   }
 }
 

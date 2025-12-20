@@ -1,0 +1,71 @@
+[
+  {
+    "name": "bank_lines_win_when_present_and_reasonable",
+    "transactionLines": [
+      {
+        "amount": 10050,
+        "posting_type": "debit",
+        "transaction_id": "bank-tx",
+        "gl_accounts": { "type": "asset", "is_bank_account": true, "name": "Operating Bank" }
+      },
+      {
+        "amount": 5000,
+        "posting_type": "credit",
+        "transaction_id": "deposit-tx",
+        "gl_accounts": {
+          "type": "liability",
+          "is_security_deposit_liability": true,
+          "name": "Security Deposit Liability"
+        }
+      }
+    ],
+    "transactions": [],
+    "reserve": 0,
+    "expected": {
+      "cash_balance": 10050,
+      "security_deposits": -5000,
+      "usedBankBalance": true,
+      "usedPaymentFallback": false,
+      "incompleteBankLines": false
+    }
+  },
+  {
+    "name": "payments_fallback_when_bank_lines_are_clearly_incomplete",
+    "transactionLines": [
+      {
+        "amount": 225,
+        "posting_type": "credit",
+        "transaction_id": "bank-tx",
+        "gl_accounts": { "type": "asset", "is_bank_account": true, "name": "Operating Bank" }
+      }
+    ],
+    "transactions": [
+      { "id": "deposit-tx", "transaction_type": "Payment", "total_amount": 5000 },
+      { "id": "rent-tx", "transaction_type": "Payment", "total_amount": 5050 }
+    ],
+    "reserve": 0,
+    "expected": {
+      "cash_balance": 10050,
+      "usedBankBalance": false,
+      "usedPaymentFallback": true,
+      "incompleteBankLines": true
+    }
+  },
+  {
+    "name": "ar_fallback_when_no_bank_or_payments",
+    "transactionLines": [
+      {
+        "amount": 400,
+        "posting_type": "debit",
+        "transaction_id": "ar-tx",
+        "gl_accounts": { "type": "asset", "sub_type": "accountsreceivable", "name": "Accounts Receivable" }
+      }
+    ],
+    "transactions": [],
+    "reserve": 0,
+    "expected": {
+      "cash_balance": 400,
+      "usedArFallback": true
+    }
+  }
+]

@@ -11,6 +11,7 @@ import {
   fetchTransactionWithLines,
   amountsRoughlyEqual
 } from '@/lib/lease-transaction-helpers'
+import { supabaseAdmin } from '@/lib/db'
 
 const EnterChargeSchema = z.object({
   date: z.string().min(1),
@@ -27,6 +28,96 @@ export async function POST(
   const leaseId = Number(id)
   if (Number.isNaN(leaseId)) {
     return NextResponse.json({ error: 'Invalid lease id' }, { status: 400 })
+  }
+
+  const db = supabaseAdmin
+  const ensureAccountsReceivableLine = async (transactionId: string | null) => {
+    if (!db || !transactionId) return
+
+    const { data: txRows, error: txErr } = await db
+      .from('transactions')
+      .select(
+        `
+        id,
+        date,
+        memo,
+        transaction_type,
+        lease:lease (id, property_id, unit_id, org_id),
+        transaction_lines (
+          id,
+          amount,
+          posting_type,
+          gl_account_id,
+          property_id,
+          unit_id,
+          memo,
+          gl_accounts (name, sub_type, type)
+        )
+      `,
+      )
+      .eq('id', transactionId)
+      .limit(1)
+
+    if (txErr || !txRows?.length) return
+    const tx = txRows[0] as any
+    if ((tx.transaction_type || '').toLowerCase() !== 'charge') return
+
+    const lines: any[] = Array.isArray(tx.transaction_lines) ? tx.transaction_lines : []
+    const hasAr = lines.some((line) => {
+      const name = (line?.gl_accounts?.name || '').toString().toLowerCase()
+      const subType = (line?.gl_accounts?.sub_type || '').toString().toLowerCase().replace(/[\s_-]+/g, '')
+      const type = (line?.gl_accounts?.type || '').toString().toLowerCase()
+      return type === 'asset' && (name.includes('receivable') || subType.includes('accountsreceivable'))
+    })
+    if (hasAr) return
+
+    const creditSum = lines
+      .filter((line) => (line?.posting_type || '').toLowerCase() === 'credit')
+      .reduce((sum, line) => sum + Math.abs(Number(line?.amount) || 0), 0)
+    const debitSum = lines
+      .filter((line) => (line?.posting_type || '').toLowerCase() === 'debit')
+      .reduce((sum, line) => sum + Math.abs(Number(line?.amount) || 0), 0)
+    const arAmount = creditSum - debitSum
+    if (!(arAmount > 0)) return
+
+    const orgId = (tx.lease as any)?.org_id ?? null
+    const { data: orgArRow } =
+      orgId != null
+        ? await db
+            .from('gl_accounts')
+            .select('id')
+            .eq('org_id', orgId)
+            .ilike('name', 'Accounts Receivable')
+            .maybeSingle()
+        : { data: null }
+    const { data: fallbackArRow } = await db
+      .from('gl_accounts')
+      .select('id')
+      .ilike('name', 'Accounts Receivable')
+      .maybeSingle()
+    const arGlId = (orgArRow as any)?.id ?? (fallbackArRow as any)?.id ?? null
+    if (!arGlId) return
+
+    const nowIso = new Date().toISOString()
+    const lineDate = typeof tx.date === 'string' && tx.date ? tx.date : nowIso.slice(0, 10)
+    const propertyId = (tx.lease as any)?.property_id ?? lines[0]?.property_id ?? null
+    const unitId = (tx.lease as any)?.unit_id ?? lines[0]?.unit_id ?? null
+
+    await db.from('transaction_lines').insert({
+      transaction_id: transactionId,
+      gl_account_id: arGlId,
+      amount: arAmount,
+      posting_type: 'Debit',
+      memo: tx?.memo ?? null,
+      date: lineDate,
+      account_entity_type: 'Rental',
+      account_entity_id: (tx.lease as any)?.property_id ?? null,
+      property_id: propertyId,
+      unit_id: unitId,
+      lease_id: (tx.lease as any)?.id ?? leaseId,
+      created_at: nowIso,
+      updated_at: nowIso,
+    })
   }
 
   const json = await request.json().catch(() => undefined)
@@ -74,6 +165,12 @@ export async function POST(
       if (record) {
         normalized = { ...record.transaction, memo: memoValue }
         responseLines = record.lines ?? []
+      }
+      await ensureAccountsReceivableLine(result.localId)
+      // Refresh lines in case the A/R guard inserted a debit
+      const updated = await fetchTransactionWithLines(result.localId)
+      if (updated?.lines) {
+        responseLines = updated.lines
       }
     }
 

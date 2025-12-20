@@ -1,12 +1,7 @@
-import { PageBody, PageShell, Stack } from '@/components/layout/page-shell';
 import { PropertyService } from '@/lib/property-service';
-import PropertyServicesTab from '@/components/property/PropertyServicesTab';
+import PropertyServicesPageContent from '@/components/property/PropertyServicesPageContent';
 
-export default async function PropertyServicesPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PropertyServicesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const property = await PropertyService.getPropertyById(id);
 
@@ -21,10 +16,11 @@ export default async function PropertyServicesPage({
   }
 
   return (
-    <PageBody>
-      <Stack gap="lg">
-        <PropertyServicesTab propertyId={id} property={property as any} />
-      </Stack>
-    </PageBody>
+    <div className="space-y-6">
+      <PropertyServicesPageContent
+        propertyId={property.id}
+        initialServiceAssignment={property.service_assignment ?? null}
+      />
+    </div>
   );
 }

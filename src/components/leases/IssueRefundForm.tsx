@@ -27,7 +27,7 @@ import {
 
 const IssueRefundSchema = z.object({
   date: z.string().min(1, 'Date required'),
-  bank_account_id: z.string().min(1, 'Bank account required'),
+  bank_gl_account_id: z.string().min(1, 'Bank account required'),
   payment_method: z.enum(['check', 'eft']),
   party_id: z.string().nullable().optional(),
   amount: z.coerce.number().positive('Amount must be greater than 0'),
@@ -54,7 +54,7 @@ type AllocationRow = {
 
 type FormState = {
   date: string | null;
-  bank_account_id: string;
+  bank_gl_account_id: string;
   payment_method: 'check' | 'eft';
   party_id: string;
   amount: string;
@@ -107,7 +107,7 @@ export default function IssueRefundForm({
 
   const [form, setForm] = useState<FormState>({
     date: null,
-    bank_account_id: bankAccounts?.[0]?.id ?? '',
+    bank_gl_account_id: bankAccounts?.[0]?.id ?? '',
     payment_method: 'check',
     party_id: defaultPartyValue,
     amount: '',
@@ -165,16 +165,16 @@ export default function IssueRefundForm({
       setSubmitting(true);
       setFormError(null);
 
-      const allocationsParsed = form.allocations
-        .filter((row) => row.account_id)
-        .map((row) => ({ account_id: row.account_id, amount: Number(row.amount || '0') }));
+    const allocationsParsed = form.allocations
+      .filter((row) => row.account_id)
+      .map((row) => ({ account_id: row.account_id, amount: Number(row.amount || '0') }));
 
-      const payload = {
-        date: form.date ?? '',
-        bank_account_id: form.bank_account_id,
-        payment_method: form.payment_method,
-        party_id: form.party_id || undefined,
-        amount: form.amount,
+    const payload = {
+      date: form.date ?? '',
+      bank_gl_account_id: form.bank_gl_account_id,
+      payment_method: form.payment_method,
+      party_id: form.party_id || undefined,
+      amount: form.amount,
         check_number: form.check_number || undefined,
         memo: form.memo || undefined,
         queue_print: form.queue_print,
@@ -228,7 +228,7 @@ export default function IssueRefundForm({
 
         setForm({
           date: null,
-          bank_account_id: bankAccounts?.[0]?.id ?? '',
+          bank_gl_account_id: bankAccounts?.[0]?.id ?? '',
           payment_method: 'check',
           party_id: defaultPartyValue,
           amount: '',
@@ -286,21 +286,21 @@ export default function IssueRefundForm({
                 </label>
                 <label className="space-y-2">
                   <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                    Bank account *
-                  </span>
-                  <Dropdown
-                    value={form.bank_account_id}
-                    onChange={(value) => updateField('bank_account_id', value)}
-                    options={(bankAccounts ?? []).map((account) => ({
-                      value: account.id,
-                      label: account.name,
-                    }))}
-                    placeholder="Select bank account"
-                  />
-                  {errors.bank_account_id ? (
-                    <p className="text-destructive text-xs">{errors.bank_account_id}</p>
-                  ) : null}
-                </label>
+                  Bank account *
+                </span>
+                <Dropdown
+                  value={form.bank_gl_account_id}
+                  onChange={(value) => updateField('bank_gl_account_id', value)}
+                  options={(bankAccounts ?? []).map((account) => ({
+                    value: account.id,
+                    label: account.name,
+                  }))}
+                  placeholder="Select bank account"
+                />
+                {errors.bank_gl_account_id ? (
+                  <p className="text-destructive text-xs">{errors.bank_gl_account_id}</p>
+                ) : null}
+              </label>
                 <div className="space-y-2">
                   <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                     Refund method *

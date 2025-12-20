@@ -405,47 +405,29 @@ export class BuildiumClient {
     if (params?.limit) qp.append('limit', String(params.limit));
     if (params?.offset) qp.append('offset', String(params.offset));
     const suffix = qp.toString() ? `?${qp.toString()}` : '';
-    return this.makeRequest<BuildiumGLEntry[]>(
-      `GET`,
-      `/generalledger/journalentries${suffix}`,
-    );
+    return this.makeRequest<BuildiumGLEntry[]>(`GET`, `/generalledger/journalentries${suffix}`);
   }
 
   async getGLEntry(id: number): Promise<BuildiumGLEntry> {
-    return this.makeRequest<BuildiumGLEntry>(
-      `GET`,
-      `/generalledger/journalentries/${id}`,
-    );
+    return this.makeRequest<BuildiumGLEntry>(`GET`, `/generalledger/journalentries/${id}`);
   }
 
   async createGLEntry(data: Record<string, unknown>): Promise<BuildiumGLEntry> {
     // Assume caller passes GL-ready payload matching schema
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(
-      `POST`,
-      `/generalledger/journalentries`,
-      payload,
-    );
+    return this.makeRequest<BuildiumGLEntry>(`POST`, `/generalledger/journalentries`, payload);
   }
 
   async updateGLEntry(id: number, data: Record<string, unknown>): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(
-      `PUT`,
-      `/generalledger/journalentries/${id}`,
-      payload,
-    );
+    return this.makeRequest<BuildiumGLEntry>(`PUT`, `/generalledger/journalentries/${id}`, payload);
   }
 
   async createGeneralJournalEntry(
     data: BuildiumGeneralJournalEntryInput,
   ): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(
-      `POST`,
-      `/generalledger/journalentries`,
-      payload,
-    );
+    return this.makeRequest<BuildiumGLEntry>(`POST`, `/generalledger/journalentries`, payload);
   }
 
   async updateGeneralJournalEntry(
@@ -453,11 +435,7 @@ export class BuildiumClient {
     data: BuildiumGeneralJournalEntryInput,
   ): Promise<BuildiumGLEntry> {
     const payload = sanitizeForBuildium(data);
-    return this.makeRequest<BuildiumGLEntry>(
-      `PUT`,
-      `/generalledger/journalentries/${id}`,
-      payload,
-    );
+    return this.makeRequest<BuildiumGLEntry>(`PUT`, `/generalledger/journalentries/${id}`, payload);
   }
 
   async getGLTransactions(params?: {
@@ -535,12 +513,7 @@ export class BuildiumClient {
   }
 
   async getLeaseDocuments(leaseId: number): Promise<BuildiumFile[]> {
-    const prefixes = [
-      `/rentals/leases/${leaseId}`,
-      `/Rentals/Leases/${leaseId}`,
-      `/leases/${leaseId}`,
-      `/Leases/${leaseId}`,
-    ];
+    const prefixes = [`/leases/${leaseId}`];
     const endpoints = prefixes.flatMap((prefix) => [`${prefix}/files`, `${prefix}/documents`]);
     let lastError: Error | null = null;
 
@@ -583,10 +556,18 @@ export class BuildiumClient {
     };
     const sanitizedData = sanitizeForBuildium(payload);
     try {
-      return await this.makeRequest<BuildiumFileCategory[]>(`POST`, `/files/uploadRequests`, sanitizedData);
+      return await this.makeRequest<BuildiumFileCategory[]>(
+        `POST`,
+        `/files/uploadRequests`,
+        sanitizedData,
+      );
     } catch (error) {
       if (error instanceof Error && error.message.includes('404')) {
-        return this.makeRequest<BuildiumFileCategory[]>(`POST`, `/files/uploadrequests`, sanitizedData);
+        return this.makeRequest<BuildiumFileCategory[]>(
+          `POST`,
+          `/files/uploadrequests`,
+          sanitizedData,
+        );
       }
       throw error;
     }
@@ -615,7 +596,15 @@ export class BuildiumClient {
 
     for (const endpoint of endpoints) {
       try {
-        const result = await this.makeRequest<BuildiumFileCategory[] | { data?: BuildiumFileCategory[]; value?: BuildiumFileCategory[]; items?: BuildiumFileCategory[]; Items?: BuildiumFileCategory[] }>(`GET`, endpoint);
+        const result = await this.makeRequest<
+          | BuildiumFileCategory[]
+          | {
+              data?: BuildiumFileCategory[];
+              value?: BuildiumFileCategory[];
+              items?: BuildiumFileCategory[];
+              Items?: BuildiumFileCategory[];
+            }
+        >(`GET`, endpoint);
         if (Array.isArray(result)) return result;
         if (Array.isArray(result?.data)) return result.data;
         if (Array.isArray(result?.value)) return result.value;
@@ -653,12 +642,7 @@ export class BuildiumClient {
     },
   ): Promise<unknown> {
     const sanitizedData = sanitizeForBuildium(data);
-    const prefixes = [
-      `/rentals/leases/${leaseId}`,
-      `/Rentals/Leases/${leaseId}`,
-      `/leases/${leaseId}`,
-      `/Leases/${leaseId}`,
-    ];
+    const prefixes = [`/leases/${leaseId}`];
     const suffixes = [
       '/documents/uploadrequests',
       '/documents/uploadRequests',
@@ -718,8 +702,7 @@ export class BuildiumClient {
     if (data.CategoryId !== undefined && data.CategoryId !== null)
       payload.CategoryId = data.CategoryId;
     if (data.Name !== undefined && data.Name !== null) payload.Name = data.Name;
-    if (data.IsPrivate !== undefined && data.IsPrivate !== null)
-      payload.IsPrivate = data.IsPrivate;
+    if (data.IsPrivate !== undefined && data.IsPrivate !== null) payload.IsPrivate = data.IsPrivate;
 
     if (Object.keys(payload).length === 0) {
       throw new Error('No metadata fields provided for Buildium file update');
@@ -817,20 +800,17 @@ export class BuildiumClient {
     const suffix = queryParams.toString();
     const query = suffix ? `?${suffix}` : '';
 
-    return this.makeRequest<BuildiumApiResponse<BuildiumLease>>(
-      `GET`,
-      `/rentals/leases${query}`,
-    );
+    return this.makeRequest<BuildiumApiResponse<BuildiumLease>>(`GET`, `/leases${query}`);
   }
 
   async getLease(id: number): Promise<BuildiumLease> {
-    return this.makeRequest<BuildiumLease>(`GET`, `/rentals/leases/${id}`);
+    return this.makeRequest<BuildiumLease>(`GET`, `/leases/${id}`);
   }
 
   async createLease(data: BuildiumLeaseCreateEnhancedInput): Promise<BuildiumLease> {
     const sanitizedData = sanitizeForBuildium(data);
 
-    return this.makeRequest<BuildiumLease>(`POST`, `/rentals/leases`, sanitizedData);
+    return this.makeRequest<BuildiumLease>(`POST`, `/leases`, sanitizedData);
   }
 
   async updateLease(
@@ -839,17 +819,17 @@ export class BuildiumClient {
   ): Promise<BuildiumLease> {
     const sanitizedData = sanitizeForBuildium(data);
 
-    return this.makeRequest<BuildiumLease>(`PUT`, `/rentals/leases/${id}`, sanitizedData);
+    return this.makeRequest<BuildiumLease>(`PUT`, `/leases/${id}`, sanitizedData);
   }
 
   async deleteLease(id: number): Promise<void> {
-    return this.makeRequest<void>(`DELETE`, `/rentals/leases/${id}`);
+    return this.makeRequest<void>(`DELETE`, `/leases/${id}`);
   }
 
   async getLeaseRent(id: number): Promise<import('@/types/buildium').BuildiumLeaseRent> {
     return this.makeRequest<import('@/types/buildium').BuildiumLeaseRent>(
       `GET`,
-      `/rentals/leases/${id}/rent`,
+      `/leases/${id}/rent`,
     );
   }
 
@@ -1043,7 +1023,9 @@ export class BuildiumClient {
         const response = await fetch(url, config);
 
         if (!response.ok) {
-          const errorData: Record<string, unknown> = await response.json().catch(() => ({} as Record<string, unknown>));
+          const errorData: Record<string, unknown> = await response
+            .json()
+            .catch(() => ({}) as Record<string, unknown>);
           let extra = '';
           const errors =
             (errorData as { Errors?: unknown; errors?: unknown; Data?: unknown })?.Errors ||
@@ -1196,26 +1178,26 @@ export function createBuildiumClient(config: BuildiumApiConfig): BuildiumClient 
 
 /**
  * Get org-scoped Buildium client
- * 
+ *
  * BREAKING CHANGE: Now requires orgId parameter (or explicit undefined for system jobs)
  * All credential access flows through getOrgScopedBuildiumConfig (central choke point)
- * 
+ *
  * @param orgId - Organization ID (undefined for system jobs without org context)
  * @param config - Optional partial config to override defaults
  * @returns Configured BuildiumClient instance
  */
 export async function getOrgScopedBuildiumClient(
   orgId?: string | undefined,
-  config?: Partial<BuildiumApiConfig>
+  config?: Partial<BuildiumApiConfig>,
 ): Promise<BuildiumClient> {
   const { getOrgScopedBuildiumConfig } = await import('./buildium/credentials-manager');
   const credentials = await getOrgScopedBuildiumConfig(orgId);
-  
+
   if (!credentials) {
     throw new Error(
-      orgId 
+      orgId
         ? `Buildium credentials not available for org ${orgId}`
-        : 'Buildium credentials not available (no orgId provided and no env vars)'
+        : 'Buildium credentials not available (no orgId provided and no env vars)',
     );
   }
 
@@ -1234,15 +1216,15 @@ export async function getOrgScopedBuildiumClient(
 
 /**
  * Create Buildium client with org-scoped credentials
- * 
+ *
  * BREAKING CHANGE: Now requires orgId parameter (or explicit undefined for system jobs)
- * 
+ *
  * @deprecated Use getOrgScopedBuildiumClient instead
  * This function is kept for backward compatibility but will be removed after migration
  */
 export async function createBuildiumClientWithOrg(
   orgId?: string | undefined,
-  config?: Partial<BuildiumApiConfig>
+  config?: Partial<BuildiumApiConfig>,
 ): Promise<BuildiumClient> {
   console.warn('createBuildiumClientWithOrg called - please migrate to getOrgScopedBuildiumClient');
   return getOrgScopedBuildiumClient(orgId, config);

@@ -6,7 +6,7 @@ type BankAccountRow = {
   id: string
   name: string | null
   bank_account_type: string | null
-  account_number: string | null
+  bank_account_number: string | null
   is_active: boolean | null
 }
 
@@ -14,8 +14,9 @@ export default async function BankAccountsIndex() {
   const supabase = await getSupabaseServerClient()
   // Prefer API for masking, but server-side select is fine and fast
   const { data, error } = await supabase
-    .from('bank_accounts')
-    .select('id, name, bank_account_type, account_number, is_active')
+    .from('gl_accounts')
+    .select('id, name, bank_account_type, bank_account_number, is_active')
+    .eq('is_bank_account', true)
     .order('name', { ascending: true })
 
   if (error) {
@@ -36,7 +37,7 @@ export default async function BankAccountsIndex() {
           <div key={a.id} className="p-3 flex items-center justify-between hover:bg-muted/40">
             <div>
               <div className="text-sm font-medium text-foreground">{a.name}</div>
-              <div className="text-xs text-muted-foreground capitalize">{a.bank_account_type || 'account'} • {mask(a.account_number) || '••••'}</div>
+              <div className="text-xs text-muted-foreground capitalize">{a.bank_account_type || 'account'} • {mask(a.bank_account_number) || '••••'}</div>
             </div>
             <Link className="text-primary text-sm underline" href={`/bank-accounts/${a.id}`}>View</Link>
           </div>

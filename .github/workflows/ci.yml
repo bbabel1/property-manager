@@ -41,11 +41,9 @@ jobs:
 
       - name: Run type check
         run: npm run typecheck:all
-        continue-on-error: true
 
       - name: Run tests
         run: npm run test
-        continue-on-error: true
 
       - name: Run accessibility smoke tests
         run: npm run test:a11y
@@ -55,3 +53,39 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+  financials-parity:
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+
+      - name: Apply migrations to local stack
+        run: supabase db reset
+
+      - name: Export Supabase test env
+        run: |
+          supabase status --format json > supabase-status.json
+          echo "NEXT_PUBLIC_SUPABASE_URL=$(jq -r '.services.api.restUrl // .services.api.url' supabase-status.json)" >> $GITHUB_ENV
+          echo "SUPABASE_URL=$(jq -r '.services.api.restUrl // .services.api.url' supabase-status.json)" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(jq -r '.services.api.serviceRoleKey // .services.api.service_role_key' supabase-status.json)" >> $GITHUB_ENV
+
+      - name: Run RPC/rollup parity tests
+        run: npm run test -- tests/property.financials.rpc.test.ts

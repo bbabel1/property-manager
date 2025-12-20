@@ -6,13 +6,16 @@ import PropertyRecentFilesSection from '@/components/property/PropertyRecentFile
 import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection';
 import { supabaseAdmin } from '@/lib/db';
 import { PropertyService } from '@/lib/property-service';
+import { fetchPropertyFinancials } from '@/server/financials/property-finance';
 import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // Prefer direct service call in RSC to avoid internal HTTP hop.
   // Fetch property details and financials in parallel for faster TTFB.
-  const today = new Date().toISOString().slice(0, 10);
+  // Use UTC date to avoid timezone issues - get today's date in UTC
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
   const propertyPromise = PropertyService.getPropertyById(id);
   const finPromise = supabaseAdmin
     .rpc('get_property_financials', {
@@ -60,7 +63,22 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
         property.primary_owner_name = svc.primary_owner_name;
     }
   }
-  // If financials missing, tolerate and continue (renders with 0s)
+  // Always use the shared helper (rollup) to avoid stale cached RPC values
+  let fin =
+    finRaw && typeof finRaw === 'object' && !Array.isArray(finRaw)
+      ? (finRaw as {
+          cash_balance?: number;
+          security_deposits?: number;
+          reserve?: number;
+          available_balance?: number;
+          as_of?: string;
+        })
+      : null;
+
+  if (property) {
+    const { fin: derivedFin } = await fetchPropertyFinancials(id, today, supabaseAdmin);
+    fin = derivedFin;
+  }
 
   // Banking reconciliation details intentionally omitted here; reconciliation lives on bank accounts.
 
@@ -92,17 +110,8 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
         <Stack gap="lg">
           <PropertyBankingAndServicesCard
             property={property}
-            fin={
-              finRaw && typeof finRaw === 'object' && !Array.isArray(finRaw)
-                ? (finRaw as {
-                    cash_balance?: number;
-                    security_deposits?: number;
-                    reserve?: number;
-                    available_balance?: number;
-                    as_of?: string;
-                  })
-                : undefined
-            }
+            fin={fin ?? undefined}
+            showServices={false}
           />
         </Stack>
       }

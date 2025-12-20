@@ -930,11 +930,17 @@ export class BuildiumEdgeClient {
 
   async syncBankAccountToBuildium(bankAccountData: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
     try {
+      const existingId =
+        bankAccountData?.buildium_bank_account_id ??
+        bankAccountData?.buildium_bank_id ??
+        bankAccountData?.Id ??
+        null
+
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
           entityType: 'bankAccount',
           entityData: bankAccountData,
-          operation: bankAccountData.buildium_bank_id ? 'update' : 'create'
+          operation: existingId ? 'update' : 'create'
         }
       })
 
@@ -946,7 +952,7 @@ export class BuildiumEdgeClient {
       if (data.success) {
         return { 
           success: true, 
-          buildiumId: data.data?.Id || bankAccountData.buildium_bank_id 
+          buildiumId: data.data?.Id || existingId || undefined
         }
       } else {
         return { success: false, error: data.error || 'Unknown error' }
@@ -1044,7 +1050,7 @@ export class BuildiumEdgeClient {
       
       if (error) {
         console.error('Property image upload error:', error)
-        throw new Error(error.message)
+        throw error
       }
 
       if (!data?.success) {

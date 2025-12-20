@@ -4,13 +4,13 @@ import React, { useState } from 'react';
 import { Save, Building2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import type { BankAccountSummary, CreateBankAccountFormValues } from '@/components/forms/types';
+import type { BankGlAccountSummary, CreateBankAccountFormValues } from '@/components/forms/types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 type CreateBankAccountModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (newAccount: BankAccountSummary) => void;
+  onSuccess: (newAccount: BankGlAccountSummary) => void;
 };
 
 const BANK_ACCOUNT_TYPES = [
@@ -61,7 +61,7 @@ export default function CreateBankAccountModal({
     setError(null);
 
     try {
-      const response = await fetchWithSupabaseAuth('/api/bank-accounts', {
+      const response = await fetchWithSupabaseAuth('/api/gl-accounts/bank-accounts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +81,7 @@ export default function CreateBankAccountModal({
         throw new Error(errorMessage);
       }
 
-      const newAccount = (await response.json()) as BankAccountSummary;
+      const newAccount = (await response.json()) as BankGlAccountSummary;
 
       onSuccess(newAccount);
       onClose();

@@ -16,7 +16,7 @@ describe('buildStatementFinancialSummary', () => {
 
     expect(summary.ownerDraw).toBe(1250);
     expect(summary.netToOwner).toBe(0);
-    expect(summary.balance).toBe(-0);
+    expect(summary.balance).toBe(0);
   });
 });
 

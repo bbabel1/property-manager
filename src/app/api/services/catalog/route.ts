@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { logger } from '@/lib/logger';
 import { supabaseAdmin } from '@/lib/db';
+import { normalizeFeeType } from '@/lib/normalizers';
 
 const parseNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null;
@@ -90,15 +91,7 @@ export async function POST(request: NextRequest) {
     await resolveOrgIdFromRequest(request, user.id, supabaseAdmin);
 
     const body = await request.json();
-    const requiredFields = [
-      'code',
-      'name',
-      'category',
-      'billing_basis',
-      'default_freq',
-      'applies_to',
-      'bill_on',
-    ];
+    const requiredFields = ['code', 'name', 'category', 'default_freq', 'applies_to', 'bill_on'];
     const missing = requiredFields.filter((field) => {
       const value = body[field];
       return value === undefined || value === null || (typeof value === 'string' && !value.trim());
@@ -116,65 +109,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const billingBasis = body.billing_basis;
     const defaultRate = parseNumber(body.default_rate);
-    const markupPct = parseNumber(body.markup_pct);
-    const hourlyRate = parseNumber(body.hourly_rate);
-    const hourlyMinHours = parseNumber(body.hourly_min_hours);
-
-    if (billingBasis === 'percent_rent' && defaultRate === null) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'BAD_REQUEST',
-            message: 'default_rate is required when billing_basis is percent_rent',
-          },
-        },
-        { status: 400 },
-      );
-    }
-
-    if (billingBasis === 'job_cost' && markupPct === null) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'BAD_REQUEST',
-            message: 'markup_pct is required when billing_basis is job_cost',
-          },
-        },
-        { status: 400 },
-      );
-    }
-
-    if (billingBasis === 'hourly' && (hourlyRate === null || hourlyMinHours === null)) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'BAD_REQUEST',
-            message: 'hourly_rate and hourly_min_hours are required when billing_basis is hourly',
-          },
-        },
-        { status: 400 },
-      );
-    }
+    const feeType = normalizeFeeType(body.fee_type) ?? 'Flat Rate';
 
     const payload: Record<string, any> = {
       code: String(body.code).trim(),
       name: String(body.name).trim(),
       category: body.category,
       description: body.description ? String(body.description).trim() : null,
-      billing_basis: billingBasis,
       default_rate: defaultRate,
       default_freq: body.default_freq,
-      min_amount: parseNumber(body.min_amount),
-      max_amount: parseNumber(body.max_amount),
-      applies_to: body.applies_to,
-      bill_on: body.bill_on,
-      markup_pct: billingBasis === 'job_cost' ? markupPct : null,
-      markup_pct_cap: billingBasis === 'job_cost' ? parseNumber(body.markup_pct_cap) : null,
-      hourly_rate: billingBasis === 'hourly' ? hourlyRate : null,
-      hourly_min_hours: billingBasis === 'hourly' ? hourlyMinHours : null,
-      default_rent_basis: billingBasis === 'percent_rent' ? body.default_rent_basis || 'scheduled' : null,
+      fee_type: feeType,
+      markup_pct: parseNumber(body.markup_pct),
+      markup_pct_cap: parseNumber(body.markup_pct_cap),
+      hourly_rate: parseNumber(body.hourly_rate),
+      hourly_min_hours: parseNumber(body.hourly_min_hours),
       is_active: body.is_active ?? true,
       updated_at: new Date().toISOString(),
     };

@@ -15,19 +15,26 @@ import {
   amountsRoughlyEqual
 } from '@/lib/lease-transaction-helpers'
 
-const IssueRefundSchema = z.object({
-  date: z.string().min(1),
-  bank_account_id: z.string().min(1),
-  payment_method: z.enum(['check', 'eft']),
-  party_id: z.string().nullable().optional(),
-  amount: z.number().positive(),
-  check_number: z.string().nullable().optional(),
-  memo: z.string().nullable().optional(),
-  queue_print: z.boolean().optional(),
-  address_option: z.enum(['current', 'tenant', 'forwarding', 'custom']),
-  custom_address: z.string().nullable().optional(),
-  allocations: z.array(z.object({ account_id: z.string().min(1), amount: z.number().nonnegative() })),
-})
+const IssueRefundSchema = z
+  .object({
+    date: z.string().min(1),
+    bank_gl_account_id: z.string().min(1).optional(),
+    // Backwards-compatibility: accept old key name but treat as gl_accounts.id
+    bank_account_id: z.string().min(1).optional(),
+    payment_method: z.enum(['check', 'eft']),
+    party_id: z.string().nullable().optional(),
+    amount: z.number().positive(),
+    check_number: z.string().nullable().optional(),
+    memo: z.string().nullable().optional(),
+    queue_print: z.boolean().optional(),
+    address_option: z.enum(['current', 'tenant', 'forwarding', 'custom']),
+    custom_address: z.string().nullable().optional(),
+    allocations: z.array(z.object({ account_id: z.string().min(1), amount: z.number().nonnegative() })),
+  })
+  .refine(
+    (data) => Boolean(data.bank_gl_account_id || data.bank_account_id),
+    { message: 'Bank account required', path: ['bank_gl_account_id'] },
+  )
 
 export async function POST(
   request: Request,
@@ -70,7 +77,8 @@ export async function POST(
         { status: 422 }
       )
     }
-    const bankAccountBuildiumId = await fetchBankAccountBuildiumId(parsed.data.bank_account_id)
+    const bankGlAccountId = parsed.data.bank_gl_account_id ?? parsed.data.bank_account_id
+    const bankAccountBuildiumId = await fetchBankAccountBuildiumId(bankGlAccountId!)
 
     const addressOptionMap: Record<'current' | 'tenant' | 'forwarding' | 'custom', 'Current' | 'Tenant' | 'Forwarding' | 'Custom'> = {
       current: 'Current',

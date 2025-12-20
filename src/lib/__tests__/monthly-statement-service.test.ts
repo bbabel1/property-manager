@@ -185,6 +185,8 @@ import { fetchMonthlyStatementData } from '@/lib/monthly-statement-service';
 
 describe('fetchMonthlyStatementData', () => {
   it('excludes unassigned or out-of-log deposit lines from accountTotals', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
     const result = await fetchMonthlyStatementData('log-1');
 
     expect(result.success).toBe(true);
@@ -197,5 +199,8 @@ describe('fetchMonthlyStatementData', () => {
     expect(reserve?.balance).toBe(100);
     expect(propertyTaxEscrow?.balance).toBe(0);
     expect(securityDeposit?.balance).toBe(0);
+
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

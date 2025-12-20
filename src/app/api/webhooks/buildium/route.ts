@@ -7,7 +7,7 @@ import { markWebhookError, markWebhookTombstone } from '@/lib/buildium-webhook-s
 import { looksLikeDelete } from '@/lib/buildium-delete-map'
 import { validateBuildiumEvent } from '../../../../../supabase/functions/_shared/eventValidation'
 import { sendPagerDutyEvent } from '@/lib/pagerduty'
-import { upsertBillWithLines, resolveBankAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
+import { upsertBillWithLines, resolveBankGlAccountId, resolveGLAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
 
@@ -163,13 +163,38 @@ function verifySignature(req: NextRequest, raw: string): { ok: boolean; reason?:
   }
 }
 
+export async function GET(req: NextRequest) {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[buildium-webhook] GET ping', {
+      url: req.url,
+      headers: {
+        'user-agent': req.headers.get('user-agent'),
+        'x-buildium-signature': req.headers.get('x-buildium-signature'),
+        'buildium-webhook-signature': req.headers.get('buildium-webhook-signature'),
+      },
+    })
+  }
+  return NextResponse.json({ ok: true, message: 'Buildium webhook endpoint' })
+}
+
 export async function POST(req: NextRequest) {
   const admin = supabaseAdmin || supabase
   const raw = await req.text()
   
   // Log webhook receipt (in development)
   if (process.env.NODE_ENV === 'development') {
-    console.log('[buildium-webhook] Received webhook, body length:', raw.length)
+    console.log('[buildium-webhook] Received webhook', {
+      method: req.method,
+      url: req.url,
+      bodyLength: raw.length,
+      headers: {
+        'content-type': req.headers.get('content-type'),
+        'user-agent': req.headers.get('user-agent'),
+        'x-buildium-signature': req.headers.get('x-buildium-signature'),
+        'buildium-webhook-signature': req.headers.get('buildium-webhook-signature'),
+        'buildium-webhook-timestamp': req.headers.get('buildium-webhook-timestamp'),
+      },
+    })
   }
   
   let body: any = {}
@@ -1092,13 +1117,23 @@ export async function POST(req: NextRequest) {
       if (!country) return null
       return country.replace(/([a-z])([A-Z])/g, '$1 $2')
     }
+    const resolveLocalTenantId = async (buildiumTenantId?: number | null) => {
+      if (!buildiumTenantId) return null
+      const { data, error } = await admin.from('tenants').select('id').eq('buildium_tenant_id', buildiumTenantId).maybeSingle()
+      if (error && error.code !== 'PGRST116') throw error
+      return data?.id ?? null
+    }
     const resolveLocalLeaseId = async (buildiumLeaseId?: number | null) => {
       if (!buildiumLeaseId) return null
       const { data, error } = await admin.from('lease').select('id').eq('buildium_lease_id', buildiumLeaseId).single()
       if (error && error.code !== 'PGRST116') throw error
       return data?.id ?? null
     }
-    const resolveLeaseOrgId = async (buildiumLeaseId?: number | null, buildiumPropertyId?: number | null) => {
+    const resolveLeaseOrgId = async (buildiumLeaseId?: number | null, buildiumPropertyId?: number | null, buildiumAccountId?: number | null) => {
+      if (buildiumAccountId) {
+        const orgFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+        if (orgFromAccount) return orgFromAccount
+      }
       if (buildiumLeaseId) {
         const { data } = await admin.from('lease').select('org_id').eq('buildium_lease_id', buildiumLeaseId).maybeSingle()
         if (data?.org_id) return data.org_id
@@ -1162,9 +1197,21 @@ export async function POST(req: NextRequest) {
       if (s === 'cancelled' || s === 'canceled') return 'Cancelled'
       return status
     }
-    const upsertLeaseTransactionWithLinesLocal = async (leaseTx: any, fetchGL: (id: number) => Promise<any>) => {
+    const upsertLeaseTransactionWithLinesLocal = async (
+      leaseTx: any,
+      fetchGL: (id: number) => Promise<any>,
+      buildiumAccountId?: number | null,
+    ) => {
       const now = new Date().toISOString()
       const paymentMethod = mapPaymentMethod(leaseTx.PaymentMethod)
+      const orgFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId ?? leaseTx?.AccountId ?? null)
+      const orgId = orgFromAccount ?? (await resolveLeaseOrgId(leaseTx.LeaseId ?? null, (leaseTx as any)?.PropertyId ?? null, buildiumAccountId ?? leaseTx?.AccountId ?? null))
+      const payeeTenantBuildiumId =
+        leaseTx?.PayeeTenantId ??
+        (leaseTx as any)?.PayeeTenantID ??
+        (leaseTx as any)?.Payee?.TenantId ??
+        null
+      const payeeTenantLocal = await resolveLocalTenantId(payeeTenantBuildiumId ?? null)
       const header = {
         buildium_transaction_id: leaseTx.Id,
         date: normalizeDate(leaseTx.Date),
@@ -1174,18 +1221,30 @@ export async function POST(req: NextRequest) {
         buildium_lease_id: leaseTx.LeaseId ?? null,
         memo: leaseTx?.Journal?.Memo ?? leaseTx?.Memo ?? null,
         payment_method: paymentMethod,
+        payee_tenant_id: payeeTenantBuildiumId ?? null,
         updated_at: now,
       }
       const { data: existing, error: findErr } = await admin.from('transactions').select('id').eq('buildium_transaction_id', leaseTx.Id).single()
       if (findErr && findErr.code !== 'PGRST116') throw findErr
       const leaseIdLocal = await resolveLocalLeaseId(leaseTx.LeaseId ?? null)
+      const { data: leaseRow } = leaseIdLocal
+        ? await admin
+            .from('lease')
+            .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
+            .eq('id', leaseIdLocal)
+            .maybeSingle()
+        : { data: null as any }
+      const defaultBuildiumPropertyId = (leaseRow as any)?.buildium_property_id ?? null
+      const defaultBuildiumUnitId = (leaseRow as any)?.buildium_unit_id ?? null
+      const defaultPropertyId = (leaseRow as any)?.property_id ?? null
+      const defaultUnitId = (leaseRow as any)?.unit_id ?? null
       let transactionId: string
       if (existing?.id) {
-        const { data, error } = await admin.from('transactions').update({ ...header, lease_id: leaseIdLocal }).eq('id', existing.id).select('id').single()
+        const { data, error } = await admin.from('transactions').update({ ...header, lease_id: leaseIdLocal, org_id: orgId, tenant_id: payeeTenantLocal }).eq('id', existing.id).select('id').single()
         if (error) throw error
         transactionId = data.id
       } else {
-        const { data, error } = await admin.from('transactions').insert({ ...header, lease_id: leaseIdLocal, created_at: now }).select('id').single()
+        const { data, error } = await admin.from('transactions').insert({ ...header, lease_id: leaseIdLocal, org_id: orgId, tenant_id: payeeTenantLocal, created_at: now }).select('id').single()
         if (error) throw error
         transactionId = data.id
       }
@@ -1198,10 +1257,13 @@ export async function POST(req: NextRequest) {
         const glBuildiumId = typeof line?.GLAccount === 'number' ? line?.GLAccount : (line?.GLAccount?.Id ?? line?.GLAccountId ?? null)
         const glId = await ensureGLAccountId(glBuildiumId, fetchGL)
         if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`)
-        const buildiumPropertyId = line?.PropertyId ?? null
-        const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? null
-        const propertyIdLocal = await resolveLocalPropertyId(buildiumPropertyId)
-        const unitIdLocal = await resolveLocalUnitId(buildiumUnitId)
+        const buildiumPropertyId = line?.PropertyId ?? defaultBuildiumPropertyId ?? null
+        const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? defaultBuildiumUnitId ?? null
+        const propertyIdLocal =
+          (await resolveLocalPropertyId(buildiumPropertyId)) ??
+          defaultPropertyId ??
+          null
+        const unitIdLocal = (await resolveLocalUnitId(buildiumUnitId)) ?? defaultUnitId ?? null
         await admin.from('transaction_lines').insert({
           transaction_id: transactionId,
           gl_account_id: glId,
@@ -1209,13 +1271,14 @@ export async function POST(req: NextRequest) {
           posting_type: posting,
           memo: line?.Memo ?? null,
           account_entity_type: 'Rental',
-          account_entity_id: buildiumPropertyId,
+          account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
           date: normalizeDate(leaseTx.Date),
           created_at: now,
           updated_at: now,
-          buildium_property_id: buildiumPropertyId,
-          buildium_unit_id: buildiumUnitId,
+          buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
+          buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
           buildium_lease_id: leaseTx.LeaseId ?? null,
+          lease_id: leaseIdLocal,
           property_id: propertyIdLocal,
           unit_id: unitIdLocal,
         })
@@ -1227,14 +1290,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const mapLeaseFromBuildiumLocal = async (lease: any) => {
+    const mapLeaseFromBuildiumLocal = async (lease: any, buildiumAccountId?: number | null) => {
       const propertyUuid = await resolvePropertyUuidByBuildiumId(admin, lease.PropertyId)
       const unitUuid = await resolveUnitUuidByBuildiumId(admin, lease.UnitId)
-      let orgId: string | null = null
-      if (propertyUuid) {
-        const { data: prop } = await admin.from('properties').select('org_id').eq('id', propertyUuid).maybeSingle()
-        orgId = prop?.org_id ?? null
-      }
+      const orgIdFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId ?? lease?.AccountId ?? null)
+      const orgId: string | null = orgIdFromAccount || (await (async () => {
+        if (propertyUuid) {
+          const { data: prop } = await admin.from('properties').select('org_id').eq('id', propertyUuid).maybeSingle()
+          return prop?.org_id ?? null
+        }
+        return null
+      })())
       return {
         buildium_lease_id: lease.Id,
         buildium_property_id: lease.PropertyId ?? null,
@@ -1262,7 +1328,7 @@ export async function POST(req: NextRequest) {
     }
 
     const upsertLeaseFromBuildiumLocal = async (lease: any) => {
-      const mapped = await mapLeaseFromBuildiumLocal(lease)
+      const mapped = await mapLeaseFromBuildiumLocal(lease, lease?.AccountId ?? null)
       if (!mapped.property_id || !mapped.unit_id) {
         throw new Error(`Missing local property/unit for Buildium lease ${lease.Id}. Sync properties/units first.`)
       }
@@ -1403,8 +1469,8 @@ export async function POST(req: NextRequest) {
       await admin.from('lease_contacts').insert({ lease_id: leaseId, tenant_id: tenantId, role, status: 'Active', created_at: now, updated_at: now, org_id: orgId })
     }
 
-    const upsertLeaseWithPartiesLocal = async (lease: any) => {
-      const leaseIdLocal = await upsertLeaseFromBuildiumLocal(lease)
+    const upsertLeaseWithPartiesLocal = async (lease: any, buildiumAccountId?: number | null) => {
+      const leaseIdLocal = await upsertLeaseFromBuildiumLocal(lease, buildiumAccountId ?? lease?.AccountId ?? null)
       const propertyUuid = await resolvePropertyUuidByBuildiumId(admin, lease.PropertyId)
       let orgId: string | null = null
       if (propertyUuid) {
@@ -1473,7 +1539,12 @@ export async function POST(req: NextRequest) {
       if (toDeactivate.length) await admin.from('lease_contacts').update({ status: 'Inactive', updated_at: new Date().toISOString() }).in('id', toDeactivate)
     }
 
-    const upsertBillPaymentWithLines = async (payment: any, billId: number, fetchGL: (id: number) => Promise<any>) => {
+    const upsertBillPaymentWithLines = async (
+      payment: any,
+      billId: number,
+      fetchGL: (id: number) => Promise<any>,
+      buildiumAccountId?: number | null,
+    ) => {
       const now = new Date().toISOString()
       const paymentId = payment?.Id ?? payment?.PaymentId ?? null
       const totalFromLines = Array.isArray(payment?.Lines)
@@ -1483,12 +1554,7 @@ export async function POST(req: NextRequest) {
       const paymentMethod = mapPaymentMethod(payment?.PaymentMethod) || (payment?.CheckNumber ? 'Check' : null)
 
       // Resolve local bank account + GL
-      const bankAccountLocalId = await resolveBankAccountId(payment?.BankAccountId ?? null, admin)
-      let bankGlAccountId: string | null = null
-      if (bankAccountLocalId) {
-        const { data: bank } = await admin.from('bank_accounts').select('gl_account').eq('id', bankAccountLocalId).maybeSingle()
-        if (bank?.gl_account) bankGlAccountId = bank.gl_account
-      }
+      const bankGlAccountId = await resolveBankGlAccountId(payment?.BankAccountId ?? null, admin)
       if (!bankGlAccountId) {
         throw new Error(`Missing bank GL account for bill payment ${paymentId ?? ''}`)
       }
@@ -1517,6 +1583,7 @@ export async function POST(req: NextRequest) {
 
       const totalAmount = totalFromLines || Number(payment?.Amount ?? 0) || debitSum || creditSum || 0
 
+      const orgFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId ?? payment?.AccountId ?? null)
       const header = {
         buildium_transaction_id: paymentId,
         buildium_bill_id: billId,
@@ -1528,10 +1595,10 @@ export async function POST(req: NextRequest) {
         memo: payment?.Memo ?? null,
         transaction_type: 'Payment',
         status: 'Paid',
-        bank_account_id: bankAccountLocalId,
+        bank_gl_account_id: bankGlAccountId,
         vendor_id: billTxMeta?.vendor_id ?? null,
         category_id: billTxMeta?.category_id ?? null,
-        org_id: billTxMeta?.org_id ?? null,
+        org_id: orgFromAccount ?? billTxMeta?.org_id ?? null,
         payment_method: paymentMethod,
         updated_at: now,
       }
@@ -1714,7 +1781,8 @@ export async function POST(req: NextRequest) {
           if (tx) {
             try {
               const glFetcher = async (glId: number) => fetchGLAccount(glId)
-              await upsertLeaseTransactionWithLinesLocal(tx, glFetcher)
+              const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+              await upsertLeaseTransactionWithLinesLocal(tx, glFetcher, buildiumAccountId)
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert lease transaction locally', err)
             }
@@ -1753,7 +1821,8 @@ export async function POST(req: NextRequest) {
             } else {
               // Upsert lease + parties locally
               try {
-                await upsertLeaseWithPartiesLocal(leaseRemote)
+                const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? leaseRemote?.AccountId ?? null
+                await upsertLeaseWithPartiesLocal(leaseRemote, buildiumAccountId)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert lease locally', err)
                 await markWebhookError(admin, eventKey, `Lease upsert failed: ${(err as Error)?.message || 'unknown'}`)
@@ -1834,8 +1903,8 @@ export async function POST(req: NextRequest) {
             } else {
               // Core contact/tenant updates
               const orgIdFromPayload = Array.isArray(tenantData?.Leases) && tenantData.Leases.length
-                ? await resolveLeaseOrgId(tenantData.Leases[0]?.Id, tenantData.Leases[0]?.PropertyId)
-                : null
+                ? await resolveLeaseOrgId(tenantData.Leases[0]?.Id, tenantData.Leases[0]?.PropertyId, event?.AccountId ?? null)
+                : (await resolveLeaseOrgId(null, null, event?.AccountId ?? null))
               // If tenant already exists, prefer its contact_id (contact lookup uses that FK)
               let preferredContactId: number | null = null
             let tenantIdLocal: string | null = null
@@ -1912,7 +1981,7 @@ export async function POST(req: NextRequest) {
                 const moveInDate = moveInEntry?.MoveInDate || null
                 const moveOutDate = moveOutEntry?.MoveOutDate || null
                 const noticeDate = moveOutEntry?.NoticeGivenDate || null
-                const orgId = await resolveLeaseOrgId(lease?.Id, lease?.PropertyId)
+                const orgId = await resolveLeaseOrgId(lease?.Id, lease?.PropertyId, event?.AccountId ?? null)
                 if (!tenantIdLocal) continue
                 await ensureLeaseContactLocal(leaseLocalId, tenantIdLocal, 'Tenant', orgId ?? null)
                 await admin.from('lease_contacts').update({
@@ -1994,7 +2063,8 @@ export async function POST(req: NextRequest) {
               if (payment) {
                 try {
                   const glFetcher = async (glId: number) => fetchGLAccount(glId)
-                  await upsertBillPaymentWithLines(payment, Number(billId), glFetcher)
+                  const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? payment?.AccountId ?? null
+                  await upsertBillPaymentWithLines(payment, Number(billId), glFetcher, buildiumAccountId)
                 } catch (err) {
                   console.error('[buildium-webhook] Failed to upsert bill payment locally', err)
                   await markWebhookError(admin, eventKey, `Bill payment upsert failed: ${(err as Error)?.message || 'unknown'}`)
@@ -2030,8 +2100,9 @@ export async function POST(req: NextRequest) {
           } else {
             const bill = await fetchBill(Number(billId))
             if (bill) {
+              const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? bill?.AccountId ?? null
               try {
-                await upsertBillWithLines(bill, admin)
+                await upsertBillWithLines(bill, admin, buildiumAccountId ?? null)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert bill locally', err)
                 await markWebhookError(admin, eventKey, `Bill upsert failed: ${(err as Error)?.message || 'unknown'}`)
