@@ -100,13 +100,61 @@ async function resolveLocalUnitId(supabase: any, buildiumId?: number | null): Pr
   return data?.id ?? null
 }
 
-async function resolveLocalLeaseId(supabase: any, buildiumLeaseId?: number | null): Promise<number | null> {
-  if (!buildiumLeaseId) return null
-  const { data } = await supabase.from('lease').select('id').eq('buildium_lease_id', buildiumLeaseId).single()
+async function resolveOrgIdFromBuildiumAccount(
+  supabase: any,
+  accountId?: number | null
+): Promise<string | null> {
+  if (!accountId) return null
+  const { data, error } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('buildium_org_id', accountId)
+    .maybeSingle()
+  if (error && error.code !== 'PGRST116') throw error
   return data?.id ?? null
 }
 
+async function resolveLocalTenantId(
+  supabase: any,
+  buildiumTenantId?: number | null
+): Promise<string | null> {
+  if (!buildiumTenantId) return null
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id')
+    .eq('buildium_tenant_id', buildiumTenantId)
+    .maybeSingle()
+  if (error && error.code !== 'PGRST116') throw error
+  return data?.id ?? null
+}
+
+async function resolveLeaseWithOrg(supabase: any, buildiumLeaseId?: number | null): Promise<{ id: number | null; org_id: string | null }> {
+  if (!buildiumLeaseId) return { id: null, org_id: null }
+  const { data, error } = await supabase
+    .from('lease')
+    .select('id, org_id, property_id')
+    .eq('buildium_lease_id', buildiumLeaseId)
+    .single()
+  if (error && error.code !== 'PGRST116') throw error
+  if (!data) return { id: null, org_id: null }
+
+  if (data.org_id) return { id: data.id, org_id: data.org_id }
+
+  if (data.property_id) {
+    const { data: property, error: propErr } = await supabase.from('properties').select('org_id').eq('id', data.property_id).single()
+    if (propErr && propErr.code !== 'PGRST116') throw propErr
+    return { id: data.id, org_id: property?.org_id ?? null }
+  }
+
+  return { id: data.id, org_id: null }
+}
+
 function mapHeaderFromBuildium(tx: any) {
+  const payeeTenantId =
+    tx?.PayeeTenantId ??
+    tx?.PayeeTenantID ??
+    tx?.Payee?.TenantId ??
+    null
   return {
     buildium_transaction_id: tx?.Id,
     date: dateOnly(tx?.Date || tx?.TransactionDate || tx?.PostDate),
@@ -115,14 +163,25 @@ function mapHeaderFromBuildium(tx: any) {
     check_number: tx?.CheckNumber ?? null,
     memo: tx?.Memo || tx?.Journal?.Memo || null,
     buildium_lease_id: tx?.LeaseId ?? null,
-    payee_tenant_id: tx?.PayeeTenantId ?? null,
+    payee_tenant_id: payeeTenantId,
   }
 }
 
-async function upsertWithLines(supabase: any, tx: any): Promise<{ transactionId: string }> {
+async function upsertWithLines(
+  supabase: any,
+  tx: any,
+  buildiumAccountId?: number | null
+): Promise<{ transactionId: string }> {
   const now = new Date().toISOString()
   const header = mapHeaderFromBuildium(tx)
-  const leaseIdLocal = await resolveLocalLeaseId(supabase, tx?.LeaseId)
+  const leaseLookup = await resolveLeaseWithOrg(supabase, tx?.LeaseId)
+  const leaseIdLocal = leaseLookup?.id ?? null
+  const orgFromAccount = await resolveOrgIdFromBuildiumAccount(
+    supabase,
+    buildiumAccountId ?? (tx as any)?.AccountId ?? null
+  )
+  const orgIdLocal = orgFromAccount ?? leaseLookup?.org_id ?? null
+  const tenantIdLocal = await resolveLocalTenantId(supabase, header.payee_tenant_id ?? null)
   let existing: any = null
   {
     const { data } = await supabase
@@ -136,7 +195,7 @@ async function upsertWithLines(supabase: any, tx: any): Promise<{ transactionId:
   if (existing) {
     const { data, error } = await supabase
       .from('transactions')
-      .update({ ...header, lease_id: leaseIdLocal, updated_at: now })
+      .update({ ...header, lease_id: leaseIdLocal, org_id: orgIdLocal, tenant_id: tenantIdLocal, updated_at: now })
       .eq('id', existing.id)
       .select('id')
       .single()
@@ -145,7 +204,7 @@ async function upsertWithLines(supabase: any, tx: any): Promise<{ transactionId:
   } else {
     const { data, error } = await supabase
       .from('transactions')
-      .insert({ ...header, lease_id: leaseIdLocal, created_at: now, updated_at: now })
+      .insert({ ...header, lease_id: leaseIdLocal, org_id: orgIdLocal, tenant_id: tenantIdLocal, created_at: now, updated_at: now })
       .select('id')
       .single()
     if (error) throw error
@@ -217,17 +276,17 @@ serve(async (req) => {
       }
       case 'get': {
         data = await buildium<any>('GET', `/leases/${leaseId}/transactions/${transactionId}`)
-        if (persist) await upsertWithLines(supabase, data)
+        if (persist) await upsertWithLines(supabase, data, body?.AccountId ?? null)
         break
       }
       case 'create': {
         data = await buildium<any>('POST', `/leases/${leaseId}/transactions`, payload)
-        if (persist) await upsertWithLines(supabase, data)
+        if (persist) await upsertWithLines(supabase, data, body?.AccountId ?? null)
         break
       }
       case 'update': {
         data = await buildium<any>('PUT', `/leases/${leaseId}/transactions/${transactionId}`, payload)
-        if (persist) await upsertWithLines(supabase, data)
+        if (persist) await upsertWithLines(supabase, data, body?.AccountId ?? null)
         break
       }
       case 'listRecurring': {

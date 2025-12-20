@@ -11,9 +11,10 @@ export async function GET(req: NextRequest) {
   const bankAccountId = url.searchParams.get('bankAccountId')
   const propertyId = url.searchParams.get('propertyId')
 
-  let bankAccounts: { id: string; buildium_bank_id: number; gl_account: string | null }[] = []
+  let bankAccounts: { id: string; buildium_gl_account_id: number | null }[] = []
   try {
-    let query = admin.from('bank_accounts').select('id, buildium_bank_id, gl_account')
+    // Phase 4: bank accounts are gl_accounts rows flagged is_bank_account=true
+    let query = admin.from('gl_accounts').select('id, buildium_gl_account_id').eq('is_bank_account', true)
     if (bankAccountId) query = query.eq('id', bankAccountId)
     const { data, error } = await query
     if (error) throw error
@@ -32,43 +33,48 @@ export async function GET(req: NextRequest) {
   let totalBalances = 0
   let changes = 0
 
-  // If propertyId provided, restrict bank accounts to the property's linked accounts
-  if (propertyId) {
-    try {
-      const { data: pr } = await admin
-        .from('properties')
-        .select('operating_bank_account_id, deposit_trust_account_id')
-        .eq('id', propertyId)
-        .maybeSingle()
-      if (pr) {
-        const ids = [pr.operating_bank_account_id, pr.deposit_trust_account_id].filter(Boolean)
-        if (ids.length) bankAccounts = bankAccounts.filter(b => ids.includes(b.id))
-      }
-    } catch {}
-  }
+    // If propertyId provided, restrict bank accounts to the property's linked accounts
+    if (propertyId) {
+      try {
+        const { data: pr } = await admin
+          .from('properties')
+          .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
+          .eq('id', propertyId)
+          .maybeSingle()
+        if (pr) {
+          const ids = [
+            (pr as any).operating_bank_gl_account_id,
+            (pr as any).deposit_trust_gl_account_id,
+          ].filter(Boolean)
+          if (ids.length) bankAccounts = bankAccounts.filter(b => ids.includes(b.id))
+        }
+      } catch {}
+    }
 
   for (const ba of bankAccounts) {
+    const buildiumBankAccountId = ba.buildium_gl_account_id
+    if (!buildiumBankAccountId || buildiumBankAccountId <= 0) continue
     totalAccounts++
     try {
       // Fetch reconciliations per Buildium bank account
-      const res = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/${ba.buildium_bank_id}/reconciliations`, {
+      const res = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/${buildiumBankAccountId}/reconciliations`, {
         method: 'GET',
         headers: { 'Accept': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret },
       })
       if (!res.ok) {
-        logger.warn({ bank: ba.buildium_bank_id, status: res.status }, 'Reconciliations fetch failed')
+        logger.warn({ bank: buildiumBankAccountId, status: res.status }, 'Reconciliations fetch failed')
         continue
       }
       const recs: any[] = await res.json()
       for (const r of recs) {
         totalRecs++
-        // Map to local property via properties.operating_bank_account_id or deposit_trust_account_id
+        // Map to local property via properties.operating_bank_gl_account_id or deposit_trust_gl_account_id (fallback legacy)
         let property_id: string | null = null
         try {
           const { data: prop } = await admin
             .from('properties')
             .select('id')
-            .or(`operating_bank_account_id.eq.${ba.id},deposit_trust_account_id.eq.${ba.id}`)
+            .or(`operating_bank_gl_account_id.eq.${ba.id},deposit_trust_gl_account_id.eq.${ba.id}`)
             .limit(1)
             .maybeSingle()
           if (prop) property_id = prop.id
@@ -76,9 +82,9 @@ export async function GET(req: NextRequest) {
 
         const payload: any = {
           buildium_reconciliation_id: r?.Id ?? r?.id,
-          buildium_bank_account_id: ba.buildium_bank_id,
-          bank_account_id: ba.id,
-          gl_account_id: ba.gl_account,
+          buildium_bank_account_id: buildiumBankAccountId,
+          bank_gl_account_id: ba.id,
+          gl_account_id: ba.id,
           property_id,
           statement_ending_date: r?.StatementEndingDate ?? r?.statementEndingDate ?? null,
           is_finished: Boolean(r?.IsFinished ?? r?.isFinished ?? false),
@@ -107,7 +113,7 @@ export async function GET(req: NextRequest) {
         }
       }
     } catch (e) {
-      logger.warn({ e, bank: ba.buildium_bank_id }, 'Sync loop error for bank account')
+      logger.warn({ e, bank: buildiumBankAccountId }, 'Sync loop error for bank account')
     }
   }
   // Alert plumbing: log counts for variance and stale alerts

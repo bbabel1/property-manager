@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useSelectedLayoutSegment } from 'next/navigation';
-import { Building2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
+import { Building2, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 type Props = {
@@ -34,7 +35,9 @@ function formatAssignment(assign?: string | null) {
 }
 
 export default function PageHeader({ property }: Props) {
+  const pathname = usePathname();
   const seg = useSelectedLayoutSegment() || 'summary';
+  const [navExpanded, setNavExpanded] = useState(false);
   const tabs = [
     { key: 'summary', label: 'Summary' },
     { key: 'financials', label: 'Financials' },
@@ -45,6 +48,25 @@ export default function PageHeader({ property }: Props) {
     { key: 'tasks', label: 'Tasks' },
     { key: 'compliance', label: 'Compliance' },
   ];
+
+  const isUnitDetailsPath =
+    typeof pathname === 'string' && /^\/properties\/[^/]+\/units\/[^/]+/i.test(pathname);
+
+  useEffect(() => {
+    // Always start collapsed when entering a unit details page
+    setNavExpanded(false);
+  }, [isUnitDetailsPath, pathname]);
+
+  const shouldCollapseNav = isUnitDetailsPath && !navExpanded;
+
+  const handleMouseEnter = () => {
+    if (isUnitDetailsPath) setNavExpanded(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (isUnitDetailsPath) setNavExpanded(false);
+  };
+
   const statusActive = String(property.status || '').toLowerCase() === 'active';
   const subtitleParts = [
     property.property_type || undefined,
@@ -52,7 +74,11 @@ export default function PageHeader({ property }: Props) {
     formatPlan(property.service_plan),
   ].filter(Boolean) as string[];
   return (
-    <header className="space-y-3 p-6 pb-2">
+    <header
+      className="space-y-3 p-6 pb-2"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="flex items-center gap-2">
         <span
           className={`status-pill px-2 py-0.5 ${statusActive ? 'border-[var(--color-success-500)] bg-[var(--color-success-50)] text-[var(--color-success-700)]' : 'border-red-700 bg-red-100 text-red-700'}`}
@@ -73,11 +99,23 @@ export default function PageHeader({ property }: Props) {
         <Building2 className="h-6 w-6" />
         {property.name || 'Property'}
       </h1>
-      <p className="text-muted-foreground text-sm">
-        {subtitleParts.length ? subtitleParts.join(' | ') : '—'}
+      <p className="text-muted-foreground flex items-center gap-1 text-sm">
+        {shouldCollapseNav ? (
+          <span className="inline-flex items-center gap-1 font-medium text-foreground">
+            Property Details
+            <ChevronDown className="h-4 w-4" aria-hidden />
+          </span>
+        ) : subtitleParts.length ? (
+          subtitleParts.join(' | ')
+        ) : (
+          '—'
+        )}
       </p>
 
-      <div className="border-border mt-2 border-b">
+      <div
+        className={`border-border mt-2 border-b transition-[max-height,opacity] duration-200 ease-out ${shouldCollapseNav ? 'invisible max-h-0 overflow-hidden opacity-0 pointer-events-none' : 'visible max-h-16 opacity-100 pointer-events-auto'}`}
+        aria-hidden={shouldCollapseNav}
+      >
         <nav className="flex space-x-8" aria-label="Property sections" role="navigation">
           {tabs.map((t) => (
             <Link

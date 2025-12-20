@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react'
 import { DollarSign, TrendingUp, TrendingDown, Users, Building, Banknote } from 'lucide-react'
 
 interface PropertyFinancialsProps {
@@ -6,31 +7,58 @@ interface PropertyFinancialsProps {
 }
 
 export function PropertyFinancials({ propertyId, fin }: PropertyFinancialsProps) {
-  // TODO: Implement real financial data with database integration
-  const hasFinancialData = true // Changed to true to show the cash balance layout
+  const [financials, setFinancials] = useState(fin ?? null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!propertyId) return
+    setIsLoading(true)
+    setError(null)
+    fetch(`/api/properties/${propertyId}/financials`)
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to load financials (${res.status})`)
+        }
+        return res.json()
+      })
+      .then((data) => {
+        setFinancials(data ?? null)
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setIsLoading(false))
+  }, [propertyId])
+
+  const fmt = (n?: number | null) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0)
+
+  const hasFinancialData = true
 
   return (
     <div className="space-y-6">
+      {isLoading && <p className="text-sm text-muted-foreground">Loading financials…</p>}
+      {error && <p className="text-sm text-destructive">Error loading financials: {error}</p>}
+
       {/* Cash Balance Section */}
       <div className="bg-card rounded-lg border border-border p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Cash Balance</h2>
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-foreground">Cash balance:</span>
-            <span className="font-semibold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.cash_balance ?? 0)}</span>
+            <span className="font-semibold text-foreground">{fmt(financials?.cash_balance)}</span>
           </div>
           <div className="flex justify-between items-center text-muted-foreground">
             <span className="pl-4">- Security deposits and early payments:</span>
-            <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.security_deposits ?? 0)}</span>
+            <span>{fmt(financials?.security_deposits)}</span>
           </div>
           <div className="flex justify-between items-center text-muted-foreground">
             <span className="pl-4">- Property reserve:</span>
-            <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.reserve ?? 0)}</span>
+            <span>{fmt(financials?.reserve)}</span>
           </div>
           <div className="border-t border-border pt-3">
             <div className="flex justify-between items-center">
               <span className="font-semibold text-foreground">Available:</span>
-              <span className="text-xl font-bold text-foreground">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(fin?.available_balance ?? 0)}</span>
+              <span className="text-xl font-bold text-foreground">{fmt(financials?.available_balance)}</span>
             </div>
           </div>
         </div>

@@ -61,6 +61,7 @@ type FormState = {
   allocations: AllocationRow[];
   send_email: boolean;
   print_receipt: boolean;
+  override_buildium_tenant_id: string;
 };
 
 type ReceivePaymentFormProps = {
@@ -94,8 +95,43 @@ export default function ReceivePaymentForm({
       ? globalThis.crypto.randomUUID()
       : Math.random().toString(36).slice(2);
 
+  const { tenantsWithBuildiumId, tenantsMissingBuildiumId, tenantDropdownOptions } = useMemo(() => {
+    const allTenants = tenants || [];
+    const withBuildium = allTenants.filter(
+      (tenant) => tenant?.buildiumTenantId != null && Number.isFinite(Number(tenant.buildiumTenantId)),
+    );
+    const withoutBuildium = allTenants.filter(
+      (tenant) => !(tenant?.buildiumTenantId != null && Number.isFinite(Number(tenant.buildiumTenantId))),
+    );
+
+    const eligibleOptions = withBuildium.map((tenant) => ({
+      value: getTenantOptionValue(tenant),
+      label: tenant.name,
+    }));
+    const missingOptions = withoutBuildium.map((tenant) => ({
+      value: getTenantOptionValue(tenant),
+      label: `${tenant.name} (needs Buildium ID)`,
+    }));
+
+    const options =
+      eligibleOptions.length || missingOptions.length
+        ? [
+            ...(eligibleOptions.length
+              ? [{ label: 'Eligible', options: eligibleOptions }]
+              : []),
+            ...(missingOptions.length
+              ? [{ label: 'Needs Buildium ID', options: missingOptions }]
+              : []),
+          ]
+        : [];
+
+    return { tenantsWithBuildiumId: withBuildium, tenantsMissingBuildiumId: withoutBuildium, tenantDropdownOptions: options };
+  }, [tenants]);
+
   const defaultTenantValue =
-    tenants && tenants.length > 0 ? getTenantOptionValue(tenants[0]) : '';
+    tenantsWithBuildiumId && tenantsWithBuildiumId.length > 0
+      ? getTenantOptionValue(tenantsWithBuildiumId[0])
+      : '';
 
   const [form, setForm] = useState<FormState>({
     date: null,
@@ -106,6 +142,7 @@ export default function ReceivePaymentForm({
     allocations: [{ id: createId(), account_id: '', amount: '' }],
     send_email: false,
     print_receipt: false,
+    override_buildium_tenant_id: '',
   });
   const [errors, setErrors] = useState<
     Partial<Record<keyof FormState, string>> & { allocations?: string }
@@ -151,7 +188,12 @@ export default function ReceivePaymentForm({
           return next;
         });
       } else {
-        setForm((prev) => ({ ...prev, [key]: value }));
+        const isResident = key === 'resident_id';
+        setForm((prev) => ({
+          ...prev,
+          [key]: value,
+          ...(isResident ? { override_buildium_tenant_id: '' } : null),
+        }));
       }
       setErrors((prev) => ({ ...prev, [key]: undefined }));
     },
@@ -194,14 +236,12 @@ export default function ReceivePaymentForm({
     for (const account of accounts) {
       if (!account?.id) continue;
       const typeRaw = (account.type || '').trim();
-      const normalized = typeRaw.toLowerCase();
-      if (normalized !== 'income' && normalized !== 'liability') continue;
-      const label = normalized === 'liability' ? 'Liability' : 'Income';
+      const label = typeRaw ? typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1) : 'Other';
       if (!buckets.has(label)) buckets.set(label, []);
       buckets.get(label)!.push({ value: String(account.id), label: account.name || 'Account' });
     }
 
-    const orderedLabels = ['Income', 'Liability'];
+    const orderedLabels = Array.from(buckets.keys()).sort((a, b) => a.localeCompare(b));
     const groups: { label: string; options: { value: string; label: string }[] }[] = [];
     for (const label of orderedLabels) {
       const options = buckets.get(label);
@@ -255,12 +295,42 @@ export default function ReceivePaymentForm({
         return;
       }
 
+      // Prevent submissions with tenants missing Buildium IDs (API will reject).
+      let resolvedResidentId = form.resident_id || undefined;
+      if (form.resident_id) {
+        const selectedTenant = tenants?.find(
+          (tenant) => getTenantOptionValue(tenant) === form.resident_id,
+        );
+        const tenantHasBuildiumId =
+          selectedTenant &&
+          selectedTenant.buildiumTenantId != null &&
+          Number.isFinite(Number(selectedTenant.buildiumTenantId));
+        if (selectedTenant && !tenantHasBuildiumId) {
+          const override = form.override_buildium_tenant_id.trim();
+          const overrideNumber = Number(override);
+          if (!override) {
+            setFormError(
+              'Enter the Buildium tenant ID to record a payment for this tenant.',
+            );
+            setSubmitting(false);
+            return;
+          }
+          if (!Number.isFinite(overrideNumber)) {
+            setFormError('Buildium tenant ID must be a number.');
+            setSubmitting(false);
+            return;
+          }
+          resolvedResidentId = override;
+        }
+      }
+
       try {
         const res = await fetch(`/api/leases/${leaseId}/payments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...parsed.data,
+            resident_id: resolvedResidentId,
             amount: amountValue,
             allocations: allocationsParsed,
           }),
@@ -284,6 +354,7 @@ export default function ReceivePaymentForm({
           allocations: [{ id: createId(), account_id: '', amount: '' }],
           send_email: false,
           print_receipt: false,
+          override_buildium_tenant_id: '',
         });
         setErrors({});
         const transactionRecord = extractLeaseTransactionFromResponse(body);
@@ -367,13 +438,33 @@ export default function ReceivePaymentForm({
                 <Dropdown
                   value={form.resident_id}
                   onChange={(value) => updateField('resident_id', value)}
-                  options={tenants.map((tenant) => ({
-                    value: getTenantOptionValue(tenant),
-                    label: tenant.name,
-                  }))}
+                  options={tenantDropdownOptions}
                   placeholder="Select resident"
                 />
               </label>
+              {form.resident_id &&
+              tenants?.find((tenant) => getTenantOptionValue(tenant) === form.resident_id) &&
+              !tenants?.find(
+                (tenant) =>
+                  getTenantOptionValue(tenant) === form.resident_id &&
+                  tenant.buildiumTenantId != null &&
+                  Number.isFinite(Number(tenant.buildiumTenantId)),
+              ) ? (
+                <label className="space-y-2">
+                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                    Buildium tenant ID (required for payments)
+                  </span>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={form.override_buildium_tenant_id}
+                    onChange={(event) =>
+                      updateField('override_buildium_tenant_id', event.target.value)
+                    }
+                    placeholder="e.g., 35003"
+                  />
+                </label>
+              ) : null}
               <label className="space-y-2 lg:col-span-2">
                 <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                   Memo

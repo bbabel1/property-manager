@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-  AlertCircle,
   Building,
   CheckCircle2,
   ClipboardList,
@@ -17,11 +16,16 @@ import {
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AddressAutocomplete from './HybridAddressAutocomplete';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 import CreateBankAccountModal from '@/components/CreateBankAccountModal';
 import { PropertyCreateSchema, type PropertyCreateInput } from '@/schemas/property';
 import type { BankAccountSummary } from '@/components/forms/types';
+import DraftAssignmentServicesEditor, {
+  INITIAL_DRAFT_SERVICE_ASSIGNMENT,
+  type DraftServiceAssignment,
+} from '@/components/services/DraftAssignmentServicesEditor';
 
 interface AddPropertyFormData {
   // Step 1: Property Type
@@ -69,27 +73,16 @@ interface AddPropertyFormData {
   operatingBankAccountName?: string;
   depositTrustAccountId?: string;
   reserve?: number;
-  // Management/Service/Fee fields (Step 4 with banking)
-  management_scope?: 'Building' | 'Unit';
-  service_assignment?: 'Property Level' | 'Unit Level';
-  service_plan?: 'Full' | 'Basic' | 'A-la-carte';
-  active_services?: (
-    | 'Rent Collection'
-    | 'Maintenance'
-    | 'Turnovers'
-    | 'Compliance'
-    | 'Bill Pay'
-    | 'Condition Reports'
-    | 'Renewals'
-  )[];
-  fee_assignment?: 'Building' | 'Unit';
-  fee_type?: 'Percentage' | 'Flat Rate';
-  fee_percentage?: number;
-  management_fee?: number;
-  billing_frequency?: 'Annual' | 'Monthly';
 
   // Step 6: Property Manager
   propertyManagerId?: string;
+
+  // Legacy management/service fields (kept for compatibility)
+  management_scope?: string | null;
+  service_assignment?: string | null;
+  service_plan?: string | null;
+  active_services?: string[] | string | null;
+  included_services?: string[] | string | null;
 }
 
 // Single source of truth for an empty form
@@ -116,16 +109,12 @@ const INITIAL_FORM_DATA: AddPropertyFormData = {
   operatingBankAccountName: '',
   depositTrustAccountId: '',
   reserve: 0,
-  management_scope: undefined,
-  service_assignment: undefined,
-  service_plan: undefined,
-  active_services: [],
-  fee_assignment: undefined,
-  fee_type: undefined,
-  fee_percentage: undefined,
-  management_fee: undefined,
-  billing_frequency: undefined,
   propertyManagerId: '',
+  management_scope: null,
+  service_assignment: null,
+  service_plan: null,
+  active_services: null,
+  included_services: null,
 };
 
 const STEPS = [
@@ -133,9 +122,12 @@ const STEPS = [
   { id: 2, title: 'Property Details', icon: MapPin },
   { id: 3, title: 'Ownership', icon: Users },
   { id: 4, title: 'Unit Details', icon: Home },
-  { id: 5, title: 'Bank Account', icon: DollarSign },
-  { id: 6, title: 'Property Manager', icon: UserCheck },
+  { id: 5, title: 'Management Services', icon: ClipboardList },
+  { id: 6, title: 'Bank Account', icon: DollarSign },
+  { id: 7, title: 'Property Manager', icon: UserCheck },
 ];
+
+const TOTAL_STEPS = STEPS.length;
 
 type TourStepConfig = {
   id: number;
@@ -183,25 +175,28 @@ const TOUR_STEPS: Record<number, TourStepConfig> = {
   },
   5: {
     id: 5,
-    title: 'Bank account & management',
-    description: 'Select an operating bank account and set management scope/plan.',
-    icon: DollarSign,
+    title: 'Configure management services',
+    description: 'Set management scope, assignment level, and configure a service plan + services.',
+    icon: ClipboardList,
     bullets: [
-      'Operating bank account is required',
-      'Choose fee assignment (Building or Unit)',
-      'Management scope, service assignment, and plan are required',
-      'If fee assignment is Building, fee type + amount + billing are required',
+      'Management scope is required',
+      'Choose assignment level (Property or Unit)',
+      'If Property Level, configure plan + services',
     ],
   },
   6: {
     id: 6,
+    title: 'Select a bank account',
+    description: 'Operating bank account is required; trust account and reserve are optional.',
+    icon: DollarSign,
+    bullets: ['Operating bank account is required', 'Reserve amount is optional'],
+  },
+  7: {
+    id: 7,
     title: 'Assign property manager',
     description: 'Optional but recommended—stored in state for later use.',
     icon: UserCheck,
-    bullets: [
-      'Pick a manager or leave blank',
-      'Finish confirms and routes to your properties list',
-    ],
+    bullets: ['Pick a manager or leave blank', 'Finish creates the property and routes to it'],
     optional: true,
   },
 };
@@ -210,9 +205,8 @@ const PRE_TOUR_REQUIREMENTS = [
   { label: 'Property address ready', icon: MapPin },
   { label: 'Owners total 100%', icon: Users },
   { label: 'At least one unit number', icon: Home },
+  { label: 'Management services configured', icon: ClipboardList },
   { label: 'Operating bank account', icon: DollarSign },
-  { label: 'Management scope, plan, and service assignment', icon: ClipboardList },
-  { label: 'Fee assignment/type + billing when Building', icon: AlertCircle },
   { label: 'Property manager (optional)', icon: UserCheck },
 ];
 
@@ -233,6 +227,7 @@ const COUNTRIES = [
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background';
+const EMPTY_OPTION_VALUE = '__empty__';
 
 type OwnerOption = { id: string; name: string; status?: string | null };
 type BankAccountOption = Pick<
@@ -240,6 +235,23 @@ type BankAccountOption = Pick<
   'id' | 'name' | 'account_number' | 'routing_number'
 >;
 type StaffOption = { id: string; displayName: string };
+
+function coerceLegacyServicePlan(
+  serviceAssignment: string | null | undefined,
+  planName: string | null | undefined,
+): 'Full' | 'Basic' | 'A-la-carte' | 'Custom' | null {
+  const assignment = String(serviceAssignment || '').trim();
+  if (assignment === 'Unit Level') return 'Custom';
+  const normalized = String(planName || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'full') return 'Full';
+  if (normalized === 'basic') return 'Basic';
+  if (normalized === 'a-la-carte' || normalized === 'a la carte' || normalized === 'alacarte')
+    return 'A-la-carte';
+  if (normalized === 'custom') return 'Custom';
+  return planName ? 'Custom' : null;
+}
 
 export default function AddPropertyModal({
   isOpen,
@@ -255,6 +267,9 @@ export default function AddPropertyModal({
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<AddPropertyFormData>(INITIAL_FORM_DATA);
+  const [serviceDraft, setServiceDraft] = useState<DraftServiceAssignment>(
+    INITIAL_DRAFT_SERVICE_ASSIGNMENT,
+  );
   const [syncToBuildium, setSyncToBuildium] = useState(true);
   const [isTourActive, setIsTourActive] = useState<boolean>(!!startInTour);
   const [showTourIntro, setShowTourIntro] = useState<boolean>(!!startInTour);
@@ -289,48 +304,23 @@ export default function AddPropertyModal({
         return (data.units || []).some((u) => (u.unitNumber || '').trim().length > 0);
       }
       case 5: {
-        // Require Operating Bank Account, Management Scope, Service Assignment, Service Plan
-        const hasOp =
-          !!data.operatingBankAccountId && String(data.operatingBankAccountId).trim().length > 0;
-        const hasMgmtScope =
-          !!data.management_scope && String(data.management_scope).trim().length > 0;
-        const hasServiceAssign =
-          !!data.service_assignment && String(data.service_assignment).trim().length > 0;
-        const hasServicePlan = !!data.service_plan && String(data.service_plan).trim().length > 0;
-
-        // Fees: when Fee Assignment = Building, require all fee fields
-        const requiresFees = data.fee_assignment === 'Building';
-        const hasFeeAssignment =
-          !!data.fee_assignment && String(data.fee_assignment).trim().length > 0;
-        const hasFeeType =
-          !requiresFees || (!!data.fee_type && String(data.fee_type).trim().length > 0);
-        const requirePct = requiresFees && data.fee_type === 'Percentage';
-        const requireFlat = requiresFees && data.fee_type === 'Flat Rate';
-        const hasFeePct =
-          !requirePct ||
-          (data.fee_percentage !== undefined &&
-            data.fee_percentage !== null &&
-            String(data.fee_percentage).trim() !== '');
-        const hasMgmtFee =
-          !requireFlat ||
-          (data.management_fee !== undefined &&
-            data.management_fee !== null &&
-            String(data.management_fee).trim() !== '');
-        const hasBillingFreq =
-          !requiresFees ||
-          (!!data.billing_frequency && String(data.billing_frequency).trim().length > 0);
+        const hasMgmtScope = !!data.management_scope;
+        const hasServiceAssignment = !!data.service_assignment;
+        const needsPropertyLevelPlan = data.service_assignment === 'Property Level';
+        const hasConfiguredPlan = !needsPropertyLevelPlan
+          ? true
+          : serviceDraft.configured && !!serviceDraft.plan_id;
 
         return (
-          hasOp &&
           hasMgmtScope &&
-          hasServiceAssign &&
-          hasServicePlan &&
-          hasFeeAssignment &&
-          hasFeeType &&
-          hasFeePct &&
-          hasMgmtFee &&
-          hasBillingFreq
+          hasServiceAssignment &&
+          hasConfiguredPlan
         );
+      }
+      case 6: {
+        const hasOp =
+          !!data.operatingBankAccountId && String(data.operatingBankAccountId).trim().length > 0;
+        return hasOp;
       }
       default:
         return true;
@@ -398,24 +388,6 @@ export default function AddPropertyModal({
     };
   }, [isOpen]);
 
-  // Auto-select all active services when Service Plan is 'Full'
-  useEffect(() => {
-    if (formData.service_plan === 'Full') {
-      const allServices = [
-        'Rent Collection',
-        'Maintenance',
-        'Turnovers',
-        'Compliance',
-        'Bill Pay',
-        'Condition Reports',
-        'Renewals',
-      ] as const;
-      if ((formData.active_services || []).length !== allServices.length) {
-        setFormData((prev) => ({ ...prev, active_services: [...allServices] as const }));
-      }
-    }
-  }, [formData.service_plan, formData.active_services]);
-
   // Auto-calculate property name from Street Address and Primary Owner
   useEffect(() => {
     const address = (formData.addressLine1 || '').trim();
@@ -427,10 +399,17 @@ export default function AddPropertyModal({
     }
   }, [formData.addressLine1, formData.owners, formData.name]);
 
+  useEffect(() => {
+    const next = coerceLegacyServicePlan(formData.service_assignment, serviceDraft.plan_name);
+    if (next && next !== formData.service_plan) {
+      setFormData((prev) => ({ ...prev, service_plan: next }));
+    }
+  }, [formData.service_assignment, formData.service_plan, serviceDraft.plan_name]);
+
   const stepReady = canProceed(currentStep, formData);
 
   const handleNext = () => {
-    if (currentStep < 6) {
+    if (currentStep < TOTAL_STEPS) {
       setCurrentStep(currentStep + 1);
     } else {
       handleSubmit();
@@ -460,6 +439,9 @@ export default function AddPropertyModal({
         country: formData.country,
         yearBuilt: formData.yearBuilt || undefined,
         structureDescription: formData.structureDescription || undefined,
+        management_scope: formData.management_scope,
+        service_assignment: formData.service_assignment,
+        service_plan: formData.service_plan,
         owners: formData.owners,
         operatingBankAccountId: formData.operatingBankAccountId || undefined,
         reserve: formData.reserve || undefined,
@@ -495,10 +477,96 @@ export default function AddPropertyModal({
       const propertyId: string | undefined = result?.property?.id;
       const destination = propertyId ? `/properties/${propertyId}` : '/properties';
 
+      if (propertyId) {
+        try {
+          if (
+            formData.service_assignment === 'Property Level' &&
+            serviceDraft.configured &&
+            serviceDraft.plan_id
+          ) {
+            const isALaCarte =
+              String(serviceDraft.plan_name || '')
+                .trim()
+                .toLowerCase() === 'a-la-carte';
+
+            const assignmentPayload = {
+              property_id: propertyId,
+              plan_id: serviceDraft.plan_id,
+              plan_fee_amount: isALaCarte ? null : serviceDraft.resolved_plan_fee_amount,
+              plan_fee_percent: isALaCarte ? 0 : serviceDraft.resolved_plan_fee_percent,
+              plan_fee_frequency: isALaCarte
+                ? 'Monthly'
+                : serviceDraft.plan_fee_frequency || 'Monthly',
+            };
+
+            const assignmentRes = await fetch('/api/services/assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(assignmentPayload),
+            });
+            const assignmentJson = await assignmentRes.json().catch(() => ({}));
+            if (!assignmentRes.ok) {
+              throw new Error(
+                assignmentJson?.error?.message ||
+                  assignmentJson?.error ||
+                  'Failed to save service plan assignment',
+              );
+            }
+            const assignmentId = String(assignmentJson?.data?.id || '');
+            if (!assignmentId) throw new Error('Service assignment could not be determined.');
+
+            const servicesPayload = isALaCarte
+              ? Object.entries(serviceDraft.a_la_carte_selections)
+                  .filter(([, v]) => v.selected)
+                  .map(([offeringId, row]) => ({
+                    offering_id: offeringId,
+                    is_active: row.is_active ?? true,
+                    override_amount: Boolean(row.override),
+                    override_frequency: Boolean(row.override),
+                    amount: row.override ? row.amount : null,
+                    frequency: row.override ? row.frequency : null,
+                  }))
+              : Object.entries(serviceDraft.included_service_active_overrides)
+                  .filter(([, isActive]) => isActive === false)
+                  .map(([offeringId]) => ({
+                    offering_id: offeringId,
+                    is_active: false,
+                    override_amount: false,
+                    override_frequency: false,
+                    amount: null,
+                    frequency: null,
+                  }));
+
+            if (servicesPayload.length) {
+              const servicesRes = await fetch('/api/services/assignment-services', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assignment_id: assignmentId, services: servicesPayload }),
+              });
+              const servicesJson = await servicesRes.json().catch(() => ({}));
+              if (!servicesRes.ok) {
+                throw new Error(
+                  servicesJson?.error?.message ||
+                    servicesJson?.error ||
+                    'Failed to save selected services',
+                );
+              }
+            }
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Failed to assign services';
+          console.error('Service assignment error:', message);
+          setSubmitSuccess(
+            `Property created successfully (services assignment failed: ${message})`,
+          );
+        }
+      }
+
       onClose();
       if (onSuccess) onSuccess();
       // Reset form to initial shape for the next open
       setFormData(INITIAL_FORM_DATA);
+      setServiceDraft(INITIAL_DRAFT_SERVICE_ASSIGNMENT);
       setSyncToBuildium(true);
       setCurrentStep(1);
 
@@ -584,7 +652,7 @@ export default function AddPropertyModal({
             e.preventDefault();
           }
         }}
-        className="bg-card border-border/80 max-h-[90vh] w-[680px] max-w-[680px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl"
+        className="bg-card border-border/80 max-h-[90vh] w-fit max-w-[800px] overflow-y-auto rounded-none border p-0 shadow-2xl sm:rounded-2xl"
       >
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
@@ -607,8 +675,8 @@ export default function AddPropertyModal({
             </Button>
           </div>
           <p className="text-muted-foreground text-sm">
-            Follow the same six steps as the modal: Property Type → Details → Ownership → Unit
-            Details → Bank Account → Property Manager.
+            Follow the same seven steps as the modal: Property Type → Details → Ownership → Unit
+            Details → Management Services → Bank Account → Property Manager.
           </p>
         </DialogHeader>
 
@@ -617,7 +685,7 @@ export default function AddPropertyModal({
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className="bg-primary/10 text-primary rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
-                Step {currentStep} of 6
+                Step {currentStep} of {TOTAL_STEPS}
               </span>
               <span className="text-foreground text-sm font-semibold">
                 {STEPS[currentStep - 1]?.title}
@@ -694,10 +762,19 @@ export default function AddPropertyModal({
 
           {currentStep === 4 && <Step4UnitDetails formData={formData} setFormData={setFormData} />}
 
-          {currentStep === 5 && <Step4BankAccount formData={formData} setFormData={setFormData} />}
+          {currentStep === 5 && (
+            <Step5ManagementServices
+              formData={formData}
+              setFormData={setFormData}
+              serviceDraft={serviceDraft}
+              setServiceDraft={setServiceDraft}
+            />
+          )}
 
-          {currentStep === 6 && (
-            <Step5PropertyManager formData={formData} setFormData={setFormData} />
+          {currentStep === 6 && <Step6BankAccount formData={formData} setFormData={setFormData} />}
+
+          {currentStep === 7 && (
+            <Step7PropertyManager formData={formData} setFormData={setFormData} />
           )}
         </div>
 
@@ -714,7 +791,7 @@ export default function AddPropertyModal({
           </Button>
 
           <div className="flex items-center gap-4">
-            {currentStep === 6 && (
+            {currentStep === TOTAL_STEPS && (
               <label className="text-muted-foreground flex items-center gap-2 text-sm select-none">
                 <input
                   type="checkbox"
@@ -731,7 +808,7 @@ export default function AddPropertyModal({
               disabled={!nextEnabled}
               className={`${FOCUS_RING} min-h-[44px] ${nextEnabled ? 'shadow-primary/30 shadow-lg' : ''}`}
             >
-              {submitting ? 'Saving...' : currentStep === 6 ? 'Create Property' : 'Next'}
+              {submitting ? 'Saving...' : currentStep === TOTAL_STEPS ? 'Create Property' : 'Next'}
             </Button>
           </div>
         </div>
@@ -755,7 +832,7 @@ function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boole
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="bg-primary/10 text-primary rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase">
-                Step {config.id} / 6
+                Step {config.id} / {TOTAL_STEPS}
               </span>
               {config.optional ? (
                 <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
@@ -795,7 +872,7 @@ function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boole
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
-                Step {config.id}/6
+                Step {config.id}/{TOTAL_STEPS}
               </span>
               {config.optional ? (
                 <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
@@ -835,7 +912,7 @@ function TourIntroCard({ onStart, onSkip }: { onStart: () => void; onSkip: () =>
         <div className="flex-1 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h4 className="text-foreground text-base font-semibold">Guided tour: Add Property</h4>
-            <span className="text-muted-foreground text-xs">6 steps</span>
+            <span className="text-muted-foreground text-xs">{TOTAL_STEPS} steps</span>
           </div>
           <p className="text-muted-foreground text-sm">
             Quick checklist before you start. These match the required fields the modal already
@@ -1019,23 +1096,27 @@ function Step2PropertyDetails({
             <label
               htmlFor="add-property-country"
               className="text-foreground mb-1 block text-sm font-medium"
-            >
-              Country *
-            </label>
-            <select
-              id="add-property-country"
-              value={formData.country}
-              onChange={(e) => setFormData((prev) => ({ ...prev, country: e.target.value }))}
-              autoComplete="country-name"
-              className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-            >
-              <option value="">Select country</option>
+          >
+            Country *
+          </label>
+          <Select
+            value={formData.country || EMPTY_OPTION_VALUE}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, country: value === EMPTY_OPTION_VALUE ? '' : value }))
+            }
+          >
+            <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+              <SelectValue placeholder="Select country" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={EMPTY_OPTION_VALUE}>Select country</SelectItem>
               {COUNTRIES.map((c) => (
-                <option key={c} value={c}>
+                <SelectItem key={c} value={c}>
                   {c}
-                </option>
+                </SelectItem>
               ))}
-            </select>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -1046,17 +1127,20 @@ function Step2PropertyDetails({
           >
             Status
           </label>
-          <select
-            id="add-property-status"
-            value={formData.status}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, status: e.target.value as 'Active' | 'Inactive' }))
+          <Select
+            value={formData.status || ''}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, status: value as 'Active' | 'Inactive' }))
             }
-            className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
           >
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
+            <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1124,6 +1208,8 @@ function Step3Ownership({
   const [createDisbursementPct, setCreateDisbursementPct] = useState<number>(100);
   const [createPrimary, setCreatePrimary] = useState<boolean>(false);
   const [creating, setCreating] = useState(false);
+  const OWNER_PLACEHOLDER_VALUE = `${EMPTY_OPTION_VALUE}-owner`;
+  const [ownerSelectValue, setOwnerSelectValue] = useState(OWNER_PLACEHOLDER_VALUE);
   // CSRF token for POSTs to secured API routes
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [csrfLoading, setCsrfLoading] = useState(true);
@@ -1297,28 +1383,36 @@ function Step3Ownership({
       <div className="space-y-4">
         <div>
           <label
-            htmlFor="add-property-owner-select"
-            className="text-foreground mb-1 block text-sm font-medium"
-          >
-            Add Owners *
-          </label>
-          <select
-            id="add-property-owner-select"
-            onChange={(e) => {
-              handleSelectOwner(e.target.value);
-              e.target.value = '';
-            }}
-            className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-          >
-            <option value="">Choose owners to add...</option>
-            <option value="create-new-owner">+ Create new owner…</option>
+          htmlFor="add-property-owner-select"
+          className="text-foreground mb-1 block text-sm font-medium"
+        >
+          Add Owners *
+        </label>
+        <Select
+          value={ownerSelectValue}
+          onValueChange={(value) => {
+            if (value === OWNER_PLACEHOLDER_VALUE) {
+              setOwnerSelectValue(OWNER_PLACEHOLDER_VALUE);
+              return;
+            }
+            handleSelectOwner(value);
+            setOwnerSelectValue(OWNER_PLACEHOLDER_VALUE);
+          }}
+        >
+          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+            <SelectValue placeholder="Choose owners to add..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={OWNER_PLACEHOLDER_VALUE}>Choose owners to add...</SelectItem>
+            <SelectItem value="create-new-owner">+ Create new owner…</SelectItem>
             {ownerList.map((owner) => (
-              <option key={owner.id} value={owner.id}>
+              <SelectItem key={owner.id} value={owner.id}>
                 {owner.name}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </div>
+          </SelectContent>
+        </Select>
+      </div>
 
         {showCreateInline && (
           <div className="border-border bg-muted/10 rounded-lg border p-4">
@@ -1532,15 +1626,121 @@ function Step3Ownership({
   );
 }
 
-// Step 4: Bank Account
-function Step4BankAccount({
+// Step 5: Management Services
+function Step5ManagementServices({
+  formData,
+  setFormData,
+  serviceDraft,
+  setServiceDraft,
+}: {
+  formData: AddPropertyFormData;
+  setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
+  serviceDraft: DraftServiceAssignment;
+  setServiceDraft: Dispatch<SetStateAction<DraftServiceAssignment>>;
+}) {
+  const CurrentIcon = STEPS[4].icon;
+  const isUnitLevel = formData.service_assignment === 'Unit Level';
+
+  return (
+    <div>
+      <div className="mb-6 text-center">
+        <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
+        <h3 className="text-foreground mb-2 text-xl font-semibold">Management Services</h3>
+        <p className="text-muted-foreground">
+          Configure management scope, assignment level, and the property’s service plan.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <div className="rounded-xl border p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+            htmlFor="add-property-management-scope"
+            className="text-foreground mb-1 block text-sm font-medium"
+        >
+          Management Scope *
+        </label>
+        <Select
+          value={formData.management_scope || EMPTY_OPTION_VALUE}
+          onValueChange={(value) =>
+            setFormData({
+              ...formData,
+              management_scope: (value === EMPTY_OPTION_VALUE ? null : value) as
+                | 'Building'
+                | 'Unit'
+                | null,
+            })
+          }
+        >
+          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+            <SelectValue placeholder="Select scope..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={EMPTY_OPTION_VALUE}>Select scope...</SelectItem>
+            <SelectItem value="Building">Building</SelectItem>
+            <SelectItem value="Unit">Unit</SelectItem>
+          </SelectContent>
+        </Select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="add-property-service-assignment"
+            className="text-foreground mb-1 block text-sm font-medium"
+        >
+          Service Assignment *
+        </label>
+        <Select
+          value={formData.service_assignment || EMPTY_OPTION_VALUE}
+          onValueChange={(value) =>
+            setFormData({
+              ...formData,
+              service_assignment: (value === EMPTY_OPTION_VALUE ? null : value) as
+                | 'Property Level'
+                | 'Unit Level'
+                | null,
+            })
+          }
+        >
+          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+            <SelectValue placeholder="Select assignment..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={EMPTY_OPTION_VALUE}>Select assignment...</SelectItem>
+            <SelectItem value="Property Level">Property Level</SelectItem>
+            <SelectItem value="Unit Level">Unit Level</SelectItem>
+          </SelectContent>
+        </Select>
+        </div>
+      </div>
+    </div>
+
+        {isUnitLevel ? (
+          <div className="bg-muted/30 rounded-xl border p-4">
+            <p className="text-foreground text-sm font-semibold">Unit Level assignments</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              This property is set to Unit Level service assignments. You’ll configure the service
+              plan and services on each unit after the property is created.
+            </p>
+          </div>
+        ) : (
+          <DraftAssignmentServicesEditor draft={serviceDraft} onChange={setServiceDraft} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Step 6: Bank Account
+function Step6BankAccount({
   formData,
   setFormData,
 }: {
   formData: AddPropertyFormData;
   setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
 }) {
-  const CurrentIcon = STEPS[4].icon;
+  const CurrentIcon = STEPS[5].icon;
   const [accounts, setAccounts] = useState<BankAccountOption[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [createTarget, setCreateTarget] = useState<'operating' | 'trust' | null>(null);
@@ -1548,7 +1748,7 @@ function Step4BankAccount({
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch('/api/bank-accounts?revealNumbers=false');
+        const res = await fetch('/api/gl-accounts/bank-accounts');
         if (!res.ok) throw new Error('Failed to load bank accounts');
         const data = await res.json();
         if (!cancelled)
@@ -1559,7 +1759,7 @@ function Step4BankAccount({
                 id: String(account.id),
                 name: String(account.name),
                 account_number: account.account_number ? String(account.account_number) : null,
-                routing_number: account.routing_number ? String(account.routing_number) : null,
+                routing_number: null,
               };
             }),
           );
@@ -1594,25 +1794,23 @@ function Step4BankAccount({
           <label
             htmlFor="add-property-operating-account"
             className="text-foreground mb-1 block text-sm font-medium"
-          >
-            Operating Bank Account *
-          </label>
-          <select
-            id="add-property-operating-account"
-            value={formData.operatingBankAccountId || ''}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value === 'create-new') {
-                setCreateTarget('operating');
-                setShowCreate(true);
-                return;
-              }
-              if (!value) {
-                setFormData({
-                  ...formData,
-                  operatingBankAccountId: '',
-                  operatingBankAccountName: '',
-                });
+        >
+          Operating Bank Account *
+        </label>
+        <Select
+          value={formData.operatingBankAccountId || EMPTY_OPTION_VALUE}
+          onValueChange={(value) => {
+            if (value === 'create-new') {
+              setCreateTarget('operating');
+              setShowCreate(true);
+              return;
+            }
+            if (value === EMPTY_OPTION_VALUE) {
+              setFormData({
+                ...formData,
+                operatingBankAccountId: '',
+                operatingBankAccountName: '',
+              });
                 return;
               }
               const selected = accounts.find((a) => a.id === value);
@@ -1622,49 +1820,55 @@ function Step4BankAccount({
                 operatingBankAccountName: selected?.name ?? '',
               });
             }}
-            className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
           >
-            <option value="">Select account...</option>
-            <option value="create-new">+ Create new account…</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-                {a.account_number ? ` (...${a.account_number})` : ''}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+              <SelectValue placeholder="Select account..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={EMPTY_OPTION_VALUE}>Select account...</SelectItem>
+              <SelectItem value="create-new">+ Create new account…</SelectItem>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name}
+                  {a.account_number ? ` (...${a.account_number})` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
           <label
             htmlFor="add-property-trust-account"
             className="text-foreground mb-1 block text-sm font-medium"
-          >
-            Deposit Trust Account
-          </label>
-          <select
-            id="add-property-trust-account"
-            value={formData.depositTrustAccountId || ''}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value === 'create-new') {
-                setCreateTarget('trust');
-                setShowCreate(true);
-                return;
-              }
-              setFormData({ ...formData, depositTrustAccountId: value });
-            }}
-            className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-          >
-            <option value="">Select account...</option>
-            <option value="create-new">+ Create new account…</option>
+        >
+          Deposit Trust Account
+        </label>
+        <Select
+          value={formData.depositTrustAccountId || EMPTY_OPTION_VALUE}
+          onValueChange={(value) => {
+            if (value === 'create-new') {
+              setCreateTarget('trust');
+              setShowCreate(true);
+              return;
+            }
+            setFormData({ ...formData, depositTrustAccountId: value === EMPTY_OPTION_VALUE ? '' : value });
+          }}
+        >
+          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+            <SelectValue placeholder="Select account..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={EMPTY_OPTION_VALUE}>Select account...</SelectItem>
+            <SelectItem value="create-new">+ Create new account…</SelectItem>
             {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
+              <SelectItem key={a.id} value={a.id}>
                 {a.name}
                 {a.account_number ? ` (...${a.account_number})` : ''}
-              </option>
-            ))}
-          </select>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div>
@@ -1684,284 +1888,6 @@ function Step4BankAccount({
             />
           </div>
         </div>
-
-        {/* Selected account summary modules removed per request */}
-
-        {/* Management & Services */}
-        <div className="border-border mt-6 border-t pt-6">
-          <h4 className="text-foreground mb-3 font-medium">Management & Services</h4>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="add-property-management-scope"
-                className="text-foreground mb-1 block text-sm font-medium"
-              >
-                Management Scope *
-              </label>
-              <select
-                id="add-property-management-scope"
-                value={formData.management_scope || ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    management_scope: (e.target.value || undefined) as
-                      | 'Building'
-                      | 'Unit'
-                      | undefined,
-                  })
-                }
-                className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              >
-                <option value="">Select scope...</option>
-                <option value="Building">Building (manage entire property)</option>
-                <option value="Unit">Unit (manage specific units)</option>
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="add-property-service-assignment"
-                className="text-foreground mb-1 block text-sm font-medium"
-              >
-                Service Assignment *
-              </label>
-              <select
-                id="add-property-service-assignment"
-                value={formData.service_assignment || ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    service_assignment: (e.target.value || undefined) as
-                      | 'Property Level'
-                      | 'Unit Level'
-                      | undefined,
-                  })
-                }
-                className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              >
-                <option value="">Select level...</option>
-                <option value="Property Level">Property Level</option>
-                <option value="Unit Level">Unit Level</option>
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="add-property-service-plan"
-                className="text-foreground mb-1 block text-sm font-medium"
-              >
-                Service Plan *
-              </label>
-              <select
-                id="add-property-service-plan"
-                value={formData.service_plan || ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    service_plan: (e.target.value || undefined) as
-                      | 'Full'
-                      | 'Basic'
-                      | 'A-la-carte'
-                      | undefined,
-                  })
-                }
-                className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              >
-                <option value="">Select plan...</option>
-                <option value="Full">Full</option>
-                <option value="Basic">Basic</option>
-                <option value="A-la-carte">A-la-carte</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-foreground mb-1 block text-sm font-medium">
-                Active Services
-              </label>
-              <div className="border-border bg-background grid grid-cols-1 gap-2 rounded-md border p-3 sm:grid-cols-2">
-                {(
-                  [
-                    'Rent Collection',
-                    'Maintenance',
-                    'Turnovers',
-                    'Compliance',
-                    'Bill Pay',
-                    'Condition Reports',
-                    'Renewals',
-                  ] as const
-                ).map((svc) => {
-                  const checked = (formData.active_services || []).includes(svc);
-                  return (
-                    <label key={svc} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className={FOCUS_RING}
-                        checked={checked}
-                        onChange={(e) => {
-                          const curr = new Set(formData.active_services || []);
-                          if (e.target.checked) curr.add(svc);
-                          else curr.delete(svc);
-                          setFormData({
-                            ...formData,
-                            active_services: Array.from(curr) as typeof formData.active_services,
-                          });
-                        }}
-                      />
-                      <span>{svc}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Select the active management services for this property.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Fees */}
-        <div className="border-border mt-6 border-t pt-6">
-          <h4 className="text-foreground mb-3 font-medium">Management Fees</h4>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="add-property-fee-assignment"
-                className="text-foreground mb-1 block text-sm font-medium"
-              >
-                Fee Assignment *
-              </label>
-              <select
-                id="add-property-fee-assignment"
-                value={formData.fee_assignment || ''}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    fee_assignment: (e.target.value || undefined) as
-                      | 'Building'
-                      | 'Unit'
-                      | undefined,
-                  })
-                }
-                className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-              >
-                <option value="">Select assignment...</option>
-                <option value="Building">Building</option>
-                <option value="Unit">Unit</option>
-              </select>
-            </div>
-            {formData.fee_assignment === 'Building' && (
-              <>
-                <div>
-                  <label
-                    htmlFor="add-property-fee-type"
-                    className="text-foreground mb-1 block text-sm font-medium"
-                  >
-                    Fee Type *
-                  </label>
-                  <select
-                    id="add-property-fee-type"
-                    value={formData.fee_type || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        fee_type: (e.target.value || undefined) as
-                          | 'Percentage'
-                          | 'Flat Rate'
-                          | undefined,
-                      })
-                    }
-                    className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-                  >
-                    <option value="">Select type...</option>
-                    <option value="Percentage">Percentage of rent</option>
-                    <option value="Flat Rate">Flat Rate</option>
-                  </select>
-                </div>
-                {formData.fee_type === 'Percentage' && (
-                  <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
-                      Fee Percentage *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={formData.fee_percentage ?? ''}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            fee_percentage:
-                              e.target.value === '' ? undefined : Number(e.target.value),
-                          })
-                        }
-                        className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-9 w-full rounded-md border px-3 pr-10 text-sm ${FOCUS_RING}`}
-                        placeholder="e.g., 8"
-                        step="0.01"
-                        min={0}
-                        max={100}
-                      />
-                      <span className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2">
-                        %
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      Enter 0–100 (e.g., 8 for 8%).
-                    </p>
-                  </div>
-                )}
-                {formData.fee_type === 'Flat Rate' && (
-                  <div>
-                    <label className="text-foreground mb-1 block text-sm font-medium">
-                      Management Fee *
-                    </label>
-                    <div className="relative">
-                      <span className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2">
-                        $
-                      </span>
-                      <input
-                        type="number"
-                        value={formData.management_fee ?? ''}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            management_fee:
-                              e.target.value === '' ? undefined : Number(e.target.value),
-                          })
-                        }
-                        className={`border-border bg-background text-foreground placeholder:text-muted-foreground h-9 w-full rounded-md border pr-3 pl-8 text-sm ${FOCUS_RING}`}
-                        placeholder="e.g., 0.00"
-                        step="0.01"
-                        min={0}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label
-                    htmlFor="add-property-billing-frequency"
-                    className="text-foreground mb-1 block text-sm font-medium"
-                  >
-                    Billing Frequency *
-                  </label>
-                  <select
-                    id="add-property-billing-frequency"
-                    value={formData.billing_frequency || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        billing_frequency: (e.target.value || undefined) as
-                          | 'Monthly'
-                          | 'Annual'
-                          | undefined,
-                      })
-                    }
-                    className={`border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 ${FOCUS_RING}`}
-                  >
-                    <option value="">Select frequency...</option>
-                    <option value="Monthly">Monthly</option>
-                    <option value="Annual">Annual</option>
-                  </select>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       </div>
 
       {showCreate && (
@@ -1976,7 +1902,7 @@ function Step4BankAccount({
               id: String(newAccount.id),
               name: String(newAccount.name),
               account_number: newAccount.account_number ? String(newAccount.account_number) : null,
-              routing_number: newAccount.routing_number ? String(newAccount.routing_number) : null,
+              routing_number: null,
             };
             setAccounts((prev) => [
               { ...created },
@@ -1999,15 +1925,15 @@ function Step4BankAccount({
   );
 }
 
-// Step 5: Property Manager
-function Step5PropertyManager({
+// Step 7: Property Manager
+function Step7PropertyManager({
   formData,
   setFormData,
 }: {
   formData: AddPropertyFormData;
   setFormData: Dispatch<SetStateAction<AddPropertyFormData>>;
 }) {
-  const CurrentIcon = STEPS[5].icon;
+  const CurrentIcon = STEPS[6].icon;
   const [staff, setStaff] = useState<StaffOption[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -2055,25 +1981,30 @@ function Step5PropertyManager({
       <div className="space-y-6">
         <div>
           <label
-            htmlFor="add-property-manager"
-            className="text-foreground mb-1 block text-sm font-medium"
-          >
-            Property Manager (Optional)
-          </label>
-          <select
-            id="add-property-manager"
-            value={formData.propertyManagerId}
-            onChange={(e) => setFormData({ ...formData, propertyManagerId: e.target.value })}
-            className={`border-input bg-background text-foreground w-full rounded-md border px-3 py-2 ${FOCUS_RING}`}
-          >
-            <option value="">Choose a manager...</option>
+          htmlFor="add-property-manager"
+          className="text-foreground mb-1 block text-sm font-medium"
+        >
+          Property Manager (Optional)
+        </label>
+        <Select
+          value={formData.propertyManagerId || EMPTY_OPTION_VALUE}
+          onValueChange={(value) =>
+            setFormData({ ...formData, propertyManagerId: value === EMPTY_OPTION_VALUE ? '' : value })
+          }
+        >
+          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+            <SelectValue placeholder="Choose a manager..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={EMPTY_OPTION_VALUE}>Choose a manager...</SelectItem>
             {staff.map((m) => (
-              <option key={m.id} value={m.id}>
+              <SelectItem key={m.id} value={m.id}>
                 {m.displayName}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </div>
+          </SelectContent>
+        </Select>
+      </div>
 
         {/* Property Summary */}
         <div className="bg-muted border-border rounded-lg border p-4">

@@ -24,6 +24,9 @@ const UpdateSchema = z.object({
 
 type SafePayload = z.infer<typeof UpdateSchema>;
 
+const GL_ACCOUNT_SAFE_SELECT =
+  'id,org_id,buildium_gl_account_id,name,account_number,description,type,sub_type,default_account_name,cash_flow_classification,is_active,exclude_from_cash_balances,is_contra_account,is_bank_account,is_credit_card_account,is_default_gl_account,is_security_deposit_liability,buildium_parent_gl_account_id,sub_accounts,created_at,updated_at' as const;
+
 const cleanNullable = (value: string | null | undefined) => {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -43,7 +46,7 @@ export async function PATCH(
 
     const { data: existing, error: fetchError } = await supabaseAdmin
       .from('gl_accounts')
-      .select('*')
+      .select(GL_ACCOUNT_SAFE_SELECT)
       .eq('id', id)
       .maybeSingle();
 
@@ -105,7 +108,7 @@ export async function PATCH(
       .from('gl_accounts')
       .update(updates)
       .eq('id', id)
-      .select('*')
+      .select(GL_ACCOUNT_SAFE_SELECT)
       .maybeSingle();
 
     if (updateError) {

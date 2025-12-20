@@ -161,7 +161,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     ? db
         .from('transactions')
         .select(
-          'id, date, paid_date, total_amount, bank_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
+          'id, date, paid_date, total_amount, bank_gl_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
         )
         .eq('transaction_type', 'Payment')
         .eq('buildium_bill_id', bill.buildium_bill_id)
@@ -266,12 +266,12 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
 
   const payments = Array.isArray(paymentsRes?.data) ? paymentsRes.data : [];
   const bankAccountIds = payments
-    .map((p) => p.bank_account_id)
+    .map((p) => (p as any).bank_gl_account_id)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
   let bankAccountMap = new Map<string, { name: string | null }>();
   if (bankAccountIds.length) {
     const { data: banks, error: bankErr } = await db
-      .from('bank_accounts')
+      .from('gl_accounts')
       .select('id, name')
       .in('id', bankAccountIds);
     if (bankErr) {
@@ -309,7 +309,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     const displayAmount = Number(p.total_amount ?? 0) || debitSum || 0;
     return {
       ...p,
-      bankName: bankAccountMap.get(p.bank_account_id || '')?.name ?? '—',
+      bankName: bankAccountMap.get((p as any).bank_gl_account_id || '')?.name ?? '—',
       displayDate: formatDate(p.paid_date || p.date),
       displayAmount,
       displayMethod: p.payment_method || (p.check_number ? 'Check' : '—'),

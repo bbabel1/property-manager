@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Suspense } from 'react';
 
 import MonthlyLogDetailPageContent from '@/components/monthly-logs/MonthlyLogDetailPageContent';
@@ -24,14 +24,11 @@ type MonthlyLogRecord = {
   tenant_id: string | number | null;
   org_id: string | number | null;
   lease_id: number | null;
-  properties?: { id: string | number; name: string | null } | null;
+  properties?: { id: string | number; name: string | null; service_assignment?: string | null } | null;
   units?: {
     id: string | number;
     unit_number: string | null;
     unit_name: string | null;
-    service_plan: string | null;
-    active_services: unknown;
-    fee_dollar_amount: number | string | null;
   } | null;
   tenants?: {
     id: string | number;
@@ -69,6 +66,15 @@ type ActiveLeaseRow = {
   lease_contacts: LeaseContactRecord[] | null;
 };
 
+type ManagementServicesSummary = {
+  servicePlan: string | null;
+  activeServices: string[];
+  feeType: 'Flat Rate' | 'Percentage' | null;
+  feeDollarAmount: number | null;
+  feePercentage: number | null;
+  billingFrequency: string | null;
+};
+
 interface MonthlyLogDetailPageProps {
   params: Promise<{ logId: string }>;
 }
@@ -91,7 +97,21 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 
     const monthlyLog = await fetchMonthlyLogRecord(logId, supabase);
     if (!monthlyLog) {
-      notFound();
+      return (
+        <div className="p-6 space-y-3">
+          <h1 className="text-xl font-semibold text-foreground">Monthly log not found</h1>
+          <p className="text-muted-foreground">
+            The monthly log you&apos;re looking for was deleted or no longer exists. Please select
+            another log to continue.
+          </p>
+          <Link
+            href="/monthly-logs"
+            className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Back to monthly logs
+          </Link>
+        </div>
+      );
     }
 
     const activeLeaseContext = monthlyLog.unit_id
@@ -100,6 +120,14 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
           leaseId: monthlyLog.lease_id ?? null,
         })
       : { summary: null, tenantOptions: [] };
+
+    const managementServicesSummary = await loadManagementServicesSummary(supabase, {
+      orgId: monthlyLog.org_id ? String(monthlyLog.org_id) : null,
+      propertyId: monthlyLog.property_id ? String(monthlyLog.property_id) : null,
+      unitId: monthlyLog.unit_id ? String(monthlyLog.unit_id) : null,
+      serviceAssignment: monthlyLog.properties?.service_assignment ?? null,
+      rentAmount: activeLeaseContext.summary?.rent_amount ?? null,
+    });
 
   const [assignedBundle, unassignedPage] = await Promise.all([
     loadAssignedTransactionsBundle(logId, supabase),
@@ -122,68 +150,68 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
     unassignedCursor: unassignedPage.nextCursor,
   };
 
-    const unitData = monthlyLog.units
-      ? {
-          id: String(monthlyLog.units.id),
-          unit_number: monthlyLog.units.unit_number ?? null,
-          unit_name: monthlyLog.units.unit_name ?? null,
-          service_plan: monthlyLog.units.service_plan ?? null,
-          active_services: parseManagementServices(monthlyLog.units.active_services),
-          fee_dollar_amount:
-            typeof monthlyLog.units.fee_dollar_amount === 'number'
-              ? monthlyLog.units.fee_dollar_amount
-              : monthlyLog.units.fee_dollar_amount != null
-                ? Number(monthlyLog.units.fee_dollar_amount)
-                : null,
-        }
-      : null;
+  const unitData = monthlyLog.units
+    ? {
+        id: String(monthlyLog.units.id),
+        unit_number: monthlyLog.units.unit_number ?? null,
+        unit_name: monthlyLog.units.unit_name ?? null,
+      }
+    : null;
 
-    const tenantData = monthlyLog.tenants
-      ? {
-          id: String(monthlyLog.tenants.id),
-          first_name: monthlyLog.tenants.contact?.first_name ?? null,
-          last_name: monthlyLog.tenants.contact?.last_name ?? null,
-          company_name: monthlyLog.tenants.contact?.company_name ?? null,
-        }
-      : null;
+  const tenantData = monthlyLog.tenants
+    ? {
+        id: String(monthlyLog.tenants.id),
+        first_name: monthlyLog.tenants.contact?.first_name ?? null,
+        last_name: monthlyLog.tenants.contact?.last_name ?? null,
+        company_name: monthlyLog.tenants.contact?.company_name ?? null,
+      }
+    : null;
 
     // Ensure all data is properly serialized for RSC
     // Convert any Date objects to strings and ensure all values are serializable
-    const monthlyLogWithRelations = {
-      id: String(monthlyLog.id),
-      period_start: normalizeDate(monthlyLog.period_start) ?? '',
-      stage: monthlyLog.stage ?? null,
-      status: monthlyLog.status ?? null,
-      notes: monthlyLog.notes ?? null,
-      property_id: monthlyLog.property_id ? String(monthlyLog.property_id) : null,
-      unit_id: monthlyLog.unit_id ? String(monthlyLog.unit_id) : null,
-      tenant_id: monthlyLog.tenant_id ? String(monthlyLog.tenant_id) : null,
-      org_id: monthlyLog.org_id ? String(monthlyLog.org_id) : null,
-      lease_id: monthlyLog.lease_id != null ? Number(monthlyLog.lease_id) : null,
-      properties: monthlyLog.properties ? {
-        id: String(monthlyLog.properties.id),
-        name: monthlyLog.properties.name ?? null,
-      } : null,
-      units: unitData,
-      tenants: tenantData,
-      activeLease: activeLeaseContext.summary ? {
-        id: Number(activeLeaseContext.summary.id),
-        lease_from_date: normalizeDate(activeLeaseContext.summary.lease_from_date) ?? '',
-        lease_to_date: normalizeDate(activeLeaseContext.summary.lease_to_date),
-        rent_amount: typeof activeLeaseContext.summary.rent_amount === 'number' 
-          ? activeLeaseContext.summary.rent_amount 
-          : null,
-        status: activeLeaseContext.summary.status ?? null,
-        tenant_names: Array.isArray(activeLeaseContext.summary.tenant_names) 
-          ? activeLeaseContext.summary.tenant_names 
-          : [],
-        total_charges: typeof activeLeaseContext.summary.total_charges === 'number' 
-          ? activeLeaseContext.summary.total_charges 
-          : 0,
-        // Don't include lease_contacts as it might have circular references
-        // The client component doesn't need it based on the type definition
-      } : null,
-    };
+  const monthlyLogWithRelations = {
+    id: String(monthlyLog.id),
+    period_start: normalizeDate(monthlyLog.period_start) ?? '',
+    stage: monthlyLog.stage ?? null,
+    status: monthlyLog.status ?? null,
+    notes: monthlyLog.notes ?? null,
+    property_id: monthlyLog.property_id ? String(monthlyLog.property_id) : null,
+    unit_id: monthlyLog.unit_id ? String(monthlyLog.unit_id) : null,
+    tenant_id: monthlyLog.tenant_id ? String(monthlyLog.tenant_id) : null,
+    org_id: monthlyLog.org_id ? String(monthlyLog.org_id) : null,
+    lease_id: monthlyLog.lease_id != null ? Number(monthlyLog.lease_id) : null,
+    properties: monthlyLog.properties
+      ? {
+          id: String(monthlyLog.properties.id),
+          name: monthlyLog.properties.name ?? null,
+          service_assignment: monthlyLog.properties.service_assignment ?? null,
+        }
+      : null,
+    units: unitData,
+    tenants: tenantData,
+    managementServices: managementServicesSummary,
+    activeLease: activeLeaseContext.summary
+      ? {
+          id: Number(activeLeaseContext.summary.id),
+          lease_from_date: normalizeDate(activeLeaseContext.summary.lease_from_date) ?? '',
+          lease_to_date: normalizeDate(activeLeaseContext.summary.lease_to_date),
+          rent_amount:
+            typeof activeLeaseContext.summary.rent_amount === 'number'
+              ? activeLeaseContext.summary.rent_amount
+              : null,
+          status: activeLeaseContext.summary.status ?? null,
+          tenant_names: Array.isArray(activeLeaseContext.summary.tenant_names)
+            ? activeLeaseContext.summary.tenant_names
+            : [],
+          total_charges:
+            typeof activeLeaseContext.summary.total_charges === 'number'
+              ? activeLeaseContext.summary.total_charges
+              : 0,
+          // Don't include lease_contacts as it might have circular references
+          // The client component doesn't need it based on the type definition
+        }
+      : null,
+  };
 
     // Ensure all data is serializable for client components
     const serializedInitialData = {
@@ -209,6 +237,7 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
       properties: monthlyLogWithRelations.properties,
       units: monthlyLogWithRelations.units,
       tenants: monthlyLogWithRelations.tenants,
+      managementServices: monthlyLogWithRelations.managementServices,
       activeLease: monthlyLogWithRelations.activeLease,
     };
 
@@ -278,15 +307,13 @@ async function fetchMonthlyLogRecord(
     org_id,
     properties:properties (
       id,
-      name
+      name,
+      service_assignment
     ),
     units:units (
       id,
       unit_number,
-      unit_name,
-      service_plan,
-      active_services,
-      fee_dollar_amount
+      unit_name
     ),
     tenants:tenants (
       id,
@@ -301,7 +328,34 @@ async function fetchMonthlyLogRecord(
 
   const selectWithLeaseId = `
     lease_id,
-    ${baseSelect}
+    id,
+    period_start,
+    stage,
+    status,
+    notes,
+    property_id,
+    unit_id,
+    tenant_id,
+    org_id,
+    properties:properties (
+      id,
+      name,
+      service_assignment
+    ),
+    units:units (
+      id,
+      unit_number,
+      unit_name
+    ),
+    tenants:tenants (
+      id,
+      contact:contacts (
+        display_name,
+        first_name,
+        last_name,
+        company_name
+      )
+    )
   `;
 
   const runSelect = async (selectFields: string) =>
@@ -322,8 +376,13 @@ async function fetchMonthlyLogRecord(
       : primaryResult;
 
   if (error) {
-    console.error('[monthly-log] Failed to load log', { logId, error });
-    throw error;
+    console.error('[monthly-log] Failed to load log', {
+      logId,
+      error: (error as any)?.message ?? error,
+    });
+    throw error instanceof Error
+      ? error
+      : new Error('[monthly-log] Failed to load log record', { cause: error as any });
   }
 
   if (!data || typeof data !== 'object' || 'error' in (data as any)) {
@@ -459,45 +518,118 @@ function buildTenantOptions(leaseRow: ActiveLeaseRow): TenantOption[] {
   return Array.from(tenantOptionMap.values());
 }
 
-const parseManagementServices = (value: unknown): string[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => (typeof item === 'string' ? item : item != null ? String(item) : null))
-      .filter((item): item is string => Boolean(item));
+async function loadManagementServicesSummary(
+  supabase: TypedSupabaseClient,
+  params: {
+    orgId: string | null;
+    propertyId: string | null;
+    unitId: string | null;
+    serviceAssignment: string | null;
+    rentAmount: number | null;
+  },
+): Promise<ManagementServicesSummary | null> {
+  const { orgId, propertyId, unitId, serviceAssignment, rentAmount } = params;
+  if (!orgId || !propertyId) return null;
+
+  const wantsUnitLevel = serviceAssignment === 'Unit Level';
+
+  const loadAssignment = async (scope: 'unit' | 'property') => {
+    const query = supabase
+      .from('service_plan_assignments')
+      .select('id, plan_id, plan_fee_amount, plan_fee_percent, plan_fee_frequency')
+      .eq('org_id', orgId)
+      .is('effective_end', null)
+      .order('effective_start', { ascending: false })
+      .limit(1);
+
+    const scoped =
+      scope === 'unit' && unitId
+        ? query.eq('unit_id', unitId)
+        : query.eq('property_id', propertyId).is('unit_id', null);
+
+    const { data } = await scoped.maybeSingle();
+    return data ?? null;
+  };
+
+  const [unitAssignment, propertyAssignment] = await Promise.all([
+    unitId ? loadAssignment('unit') : Promise.resolve(null),
+    loadAssignment('property'),
+  ]);
+
+  const assignment = wantsUnitLevel ? unitAssignment : propertyAssignment;
+  const effectiveAssignment = assignment ?? unitAssignment ?? propertyAssignment;
+
+  const assignmentId = effectiveAssignment?.id ? String(effectiveAssignment.id) : null;
+  const planId = effectiveAssignment?.plan_id ? String(effectiveAssignment.plan_id) : null;
+
+  let servicePlan: string | null = null;
+  if (planId) {
+    const { data: planRow } = await supabase
+      .from('service_plans')
+      .select('name')
+      .eq('id', planId)
+      .maybeSingle();
+    servicePlan = planRow?.name ? String(planRow.name) : null;
   }
-  if (typeof value === 'string') {
-    try {
-      // Check if the string looks like HTML before attempting JSON.parse
-      const trimmedValue = value.trim();
-      if (trimmedValue.startsWith('<')) {
-        console.warn('parseManagementServices received HTML instead of JSON:', trimmedValue.substring(0, 100));
-        return [];
+
+  const isALaCarte = (servicePlan || '').trim().toLowerCase() === 'a-la-carte';
+
+  let activeServices: string[] = [];
+  if (planId) {
+    if (isALaCarte && assignmentId) {
+      const { data: rows } = await supabase
+        .from('service_offering_assignments')
+        .select('offering_id, is_active')
+        .eq('assignment_id', assignmentId)
+        .order('created_at', { ascending: true });
+      const offeringIds = (rows || [])
+        .filter((row: any) => row?.is_active !== false)
+        .map((row: any) => String(row.offering_id))
+        .filter(Boolean);
+      if (offeringIds.length) {
+        const { data: offerings } = await supabase
+          .from('service_offerings')
+          .select('id, name')
+          .in('id', offeringIds);
+        activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
       }
-      
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed
-          .map((item) => (typeof item === 'string' ? item : item != null ? String(item) : null))
-          .filter((item): item is string => Boolean(item));
+    } else {
+      const { data: rows } = await supabase
+        .from('service_plan_services')
+        .select('offering_id')
+        .eq('plan_id', planId);
+      const offeringIds = (rows || []).map((r: any) => String(r.offering_id)).filter(Boolean);
+      if (offeringIds.length) {
+        const { data: offerings } = await supabase
+          .from('service_offerings')
+          .select('id, name')
+          .in('id', offeringIds);
+        activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
       }
-    } catch (error) {
-      // Log the error for debugging but don't throw
-      console.warn('parseManagementServices JSON.parse failed:', error, 'value:', typeof value === 'string' ? value.substring(0, 100) : value);
-      // fall through to handling raw postgres array string
     }
-    const trimmed = value.trim();
-    // Additional safety check for HTML content
-    if (trimmed.startsWith('<')) {
-      console.warn('parseManagementServices received HTML in fallback parsing:', trimmed.substring(0, 100));
-      return [];
-    }
-    const stripBraces =
-      trimmed.startsWith('{') && trimmed.endsWith('}') ? trimmed.slice(1, -1) : trimmed;
-    return stripBraces
-      .split(',')
-      .map((entry) => entry.trim().replace(/^"(.*)"$/, '$1'))
-      .filter((entry) => entry.length > 0);
   }
-  return [];
-};
+
+  const amountFlat =
+    effectiveAssignment?.plan_fee_amount != null ? Number(effectiveAssignment.plan_fee_amount) : 0;
+  const percent =
+    effectiveAssignment?.plan_fee_percent != null ? Number(effectiveAssignment.plan_fee_percent) : 0;
+  const billingFrequency = effectiveAssignment?.plan_fee_frequency
+    ? String(effectiveAssignment.plan_fee_frequency)
+    : null;
+
+  const computedFromPercent =
+    percent > 0 && rentAmount != null ? (percent * rentAmount) / 100 : null;
+  const feeDollarAmount =
+    amountFlat > 0 ? amountFlat : computedFromPercent != null ? computedFromPercent : null;
+  const feeType = amountFlat > 0 ? 'Flat Rate' : percent > 0 ? 'Percentage' : null;
+  const feePercentage = percent > 0 ? percent : null;
+
+  return {
+    servicePlan,
+    activeServices,
+    feeType,
+    feeDollarAmount,
+    feePercentage,
+    billingFrequency,
+  };
+}

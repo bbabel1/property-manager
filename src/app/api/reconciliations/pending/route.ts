@@ -8,8 +8,9 @@ export async function GET(req: NextRequest) {
     const { supabase, user } = await requireAuth()
     const { searchParams } = new URL(req.url)
     const propertyId = searchParams.get('propertyId')
-    const bankAccountId = searchParams.get('bankAccountId')
-    if (!propertyId || !bankAccountId) return NextResponse.json({ error: 'Missing propertyId or bankAccountId' }, { status: 400 })
+    // bankAccountId kept for backwards compatibility; it now refers to a bank GL account id
+    const bankGlAccountId = searchParams.get('bankGlAccountId') || searchParams.get('bankAccountId')
+    if (!propertyId || !bankGlAccountId) return NextResponse.json({ error: 'Missing propertyId or bankGlAccountId' }, { status: 400 })
 
     const resolved = await resolveResourceOrg(supabase, 'property', propertyId)
     if (!resolved.ok) {
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
       .from('reconciliation_log')
       .select('buildium_reconciliation_id, statement_ending_date')
       .eq('property_id', propertyId)
-      .eq('bank_account_id', bankAccountId)
+      .eq('bank_gl_account_id', bankGlAccountId)
       .eq('is_finished', false)
       .order('statement_ending_date', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })

@@ -11,6 +11,7 @@ interface DropdownProps {
   options: DropdownOption[]
   placeholder?: string
   className?: string
+  disabled?: boolean
 }
 
 function isGroup(option: DropdownOption): option is OptionGroup {
@@ -18,10 +19,17 @@ function isGroup(option: DropdownOption): option is OptionGroup {
 }
 
 // Default dropdown styled via Radix Select (applies app-wide default style)
-export function Dropdown({ value, onChange, options, placeholder, className }: DropdownProps) {
+export function Dropdown({
+  value,
+  onChange,
+  options,
+  placeholder,
+  className,
+  disabled,
+}: DropdownProps) {
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={className}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className={className} disabled={disabled}>
         <SelectValue placeholder={placeholder || 'Select...'} />
       </SelectTrigger>
       <SelectContent>

@@ -1,10 +1,20 @@
 import '@testing-library/jest-dom/vitest';
 /// <reference types="vitest" />
 
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import React from 'react';
+
+vi.mock('next/head', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('next/image', () => {
+  const MockImage = ({ alt = '', ...props }: any) => <img alt={alt} {...props} />;
+  return { __esModule: true, default: MockImage };
+});
+
 import MonthlyStatementTemplate from '../MonthlyStatementTemplate';
 import type { StatementData } from '../MonthlyStatementTemplate';
 
@@ -61,9 +71,16 @@ describe('MonthlyStatementTemplate', () => {
   it('renders totals that match the financial summary', () => {
     render(<MonthlyStatementTemplate data={baseData} />);
 
-    expect(screen.getAllByText('$2,000.00')[0]).toBeInTheDocument();
-    expect(screen.getByText('-$750.00')).toBeInTheDocument();
-    expect(screen.getByText('-$1,250.00')).toBeInTheDocument();
-    expect(screen.getByText('$0.00')).toBeInTheDocument();
+    const incomeRow = screen.getByText('Total Income').closest('tr');
+    expect(incomeRow && within(incomeRow).getByText('$2,000.00')).toBeInTheDocument();
+
+    const expensesRow = screen.getByText('Total Expenses').closest('tr');
+    expect(expensesRow && within(expensesRow).getByText('-$750.00')).toBeInTheDocument();
+
+    const ownerDrawRow = screen.getByText('Owner Draw').closest('tr');
+    expect(ownerDrawRow && within(ownerDrawRow).getByText('-$1,250.00')).toBeInTheDocument();
+
+    const endingBalanceRow = screen.getByText('Ending Balance').closest('tr');
+    expect(endingBalanceRow && within(endingBalanceRow).getByText('$0.00')).toBeInTheDocument();
   });
 });

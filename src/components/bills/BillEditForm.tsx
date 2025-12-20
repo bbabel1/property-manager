@@ -27,6 +27,7 @@ import {
 import { ChevronDown, Trash2, X } from 'lucide-react';
 
 type VendorOption = { id: string; label: string };
+const BILL_UNIT_PROPERTY_LEVEL_VALUE = '__PROPERTY_LEVEL__';
 
 export type BillLinePreview = {
   id: string;
@@ -412,9 +413,12 @@ export default function BillEditForm({
                                     editing.field === 'unit' &&
                                     l.posting_type !== 'Credit' ? (
                                       <Select
-                                        value={l.unit_id || ''}
+                                        value={l.unit_id ?? BILL_UNIT_PROPERTY_LEVEL_VALUE}
                                         onValueChange={(value) => {
-                                          setRow(l.id, { unit_id: value || null });
+                                          setRow(l.id, {
+                                            unit_id:
+                                              value === BILL_UNIT_PROPERTY_LEVEL_VALUE ? null : value,
+                                          });
                                           setEditing(null);
                                         }}
                                       >
@@ -422,7 +426,9 @@ export default function BillEditForm({
                                           <SelectValue placeholder="Property level" className="w-full truncate" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="">Property level</SelectItem>
+                                          <SelectItem value={BILL_UNIT_PROPERTY_LEVEL_VALUE}>
+                                            Property level
+                                          </SelectItem>
                                           {units
                                             .filter(
                                               (u) =>

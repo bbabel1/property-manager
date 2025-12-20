@@ -484,7 +484,7 @@ export const MONTHLY_RENTAL_STATEMENT_VARIABLES: EmailTemplateVariable[] = [
   {
     key: 'bankAccountName',
     description: 'Bank account name',
-    source: 'bank_accounts.name (via properties.operating_bank_account_id)',
+    source: 'gl_accounts.name (via properties.operating_bank_gl_account_id)',
     format: 'string',
     required: false,
     nullDefault: '',
@@ -493,7 +493,7 @@ export const MONTHLY_RENTAL_STATEMENT_VARIABLES: EmailTemplateVariable[] = [
   {
     key: 'bankAccountNumber',
     description: 'Bank account number (masked)',
-    source: 'bank_accounts.account_number',
+    source: 'gl_accounts.bank_account_number',
     format: 'string',
     required: false,
     nullDefault: '',

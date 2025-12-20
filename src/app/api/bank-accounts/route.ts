@@ -3,9 +3,9 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveUserOrgIds } from '@/lib/auth/org-access'
 import { hasRole, type AppRole } from '@/lib/auth/roles'
-import { normalizeBankAccountType } from '@/lib/bank-account-service'
 import { normalizeCountryWithDefault } from '@/lib/normalizers'
 import { mapGoogleCountryToEnum } from '@/lib/utils'
+import { normalizeBankAccountType } from '@/lib/gl-bank-account-normalizers'
 
 // Utility to mask numbers except last 4
 function mask(v: string | null | undefined) {
@@ -44,18 +44,14 @@ export async function GET(request: NextRequest) {
     const orgId = await resolveOrgId(request, await resolveUserOrgIds({ supabase: auth.supabase, user: auth.user }))
 
     const { data, error } = await auth.supabase
-      .from('bank_accounts')
-      .select('id, name, bank_account_type, account_number, routing_number, is_active')
+      .from('gl_accounts')
+      .select('id, name, bank_account_type, bank_account_number, bank_routing_number, is_active')
       .eq('org_id', orgId)
+      .eq('is_bank_account', true)
       .order('name', { ascending: true })
 
     if (error) {
       const msg = String((error as any)?.message || '')
-      const code = (error as any)?.code
-      // Be forgiving in dev if table/columns are missing; return empty array instead of 500
-      if (code === '42P01' || code === '42703' || /does not exist|relation/.test(msg)) {
-        return NextResponse.json([])
-      }
       return NextResponse.json({ error: 'Failed to load bank accounts', details: msg }, { status: 500 })
     }
 
@@ -63,8 +59,8 @@ export async function GET(request: NextRequest) {
       id: a.id,
       name: a.name,
       bank_account_type: a.bank_account_type,
-      account_number: mask(a.account_number),
-      routing_number: mask(a.routing_number),
+      account_number: mask(a.bank_account_number),
+      routing_number: mask(a.bank_routing_number),
       is_active: a.is_active,
     }))
 
@@ -119,112 +115,79 @@ export async function POST(request: NextRequest) {
     )
 
     // Prevent duplicate accounts within the same org by routing+account number
-    const { data: existingAccount, error: existingErr } = await auth.supabase
-      .from('bank_accounts')
-      .select('id, name, bank_account_type, account_number, routing_number, is_active')
-      .eq('org_id', orgId)
-      .eq('account_number', body.account_number)
-      .eq('routing_number', body.routing_number)
-      .limit(1)
-      .maybeSingle()
-
-    if (!existingErr && existingAccount) {
-      const maskedExisting = {
-        ...existingAccount,
-        account_number: mask(existingAccount.account_number),
-        routing_number: mask(existingAccount.routing_number)
-      }
-      return NextResponse.json(
-        { error: 'Bank account already exists', existing: maskedExisting },
-        { status: 409 }
-      )
-    }
-
-    // Find or create a default GL account for bank accounts
-    let glAccountId: string
-    const { data: existingGLAccount, error: glError } = await auth.supabase
+    const { data: existing, error: existingErr } = await auth.supabase
       .from('gl_accounts')
-      .select('id')
+      .select('id, name, bank_account_number')
       .eq('org_id', orgId)
       .eq('is_bank_account', true)
+      .eq('bank_account_number', body.account_number)
+      .eq('bank_routing_number', body.routing_number)
       .limit(1)
       .maybeSingle()
-
-    if (glError || !existingGLAccount) {
-      // Create a default GL account for bank accounts
-      let attempts = 0
-      let created: { id: string } | null = null
-      let lastErr: any = null
-      while (attempts < 5 && !created) {
-        const placeholderId = computeLocalGlId(orgId, attempts)
-        const { data: newGLAccount, error: createGLError } = await auth.supabase
-          .from('gl_accounts')
-          .insert({
-            buildium_gl_account_id: placeholderId,
-            name: 'Default Bank Account GL',
-            type: 'Asset',
-            is_bank_account: true,
-            is_active: true,
-            org_id: orgId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select('id')
-          .single()
-        if (!createGLError && newGLAccount) {
-          created = newGLAccount
-          break
-        }
-        lastErr = createGLError
-        // If duplicate buildium_gl_account_id, bump and retry
-        const msg = String(createGLError?.message || '')
-        if (!/duplicate key value/.test(msg)) break
-        attempts++
-      }
-      if (!created) {
-        return NextResponse.json({
-          error: 'Failed to create default GL account',
-          details: lastErr?.message || 'Unknown error'
-        }, { status: 500 })
-      }
-      glAccountId = created.id
-    } else {
-      glAccountId = existingGLAccount.id
+    if (!existingErr && existing) {
+      return NextResponse.json(
+        {
+          error: 'Bank account already exists',
+          existing: {
+            id: (existing as any).id,
+            name: (existing as any).name,
+            account_number: mask((existing as any).bank_account_number),
+          },
+        },
+        { status: 409 },
+      )
     }
 
     const now = new Date().toISOString()
     const normalizedCountry = normalizeCountryWithDefault(mapGoogleCountryToEnum(body.country))
-    const insert = {
-      name: body.name,
-      description: body.description || null,
-      bank_account_type: normalizeBankAccountType(body.bank_account_type),
-      account_number: body.account_number,
-      routing_number: body.routing_number,
-      is_active: true,
-      country: normalizedCountry,
-      created_at: now,
-      updated_at: now,
-      last_source: 'local' as const,
-      last_source_ts: now,
-      // Required fields for database schema
-      buildium_bank_id: 0, // Default value for local accounts
-      gl_account: glAccountId, // Reference to GL account
-      org_id: orgId,
+    // Create a new bank GL account row
+    let createdGl: { id: string; bank_account_number?: string | null; bank_routing_number?: string | null; bank_account_type?: string | null; is_active?: boolean | null } | null = null
+    let attempts = 0
+    while (attempts < 25 && !createdGl) {
+      const placeholderId = computeLocalGlId(orgId, attempts)
+      const { data, error } = await auth.supabase
+        .from('gl_accounts')
+        .insert({
+          buildium_gl_account_id: placeholderId,
+          name: body.name,
+          description: body.description || null,
+          type: 'Asset',
+          is_bank_account: true,
+          is_active: true,
+          org_id: orgId,
+          created_at: now,
+          updated_at: now,
+          buildium_bank_account_id: null,
+          bank_account_type: normalizeBankAccountType(body.bank_account_type) as any,
+          bank_account_number: body.account_number,
+          bank_routing_number: body.routing_number,
+          bank_country: normalizedCountry as any,
+          bank_last_source: 'local' as any,
+          bank_last_source_ts: now,
+        } as any)
+        .select('id, bank_account_type, bank_account_number, bank_routing_number, is_active')
+        .single()
+      if (!error && data) {
+        createdGl = data as any
+        break
+      }
+      const msg = String((error as any)?.message || '')
+      if (!/duplicate key value/.test(msg)) {
+        return NextResponse.json({ error: 'Failed to create bank account', details: msg }, { status: 500 })
+      }
+      attempts++
     }
 
-    const { data, error } = await auth.supabase
-      .from('bank_accounts')
-      .insert(insert as any)
-      .select('id, name, bank_account_type, account_number, routing_number, is_active')
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: 'Failed to create bank account', details: error.message }, { status: 500 })
+    if (!createdGl) {
+      return NextResponse.json({ error: 'Failed to create bank account' }, { status: 500 })
     }
     const maskedData = {
-      ...data,
-      account_number: mask(data.account_number),
-      routing_number: mask(data.routing_number)
+      id: createdGl.id,
+      name: body.name,
+      bank_account_type: createdGl.bank_account_type ?? null,
+      account_number: mask(createdGl.bank_account_number),
+      routing_number: mask(createdGl.bank_routing_number),
+      is_active: createdGl.is_active ?? true,
     }
 
     return NextResponse.json(maskedData)

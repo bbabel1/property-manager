@@ -11,16 +11,20 @@ type TransactionLineWithProperty = Database['public']['Tables']['transaction_lin
     | {
         id?: string | null;
         name?: string | null;
-        operating_bank_account_id?: string | null;
+        operating_bank_gl_account_id?: string | null;
         org_id?: string | null;
       }[]
     | null;
 };
 
-type BankAccountSummaryRow = Pick<
-  Database['public']['Tables']['bank_accounts']['Row'],
-  'id' | 'name' | 'account_number' | 'buildium_bank_id' | 'is_active' | 'org_id'
->;
+type BankAccountSummaryRow = {
+  id: string;
+  name: string | null;
+  bank_account_number: string | null;
+  buildium_bank_account_id: number | string | null;
+  is_active: boolean | null;
+  org_id: string | null;
+};
 
 type VendorWithContact = {
   id: string;
@@ -99,7 +103,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
         properties!inner (
           id,
           name,
-          operating_bank_account_id,
+          operating_bank_gl_account_id,
           org_id
         )
       `,
@@ -141,7 +145,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
         | {
             id?: string | null;
             name?: string | null;
-            operating_bank_account_id?: string | null;
+            operating_bank_gl_account_id?: string | null;
             org_id?: string | null;
           }[]
         | null
@@ -152,7 +156,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
       propertyMeta.set(propertyId, {
         id: propertyId,
         name: property?.name ?? 'Property',
-        operatingBankAccountId: property?.operating_bank_account_id ?? null,
+        operatingBankAccountId: property?.operating_bank_gl_account_id ?? null,
         orgId: property?.org_id ?? null,
       });
     }
@@ -168,9 +172,10 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
   let bankAccountsRaw: BankAccountSummaryRow[] = [];
   if (orgId) {
     const bankAccountsRes = await db
-      .from('bank_accounts')
-      .select('id, name, account_number, buildium_bank_id, is_active, org_id')
+      .from('gl_accounts')
+      .select('id, name, bank_account_number, buildium_bank_account_id, buildium_gl_account_id, is_active, org_id')
       .eq('org_id', orgId)
+      .eq('is_bank_account', true)
       .order('name', { ascending: true });
 
     if (bankAccountsRes?.error) {
@@ -183,18 +188,23 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
   }
 
   const bankAccounts = bankAccountsRaw.map((row) => {
-    const accountNumber = typeof row.account_number === 'string' ? row.account_number : null;
+    const accountNumber =
+      typeof row.bank_account_number === 'string' ? row.bank_account_number : null;
     const lastFour =
       accountNumber && accountNumber.length > 4 ? accountNumber.slice(-4) : accountNumber;
     const masked = lastFour ? `••••${lastFour}` : null;
+    const rawBuildiumId =
+      (row as any).buildium_gl_account_id ?? (row as any).buildium_bank_account_id ?? null;
     return {
       id: String(row.id),
       name: String(row.name ?? 'Bank account'),
       maskedAccountNumber: masked,
       buildiumBankAccountId:
-        typeof row.buildium_bank_id === 'number' && Number.isFinite(row.buildium_bank_id)
-          ? row.buildium_bank_id
-          : null,
+        typeof rawBuildiumId === 'number' && Number.isFinite(rawBuildiumId)
+          ? rawBuildiumId
+          : typeof rawBuildiumId === 'string' && Number.isFinite(Number(rawBuildiumId))
+            ? Number(rawBuildiumId)
+            : null,
       isActive: Boolean(row.is_active ?? true),
     };
   });

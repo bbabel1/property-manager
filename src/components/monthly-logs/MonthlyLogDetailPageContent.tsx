@@ -54,14 +54,20 @@ interface MonthlyLogDetailPageContentProps {
     properties: {
       id: string;
       name: string | null;
+      service_assignment?: string | null;
     } | null;
     units: {
       id: string;
       unit_number: string | null;
       unit_name: string | null;
-      service_plan: string | null;
-      active_services: string[];
-      fee_dollar_amount: number | null;
+    } | null;
+    managementServices?: {
+      servicePlan: string | null;
+      activeServices: string[];
+      feeType: 'Flat Rate' | 'Percentage' | null;
+      feeDollarAmount: number | null;
+      feePercentage: number | null;
+      billingFrequency: string | null;
     } | null;
     tenants: {
       id: string;
@@ -610,20 +616,21 @@ export default function MonthlyLogDetailPageContent({
   const periodEndDisplay = formatAsShortDate(periodEnd);
 
   type ManagementDetail = { label: string; value: string };
+  const servicesSummary = monthlyLog.managementServices ?? null;
   const managementDetails: ManagementDetail[] = [
-    monthlyLog.units?.service_plan
-      ? { label: 'Service plan', value: monthlyLog.units.service_plan }
+    servicesSummary?.servicePlan
+      ? { label: 'Service plan', value: servicesSummary.servicePlan }
       : null,
-    monthlyLog.units?.active_services?.length
+    servicesSummary?.activeServices?.length
       ? {
           label: 'Active services',
-          value: monthlyLog.units.active_services.join(', '),
+          value: servicesSummary.activeServices.join(', '),
         }
       : null,
-    monthlyLog.units?.fee_dollar_amount != null
+    servicesSummary?.feeDollarAmount != null
       ? {
           label: 'Management fee',
-          value: formatCurrency(Math.abs(monthlyLog.units.fee_dollar_amount)),
+          value: formatCurrency(Math.abs(servicesSummary.feeDollarAmount)),
         }
       : null,
   ].filter((entry): entry is ManagementDetail => Boolean(entry));

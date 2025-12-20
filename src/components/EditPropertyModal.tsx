@@ -122,7 +122,7 @@ export default function EditPropertyModal({
     console.log('EditPropertyModal: isOpen =', isOpen);
     if (isOpen && !loading && user) {
       console.log('EditPropertyModal: Fetching owners...');
-      fetchOwners();
+      if (owners.length === 0) fetchOwners();
     } else if (isOpen && loading) {
       console.log('EditPropertyModal: Waiting for authentication...');
     } else if (isOpen && !loading && !user) {
@@ -640,17 +640,20 @@ export default function EditPropertyModal({
                   Add Owners *
                 </label>
                 <div className="relative">
-                  <Listbox
-                    value={''}
-                    onChange={(value: string) => {
-                      if (value) {
-                        addOwner(value);
-                        // Clear the selected value after adding
-                      }
-                    }}
-                  >
-                    <Listbox.Button className="bg-background text-foreground focus-visible:ring-primary focus-visible:border-primary flex h-9 w-full appearance-none items-center justify-between rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none">
-                      <span className="block truncate text-sm">Choose owners to add...</span>
+                    <Listbox
+                      value={''}
+                      disabled={isLoadingOwners}
+                      onChange={(value: string) => {
+                        if (value) {
+                          addOwner(value);
+                          // Clear the selected value after adding
+                        }
+                      }}
+                    >
+                      <Listbox.Button className="bg-background text-foreground focus-visible:ring-primary focus-visible:border-primary flex h-9 w-full appearance-none items-center justify-between rounded-md border border-gray-200 px-3 py-2 focus-visible:ring-2 focus-visible:outline-none">
+                      <span className="block truncate text-sm">
+                        {isLoadingOwners ? 'Loading owners…' : 'Choose owners to add...'}
+                      </span>
                       <svg
                         className="text-muted-foreground ml-2 h-5 w-5"
                         viewBox="0 0 20 20"

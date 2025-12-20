@@ -31,11 +31,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         id, org_id, buildium_property_id, building_id, name, address_line1, address_line2, address_line3, city, state, postal_code, country,
         property_type, status, reserve, year_built, created_at, updated_at,
         borough, neighborhood, longitude, latitude, location_verified,
-        service_assignment, service_plan,
-        total_units, total_active_units, total_occupied_units, total_vacant_units, total_inactive_units,
-        occupancy_rate,
-        operating_bank_account_id, deposit_trust_account_id
-      `)
+	        service_assignment,
+	        total_units, total_active_units, total_occupied_units, total_vacant_units, total_inactive_units,
+	        occupancy_rate,
+	        operating_bank_gl_account_id, deposit_trust_gl_account_id
+	      `)
       .eq('id', id)
       .single()
 
@@ -120,21 +120,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Banking names and units in parallel
     let operating_account: { id: string; name: string; last4?: string | null } | undefined
     let deposit_trust_account: { id: string; name: string; last4?: string | null } | undefined
-    const [opRes, depRes, unitsRes] = await Promise.all([
-      property.operating_bank_account_id
-        ? db.from('bank_accounts').select('id, name, account_number').eq('id', property.operating_bank_account_id).maybeSingle()
-        : Promise.resolve({ data: null } as any),
-      property.deposit_trust_account_id
-        ? db.from('bank_accounts').select('id, name, account_number').eq('id', property.deposit_trust_account_id).maybeSingle()
-        : Promise.resolve({ data: null } as any),
-      includeUnits ? db.from('units').select('*').eq('property_id', id).order('unit_number') : Promise.resolve({ data: [] } as any)
-    ])
+	    const [opRes, depRes, unitsRes] = await Promise.all([
+	      (property as any).operating_bank_gl_account_id
+	        ? db.from('gl_accounts').select('id, name, bank_account_number').eq('id', (property as any).operating_bank_gl_account_id).maybeSingle()
+	        : Promise.resolve({ data: null } as any),
+	      (property as any).deposit_trust_gl_account_id
+	        ? db.from('gl_accounts').select('id, name, bank_account_number').eq('id', (property as any).deposit_trust_gl_account_id).maybeSingle()
+	        : Promise.resolve({ data: null } as any),
+	      includeUnits ? db.from('units').select('*').eq('property_id', id).order('unit_number') : Promise.resolve({ data: [] } as any)
+	    ])
     const op = (opRes as any).data
     const tr = (depRes as any).data
     const units = (unitsRes as any).data
     const img = undefined
-    if (op) operating_account = { id: op.id, name: op.name, last4: op.account_number ? String(op.account_number).slice(-4) : null }
-    if (tr) deposit_trust_account = { id: tr.id, name: tr.name, last4: tr.account_number ? String(tr.account_number).slice(-4) : null }
+    if (op) {
+      const acct = (op as any).bank_account_number ?? (op as any).account_number
+      operating_account = { id: op.id, name: op.name, last4: acct ? String(acct).slice(-4) : null }
+    }
+    if (tr) {
+      const acct = (tr as any).bank_account_number ?? (tr as any).account_number
+      deposit_trust_account = { id: tr.id, name: tr.name, last4: acct ? String(acct).slice(-4) : null }
+    }
 
     // Units summary strictly from total_active_units and related aggregates
     const units_summary = {
@@ -149,8 +155,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const property_manager_email: string | undefined = undefined
     const property_manager_phone: string | undefined = undefined
 
+    let service_plan: string | null = null
+    try {
+      const serviceAssignment = (property as any)?.service_assignment ?? null
+      if (serviceAssignment === 'Property Level') {
+        const { data: assignment } = await db
+          .from('service_plan_assignments')
+          .select('plan_id, service_plans(name)')
+          .eq('property_id', id)
+          .is('unit_id', null)
+          .is('effective_end', null)
+          .order('effective_start', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        const plan = (assignment as any)?.service_plans
+        service_plan = plan?.name ?? null
+      }
+    } catch {}
+
     const payload = {
       ...property,
+      service_plan,
       units: units || [],
       owners,
       total_owners,

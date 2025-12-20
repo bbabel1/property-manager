@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
 import { hasSupabaseAdmin } from '@/lib/supabase-client'
+import { supabaseAdmin } from '@/lib/db'
 import { PAYMENT_METHOD_VALUES } from '@/lib/enums/payment-method'
 import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
@@ -12,7 +13,8 @@ import {
   fetchTransactionWithLines,
   mapPaymentMethodToBuildium,
   coerceTenantIdentifier,
-  amountsRoughlyEqual
+  amountsRoughlyEqual,
+  fetchBankAccountBuildiumId
 } from '@/lib/lease-transaction-helpers'
 
 const ReceivePaymentSchema = z.object({
@@ -53,7 +55,45 @@ export async function POST(
       return NextResponse.json({ error: 'Allocated amounts must equal the payment amount' }, { status: 400 })
     }
 
+    const allocationAccountIds = parsed.data.allocations.map((line) => line.account_id)
+    const { data: allocationAccounts, error: allocationAccountsError } = await supabaseAdmin
+      .from('gl_accounts')
+      .select('id, name, type')
+      .in('id', allocationAccountIds)
+    if (allocationAccountsError) {
+      throw new Error(`Failed to load allocation accounts: ${allocationAccountsError.message}`)
+    }
+
     const leaseContext = await fetchLeaseContextById(leaseId)
+
+    // Resolve Buildium bank account for the property's operating bank GL (so cash hits the correct bank)
+    const resolveBankAccountId = async () => {
+      const propertyId = leaseContext.propertyId
+      const buildiumPropertyId = leaseContext.buildiumPropertyId
+
+      if (!propertyId && !buildiumPropertyId) return null
+
+      const { data: propertyRow } = await supabaseAdmin
+        .from('properties')
+        .select('operating_bank_gl_account_id')
+        .or(
+          [
+            propertyId ? `id.eq.${propertyId}` : null,
+            buildiumPropertyId ? `buildium_property_id.eq.${buildiumPropertyId}` : null,
+          ]
+            .filter(Boolean)
+            .join(','),
+        )
+        .limit(1)
+        .maybeSingle()
+
+      const operatingBankGlAccountId =
+        (propertyRow as any)?.operating_bank_gl_account_id ?? null
+      if (!operatingBankGlAccountId) return null
+
+      return fetchBankAccountBuildiumId(operatingBankGlAccountId, supabaseAdmin).catch(() => null)
+    }
+
     const glAccountMap = await fetchBuildiumGlAccountMap(
       parsed.data.allocations.map((line) => line.account_id)
     )
@@ -68,6 +108,8 @@ export async function POST(
       )
     }
 
+    const buildiumBankAccountId = await resolveBankAccountId()
+
     const buildiumPayload: BuildiumLeaseTransactionCreate = {
       TransactionType: 'Payment',
       TransactionDate: parsed.data.date,
@@ -78,6 +120,10 @@ export async function POST(
       SendEmailReceipt: Boolean(parsed.data.send_email),
       PrintReceipt: Boolean(parsed.data.print_receipt),
       Lines: lines,
+    }
+
+    if (buildiumBankAccountId != null) {
+      buildiumPayload.BankAccountId = buildiumBankAccountId
     }
 
     const result = await LeaseTransactionService.createInBuildiumAndDB(

@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/db';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
 import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
+import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 
 type SearchParams = {
   from?: string;
@@ -17,6 +18,7 @@ type SearchParams = {
   properties?: string;
   units?: string;
   gl?: string;
+  basis?: 'cash' | 'accrual';
 };
 
 type PropertyRecord = {
@@ -221,6 +223,8 @@ export default async function GeneralLedgerPage({
   const shouldQueryLedger =
     selectedPropertyIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
+  const basisParam = sp?.basis === 'cash' ? 'cash' : 'accrual';
+
   const qBase = () =>
     db
       .from('transaction_lines')
@@ -234,7 +238,7 @@ export default async function GeneralLedgerPage({
          memo,
          gl_account_id,
          created_at,
-         gl_accounts(name, account_number, type),
+         gl_accounts(name, account_number, type, is_bank_account, exclude_from_cash_balances),
          units(unit_number, unit_name),
          transactions(id, transaction_type, memo, reference_number),
          properties(id, name)`,
@@ -273,9 +277,10 @@ export default async function GeneralLedgerPage({
 
     periodLines = periodError ? [] : (periodData || []).map(mapLine);
     priorLines = priorError ? [] : (priorData || []).map(mapLine);
+
   }
 
-  const groups = buildLedgerGroups(priorLines, periodLines);
+  const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
 
   const fmt = (value: number) =>
     `$${Number(Math.abs(value || 0)).toLocaleString(undefined, {
@@ -336,6 +341,7 @@ export default async function GeneralLedgerPage({
               noUnitsSelected={noUnitsSelected}
             />
             <DateRangeControls defaultFrom={from} defaultTo={to} defaultRange={range} />
+            <AccountingBasisToggle basis={basisParam} />
             <ClearFiltersButton />
           </div>
           <div className="border-border overflow-hidden rounded-lg border shadow-sm">
@@ -365,13 +371,18 @@ export default async function GeneralLedgerPage({
                   </TableRow>
                 ) : (
                   groups.map((group) => {
-                    const detail = group.lines.sort((a, b) => {
+                    const detailChrono = [...group.lines].sort((a, b) => {
                       const dateCmp = a.line.date.localeCompare(b.line.date);
                       if (dateCmp !== 0) return dateCmp;
                       return (a.line.createdAt || '').localeCompare(b.line.createdAt || '');
                     });
 
                     let running = group.prior;
+                    const detailWithBalance = detailChrono.map(({ line, signed }) => {
+                      running += signed;
+                      return { line, signed, runningAfter: running };
+                    });
+                    const detailDisplay = detailWithBalance.slice().reverse();
 
                     return (
                       <Fragment key={group.id}>
@@ -402,7 +413,7 @@ export default async function GeneralLedgerPage({
                             {fmtSigned(group.prior)}
                           </TableCell>
                         </TableRow>
-                        {detail.length === 0 ? (
+                        {detailDisplay.length === 0 ? (
                           <TableRow>
                             <TableCell
                               colSpan={6}
@@ -412,8 +423,7 @@ export default async function GeneralLedgerPage({
                             </TableCell>
                           </TableRow>
                         ) : (
-                          detail.map(({ line, signed }, idx) => {
-                            running += signed;
+                          detailDisplay.map(({ line, signed, runningAfter }, idx) => {
                             const txnLabel = [
                               line.transactionType || 'Transaction',
                               line.transactionReference ? `#${line.transactionReference}` : '',
@@ -449,17 +459,17 @@ export default async function GeneralLedgerPage({
                                   </TableCell>
                                   <TableCell>{txnLabel || '—'}</TableCell>
                                   <TableCell>{memo}</TableCell>
-                                  <TableCell
-                                    className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
-                                  >
-                                    {fmtSigned(signed)}
-                                  </TableCell>
-                                  <TableCell className="text-right font-medium">
-                                    {fmtSigned(running)}
-                                  </TableCell>
-                                </TableRowLink>
-                              );
-                            }
+                                <TableCell
+                                  className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                >
+                                  {fmtSigned(signed)}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {fmtSigned(runningAfter)}
+                                </TableCell>
+                              </TableRowLink>
+                            );
+                          }
 
                             return (
                               <TableRow key={`${group.id}-${line.date}-${idx}`}>
@@ -480,7 +490,7 @@ export default async function GeneralLedgerPage({
                                   {fmtSigned(signed)}
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
-                                  {fmtSigned(running)}
+                                  {fmtSigned(runningAfter)}
                                 </TableCell>
                               </TableRow>
                             );

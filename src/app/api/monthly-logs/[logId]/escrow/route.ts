@@ -15,6 +15,7 @@ import {
   getEscrowMovements,
   createEscrowTransaction,
 } from '@/lib/escrow-calculations';
+import { refreshMonthlyLogTotals } from '@/lib/monthly-log-calculations';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 // Request validation schema for POST
@@ -122,12 +123,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
 
     const { type, amount, memo, date } = validation.data;
 
-    // Fetch monthly log to get unit
+    // Fetch monthly log to get unit + property context
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')
-      .select('unit_id')
+      .select(
+        `
+        id,
+        org_id,
+        property_id,
+        unit_id,
+        properties:properties(
+          id,
+          org_id,
+          buildium_property_id,
+          operating_bank_gl_account_id,
+          deposit_trust_gl_account_id
+        ),
+        units:units(
+          id,
+          property_id,
+          buildium_unit_id
+        )
+      `,
+      )
       .eq('id', logId)
-      .single();
+      .maybeSingle();
 
     if (logError || !monthlyLog) {
       return NextResponse.json(
@@ -136,14 +156,149 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    // Create escrow transaction
-    const transactionId = await createEscrowTransaction({
-      unitId: monthlyLog.unit_id,
+    const unitRecord = Array.isArray((monthlyLog as any).units)
+      ? (monthlyLog as any).units[0]
+      : (monthlyLog as any).units;
+    const propertyRecord = Array.isArray((monthlyLog as any).properties)
+      ? (monthlyLog as any).properties[0]
+      : (monthlyLog as any).properties;
+
+    let propertyId: string | null =
+      (monthlyLog as any).property_id ?? unitRecord?.property_id ?? propertyRecord?.id ?? null;
+    const unitId: string | null = (monthlyLog as any).unit_id ?? unitRecord?.id ?? null;
+    let orgId: string | null = (monthlyLog as any).org_id ?? propertyRecord?.org_id ?? null;
+    let buildiumPropertyId: number | null = propertyRecord?.buildium_property_id ?? null;
+    const buildiumUnitId: number | null = unitRecord?.buildium_unit_id ?? null;
+	    let operatingBankGlAccountId: string | null =
+	      (propertyRecord as any)?.operating_bank_gl_account_id ?? null;
+	    let trustBankGlAccountId: string | null =
+	      (propertyRecord as any)?.deposit_trust_gl_account_id ?? null;
+
+    if (!propertyId || !unitId) {
+      return NextResponse.json(
+        { error: { code: 'UNPROCESSABLE_ENTITY', message: 'Monthly log is missing unit/property linkage.' } },
+        { status: 422 },
+      );
+    }
+
+	    const hasBankConfig = Boolean(operatingBankGlAccountId || trustBankGlAccountId);
+
+	    if (!orgId || buildiumPropertyId == null || !hasBankConfig) {
+	      const { data: propertyRow, error: propertyError } = await supabaseAdmin
+	        .from('properties')
+	        .select(
+	          'id, org_id, buildium_property_id, operating_bank_gl_account_id, deposit_trust_gl_account_id',
+	        )
+	        .eq('id', propertyId)
+	        .maybeSingle();
+
+      if (propertyError) throw propertyError;
+
+      if (propertyRow) {
+        propertyId = propertyRow.id;
+        orgId = orgId ?? propertyRow.org_id ?? null;
+	        buildiumPropertyId =
+	          buildiumPropertyId ?? (propertyRow.buildium_property_id != null ? Number(propertyRow.buildium_property_id) : null);
+	        operatingBankGlAccountId =
+	          operatingBankGlAccountId ?? (propertyRow as any).operating_bank_gl_account_id ?? null;
+	        trustBankGlAccountId =
+	          trustBankGlAccountId ?? (propertyRow as any).deposit_trust_gl_account_id ?? null;
+	      }
+	    }
+
+	    if (!orgId) {
+	      return NextResponse.json(
+	        { error: { code: 'UNPROCESSABLE_ENTITY', message: 'Property is missing an organization mapping.' } },
+	        { status: 422 },
+	      );
+	    }
+
+	    if (!propertyId) {
+	      return NextResponse.json(
+	        { error: { code: 'UNPROCESSABLE_ENTITY', message: 'Monthly log is missing property linkage.' } },
+	        { status: 422 },
+	      );
+	    }
+	    const resolvedPropertyId = propertyId;
+
+	    const bankGlAccountId = trustBankGlAccountId ?? operatingBankGlAccountId ?? null;
+	    if (!bankGlAccountId) {
+	      return NextResponse.json(
+        {
+          error: {
+            code: 'UNPROCESSABLE_ENTITY',
+            message: 'Configure a deposit trust account (preferred) or operating account before recording escrow activity.',
+          },
+        },
+	        { status: 422 },
+	      );
+	    }
+
+    const { data: securityDepositAccount, error: secDepError } = await supabaseAdmin
+      .from('gl_accounts')
+      .select('id, name')
+      .eq('org_id', orgId)
+      .eq('is_security_deposit_liability', true)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (secDepError) throw secDepError;
+
+    let escrowGlAccountId: string | null = securityDepositAccount?.id ?? null;
+
+    if (!escrowGlAccountId) {
+      const { data: depositAccounts, error: depositError } = await supabaseAdmin
+        .from('gl_accounts')
+        .select(
+          `
+          id,
+          name,
+          gl_account_category!inner(category)
+        `,
+        )
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .eq('gl_account_category.category', 'deposit');
+
+      if (depositError) throw depositError;
+
+      const candidates = (depositAccounts ?? []) as Array<{ id?: string; name?: string | null }>;
+      const nonTax = candidates.find(
+        (acc) => !String(acc?.name ?? '').toLowerCase().includes('tax escrow'),
+      );
+      escrowGlAccountId = String((nonTax ?? candidates[0])?.id ?? '');
+    }
+
+    if (!escrowGlAccountId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'CONFIGURATION_ERROR',
+            message: 'No security deposit liability GL account is configured for this organization.',
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+	    const transactionId = await createEscrowTransaction({
+	      monthlyLogId: logId,
+	      orgId,
+	      propertyId: resolvedPropertyId,
+	      unitId,
+	      buildiumPropertyId,
+	      buildiumUnitId,
+      bankGlAccountId,
+      escrowGlAccountId,
       date,
       memo,
       amount,
       type,
     });
+
+    await refreshMonthlyLogTotals(logId);
 
     return NextResponse.json({ success: true, transactionId });
   } catch (error) {
@@ -156,7 +311,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    if (error instanceof Error && error.message.includes('No escrow GL account')) {
+    if (error instanceof Error && error.message.toLowerCase().includes('escrow')) {
       return NextResponse.json(
         {
           error: {

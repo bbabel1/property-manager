@@ -37,7 +37,6 @@ import type { BuildiumLeaseTransaction } from '@/types/buildium';
 type LedgerRow = {
   id: string;
   date: string;
-  invoice: string;
   account: string;
   type: string;
   memo: string | null;
@@ -165,6 +164,12 @@ export default function LeaseLedgerPanel({
     const ref = row.transactionId ?? row.id;
     const numeric = Number(ref);
     return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const isNegative = (value?: string | null) => {
+    if (!value) return false;
+    const trimmed = value.trim();
+    return trimmed.startsWith('-') || trimmed.startsWith('(');
   };
 
   const rowIsCharge = (row: LedgerRow) => String(row.type || '').toLowerCase().includes('charge');
@@ -300,7 +305,7 @@ export default function LeaseLedgerPanel({
     const referenceNumber =
       detail?.CheckNumber ??
       (detail as any)?.ReferenceNumber ??
-      row.invoice ??
+      (detail as any)?.reference_number ??
       null;
     const transactionId = detail?.Id ?? row.transactionId ?? row.id;
     const allocations =
@@ -534,7 +539,6 @@ export default function LeaseLedgerPanel({
           <TableHeader>
             <TableRow>
               <TableHead className="w-24">Date</TableHead>
-              <TableHead className="w-24">Invoice</TableHead>
               <TableHead className="w-40">Account</TableHead>
               <TableHead className="min-w-0 flex-1">Transaction</TableHead>
               <TableHead className="w-24 text-right">Amount</TableHead>
@@ -545,7 +549,7 @@ export default function LeaseLedgerPanel({
           <TableBody className="divide-border bg-card divide-y">
             {errorMessage ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-destructive py-6 text-center text-sm">
+                <TableCell colSpan={6} className="text-destructive py-6 text-center text-sm">
                   {errorMessage}
                 </TableCell>
               </TableRow>
@@ -571,7 +575,6 @@ export default function LeaseLedgerPanel({
                     }}
                   >
                     <TableCell className="text-foreground text-sm">{row.date}</TableCell>
-                    <TableCell className="text-primary text-sm">{row.invoice}</TableCell>
                     <TableCell className="text-foreground text-sm">{row.account}</TableCell>
                     <TableCell className="min-w-0">
                       <div className="text-foreground flex items-center gap-2 text-sm">
@@ -584,10 +587,14 @@ export default function LeaseLedgerPanel({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-foreground text-right text-sm">
+                    <TableCell
+                      className={`text-right text-sm ${isNegative(row.displayAmount) ? 'text-destructive' : 'text-foreground'}`}
+                    >
                       {row.displayAmount}
                     </TableCell>
-                    <TableCell className="text-foreground text-right text-sm">
+                    <TableCell
+                      className={`text-right text-sm ${isNegative(row.balance) ? 'text-destructive' : 'text-foreground'}`}
+                    >
                       {row.balance}
                     </TableCell>
                     <TableCell className="text-right">

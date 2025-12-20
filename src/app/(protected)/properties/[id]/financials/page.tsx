@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/components/ui/utils';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
 import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
+import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
@@ -137,6 +138,7 @@ export default async function FinancialsTab({
     unit?: string;
     gl?: string;
     range?: string;
+    basis?: 'cash' | 'accrual';
   }>;
 }) {
   const { id } = await params;
@@ -159,6 +161,7 @@ export default async function FinancialsTab({
   const glParamRaw = typeof sp?.gl === 'string' ? sp.gl : '';
   const accountsExplicitNone = glParamRaw === 'none';
   const glParam = accountsExplicitNone ? '' : glParamRaw;
+  const basisParam: 'cash' | 'accrual' = sp?.basis === 'cash' ? 'cash' : 'accrual';
 
   const propertyPromise = (db as any)
     .from('properties')
@@ -203,8 +206,8 @@ export default async function FinancialsTab({
          posting_type,
          memo,
          gl_account_id,
-         created_at,
-         gl_accounts(name, account_number, type),
+        created_at,
+        gl_accounts(name, account_number, type, is_bank_account, exclude_from_cash_balances),
          units(unit_number, unit_name),
          transactions(id, transaction_type, memo, reference_number),
          properties(id, name)`,
@@ -321,9 +324,10 @@ export default async function FinancialsTab({
 
     periodLines = periodError ? [] : (periodData || []).map(mapLine);
     priorLines = priorError ? [] : (priorData || []).map(mapLine);
+
   }
 
-  const groups = buildLedgerGroups(priorLines, periodLines);
+  const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
 
   const fmt = (n: number) =>
     `$${Number(Math.abs(n || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -367,6 +371,7 @@ export default async function FinancialsTab({
               noUnitsSelected={noUnitsSelected}
             />
             <DateRangeControls defaultFrom={from} defaultTo={to} defaultRange={range} />
+            <AccountingBasisToggle basis={basisParam} />
             <ClearFiltersButton />
           </div>
           <div className="border-border border-t" />
@@ -406,13 +411,18 @@ export default async function FinancialsTab({
                   </TableRow>
                 ) : (
                   groups.map((group) => {
-                    const detail = group.lines.sort((a, b) => {
+                    const detailChrono = [...group.lines].sort((a, b) => {
                       const dateCmp = a.line.date.localeCompare(b.line.date);
                       if (dateCmp !== 0) return dateCmp;
                       return (a.line.createdAt || '').localeCompare(b.line.createdAt || '');
                     });
 
                     let running = group.prior;
+                    const detailWithBalance = detailChrono.map(({ line, signed }) => {
+                      running += signed;
+                      return { line, signed, runningAfter: running };
+                    });
+                    const detailDisplay = detailWithBalance.slice().reverse();
 
                     return (
                       <Fragment key={group.id}>
@@ -443,7 +453,7 @@ export default async function FinancialsTab({
                             {fmtSigned(group.prior)}
                           </TableCell>
                         </TableRow>
-                        {detail.length === 0 ? (
+                        {detailDisplay.length === 0 ? (
                           <TableRow>
                             <TableCell
                               colSpan={6}
@@ -453,8 +463,7 @@ export default async function FinancialsTab({
                             </TableCell>
                           </TableRow>
                         ) : (
-                          detail.map(({ line, signed }, idx) => {
-                            running += signed;
+                          detailDisplay.map(({ line, signed, runningAfter }, idx) => {
                             const txnLabel = [
                               line.transactionType || 'Transaction',
                               line.transactionReference ? `#${line.transactionReference}` : '',
@@ -477,7 +486,7 @@ export default async function FinancialsTab({
                                   {fmtSigned(signed)}
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
-                                  {fmtSigned(running)}
+                                  {fmtSigned(runningAfter)}
                                 </TableCell>
                               </>
                             );
@@ -617,12 +626,13 @@ export default async function FinancialsTab({
               statusFilterSet.size > 0 && statusFilterSet.size !== BILL_STATUS_OPTIONS.length;
 
             const memoByTransactionId = new Map<string, string>();
+            const amountByTransaction = new Map<string, number>();
             let billRows: any[] = [];
             if (selectedPropertyIds.includes(id)) {
               // Fetch matching transaction ids for this property (via lines)
               let qLine = (db as any)
                 .from('transaction_lines')
-                .select('transaction_id, unit_id, memo')
+                .select('transaction_id, unit_id, memo, amount, posting_type')
                 .eq('property_id', id);
               if (
                 selectedUnitIdsBills.length &&
@@ -640,6 +650,14 @@ export default async function FinancialsTab({
                       const memo = typeof r?.memo === 'string' ? r.memo.trim() : '';
                       if (memo && !memoByTransactionId.has(txId)) {
                         memoByTransactionId.set(txId, memo);
+                      }
+                      const postingType = String(r?.posting_type || '').toLowerCase();
+                      if (postingType !== 'credit') {
+                        const rawAmount = Number(r?.amount ?? 0);
+                        if (Number.isFinite(rawAmount)) {
+                          const amount = Math.abs(rawAmount);
+                          amountByTransaction.set(txId, (amountByTransaction.get(txId) ?? 0) + amount);
+                        }
                       }
                       return txId;
                     })
@@ -669,7 +687,17 @@ export default async function FinancialsTab({
                   if (derived !== current) {
                     statusUpdates.push({ id: row.id, status: derived });
                   }
-                  return { ...row, status: derived };
+                  const txId = String(row.id);
+                  const storedAmount = Number(row.total_amount);
+                  const hasStoredAmount = Number.isFinite(storedAmount) && storedAmount > 0;
+                  const computedAmount = amountByTransaction.get(txId);
+                  const finalAmount =
+                    hasStoredAmount && storedAmount !== 0
+                      ? storedAmount
+                      : Number.isFinite(computedAmount ?? NaN) && computedAmount !== undefined
+                        ? computedAmount
+                        : 0;
+                  return { ...row, status: derived, total_amount: finalAmount };
                 });
 
                 if (statusUpdates.length) {

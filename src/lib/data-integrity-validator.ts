@@ -19,6 +19,23 @@ interface OrphanedRecord {
   reason: string
 }
 
+type DuplicateUnit = {
+  property_id: string
+  unit_number: string
+  count: number
+}
+
+type DuplicateOwnership = {
+  owner_id: string
+  property_id: string
+  count: number
+}
+
+type DuplicateBuildiumId = {
+  buildium_id: number
+  count: number
+}
+
 export class DataIntegrityValidator {
   private supabase: TypedSupabaseClient
 
@@ -69,24 +86,36 @@ export class DataIntegrityValidator {
         result.warnings.push(`Property "${property.name}" (ID: ${property.id}) has no units`)
       })
 
-      // Check for properties with invalid bank account references
-      const { data: propertiesWithInvalidBankAccounts } = await this.supabase
+      // Check for properties with invalid operating bank GL references
+      const { data: propertiesWithBankGl } = await this.supabase
         .from('properties')
-        .select(`
-          id, name, operating_bank_account_id,
-          bank_account:bank_accounts(id)
-        `)
-        .not('operating_bank_account_id', 'is', null)
-        .is('bank_account.id', null)
+        .select('id, name, buildium_property_id, operating_bank_gl_account_id')
+        .not('operating_bank_gl_account_id', 'is', null)
 
-      propertiesWithInvalidBankAccounts?.forEach(property => {
-        result.errors.push(`Property "${property.name}" references non-existent bank account`)
-        result.orphanedRecords.push({
-          table: 'properties',
-          id: property.id,
-          buildiumId: property.buildium_property_id,
-          reason: 'Invalid bank account reference'
-        })
+      const bankGlIds = (propertiesWithBankGl ?? [])
+        .map((p: any) => p?.operating_bank_gl_account_id)
+        .filter((id: any): id is string => typeof id === 'string' && id.length > 0)
+
+      let validBankGlIds = new Set<string>()
+      if (bankGlIds.length) {
+        const { data: bankRows } = await this.supabase
+          .from('gl_accounts')
+          .select('id')
+          .in('id', bankGlIds as any)
+        validBankGlIds = new Set((bankRows ?? []).map((row: any) => String(row.id)))
+      }
+
+      propertiesWithBankGl?.forEach(property => {
+        const bankId = (property as any)?.operating_bank_gl_account_id
+        if (!bankId || !validBankGlIds.has(String(bankId))) {
+          result.errors.push(`Property "${property.name}" references non-existent bank GL account`)
+          result.orphanedRecords.push({
+            table: 'properties',
+            id: property.id,
+            buildiumId: property.buildium_property_id,
+            reason: 'Invalid bank account reference'
+          })
+        }
       })
 
     } catch (error) {
@@ -119,7 +148,7 @@ export class DataIntegrityValidator {
       const { data: duplicateUnits } = await this.supabase
         .rpc('find_duplicate_units')
 
-      duplicateUnits?.forEach(duplicate => {
+      ;(duplicateUnits as DuplicateUnit[] | null)?.forEach((duplicate) => {
         result.errors.push(`Duplicate unit number "${duplicate.unit_number}" in property ${duplicate.property_id}`)
       })
 
@@ -231,9 +260,7 @@ export class DataIntegrityValidator {
         .from('contacts')
         .select('id, first_name, last_name, company_name, is_company')
         .or(
-          'and(is_company.eq.false,first_name.is.null)',
-          'and(is_company.eq.false,last_name.is.null)',
-          'and(is_company.eq.true,company_name.is.null)'
+          'and(is_company.eq.false,first_name.is.null),and(is_company.eq.false,last_name.is.null),and(is_company.eq.true,company_name.is.null)'
         )
 
       incompleteContacts?.forEach(contact => {
@@ -280,7 +307,8 @@ export class DataIntegrityValidator {
         .is('ownerships.id', null)
 
       ownersWithoutProperties?.forEach(owner => {
-        result.warnings.push(`Owner "${owner.contact?.display_name}" (ID: ${owner.id}) has no property ownerships`)
+        const displayName = owner.contact?.[0]?.display_name ?? 'Unknown'
+        result.warnings.push(`Owner "${displayName}" (ID: ${owner.id}) has no property ownerships`)
       })
 
     } catch (error) {
@@ -297,10 +325,7 @@ export class DataIntegrityValidator {
       const { data: invalidOwnerships } = await this.supabase
         .from('ownerships')
         .select('id, owner_id, property_id')
-        .or(
-          `not.owner_id.in.(SELECT id FROM owners)`,
-          `not.property_id.in.(SELECT id FROM properties)`
-        )
+        .or('not.owner_id.in.(SELECT id FROM owners),not.property_id.in.(SELECT id FROM properties)')
 
       invalidOwnerships?.forEach(ownership => {
         result.errors.push(`Ownership (ID: ${ownership.id}) has invalid owner or property reference`)
@@ -315,7 +340,7 @@ export class DataIntegrityValidator {
       const { data: duplicateOwnerships } = await this.supabase
         .rpc('find_duplicate_ownerships')
 
-      duplicateOwnerships?.forEach(duplicate => {
+      ;(duplicateOwnerships as DuplicateOwnership[] | null)?.forEach((duplicate) => {
         result.warnings.push(`Duplicate ownership: Owner ${duplicate.owner_id} owns property ${duplicate.property_id} multiple times`)
       })
 
@@ -345,7 +370,7 @@ export class DataIntegrityValidator {
             buildium_field: buildiumField
           })
 
-        duplicates?.forEach(duplicate => {
+        ;(duplicates as DuplicateBuildiumId[] | null)?.forEach((duplicate) => {
           result.errors.push(`Duplicate Buildium ID ${duplicate.buildium_id} in ${table}`)
         })
       }
@@ -405,10 +430,10 @@ export class DataIntegrityValidator {
       try {
         switch (record.reason) {
           case 'Invalid bank account reference':
-            // Set operating_bank_account_id to null
+            // Set operating_bank_gl_account_id to null
             await this.supabase
               .from('properties')
-              .update({ operating_bank_account_id: null })
+              .update({ operating_bank_gl_account_id: null } as any)
               .eq('id', record.id)
             fixedRecords.push(`Fixed property ${record.id}: removed invalid bank account reference`)
             break

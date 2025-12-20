@@ -19,6 +19,7 @@ import BillRowActions from '@/components/financials/BillRowActions';
 import AddLink from '@/components/ui/AddLink';
 import { PropertyService } from '@/lib/property-service';
 import { supabase as supaClient, supabaseAdmin } from '@/lib/db';
+import { rollupFinances, signedAmountFromTransaction } from '@/lib/finance/model';
 import UnitDetailsCard from '@/components/unit/UnitDetailsCard';
 import UnitFinancialServicesCard from '@/components/unit/UnitFinancialServicesCard';
 import UnitServicesTab from '@/components/unit/UnitServicesTab';
@@ -140,24 +141,6 @@ const readableTransactionType = (value: unknown) => {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
-};
-
-const determineSignedAmount = (tx: any) => {
-  const rawAmount = tx?.TotalAmount ?? tx?.total_amount ?? tx?.Amount ?? tx?.amount ?? 0;
-  const amount = Number(rawAmount) || 0;
-  const type = String(
-    tx?.TransactionTypeEnum ?? tx?.TransactionType ?? tx?.transaction_type ?? '',
-  ).toLowerCase();
-  if (!amount) return 0;
-  if (
-    type.includes('payment') ||
-    type.includes('credit') ||
-    type.includes('refund') ||
-    type.includes('adjustment')
-  ) {
-    return amount * -1;
-  }
-  return amount;
 };
 
 const normalizeBillStatus = (value: unknown): BillStatusLabel => {
@@ -308,6 +291,15 @@ export default async function UnitDetailsNested({
     } catch {}
   }
 
+  const propertyIdString = property?.id != null ? String(property.id) : '';
+  const unitIdString = unit?.id != null ? String(unit.id) : '';
+  const orgIdString =
+    (property as any)?.org_id != null
+      ? String((property as any).org_id)
+      : (unit as any)?.org_id != null
+        ? String((unit as any).org_id)
+        : '';
+
   // Load live leases and join tenant names (local DB)
   const db = supabaseAdmin || supaClient;
   let leases: any[] = [];
@@ -385,19 +377,83 @@ export default async function UnitDetailsNested({
     } catch {}
   }
 
-  // Load all transaction lines associated with this unit (used for balances and filtering)
+  // Load all transaction lines associated with this unit or its leases (used for balances and filtering)
   let transactionLines: any[] = [];
+  const tlCounts = { unit: 0, lease: 0, buildiumLease: 0 };
+  const transactionLineMap = new Map<string, any>();
+  const collectLines = (rows?: any[] | null) => {
+    if (!Array.isArray(rows)) return;
+    for (const row of rows) {
+      if (row?.gl_accounts?.exclude_from_cash_balances === true) continue;
+      const key = row?.id ? String(row.id) : `${row?.transaction_id ?? ''}:${row?.gl_account_id ?? ''}:${row?.memo ?? ''}:${row?.amount ?? ''}:${row?.posting_type ?? ''}`;
+      if (!transactionLineMap.has(key)) transactionLineMap.set(key, row);
+    }
+  };
+
+  const lineSelect =
+    'id, transaction_id, memo, amount, posting_type, gl_account_id, gl_accounts(name, type, sub_type, is_bank_account, is_security_deposit_liability, exclude_from_cash_balances)';
   if (unit?.id) {
     try {
       const { data: lines } = await db
         .from('transaction_lines')
-        .select(
-          'transaction_id, memo, amount, posting_type, gl_account_id, gl_accounts(name, type, sub_type, is_bank_account, is_security_deposit_liability)',
-        )
+        .select(lineSelect)
         .eq('unit_id', unit.id);
-      transactionLines = Array.isArray(lines) ? lines : [];
+      collectLines(lines);
+      tlCounts.unit = Array.isArray(lines) ? lines.length : 0;
     } catch {}
   }
+
+  const leaseIdsForLines = Array.isArray(leases)
+    ? leases
+        .map((l: any) => {
+          const raw = l?.id;
+          if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+          if (typeof raw === 'string' && raw.trim() !== '') {
+            const parsed = Number(raw);
+            if (Number.isFinite(parsed)) return parsed;
+          }
+          return null;
+        })
+        .filter((id): id is number => id != null)
+    : [];
+
+  const buildiumLeaseIdsForLines = Array.isArray(leases)
+    ? leases
+        .map((l: any) => {
+          const raw = l?.buildium_lease_id;
+          if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+          if (typeof raw === 'string' && raw.trim() !== '') {
+            const parsed = Number(raw);
+            if (Number.isFinite(parsed)) return parsed;
+          }
+          return null;
+        })
+        .filter((id): id is number => id != null)
+    : [];
+
+  if (leaseIdsForLines.length) {
+    try {
+      const { data: lines } = await db
+        .from('transaction_lines')
+        .select(lineSelect)
+        .in('lease_id', leaseIdsForLines as any);
+      collectLines(lines);
+      tlCounts.lease = Array.isArray(lines) ? lines.length : 0;
+    } catch {}
+  }
+
+  if (buildiumLeaseIdsForLines.length) {
+    try {
+      const { data: lines } = await db
+        .from('transaction_lines')
+        .select(lineSelect)
+        .in('buildium_lease_id', buildiumLeaseIdsForLines as any);
+      collectLines(lines);
+      tlCounts.buildiumLease = Array.isArray(lines) ? lines.length : 0;
+    } catch {}
+  }
+
+  transactionLines = Array.from(transactionLineMap.values());
 
   // Fetch transactions tied to this unit's leases or referenced by transaction lines
   const transactionMap = new Map<string, any>();
@@ -530,9 +586,6 @@ export default async function UnitDetailsNested({
     activeLeaseRent = activeLease?.rent_amount || null;
     activeLeaseId = activeLease?.id || null;
 
-    // If deposits weren't derived from unit columns, use lease metadata
-    if (!depositsHeld) depositsHeld = Number((activeLease as any)?.security_deposit ?? 0) || 0;
-
     const relevantTransactions = Array.isArray(transactions)
       ? transactions.filter((tx) => {
           const leaseIdMatches =
@@ -548,63 +601,16 @@ export default async function UnitDetailsNested({
       : [];
 
     const localBalance = relevantTransactions.length
-      ? relevantTransactions.reduce((sum, tx) => sum + determineSignedAmount(tx), 0)
+      ? relevantTransactions.reduce((sum, tx) => sum + signedAmountFromTransaction(tx), 0)
       : 0;
 
     // Only override DB-maintained balance if it is missing (zero) and we have a local non-zero calculation
     if (!unitBalance && localBalance) unitBalance = localBalance;
-
-    // Supplement with transaction line analysis for prepayments / deposits and as a safety net for balance.
-    if (!unitBalance && transactionLines.length) {
-      let fallbackBalance = 0;
-      for (const line of transactionLines) {
-        const amount = Number(line.amount) || 0;
-        const isDebit = line.posting_type === 'Debit';
-        const subType = (line as any)?.gl_accounts?.sub_type;
-        if (subType === 'AccountsReceivable') {
-          fallbackBalance += isDebit ? amount : -amount;
-        }
-      }
-      unitBalance = fallbackBalance;
-    }
-
-    if (transactionLines.length) {
-      let prepaymentBalance = 0;
-      let depositBalance = 0;
-      for (const line of transactionLines) {
-        const amount = Number(line.amount) || 0;
-        if (!amount) continue;
-        const postingType = line.posting_type;
-        const account = (line as any).gl_accounts || {};
-        const accountType = typeof account.type === 'string' ? account.type.toLowerCase() : null;
-        const accountName = typeof account.name === 'string' ? account.name.toLowerCase() : '';
-        const subType = typeof account.sub_type === 'string' ? account.sub_type.toLowerCase() : '';
-        const isCredit = postingType === 'Credit';
-        const signed = isCredit ? amount : -amount;
-
-        const depositFlag =
-          Boolean(account?.is_security_deposit_liability) ||
-          accountName.includes('deposit') ||
-          subType.includes('deposit');
-        if (depositFlag) {
-          depositBalance += signed;
-        }
-
-        const prepayFlag =
-          accountName.includes('prepay') ||
-          subType.includes('prepay') ||
-          (accountType === 'liability' && !depositFlag);
-        if (prepayFlag) {
-          prepaymentBalance += signed;
-        }
-      }
-
-      if (prepaymentBalance) prepayments = prepaymentBalance;
-      if (depositBalance) depositsHeld = depositBalance;
-    }
   }
 
   const memoByTransactionId = new Map<string, string>();
+  const accountNamesByTransactionId = new Map<string, string>();
+  const accountNameSetByTransactionId = new Map<string, Set<string>>();
   for (const line of transactionLines) {
     const txIdValue = (line as any)?.transaction_id;
     if (txIdValue == null) continue;
@@ -614,16 +620,49 @@ export default async function UnitDetailsNested({
     if (memo && !memoByTransactionId.has(txId)) {
       memoByTransactionId.set(txId, memo);
     }
+    const accountName =
+      typeof (line as any)?.gl_accounts?.name === 'string'
+        ? (line as any).gl_accounts.name.trim()
+        : typeof (line as any)?.gl_account_id === 'string'
+          ? (line as any).gl_account_id
+          : '';
+    if (accountName) {
+      const set = accountNameSetByTransactionId.get(txId) ?? new Set<string>();
+      set.add(accountName);
+      accountNameSetByTransactionId.set(txId, set);
+    }
+  }
+  for (const [txId, set] of accountNameSetByTransactionId.entries()) {
+    accountNamesByTransactionId.set(txId, Array.from(set).join(', '));
   }
 
-  // Financial summary (unit-specific)
-  const unitFin: Fin = {
-    cash_balance: unitBalance,
-    security_deposits: depositsHeld,
-    reserve: 0,
-    available_balance: unitBalance,
-    as_of: new Date().toISOString().slice(0, 10),
-  };
+  const propertyReserveRaw =
+    typeof property?.reserve === 'number' ? property.reserve : property?.reserve ?? 0;
+  const propertyReserve = Number(propertyReserveRaw) || 0;
+
+  const { fin: unitFin, debug: unitFinanceDebug } = rollupFinances({
+    transactionLines,
+    transactions,
+    unitBalances: {
+      balance: unitBalance,
+      deposits_held_balance: depositsHeld,
+      prepayments_balance: prepayments,
+    },
+    propertyReserve,
+    today: new Date(),
+  });
+
+  console.info('[unit-finance] summary', {
+    unitId: unitIdString,
+    leaseId: activeLeaseId,
+    counts: {
+      transactionLines: transactionLines.length,
+      transactions: transactions.length,
+      tlBySource: tlCounts,
+    },
+    debug: unitFinanceDebug,
+    fin: unitFin,
+  });
 
   const leaseItems = leases.map((l) => ({
     ...l,
@@ -642,14 +681,6 @@ export default async function UnitDetailsNested({
     );
   }
 
-  const propertyIdString = property?.id != null ? String(property.id) : '';
-  const unitIdString = unit?.id != null ? String(unit.id) : '';
-  const orgIdString =
-    (property as any)?.org_id != null
-      ? String((property as any).org_id)
-      : (unit as any)?.org_id != null
-        ? String((unit as any).org_id)
-        : '';
   const propertyNameLabel = typeof property?.name === 'string' ? property.name : null;
   const unitLabel =
     typeof (unit as any)?.unit_number === 'string' && (unit as any).unit_number
@@ -662,7 +693,7 @@ export default async function UnitDetailsNested({
     if (!Array.isArray(transactions) || transactions.length === 0) return [];
 
     const entries = transactions
-      .map((tx) => {
+      .map((tx, idx) => {
         const rawId =
           tx?.id != null
             ? String(tx.id)
@@ -671,18 +702,23 @@ export default async function UnitDetailsNested({
               : null;
         if (!rawId) return null;
         const rawDate = typeof tx?.date === 'string' ? tx.date : null;
-        const memoFromTx = typeof tx?.memo === 'string' ? tx.memo.trim() : '';
-        const txIdForMemo = tx?.id != null ? String(tx.id) : null;
-        const resolvedMemo =
-          memoFromTx || (txIdForMemo ? memoByTransactionId.get(txIdForMemo) || '' : '');
-        const amount = determineSignedAmount(tx);
+          const memoFromTx = typeof tx?.memo === 'string' ? tx.memo.trim() : '';
+          const txIdForMemo = tx?.id != null ? String(tx.id) : null;
+          const resolvedMemo =
+            memoFromTx || (txIdForMemo ? memoByTransactionId.get(txIdForMemo) || '' : '');
+          const accountLabel = txIdForMemo ? accountNamesByTransactionId.get(txIdForMemo) || '' : '';
+          const amount = signedAmountFromTransaction(tx);
         const typeRaw = tx?.transaction_type ?? tx?.TransactionType ?? tx?.TransactionTypeEnum;
+        const typeNormalized = String(typeRaw ?? '').toLowerCase();
         return {
           id: rawId,
           date: rawDate,
           amount,
           memo: resolvedMemo,
           typeLabel: readableTransactionType(typeRaw),
+          typeKey: typeNormalized,
+          accountLabel,
+          sortIndex: idx,
         };
       })
       .filter(
@@ -704,27 +740,45 @@ export default async function UnitDetailsNested({
       return Number.isNaN(ms) ? Number.NaN : ms;
     };
 
+    const typePriority = (typeKey: string) => {
+      if (!typeKey) return 2;
+      const t = typeKey.toLowerCase();
+      if (t.includes('charge') || t.includes('invoice') || t.includes('debit') || t === 'bill') return 0;
+      if (t.includes('payment') || t.includes('credit') || t.includes('refund') || t.includes('adjustment')) return 1;
+      return 2;
+    };
+
     entries.sort((a, b) => {
       const timeA = toTimestamp(a.date);
       const timeB = toTimestamp(b.date);
       const safeA = Number.isNaN(timeA) ? Number.MAX_SAFE_INTEGER : timeA;
       const safeB = Number.isNaN(timeB) ? Number.MAX_SAFE_INTEGER : timeB;
       if (safeA !== safeB) return safeA - safeB;
+      const typeA = typePriority(a.typeKey);
+      const typeB = typePriority(b.typeKey);
+      if (typeA !== typeB) return typeA - typeB;
+      if ((a.sortIndex ?? 0) !== (b.sortIndex ?? 0)) {
+        return (a.sortIndex ?? 0) - (b.sortIndex ?? 0);
+      }
       return a.id.localeCompare(b.id);
     });
 
     let running = 0;
-    return entries.map((entry) => {
+    const withBalances = entries.map((entry) => {
       running += entry.amount;
       return {
         ...entry,
+        typeKey: undefined,
         amountLabel: formatSignedCurrency(entry.amount),
         balanceLabel: formatSignedCurrency(running),
         runningBalance: running,
         dateLabel: formatDateString(entry.date),
       };
     });
+
+    return withBalances;
   })();
+  const ledgerRowsDisplay = ledgerRows.slice().reverse();
 
   let billRows: {
     id: string;
@@ -1068,11 +1122,7 @@ export default async function UnitDetailsNested({
           <div className="space-y-6">
             <UnitFinancialServicesCard
               fin={unitFin}
-              rent={activeLeaseRent}
-              prepayments={prepayments}
               property={property}
-              unit={unit}
-              leaseId={activeLeaseId}
             />
           </div>
         </div>
@@ -1085,32 +1135,36 @@ export default async function UnitDetailsNested({
             <Table className="text-sm">
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="w-[10rem]">Date</TableHead>
+                  <TableHead className="w-[9rem]">Date</TableHead>
                   <TableHead className="w-[12rem]">Type</TableHead>
+                  <TableHead className="w-[16rem]">Account</TableHead>
                   <TableHead>Memo</TableHead>
                   <TableHead className="w-[10rem] text-right">Amount</TableHead>
                   <TableHead className="w-[10rem] text-right">Balance</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border divide-y">
-                {ledgerRows.length === 0 ? (
+                {ledgerRowsDisplay.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="text-muted-foreground py-6 text-center text-sm"
                     >
                       No ledger activity found for this unit.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  ledgerRows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.dateLabel}</TableCell>
-                      <TableCell className="text-foreground">{row.typeLabel}</TableCell>
-                      <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
-                      <TableCell
-                        className={cn(
-                          'text-right',
+                    ledgerRowsDisplay.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.dateLabel}</TableCell>
+                        <TableCell className="text-foreground">{row.typeLabel}</TableCell>
+                        <TableCell className="text-foreground">
+                          {row.accountLabel || '—'}
+                        </TableCell>
+                        <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
+                        <TableCell
+                          className={cn(
+                            'text-right',
                           row.amount < 0 ? 'text-destructive' : 'text-foreground',
                         )}
                       >

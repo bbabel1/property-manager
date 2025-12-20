@@ -142,7 +142,7 @@ export async function PUT(
 
     // Update the property
     const now = new Date().toISOString()
-    const updatePatch: PropertiesUpdate = {
+    const updatePatch: PropertiesUpdate & Record<string, any> = {
       updated_at: now,
       org_id: resolvedOrgId,
     }
@@ -184,58 +184,32 @@ export async function PUT(
     const yearBuiltInput = getField('year_built', 'yearBuilt')
     if (yearBuiltInput !== undefined) updatePatch.year_built = toNumberOrNull(yearBuiltInput)
 
-    const operatingAccountInput = getField('operating_bank_account_id', 'operatingBankAccountId')
-    if (operatingAccountInput !== undefined) updatePatch.operating_bank_account_id = operatingAccountInput ?? null
+    const operatingAccountInput = getField(
+      'operating_bank_gl_account_id',
+      'operatingBankGlAccountId',
+      // Backwards-compatibility: old key name (now treated as a gl_accounts.id)
+      'operating_bank_account_id',
+      'operatingBankAccountId',
+    )
+    if (operatingAccountInput !== undefined) updatePatch.operating_bank_gl_account_id = operatingAccountInput ?? null
 
-    const depositAccountInput = getField('deposit_trust_account_id', 'depositTrustAccountId')
-    if (depositAccountInput !== undefined) updatePatch.deposit_trust_account_id = depositAccountInput ?? null
+    const depositAccountInput = getField(
+      'deposit_trust_gl_account_id',
+      'depositTrustGlAccountId',
+      // Backwards-compatibility: old key name (now treated as a gl_accounts.id)
+      'deposit_trust_account_id',
+      'depositTrustAccountId',
+    )
+    if (depositAccountInput !== undefined) updatePatch.deposit_trust_gl_account_id = depositAccountInput ?? null
 
     const managementScopeInput = getField('management_scope', 'managementScope')
     if (managementScopeInput !== undefined) {
-      updatePatch.management_scope = normalizeAssignmentLevelEnum(managementScopeInput)
+      updatePatch.management_scope = normalizeAssignmentLevelEnum(managementScopeInput) as any
     }
 
     const serviceAssignmentInput = getField('service_assignment', 'serviceAssignment')
     if (serviceAssignmentInput !== undefined) {
-      updatePatch.service_assignment = normalizeAssignmentLevel(serviceAssignmentInput)
-    }
-
-    const servicePlanInput = getField('service_plan', 'servicePlan')
-    if (servicePlanInput !== undefined) {
-      updatePatch.service_plan = normalizeServicePlan(servicePlanInput)
-    }
-
-    const activeServicesInput = getField('active_services', 'activeServices')
-    const includedServicesInput = getField('included_services', 'includedServices')
-    if (activeServicesInput !== undefined) {
-      updatePatch.active_services = normalizeManagementServicesList(activeServicesInput)
-    } else if (includedServicesInput !== undefined) {
-      updatePatch.active_services = normalizeManagementServicesList(includedServicesInput)
-    }
-
-    const feeAssignmentInput = getField('fee_assignment', 'feeAssignment')
-    if (feeAssignmentInput !== undefined) {
-      updatePatch.fee_assignment = normalizeAssignmentLevelEnum(feeAssignmentInput)
-    }
-
-    const feeTypeInput = getField('fee_type', 'feeType')
-    if (feeTypeInput !== undefined) {
-      updatePatch.fee_type = normalizeFeeType(feeTypeInput)
-    }
-
-    const feePercentageInput = getField('fee_percentage', 'feePercentage')
-    if (feePercentageInput !== undefined) {
-      updatePatch.fee_percentage = toNumberOrNull(feePercentageInput)
-    }
-
-    const feeDollarAmountInput = getField('fee_dollar_amount', 'feeDollarAmount')
-    if (feeDollarAmountInput !== undefined) {
-      updatePatch.fee_dollar_amount = toNumberOrNull(feeDollarAmountInput)
-    }
-
-    const billingFrequencyInput = getField('billing_frequency', 'billingFrequency')
-    if (billingFrequencyInput !== undefined) {
-      updatePatch.billing_frequency = normalizeBillingFrequency(billingFrequencyInput)
+      updatePatch.service_assignment = normalizeAssignmentLevel(serviceAssignmentInput) as any
     }
 
     const billPayListInput = getField('bill_pay_list', 'billPayList')

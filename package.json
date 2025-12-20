@@ -12,10 +12,13 @@
     "lint:warnings:scoped": "eslint --cache --cache-location node_modules/.cache/eslint --quiet",
     "lint:css": "stylelint \"src/**/*.{css,scss}\" \"styles/**/*.css\" --cache --cache-location node_modules/.cache/stylelint",
     "lint:fix": "eslint . --fix",
-    "test": "echo \"Test suite removed.\"",
-    "test:a11y": "echo \"Accessibility tests removed.\"",
-    "test:visual": "echo \"Visual regression tests removed.\"",
-    "test:unit": "echo \"Unit tests removed.\"",
+    "test": "npm run test:unit",
+    "test:billing": "vitest run tests/billing-windows.test.ts",
+    "test:a11y": "playwright test tests/playwright/a11y.spec.ts",
+    "test:visual": "playwright test tests/playwright/visual.spec.ts",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test tests/playwright/e2e.spec.ts",
     "docs:check": "npx tsx scripts/doc-monitoring-system.ts check",
     "docs:update": "npx tsx scripts/doc-monitoring-system.ts update",
     "docs:validate": "npx tsx scripts/doc-monitoring-system.ts validate",
@@ -54,7 +57,11 @@
     "test:security:financial": "tsx scripts/tests/security-financial-endpoints.ts",
     "cron:recurring": "tsx scripts/cron/recurring.ts",
     "cron:late-fees": "tsx scripts/cron/late-fees.ts",
-    "lint:buildium-credentials": "tsx scripts/lint-buildium-credentials.ts"
+    "lint:buildium-credentials": "tsx scripts/lint-buildium-credentials.ts",
+    "verify:bank-cutover": "tsx scripts/verify-bank-cutover.ts",
+    "verify:bank-cutover:accounts": "tsx scripts/verify-bank-cutover.ts verify_bank_accounts_backfill",
+    "verify:bank-cutover:properties": "tsx scripts/verify-bank-cutover.ts verify_property_links",
+    "verify:bank-cutover:payload": "tsx scripts/verify-bank-cutover.ts verify_buildium_payload_shape"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -134,7 +141,9 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

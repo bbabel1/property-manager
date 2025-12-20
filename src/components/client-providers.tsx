@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 
 import Providers from './providers';
+import { Toaster } from '@/components/ui/sonner';
 
 type ClientProvidersProps = {
   children: ReactNode;
@@ -146,6 +147,7 @@ function ClientProviders({ children }: ClientProvidersProps) {
       }}
     >
       <Providers>{children}</Providers>
+      <Toaster richColors closeButton />
     </SWRConfig>
   );
 }

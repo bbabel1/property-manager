@@ -618,7 +618,12 @@ export interface BuildiumLeasePersonCreate {
   FirstName: string;
   LastName: string;
   Email?: string;
-  PhoneNumbers?: BuildiumLeasePhoneEntry[];
+  PhoneNumbers?: {
+    Home?: string;
+    Work?: string;
+    Mobile?: string;
+    Fax?: string;
+  };
   Address?: BuildiumLeaseAddress;
   AlternateAddress?: BuildiumLeaseAddress;
   MoveInDate?: string;
@@ -920,7 +925,7 @@ export interface BuildiumBillCreate {
   DueDate?: string; // ISO 8601
   Amount: number;
   Description: string;
-   // Memo appears in the Buildium UI; include explicitly so updates can flow to the memo field.
+  // Memo appears in the Buildium UI; include explicitly so updates can flow to the memo field.
   Memo?: string;
   ReferenceNumber?: string;
   CategoryId?: number;
@@ -1154,6 +1159,7 @@ export interface BuildiumBankAccount {
 export interface BuildiumBankAccountCreate {
   Name: string;
   BankAccountType: BuildiumBankAccountType;
+  Country: string;
   AccountNumber: string;
   RoutingNumber: string;
   Description?: string;

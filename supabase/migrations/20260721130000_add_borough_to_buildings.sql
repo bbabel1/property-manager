@@ -21,3 +21,7 @@ WHERE borough IS NULL AND borough_code IS NOT NULL;
 COMMENT ON COLUMN public.buildings.borough IS 'Borough name (e.g., "Manhattan", "Brooklyn"). Populated from borough_code when available.';
 
 
+
+
+
+

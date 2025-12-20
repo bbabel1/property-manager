@@ -4,17 +4,14 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTenantCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
 
 export async function GET(request: NextRequest) {
   try {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded' },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
     // Require platform admin
@@ -37,9 +34,17 @@ export async function GET(request: NextRequest) {
     if (lastupdatedto) queryParams.append('lastupdatedto', lastupdatedto);
 
     // Make request to Buildium API
-    const proxy = await buildiumEdgeClient.proxyRaw('GET', '/rentals/tenants', Object.fromEntries(queryParams.entries()))
-    if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch tenants from Buildium' }, { status: 502 })
-    const tenants = proxy.data
+    const proxy = await buildiumEdgeClient.proxyRaw(
+      'GET',
+      '/rentals/tenants',
+      Object.fromEntries(queryParams.entries()),
+    );
+    if (!proxy.success)
+      return NextResponse.json(
+        { error: proxy.error || 'Failed to fetch tenants from Buildium' },
+        { status: 502 },
+      );
+    const tenants = proxy.data;
 
     logger.info(`Buildium tenants fetched successfully`);
 
@@ -48,14 +53,10 @@ export async function GET(request: NextRequest) {
       data: tenants,
       count: tenants.length,
     });
-
   } catch (error) {
     logger.error(`Error fetching Buildium tenants`);
 
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -64,10 +65,7 @@ export async function POST(request: NextRequest) {
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded' },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
     // Require platform admin
@@ -75,28 +73,38 @@ export async function POST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json();
-    
+
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumTenantCreateSchema);
 
     // Make request to Buildium API
-    const created = await buildiumEdgeClient.proxyRaw('POST', '/rentals/tenants', undefined, validatedData)
-    if (!created.success) return NextResponse.json({ error: created.error || 'Failed to create tenant in Buildium' }, { status: 502 })
-    const tenant = created.data
+    // Use /rentals/tenants for creating standalone tenants (before lease exists)
+    // /leases/tenants requires LeaseId and is for adding tenants to existing leases
+    const created = await buildiumEdgeClient.proxyRaw(
+      'POST',
+      '/rentals/tenants',
+      undefined,
+      validatedData,
+    );
+    if (!created.success)
+      return NextResponse.json(
+        { error: created.error || 'Failed to create tenant in Buildium' },
+        { status: 502 },
+      );
+    const tenant = created.data;
 
     logger.info(`Buildium tenant created successfully`);
 
-    return NextResponse.json({
-      success: true,
-      data: tenant,
-    }, { status: 201 });
-
+    return NextResponse.json(
+      {
+        success: true,
+        data: tenant,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     logger.error(`Error creating Buildium tenant`);
 
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

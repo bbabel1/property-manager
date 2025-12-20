@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { type PropertyWithDetails } from '@/lib/property-service';
 import CreateBankAccountModal from './CreateBankAccountModal';
 import { Dropdown } from './ui/Dropdown';
-import type { BankAccountSummary, BankingDetailsFormValues } from '@/components/forms/types';
+import type { BankGlAccountSummary, BankingDetailsFormValues } from '@/components/forms/types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
 
 type BankingDetailsModalProps = {
@@ -25,13 +25,13 @@ export default function BankingDetailsModal({
 }: BankingDetailsModalProps) {
   const [formData, setFormData] = useState<BankingDetailsFormValues>({
     reserve: 0,
-    operating_bank_account_id: '',
-    deposit_trust_account_id: '',
+    operating_bank_gl_account_id: '',
+    deposit_trust_gl_account_id: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bankAccounts, setBankAccounts] = useState<BankAccountSummary[]>([]);
-  const [_isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<BankGlAccountSummary[]>([]);
+  const [isLoadingBankAccounts, setIsLoadingBankAccounts] = useState(false);
   const [showCreateBankAccountModal, setShowCreateBankAccountModal] = useState(false);
   const [selectedAccountType, setSelectedAccountType] = useState<'operating' | 'trust' | null>(
     null,
@@ -39,18 +39,18 @@ export default function BankingDetailsModal({
 
   // Fetch bank accounts when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && bankAccounts.length === 0) {
       fetchBankAccounts();
     }
-  }, [isOpen]);
+  }, [isOpen, bankAccounts.length]);
 
   // Initialize form data when property changes
   useEffect(() => {
     if (isOpen && property) {
       setFormData({
         reserve: property.reserve || 0,
-        operating_bank_account_id: property.operating_bank_account_id || '',
-        deposit_trust_account_id: property.deposit_trust_account_id || '',
+        operating_bank_gl_account_id: (property as any).operating_bank_gl_account_id || '',
+        deposit_trust_gl_account_id: (property as any).deposit_trust_gl_account_id || '',
       });
       setError(null);
     }
@@ -59,13 +59,13 @@ export default function BankingDetailsModal({
   const fetchBankAccounts = async () => {
     try {
       setIsLoadingBankAccounts(true);
-      const response = await fetchWithSupabaseAuth('/api/bank-accounts');
+      const response = await fetchWithSupabaseAuth('/api/gl-accounts/bank-accounts');
 
       if (!response.ok) {
         throw new Error('Failed to fetch bank accounts');
       }
 
-      const bankAccountsData = (await response.json()) as BankAccountSummary[];
+      const bankAccountsData = (await response.json()) as BankGlAccountSummary[];
       setBankAccounts(bankAccountsData);
     } catch (error) {
       console.error('Error fetching bank accounts:', error);
@@ -124,26 +124,26 @@ export default function BankingDetailsModal({
   };
 
   const handleBankAccountChange = (
-    field: 'operating_bank_account_id' | 'deposit_trust_account_id',
+    field: 'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id',
     value: string,
   ) => {
     if (value === 'create-new-account') {
-      setSelectedAccountType(field === 'operating_bank_account_id' ? 'operating' : 'trust');
+      setSelectedAccountType(field === 'operating_bank_gl_account_id' ? 'operating' : 'trust');
       setShowCreateBankAccountModal(true);
     } else {
       handleInputChange(field, value);
     }
   };
 
-  const handleCreateBankAccountSuccess = (newAccount: BankAccountSummary) => {
+  const handleCreateBankAccountSuccess = (newAccount: BankGlAccountSummary) => {
     // Add the new account to the list
     setBankAccounts((prev) => [...prev, newAccount]);
 
     // Auto-select the new account for the appropriate field
     if (selectedAccountType === 'operating') {
-      handleInputChange('operating_bank_account_id', newAccount.id);
+      handleInputChange('operating_bank_gl_account_id', newAccount.id);
     } else if (selectedAccountType === 'trust') {
-      handleInputChange('deposit_trust_account_id', newAccount.id);
+      handleInputChange('deposit_trust_gl_account_id', newAccount.id);
     }
 
     setSelectedAccountType(null);
@@ -209,8 +209,9 @@ export default function BankingDetailsModal({
                   Operating Bank Account
                 </label>
                 <Dropdown
-                  value={formData.operating_bank_account_id}
-                  onChange={(value) => handleBankAccountChange('operating_bank_account_id', value)}
+                  value={formData.operating_bank_gl_account_id}
+                  onChange={(value) => handleBankAccountChange('operating_bank_gl_account_id', value)}
+                  disabled={isLoadingBankAccounts}
                   options={[
                     ...bankAccounts.map((account) => ({
                       value: account.id,
@@ -218,7 +219,7 @@ export default function BankingDetailsModal({
                     })),
                     { value: 'create-new-account', label: '✓ Create New Bank Account' },
                   ]}
-                  placeholder="Select a bank account..."
+                  placeholder={isLoadingBankAccounts ? 'Loading accounts…' : 'Select a bank account...'}
                 />
               </div>
 
@@ -227,8 +228,9 @@ export default function BankingDetailsModal({
                   Deposit Trust Account
                 </label>
                 <Dropdown
-                  value={formData.deposit_trust_account_id}
-                  onChange={(value) => handleBankAccountChange('deposit_trust_account_id', value)}
+                  value={formData.deposit_trust_gl_account_id}
+                  onChange={(value) => handleBankAccountChange('deposit_trust_gl_account_id', value)}
+                  disabled={isLoadingBankAccounts}
                   options={[
                     ...bankAccounts.map((account) => ({
                       value: account.id,
@@ -236,7 +238,7 @@ export default function BankingDetailsModal({
                     })),
                     { value: 'create-new-account', label: '✓ Create New Bank Account' },
                   ]}
-                  placeholder="Select a bank account..."
+                  placeholder={isLoadingBankAccounts ? 'Loading accounts…' : 'Select a bank account...'}
                 />
               </div>
             </div>

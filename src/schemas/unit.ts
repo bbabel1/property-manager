@@ -3,9 +3,6 @@ import { z } from "zod";
 // Enums for unit properties (matching database enum names)
 const BedroomEnum = z.enum(['Studio', '1', '2', '3', '4', '5', '6', '7', '8', '9+']);
 const BathroomEnum = z.enum(['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5+']);
-const ServicePlanEnum = z.enum(['Full', 'Basic', 'A-la-carte']);
-const FeeFrequencyEnum = z.enum(['Monthly', 'Annually']);
-const FeeTypeEnum = z.enum(['Percentage', 'Flat Rate']);
 const UnitStatusEnum = z.enum(['Available', 'Occupied', 'Maintenance', 'Reserved']);
 
 export const UnitCreateSchema = z.object({
@@ -36,15 +33,6 @@ export const UnitCreateSchema = z.object({
   // Service management
   serviceStart: z.string().optional(),
   serviceEnd: z.string().optional(),
-  servicePlan: ServicePlanEnum.optional(),
-  
-  // Fee management
-  feeType: FeeTypeEnum.optional(),
-  feePercent: z.number().min(0).max(100).optional(),
-  feeDollarAmount: z.number().min(0).optional(),
-  feeFrequency: FeeFrequencyEnum.optional(),
-  activeServices: z.string().max(500).optional(),
-  feeNotes: z.string().max(1000).optional(),
   
   // Status
   status: UnitStatusEnum.optional().default('Available')
@@ -77,4 +65,4 @@ export type UnitQueryInput = z.infer<typeof UnitQuerySchema>;
 export type UnitWithDetailsQueryInput = z.infer<typeof UnitWithDetailsQuerySchema>;
 
 // Export enums for use in components
-export { BedroomEnum, BathroomEnum, ServicePlanEnum, FeeFrequencyEnum, FeeTypeEnum, UnitStatusEnum };
+export { BedroomEnum, BathroomEnum, UnitStatusEnum };

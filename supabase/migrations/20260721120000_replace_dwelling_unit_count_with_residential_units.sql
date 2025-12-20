@@ -31,3 +31,7 @@ ALTER TABLE public.buildings
 COMMENT ON COLUMN public.buildings.residential_units IS 'Total number of residential units in the building. This is the canonical field for residential unit count, replacing dwelling_unit_count and pluto JSONB fields.';
 
 
+
+
+
+

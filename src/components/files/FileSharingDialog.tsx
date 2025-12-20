@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ interface FileSharingDialogProps {
   onOpenChange: (open: boolean) => void;
   fileId: string | null;
   fileName?: string;
+  orgId?: string;
   sharedEntities?: Array<{
     id: string;
     type: string;
@@ -32,6 +33,7 @@ export default function FileSharingDialog({
   onOpenChange,
   fileId,
   fileName,
+  orgId,
   sharedEntities = [],
   onSharesUpdated,
 }: FileSharingDialogProps) {
@@ -49,11 +51,15 @@ export default function FileSharingDialog({
     if (!fileId) return;
     setIsLoading(true);
     try {
-      // TODO: Implement API endpoint to fetch file shares
-      // For now, use the sharedEntities prop
-      setEntities(sharedEntities);
+      const res = await fetch(
+        `/api/files/shares?fileId=${encodeURIComponent(fileId)}${orgId ? `&orgId=${encodeURIComponent(orgId)}` : ''}`,
+      );
+      if (!res.ok) throw new Error('Failed to fetch shares');
+      const data = await res.json();
+      setEntities(Array.isArray(data?.data) ? data.data : []);
     } catch (error) {
       console.error('Error fetching shared entities:', error);
+      setEntities(sharedEntities);
     } finally {
       setIsLoading(false);
     }
@@ -61,9 +67,18 @@ export default function FileSharingDialog({
 
   const handleRemoveShare = async (entityId: string, entityType: string) => {
     if (!fileId) return;
-    // TODO: Implement API endpoint to remove share
-    setEntities((prev) => prev.filter((e) => e.id !== entityId || e.type !== entityType));
-    onSharesUpdated?.();
+    try {
+      const res = await fetch(`/api/files/shares`, {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fileId, entityId, entityType, orgId }),
+      });
+      if (!res.ok) throw new Error('Failed to remove share');
+      setEntities((prev) => prev.filter((e) => e.id !== entityId || e.type !== entityType));
+      onSharesUpdated?.();
+    } catch (err) {
+      console.error('Error removing share:', err);
+    }
   };
 
   return (
