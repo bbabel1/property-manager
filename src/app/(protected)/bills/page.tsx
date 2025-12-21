@@ -19,7 +19,7 @@ import BillsTabSwitcher from '@/components/financials/BillsTabSwitcher';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 
-type Option = { id: string; label: string };
+type Option = { id: string; label: string; internalId?: string };
 type SearchParams = {
   properties?: string;
   units?: string;
@@ -146,25 +146,37 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
   const tabParam = typeof sp?.tab === 'string' ? sp.tab : undefined;
   const currentTab = tabParam === 'paid' ? 'paid' : 'unpaid';
 
-  const propertiesResponse = await db.from('properties').select('id, name').order('name', {
+  const propertiesResponse = await db.from('properties').select('id, public_id, name').order('name', {
     ascending: true,
   });
 
   const propertyOptions: Option[] = (
-    (propertiesResponse?.data ?? []) as Array<{ id: string; name?: string }>
+    (propertiesResponse?.data ?? []) as Array<{ id: string; public_id?: string | number | null; name?: string }>
   )
-    .map((property) => ({ id: String(property.id), label: property.name || 'Property' }))
+    .map((property) => ({
+      id: property.public_id ? String(property.public_id) : String(property.id),
+      label: property.name || 'Property',
+      internalId: String(property.id),
+    }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  const propertyLabelMap = new Map(propertyOptions.map((opt) => [opt.id, opt.label]));
-  const allPropertyIds = propertyOptions.map((opt) => opt.id);
+  const propertyLabelMap = new Map(propertyOptions.map((opt) => [opt.internalId, opt.label]));
+  const filterIdToInternal = new Map(propertyOptions.map((opt) => [opt.id, opt.internalId]));
+  const allPropertyFilterIds = propertyOptions.map((opt) => opt.id);
+  const allPropertyIds = propertyOptions.map((opt) => opt.internalId).filter((id): id is string => Boolean(id));
 
   const spProperties = typeof sp?.properties === 'string' ? sp.properties : '';
-  let selectedPropertyIds = spProperties
+  let selectedPropertyFilterIds = spProperties
     ? spProperties
         .split(',')
         .map((value) => value.trim())
-        .filter((value) => allPropertyIds.includes(value))
-    : [...allPropertyIds];
+        .filter((value) => allPropertyFilterIds.includes(value) || allPropertyIds.includes(value))
+    : [...allPropertyFilterIds];
+  if (!selectedPropertyFilterIds.length && allPropertyFilterIds.length) {
+    selectedPropertyFilterIds = [...allPropertyFilterIds];
+  }
+  let selectedPropertyIds = selectedPropertyFilterIds
+    .map((value) => filterIdToInternal.get(value) || (allPropertyIds.includes(value) ? value : null))
+    .filter((value): value is string => Boolean(value));
   if (!selectedPropertyIds.length && allPropertyIds.length) {
     selectedPropertyIds = [...allPropertyIds];
   }

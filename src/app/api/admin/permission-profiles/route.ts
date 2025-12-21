@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     if (!supabase) return NextResponse.json({ error: 'Service role not configured' }, { status: 500 })
 
     const { data: profiles, error } = await supabase
-      .from('permission_profiles')
-      .select('id, org_id, name, description, is_system, permission_profile_permissions(permission)')
+      .from('roles')
+      .select('id, org_id, name, description, is_system, role_permissions(permission_id, permissions(key))')
       .order('name', { ascending: true })
       .returns<any[]>()
 
@@ -31,14 +31,17 @@ export async function GET(request: NextRequest) {
     }
 
     const filtered = (profiles || []).filter((p) => !orgId || p.org_id === orgId || p.org_id === null)
-    const mapped = filtered.map((p) => ({
-      id: p.id,
-      org_id: p.org_id,
-      name: p.name,
-      description: p.description,
-      is_system: !!p.is_system,
-      permissions: Array.from(new Set((p.permission_profile_permissions || []).map((row: any) => row.permission).filter(Boolean))),
-    }))
+    const mapped = filtered.map((p) => {
+      const perms = (p.role_permissions || []).map((row: any) => row?.permissions?.key).filter(Boolean)
+      return {
+        id: p.id,
+        org_id: p.org_id,
+        name: p.name,
+        description: p.description,
+        is_system: !!p.is_system,
+        permissions: Array.from(new Set(perms)),
+      }
+    })
 
     return NextResponse.json({ profiles: mapped })
   } catch (e: any) {
@@ -72,7 +75,7 @@ export async function POST(request: NextRequest) {
     } as any
 
     const { data: upserted, error: upsertError } = await supabase
-      .from('permission_profiles')
+      .from('roles')
       .upsert(profileRow, { onConflict: 'id' })
       .select('id')
       .maybeSingle()
@@ -85,13 +88,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to persist profile' }, { status: 500 })
     }
 
-    await supabase.from('permission_profile_permissions').delete().eq('profile_id', profileId)
+    await supabase.from('role_permissions').delete().eq('role_id', profileId)
+    // Ensure permissions exist; assume seeded in permissions table
     const rows = payload.permissions.map((p) => ({
-      profile_id: profileId,
+      role_id: profileId,
+      permission_id: null, // resolved via FK by key
       permission: p,
       updated_at: now,
     }))
-    const { error: permError } = await supabase.from('permission_profile_permissions').insert(rows)
+    const { error: permError } = await supabase.from('role_permissions').insert(rows)
     if (permError) {
       return NextResponse.json({ error: permError.message }, { status: 500 })
     }

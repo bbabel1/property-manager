@@ -1,10 +1,12 @@
 import { PageBody, PageShell, Stack } from '@/components/layout/page-shell';
 import { PropertyService } from '@/lib/property-service';
 import ServiceBillingEvents from '@/components/financials/ServiceBillingEvents';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 
 export default async function PropertyServiceBillingPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const property = await PropertyService.getPropertyById(id);
+  const { id: slug } = await params;
+  const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
+  const property = await PropertyService.getPropertyById(propertyId);
 
   if (!property) {
     return (
@@ -25,9 +27,8 @@ export default async function PropertyServiceBillingPage({ params }: { params: P
             View all service fee billing events and transactions for {property.name || 'this property'}
           </p>
         </div>
-        <ServiceBillingEvents propertyId={id} />
+        <ServiceBillingEvents propertyId={propertyId} />
       </Stack>
     </PageBody>
   );
 }
-

@@ -46,10 +46,10 @@ async function ensureStaffRecord(userId: string) {
   let resolvedRole: StaffRole = DEFAULT_STAFF_ROLE
   try {
     const { data: membershipRoles } = await admin
-      .from('org_membership_roles')
-      .select('role')
+      .from('membership_roles')
+      .select('roles(name)')
       .eq('user_id', userId)
-    const roleSet = new Set((membershipRoles || []).map(r => r.role).filter(Boolean))
+    const roleSet = new Set((membershipRoles || []).map((r: any) => r?.roles?.name).filter(Boolean))
     if (roleSet.has('org_admin')) resolvedRole = 'Administrator'
     else if (roleSet.has('org_manager')) resolvedRole = 'Property Manager'
     else if (roleSet.has('org_staff')) resolvedRole = 'Bookkeeper'

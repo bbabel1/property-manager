@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
 import { fetchPropertyFinancials } from '@/server/financials/property-finance';
 import cashBalanceCases from './fixtures/finance-cash-balance-spec.json';
+import type { Database } from '@/types/database';
 
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = ReturnType<typeof createClient<Database>>;
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -53,6 +54,7 @@ async function seedFixtureCase(
     country: 'United States',
     postal_code: '00000',
     org_id: orgId,
+    service_assignment: 'Property Level',
     status: 'Active',
     property_type: 'Rental Building',
     total_units: 1,
@@ -116,7 +118,7 @@ async function seedFixtureCase(
   let glCounter = 1;
 
   for (const line of spec.transactionLines) {
-    const ga = line.gl_accounts || {};
+    const ga = (line.gl_accounts || {}) as any;
     const key = JSON.stringify(ga);
     if (glAccountMap.has(key)) continue;
     const glId = crypto.randomUUID();
@@ -210,7 +212,9 @@ if (!url || !key) {
   // Skip integration test if env not provided
   describe.skip('property financials RPC alignment (env missing)', () => {});
 } else {
-  const db = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const db = createClient<Database>(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
   describe('property financials RPC alignment', () => {
     const asOf = new Date().toISOString().slice(0, 10);
     for (const spec of cashBalanceCases) {

@@ -17,6 +17,8 @@
 
 - [Database Schema](database/DATABASE_SCHEMA.md) - Complete schema overview
 - [Supabase Setup Guide](database/supabase-setup.md) - Initial setup instructions
+- [Transaction Fields Propagation](database/TRANSACTION_FIELDS_PROPAGATION.md) - Where new Buildium transaction fields surface across UI/sync
+- [Transaction Payment Splits RLS](database/TRANSACTION_PAYMENT_SPLITS_RLS.md) - RLS details for payment split table
 
 ## Migration Guides
 
@@ -28,6 +30,14 @@
 This documentation is automatically updated by the documentation monitoring system. 
 
 **Last automated check**: 2025-10-08T02:51:22.289Z
+
+## Quality / Type Safety
+
+- [Typecheck Fixes Summary](TYPECHECK_FIXES_SUMMARY.md) - Recent typecheck fixes and status
+
+## Runbooks
+
+- [Transaction Ingestion Validation](runbooks/transaction-ingestion-validation.md) - How to validate Buildium transaction mapping after mapper/API changes
 
 **Monitoring patterns**:
 - API routes (`src/app/api/**/*.ts`)

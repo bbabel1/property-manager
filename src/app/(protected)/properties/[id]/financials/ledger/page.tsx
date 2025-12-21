@@ -1,9 +1,11 @@
 import InfoCard from '@/components/layout/InfoCard'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 export default async function LedgerPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams?: Promise<{ gl?: string; as_of?: string }> }) {
-  const { id } = await params
+  const { id: slug } = await params
+  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(slug)
   const sp = (await (searchParams || Promise.resolve({}))) as any
   const gl = sp?.gl as string | undefined
   const asOf = sp?.as_of as string | undefined
@@ -14,7 +16,7 @@ export default async function LedgerPage({ params, searchParams }: { params: Pro
     const { data } = await (supabase as any)
       .from('transaction_lines')
       .select('id, date, memo, posting_type, amount')
-      .eq('property_id', id)
+      .eq('property_id', propertyId)
       .eq('gl_account_id', gl)
       .lte('date', asOf)
       .order('date', { ascending: true })
@@ -27,7 +29,7 @@ export default async function LedgerPage({ params, searchParams }: { params: Pro
     <div className="space-y-6">
       <InfoCard title="Ledger Detail">
         <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
-          <div>Property: {id}</div>
+          <div>Property: {propertyPublicId}</div>
           <div>GL: {gl || '—'}</div>
           <div>As of: {asOf || '—'}</div>
         </div>

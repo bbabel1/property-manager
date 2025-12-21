@@ -1,5 +1,6 @@
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { rollupFinances, classifyLine } from '@/lib/finance/model';
+import { logger } from '@/lib/logger';
 
 type SupabaseClientLike = TypedSupabaseClient;
 
@@ -16,12 +17,12 @@ export async function fetchPropertyFinancials(
       p_as_of: asOf,
     });
     if (error) {
-      console.error('[property-finance] RPC error', error.message);
+      logger.error({ error, propertyId, asOf }, '[property-finance] RPC error');
     } else {
       rpcFin = data;
     }
   } catch (e) {
-    console.error('[property-finance] RPC call failed', e);
+    logger.error({ error: e, propertyId, asOf }, '[property-finance] RPC call failed');
   }
 
   // 2) Derive via shared rollup (bank/payment/deposit/prepay)
@@ -113,27 +114,6 @@ export async function fetchPropertyFinancials(
     .filter(Boolean)
     .map((id) => String(id));
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'property-finance.ts:110',
-      message: 'Property bank GL accounts',
-      data: {
-        propertyId,
-        operatingBankGlAccountId: (property as any)?.operating_bank_gl_account_id,
-        depositTrustGlAccountId: (property as any)?.deposit_trust_gl_account_id,
-        propertyBankGlAccounts,
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'D',
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if (propertyBankGlAccounts.length) {
     const { data: bankLines } = await db
       .from('transaction_lines')
@@ -141,68 +121,10 @@ export async function fetchPropertyFinancials(
       .in('gl_account_id', propertyBankGlAccounts as any)
       .lte('date', asOf);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'property-finance.ts:123',
-        message: 'Bank GL lines collected',
-        data: {
-          propertyId,
-          bankLinesCount: bankLines?.length || 0,
-          bankLines: bankLines?.slice(0, 5).map((l: any) => ({
-            id: l.id,
-            gl_account_id: l.gl_account_id,
-            amount: l.amount,
-            posting_type: l.posting_type,
-            property_id: l.property_id,
-            unit_id: l.unit_id,
-            date: l.date,
-          })),
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'D',
-      }),
-    }).catch(() => {});
-    // #endregion
-
     collectLines(bankLines);
   }
 
   const transactionLines = Array.from(lineMap.values());
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'property-finance.ts:126',
-      message: 'Total transaction lines collected',
-      data: {
-        propertyId,
-        totalLines: transactionLines.length,
-        bankLines: transactionLines.filter((l: any) => l.gl_accounts?.is_bank_account).length,
-        bankLinesSample: transactionLines
-          .filter((l: any) => l.gl_accounts?.is_bank_account)
-          .slice(0, 3)
-          .map((l: any) => ({
-            gl_account_id: l.gl_account_id,
-            gl_account_name: l.gl_accounts?.name,
-            amount: l.amount,
-            posting_type: l.posting_type,
-            property_id: l.property_id,
-          })),
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'A',
-    }),
-  }).catch(() => {});
-  // #endregion
 
   const bankLinesIncluded = transactionLines
     .map((l: any) => {
@@ -276,7 +198,10 @@ export async function fetchPropertyFinancials(
   );
   if (lineTxIds.length) {
     const missingIds = lineTxIds.filter(
-      (id) => !Array.from(txMap.keys()).some((key) => key === `id:${id}` || key.includes(id)),
+      (id): id is string => {
+        if (!id) return false;
+        return !Array.from(txMap.keys()).some((key) => key === `id:${id}` || key.includes(String(id)));
+      },
     );
     if (missingIds.length) {
       const { data: extraTx } = await db
@@ -314,42 +239,6 @@ export async function fetchPropertyFinancials(
 
   const transactions = Array.from(txMap.values());
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'property-finance.ts:216',
-      message: 'Before rollup - all transactions',
-      data: {
-        propertyId,
-        transactionLinesCount: transactionLines.length,
-        transactionsCount: transactions.length,
-        transactionsSample: transactions.slice(0, 5).map((t: any) => ({
-          id: t.id,
-          transaction_type: t.transaction_type,
-          total_amount: t.total_amount,
-          date: t.date,
-        })),
-        allBankLines: transactionLines
-          .filter((l: any) => l.gl_accounts?.is_bank_account)
-          .map((l: any) => ({
-            id: l.id,
-            gl_account_name: l.gl_accounts?.name,
-            amount: l.amount,
-            posting_type: l.posting_type,
-            transaction_id: l.transaction_id,
-            date: l.date,
-          })),
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'E',
-    }),
-  }).catch(() => {});
-  // #endregion
-
   const { fin: derivedFin, debug } = rollupFinances({
     transactionLines,
     transactions,
@@ -365,44 +254,17 @@ export async function fetchPropertyFinancials(
   // Ensure as_of is set to the requested date
   derivedFin.as_of = asOf;
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'property-finance.ts:227',
-      message: 'Rollup result',
-      data: {
-        propertyId,
-        cashBalance: derivedFin.cash_balance,
-        bankTotal: debug?.totals?.bank,
-        paymentsTotal: debug?.totals?.payments,
-        bankLineCount: debug?.bankLineCount,
-        usedBankBalance: debug?.usedBankBalance,
-        usedPaymentFallback: debug?.usedPaymentFallback,
-        incompleteBankLines: debug?.incompleteBankLines,
-        expectedBalance: 10250,
-        difference: 10250 - derivedFin.cash_balance,
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'C',
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if (debug?.incompleteBankLines) {
-    console.warn('[property-finance] Incomplete bank lines detected', {
+    logger.warn({
       propertyId,
       asOf,
       bankTotal: debug?.totals?.bank,
       paymentsTotal: debug?.totals?.payments,
       bankLineCount: debug?.bankLineCount,
-    });
+    }, '[property-finance] Incomplete bank lines detected');
   }
 
-  console.info('[property-finance] Cash balance transaction_lines used', {
+  logger.info({
     propertyId,
     asOf,
     usedBankBalance: debug?.usedBankBalance,
@@ -411,7 +273,7 @@ export async function fetchPropertyFinancials(
     bankLineCount: debug?.bankLineCount,
     bankLinesIncluded,
     note: bankLinesIncluded.length === 200 ? 'truncated at 200 lines' : undefined,
-  });
+  }, '[property-finance] Cash balance transaction_lines used');
 
   return { fin: derivedFin, debug: { ...debug, rpcFin } };
 }

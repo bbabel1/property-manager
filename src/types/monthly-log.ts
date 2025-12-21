@@ -8,6 +8,17 @@ export interface MonthlyLogTransaction {
   monthly_log_id: string | null;
   reference_number: string | null;
   account_name?: string | null;
+  // New Buildium-aligned fields
+  payee_name?: string | null;
+  payee_buildium_id?: number | null;
+  payee_buildium_type?: string | null;
+  is_internal_transaction?: boolean | null;
+  internal_transaction_is_pending?: boolean | null;
+  bank_gl_account_buildium_id?: number | null;
+  buildium_unit_id?: number | null;
+  buildium_unit_number?: string | null;
+  unit_agreement_id?: number | null;
+  unit_agreement_type?: string | null;
 }
 
 export interface MonthlyLogFinancialSummary {

@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { syncBuildingPermitsFromOpenData, type PermitSource } from '@/lib/building-permit-sync'
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 const ALLOWED_SOURCES: PermitSource[] = [
   'dob_now_build_approved_permits',
@@ -25,7 +26,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { propertyId } = await context.params
+    const { propertyId: propertySlug } = await context.params
+    const { internalId: propertyId } = await resolvePropertyIdentifier(propertySlug)
     if (!propertyId) {
       return NextResponse.json({ error: 'Property ID is required' }, { status: 400 })
     }

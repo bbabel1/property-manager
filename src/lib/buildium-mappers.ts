@@ -45,6 +45,7 @@ import type {
 } from '../types/buildium';
 /* eslint-enable @typescript-eslint/no-unused-vars */
 import { normalizeStaffRole } from '@/lib/staff-role';
+import { logger } from '@/lib/logger';
 
 // Type alias for typed Supabase client
 
@@ -55,6 +56,8 @@ type OwnersInsert = Database['public']['Tables']['owners']['Insert'];
 type OwnersUpdate = Database['public']['Tables']['owners']['Update'];
 type VendorCategoryInsert = Database['public']['Tables']['vendor_categories']['Insert'];
 type TransactionLineInsert = Database['public']['Tables']['transaction_lines']['Insert'];
+type TransactionPaymentTransactionInsert =
+  Database['public']['Tables']['transaction_payment_transactions']['Insert'];
 type TransactionInsertBase = Omit<
   Database['public']['Tables']['transactions']['Insert'],
   'updated_at'
@@ -1578,6 +1581,15 @@ async function resolveLocalUnitId(
 export function mapLeaseTransactionFromBuildium(
   buildiumTx: Partial<BuildiumLeaseTransaction>,
 ): TransactionInsertBase {
+  const paymentDetail = (buildiumTx as any)?.PaymentDetail ?? null;
+  const payee = paymentDetail?.Payee ?? null;
+  const unitAgreement = (buildiumTx as any)?.UnitAgreement ?? null;
+  const unitIdRaw =
+    (buildiumTx as any)?.UnitId ??
+    (buildiumTx as any)?.Unit?.Id ??
+    (buildiumTx as any)?.Unit?.ID ??
+    null;
+
   return {
     buildium_transaction_id: buildiumTx.Id ?? null,
     date: normalizeDateString(buildiumTx.Date || buildiumTx.TransactionDate || buildiumTx.PostDate),
@@ -1593,9 +1605,78 @@ export function mapLeaseTransactionFromBuildium(
     check_number: buildiumTx.CheckNumber ?? null,
     buildium_lease_id: buildiumTx.LeaseId ?? null,
     payee_tenant_id: buildiumTx.PayeeTenantId ?? null,
-    payment_method: mapPaymentMethodToEnum(buildiumTx.PaymentMethod),
+    payment_method: mapPaymentMethodToEnum(
+      (paymentDetail?.PaymentMethod as string | null | undefined) ?? buildiumTx.PaymentMethod,
+    ),
+    payment_method_raw: (paymentDetail?.PaymentMethod as string | null | undefined) ?? buildiumTx.PaymentMethod ?? null,
     memo: buildiumTx?.Journal?.Memo ?? buildiumTx?.Memo ?? null,
+    payee_buildium_id: (payee as any)?.Id ?? null,
+    payee_buildium_type: (payee as any)?.Type ?? null,
+    payee_name: (payee as any)?.Name ?? null,
+    payee_href: (payee as any)?.Href ?? null,
+    is_internal_transaction: paymentDetail?.IsInternalTransaction ?? null,
+    internal_transaction_is_pending: paymentDetail?.InternalTransactionStatus?.IsPending ?? null,
+    internal_transaction_result_date: (paymentDetail?.InternalTransactionStatus as any)?.ResultDate ?? null,
+    internal_transaction_result_code: (paymentDetail?.InternalTransactionStatus as any)?.ResultCode ?? null,
+    buildium_unit_id: unitIdRaw ?? null,
+    buildium_unit_number:
+      (buildiumTx as any)?.UnitNumber ?? (buildiumTx as any)?.Unit?.Number ?? null,
+    buildium_application_id: (buildiumTx as any)?.Application?.Id ?? null,
+    unit_agreement_id: (unitAgreement as any)?.Id ?? null,
+    unit_agreement_type: (unitAgreement as any)?.Type ?? null,
+    unit_agreement_href: (unitAgreement as any)?.Href ?? null,
+    buildium_last_updated_at: (buildiumTx as any)?.LastUpdatedDateTime ?? null,
+    bank_gl_account_buildium_id: (buildiumTx as any)?.DepositDetails?.BankGLAccountId ?? null,
   };
+}
+
+export type LeaseTransactionLineMetadata = {
+  reference_number: string | null;
+  is_cash_posting: boolean | null;
+  accounting_entity_type_raw: string | null;
+};
+
+export function extractLeaseTransactionLineMetadataFromBuildiumLine(
+  line: unknown,
+): LeaseTransactionLineMetadata {
+  const record = (line ?? {}) as any;
+  const accountingEntityTypeRaw =
+    (record?.AccountingEntity?.AccountingEntityType as string | null | undefined) ?? null;
+  return {
+    reference_number: (record?.ReferenceNumber as string | null | undefined) ?? null,
+    is_cash_posting:
+      typeof record?.IsCashPosting === 'boolean' ? (record.IsCashPosting as boolean) : null,
+    accounting_entity_type_raw: accountingEntityTypeRaw,
+  };
+}
+
+export function mapDepositPaymentSplitsFromBuildium(
+  buildiumTx: unknown,
+  params: { transactionId: string; nowIso?: string },
+): TransactionPaymentTransactionInsert[] {
+  const nowIso = params.nowIso ?? new Date().toISOString();
+  const txAny = (buildiumTx ?? {}) as any;
+  const paymentSplits = Array.isArray(txAny?.DepositDetails?.PaymentTransactions)
+    ? txAny.DepositDetails.PaymentTransactions
+    : [];
+  if (paymentSplits.length === 0) return [];
+
+  return paymentSplits.map((pt: any) => ({
+    transaction_id: params.transactionId,
+    buildium_payment_transaction_id: pt?.Id ?? null,
+    accounting_entity_id: pt?.AccountingEntity?.Id ?? null,
+    accounting_entity_type: pt?.AccountingEntity?.AccountingEntityType ?? null,
+    accounting_entity_href: pt?.AccountingEntity?.Href ?? null,
+    accounting_unit_id:
+      pt?.AccountingEntity?.Unit?.Id ??
+      pt?.AccountingEntity?.Unit?.ID ??
+      pt?.AccountingEntity?.UnitId ??
+      null,
+    accounting_unit_href: pt?.AccountingEntity?.Unit?.Href ?? null,
+    amount: pt?.Amount ?? null,
+    created_at: nowIso,
+    updated_at: nowIso,
+  }));
 }
 
 function resolvePostingTypeFromLine(line: any): 'Debit' | 'Credit' {
@@ -1688,11 +1769,32 @@ export async function upsertLeaseTransactionWithLines(
     existingTx = data ?? null;
   }
 
+  // Resolve defaults for property/unit to use when lines omit accounting entity info
+  const defaultBuildiumPropertyId = leaseContext?.buildiumPropertyId ?? null;
+  const defaultBuildiumUnitId = leaseContext?.buildiumUnitId ?? null;
+  const defaultLocalPropertyId =
+    leaseContext?.propertyId ??
+    (defaultBuildiumPropertyId
+      ? await resolveLocalPropertyId(defaultBuildiumPropertyId, supabase)
+      : null);
+  const defaultLocalUnitId =
+    leaseContext?.unitId ??
+    (defaultBuildiumUnitId ? await resolveLocalUnitId(defaultBuildiumUnitId, supabase) : null);
+  const unitIdForHeader =
+    leaseContext?.unitId ??
+    (mappedTx.buildium_unit_id ? await resolveLocalUnitId(mappedTx.buildium_unit_id, supabase) : null);
+  const bankGlAccountId =
+    mappedTx.bank_gl_account_buildium_id != null
+      ? await resolveGLAccountId(mappedTx.bank_gl_account_buildium_id, supabase)
+      : null;
+
   let transactionId: string;
   if (existingTx) {
     const updatePayload = {
       ...mappedTx,
       lease_id: leaseIdForUpsert,
+      unit_id: unitIdForHeader,
+      bank_gl_account_id: bankGlAccountId,
       updated_at: nowIso,
     };
     const { data, error } = await supabase
@@ -1707,6 +1809,8 @@ export async function upsertLeaseTransactionWithLines(
     const insertPayload = {
       ...mappedTx,
       lease_id: leaseIdForUpsert,
+      unit_id: unitIdForHeader,
+      bank_gl_account_id: bankGlAccountId,
       created_at: nowIso,
       updated_at: nowIso,
     };
@@ -1723,18 +1827,7 @@ export async function upsertLeaseTransactionWithLines(
   const pendingLineRows: TransactionLineInsert[] = [];
   let debitSum = 0;
   let creditSum = 0;
-
-  // Resolve defaults for property/unit to use when lines omit accounting entity info
-  const defaultBuildiumPropertyId = leaseContext?.buildiumPropertyId ?? null;
-  const defaultBuildiumUnitId = leaseContext?.buildiumUnitId ?? null;
-  const defaultLocalPropertyId =
-    leaseContext?.propertyId ??
-    (defaultBuildiumPropertyId
-      ? await resolveLocalPropertyId(defaultBuildiumPropertyId, supabase)
-      : null);
-  const defaultLocalUnitId =
-    leaseContext?.unitId ??
-    (defaultBuildiumUnitId ? await resolveLocalUnitId(defaultBuildiumUnitId, supabase) : null);
+  const rawTotalAmount = Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0);
 
   // Track which GL accounts are bank accounts for later check
   const glAccountBankFlags = new Map<string, boolean>();
@@ -1778,13 +1871,17 @@ export async function upsertLeaseTransactionWithLines(
     const localPropertyId =
       (await resolveLocalPropertyId(buildiumPropertyId, supabase)) ?? defaultLocalPropertyId;
     const localUnitId = (await resolveLocalUnitId(buildiumUnitId, supabase)) ?? defaultLocalUnitId;
+    const lineMeta = extractLeaseTransactionLineMetadataFromBuildiumLine(line);
+    const accountingEntityTypeRaw = lineMeta.accounting_entity_type_raw;
+    const accountEntityType: EntityType =
+      (accountingEntityTypeRaw || '').toString().toLowerCase() === 'company' ? 'Company' : 'Rental';
 
     pendingLineRows.push({
       gl_account_id: glAccountId,
       amount: amountAbs,
       posting_type: postingType,
       memo: line?.Memo ?? null,
-      account_entity_type: 'Rental',
+      account_entity_type: accountEntityType,
       account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
       date: normalizeDateString(buildiumTx?.Date),
       created_at: nowIso,
@@ -1795,6 +1892,9 @@ export async function upsertLeaseTransactionWithLines(
       lease_id: leaseIdForUpsert,
       property_id: localPropertyId,
       unit_id: localUnitId,
+      reference_number: lineMeta.reference_number,
+      is_cash_posting: lineMeta.is_cash_posting,
+      accounting_entity_type_raw: lineMeta.accounting_entity_type_raw,
     });
 
     if (postingType === 'Debit') debitSum += amountAbs;
@@ -1814,76 +1914,97 @@ export async function upsertLeaseTransactionWithLines(
   const needsBankAccountLine = isPaymentTransaction || isApplyDepositTransaction;
   const hasBankAccountLine = Array.from(glAccountBankFlags.values()).some((isBank) => isBank);
   const totalAmount = Math.abs(Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0));
+  let bankGlAccountIdToUse: string | null = bankGlAccountId;
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'buildium-mappers.ts:1790',
-      message: 'Payment transaction bank line check',
-      data: {
-        transactionId: buildiumTx?.Id,
-        isPaymentTransaction,
-        hasBankAccountLine,
-        totalAmount,
-        creditSum,
+  if (needsBankAccountLine && !hasBankAccountLine) {
+    logger.warn(
+      {
+        buildiumTransactionId: buildiumTx?.Id ?? null,
+        type: mappedTx.transaction_type,
         debitSum,
-        linesCount: lines.length,
-        pendingLinesCount: pendingLineRows.length,
-        propertyId: defaultLocalPropertyId,
-        buildiumPropertyId: defaultBuildiumPropertyId,
+        creditSum,
+        totalAmount,
+        buildiumLeaseId: buildiumTx?.LeaseId ?? null,
+        defaultLocalPropertyId,
+        defaultBuildiumPropertyId,
       },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'run1',
-      hypothesisId: 'A',
-    }),
-  }).catch(() => {});
-  // #endregion
+      'Buildium lease transaction missing bank account line (will attempt bank GL resolution if eligible)',
+    );
+  }
+
+  // Heuristic fix (narrowed): some Buildium lease Payment payloads arrive as one-sided "all debits"
+  // without the corresponding credits. Only invert when lines are non-liability (to avoid flipping
+  // security deposit debits into credits) and when the raw total amount is positive.
+  const hasDepositLiabilityLine = Array.from(glAccountMeta.values()).some((meta) => {
+    const type = (meta.type || '').toLowerCase();
+    const name = (meta.name || '').toLowerCase();
+    const subType = (meta.subType || '').toLowerCase();
+    return type === 'liability' && (name.includes('deposit') || subType.includes('deposit'));
+  });
+
+  if (
+    needsBankAccountLine &&
+    !hasBankAccountLine &&
+    !hasDepositLiabilityLine &&
+    rawTotalAmount >= 0 &&
+    debitSum > 0 &&
+    creditSum === 0 &&
+    totalAmount > 0 &&
+    Math.abs(debitSum - totalAmount) < 0.0001
+  ) {
+    logger.warn(
+      {
+        buildiumTransactionId: buildiumTx?.Id ?? null,
+        type: mappedTx.transaction_type,
+        debitSum,
+        creditSum,
+        totalAmount,
+      },
+      'Lease payment appears one-sided (all debits). Inverting posting types before bank-line resolution.',
+    );
+
+    for (const r of pendingLineRows) {
+      r.posting_type = r.posting_type === 'Debit' ? 'Credit' : 'Debit';
+    }
+    creditSum = debitSum;
+    debitSum = 0;
+  }
 
   if (needsBankAccountLine && !hasBankAccountLine && creditSum > 0 && defaultLocalPropertyId) {
-    // Resolve the property's bank GL account (prefer operating, fallback to deposit trust)
-    const { data: propertyRow } = await supabase
-      .from('properties')
-      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
-      .eq('id', defaultLocalPropertyId)
-      .maybeSingle();
+    if (!bankGlAccountIdToUse) {
+      // Resolve the property's bank GL account (prefer operating, fallback to deposit trust).
+      // NOTE: We intentionally do NOT prefer Undeposited Funds here because the audit requires an actual bank GL
+      // (gl_accounts.is_bank_account = true) on Payment/ApplyDeposit transactions.
+      const { data: propertyRow } = await supabase
+        .from('properties')
+        .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
+        .eq('id', defaultLocalPropertyId)
+        .maybeSingle();
 
-    const bankGlAccountId =
-      (propertyRow as any)?.operating_bank_gl_account_id ??
-      (propertyRow as any)?.deposit_trust_gl_account_id ??
-      null;
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'buildium-mappers.ts:1815',
-        message: 'Adding bank account line for payment',
-        data: {
-          transactionId: buildiumTx?.Id,
-          bankGlAccountId,
+      bankGlAccountIdToUse =
+        (propertyRow as any)?.operating_bank_gl_account_id ??
+        (propertyRow as any)?.deposit_trust_gl_account_id ??
+        null;
+      logger.warn(
+        {
+          buildiumTransactionId: buildiumTx?.Id ?? null,
+          bankGlAccountIdResolved: bankGlAccountIdToUse,
           creditSum,
           totalAmount,
-          propertyId: defaultLocalPropertyId,
-          operatingBankGlAccountId: (propertyRow as any)?.operating_bank_gl_account_id,
-          depositTrustGlAccountId: (propertyRow as any)?.deposit_trust_gl_account_id,
+          defaultLocalPropertyId,
+          operatingBankGlAccountId: (propertyRow as any)?.operating_bank_gl_account_id ?? null,
+          depositTrustGlAccountId: (propertyRow as any)?.deposit_trust_gl_account_id ?? null,
         },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'A',
-      }),
-    }).catch(() => {});
-    // #endregion
+        'Resolved bank GL account id for payment/apply-deposit (inserting balancing bank line)',
+      );
 
-    if (bankGlAccountId) {
-      // Add debit to bank account (cash increases with debit for asset accounts)
-      // The debit amount should equal the credit sum to balance the entry
-      pendingLineRows.push({
-        gl_account_id: bankGlAccountId,
+  }
+
+  if (bankGlAccountIdToUse) {
+    // Add debit to bank account (cash increases with debit for asset accounts)
+    // The debit amount should equal the credit sum to balance the entry
+    pendingLineRows.push({
+      gl_account_id: bankGlAccountIdToUse,
         amount: creditSum,
         posting_type: 'Debit',
         memo: buildiumTx?.Memo ?? mappedTx.memo ?? null,
@@ -1946,6 +2067,14 @@ export async function upsertLeaseTransactionWithLines(
     }
   }
 
+  // Replace deposit/payment splits (DepositDetails.PaymentTransactions)
+  await supabase.from('transaction_payment_transactions').delete().eq('transaction_id', transactionId);
+  const splitRows = mapDepositPaymentSplitsFromBuildium(buildiumTx, { transactionId, nowIso });
+  if (splitRows.length > 0) {
+    const { error: splitErr } = await supabase.from('transaction_payment_transactions').insert(splitRows);
+    if (splitErr) throw splitErr;
+  }
+
   // Prefer to have a local FK, but do not hard-fail if missing for lease transactions
 
   // Delete all existing lines for this transaction (idempotent per requirements)
@@ -1972,6 +2101,19 @@ export async function upsertLeaseTransactionWithLines(
         `Double-entry integrity violation on lease transaction ${buildiumTx?.Id}: debits (${debitSum}) != credits (${creditSum})`,
       );
     }
+  }
+
+  if (needsBankAccountLine && (debitSum === 0 || creditSum === 0)) {
+    logger.warn(
+      {
+        buildiumTransactionId: buildiumTx?.Id ?? null,
+        type: mappedTx.transaction_type,
+        debitSum,
+        creditSum,
+        buildiumLeaseId: buildiumTx?.LeaseId ?? null,
+      },
+      'Buildium lease transaction appears unbalanced (one-sided debits/credits); investigate bank GL resolution and source journal lines',
+    );
   }
 
   return { transactionId };
@@ -4744,8 +4886,6 @@ export function mapLeaseToBuildium(
       (out as any).ProratedLastMonthRent = leaseAny.ProratedLastMonthRent as number;
     return out as BuildiumLeaseCreate;
   }
-  // PropertyId is not required for Buildium lease create; UnitId implies the property.
-  // Keep resolving it for internal logic if needed, but do not include it in payload.
   const unitId = coerceNumber(
     (leaseAny?.buildium_unit_id as number | undefined) ??
       (leaseAny?.UnitId as number | undefined) ??
@@ -4780,6 +4920,9 @@ export function mapLeaseToBuildium(
       (leaseAny?.PropertyId as number | undefined) ??
       (leaseAny?.property_id as number | undefined),
   );
+  if (propertyId == null) {
+    throw new Error('Cannot map lease to Buildium without PropertyId / buildium_property_id')
+  }
 
   const leaseType = normalizeLeaseTypeForBuildium(
     (leaseAny?.lease_type as string | undefined) ?? (leaseAny?.LeaseType as string | undefined),
@@ -4792,6 +4935,7 @@ export function mapLeaseToBuildium(
 
   // Strict payload: only use keys present in the sample schema.
   const payload: BuildiumLeaseCreate = {
+    PropertyId: propertyId,
     Status: 'Active' as const,
     LeaseFromDate: leaseFrom.dateOnly,
     LeaseType: leaseType,
@@ -4800,7 +4944,6 @@ export function mapLeaseToBuildium(
   };
 
   if (unitId != null) payload.UnitId = unitId;
-  if (propertyId != null) payload.PropertyId = propertyId;
   if (leaseTo) payload.LeaseToDate = leaseTo.dateOnly;
 
   // Do not include RentAmount/SecurityDepositAmount or any other

@@ -23,6 +23,7 @@ type SearchParams = {
 
 type PropertyRecord = {
   id: string;
+  public_id?: string | null;
   name?: string | null;
   org_id?: string | null;
 };
@@ -40,6 +41,9 @@ type AccountRecord = {
   account_number?: string | null;
   type?: string | null;
 };
+
+const normalizeBasis = (basis: unknown): 'cash' | 'accrual' =>
+  String(basis ?? '').toLowerCase() === 'cash' ? 'cash' : 'accrual';
 
 export default async function GeneralLedgerPage({
   searchParams,
@@ -65,11 +69,45 @@ export default async function GeneralLedgerPage({
 
   const { data: propertyData } = await db
     .from('properties')
-    .select('id, name, org_id')
+    .select('id, public_id, name, org_id')
     .order('name', { ascending: true });
 
   const propertyRows = (propertyData || []) as PropertyRecord[];
-  const propertyOptions = propertyRows
+  const propertyLabelById = new Map(
+    propertyRows.map((property) => [String(property.id), property.name || 'Property']),
+  );
+  const propertyPublicToInternalId = new Map(
+    propertyRows.map((property) => [
+      property.public_id ? String(property.public_id) : String(property.id),
+      String(property.id),
+    ]),
+  );
+  const propertyOrgById = new Map(
+    propertyRows.map((property) => [String(property.id), property.org_id ? String(property.org_id) : null]),
+  );
+
+  const orgIds = Array.from(
+    new Set(
+      propertyRows
+        .map((property) => (property.org_id ? String(property.org_id) : null))
+        .filter((orgId): orgId is string => Boolean(orgId)),
+    ),
+  );
+
+  const orgBasisById = new Map<string, 'cash' | 'accrual'>();
+  if (orgIds.length) {
+    const { data: orgRows } = await db
+      .from('organizations')
+      .select('id, default_accounting_basis')
+      .in('id', orgIds);
+
+    (orgRows || []).forEach((org) => {
+      if (!org?.id) return;
+      orgBasisById.set(String(org.id), normalizeBasis((org as any).default_accounting_basis));
+    });
+  }
+
+  const propertyOptionsInternal = propertyRows
     .map((property) => ({
       id: String(property.id),
       label: property.name || 'Property',
@@ -77,25 +115,39 @@ export default async function GeneralLedgerPage({
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const propertyLabelMap = new Map(propertyOptions.map((option) => [option.id, option.label]));
-  const propertyOrgMap = new Map(propertyOptions.map((option) => [option.id, option.orgId]));
-  const allPropertyIds = propertyOptions.map((option) => option.id);
+  const propertyFilterOptions = propertyRows
+    .map((property) => ({
+      id: property.public_id ? String(property.public_id) : String(property.id),
+      label: property.name || 'Property',
+      orgId: property.org_id ? String(property.org_id) : null,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const propertyLabelMap = propertyLabelById;
+  const allPropertyIds = propertyOptionsInternal.map((option) => option.id);
+  const allPropertyFilterIds = propertyFilterOptions.map((option) => option.id);
 
   const rawProperties = typeof sp?.properties === 'string' ? sp.properties : undefined;
   const propertiesExplicitNone = rawProperties === 'none';
-  const selectedPropertyIds = propertiesExplicitNone
+  const selectedPropertyPublicIds = propertiesExplicitNone
     ? []
     : rawProperties
       ? rawProperties
           .split(',')
           .map((value) => value.trim())
-          .filter((value) => allPropertyIds.includes(value))
+          .filter((value) => allPropertyFilterIds.includes(value))
       : [];
 
+  const selectedPropertyInternalIds = selectedPropertyPublicIds
+    .map((publicId) => propertyPublicToInternalId.get(publicId))
+    .filter((value): value is string => Boolean(value));
+
   const propertyFilterIds =
-    selectedPropertyIds.length === 0 || selectedPropertyIds.length === allPropertyIds.length
+    propertiesExplicitNone ||
+    selectedPropertyPublicIds.length === 0 ||
+    selectedPropertyPublicIds.length === allPropertyFilterIds.length
       ? null
-      : selectedPropertyIds;
+      : selectedPropertyInternalIds;
 
   const unitsParam = typeof sp?.units === 'string' ? sp.units : '';
   const glParamRaw = typeof sp?.gl === 'string' ? sp.gl : '';
@@ -132,9 +184,9 @@ export default async function GeneralLedgerPage({
   });
 
   const unitOptions =
-    selectedPropertyIds.length === 0
+    selectedPropertyInternalIds.length === 0
       ? []
-      : selectedPropertyIds
+      : selectedPropertyInternalIds
           .flatMap((propertyId) => {
             const propertyLabel = propertyLabelMap.get(propertyId) || null;
             return (unitsByProperty[propertyId] ?? []).map((unit) => ({
@@ -166,10 +218,14 @@ export default async function GeneralLedgerPage({
     !noUnitsSelected && selectedUnitIds.length === 1 ? selectedUnitIds[0] : '';
 
   const selectedOrgIds = new Set<string>();
-  for (const propertyId of selectedPropertyIds) {
-    const orgId = propertyOrgMap.get(propertyId);
+  for (const propertyId of selectedPropertyInternalIds) {
+    const orgId = propertyOrgById.get(propertyId);
     if (orgId) selectedOrgIds.add(orgId);
   }
+
+  const basisFromSelection =
+    selectedOrgIds.size === 1 ? orgBasisById.get(Array.from(selectedOrgIds)[0]) : undefined;
+  const defaultBasis = basisFromSelection ?? orgBasisById.values().next().value ?? 'accrual';
 
   const accountsQuery = (() => {
     let query = db
@@ -220,10 +276,11 @@ export default async function GeneralLedgerPage({
       ? null
       : selectedAccountIds;
 
-  const shouldQueryLedger =
-    selectedPropertyIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
+  const basisParam = sp?.basis === 'cash' ? 'cash' : defaultBasis;
+  const dateHeading = basisParam === 'cash' ? 'Date (cash basis)' : 'Date (accrual basis)';
 
-  const basisParam = sp?.basis === 'cash' ? 'cash' : 'accrual';
+  const shouldQueryLedger =
+    selectedPropertyPublicIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
   const qBase = () =>
     db
@@ -295,7 +352,7 @@ export default async function GeneralLedgerPage({
   });
 
   const emptyStateMessage =
-    selectedPropertyIds.length === 0
+    selectedPropertyPublicIds.length === 0
       ? 'Select a property to view ledger activity.'
       : noUnitsSelected
         ? 'Select at least one unit to view ledger activity.'
@@ -304,7 +361,7 @@ export default async function GeneralLedgerPage({
           : 'No activity for the selected filters.';
 
   const modalDefaultPropertyId =
-    selectedPropertyIds.length === 1 ? selectedPropertyIds[0] : undefined;
+    selectedPropertyInternalIds.length === 1 ? selectedPropertyInternalIds[0] : undefined;
   const modalUnitOptions =
     modalDefaultPropertyId && unitsByProperty[modalDefaultPropertyId]
       ? unitsByProperty[modalDefaultPropertyId]
@@ -321,7 +378,7 @@ export default async function GeneralLedgerPage({
           <div className="flex justify-end">
             <RecordGeneralJournalEntryButton
               autoSelectDefaultProperty={false}
-              propertyOptions={propertyOptions.map(({ id, label }) => ({ id, label }))}
+              propertyOptions={propertyOptionsInternal.map(({ id, label }) => ({ id, label }))}
               unitOptions={modalUnitOptions}
               unitsByProperty={unitsByProperty}
               accountOptions={accountOptions}
@@ -332,12 +389,12 @@ export default async function GeneralLedgerPage({
           <div className="flex flex-wrap items-end gap-4">
             <LedgerFilters
               autoSelectAllProperties={false}
-              defaultPropertyIds={selectedPropertyIds}
+              defaultPropertyIds={selectedPropertyPublicIds}
               defaultUnitIds={selectedUnitIds}
               defaultGlIds={selectedAccountIds}
               unitOptions={unitOptions}
               accountOptions={accountOptions}
-              propertyOptions={propertyOptions.map(({ id, label }) => ({ id, label }))}
+              propertyOptions={propertyFilterOptions.map(({ id, label }) => ({ id, label }))}
               noUnitsSelected={noUnitsSelected}
             />
             <DateRangeControls defaultFrom={from} defaultTo={to} defaultRange={range} />
@@ -349,7 +406,7 @@ export default async function GeneralLedgerPage({
               <TableHeader>
                 <TableRow className="border-border border-b">
                   <TableHead className="text-muted-foreground w-[12rem]">
-                    Date (cash basis)
+                    {dateHeading}
                   </TableHead>
                   <TableHead className="text-muted-foreground w-[10rem]">Unit</TableHead>
                   <TableHead className="text-muted-foreground">Transaction</TableHead>
@@ -437,7 +494,7 @@ export default async function GeneralLedgerPage({
                                 : null;
                             const unitPrimary = line.unitLabel || '—';
                             const propertyLabel =
-                              line.propertyLabel && selectedPropertyIds.length !== 1
+                              line.propertyLabel && selectedPropertyInternalIds.length !== 1
                                 ? line.propertyLabel
                                 : null;
 

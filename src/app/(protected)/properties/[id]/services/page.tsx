@@ -1,9 +1,11 @@
 import { PropertyService } from '@/lib/property-service';
 import PropertyServicesPageContent from '@/components/property/PropertyServicesPageContent';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 
 export default async function PropertyServicesPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const property = await PropertyService.getPropertyById(id);
+  const { id: slug } = await params;
+  const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
+  const property = await PropertyService.getPropertyById(propertyId);
 
   if (!property) {
     return (

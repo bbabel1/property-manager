@@ -7,6 +7,7 @@ import {
   type PropertyOption,
   type UnitOption,
 } from '@/components/financials/GeneralJournalEntryForm';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 
 type LineDetail = {
   id: string;
@@ -38,7 +39,8 @@ export default async function JournalEntryDetailsPage({
 }: {
   params: Promise<{ id: string; transactionId: string }>;
 }) {
-  const { id: propertyId, transactionId } = await params;
+  const { id: slug, transactionId } = await params;
+  const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
   const db = await getSupabaseServerClient();
 
   const [{ data: property }, { data: transaction }, { data: journal }] = await Promise.all([

@@ -121,73 +121,46 @@ export async function POST(request: NextRequest) {
     if (org_id) {
       const { error: membershipError } = await supabaseAdmin
         .from('org_memberships')
-        .upsert(
-          {
-            user_id: userId,
-            org_id,
-            role: topRole
-          },
-          { onConflict: 'user_id,org_id' }
-        )
+        .upsert({ user_id: userId, org_id }, { onConflict: 'user_id,org_id' })
 
       if (membershipError) {
         return NextResponse.json({ error: membershipError.message }, { status: 500 })
       }
 
-      // Persist all selected roles for the membership
+      // Persist all selected roles for the membership via membership_roles (roles table-backed)
       try {
-        const { error: deleteError } = await supabaseAdmin
-          .from('org_membership_roles')
-          .delete()
-          .eq('user_id', userId)
-          .eq('org_id', org_id)
+        const { data: roleRows, error: rolesLookupError } = await supabaseAdmin
+          .from('roles')
+          .select('id, name, org_id')
+          .in('name', normalizedRoles)
+          .or(`org_id.eq.${org_id},org_id.is.null`)
+          .order('org_id', { ascending: false })
 
-        if (deleteError) {
-          console.warn('Failed to clear org_membership_roles before insert', deleteError)
-        }
+        if (rolesLookupError) {
+          console.warn('Failed to lookup roles for invite', rolesLookupError)
+        } else {
+          const roleMap = new Map<string, string>()
+          for (const r of roleRows || []) {
+            if (r?.name && r?.id && !roleMap.has(r.name)) {
+              roleMap.set(r.name, r.id)
+            }
+          }
 
-        const roleRows = normalizedRoles.map((role) => ({ user_id: userId, org_id, role }))
-        const { error: rolesError } = await supabaseAdmin
-          .from('org_membership_roles')
-          .insert(roleRows)
+          await supabaseAdmin.from('membership_roles').delete().eq('user_id', userId).eq('org_id', org_id)
+          const rowsToInsert = normalizedRoles
+            .map((roleName) => {
+              const roleId = roleMap.get(roleName)
+              return roleId ? { user_id: userId, org_id, role_id: roleId } : null
+            })
+            .filter(Boolean) as { user_id: string; org_id: string; role_id: string }[]
 
-        if (rolesError) {
-          console.warn('Failed to insert org_membership_roles for invite', rolesError)
-        }
-      } catch (rolesException) {
-        console.warn('Failed to sync org_membership_roles for invite', rolesException)
-      }
-
-      // Assign permission profile when provided or using default for role set
-      const profileName = permission_profile_id ? null : pickDefaultProfileNameForRoles(normalizedRoles)
-      try {
-        await supabaseAdmin
-          .from('user_permission_profiles')
-          .delete()
-          .eq('user_id', userId)
-          .eq('org_id', org_id)
-        if (permission_profile_id) {
-          await supabaseAdmin
-            .from('user_permission_profiles')
-            .insert({ user_id: userId, org_id, profile_id: permission_profile_id })
-        } else if (profileName) {
-          const { data: profileRow } = await supabaseAdmin
-            .from('permission_profiles')
-            .select('id')
-            .eq('name', profileName)
-            .or(`org_id.is.null,org_id.eq.${org_id}`)
-            .order('org_id', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-          const profileId = (profileRow as any)?.id
-          if (profileId) {
-            await supabaseAdmin
-              .from('user_permission_profiles')
-              .insert({ user_id: userId, org_id, profile_id: profileId })
+          if (rowsToInsert.length) {
+            const { error: rolesError } = await supabaseAdmin.from('membership_roles').insert(rowsToInsert)
+            if (rolesError) console.warn('Failed to insert membership_roles for invite', rolesError)
           }
         }
-      } catch (profileError) {
-        console.warn('Failed to assign permission profile on invite', profileError)
+      } catch (rolesException) {
+        console.warn('Failed to sync membership_roles for invite', rolesException)
       }
     }
 

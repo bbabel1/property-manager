@@ -21,25 +21,26 @@ export async function GET() {
     // Fetch memberships with organization names
     const { data: memberships, error: memErr } = await supabaseAdmin
       .from('org_memberships')
-      .select('user_id, org_id, role, organizations(name)')
+      .select('user_id, org_id, organizations(name)')
 
     if (memErr) {
       return NextResponse.json({ error: memErr.message || 'Failed to fetch memberships' }, { status: 500 })
     }
 
     const { data: membershipRoles, error: membershipRolesErr } = await supabaseAdmin
-      .from('org_membership_roles')
-      .select('user_id, org_id, role')
+      .from('membership_roles')
+      .select('user_id, org_id, roles(name)')
 
     if (membershipRolesErr) {
-      console.warn('Failed to fetch org_membership_roles', membershipRolesErr)
+      console.warn('Failed to fetch membership_roles', membershipRolesErr)
     }
 
     const rolesByMembership = new Map<string, Set<string>>()
     for (const r of membershipRoles || []) {
       const key = `${r.user_id}:${r.org_id}`
       const set = rolesByMembership.get(key) ?? new Set<string>()
-      if (r?.role) set.add(r.role)
+      const roleName = (r as any)?.roles?.name
+      if (roleName) set.add(roleName)
       rolesByMembership.set(key, set)
     }
 
@@ -47,7 +48,7 @@ export async function GET() {
     for (const m of memberships || []) {
       const key = `${m.user_id}:${m.org_id}`
       const roleSet = rolesByMembership.get(key)
-      const normalizedRoles = roleSet && roleSet.size > 0 ? Array.from(roleSet) : (m.role ? [m.role] : [])
+      const normalizedRoles = roleSet && roleSet.size > 0 ? Array.from(roleSet) : []
       const arr = byUser.get(m.user_id) || []
       arr.push({
         org_id: m.org_id,
@@ -88,27 +89,6 @@ export async function GET() {
       }
     }
 
-    // Permission profiles per user/org
-    const profilesByUser = new Map<string, any[]>()
-    try {
-      const { data: profileRows, error: profileErr } = await supabaseAdmin
-        .from('user_permission_profiles')
-        .select('user_id, org_id, profile_id, permission_profiles(name)')
-      if (!profileErr) {
-        for (const row of profileRows || []) {
-          const arr = profilesByUser.get(row.user_id) || []
-          arr.push({
-            org_id: row.org_id,
-            profile_id: row.profile_id,
-            profile_name: (row as any)?.permission_profiles?.name || '',
-          })
-          profilesByUser.set(row.user_id, arr)
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load permission profiles for users', e)
-    }
-
     const out = users.map((u: any) => ({
       id: u.id,
       email: u.email,
@@ -116,7 +96,6 @@ export async function GET() {
       last_sign_in_at: u.last_sign_in_at,
       app_metadata: u.app_metadata ?? {},
       memberships: byUser.get(u.id) || [],
-      permission_profiles: profilesByUser.get(u.id) || [],
       contact: contactsByUser.get(u.id) || null,
       staff: staffByUser.get(u.id) || null,
     }))

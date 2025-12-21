@@ -25,6 +25,7 @@ import { cn } from '@/components/ui/utils';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
 import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
@@ -37,6 +38,9 @@ const BILL_STATUS_OPTIONS: { slug: string; label: BillStatusLabel }[] = [
 ];
 
 const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.slug, opt.label]));
+
+const normalizeBasis = (basis: unknown): 'cash' | 'accrual' =>
+  String(basis ?? '').toLowerCase() === 'cash' ? 'cash' : 'accrual';
 
 function normalizeBillStatus(value: any): BillStatusLabel {
   switch (String(value ?? '').toLowerCase()) {
@@ -141,7 +145,8 @@ export default async function FinancialsTab({
     basis?: 'cash' | 'accrual';
   }>;
 }) {
-  const { id } = await params;
+  const { id: slug } = await params;
+  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(slug);
   const sp = (await (searchParams || Promise.resolve({}))) as any;
 
   const today = new Date();
@@ -161,23 +166,37 @@ export default async function FinancialsTab({
   const glParamRaw = typeof sp?.gl === 'string' ? sp.gl : '';
   const accountsExplicitNone = glParamRaw === 'none';
   const glParam = accountsExplicitNone ? '' : glParamRaw;
-  const basisParam: 'cash' | 'accrual' = sp?.basis === 'cash' ? 'cash' : 'accrual';
 
   const propertyPromise = (db as any)
     .from('properties')
-    .select('org_id, name')
-    .eq('id', id)
+    .select('org_id, name, public_id')
+    .eq('id', propertyId)
     .maybeSingle();
 
   const unitsPromise = (db as any)
     .from('units')
     .select('id, unit_number, unit_name')
-    .eq('property_id', id);
+    .eq('property_id', propertyId);
 
   const [{ data: propertyRow }, unitsResponse] = await Promise.all([propertyPromise, unitsPromise]);
   const orgId = propertyRow?.org_id ?? null;
   const propertyLabel = (propertyRow as { name?: string } | null)?.name || 'Property';
-  const propertyOptions = [{ id, label: propertyLabel }];
+  const propertyOptions = [{ id: propertyId, label: propertyLabel }];
+
+  let defaultBasis: 'cash' | 'accrual' = 'accrual';
+  if (orgId) {
+    const { data: orgRow } = await (db as any)
+      .from('organizations')
+      .select('default_accounting_basis')
+      .eq('id', orgId)
+      .maybeSingle();
+    if (orgRow?.default_accounting_basis) {
+      defaultBasis = normalizeBasis(orgRow.default_accounting_basis);
+    }
+  }
+
+  const basisParam: 'cash' | 'accrual' = sp?.basis === 'cash' ? 'cash' : defaultBasis;
+  const dateHeading = basisParam === 'cash' ? 'Date (cash basis)' : 'Date (accrual basis)';
 
   const accountsPromise = (async () => {
     let query = (db as any)
@@ -212,13 +231,13 @@ export default async function FinancialsTab({
          transactions(id, transaction_type, memo, reference_number),
          properties(id, name)`,
       )
-      .eq('property_id', id);
+      .eq('property_id', propertyId);
 
   const mapLine = (row: any): LedgerLine => {
     const mapped = mapTransactionLine(row);
     return {
       ...mapped,
-      propertyId: mapped.propertyId ?? id,
+      propertyId: mapped.propertyId ?? propertyId,
       propertyLabel: mapped.propertyLabel ?? propertyLabel,
     };
   };
@@ -380,7 +399,7 @@ export default async function FinancialsTab({
               propertyOptions={propertyOptions}
               unitOptions={unitOptions}
               accountOptions={accountOptions}
-              defaultPropertyId={id}
+              defaultPropertyId={propertyId}
               defaultUnitId={modalDefaultUnitId}
             />
           </div>
@@ -389,7 +408,7 @@ export default async function FinancialsTab({
               <TableHeader>
                 <TableRow className="border-border border-b">
                   <TableHead className="text-muted-foreground w-[12rem]">
-                    Date (cash basis)
+                    {dateHeading}
                   </TableHead>
                   <TableHead className="text-muted-foreground w-[8rem]">Unit</TableHead>
                   <TableHead className="text-muted-foreground">Transaction</TableHead>
@@ -472,7 +491,7 @@ export default async function FinancialsTab({
                               .join(' ');
                             const memo = line.memo || line.transactionMemo || '—';
                             const detailHref = line.transactionId
-                              ? `/properties/${id}/financials/entries/${line.transactionId}`
+                              ? `/properties/${propertyPublicId}/financials/entries/${line.transactionId}`
                               : null;
                             const rowContent = (
                               <>
@@ -529,10 +548,10 @@ export default async function FinancialsTab({
           {/* Bills Actions */}
           <div className="flex flex-wrap items-center justify-end gap-3">
             <Button type="button" asChild>
-              <Link href={`/bills/new?propertyId=${id}`}>Record bill</Link>
+              <Link href={`/bills/new?propertyId=${propertyPublicId}`}>Record bill</Link>
             </Button>
             <Button type="button" variant="outline" asChild>
-              <Link href={`/bills?properties=${id}&tab=unpaid`}>Pay bills</Link>
+              <Link href={`/bills?properties=${propertyPublicId}&tab=unpaid`}>Pay bills</Link>
             </Button>
           </div>
 
@@ -628,12 +647,12 @@ export default async function FinancialsTab({
             const memoByTransactionId = new Map<string, string>();
             const amountByTransaction = new Map<string, number>();
             let billRows: any[] = [];
-            if (selectedPropertyIds.includes(id)) {
+            if (selectedPropertyIds.includes(propertyId)) {
               // Fetch matching transaction ids for this property (via lines)
               let qLine = (db as any)
                 .from('transaction_lines')
                 .select('transaction_id, unit_id, memo, amount, posting_type')
-                .eq('property_id', id);
+                .eq('property_id', propertyId);
               if (
                 selectedUnitIdsBills.length &&
                 selectedUnitIdsBills.length !== unitIdsAll.length

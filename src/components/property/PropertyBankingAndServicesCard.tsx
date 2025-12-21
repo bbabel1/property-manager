@@ -8,6 +8,19 @@ import Link from 'next/link';
 
 type BankAccount = { id: string; name: string; account_number?: string | null };
 
+type GlBalanceResponse = {
+  success?: boolean;
+  orgId?: string;
+  asOfDate?: string;
+  source?: 'cache' | 'live';
+  data?: Array<{
+    glAccountId: string;
+    propertyId: string | null;
+    balance: number;
+  }>;
+  error?: string;
+};
+
 // Management Services Types
 type MgmtScope = 'Building' | 'Unit';
 type AssignmentLevel = 'Property Level' | 'Unit Level';
@@ -57,6 +70,11 @@ export default function PropertyBankingAndServicesCard({
   const [showCreateBank, setShowCreateBank] = useState(false);
   const [createTarget, setCreateTarget] = useState<'operating' | 'trust' | null>(null);
 
+  // GL balances (as-of)
+  const [loadingBalances, setLoadingBalances] = useState(false);
+  const [operatingBalance, setOperatingBalance] = useState<number | null>(null);
+  const [trustBalance, setTrustBalance] = useState<number | null>(null);
+
   // Management services state
   const [management_scope, setManagementScope] = useState<MgmtScope | ''>(
     (property as any)?.management_scope || '',
@@ -90,6 +108,60 @@ export default function PropertyBankingAndServicesCard({
 
   useEffect(() => {
     let cancelled = false;
+    const asOfDate =
+      typeof fin?.as_of === 'string' && fin.as_of.length >= 10
+        ? fin.as_of.slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+
+    const fetchOne = async (glAccountId: string): Promise<number | null> => {
+      const url = new URL('/api/gl-accounts/balances', window.location.origin);
+      url.searchParams.set('asOfDate', asOfDate);
+      url.searchParams.set('propertyId', String(property.id));
+      url.searchParams.set('glAccountId', glAccountId);
+      url.searchParams.set('useCache', 'true');
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      const json = (await res.json().catch(() => ({}))) as GlBalanceResponse;
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to load GL balances');
+      }
+      const first = Array.isArray(json?.data) ? json.data[0] : null;
+      const balance =
+        first && typeof first.balance === 'number' && Number.isFinite(first.balance)
+          ? first.balance
+          : null;
+      return balance;
+    };
+
+    const load = async () => {
+      try {
+        if (!property?.id) return;
+        const ids = [operatingId, trustId].filter((v) => typeof v === 'string' && v.length > 0);
+        if (!ids.length) return;
+        setLoadingBalances(true);
+
+        const [op, tr] = await Promise.all([
+          operatingId ? fetchOne(operatingId) : Promise.resolve(null),
+          trustId ? fetchOne(trustId) : Promise.resolve(null),
+        ]);
+
+        if (cancelled) return;
+        setOperatingBalance(op);
+        setTrustBalance(tr);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load GL balances');
+      } finally {
+        if (!cancelled) setLoadingBalances(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [property?.id, operatingId, trustId, fin?.as_of]);
+
+  useEffect(() => {
+    let cancelled = false;
     const loadAssignment = async () => {
       try {
         if ((property as any)?.service_assignment === 'Unit Level') {
@@ -108,7 +180,8 @@ export default function PropertyBankingAndServicesCard({
           setAssignedPlanName(null);
         }
       } catch (error) {
-        console.error('Failed to load assignment services', error);
+        if (!cancelled)
+          setError(error instanceof Error ? error.message : 'Failed to load assignment services');
       }
     };
     loadAssignment();
@@ -211,6 +284,27 @@ export default function PropertyBankingAndServicesCard({
                 </p>
               </div>
             </div>
+
+            {(operatingId || trustId) && (
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between gap-6">
+                  <p className={detailLabelClass}>Operating account balance (as of)</p>
+                  <p className={metricValueClass}>
+                    {loadingBalances
+                      ? '—'
+                      : formatCurrency(operatingBalance ?? 0)}
+                  </p>
+                </div>
+                <div className="flex items-baseline justify-between gap-6">
+                  <p className={detailLabelClass}>Trust account balance (as of)</p>
+                  <p className={metricValueClass}>
+                    {loadingBalances
+                      ? '—'
+                      : formatCurrency(trustBalance ?? 0)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1">
               <div className="flex items-baseline justify-between gap-6">

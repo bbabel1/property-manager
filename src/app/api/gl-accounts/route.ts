@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
       null
     const type = searchParams.get('type') || undefined
     const isActive = searchParams.get('isActive')
+    const isBankAccount = searchParams.get('isBankAccount')
 
     const auth = await requireAuth()
     const db = auth.supabase
@@ -74,6 +75,11 @@ export async function GET(request: NextRequest) {
     if (isActive !== null) {
       if (isActive === 'true') query = query.eq('is_active', true)
       if (isActive === 'false') query = query.eq('is_active', false)
+    }
+
+    if (isBankAccount !== null) {
+      if (isBankAccount === 'true') query = query.eq('is_bank_account', true)
+      if (isBankAccount === 'false') query = query.eq('is_bank_account', false)
     }
 
     query = query.order('type', { ascending: true })

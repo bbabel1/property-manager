@@ -23,6 +23,7 @@ export type Database = {
           description: string | null
           id: string
           notes: string | null
+          public_id: number
           service_date: string
           service_type: Database["public"]["Enums"]["appliance_service_type_enum"]
           updated_at: string
@@ -36,6 +37,7 @@ export type Database = {
           description?: string | null
           id?: string
           notes?: string | null
+          public_id?: number
           service_date: string
           service_type: Database["public"]["Enums"]["appliance_service_type_enum"]
           updated_at?: string
@@ -49,6 +51,7 @@ export type Database = {
           description?: string | null
           id?: string
           notes?: string | null
+          public_id?: number
           service_date?: string
           service_type?: Database["public"]["Enums"]["appliance_service_type_enum"]
           updated_at?: string
@@ -77,6 +80,7 @@ export type Database = {
           model_number: string | null
           name: string
           notes: string | null
+          public_id: number
           serial_number: string | null
           type: string
           unit_id: string
@@ -95,6 +99,7 @@ export type Database = {
           model_number?: string | null
           name: string
           notes?: string | null
+          public_id?: number
           serial_number?: string | null
           type: string
           unit_id: string
@@ -113,6 +118,7 @@ export type Database = {
           model_number?: string | null
           name?: string
           notes?: string | null
+          public_id?: number
           serial_number?: string | null
           type?: string
           unit_id?: string
@@ -137,6 +143,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          public_id: number
           updated_at: string | null
         }
         Insert: {
@@ -146,6 +153,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          public_id?: number
           updated_at?: string | null
         }
         Update: {
@@ -155,6 +163,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          public_id?: number
           updated_at?: string | null
         }
         Relationships: []
@@ -174,6 +183,7 @@ export type Database = {
           period_start: string
           plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
           property_id: string | null
+          public_id: number
           rent_amount: number | null
           rent_basis: Database["public"]["Enums"]["rent_basis_enum"] | null
           service_period_end: string | null
@@ -196,6 +206,7 @@ export type Database = {
           period_start: string
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           property_id?: string | null
+          public_id?: number
           rent_amount?: number | null
           rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
           service_period_end?: string | null
@@ -218,6 +229,7 @@ export type Database = {
           period_start?: string
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           property_id?: string | null
+          public_id?: number
           rent_amount?: number | null
           rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
           service_period_end?: string | null
@@ -290,6 +302,7 @@ export type Database = {
           created_at: string
           id: string
           permit_id: string
+          public_id: number
           unit_id: string | null
           unit_reference: string | null
         }
@@ -297,6 +310,7 @@ export type Database = {
           created_at?: string
           id?: string
           permit_id: string
+          public_id?: number
           unit_id?: string | null
           unit_reference?: string | null
         }
@@ -304,6 +318,7 @@ export type Database = {
           created_at?: string
           id?: string
           permit_id?: string
+          public_id?: number
           unit_id?: string | null
           unit_reference?: string | null
         }
@@ -401,6 +416,7 @@ export type Database = {
           permittee_other_title: string | null
           permittee_phone: string | null
           property_id: string | null
+          public_id: number
           residential: string | null
           self_cert: string | null
           sequence_number: string | null
@@ -498,6 +514,7 @@ export type Database = {
           permittee_other_title?: string | null
           permittee_phone?: string | null
           property_id?: string | null
+          public_id?: number
           residential?: string | null
           self_cert?: string | null
           sequence_number?: string | null
@@ -595,6 +612,7 @@ export type Database = {
           permittee_other_title?: string | null
           permittee_phone?: string | null
           property_id?: string | null
+          public_id?: number
           residential?: string | null
           self_cert?: string | null
           sequence_number?: string | null
@@ -685,6 +703,7 @@ export type Database = {
           parid: string | null
           pluto: Json | null
           pluto_response_at: string | null
+          public_id: number
           raw_address: string | null
           residential_units: number | null
           state: string | null
@@ -735,6 +754,7 @@ export type Database = {
           parid?: string | null
           pluto?: Json | null
           pluto_response_at?: string | null
+          public_id?: number
           raw_address?: string | null
           residential_units?: number | null
           state?: string | null
@@ -785,6 +805,7 @@ export type Database = {
           parid?: string | null
           pluto?: Json | null
           pluto_response_at?: string | null
+          public_id?: number
           raw_address?: string | null
           residential_units?: number | null
           state?: string | null
@@ -807,6 +828,7 @@ export type Database = {
           expires_at: string
           id: string
           parameters: Json | null
+          public_id: number
           response_data: Json | null
           updated_at: string | null
         }
@@ -816,6 +838,7 @@ export type Database = {
           expires_at: string
           id?: string
           parameters?: Json | null
+          public_id?: number
           response_data?: Json | null
           updated_at?: string | null
         }
@@ -825,6 +848,7 @@ export type Database = {
           expires_at?: string
           id?: string
           parameters?: Json | null
+          public_id?: number
           response_data?: Json | null
           updated_at?: string | null
         }
@@ -838,6 +862,7 @@ export type Database = {
           error_message: string | null
           id: string
           method: string
+          public_id: number
           request_data: Json | null
           response_data: Json | null
           response_status: number | null
@@ -849,6 +874,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           method: string
+          public_id?: number
           request_data?: Json | null
           response_data?: Json | null
           response_status?: number | null
@@ -860,6 +886,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           method?: string
+          public_id?: number
           request_data?: Json | null
           response_data?: Json | null
           response_status?: number | null
@@ -874,6 +901,7 @@ export type Database = {
           field_changes: Json | null
           id: string
           org_id: string
+          public_id: number
           test_result: string | null
         }
         Insert: {
@@ -883,6 +911,7 @@ export type Database = {
           field_changes?: Json | null
           id?: string
           org_id: string
+          public_id?: number
           test_result?: string | null
         }
         Update: {
@@ -892,16 +921,10 @@ export type Database = {
           field_changes?: Json | null
           id?: string
           org_id?: string
+          public_id?: number
           test_result?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "buildium_integration_audit_log_actor_user_id_fkey"
-            columns: ["actor_user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
           {
             foreignKeyName: "buildium_integration_audit_log_org_id_fkey"
             columns: ["org_id"]
@@ -922,6 +945,7 @@ export type Database = {
           is_enabled: boolean
           last_tested_at: string | null
           org_id: string
+          public_id: number
           updated_at: string
           webhook_secret_encrypted: string
           webhook_secret_rotated_at: string | null
@@ -936,6 +960,7 @@ export type Database = {
           is_enabled?: boolean
           last_tested_at?: string | null
           org_id: string
+          public_id?: number
           updated_at?: string
           webhook_secret_encrypted: string
           webhook_secret_rotated_at?: string | null
@@ -950,6 +975,7 @@ export type Database = {
           is_enabled?: boolean
           last_tested_at?: string | null
           org_id?: string
+          public_id?: number
           updated_at?: string
           webhook_secret_encrypted?: string
           webhook_secret_rotated_at?: string | null
@@ -975,6 +1001,7 @@ export type Database = {
           job_type: string
           linked_count: number | null
           org_id: string | null
+          public_id: number
           scanned_count: number | null
           started_at: string
           status: string
@@ -990,6 +1017,7 @@ export type Database = {
           job_type?: string
           linked_count?: number | null
           org_id?: string | null
+          public_id?: number
           scanned_count?: number | null
           started_at?: string
           status?: string
@@ -1005,6 +1033,7 @@ export type Database = {
           job_type?: string
           linked_count?: number | null
           org_id?: string | null
+          public_id?: number
           scanned_count?: number | null
           started_at?: string
           status?: string
@@ -1030,6 +1059,7 @@ export type Database = {
           id: string
           last_synced_at: string | null
           org_id: string | null
+          public_id: number
           sync_status: string | null
           updated_at: string | null
         }
@@ -1042,6 +1072,7 @@ export type Database = {
           id?: string
           last_synced_at?: string | null
           org_id?: string | null
+          public_id?: number
           sync_status?: string | null
           updated_at?: string | null
         }
@@ -1054,6 +1085,7 @@ export type Database = {
           id?: string
           last_synced_at?: string | null
           org_id?: string | null
+          public_id?: number
           sync_status?: string | null
           updated_at?: string | null
         }
@@ -1085,6 +1117,7 @@ export type Database = {
           payload: Json | null
           processed: boolean
           processed_at: string | null
+          public_id: number
           received_at: string | null
           retry_count: number | null
           signature: string | null
@@ -1109,6 +1142,7 @@ export type Database = {
           payload?: Json | null
           processed?: boolean
           processed_at?: string | null
+          public_id?: number
           received_at?: string | null
           retry_count?: number | null
           signature?: string | null
@@ -1133,6 +1167,7 @@ export type Database = {
           payload?: Json | null
           processed?: boolean
           processed_at?: string | null
+          public_id?: number
           received_at?: string | null
           retry_count?: number | null
           signature?: string | null
@@ -1167,6 +1202,7 @@ export type Database = {
           name: string
           org_id: string
           property_id: string
+          public_id: number
           updated_at: string
         }
         Insert: {
@@ -1185,6 +1221,7 @@ export type Database = {
           name: string
           org_id: string
           property_id: string
+          public_id?: number
           updated_at?: string
         }
         Update: {
@@ -1203,6 +1240,7 @@ export type Database = {
           name?: string
           org_id?: string
           property_id?: string
+          public_id?: number
           updated_at?: string
         }
         Relationships: [
@@ -1246,6 +1284,7 @@ export type Database = {
           item_id: string | null
           org_id: string
           property_id: string
+          public_id: number
           raw_source: Json | null
           updated_at: string
         }
@@ -1265,6 +1304,7 @@ export type Database = {
           item_id?: string | null
           org_id: string
           property_id: string
+          public_id?: number
           raw_source?: Json | null
           updated_at?: string
         }
@@ -1284,6 +1324,7 @@ export type Database = {
           item_id?: string | null
           org_id?: string
           property_id?: string
+          public_id?: number
           raw_source?: Json | null
           updated_at?: string
         }
@@ -1331,6 +1372,7 @@ export type Database = {
           id: string
           item_id: string
           org_id: string
+          public_id: number
           role: Database["public"]["Enums"]["compliance_work_order_role"]
           work_order_id: string
         }
@@ -1339,6 +1381,7 @@ export type Database = {
           id?: string
           item_id: string
           org_id: string
+          public_id?: number
           role?: Database["public"]["Enums"]["compliance_work_order_role"]
           work_order_id: string
         }
@@ -1347,6 +1390,7 @@ export type Database = {
           id?: string
           item_id?: string
           org_id?: string
+          public_id?: number
           role?: Database["public"]["Enums"]["compliance_work_order_role"]
           work_order_id?: string
         }
@@ -1397,6 +1441,7 @@ export type Database = {
           primary_work_order_id: string | null
           program_id: string
           property_id: string
+          public_id: number
           result: string | null
           source: Database["public"]["Enums"]["compliance_item_source"]
           status: Database["public"]["Enums"]["compliance_item_status"]
@@ -1417,6 +1462,7 @@ export type Database = {
           primary_work_order_id?: string | null
           program_id: string
           property_id: string
+          public_id?: number
           result?: string | null
           source?: Database["public"]["Enums"]["compliance_item_source"]
           status?: Database["public"]["Enums"]["compliance_item_status"]
@@ -1437,6 +1483,7 @@ export type Database = {
           primary_work_order_id?: string | null
           program_id?: string
           property_id?: string
+          public_id?: number
           result?: string | null
           source?: Database["public"]["Enums"]["compliance_item_source"]
           status?: Database["public"]["Enums"]["compliance_item_status"]
@@ -1507,6 +1554,7 @@ export type Database = {
           lead_time_days: number
           name: string
           notes: string | null
+          public_id: number
           severity_score: number
           updated_at: string
         }
@@ -1522,6 +1570,7 @@ export type Database = {
           lead_time_days?: number
           name: string
           notes?: string | null
+          public_id?: number
           severity_score: number
           updated_at?: string
         }
@@ -1537,6 +1586,7 @@ export type Database = {
           lead_time_days?: number
           name?: string
           notes?: string | null
+          public_id?: number
           severity_score?: number
           updated_at?: string
         }
@@ -1557,6 +1607,7 @@ export type Database = {
           notes: string | null
           org_id: string
           override_fields: Json | null
+          public_id: number
           severity_score: number
           template_id: string | null
           updated_at: string
@@ -1575,6 +1626,7 @@ export type Database = {
           notes?: string | null
           org_id: string
           override_fields?: Json | null
+          public_id?: number
           severity_score: number
           template_id?: string | null
           updated_at?: string
@@ -1593,6 +1645,7 @@ export type Database = {
           notes?: string | null
           org_id?: string
           override_fields?: Json | null
+          public_id?: number
           severity_score?: number
           template_id?: string | null
           updated_at?: string
@@ -1625,6 +1678,7 @@ export type Database = {
           org_id: string
           program_id: string
           property_id: string
+          public_id: number
           updated_at: string
         }
         Insert: {
@@ -1637,6 +1691,7 @@ export type Database = {
           org_id: string
           program_id: string
           property_id: string
+          public_id?: number
           updated_at?: string
         }
         Update: {
@@ -1649,16 +1704,10 @@ export type Database = {
           org_id?: string
           program_id?: string
           property_id?: string
+          public_id?: number
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "compliance_property_program_overrides_assigned_by_fkey"
-            columns: ["assigned_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
           {
             foreignKeyName: "compliance_property_program_overrides_org_fkey"
             columns: ["org_id"]
@@ -1705,6 +1754,7 @@ export type Database = {
           metadata: Json | null
           org_id: string
           property_id: string
+          public_id: number
           severity_score: number | null
           status: Database["public"]["Enums"]["compliance_violation_status"]
           updated_at: string
@@ -1725,6 +1775,7 @@ export type Database = {
           metadata?: Json | null
           org_id: string
           property_id: string
+          public_id?: number
           severity_score?: number | null
           status?: Database["public"]["Enums"]["compliance_violation_status"]
           updated_at?: string
@@ -1745,6 +1796,7 @@ export type Database = {
           metadata?: Json | null
           org_id?: string
           property_id?: string
+          public_id?: number
           severity_score?: number | null
           status?: Database["public"]["Enums"]["compliance_violation_status"]
           updated_at?: string
@@ -1832,6 +1884,7 @@ export type Database = {
           primary_phone: string | null
           primary_postal_code: string | null
           primary_state: string | null
+          public_id: number
           updated_at: string
           user_id: string | null
         }
@@ -1864,6 +1917,7 @@ export type Database = {
           primary_phone?: string | null
           primary_postal_code?: string | null
           primary_state?: string | null
+          public_id?: number
           updated_at?: string
           user_id?: string | null
         }
@@ -1896,18 +1950,11 @@ export type Database = {
           primary_phone?: string | null
           primary_postal_code?: string | null
           primary_state?: string | null
+          public_id?: number
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       data_sources: {
         Row: {
@@ -1918,6 +1965,7 @@ export type Database = {
           id: string
           is_enabled: boolean
           key: string
+          public_id: number
           title: string | null
           updated_at: string
         }
@@ -1929,6 +1977,7 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           key: string
+          public_id?: number
           title?: string | null
           updated_at?: string
         }
@@ -1940,6 +1989,7 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           key?: string
+          public_id?: number
           title?: string | null
           updated_at?: string
         }
@@ -1953,6 +2003,7 @@ export type Database = {
           normalized_category: string
           normalized_subtype: string | null
           normalized_technology: string | null
+          public_id: number
           raw_description: string | null
           raw_device_type: string
           source_system: string
@@ -1965,6 +2016,7 @@ export type Database = {
           normalized_category: string
           normalized_subtype?: string | null
           normalized_technology?: string | null
+          public_id?: number
           raw_description?: string | null
           raw_device_type: string
           source_system: string
@@ -1977,6 +2029,7 @@ export type Database = {
           normalized_category?: string
           normalized_subtype?: string | null
           normalized_technology?: string | null
+          public_id?: number
           raw_description?: string | null
           raw_device_type?: string
           source_system?: string
@@ -1995,6 +2048,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          public_id: number
           status: string
           subject_template: string
           template_key: string
@@ -2011,6 +2065,7 @@ export type Database = {
           id?: string
           name: string
           org_id: string
+          public_id?: number
           status?: string
           subject_template: string
           template_key: string
@@ -2027,6 +2082,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          public_id?: number
           status?: string
           subject_template?: string
           template_key?: string
@@ -2035,25 +2091,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "email_templates_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "email_templates_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_templates_updated_by_user_id_fkey"
-            columns: ["updated_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2066,6 +2108,7 @@ export type Database = {
           last_run_at: string | null
           last_seen_at: string | null
           org_id: string
+          public_id: number
           source: Database["public"]["Enums"]["external_sync_source"]
           status: Database["public"]["Enums"]["external_sync_status"]
           updated_at: string
@@ -2078,6 +2121,7 @@ export type Database = {
           last_run_at?: string | null
           last_seen_at?: string | null
           org_id: string
+          public_id?: number
           source: Database["public"]["Enums"]["external_sync_source"]
           status?: Database["public"]["Enums"]["external_sync_status"]
           updated_at?: string
@@ -2090,6 +2134,7 @@ export type Database = {
           last_run_at?: string | null
           last_seen_at?: string | null
           org_id?: string
+          public_id?: number
           source?: Database["public"]["Enums"]["external_sync_source"]
           status?: Database["public"]["Enums"]["external_sync_status"]
           updated_at?: string
@@ -2113,6 +2158,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           org_id: string
+          public_id: number
           updated_at: string
         }
         Insert: {
@@ -2123,6 +2169,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           org_id: string
+          public_id?: number
           updated_at?: string
         }
         Update: {
@@ -2133,6 +2180,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           org_id?: string
+          public_id?: number
           updated_at?: string
         }
         Relationships: [
@@ -2164,6 +2212,7 @@ export type Database = {
           is_private: boolean
           mime_type: string | null
           org_id: string
+          public_id: number
           sha256: string | null
           size_bytes: number | null
           storage_key: string | null
@@ -2189,6 +2238,7 @@ export type Database = {
           is_private?: boolean
           mime_type?: string | null
           org_id: string
+          public_id?: number
           sha256?: string | null
           size_bytes?: number | null
           storage_key?: string | null
@@ -2214,6 +2264,7 @@ export type Database = {
           is_private?: boolean
           mime_type?: string | null
           org_id?: string
+          public_id?: number
           sha256?: string | null
           size_bytes?: number | null
           storage_key?: string | null
@@ -2242,14 +2293,17 @@ export type Database = {
         Row: {
           category: Database["public"]["Enums"]["gl_category"]
           gl_account_id: string
+          public_id: number
         }
         Insert: {
           category: Database["public"]["Enums"]["gl_category"]
           gl_account_id: string
+          public_id?: number
         }
         Update: {
           category?: Database["public"]["Enums"]["gl_category"]
           gl_account_id?: string
+          public_id?: number
         }
         Relationships: [
           {
@@ -2280,7 +2334,9 @@ export type Database = {
           bank_check_printing_info: Json | null
           bank_country: Database["public"]["Enums"]["countries"] | null
           bank_electronic_payments: Json | null
-          bank_last_source: Database["public"]["Enums"]["sync_source_enum"] | null
+          bank_last_source:
+            | Database["public"]["Enums"]["sync_source_enum"]
+            | null
           bank_last_source_ts: string | null
           bank_routing_number: string | null
           buildium_bank_account_id: number | null
@@ -2300,6 +2356,7 @@ export type Database = {
           is_security_deposit_liability: boolean
           name: string
           org_id: string | null
+          public_id: number
           sub_accounts: string[] | null
           sub_type: string | null
           type: string
@@ -2316,7 +2373,9 @@ export type Database = {
           bank_check_printing_info?: Json | null
           bank_country?: Database["public"]["Enums"]["countries"] | null
           bank_electronic_payments?: Json | null
-          bank_last_source?: Database["public"]["Enums"]["sync_source_enum"] | null
+          bank_last_source?:
+            | Database["public"]["Enums"]["sync_source_enum"]
+            | null
           bank_last_source_ts?: string | null
           bank_routing_number?: string | null
           buildium_bank_account_id?: number | null
@@ -2336,6 +2395,7 @@ export type Database = {
           is_security_deposit_liability?: boolean
           name: string
           org_id?: string | null
+          public_id?: number
           sub_accounts?: string[] | null
           sub_type?: string | null
           type: string
@@ -2352,7 +2412,9 @@ export type Database = {
           bank_check_printing_info?: Json | null
           bank_country?: Database["public"]["Enums"]["countries"] | null
           bank_electronic_payments?: Json | null
-          bank_last_source?: Database["public"]["Enums"]["sync_source_enum"] | null
+          bank_last_source?:
+            | Database["public"]["Enums"]["sync_source_enum"]
+            | null
           bank_last_source_ts?: string | null
           bank_routing_number?: string | null
           buildium_bank_account_id?: number | null
@@ -2372,6 +2434,7 @@ export type Database = {
           is_security_deposit_liability?: boolean
           name?: string
           org_id?: string | null
+          public_id?: number
           sub_accounts?: string[] | null
           sub_type?: string | null
           type?: string
@@ -2391,18 +2454,21 @@ export type Database = {
         Row: {
           key: string
           last_imported_at: string
+          public_id: number
           updated_at: string
           window_days: number
         }
         Insert: {
           key: string
           last_imported_at?: string
+          public_id?: number
           updated_at?: string
           window_days?: number
         }
         Update: {
           key?: string
           last_imported_at?: string
+          public_id?: number
           updated_at?: string
           window_days?: number
         }
@@ -2416,6 +2482,7 @@ export type Database = {
           id: string
           is_active: boolean
           org_id: string
+          public_id: number
           refresh_token_encrypted: string | null
           scope: string
           staff_id: number
@@ -2430,6 +2497,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           org_id: string
+          public_id?: number
           refresh_token_encrypted?: string | null
           scope: string
           staff_id: number
@@ -2444,6 +2512,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           org_id?: string
+          public_id?: number
           refresh_token_encrypted?: string | null
           scope?: string
           staff_id?: number
@@ -2466,13 +2535,6 @@ export type Database = {
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "gmail_integrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       google_calendar_integrations: {
@@ -2484,6 +2546,7 @@ export type Database = {
           id: string
           is_active: boolean
           org_id: string
+          public_id: number
           refresh_token_encrypted: string | null
           scope: string
           staff_id: number
@@ -2499,6 +2562,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           org_id: string
+          public_id?: number
           refresh_token_encrypted?: string | null
           scope: string
           staff_id: number
@@ -2514,6 +2578,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           org_id?: string
+          public_id?: number
           refresh_token_encrypted?: string | null
           scope?: string
           staff_id?: number
@@ -2536,13 +2601,6 @@ export type Database = {
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "google_calendar_integrations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       idempotency_keys: {
@@ -2552,6 +2610,7 @@ export type Database = {
           key: string
           last_used_at: string
           org_id: string | null
+          public_id: number
           response: Json | null
         }
         Insert: {
@@ -2560,6 +2619,7 @@ export type Database = {
           key: string
           last_used_at?: string
           org_id?: string | null
+          public_id?: number
           response?: Json | null
         }
         Update: {
@@ -2568,6 +2628,7 @@ export type Database = {
           key?: string
           last_used_at?: string
           org_id?: string | null
+          public_id?: number
           response?: Json | null
         }
         Relationships: []
@@ -2578,6 +2639,7 @@ export type Database = {
           id: string
           inspection_date: string
           property: string
+          public_id: number
           status: Database["public"]["Enums"]["inspection_status_enum"]
           type: Database["public"]["Enums"]["inspection_type_enum"]
           unit: string
@@ -2589,6 +2651,7 @@ export type Database = {
           id?: string
           inspection_date: string
           property: string
+          public_id?: number
           status: Database["public"]["Enums"]["inspection_status_enum"]
           type: Database["public"]["Enums"]["inspection_type_enum"]
           unit: string
@@ -2600,6 +2663,7 @@ export type Database = {
           id?: string
           inspection_date?: string
           property?: string
+          public_id?: number
           status?: Database["public"]["Enums"]["inspection_status_enum"]
           type?: Database["public"]["Enums"]["inspection_type_enum"]
           unit?: string
@@ -2624,6 +2688,7 @@ export type Database = {
           date: string
           id: string
           memo: string | null
+          public_id: number
           total_amount: number
           transaction_id: string | null
           updated_at: string
@@ -2635,6 +2700,7 @@ export type Database = {
           date: string
           id?: string
           memo?: string | null
+          public_id?: number
           total_amount?: number
           transaction_id?: string | null
           updated_at?: string
@@ -2646,6 +2712,7 @@ export type Database = {
           date?: string
           id?: string
           memo?: string | null
+          public_id?: number
           total_amount?: number
           transaction_id?: string | null
           updated_at?: string
@@ -2696,6 +2763,7 @@ export type Database = {
           property_id: string
           prorated_first_month_rent: number | null
           prorated_last_month_rent: number | null
+          public_id: number
           renewal_offer_status: string | null
           rent_amount: number | null
           security_deposit: number | null
@@ -2726,6 +2794,7 @@ export type Database = {
           property_id: string
           prorated_first_month_rent?: number | null
           prorated_last_month_rent?: number | null
+          public_id?: number
           renewal_offer_status?: string | null
           rent_amount?: number | null
           security_deposit?: number | null
@@ -2756,6 +2825,7 @@ export type Database = {
           property_id?: string
           prorated_first_month_rent?: number | null
           prorated_last_month_rent?: number | null
+          public_id?: number
           renewal_offer_status?: string | null
           rent_amount?: number | null
           security_deposit?: number | null
@@ -2827,6 +2897,7 @@ export type Database = {
           move_out_date: string | null
           notice_given_date: string | null
           org_id: string | null
+          public_id: number
           role: Database["public"]["Enums"]["lease_contact_role_enum"]
           status: Database["public"]["Enums"]["lease_contact_status_enum"]
           tenant_id: string
@@ -2841,6 +2912,7 @@ export type Database = {
           move_out_date?: string | null
           notice_given_date?: string | null
           org_id?: string | null
+          public_id?: number
           role?: Database["public"]["Enums"]["lease_contact_role_enum"]
           status?: Database["public"]["Enums"]["lease_contact_status_enum"]
           tenant_id: string
@@ -2855,6 +2927,7 @@ export type Database = {
           move_out_date?: string | null
           notice_given_date?: string | null
           org_id?: string | null
+          public_id?: number
           role?: Database["public"]["Enums"]["lease_contact_role_enum"]
           status?: Database["public"]["Enums"]["lease_contact_status_enum"]
           tenant_id?: string
@@ -2893,6 +2966,7 @@ export type Database = {
           id: string
           is_private: boolean | null
           lease_id: number
+          public_id: number
           subject: string | null
           updated_at: string | null
         }
@@ -2904,6 +2978,7 @@ export type Database = {
           id?: string
           is_private?: boolean | null
           lease_id: number
+          public_id?: number
           subject?: string | null
           updated_at?: string | null
         }
@@ -2915,6 +2990,7 @@ export type Database = {
           id?: string
           is_private?: boolean | null
           lease_id?: number
+          public_id?: number
           subject?: string | null
           updated_at?: string | null
         }
@@ -2939,6 +3015,7 @@ export type Database = {
           frequency: string | null
           id: string
           lease_id: number
+          public_id: number
           start_date: string | null
           updated_at: string | null
         }
@@ -2952,6 +3029,7 @@ export type Database = {
           frequency?: string | null
           id?: string
           lease_id: number
+          public_id?: number
           start_date?: string | null
           updated_at?: string | null
         }
@@ -2965,6 +3043,7 @@ export type Database = {
           frequency?: string | null
           id?: string
           lease_id?: number
+          public_id?: number
           start_date?: string | null
           updated_at?: string | null
         }
@@ -2978,110 +3057,44 @@ export type Database = {
           },
         ]
       }
-      monthly_log_entries: {
+      membership_roles: {
         Row: {
-          amount: number
           created_at: string
-          description: string | null
-          entry_date: string | null
-          id: string
-          label: string
-          monthly_log_id: string
-          source_reference: string | null
-          source_type: string | null
-          stage: Database["public"]["Enums"]["monthly_log_stage"]
-          status: Database["public"]["Enums"]["monthly_log_status"]
+          org_id: string
+          public_id: number
+          role_id: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          amount?: number
           created_at?: string
-          description?: string | null
-          entry_date?: string | null
-          id?: string
-          label: string
-          monthly_log_id: string
-          source_reference?: string | null
-          source_type?: string | null
-          stage: Database["public"]["Enums"]["monthly_log_stage"]
-          status?: Database["public"]["Enums"]["monthly_log_status"]
+          org_id: string
+          public_id?: number
+          role_id: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          amount?: number
           created_at?: string
-          description?: string | null
-          entry_date?: string | null
-          id?: string
-          label?: string
-          monthly_log_id?: string
-          source_reference?: string | null
-          source_type?: string | null
-          stage?: Database["public"]["Enums"]["monthly_log_stage"]
-          status?: Database["public"]["Enums"]["monthly_log_status"]
+          org_id?: string
+          public_id?: number
+          role_id?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "monthly_log_entries_monthly_log_id_fkey"
-            columns: ["monthly_log_id"]
+            foreignKeyName: "user_permission_profiles_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "monthly_logs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      monthly_log_task_rule_runs: {
-        Row: {
-          evaluated_at: string | null
-          id: string
-          matched: boolean | null
-          monthly_log_id: string
-          next_evaluation_at: string | null
-          reason: string | null
-          rule_id: string
-          task_id: string | null
-        }
-        Insert: {
-          evaluated_at?: string | null
-          id?: string
-          matched?: boolean | null
-          monthly_log_id: string
-          next_evaluation_at?: string | null
-          reason?: string | null
-          rule_id: string
-          task_id?: string | null
-        }
-        Update: {
-          evaluated_at?: string | null
-          id?: string
-          matched?: boolean | null
-          monthly_log_id?: string
-          next_evaluation_at?: string | null
-          reason?: string | null
-          rule_id?: string
-          task_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monthly_log_task_rule_runs_monthly_log_id_fkey"
-            columns: ["monthly_log_id"]
-            isOneToOne: false
-            referencedRelation: "monthly_logs"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "monthly_log_task_rule_runs_rule_id_fkey"
-            columns: ["rule_id"]
+            foreignKeyName: "user_permission_profiles_role_id_fkey"
+            columns: ["role_id"]
             isOneToOne: false
-            referencedRelation: "monthly_log_task_rules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_log_task_rule_runs_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
+            referencedRelation: "roles"
             referencedColumns: ["id"]
           },
         ]
@@ -3105,6 +3118,7 @@ export type Database = {
           org_id: string
           priority: string | null
           property_conditions: Json | null
+          public_id: number
           service_offering_id: string | null
           stage_trigger: Database["public"]["Enums"]["monthly_log_stage"] | null
           status_default: string | null
@@ -3131,6 +3145,7 @@ export type Database = {
           org_id: string
           priority?: string | null
           property_conditions?: Json | null
+          public_id?: number
           service_offering_id?: string | null
           stage_trigger?:
             | Database["public"]["Enums"]["monthly_log_stage"]
@@ -3159,6 +3174,7 @@ export type Database = {
           org_id?: string
           priority?: string | null
           property_conditions?: Json | null
+          public_id?: number
           service_offering_id?: string | null
           stage_trigger?:
             | Database["public"]["Enums"]["monthly_log_stage"]
@@ -3218,6 +3234,7 @@ export type Database = {
           period_start: string
           previous_lease_balance: number
           property_id: string
+          public_id: number
           sort_index: number
           stage: Database["public"]["Enums"]["monthly_log_stage"]
           status: Database["public"]["Enums"]["monthly_log_status"]
@@ -3242,6 +3259,7 @@ export type Database = {
           period_start: string
           previous_lease_balance?: number
           property_id: string
+          public_id?: number
           sort_index?: number
           stage?: Database["public"]["Enums"]["monthly_log_stage"]
           status?: Database["public"]["Enums"]["monthly_log_status"]
@@ -3266,6 +3284,7 @@ export type Database = {
           period_start?: string
           previous_lease_balance?: number
           property_id?: string
+          public_id?: number
           sort_index?: number
           stage?: Database["public"]["Enums"]["monthly_log_stage"]
           status?: Database["public"]["Enums"]["monthly_log_status"]
@@ -3356,6 +3375,7 @@ export type Database = {
           id: string
           is_enabled: boolean
           org_id: string
+          public_id: number
           updated_at: string
         }
         Insert: {
@@ -3395,6 +3415,7 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           org_id: string
+          public_id?: number
           updated_at?: string
         }
         Update: {
@@ -3434,6 +3455,7 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           org_id?: string
+          public_id?: number
           updated_at?: string
         }
         Relationships: [
@@ -3446,54 +3468,12 @@ export type Database = {
           },
         ]
       }
-      org_membership_roles: {
-        Row: {
-          created_at: string
-          id: string
-          org_id: string
-          role: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          org_id: string
-          role: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          org_id?: string
-          role?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_membership_roles_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_membership_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       org_memberships: {
         Row: {
           created_at: string
           id: string
           org_id: string
-          role: string
+          public_id: number
           updated_at: string
           user_id: string
         }
@@ -3501,7 +3481,7 @@ export type Database = {
           created_at?: string
           id?: string
           org_id: string
-          role?: string
+          public_id?: number
           updated_at?: string
           user_id: string
         }
@@ -3509,7 +3489,7 @@ export type Database = {
           created_at?: string
           id?: string
           org_id?: string
-          role?: string
+          public_id?: number
           updated_at?: string
           user_id?: string
         }
@@ -3521,147 +3501,89 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "org_memberships_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      org_service_offering_gl_accounts: {
-        Row: {
-          created_at: string | null
-          gl_account_id: string
-          offering_id: string
-          org_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          gl_account_id: string
-          offering_id: string
-          org_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          gl_account_id?: string
-          offering_id?: string
-          org_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_service_offering_gl_accounts_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "gl_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_service_offering_gl_accounts_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
-            foreignKeyName: "org_service_offering_gl_accounts_offering_id_fkey"
-            columns: ["offering_id"]
-            isOneToOne: false
-            referencedRelation: "service_offerings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_service_offering_gl_accounts_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      org_service_plan_settings: {
-        Row: {
-          created_at: string | null
-          fee_type: Database["public"]["Enums"]["management_fee_type_enum"]
-          flat_rate: number | null
-          gl_account_id: string | null
-          org_id: string
-          percentage_rate: number | null
-          service_plan: Database["public"]["Enums"]["service_plan_enum"]
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          fee_type: Database["public"]["Enums"]["management_fee_type_enum"]
-          flat_rate?: number | null
-          gl_account_id?: string | null
-          org_id: string
-          percentage_rate?: number | null
-          service_plan: Database["public"]["Enums"]["service_plan_enum"]
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          fee_type?: Database["public"]["Enums"]["management_fee_type_enum"]
-          flat_rate?: number | null
-          gl_account_id?: string | null
-          org_id?: string
-          percentage_rate?: number | null
-          service_plan?: Database["public"]["Enums"]["service_plan_enum"]
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_service_plan_settings_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "gl_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_service_plan_settings_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
-            foreignKeyName: "org_service_plan_settings_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
         ]
       }
       organizations: {
         Row: {
+          accounting_book_id: number | null
           buildium_org_id: number | null
+          company_name: string | null
+          contact_address_line1: string | null
+          contact_address_line2: string | null
+          contact_address_line3: string | null
+          contact_city: string | null
+          contact_country: Database["public"]["Enums"]["countries"] | null
+          contact_first_name: string | null
+          contact_last_name: string | null
+          contact_phone_number: string | null
+          contact_postal_code: string | null
+          contact_state: string | null
           created_at: string
+          default_accounting_basis: Database["public"]["Enums"]["accounting_basis_enum"]
+          default_bank_account_id: number | null
+          fiscal_year_end_day: number | null
+          fiscal_year_end_month: number | null
           id: string
           name: string
+          public_id: number
           slug: string
+          trust_account_warning: Database["public"]["Enums"]["trust_account_warning_enum"]
           updated_at: string
+          url: string | null
         }
         Insert: {
+          accounting_book_id?: number | null
           buildium_org_id?: number | null
+          company_name?: string | null
+          contact_address_line1?: string | null
+          contact_address_line2?: string | null
+          contact_address_line3?: string | null
+          contact_city?: string | null
+          contact_country?: Database["public"]["Enums"]["countries"] | null
+          contact_first_name?: string | null
+          contact_last_name?: string | null
+          contact_phone_number?: string | null
+          contact_postal_code?: string | null
+          contact_state?: string | null
           created_at?: string
+          default_accounting_basis?: Database["public"]["Enums"]["accounting_basis_enum"]
+          default_bank_account_id?: number | null
+          fiscal_year_end_day?: number | null
+          fiscal_year_end_month?: number | null
           id?: string
           name: string
+          public_id?: number
           slug: string
+          trust_account_warning?: Database["public"]["Enums"]["trust_account_warning_enum"]
           updated_at?: string
+          url?: string | null
         }
         Update: {
+          accounting_book_id?: number | null
           buildium_org_id?: number | null
+          company_name?: string | null
+          contact_address_line1?: string | null
+          contact_address_line2?: string | null
+          contact_address_line3?: string | null
+          contact_city?: string | null
+          contact_country?: Database["public"]["Enums"]["countries"] | null
+          contact_first_name?: string | null
+          contact_last_name?: string | null
+          contact_phone_number?: string | null
+          contact_postal_code?: string | null
+          contact_state?: string | null
           created_at?: string
+          default_accounting_basis?: Database["public"]["Enums"]["accounting_basis_enum"]
+          default_bank_account_id?: number | null
+          fiscal_year_end_day?: number | null
+          fiscal_year_end_month?: number | null
           id?: string
           name?: string
+          public_id?: number
           slug?: string
+          trust_account_warning?: Database["public"]["Enums"]["trust_account_warning_enum"]
           updated_at?: string
+          url?: string | null
         }
         Relationships: []
       }
@@ -3684,6 +3606,7 @@ export type Database = {
           management_agreement_end_date: string | null
           management_agreement_start_date: string | null
           org_id: string | null
+          public_id: string
           tax_address_line1: string | null
           tax_address_line2: string | null
           tax_address_line3: string | null
@@ -3717,6 +3640,7 @@ export type Database = {
           management_agreement_end_date?: string | null
           management_agreement_start_date?: string | null
           org_id?: string | null
+          public_id?: string
           tax_address_line1?: string | null
           tax_address_line2?: string | null
           tax_address_line3?: string | null
@@ -3750,6 +3674,7 @@ export type Database = {
           management_agreement_end_date?: string | null
           management_agreement_start_date?: string | null
           org_id?: string | null
+          public_id?: string
           tax_address_line1?: string | null
           tax_address_line2?: string | null
           tax_address_line3?: string | null
@@ -3787,13 +3712,6 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "owners_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       owners_list_cache: {
@@ -3805,6 +3723,7 @@ export type Database = {
           owner_id: string
           primary_email: string | null
           primary_phone: string | null
+          public_id: string
           updated_at: string
         }
         Insert: {
@@ -3815,6 +3734,7 @@ export type Database = {
           owner_id: string
           primary_email?: string | null
           primary_phone?: string | null
+          public_id?: string
           updated_at?: string
         }
         Update: {
@@ -3825,6 +3745,7 @@ export type Database = {
           owner_id?: string
           primary_email?: string | null
           primary_phone?: string | null
+          public_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -3900,66 +3821,40 @@ export type Database = {
           },
         ]
       }
-      permission_profile_permissions: {
+      permissions: {
         Row: {
-          created_at: string
-          permission: string
-          profile_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          permission: string
-          profile_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          permission?: string
-          profile_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "permission_profile_permissions_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "permission_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      permission_profiles: {
-        Row: {
+          category: string | null
           created_at: string
           description: string | null
           id: string
           is_system: boolean
-          name: string
+          key: string
           org_id: string | null
           updated_at: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           description?: string | null
           id?: string
           is_system?: boolean
-          name: string
+          key: string
           org_id?: string | null
           updated_at?: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           description?: string | null
           id?: string
           is_system?: boolean
-          name?: string
+          key?: string
           org_id?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "permission_profiles_org_id_fkey"
+            foreignKeyName: "permissions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3984,6 +3879,7 @@ export type Database = {
           personal_integrations: Json
           phone: string | null
           primary_work_role: string | null
+          public_id: number
           timezone: string | null
           two_factor_enabled: boolean
           updated_at: string
@@ -4005,6 +3901,7 @@ export type Database = {
           personal_integrations?: Json
           phone?: string | null
           primary_work_role?: string | null
+          public_id?: number
           timezone?: string | null
           two_factor_enabled?: boolean
           updated_at?: string
@@ -4026,26 +3923,16 @@ export type Database = {
           personal_integrations?: Json
           phone?: string | null
           primary_work_role?: string | null
+          public_id?: number
           timezone?: string | null
           two_factor_enabled?: boolean
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       properties: {
         Row: {
-          active_services:
-            | Database["public"]["Enums"]["management_services_enum"][]
-            | null
           address_line1: string
           address_line2: string | null
           address_line3: string | null
@@ -4057,9 +3944,6 @@ export type Database = {
           bill_administration_notes: string | null
           bill_pay_list: string | null
           bill_pay_notes: string | null
-          billing_frequency:
-            | Database["public"]["Enums"]["billing_frequency_enum"]
-            | null
           bin: string | null
           block: number | null
           borough: string | null
@@ -4074,10 +3958,6 @@ export type Database = {
           country: Database["public"]["Enums"]["countries"]
           created_at: string
           deposit_trust_gl_account_id: string | null
-          fee_assignment: Database["public"]["Enums"]["assignment_level"] | null
-          fee_dollar_amount: number | null
-          fee_percentage: number | null
-          fee_type: Database["public"]["Enums"]["fee_type_enum"] | null
           hpd_building_id: number | null
           hpd_registration_id: number | null
           id: string
@@ -4100,14 +3980,12 @@ export type Database = {
           property_type:
             | Database["public"]["Enums"]["property_type_enum"]
             | null
+          public_id: number
           rental_owner_ids: number[] | null
           rental_type: string | null
           reserve: number | null
           security_deposits: number | null
-          service_assignment:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          service_plan: Database["public"]["Enums"]["service_plan_enum"] | null
+          service_assignment: Database["public"]["Enums"]["assignment_level"]
           state: string | null
           statement_recipients: Json | null
           status: Database["public"]["Enums"]["property_status"]
@@ -4121,9 +3999,6 @@ export type Database = {
           year_built: number | null
         }
         Insert: {
-          active_services?:
-            | Database["public"]["Enums"]["management_services_enum"][]
-            | null
           address_line1: string
           address_line2?: string | null
           address_line3?: string | null
@@ -4135,9 +4010,6 @@ export type Database = {
           bill_administration_notes?: string | null
           bill_pay_list?: string | null
           bill_pay_notes?: string | null
-          billing_frequency?:
-            | Database["public"]["Enums"]["billing_frequency_enum"]
-            | null
           bin?: string | null
           block?: number | null
           borough?: string | null
@@ -4152,12 +4024,6 @@ export type Database = {
           country: Database["public"]["Enums"]["countries"]
           created_at?: string
           deposit_trust_gl_account_id?: string | null
-          fee_assignment?:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          fee_dollar_amount?: number | null
-          fee_percentage?: number | null
-          fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
           hpd_building_id?: number | null
           hpd_registration_id?: number | null
           id?: string
@@ -4180,14 +4046,12 @@ export type Database = {
           property_type?:
             | Database["public"]["Enums"]["property_type_enum"]
             | null
+          public_id?: number
           rental_owner_ids?: number[] | null
           rental_type?: string | null
           reserve?: number | null
           security_deposits?: number | null
-          service_assignment?:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          service_plan?: Database["public"]["Enums"]["service_plan_enum"] | null
+          service_assignment: Database["public"]["Enums"]["assignment_level"]
           state?: string | null
           statement_recipients?: Json | null
           status?: Database["public"]["Enums"]["property_status"]
@@ -4201,9 +4065,6 @@ export type Database = {
           year_built?: number | null
         }
         Update: {
-          active_services?:
-            | Database["public"]["Enums"]["management_services_enum"][]
-            | null
           address_line1?: string
           address_line2?: string | null
           address_line3?: string | null
@@ -4215,9 +4076,6 @@ export type Database = {
           bill_administration_notes?: string | null
           bill_pay_list?: string | null
           bill_pay_notes?: string | null
-          billing_frequency?:
-            | Database["public"]["Enums"]["billing_frequency_enum"]
-            | null
           bin?: string | null
           block?: number | null
           borough?: string | null
@@ -4232,12 +4090,6 @@ export type Database = {
           country?: Database["public"]["Enums"]["countries"]
           created_at?: string
           deposit_trust_gl_account_id?: string | null
-          fee_assignment?:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          fee_dollar_amount?: number | null
-          fee_percentage?: number | null
-          fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
           hpd_building_id?: number | null
           hpd_registration_id?: number | null
           id?: string
@@ -4260,14 +4112,12 @@ export type Database = {
           property_type?:
             | Database["public"]["Enums"]["property_type_enum"]
             | null
+          public_id?: number
           rental_owner_ids?: number[] | null
           rental_type?: string | null
           reserve?: number | null
           security_deposits?: number | null
-          service_assignment?:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          service_plan?: Database["public"]["Enums"]["service_plan_enum"] | null
+          service_assignment?: Database["public"]["Enums"]["assignment_level"]
           state?: string | null
           statement_recipients?: Json | null
           status?: Database["public"]["Enums"]["property_status"]
@@ -4280,32 +4130,46 @@ export type Database = {
           updated_at?: string
           year_built?: number | null
         }
-          Relationships: [
-            {
-              foreignKeyName: "properties_building_id_fkey"
-              columns: ["building_id"]
-              isOneToOne: false
-              referencedRelation: "buildings"
-              referencedColumns: ["id"]
-            },
-            {
-              foreignKeyName: "properties_deposit_trust_gl_account_id_fkey"
-              columns: ["deposit_trust_gl_account_id"]
-              isOneToOne: false
-              referencedRelation: "gl_accounts"
-              referencedColumns: ["id"]
-            },
-            {
-              foreignKeyName: "properties_operating_bank_gl_account_id_fkey"
-              columns: ["operating_bank_gl_account_id"]
-              isOneToOne: false
-              referencedRelation: "gl_accounts"
-              referencedColumns: ["id"]
-            },
-            {
-              foreignKeyName: "properties_org_id_fkey"
-              columns: ["org_id"]
-              isOneToOne: false
+        Relationships: [
+          {
+            foreignKeyName: "properties_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_deposit_trust_gl_account_id_fkey"
+            columns: ["deposit_trust_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_deposit_trust_gl_account_id_fkey"
+            columns: ["deposit_trust_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "properties_operating_bank_gl_account_id_fkey"
+            columns: ["operating_bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_operating_bank_gl_account_id_fkey"
+            columns: ["operating_bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "properties_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -4319,6 +4183,7 @@ export type Database = {
           offering_id: string
           override_config: Json
           property_id: string
+          public_id: number
           rule_id: string
           unit_id: string | null
           updated_at: string | null
@@ -4330,6 +4195,7 @@ export type Database = {
           offering_id: string
           override_config: Json
           property_id: string
+          public_id?: number
           rule_id: string
           unit_id?: string | null
           updated_at?: string | null
@@ -4341,6 +4207,7 @@ export type Database = {
           offering_id?: string
           override_config?: Json
           property_id?: string
+          public_id?: number
           rule_id?: string
           unit_id?: string | null
           updated_at?: string | null
@@ -4395,6 +4262,7 @@ export type Database = {
           is_private: boolean | null
           name: string | null
           property_id: string
+          public_id: number
           sort_index: number | null
           updated_at: string
         }
@@ -4409,6 +4277,7 @@ export type Database = {
           is_private?: boolean | null
           name?: string | null
           property_id: string
+          public_id?: number
           sort_index?: number | null
           updated_at?: string
         }
@@ -4423,6 +4292,7 @@ export type Database = {
           is_private?: boolean | null
           name?: string | null
           property_id?: string
+          public_id?: number
           sort_index?: number | null
           updated_at?: string
         }
@@ -4452,6 +4322,7 @@ export type Database = {
           id: string
           is_private: boolean
           property_id: string
+          public_id: number
           subject: string
         }
         Insert: {
@@ -4462,6 +4333,7 @@ export type Database = {
           id?: string
           is_private?: boolean
           property_id: string
+          public_id?: number
           subject: string
         }
         Update: {
@@ -4472,16 +4344,10 @@ export type Database = {
           id?: string
           is_private?: boolean
           property_id?: string
+          public_id?: number
           subject?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "property_notes_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
           {
             foreignKeyName: "property_notes_property_id_fkey"
             columns: ["property_id"]
@@ -4508,6 +4374,7 @@ export type Database = {
           org_id: string | null
           progress: number
           property_id: string
+          public_id: number
           status: Database["public"]["Enums"]["onboarding_status_enum"]
           updated_at: string
         }
@@ -4520,6 +4387,7 @@ export type Database = {
           org_id?: string | null
           progress?: number
           property_id: string
+          public_id?: number
           status?: Database["public"]["Enums"]["onboarding_status_enum"]
           updated_at?: string
         }
@@ -4532,6 +4400,7 @@ export type Database = {
           org_id?: string | null
           progress?: number
           property_id?: string
+          public_id?: number
           status?: Database["public"]["Enums"]["onboarding_status_enum"]
           updated_at?: string
         }
@@ -4576,6 +4445,7 @@ export type Database = {
           name: string
           onboarding_id: string
           org_id: string | null
+          public_id: number
           status: Database["public"]["Enums"]["onboarding_task_status_enum"]
           updated_at: string
         }
@@ -4588,6 +4458,7 @@ export type Database = {
           name: string
           onboarding_id: string
           org_id?: string | null
+          public_id?: number
           status?: Database["public"]["Enums"]["onboarding_task_status_enum"]
           updated_at?: string
         }
@@ -4600,6 +4471,7 @@ export type Database = {
           name?: string
           onboarding_id?: string
           org_id?: string | null
+          public_id?: number
           status?: Database["public"]["Enums"]["onboarding_task_status_enum"]
           updated_at?: string
         }
@@ -4638,6 +4510,7 @@ export type Database = {
           primary: boolean
           primary_email: string | null
           property_id: string
+          public_id: number
           updated_at: string
         }
         Insert: {
@@ -4650,6 +4523,7 @@ export type Database = {
           primary?: boolean
           primary_email?: string | null
           property_id: string
+          public_id?: number
           updated_at?: string
         }
         Update: {
@@ -4662,6 +4536,7 @@ export type Database = {
           primary?: boolean
           primary_email?: string | null
           property_id?: string
+          public_id?: number
           updated_at?: string
         }
         Relationships: []
@@ -4670,6 +4545,7 @@ export type Database = {
         Row: {
           created_at: string
           property_id: string
+          public_id: number
           role: Database["public"]["Enums"]["staff_roles"]
           staff_id: number
           updated_at: string
@@ -4677,6 +4553,7 @@ export type Database = {
         Insert: {
           created_at?: string
           property_id: string
+          public_id?: number
           role?: Database["public"]["Enums"]["staff_roles"]
           staff_id: number
           updated_at?: string
@@ -4684,6 +4561,7 @@ export type Database = {
         Update: {
           created_at?: string
           property_id?: string
+          public_id?: number
           role?: Database["public"]["Enums"]["staff_roles"]
           staff_id?: number
           updated_at?: string
@@ -4726,6 +4604,7 @@ export type Database = {
           notes: string | null
           performed_by: string | null
           property_id: string | null
+          public_id: number
           statement_ending_date: string | null
           total_checks_withdrawals: number | null
           total_deposits_additions: number | null
@@ -4743,6 +4622,7 @@ export type Database = {
           notes?: string | null
           performed_by?: string | null
           property_id?: string | null
+          public_id?: number
           statement_ending_date?: string | null
           total_checks_withdrawals?: number | null
           total_deposits_additions?: number | null
@@ -4760,14 +4640,15 @@ export type Database = {
           notes?: string | null
           performed_by?: string | null
           property_id?: string | null
+          public_id?: number
           statement_ending_date?: string | null
           total_checks_withdrawals?: number | null
           total_deposits_additions?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
+            foreignKeyName: "reconciliation_log_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
@@ -4775,6 +4656,13 @@ export type Database = {
           {
             foreignKeyName: "reconciliation_log_bank_gl_account_id_fkey"
             columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
@@ -4785,13 +4673,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_gl_trial_balance"
             referencedColumns: ["gl_account_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_performed_by_fkey"
-            columns: ["performed_by"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "reconciliation_log_property_id_fkey"
@@ -4819,6 +4700,7 @@ export type Database = {
           id: string
           lease_id: number | null
           memo: string | null
+          public_id: number
           start_date: string | null
           updated_at: string | null
         }
@@ -4831,6 +4713,7 @@ export type Database = {
           id?: string
           lease_id?: number | null
           memo?: string | null
+          public_id?: number
           start_date?: string | null
           updated_at?: string | null
         }
@@ -4843,6 +4726,7 @@ export type Database = {
           id?: string
           lease_id?: number | null
           memo?: string | null
+          public_id?: number
           start_date?: string | null
           updated_at?: string | null
         }
@@ -4864,6 +4748,7 @@ export type Database = {
           end_date: string | null
           id: string
           lease_id: number
+          public_id: number
           rent_cycle: Database["public"]["Enums"]["rent_cycle_enum"]
           start_date: string
           status: Database["public"]["Enums"]["rent_schedule_status"]
@@ -4877,6 +4762,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           lease_id: number
+          public_id?: number
           rent_cycle: Database["public"]["Enums"]["rent_cycle_enum"]
           start_date: string
           status?: Database["public"]["Enums"]["rent_schedule_status"]
@@ -4890,6 +4776,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           lease_id?: number
+          public_id?: number
           rent_cycle?: Database["public"]["Enums"]["rent_cycle_enum"]
           start_date?: string
           status?: Database["public"]["Enums"]["rent_schedule_status"]
@@ -4906,6 +4793,86 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          created_at: string
+          permission_id: string | null
+          public_id: number
+          role_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          permission_id?: string | null
+          public_id?: number
+          role_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          permission_id?: string | null
+          public_id?: number
+          role_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_profile_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permission_profile_permissions_profile_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          org_id: string | null
+          public_id: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          org_id?: string | null
+          public_id?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          org_id?: string | null
+          public_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_profiles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_automation_rules: {
         Row: {
           charge_template: Json | null
@@ -4915,6 +4882,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           offering_id: string
+          public_id: number
           rule_type: Database["public"]["Enums"]["automation_rule_type_enum"]
           task_template: Json | null
           updated_at: string | null
@@ -4927,6 +4895,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           offering_id: string
+          public_id?: number
           rule_type: Database["public"]["Enums"]["automation_rule_type_enum"]
           task_template?: Json | null
           updated_at?: string | null
@@ -4939,6 +4908,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           offering_id?: string
+          public_id?: number
           rule_type?: Database["public"]["Enums"]["automation_rule_type_enum"]
           task_template?: Json | null
           updated_at?: string | null
@@ -4962,6 +4932,7 @@ export type Database = {
           id: string
           offering_id: string | null
           plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
+          public_id: number
           transaction_id: string | null
         }
         Insert: {
@@ -4972,6 +4943,7 @@ export type Database = {
           id?: string
           offering_id?: string | null
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
+          public_id?: number
           transaction_id?: string | null
         }
         Update: {
@@ -4982,6 +4954,7 @@ export type Database = {
           id?: string
           offering_id?: string | null
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
+          public_id?: number
           transaction_id?: string | null
         }
         Relationships: [
@@ -5022,6 +4995,69 @@ export type Database = {
           },
         ]
       }
+      service_offering_assignments: {
+        Row: {
+          amount: number | null
+          assignment_id: string
+          created_at: string | null
+          frequency:
+            | Database["public"]["Enums"]["billing_frequency_enum"]
+            | null
+          id: string
+          is_active: boolean | null
+          offering_id: string
+          override_amount: boolean | null
+          override_frequency: boolean | null
+          public_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          assignment_id: string
+          created_at?: string | null
+          frequency?:
+            | Database["public"]["Enums"]["billing_frequency_enum"]
+            | null
+          id?: string
+          is_active?: boolean | null
+          offering_id: string
+          override_amount?: boolean | null
+          override_frequency?: boolean | null
+          public_id?: number
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          assignment_id?: string
+          created_at?: string | null
+          frequency?:
+            | Database["public"]["Enums"]["billing_frequency_enum"]
+            | null
+          id?: string
+          is_active?: boolean | null
+          offering_id?: string
+          override_amount?: boolean | null
+          override_frequency?: boolean | null
+          public_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_assignment_selected_services_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "service_plan_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_assignment_selected_services_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_offerings: {
         Row: {
           category: string
@@ -5037,6 +5073,7 @@ export type Database = {
           markup_pct: number | null
           markup_pct_cap: number | null
           name: string
+          public_id: number
           updated_at: string | null
         }
         Insert: {
@@ -5053,6 +5090,7 @@ export type Database = {
           markup_pct?: number | null
           markup_pct_cap?: number | null
           name: string
+          public_id?: number
           updated_at?: string | null
         }
         Update: {
@@ -5069,6 +5107,7 @@ export type Database = {
           markup_pct?: number | null
           markup_pct_cap?: number | null
           name?: string
+          public_id?: number
           updated_at?: string | null
         }
         Relationships: []
@@ -5086,6 +5125,7 @@ export type Database = {
           plan_fee_percent: number | null
           plan_id: string
           property_id: string | null
+          public_id: number
           unit_id: string | null
           updated_at: string | null
         }
@@ -5101,6 +5141,7 @@ export type Database = {
           plan_fee_percent?: number | null
           plan_id: string
           property_id?: string | null
+          public_id?: number
           unit_id?: string | null
           updated_at?: string | null
         }
@@ -5116,6 +5157,7 @@ export type Database = {
           plan_fee_percent?: number | null
           plan_id?: string
           property_id?: string | null
+          public_id?: number
           unit_id?: string | null
           updated_at?: string | null
         }
@@ -5157,10 +5199,91 @@ export type Database = {
           },
         ]
       }
+      service_plan_services: {
+        Row: {
+          billing_basis:
+            | Database["public"]["Enums"]["billing_basis_enum"]
+            | null
+          created_at: string | null
+          default_amount: number | null
+          default_frequency: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_included: boolean | null
+          hourly_min_hours: number | null
+          hourly_rate: number | null
+          id: string
+          is_required: boolean | null
+          markup_pct: number | null
+          markup_pct_cap: number | null
+          offering_id: string
+          plan_id: string
+          public_id: number
+          rent_basis: Database["public"]["Enums"]["rent_basis_enum"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          billing_basis?:
+            | Database["public"]["Enums"]["billing_basis_enum"]
+            | null
+          created_at?: string | null
+          default_amount?: number | null
+          default_frequency: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_included?: boolean | null
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          id?: string
+          is_required?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          offering_id: string
+          plan_id: string
+          public_id?: number
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          billing_basis?:
+            | Database["public"]["Enums"]["billing_basis_enum"]
+            | null
+          created_at?: string | null
+          default_amount?: number | null
+          default_frequency?: Database["public"]["Enums"]["billing_frequency_enum"]
+          default_included?: boolean | null
+          hourly_min_hours?: number | null
+          hourly_rate?: number | null
+          id?: string
+          is_required?: boolean | null
+          markup_pct?: number | null
+          markup_pct_cap?: number | null
+          offering_id?: string
+          plan_id?: string
+          public_id?: number
+          rent_basis?: Database["public"]["Enums"]["rent_basis_enum"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_plan_services_offering_id_fkey"
+            columns: ["offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_plan_services_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "service_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_plans: {
         Row: {
           amount_type: Database["public"]["Enums"]["plan_amount_type"]
           created_at: string | null
+          default_fee_amount: number | null
+          default_fee_percent: number | null
+          gl_account_id: string | null
           id: string
           is_active: boolean | null
           name: string
@@ -5168,11 +5291,15 @@ export type Database = {
           percent_basis:
             | Database["public"]["Enums"]["plan_percent_basis"]
             | null
+          public_id: number
           updated_at: string | null
         }
         Insert: {
           amount_type: Database["public"]["Enums"]["plan_amount_type"]
           created_at?: string | null
+          default_fee_amount?: number | null
+          default_fee_percent?: number | null
+          gl_account_id?: string | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -5180,11 +5307,15 @@ export type Database = {
           percent_basis?:
             | Database["public"]["Enums"]["plan_percent_basis"]
             | null
+          public_id?: number
           updated_at?: string | null
         }
         Update: {
           amount_type?: Database["public"]["Enums"]["plan_amount_type"]
           created_at?: string | null
+          default_fee_amount?: number | null
+          default_fee_percent?: number | null
+          gl_account_id?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
@@ -5192,9 +5323,24 @@ export type Database = {
           percent_basis?:
             | Database["public"]["Enums"]["plan_percent_basis"]
             | null
+          public_id?: number
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "service_plans_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_plans_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
+          },
           {
             foreignKeyName: "service_plans_org_id_fkey"
             columns: ["org_id"]
@@ -5215,6 +5361,7 @@ export type Database = {
           is_active: boolean
           last_name: string | null
           phone: string | null
+          public_id: number
           role: Database["public"]["Enums"]["staff_roles"]
           title: string | null
           updated_at: string
@@ -5230,6 +5377,7 @@ export type Database = {
           is_active?: boolean
           last_name?: string | null
           phone?: string | null
+          public_id?: number
           role?: Database["public"]["Enums"]["staff_roles"]
           title?: string | null
           updated_at: string
@@ -5245,20 +5393,13 @@ export type Database = {
           is_active?: boolean
           last_name?: string | null
           phone?: string | null
+          public_id?: number
           role?: Database["public"]["Enums"]["staff_roles"]
           title?: string | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "staff_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
+        Relationships: []
       }
       statement_emails: {
         Row: {
@@ -5268,6 +5409,7 @@ export type Database = {
           id: string
           monthly_log_id: string
           pdf_url: string | null
+          public_id: number
           recipients: Json
           sent_at: string
           sent_by_user_id: string | null
@@ -5280,6 +5422,7 @@ export type Database = {
           id?: string
           monthly_log_id: string
           pdf_url?: string | null
+          public_id?: number
           recipients: Json
           sent_at?: string
           sent_by_user_id?: string | null
@@ -5292,6 +5435,7 @@ export type Database = {
           id?: string
           monthly_log_id?: string
           pdf_url?: string | null
+          public_id?: number
           recipients?: Json
           sent_at?: string
           sent_by_user_id?: string | null
@@ -5304,13 +5448,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "monthly_logs"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "statement_emails_sent_by_user_id_fkey"
-            columns: ["sent_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -5327,6 +5464,7 @@ export type Database = {
           last_attempt: string | null
           local_id: string | null
           org_id: string | null
+          public_id: number
           status: string
           type: string
           updated_at: string | null
@@ -5343,6 +5481,7 @@ export type Database = {
           last_attempt?: string | null
           local_id?: string | null
           org_id?: string | null
+          public_id?: number
           status?: string
           type: string
           updated_at?: string | null
@@ -5359,6 +5498,7 @@ export type Database = {
           last_attempt?: string | null
           local_id?: string | null
           org_id?: string | null
+          public_id?: number
           status?: string
           type?: string
           updated_at?: string | null
@@ -5383,6 +5523,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           parent_id: string | null
+          public_id: number
           updated_at: string | null
         }
         Insert: {
@@ -5394,6 +5535,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           parent_id?: string | null
+          public_id?: number
           updated_at?: string | null
         }
         Update: {
@@ -5405,6 +5547,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           parent_id?: string | null
+          public_id?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -5425,6 +5568,7 @@ export type Database = {
           created_at: string | null
           id: string
           notes: string | null
+          public_id: number
           status: string
           task_id: string | null
           updated_at: string | null
@@ -5436,6 +5580,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           notes?: string | null
+          public_id?: number
           status: string
           task_id?: string | null
           updated_at?: string | null
@@ -5447,6 +5592,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           notes?: string | null
+          public_id?: number
           status?: string
           task_id?: string | null
           updated_at?: string | null
@@ -5487,6 +5633,7 @@ export type Database = {
           owner_id: string | null
           priority: string | null
           property_id: string | null
+          public_id: number
           requested_by_buildium_id: number | null
           requested_by_contact_id: number | null
           requested_by_type: string | null
@@ -5526,6 +5673,7 @@ export type Database = {
           owner_id?: string | null
           priority?: string | null
           property_id?: string | null
+          public_id?: number
           requested_by_buildium_id?: number | null
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
@@ -5565,6 +5713,7 @@ export type Database = {
           owner_id?: string | null
           priority?: string | null
           property_id?: string | null
+          public_id?: number
           requested_by_buildium_id?: number | null
           requested_by_contact_id?: number | null
           requested_by_type?: string | null
@@ -5682,6 +5831,7 @@ export type Database = {
           created_at: string
           id: string
           note: string | null
+          public_id: number
           subject: string | null
           tenant_id: string
           updated_at: string
@@ -5694,6 +5844,7 @@ export type Database = {
           created_at?: string
           id?: string
           note?: string | null
+          public_id?: number
           subject?: string | null
           tenant_id: string
           updated_at?: string
@@ -5706,6 +5857,7 @@ export type Database = {
           created_at?: string
           id?: string
           note?: string | null
+          public_id?: number
           subject?: string | null
           tenant_id?: string
           updated_at?: string
@@ -5732,6 +5884,7 @@ export type Database = {
           emergency_contact_relationship: string | null
           id: string
           org_id: string | null
+          public_id: number
           sms_opt_in_status: boolean | null
           tax_id: string | null
           updated_at: string
@@ -5748,6 +5901,7 @@ export type Database = {
           emergency_contact_relationship?: string | null
           id?: string
           org_id?: string | null
+          public_id?: number
           sms_opt_in_status?: boolean | null
           tax_id?: string | null
           updated_at: string
@@ -5764,6 +5918,7 @@ export type Database = {
           emergency_contact_relationship?: string | null
           id?: string
           org_id?: string | null
+          public_id?: number
           sms_opt_in_status?: boolean | null
           tax_id?: string | null
           updated_at?: string
@@ -5791,19 +5946,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "tenants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
         ]
       }
       transaction_lines: {
         Row: {
           account_entity_id: number | null
           account_entity_type: Database["public"]["Enums"]["entity_type_enum"]
+          accounting_entity_type_raw: string | null
           amount: number | null
           applied_period_start: string | null
           buildium_lease_id: number | null
@@ -5813,10 +5962,13 @@ export type Database = {
           date: string
           gl_account_id: string | null
           id: string
+          is_cash_posting: boolean | null
           lease_id: number | null
           memo: string | null
           posting_type: string
           property_id: string | null
+          public_id: number
+          reference_number: string | null
           transaction_id: string | null
           unit_id: string | null
           updated_at: string
@@ -5824,6 +5976,7 @@ export type Database = {
         Insert: {
           account_entity_id?: number | null
           account_entity_type: Database["public"]["Enums"]["entity_type_enum"]
+          accounting_entity_type_raw?: string | null
           amount?: number | null
           applied_period_start?: string | null
           buildium_lease_id?: number | null
@@ -5833,10 +5986,13 @@ export type Database = {
           date: string
           gl_account_id?: string | null
           id?: string
+          is_cash_posting?: boolean | null
           lease_id?: number | null
           memo?: string | null
           posting_type: string
           property_id?: string | null
+          public_id?: number
+          reference_number?: string | null
           transaction_id?: string | null
           unit_id?: string | null
           updated_at: string
@@ -5844,6 +6000,7 @@ export type Database = {
         Update: {
           account_entity_id?: number | null
           account_entity_type?: Database["public"]["Enums"]["entity_type_enum"]
+          accounting_entity_type_raw?: string | null
           amount?: number | null
           applied_period_start?: string | null
           buildium_lease_id?: number | null
@@ -5853,10 +6010,13 @@ export type Database = {
           date?: string
           gl_account_id?: string | null
           id?: string
+          is_cash_posting?: boolean | null
           lease_id?: number | null
           memo?: string | null
           posting_type?: string
           property_id?: string | null
+          public_id?: number
+          reference_number?: string | null
           transaction_id?: string | null
           unit_id?: string | null
           updated_at?: string
@@ -5927,16 +6087,83 @@ export type Database = {
           },
         ]
       }
+      transaction_payment_transactions: {
+        Row: {
+          accounting_entity_href: string | null
+          accounting_entity_id: number | null
+          accounting_entity_type: string | null
+          accounting_unit_href: string | null
+          accounting_unit_id: number | null
+          amount: number | null
+          buildium_payment_transaction_id: number | null
+          created_at: string
+          id: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          accounting_entity_href?: string | null
+          accounting_entity_id?: number | null
+          accounting_entity_type?: string | null
+          accounting_unit_href?: string | null
+          accounting_unit_id?: number | null
+          amount?: number | null
+          buildium_payment_transaction_id?: number | null
+          created_at?: string
+          id?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accounting_entity_href?: string | null
+          accounting_entity_id?: number | null
+          accounting_entity_type?: string | null
+          accounting_unit_href?: string | null
+          accounting_unit_id?: number | null
+          amount?: number | null
+          buildium_payment_transaction_id?: number | null
+          created_at?: string
+          id?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_amounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_type_sign: {
         Row: {
+          public_id: number
           sign: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
         }
         Insert: {
+          public_id?: number
           sign: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
         }
         Update: {
+          public_id?: number
           sign?: number
           transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
         }
@@ -5944,10 +6171,15 @@ export type Database = {
       }
       transactions: {
         Row: {
+          bank_gl_account_buildium_id: number | null
           bank_gl_account_id: string | null
+          buildium_application_id: number | null
           buildium_bill_id: number | null
+          buildium_last_updated_at: string | null
           buildium_lease_id: number | null
           buildium_transaction_id: number | null
+          buildium_unit_id: number | null
+          buildium_unit_number: string | null
           category_id: string | null
           check_number: string | null
           created_at: string
@@ -5956,6 +6188,10 @@ export type Database = {
           email_receipt: boolean
           fee_category: Database["public"]["Enums"]["fee_category_enum"] | null
           id: string
+          internal_transaction_is_pending: boolean | null
+          internal_transaction_result_code: string | null
+          internal_transaction_result_date: string | null
+          is_internal_transaction: boolean | null
           is_recurring: boolean | null
           lease_id: number | null
           legacy_memo: string | null
@@ -5963,27 +6199,43 @@ export type Database = {
           monthly_log_id: string | null
           org_id: string | null
           paid_date: string | null
+          payee_buildium_id: number | null
+          payee_buildium_type: string | null
+          payee_href: string | null
+          payee_name: string | null
           payee_tenant_id: number | null
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          payment_method_raw: string | null
           plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt: boolean
+          public_id: number
           recurring_schedule: Json | null
           reference_number: string | null
           service_offering_id: string | null
           status: Database["public"]["Enums"]["transaction_status_enum"]
+          tenant_id: string | null
           total_amount: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
+          unit_agreement_href: string | null
+          unit_agreement_id: number | null
+          unit_agreement_type: string | null
+          unit_id: string | null
           updated_at: string
           vendor_id: string | null
           work_order_id: string | null
         }
         Insert: {
+          bank_gl_account_buildium_id?: number | null
           bank_gl_account_id?: string | null
+          buildium_application_id?: number | null
           buildium_bill_id?: number | null
+          buildium_last_updated_at?: string | null
           buildium_lease_id?: number | null
           buildium_transaction_id?: number | null
+          buildium_unit_id?: number | null
+          buildium_unit_number?: string | null
           category_id?: string | null
           check_number?: string | null
           created_at?: string
@@ -5992,6 +6244,10 @@ export type Database = {
           email_receipt?: boolean
           fee_category?: Database["public"]["Enums"]["fee_category_enum"] | null
           id?: string
+          internal_transaction_is_pending?: boolean | null
+          internal_transaction_result_code?: string | null
+          internal_transaction_result_date?: string | null
+          is_internal_transaction?: boolean | null
           is_recurring?: boolean | null
           lease_id?: number | null
           legacy_memo?: string | null
@@ -5999,27 +6255,43 @@ export type Database = {
           monthly_log_id?: string | null
           org_id?: string | null
           paid_date?: string | null
+          payee_buildium_id?: number | null
+          payee_buildium_type?: string | null
+          payee_href?: string | null
+          payee_name?: string | null
           payee_tenant_id?: number | null
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          payment_method_raw?: string | null
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt?: boolean
+          public_id?: number
           recurring_schedule?: Json | null
           reference_number?: string | null
           service_offering_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status_enum"]
+          tenant_id?: string | null
           total_amount?: number
           transaction_type: Database["public"]["Enums"]["transaction_type_enum"]
+          unit_agreement_href?: string | null
+          unit_agreement_id?: number | null
+          unit_agreement_type?: string | null
+          unit_id?: string | null
           updated_at: string
           vendor_id?: string | null
           work_order_id?: string | null
         }
         Update: {
+          bank_gl_account_buildium_id?: number | null
           bank_gl_account_id?: string | null
+          buildium_application_id?: number | null
           buildium_bill_id?: number | null
+          buildium_last_updated_at?: string | null
           buildium_lease_id?: number | null
           buildium_transaction_id?: number | null
+          buildium_unit_id?: number | null
+          buildium_unit_number?: string | null
           category_id?: string | null
           check_number?: string | null
           created_at?: string
@@ -6028,6 +6300,10 @@ export type Database = {
           email_receipt?: boolean
           fee_category?: Database["public"]["Enums"]["fee_category_enum"] | null
           id?: string
+          internal_transaction_is_pending?: boolean | null
+          internal_transaction_result_code?: string | null
+          internal_transaction_result_date?: string | null
+          is_internal_transaction?: boolean | null
           is_recurring?: boolean | null
           lease_id?: number | null
           legacy_memo?: string | null
@@ -6035,18 +6311,29 @@ export type Database = {
           monthly_log_id?: string | null
           org_id?: string | null
           paid_date?: string | null
+          payee_buildium_id?: number | null
+          payee_buildium_type?: string | null
+          payee_href?: string | null
+          payee_name?: string | null
           payee_tenant_id?: number | null
           payment_method?:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          payment_method_raw?: string | null
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt?: boolean
+          public_id?: number
           recurring_schedule?: Json | null
           reference_number?: string | null
           service_offering_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status_enum"]
+          tenant_id?: string | null
           total_amount?: number
           transaction_type?: Database["public"]["Enums"]["transaction_type_enum"]
+          unit_agreement_href?: string | null
+          unit_agreement_id?: number | null
+          unit_agreement_type?: string | null
+          unit_id?: string | null
           updated_at?: string
           vendor_id?: string | null
           work_order_id?: string | null
@@ -6058,6 +6345,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "transactions_category_id_fkey"
@@ -6095,6 +6389,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transactions_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
@@ -6128,6 +6436,7 @@ export type Database = {
           id: string
           is_private: boolean | null
           name: string | null
+          public_id: number
           sort_index: number | null
           unit_id: string
           updated_at: string
@@ -6142,6 +6451,7 @@ export type Database = {
           id?: string
           is_private?: boolean | null
           name?: string | null
+          public_id?: number
           sort_index?: number | null
           unit_id: string
           updated_at?: string
@@ -6156,6 +6466,7 @@ export type Database = {
           id?: string
           is_private?: boolean | null
           name?: string | null
+          public_id?: number
           sort_index?: number | null
           unit_id?: string
           updated_at?: string
@@ -6177,6 +6488,7 @@ export type Database = {
           created_at: string
           id: string
           is_private: boolean | null
+          public_id: number
           subject: string | null
           unit_id: string
           updated_at: string
@@ -6187,6 +6499,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_private?: boolean | null
+          public_id?: number
           subject?: string | null
           unit_id: string
           updated_at?: string
@@ -6197,6 +6510,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_private?: boolean | null
+          public_id?: number
           subject?: string | null
           unit_id?: string
           updated_at?: string
@@ -6213,9 +6527,6 @@ export type Database = {
       }
       units: {
         Row: {
-          active_services:
-            | Database["public"]["Enums"]["management_services_enum"][]
-            | null
           address_line1: string
           address_line2: string | null
           address_line3: string | null
@@ -6227,9 +6538,6 @@ export type Database = {
           bill_administration_notes: string | null
           bill_pay_list: string | null
           bill_pay_notes: string | null
-          billing_frequency:
-            | Database["public"]["Enums"]["billing_frequency_enum"]
-            | null
           building_name: string | null
           buildium_created_at: string | null
           buildium_property_id: number | null
@@ -6240,13 +6548,6 @@ export type Database = {
           created_at: string
           deposits_held_balance: number | null
           description: string | null
-          fee_assignment: Database["public"]["Enums"]["assignment_level"] | null
-          fee_dollar_amount: number | null
-          fee_frequency: Database["public"]["Enums"]["FeeFrequency"] | null
-          fee_notes: string | null
-          fee_percent: number | null
-          fee_percentage: number | null
-          fee_type: Database["public"]["Enums"]["fee_type_enum"] | null
           id: string
           is_active: boolean | null
           last_inspection_date: string | null
@@ -6256,8 +6557,8 @@ export type Database = {
           postal_code: string
           prepayments_balance: number | null
           property_id: string
+          public_id: number
           service_end: string | null
-          service_plan: Database["public"]["Enums"]["service_plan_enum"] | null
           service_start: string | null
           state: string | null
           status: Database["public"]["Enums"]["unit_status_enum"]
@@ -6270,9 +6571,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          active_services?:
-            | Database["public"]["Enums"]["management_services_enum"][]
-            | null
           address_line1: string
           address_line2?: string | null
           address_line3?: string | null
@@ -6284,9 +6582,6 @@ export type Database = {
           bill_administration_notes?: string | null
           bill_pay_list?: string | null
           bill_pay_notes?: string | null
-          billing_frequency?:
-            | Database["public"]["Enums"]["billing_frequency_enum"]
-            | null
           building_name?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
@@ -6297,15 +6592,6 @@ export type Database = {
           created_at?: string
           deposits_held_balance?: number | null
           description?: string | null
-          fee_assignment?:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          fee_dollar_amount?: number | null
-          fee_frequency?: Database["public"]["Enums"]["FeeFrequency"] | null
-          fee_notes?: string | null
-          fee_percent?: number | null
-          fee_percentage?: number | null
-          fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
           id?: string
           is_active?: boolean | null
           last_inspection_date?: string | null
@@ -6315,8 +6601,8 @@ export type Database = {
           postal_code: string
           prepayments_balance?: number | null
           property_id: string
+          public_id?: number
           service_end?: string | null
-          service_plan?: Database["public"]["Enums"]["service_plan_enum"] | null
           service_start?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["unit_status_enum"]
@@ -6329,9 +6615,6 @@ export type Database = {
           updated_at: string
         }
         Update: {
-          active_services?:
-            | Database["public"]["Enums"]["management_services_enum"][]
-            | null
           address_line1?: string
           address_line2?: string | null
           address_line3?: string | null
@@ -6343,9 +6626,6 @@ export type Database = {
           bill_administration_notes?: string | null
           bill_pay_list?: string | null
           bill_pay_notes?: string | null
-          billing_frequency?:
-            | Database["public"]["Enums"]["billing_frequency_enum"]
-            | null
           building_name?: string | null
           buildium_created_at?: string | null
           buildium_property_id?: number | null
@@ -6356,15 +6636,6 @@ export type Database = {
           created_at?: string
           deposits_held_balance?: number | null
           description?: string | null
-          fee_assignment?:
-            | Database["public"]["Enums"]["assignment_level"]
-            | null
-          fee_dollar_amount?: number | null
-          fee_frequency?: Database["public"]["Enums"]["FeeFrequency"] | null
-          fee_notes?: string | null
-          fee_percent?: number | null
-          fee_percentage?: number | null
-          fee_type?: Database["public"]["Enums"]["fee_type_enum"] | null
           id?: string
           is_active?: boolean | null
           last_inspection_date?: string | null
@@ -6374,8 +6645,8 @@ export type Database = {
           postal_code?: string
           prepayments_balance?: number | null
           property_id?: string
+          public_id?: number
           service_end?: string | null
-          service_plan?: Database["public"]["Enums"]["service_plan_enum"] | null
           service_start?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["unit_status_enum"]
@@ -6411,52 +6682,6 @@ export type Database = {
           },
         ]
       }
-      user_permission_profiles: {
-        Row: {
-          created_at: string
-          org_id: string
-          profile_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          org_id: string
-          profile_id: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          org_id?: string
-          profile_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_permission_profiles_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permission_profiles_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "permission_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_permission_profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       vendor_categories: {
         Row: {
           buildium_category_id: number | null
@@ -6465,6 +6690,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          public_id: number
           updated_at: string | null
         }
         Insert: {
@@ -6474,6 +6700,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          public_id?: number
           updated_at?: string | null
         }
         Update: {
@@ -6483,6 +6710,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          public_id?: number
           updated_at?: string | null
         }
         Relationships: []
@@ -6504,6 +6732,7 @@ export type Database = {
           is_active: boolean | null
           notes: string | null
           payment_terms_days: number | null
+          public_id: number
           tax_address_city: string | null
           tax_address_country: string | null
           tax_address_line1: string | null
@@ -6535,6 +6764,7 @@ export type Database = {
           is_active?: boolean | null
           notes?: string | null
           payment_terms_days?: number | null
+          public_id?: number
           tax_address_city?: string | null
           tax_address_country?: string | null
           tax_address_line1?: string | null
@@ -6566,6 +6796,7 @@ export type Database = {
           is_active?: boolean | null
           notes?: string | null
           payment_terms_days?: number | null
+          public_id?: number
           tax_address_city?: string | null
           tax_address_country?: string | null
           tax_address_line1?: string | null
@@ -6624,18 +6855,21 @@ export type Database = {
           created_at: string
           enabled: boolean
           event_type: string
+          public_id: number
           updated_at: string
         }
         Insert: {
           created_at?: string
           enabled?: boolean
           event_type: string
+          public_id?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
           enabled?: boolean
           event_type?: string
+          public_id?: number
           updated_at?: string
         }
         Relationships: []
@@ -6655,6 +6889,7 @@ export type Database = {
           org_id: string | null
           priority: string | null
           property_id: string | null
+          public_id: number
           scheduled_date: string | null
           status: string | null
           subject: string
@@ -6676,6 +6911,7 @@ export type Database = {
           org_id?: string | null
           priority?: string | null
           property_id?: string | null
+          public_id?: number
           scheduled_date?: string | null
           status?: string | null
           subject: string
@@ -6697,6 +6933,7 @@ export type Database = {
           org_id?: string | null
           priority?: string | null
           property_id?: string | null
+          public_id?: number
           scheduled_date?: string | null
           status?: string | null
           subject?: string
@@ -6928,6 +7165,37 @@ export type Database = {
           },
         ]
       }
+      unbalanced_transactions: {
+        Row: {
+          credit_total: number | null
+          debit_total: number | null
+          diff: number | null
+          transaction_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transaction_amounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           avatar_url: string | null
@@ -6952,27 +7220,6 @@ export type Database = {
           timezone: string | null
           two_factor_enabled: boolean | null
           updated_at: string | null
-          user_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users_with_auth"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      users_with_auth: {
-        Row: {
-          created_at: string | null
-          email: string | null
-          full_name: string | null
-          last_sign_in_at: string | null
-          memberships: Json | null
-          phone: string | null
-          providers: Json | null
           user_id: string | null
         }
         Relationships: []
@@ -7176,20 +7423,25 @@ export type Database = {
           date: string | null
           due_date: string | null
           email_receipt: boolean | null
+          fee_category: Database["public"]["Enums"]["fee_category_enum"] | null
           id: string | null
           is_recurring: boolean | null
           lease_id: number | null
+          legacy_memo: string | null
           memo: string | null
+          monthly_log_id: string | null
           org_id: string | null
           paid_date: string | null
           payee_tenant_id: number | null
           payment_method:
             | Database["public"]["Enums"]["payment_method_enum"]
             | null
+          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt: boolean | null
           recurring_schedule: Json | null
           reference_number: string | null
           rn: number | null
+          service_offering_id: string | null
           status: Database["public"]["Enums"]["transaction_status_enum"] | null
           total_amount: number | null
           transaction_type:
@@ -7197,6 +7449,7 @@ export type Database = {
             | null
           updated_at: string | null
           vendor_id: string | null
+          work_order_id: string | null
         }
         Relationships: [
           {
@@ -7205,6 +7458,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_gl_trial_balance"
+            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "transactions_category_id_fkey"
@@ -7221,6 +7481,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transactions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -7228,10 +7495,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_service_offering_id_fkey"
+            columns: ["service_offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transactions_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -7661,6 +7949,10 @@ export type Database = {
         Args: { child_name: string; child_org: string; parent_org: string }
         Returns: undefined
       }
+      ensure_public_ids: {
+        Args: { target_schema?: string }
+        Returns: undefined
+      }
       find_duplicate_buildium_ids: {
         Args: { buildium_field: string; table_name: string }
         Returns: {
@@ -7705,6 +7997,7 @@ export type Database = {
         Args: { company_name: string; first_name: string; last_name: string }
         Returns: string
       }
+      generate_public_id: { Args: { target_table: string }; Returns: unknown }
       get_buildium_api_cache: {
         Args: { p_endpoint: string; p_parameters?: Json }
         Returns: Json
@@ -7812,6 +8105,10 @@ export type Database = {
       handle_unit_webhook_update: {
         Args: { event_data: Json }
         Returns: undefined
+      }
+      has_permission: {
+        Args: { p_org_id: string; p_permission_key: string; p_user_id: string }
+        Returns: boolean
       }
       is_org_admin: {
         Args: { p_org_id: string; p_user_id: string }
@@ -7946,6 +8243,7 @@ export type Database = {
       }
     }
     Enums: {
+      accounting_basis_enum: "Accrual" | "Cash"
       appliance_service_type_enum:
         | "Maintenance"
         | "Repair"
@@ -8366,14 +8664,6 @@ export type Database = {
       lease_contact_role_enum: "Tenant" | "Cosigner" | "Guarantor"
       lease_contact_status_enum: "Future" | "Active" | "Past"
       management_fee_type_enum: "percentage" | "flat"
-      management_services_enum:
-        | "Rent Collection"
-        | "Maintenance"
-        | "Turnovers"
-        | "Compliance"
-        | "Bill Pay"
-        | "Condition Reports"
-        | "Renewals"
       monthly_log_stage:
         | "charges"
         | "payments"
@@ -8475,6 +8765,7 @@ export type Database = {
         | "UnreversedOwnerContribution"
         | "UnreversedRentalApplicationFeePayment"
         | "ReversedEftRefund"
+      trust_account_warning_enum: "Off" | "ByProperty" | "ByRentalOwner"
       txn_type_enum: "Charge" | "Payment" | "Adjustment" | "Refund"
       unit_status_enum: "Occupied" | "Vacant" | "Inactive"
     }
@@ -8604,6 +8895,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      accounting_basis_enum: ["Accrual", "Cash"],
       appliance_service_type_enum: [
         "Maintenance",
         "Repair",
@@ -9039,15 +9331,6 @@ export const Constants = {
       lease_contact_role_enum: ["Tenant", "Cosigner", "Guarantor"],
       lease_contact_status_enum: ["Future", "Active", "Past"],
       management_fee_type_enum: ["percentage", "flat"],
-      management_services_enum: [
-        "Rent Collection",
-        "Maintenance",
-        "Turnovers",
-        "Compliance",
-        "Bill Pay",
-        "Condition Reports",
-        "Renewals",
-      ],
       monthly_log_stage: [
         "charges",
         "payments",
@@ -9159,6 +9442,7 @@ export const Constants = {
         "UnreversedRentalApplicationFeePayment",
         "ReversedEftRefund",
       ],
+      trust_account_warning_enum: ["Off", "ByProperty", "ByRentalOwner"],
       txn_type_enum: ["Charge", "Payment", "Adjustment", "Refund"],
       unit_status_enum: ["Occupied", "Vacant", "Inactive"],
     },

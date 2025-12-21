@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { ComplianceService } from '@/lib/compliance-service'
 import { ComplianceItemGenerator } from '@/lib/compliance-item-generator'
 import type { ComplianceProgram } from '@/types/compliance'
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 export async function PATCH(
   request: NextRequest,
@@ -22,7 +23,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { propertyId, programId } = await params
+    const { propertyId: propertySlug, programId } = await params
+    const { internalId: propertyId } = await resolvePropertyIdentifier(propertySlug)
     const body = await request.json().catch(() => ({}))
     const { is_enabled } = body as { is_enabled?: boolean | null }
 

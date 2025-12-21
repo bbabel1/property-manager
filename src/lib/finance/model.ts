@@ -15,6 +15,8 @@ type BasicLine = {
   posting_type?: string | null;
   gl_accounts?: BasicAccount | null;
   transaction_id?: string | number | null;
+  property_id?: string | null;
+  unit_id?: string | null;
 };
 
 type BasicTransaction = {

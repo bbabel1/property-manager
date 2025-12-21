@@ -6,25 +6,29 @@ import PropertyRecentFilesSection from '@/components/property/PropertyRecentFile
 import PropertyRecentNotesSection from '@/components/property/PropertyRecentNotesSection';
 import { supabaseAdmin } from '@/lib/db';
 import { PropertyService } from '@/lib/property-service';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
+import { logger } from '@/lib/logger';
 import { fetchPropertyFinancials } from '@/server/financials/property-finance';
 import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const { id: slug } = await params;
+  const { internalId: propertyId, publicId: propertyPublicId } =
+    await resolvePropertyIdentifier(slug);
   // Prefer direct service call in RSC to avoid internal HTTP hop.
   // Fetch property details and financials in parallel for faster TTFB.
   // Use UTC date to avoid timezone issues - get today's date in UTC
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const propertyPromise = PropertyService.getPropertyById(id);
+  const propertyPromise = PropertyService.getPropertyById(propertyId);
   const finPromise = supabaseAdmin
     .rpc('get_property_financials', {
-      p_property_id: id,
+      p_property_id: propertyId,
       p_as_of: today,
     })
     .then(({ data, error }) => {
       if (error) {
-        console.error('Financials RPC error:', error.message);
+        logger.error({ error, propertyId, asOf: today }, 'Financials RPC error');
         return null;
       }
       return data;
@@ -44,10 +48,10 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
         .getAll()
         .map((c) => `${c.name}=${encodeURIComponent(c.value)}`)
         .join('; ');
-      const url = `${proto}://${host}/api/properties/${id}/details`;
+      const url = `${proto}://${host}/api/properties/${propertyId}/details`;
       const res = await fetch(url, {
         headers: { cookie: cookieHeader },
-        next: { revalidate: 60, tags: [`property-details:${id}`] },
+        next: { revalidate: 60, tags: [`property-details:${propertyId}`] },
       });
       if (res.ok) property = await res.json();
     } catch {}
@@ -55,7 +59,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
 
   // If owners are missing due to RLS or join limitations in the details API, fall back to service
   if (property && (!Array.isArray(property.owners) || property.owners.length === 0)) {
-    const svc = await PropertyService.getPropertyById(id);
+    const svc = await PropertyService.getPropertyById(propertyId);
     if (svc && Array.isArray(svc.owners) && svc.owners.length > 0) {
       property.owners = svc.owners;
       property.total_owners = svc.total_owners;
@@ -76,7 +80,7 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
       : null;
 
   if (property) {
-    const { fin: derivedFin } = await fetchPropertyFinancials(id, today, supabaseAdmin);
+    const { fin: derivedFin } = await fetchPropertyFinancials(propertyId, today, supabaseAdmin);
     fin = derivedFin;
   }
 
