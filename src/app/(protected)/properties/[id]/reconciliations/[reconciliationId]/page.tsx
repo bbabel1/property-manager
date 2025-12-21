@@ -4,9 +4,11 @@ import ReconciliationHeader from '@/components/reconciliations/ReconciliationHea
 import BalanceCard from '@/components/reconciliations/BalanceCard'
 import ClearingPanel from '@/components/reconciliations/ClearingPanel'
 import FinalizeBar from '@/components/reconciliations/FinalizeBar'
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 export default async function ReconciliationPage({ params }: { params: Promise<{ id: string; reconciliationId: string }> }) {
-  const { id: propertyId, reconciliationId } = await params
+  const { id: slug, reconciliationId } = await params
+  const { publicId: propertyPublicId } = await resolvePropertyIdentifier(slug)
   const supabase = await getSupabaseServerClient()
 
   // Load reconciliation record from our log
@@ -58,7 +60,7 @@ export default async function ReconciliationPage({ params }: { params: Promise<{
         maskedNumber={acctMasked}
         statementDate={asOf}
         status={rl.is_finished ? 'Finished' : 'Pending'}
-        propertyId={propertyId}
+        propertyId={propertyPublicId}
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <BalanceCard

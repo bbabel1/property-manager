@@ -4,6 +4,8 @@ import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
 
+// Prefer local overrides but fall back to .env when running outside Next.js
+config({ path: '.env.local' })
 config()
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!

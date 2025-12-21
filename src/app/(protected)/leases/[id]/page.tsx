@@ -1163,12 +1163,11 @@ export default async function LeaseDetailsPage({
           (tx as any)?.TransactionDateTime ??
           (tx as any)?.entry_date ??
           null;
-        const sequence =
-          Number.isFinite(Number(buildiumIdRaw))
-            ? Number(buildiumIdRaw)
-            : Number.isFinite(Number(tx?.id))
-              ? Number(tx?.id)
-              : null;
+        const sequence = Number.isFinite(Number(buildiumIdRaw))
+          ? Number(buildiumIdRaw)
+          : Number.isFinite(Number(tx?.id))
+            ? Number(tx?.id)
+            : null;
         return {
           id: String(localId),
           date: formatLedgerDate(rawDate),
@@ -1187,17 +1186,15 @@ export default async function LeaseDetailsPage({
     : [];
 
   // Compute running balance in chronological order so historical row balances stay fixed
-  const ledgerRowsChrono = ledgerRows
-    .slice()
-    .sort((a, b) => {
-      const aKey = Number.isFinite(a.sortKey) ? (a.sortKey as number) : 0;
-      const bKey = Number.isFinite(b.sortKey) ? (b.sortKey as number) : 0;
-      if (aKey !== bKey) return aKey - bKey;
-      const aSeq = Number.isFinite(a.sequence) ? (a.sequence as number) : null;
-      const bSeq = Number.isFinite(b.sequence) ? (b.sequence as number) : null;
-      if (aSeq !== null && bSeq !== null && aSeq !== bSeq) return aSeq - bSeq;
-      return (b.originalIndex ?? 0) - (a.originalIndex ?? 0);
-    });
+  const ledgerRowsChrono = ledgerRows.slice().sort((a, b) => {
+    const aKey = Number.isFinite(a.sortKey) ? (a.sortKey as number) : 0;
+    const bKey = Number.isFinite(b.sortKey) ? (b.sortKey as number) : 0;
+    if (aKey !== bKey) return aKey - bKey;
+    const aSeq = Number.isFinite(a.sequence) ? (a.sequence as number) : null;
+    const bSeq = Number.isFinite(b.sequence) ? (b.sequence as number) : null;
+    if (aSeq !== null && bSeq !== null && aSeq !== bSeq) return aSeq - bSeq;
+    return (b.originalIndex ?? 0) - (a.originalIndex ?? 0);
+  });
 
   let runningBalance = 0;
   const ledgerRowsWithBalance = ledgerRowsChrono.map((row) => {
@@ -1289,12 +1286,12 @@ export default async function LeaseDetailsPage({
 
           // For liabilities, treat credits as increases and debits as decreases.
           running += signed;
-          const normalizedType = readableTransactionType(typeLabel).toLowerCase();
+          const normalizedType = typeLabel.toLowerCase();
           const baseType = normalizedType.includes('payment')
             ? 'Payment'
             : normalizedType.includes('credit')
               ? 'Payment'
-              : readableTransactionType(typeLabel);
+              : typeLabel;
           const payerLabel =
             baseType === 'Payment' && tenantNames.length
               ? `${baseType} made by ${tenantNames.join(', ')}`

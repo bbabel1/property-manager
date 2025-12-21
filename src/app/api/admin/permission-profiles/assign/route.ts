@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { user_id, org_id, profile_id } = parsed.data
-    await supabase.from('user_permission_profiles').delete().eq('user_id', user_id).eq('org_id', org_id)
+    await supabase.from('membership_roles').delete().eq('user_id', user_id).eq('org_id', org_id)
     if (profile_id) {
       const now = new Date().toISOString()
       const { error } = await supabase
-        .from('user_permission_profiles')
-        .insert({ user_id, org_id, profile_id, created_at: now, updated_at: now })
+        .from('membership_roles')
+        .insert({ user_id, org_id, role_id: profile_id, created_at: now, updated_at: now })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
     return NextResponse.json({ success: true })

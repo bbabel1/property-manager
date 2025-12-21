@@ -149,7 +149,8 @@ const isBankLine = (line: LedgerLine): boolean => {
       name.includes('checking') ||
       name.includes('operating') ||
       name.includes('trust') ||
-      name.includes('cash')
+      name.includes('cash') ||
+      name.includes('undeposited')
     );
   }
   return false;
@@ -169,9 +170,21 @@ const filterForCashBasis = (lines: LedgerLine[]): LedgerLine[] => {
   return lines.filter((line) => {
     if (line.glExcludeFromCash) return false;
     if (isArOrAp(line)) return false;
-    const hasBank = line.transactionId ? txBankMap.get(line.transactionId) === true : false;
     if (isBankLine(line)) return true;
-    return hasBank;
+
+    // If the line isn't linked to a transaction (e.g., orphaned or system adjustments),
+    // keep it unless it's AR/AP.
+    if (!line.transactionId) return true;
+
+    const glType = (line.glAccountType || '').toLowerCase();
+
+    // Income needs cash to be recognized on cash basis.
+    if (glType === 'income') {
+      return txBankMap.get(line.transactionId) === true;
+    }
+
+    // Non-income (expense, liability, equity, etc.) stays visible on cash basis.
+    return true;
   });
 };
 

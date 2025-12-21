@@ -1470,7 +1470,10 @@ export async function POST(req: NextRequest) {
     }
 
     const upsertLeaseWithPartiesLocal = async (lease: any, buildiumAccountId?: number | null) => {
-      const leaseIdLocal = await upsertLeaseFromBuildiumLocal(lease, buildiumAccountId ?? lease?.AccountId ?? null)
+      const resolvedAccountId = buildiumAccountId ?? lease?.AccountId ?? null
+      const leaseWithAccount =
+        resolvedAccountId && !lease?.AccountId ? { ...lease, AccountId: resolvedAccountId } : lease
+      const leaseIdLocal = await upsertLeaseFromBuildiumLocal(leaseWithAccount)
       const propertyUuid = await resolvePropertyUuidByBuildiumId(admin, lease.PropertyId)
       let orgId: string | null = null
       if (propertyUuid) {

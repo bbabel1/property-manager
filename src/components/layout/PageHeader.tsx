@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 type Props = {
   property: {
     id: string;
+    publicId?: string | null;
     name: string;
     status?: string | null;
     property_type?: string | null;
@@ -58,6 +59,7 @@ export default function PageHeader({ property }: Props) {
   }, [isUnitDetailsPath, pathname]);
 
   const shouldCollapseNav = isUnitDetailsPath && !navExpanded;
+  const propertyPathId = property.publicId || property.id;
 
   const handleMouseEnter = () => {
     if (isUnitDetailsPath) setNavExpanded(true);
@@ -120,7 +122,7 @@ export default function PageHeader({ property }: Props) {
           {tabs.map((t) => (
             <Link
               key={t.key}
-              href={`/properties/${property.id}/${t.key}`}
+              href={`/properties/${propertyPathId}/${t.key}`}
               aria-current={seg === t.key ? 'page' : undefined}
               className={`border-b-2 px-1 py-4 text-sm font-medium transition-colors ${seg === t.key ? 'border-primary text-primary' : 'text-muted-foreground hover:text-foreground hover:border-muted-foreground border-transparent'}`}
             >

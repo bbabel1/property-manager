@@ -16,6 +16,7 @@ import type {
   CompliancePropertyProgramOverride,
 } from '@/types/compliance';
 import type { Json } from '@/types/database';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 
 type PropertyMeta = {
   id: string;
@@ -79,7 +80,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { propertyId } = await params;
+    const { propertyId: propertySlug } = await params;
+    const { internalId: propertyId } = await resolvePropertyIdentifier(propertySlug);
 
     const { data: membership, error: membershipError } = await supabaseAdmin
       .from('org_memberships')

@@ -3,10 +3,12 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Building2 } from 'lucide-react'
 import UnitsTable from '@/components/property/UnitsTable'
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 export default async function UnitsTab({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const property = await PropertyService.getPropertyById(id)
+  const { id: slug } = await params
+  const { internalId: propertyId } = await resolvePropertyIdentifier(slug)
+  const property = await PropertyService.getPropertyById(propertyId)
 
   if (!property || !Array.isArray(property.units)) {
     return (
@@ -22,7 +24,7 @@ export default async function UnitsTab({ params }: { params: Promise<{ id: strin
 
   return (
     <div id="panel-units" role="tabpanel" aria-labelledby="units">
-      <UnitsTable propertyId={id} property={property} initialUnits={property.units as any} />
+      <UnitsTable propertyId={propertyId} property={property} initialUnits={property.units as any} />
     </div>
   )
 }

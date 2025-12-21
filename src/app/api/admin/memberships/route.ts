@@ -88,17 +88,19 @@ export async function POST(request: NextRequest) {
 
     // Caller must be admin in the target org
     const targetOrgId = parsed.data.org_id
-    const { data: membership, error: membershipError } = await supabase
-      .from('org_memberships')
-      .select('role')
+    const { data: callerRolesRows, error: membershipError } = await supabase
+      .from('membership_roles')
+      .select('roles(name)')
       .eq('user_id', user.id)
       .eq('org_id', targetOrgId)
-      .maybeSingle()
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
+    const callerOrgRole = (callerRolesRows || [])
+      .map((r: any) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
+      .filter(Boolean)?.[0] as AppRole | null
     const validation = validateMembershipChange({
-      callerOrgRole: membership?.role as AppRole | null,
+      callerOrgRole,
       callerGlobalRoles: callerRoles,
       requestedRoles: roles,
     })
@@ -123,11 +125,9 @@ export async function POST(request: NextRequest) {
     const admin = requireSupabaseAdmin('upsert membership roles')
     const membershipRow: Database['public']['Tables']['org_memberships']['Insert'] = {
       user_id: parsed.data.user_id,
-      org_id: parsed.data.org_id,
-      role: top
+      org_id: parsed.data.org_id
     }
 
-    // Keep primary/top role for compatibility
     const { error: upsertMembershipError } = await admin
       .from('org_memberships')
       .upsert(membershipRow, { onConflict: 'user_id,org_id' })
@@ -135,29 +135,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to update roles', details: upsertMembershipError.message }, { status: 500 })
     }
 
-    // Store the full set of roles
+    // Store the full set of roles via membership_roles (resolving role_id)
     try {
-      await admin
-        .from('org_membership_roles')
-        .delete()
-        .eq('user_id', parsed.data.user_id)
-        .eq('org_id', parsed.data.org_id)
+      const { data: roleRows, error: rolesLookupError } = await admin
+        .from('roles')
+        .select('id, name, org_id')
+        .in('name', roles)
+        .or(`org_id.eq.${parsed.data.org_id},org_id.is.null`)
+        .order('org_id', { ascending: false })
 
-      const insertRoles = roles.map((role) => ({
-        user_id: parsed.data.user_id,
-        org_id: parsed.data.org_id,
-        role
-      }))
+      if (rolesLookupError) {
+        console.warn('Failed to lookup roles', rolesLookupError)
+      } else {
+        const roleMap = new Map<string, string>()
+        for (const r of roleRows || []) {
+          if (r?.name && r?.id && !roleMap.has(r.name)) {
+            roleMap.set(r.name, r.id)
+          }
+        }
 
-      const { error: insertError } = await admin
-        .from('org_membership_roles')
-        .insert(insertRoles)
+        await admin
+          .from('membership_roles')
+          .delete()
+          .eq('user_id', parsed.data.user_id)
+          .eq('org_id', parsed.data.org_id)
 
-      if (insertError) {
-        console.warn('Failed to persist org_membership_roles; falling back to primary role only', insertError)
+        const insertRoles = roles
+          .map((roleName) => {
+            const roleId = roleMap.get(roleName)
+            return roleId ? { user_id: parsed.data.user_id, org_id: parsed.data.org_id, role_id: roleId } : null
+          })
+          .filter(Boolean) as { user_id: string; org_id: string; role_id: string }[]
+
+        if (insertRoles.length) {
+          const { error: insertError } = await admin.from('membership_roles').insert(insertRoles)
+          if (insertError) {
+            console.warn('Failed to persist membership_roles; roles not fully saved', insertError)
+          }
+        }
       }
     } catch (rolesError) {
-      console.warn('Failed to update org_membership_roles', rolesError)
+      console.warn('Failed to update membership_roles', rolesError)
     }
 
     if (top === 'org_manager' || top === 'org_staff' || parsed.data.staff_role) {

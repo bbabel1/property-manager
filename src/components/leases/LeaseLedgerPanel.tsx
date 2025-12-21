@@ -338,6 +338,11 @@ export default function LeaseLedgerPanel({
             .filter(Boolean)
         : null;
 
+    const payeeName = (detail as any)?.PaymentDetail?.Payee?.Name ?? null;
+    const unitNumber = (detail as any)?.UnitNumber ?? null;
+    const isInternalTransfer = (detail as any)?.PaymentDetail?.IsInternalTransaction ?? false;
+    const internalPending = (detail as any)?.PaymentDetail?.InternalTransactionStatus?.IsPending ?? false;
+
     const detailItems = [
       { label: 'Date', value: row.date },
       { label: 'Account', value: row.account || '—' },
@@ -347,6 +352,19 @@ export default function LeaseLedgerPanel({
         value: referenceNumber || '—',
         mono: true,
       },
+      // Payee information (if available)
+      ...(payeeName ? [{ label: 'Payee', value: payeeName }] : []),
+      // Unit information (if available)
+      ...(unitNumber ? [{ label: 'Unit', value: unitNumber }] : []),
+      // Internal transaction status (if applicable)
+      ...(isInternalTransfer
+        ? [
+            {
+              label: 'Internal Transfer',
+              value: internalPending ? 'Pending' : 'Completed',
+            },
+          ]
+        : []),
     ];
 
     if (allocationList && allocationList.length) {

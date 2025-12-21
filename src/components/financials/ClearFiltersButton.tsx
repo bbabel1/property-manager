@@ -11,7 +11,7 @@ export default function ClearFiltersButton() {
   function handleClick() {
     const base = searchParams ? searchParams.toString() : ''
     const params = new URLSearchParams(base)
-    ;['units', 'unit', 'gl', 'range', 'from', 'to'].forEach((param) => params.delete(param))
+    ;['units', 'unit', 'gl', 'range', 'from', 'to', 'basis'].forEach((param) => params.delete(param))
     const query = params.toString()
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
   }

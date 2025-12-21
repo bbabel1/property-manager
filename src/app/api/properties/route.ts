@@ -996,7 +996,7 @@ export async function POST(request: NextRequest) {
               `/rentals/${buildiumPropertyId}`,
               undefined,
               {
-                ...(propertyPayload as Record<string, unknown>),
+                ...(propertyPayload as unknown as Record<string, unknown>),
                 RentalOwnerIds: rentalOwnerIds,
               },
               orgId,

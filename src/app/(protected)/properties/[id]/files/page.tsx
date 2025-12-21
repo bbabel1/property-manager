@@ -3,15 +3,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import PropertyRecentFilesSection from '@/components/property/PropertyRecentFilesSection'
 import { PropertyService } from '@/lib/property-service'
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 type Props = {
   params: { id: string }
 }
 
 export default async function FilesTab({ params }: Props) {
-  const propertyId = params.id
+  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(params.id)
   const property = await PropertyService.getPropertyById(propertyId)
-  const href = `/files?entityType=property&entityId=${propertyId}`
+  const href = `/files?entityType=property&entityId=${propertyPublicId}`
   const buildiumPropertyId = property?.buildium_property_id ?? null
   const orgId = (property as any)?.org_id ?? null
 

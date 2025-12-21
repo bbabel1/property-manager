@@ -17,7 +17,7 @@ export const resolveLeaseBalances = (
 
   if (!normalized.balance && Array.isArray(transactions) && transactions.length) {
     const localBalance = transactions.reduce(
-      (sum, tx) => sum + signedAmountFromTransaction(tx as any),
+      (sum: number, tx) => sum + signedAmountFromTransaction(tx as any),
       0,
     );
     normalized.balance = localBalance;

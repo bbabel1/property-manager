@@ -71,20 +71,19 @@ export async function requireAuth() {
 
   // Fallback: if roles are missing from claims/metadata, fetch memberships
   if (!roles.length) {
-    // Prefer the multi-role table when available
     try {
       const { data, error } = await supabase
-        .from('org_membership_roles')
-        .select('role')
+        .from('membership_roles')
+        .select('roles(name)')
         .eq('user_id', user.id);
 
       if (!error && Array.isArray(data) && data.length > 0) {
         roles = data
-          .map((row) => (typeof row?.role === 'string' ? (row.role as AppRole) : null))
+          .map((row: any) => (typeof row?.roles?.name === 'string' ? (row.roles.name as AppRole) : null))
           .filter(Boolean) as AppRole[];
       }
     } catch (membershipRolesError) {
-      console.warn('Failed to load roles from org_membership_roles', membershipRolesError);
+      console.warn('Failed to load roles from membership_roles', membershipRolesError);
     }
   }
 
@@ -128,7 +127,7 @@ export async function requireOrg(orgId: string) {
 
   if (!orgs.has(orgId)) {
     try {
-      const { data, error } = await supabase.from('org_memberships').select('org_id').eq('user_id', user.id);
+      const { data, error } = await supabase.from('membership_roles').select('org_id').eq('user_id', user.id);
       if (!error) {
         (data ?? []).forEach((row) => {
           if (row?.org_id) orgs.add(String(row.org_id));

@@ -48,26 +48,133 @@ export async function GET(
     } catch {}
 
     if (supabaseAdmin) {
-      const { data: localTx } = await supabaseAdmin
+      const query = supabaseAdmin
         .from('transactions')
-        .select('id, date, total_amount, memo, transaction_type, transaction_lines ( gl_account_id, amount, memo )')
+        .select(
+          [
+            'id',
+            'date',
+            'total_amount',
+            'memo',
+            'transaction_type',
+            'check_number',
+            'payment_method',
+            'payment_method_raw',
+            'payee_buildium_id',
+            'payee_buildium_type',
+            'payee_name',
+            'payee_href',
+            'is_internal_transaction',
+            'internal_transaction_is_pending',
+            'internal_transaction_result_date',
+            'internal_transaction_result_code',
+            'buildium_unit_id',
+            'unit_id',
+            'buildium_application_id',
+            'unit_agreement_id',
+            'unit_agreement_type',
+            'bank_gl_account_id',
+            'bank_gl_account_buildium_id',
+            'buildium_last_updated_at',
+            'buildium_lease_id',
+            'transaction_lines ( gl_account_id, amount, memo, reference_number, is_cash_posting, posting_type, buildium_property_id, buildium_unit_id )',
+            'transaction_payment_transactions ( buildium_payment_transaction_id, accounting_entity_id, accounting_entity_type, accounting_entity_href, accounting_unit_id, accounting_unit_href, amount )',
+          ].join(', '),
+        )
         .eq(isUuid ? 'id' : 'buildium_transaction_id', isUuid ? txIdRaw : txNumeric)
-        .maybeSingle()
+        .maybeSingle();
 
-      if (localTx) {
+      const { data: localTx, error: localErr } = await query;
+      if (localErr && localErr.code !== 'PGRST116') {
+        throw localErr;
+      }
+
+      if (localTx && 'id' in localTx) {
+        const splits = Array.isArray((localTx as any).transaction_payment_transactions)
+          ? (localTx as any).transaction_payment_transactions
+          : [];
+        const lines = Array.isArray((localTx as any).transaction_lines)
+          ? (localTx as any).transaction_lines
+          : [];
+
         const payload = {
-          Id: localTx.id,
-          Date: localTx.date,
-          TotalAmount: localTx.total_amount,
-          Memo: localTx.memo,
-          TransactionTypeEnum: localTx.transaction_type,
-          Lines: (localTx.transaction_lines || []).map((line: any) => ({
+          Id: (localTx as any).id,
+          Date: (localTx as any).date,
+          TotalAmount: (localTx as any).total_amount,
+          Memo: (localTx as any).memo,
+          TransactionTypeEnum: (localTx as any).transaction_type,
+          CheckNumber: (localTx as any).check_number ?? undefined,
+          UnitId: (localTx as any).buildium_unit_id ?? undefined,
+          PaymentDetail: {
+            PaymentMethod:
+              (localTx as any).payment_method_raw ??
+              (localTx as any).payment_method ??
+              undefined,
+            Payee:
+              (localTx as any).payee_buildium_id != null
+                ? {
+                    Id: (localTx as any).payee_buildium_id,
+                    Type: (localTx as any).payee_buildium_type ?? undefined,
+                    Name: (localTx as any).payee_name ?? undefined,
+                    Href: (localTx as any).payee_href ?? undefined,
+                  }
+                : undefined,
+            IsInternalTransaction: (localTx as any).is_internal_transaction ?? undefined,
+            InternalTransactionStatus:
+              (localTx as any).internal_transaction_is_pending != null ||
+              (localTx as any).internal_transaction_result_date ||
+              (localTx as any).internal_transaction_result_code
+                ? {
+                    IsPending: (localTx as any).internal_transaction_is_pending ?? undefined,
+                    ResultDate: (localTx as any).internal_transaction_result_date ?? undefined,
+                    ResultCode: (localTx as any).internal_transaction_result_code ?? undefined,
+                  }
+                : undefined,
+          },
+          UnitAgreement:
+            (localTx as any).unit_agreement_id != null
+              ? {
+                  Id: (localTx as any).unit_agreement_id,
+                  Type: (localTx as any).unit_agreement_type ?? undefined,
+                }
+              : undefined,
+          DepositDetails:
+            (localTx as any).bank_gl_account_buildium_id || splits.length
+              ? {
+                  BankGLAccountId: (localTx as any).bank_gl_account_buildium_id ?? undefined,
+                  PaymentTransactions: splits.map((pt: any) => ({
+                    Id: pt?.buildium_payment_transaction_id ?? undefined,
+                    AccountingEntity:
+                      pt?.accounting_entity_id || pt?.accounting_entity_type
+                        ? {
+                            Id: pt?.accounting_entity_id ?? undefined,
+                            AccountingEntityType: pt?.accounting_entity_type ?? undefined,
+                            Href: pt?.accounting_entity_href ?? undefined,
+                            Unit:
+                              pt?.accounting_unit_id || pt?.accounting_unit_href
+                                ? {
+                                    Id: pt?.accounting_unit_id ?? undefined,
+                                    Href: pt?.accounting_unit_href ?? undefined,
+                                  }
+                                : undefined,
+                          }
+                        : undefined,
+                    Amount: pt?.amount ?? undefined,
+                  })),
+                }
+              : undefined,
+          Lines: lines.map((line: any) => ({
             GLAccountId: line?.gl_account_id,
             Amount: line?.amount,
             Memo: line?.memo,
+            ReferenceNumber: line?.reference_number ?? undefined,
+            IsCashPosting: line?.is_cash_posting ?? undefined,
+            PostingType: line?.posting_type ?? undefined,
+            PropertyId: line?.buildium_property_id ?? undefined,
+            UnitId: line?.buildium_unit_id ?? undefined,
           })),
-        }
-        return NextResponse.json({ data: payload })
+        };
+        return NextResponse.json({ data: payload });
       }
     }
 

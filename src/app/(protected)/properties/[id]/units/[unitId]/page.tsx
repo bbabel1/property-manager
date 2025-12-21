@@ -26,6 +26,7 @@ import UnitServicesTab from '@/components/unit/UnitServicesTab';
 import LeaseSection from '@/components/units/LeaseSection';
 import UnitBillsFilters from '@/components/unit/UnitBillsFilters';
 import CreateMonthlyLogButton from '@/components/monthly-logs/CreateMonthlyLogButton';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 import {
   MONTHLY_LOG_STAGES,
   MONTHLY_LOG_STATUSES,
@@ -230,7 +231,8 @@ export default async function UnitDetailsNested({
   params: Promise<{ id: string; unitId: string }>;
   searchParams?: Promise<{ tab?: string; billsView?: string; vendors?: string; bstatus?: string }>;
 }) {
-  const { id, unitId } = await params;
+  const { id: propertySlug, unitId } = await params;
+  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(propertySlug);
   const sp = searchParams ? await searchParams : undefined;
   const normalizedTab = typeof sp?.tab === 'string' ? sp.tab.toLowerCase() : undefined;
   const normalizedBillsView =
@@ -256,7 +258,7 @@ export default async function UnitDetailsNested({
     normalizedTab && subNavItems.some((item) => item.key === normalizedTab)
       ? (normalizedTab as UnitSubNavKey)
       : 'details';
-  const basePath = `/properties/${id}/units/${unitId}`;
+  const basePath = `/properties/${propertyPublicId}/units/${unitId}`;
   const searchParamEntries: [string, string][] = [];
   if (sp) {
     for (const [key, value] of Object.entries(sp)) {
@@ -280,7 +282,7 @@ export default async function UnitDetailsNested({
   };
 
   // Fetch property shell + units (server-side, cached by PropertyService)
-  const property = await PropertyService.getPropertyById(id);
+  const property = await PropertyService.getPropertyById(propertyId);
 
   // Try to find unit from property details; fallback to API
   let unit = property?.units?.find((u) => String((u as any).id) === String(unitId)) as any;
@@ -730,6 +732,9 @@ export default async function UnitDetailsNested({
           amount: number;
           memo: string;
           typeLabel: string;
+          typeKey: string;
+          accountLabel: string;
+          sortIndex: number;
         } => Boolean(entry),
       );
 
@@ -749,6 +754,7 @@ export default async function UnitDetailsNested({
     };
 
     entries.sort((a, b) => {
+      if (!a || !b) return 0;
       const timeA = toTimestamp(a.date);
       const timeB = toTimestamp(b.date);
       const safeA = Number.isNaN(timeA) ? Number.MAX_SAFE_INTEGER : timeA;
@@ -764,7 +770,7 @@ export default async function UnitDetailsNested({
     });
 
     let running = 0;
-    const withBalances = entries.map((entry) => {
+    const withBalances = entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null).map((entry) => {
       running += entry.amount;
       return {
         ...entry,
@@ -1165,7 +1171,7 @@ export default async function UnitDetailsNested({
                         <TableCell
                           className={cn(
                             'text-right',
-                          row.amount < 0 ? 'text-destructive' : 'text-foreground',
+                          (row.amount ?? 0) < 0 ? 'text-destructive' : 'text-foreground',
                         )}
                       >
                         {row.amountLabel}

@@ -10,7 +10,8 @@ type FeeTypeEnum = DatabaseSchema['public']['Enums']['fee_type_enum']
 type BillingFrequencyEnum = DatabaseSchema['public']['Enums']['billing_frequency_enum']
 type FeeFrequencyEnum = DatabaseSchema['public']['Enums']['FeeFrequency']
 type ServicePlanEnum = DatabaseSchema['public']['Enums']['service_plan_enum']
-type ManagementServiceEnum = DatabaseSchema['public']['Enums']['management_services_enum']
+// type ManagementServiceEnum = DatabaseSchema['public']['Enums']['management_services_enum'] // Enum doesn't exist in DB
+type ManagementServiceEnum = string
 type BedroomEnum = DatabaseSchema['public']['Enums']['bedroom_enum']
 type BathroomEnum = DatabaseSchema['public']['Enums']['bathroom_enum']
 

@@ -53,17 +53,19 @@ export async function POST(request: NextRequest) {
 
     const { user_id, org_id, role } = parsed.data
 
-    const { data: membership, error: membershipError } = await supabase
-      .from('org_memberships')
-      .select('role')
+    const { data: callerRolesRows, error: membershipError } = await supabase
+      .from('membership_roles')
+      .select('roles(name)')
       .eq('user_id', user.id)
       .eq('org_id', org_id)
-      .maybeSingle()
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
+    const callerOrgRole = (callerRolesRows || [])
+      .map((r: any) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
+      .filter(Boolean)?.[0] as any
     const validation = validateMembershipChange({
-      callerOrgRole: membership?.role as any,
+      callerOrgRole,
       callerGlobalRoles: callerRoles,
       requestedRoles: [role],
     })
@@ -78,9 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status })
     }
 
-    const { error } = await admin
-      .from('org_memberships')
-      .upsert({ user_id, org_id, role }, { onConflict: 'user_id,org_id' })
+    const { error } = await admin.from('org_memberships').upsert({ user_id, org_id }, { onConflict: 'user_id,org_id' })
 
     if (error) {
       return NextResponse.json({ error: error.message || 'Failed to upsert membership' }, { status: 500 })
@@ -88,10 +88,25 @@ export async function POST(request: NextRequest) {
 
     // Persist full role set (single role for this endpoint) to multi-role table
     try {
-      await admin.from('org_membership_roles').delete().eq('user_id', user_id).eq('org_id', org_id)
-      await admin.from('org_membership_roles').insert({ user_id, org_id, role })
+      const { data: roleRows, error: rolesLookupError } = await admin
+        .from('roles')
+        .select('id, name, org_id')
+        .eq('name', role)
+        .or(`org_id.eq.${org_id},org_id.is.null`)
+        .order('org_id', { ascending: false })
+        .limit(1)
+
+      if (rolesLookupError) {
+        console.warn('Failed to lookup role for upsert', rolesLookupError)
+      } else {
+        const roleId = roleRows?.[0]?.id
+        await admin.from('membership_roles').delete().eq('user_id', user_id).eq('org_id', org_id)
+        if (roleId) {
+          await admin.from('membership_roles').insert({ user_id, org_id, role_id: roleId })
+        }
+      }
     } catch (rolesError) {
-      console.warn('Failed to sync org_membership_roles for simple upsert', rolesError)
+      console.warn('Failed to sync membership_roles for simple upsert', rolesError)
     }
 
     return NextResponse.json({ success: true })
@@ -127,17 +142,19 @@ export async function DELETE(request: NextRequest) {
 
     const { user_id, org_id } = parsed.data
 
-    const { data: membership, error: membershipError } = await supabase
-      .from('org_memberships')
-      .select('role')
+    const { data: callerRolesRows, error: membershipError } = await supabase
+      .from('membership_roles')
+      .select('roles(name)')
       .eq('user_id', user.id)
       .eq('org_id', org_id)
-      .maybeSingle()
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
+    const callerOrgRole = (callerRolesRows || [])
+      .map((r: any) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
+      .filter(Boolean)?.[0] as any
     const validation = validateMembershipChange({
-      callerOrgRole: membership?.role as any,
+      callerOrgRole,
       callerGlobalRoles: callerRoles,
       requestedRoles: ['org_staff'], // placeholder to satisfy guard
     })
@@ -156,13 +173,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     try {
-      await admin
-        .from('org_membership_roles')
-        .delete()
-        .eq('user_id', user_id)
-        .eq('org_id', org_id)
+      await admin.from('membership_roles').delete().eq('user_id', user_id).eq('org_id', org_id)
     } catch (rolesError) {
-      console.warn('Failed to delete org_membership_roles for membership removal', rolesError)
+      console.warn('Failed to delete membership_roles for membership removal', rolesError)
     }
 
     return NextResponse.json({ success: true })

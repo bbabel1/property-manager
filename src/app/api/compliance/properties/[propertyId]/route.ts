@@ -21,6 +21,7 @@ import {
   programTargetsAsset,
   programTargetsProperty,
 } from '@/lib/compliance-programs';
+import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 import type {
   ComplianceAsset,
   ComplianceAssetType,
@@ -248,7 +249,8 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { propertyId } = await params;
+    const { propertyId: propertySlug } = await params;
+    const { internalId: propertyId } = await resolvePropertyIdentifier(propertySlug);
 
     // Get org_id from user's org memberships
     const { data: membership, error: membershipError } = await supabaseAdmin

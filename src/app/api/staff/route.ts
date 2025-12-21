@@ -220,32 +220,26 @@ export async function POST(request: NextRequest) {
       const orgRole = rawRole === 'Property Manager' ? 'org_manager' : 'org_staff'
       await serverClient
         .from('org_memberships')
-        .upsert({ user_id: staffUserId, org_id: targetOrgId, role: orgRole }, { onConflict: 'user_id,org_id' })
+        .upsert({ user_id: staffUserId, org_id: targetOrgId }, { onConflict: 'user_id,org_id' })
 
-      // Attach a default permission profile for staff
+      // Attach a default role for staff via membership_roles
       try {
-        const profileName = rawRole === 'Property Manager' ? 'Staff - Manager' : 'Staff - Standard'
-        const { data: profileRow } = await serverClient
-          .from('permission_profiles')
-          .select('id')
-          .eq('name', profileName)
-          .or(`org_id.is.null,org_id.eq.${targetOrgId}`)
+        const { data: roleRows } = await serverClient
+          .from('roles')
+          .select('id, name, org_id')
+          .eq('name', orgRole)
+          .or(`org_id.eq.${targetOrgId},org_id.is.null`)
           .order('org_id', { ascending: false })
           .limit(1)
-          .maybeSingle()
-        const profileId = (profileRow as any)?.id
-        if (profileId) {
+        const roleId = roleRows?.[0]?.id
+        await serverClient.from('membership_roles').delete().eq('user_id', staffUserId).eq('org_id', targetOrgId)
+        if (roleId) {
           await serverClient
-            .from('user_permission_profiles')
-            .delete()
-            .eq('user_id', staffUserId)
-            .eq('org_id', targetOrgId)
-          await serverClient
-            .from('user_permission_profiles')
-            .insert({ user_id: staffUserId, org_id: targetOrgId, profile_id: profileId })
+            .from('membership_roles')
+            .insert({ user_id: staffUserId, org_id: targetOrgId, role_id: roleId })
         }
-      } catch (profileError) {
-        console.warn('Failed to attach default permission profile for staff', profileError)
+      } catch (rolesError) {
+        console.warn('Failed to attach default membership_roles for staff', rolesError)
       }
     }
 

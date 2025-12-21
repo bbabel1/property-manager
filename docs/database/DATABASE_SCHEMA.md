@@ -268,6 +268,10 @@ This document provides a comprehensive overview of the Supabase database schema 
 
 **Description**: No description available
 
+### 20260806103000_extend_organizations_profile.sql
+
+**Description**: Adds company/contact/address/accounting fields to `organizations` plus defaults and name sync trigger.
+
 ### 20250911140900_100_jwt_custom_claims.sql
 
 **Description**: No description available

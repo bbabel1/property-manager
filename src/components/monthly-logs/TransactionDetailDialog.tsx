@@ -58,6 +58,23 @@ export default function TransactionDetailDialog({
       value: transaction.reference_number ?? '—',
       mono: true,
     },
+    // Payee information (if available)
+    ...(transaction.payee_name
+      ? [{ label: 'Payee', value: transaction.payee_name }]
+      : []),
+    // Unit information (if available)
+    ...(transaction.buildium_unit_number
+      ? [{ label: 'Unit', value: transaction.buildium_unit_number }]
+      : []),
+    // Internal transaction status (if applicable)
+    ...(transaction.is_internal_transaction
+      ? [
+          {
+            label: 'Internal Transfer',
+            value: transaction.internal_transaction_is_pending ? 'Pending' : 'Completed',
+          },
+        ]
+      : []),
   ];
 
   return (
