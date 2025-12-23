@@ -143,14 +143,12 @@ npm run doc:generate
 The `.cursorrules` file configures how the AI agent behaves:
 
 ```markdown
-
 # AI Documentation Agent Rules
 
 - Monitor code changes and automatically update documentation
 - Generate intelligent, context-aware documentation
 - Explain business logic and architectural decisions
 - Provide insights about code quality and best practices
-
 ```
 
 ### **AI Agent Behavior**
@@ -165,9 +163,9 @@ The `.cursorrules` file configures how the AI agent behaves:
 
 ## 📊 Comparison: AI vs Traditional
 
-| Feature | Traditional | Cursor AI |
-|---------|-------------|-----------|
-| **Context Understanding** | Limited | Full codebase awareness |
+| Feature                   | Traditional | Cursor AI               |
+| ------------------------- | ----------- | ----------------------- |
+| **Context Understanding** | Limited     | Full codebase awareness |
 
 | **Business Logic** | Basic parsing | Domain-aware analysis |
 
@@ -335,6 +333,6 @@ npm run ai:integration
 
 ---
 
-**🎯 The Cursor AI Background Agent transforms your documentation from static files to intelligent, living documentation
+\*\*🎯 The Cursor AI Background Agent transforms your documentation from static files to intelligent, living documentation
 
-that grows with your codebase and provides actionable insights for continuous improvement.**
+that grows with your codebase and provides actionable insights for continuous improvement.\*\*

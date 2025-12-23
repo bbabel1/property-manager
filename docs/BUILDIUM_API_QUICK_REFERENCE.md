@@ -164,7 +164,7 @@ Buildium uses a two-step file upload process:
    - Use `/api/buildium/files/uploadrequests` endpoint
    - File will be automatically associated with entity via `entity_type` and `entity_id`
    - The application-level `/api/files/upload` endpoint now orchestrates this automatically for any entity that has a Buildium ID (property, unit, lease, tenant, owner, vendor, bill). When the upload succeeds, the returned Buildium file identifiers are persisted back onto the local record.
-    - Portal sharing can be updated via `/api/files/{id}/sharing` (with the file’s `buildium_file_id`). Payloads must include both tenant and rental-owner flags; the handler maps to the appropriate Buildium sharing scopes based on the file’s entity type (lease, property, unit, etc.).
+   - Portal sharing can be updated via `/api/files/{id}/sharing` (with the file’s `buildium_file_id`). Payloads must include both tenant and rental-owner flags; the handler maps to the appropriate Buildium sharing scopes based on the file’s entity type (lease, property, unit, etc.).
 
 ### File Operations
 

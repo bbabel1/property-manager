@@ -48,6 +48,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ### 3. Database Schema
 
 Make sure your Supabase database has the following tables:
+
 - `properties` - Property information
 - `units` - Unit information linked to properties
 - `owners` - Owner information
@@ -71,6 +72,7 @@ npm run dev
 ## Visual Indicators
 
 When using mock data, you'll see:
+
 - 🟡 **Yellow banner** at the top of property pages
 
 - 🟡 **"Mock" badges** next to field labels that aren't in the database

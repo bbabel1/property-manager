@@ -4,6 +4,7 @@ import {
   mapGLEntryHeaderFromBuildium,
   mapLeaseTransactionFromBuildium,
   mapPaymentMethodToEnum,
+  resolveUndepositedFundsGlAccountId,
 } from '../buildium-mappers';
 
 describe('mapLeaseTransactionFromBuildium', () => {
@@ -89,5 +90,68 @@ describe('mapPaymentMethodToEnum', () => {
     expect(mapPaymentMethodToEnum('ACH')).toBe('DirectDeposit');
     expect(mapPaymentMethodToEnum('cashier check')).toBe('CashierCheck');
     expect(mapPaymentMethodToEnum('online payment')).toBe('ElectronicPayment');
+  });
+});
+
+describe('resolveUndepositedFundsGlAccountId', () => {
+  const makeSupabaseStub = (responses: Array<{ data: any; error: any }>) => {
+    const calls: any[] = [];
+    let idx = 0;
+    const stub = {
+      from(table: string) {
+        const call = { table, select: null as string | null, ilike: null as any, eq: null as any, limit: null as number | null };
+        return {
+          select(sel: string) {
+            call.select = sel;
+            return this;
+          },
+          ilike(column: string, pattern: string) {
+            call.ilike = { column, pattern };
+            return this;
+          },
+          eq(column: string, value: any) {
+            call.eq = { column, value };
+            return this;
+          },
+          limit(n: number) {
+            call.limit = n;
+            return this;
+          },
+          maybeSingle: async () => {
+            calls.push(call);
+            const res = responses[idx++] ?? { data: null, error: null };
+            return res;
+          },
+        };
+      },
+    } as any;
+    return { stub, calls };
+  };
+
+  it('prefers org-scoped default_account_name match', async () => {
+    const { stub, calls } = makeSupabaseStub([{ data: { id: 'gl-org-default' }, error: null }]);
+    const id = await resolveUndepositedFundsGlAccountId(stub, 'org-1');
+    expect(id).toBe('gl-org-default');
+    expect(calls[0]).toMatchObject({
+      table: 'gl_accounts',
+      ilike: { column: 'default_account_name', pattern: '%undeposited funds%' },
+      eq: { column: 'org_id', value: 'org-1' },
+    });
+  });
+
+  it('falls back to global name match when org scoped results are empty', async () => {
+    const { stub, calls } = makeSupabaseStub([
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: { id: 'gl-global-name' }, error: null },
+    ]);
+    const id = await resolveUndepositedFundsGlAccountId(stub, null);
+    expect(id).toBe('gl-global-name');
+    expect(calls[calls.length - 1]).toMatchObject({
+      table: 'gl_accounts',
+      ilike: { column: 'name', pattern: '%undeposited funds%' },
+      eq: null,
+    });
   });
 });

@@ -10,7 +10,7 @@ type CreatePayload = {
 
 function normalizePeriodStart(value: string | undefined): string | null {
   if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00`);
+  const parsed = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return null;
   const year = parsed.getUTCFullYear();
   const month = parsed.getUTCMonth() + 1;

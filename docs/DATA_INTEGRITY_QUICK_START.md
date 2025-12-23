@@ -42,7 +42,7 @@ Fix orphaned records and missing relationships identified in the report:
 
 ```typescript
 // Use the data integrity validator
-import { validateDataIntegrity } from "@/lib/data-integrity-validator";
+import { validateDataIntegrity } from '@/lib/data-integrity-validator';
 
 const result = await validateDataIntegrity(supabase);
 // Review result.orphanedRecords and fix manually
@@ -54,7 +54,7 @@ const result = await validateDataIntegrity(supabase);
 
 ```typescript
 // Use in your sync operations
-import { resolveEntityRelationships } from "@/lib/relationship-resolver";
+import { resolveEntityRelationships } from '@/lib/relationship-resolver';
 
 const result = await resolveEntityRelationships(
   {
@@ -63,7 +63,7 @@ const result = await resolveEntityRelationships(
     lease: buildiumLease,
     tenant: buildiumTenant,
   },
-  supabase
+  supabase,
 );
 
 // Check result.errors for any issues
@@ -75,7 +75,7 @@ Note: Failed Buildium sync attempts are persisted in `public.sync_operations` fo
 
 ```typescript
 // Add to your sync processes
-import { runSyncRecovery } from "@/lib/sync-error-recovery";
+import { runSyncRecovery } from '@/lib/sync-error-recovery';
 
 // Run periodically (e.g., every hour)
 const recoveryResult = await runSyncRecovery(supabase);
@@ -87,13 +87,13 @@ Set up automated validation checks:
 
 ```typescript
 // Add to cron job or scheduled function
-import { validateDataIntegrity } from "@/lib/data-integrity-validator";
+import { validateDataIntegrity } from '@/lib/data-integrity-validator';
 
 // Run daily
 const validation = await validateDataIntegrity(supabase);
 if (!validation.isValid) {
   // Send alert to team
-  console.error("Data integrity issues detected:", validation.errors);
+  console.error('Data integrity issues detected:', validation.errors);
 }
 ```
 
@@ -119,7 +119,7 @@ if (!validation.isValid) {
 ### **1. Safe Entity Creation**
 
 ```typescript
-import { resolveEntityRelationships } from "@/lib/relationship-resolver";
+import { resolveEntityRelationships } from '@/lib/relationship-resolver';
 
 // ALWAYS use relationship resolver for complex entities
 async function createLeaseWithTenant(buildiumData) {
@@ -130,13 +130,11 @@ async function createLeaseWithTenant(buildiumData) {
       lease: buildiumData.lease,
       tenant: buildiumData.tenant,
     },
-    supabase
+    supabase,
   );
 
   if (result.errors.length > 0) {
-    throw new Error(
-      `Relationship resolution failed: ${result.errors.join("; ")}`
-    );
+    throw new Error(`Relationship resolution failed: ${result.errors.join('; ')}`);
   }
 
   return {
@@ -150,19 +148,17 @@ async function createLeaseWithTenant(buildiumData) {
 
 ```typescript
 // ALWAYS validate endpoints before production deployment
-import { BuildiumEndpointValidator } from "@/lib/buildium-endpoint-validator";
+import { BuildiumEndpointValidator } from '@/lib/buildium-endpoint-validator';
 
 async function validateBeforeDeployment() {
   const validator = new BuildiumEndpointValidator();
   const results = await validator.validateAllEndpoints();
 
-  const criticalFailures = results.filter(
-    (r) => r.status === "FAIL" && r.critical
-  );
+  const criticalFailures = results.filter((r) => r.status === 'FAIL' && r.critical);
 
   if (criticalFailures.length > 0) {
     throw new Error(
-      `Critical API endpoints failing: ${criticalFailures.map((f) => f.endpoint).join(", ")}`
+      `Critical API endpoints failing: ${criticalFailures.map((f) => f.endpoint).join(', ')}`,
     );
   }
 }
@@ -202,15 +198,13 @@ async function validateAfterSync() {
   const validation = await validateDataIntegrity(supabase);
 
   if (!validation.isValid) {
-    console.error("Data integrity compromised:", validation.errors);
+    console.error('Data integrity compromised:', validation.errors);
 
     // Attempt auto-fix for safe issues
     if (validation.orphanedRecords.length > 0) {
       const validator = new DataIntegrityValidator(supabase);
-      const fixed = await validator.autoFixOrphanedRecords(
-        validation.orphanedRecords
-      );
-      console.log("Auto-fixed records:", fixed);
+      const fixed = await validator.autoFixOrphanedRecords(validation.orphanedRecords);
+      console.log('Auto-fixed records:', fixed);
     }
   }
 }

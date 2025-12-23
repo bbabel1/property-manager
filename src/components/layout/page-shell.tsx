@@ -161,7 +161,7 @@ export function PageHeader({
           <Stack gap='xs'>
             <h1 className='text-foreground text-2xl font-semibold'>{title}</h1>
             {description ? (
-              <p className='text-muted-foreground text-base'>{description}</p>
+              <div className='text-muted-foreground text-base'>{description}</div>
             ) : null}
           </Stack>
         </div>
@@ -229,7 +229,7 @@ export function PageSection({
         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
           <div>
             {title ? <h2 className='text-lg font-semibold text-foreground'>{title}</h2> : null}
-            {description ? <p className='text-muted-foreground text-sm'>{description}</p> : null}
+            {description ? <div className='text-muted-foreground text-sm'>{description}</div> : null}
           </div>
           {actions ? <Cluster gap='sm' justify='end'>{actions}</Cluster> : null}
         </div>

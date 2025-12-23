@@ -38,10 +38,7 @@ const property = mapPropertyFromBuildium(buildiumData);
 // Result: operating_bank_account_id = null (missing relationship)
 
 // ✅ CORRECT - Property with complete bank account relationship
-const property = await mapPropertyFromBuildiumWithBankAccount(
-  buildiumData,
-  supabase
-);
+const property = await mapPropertyFromBuildiumWithBankAccount(buildiumData, supabase);
 // Result: operating_bank_account_id = "uuid-of-bank-account" (complete relationship)
 ```
 
@@ -75,10 +72,7 @@ const property = await mapPropertyFromBuildiumWithBankAccount(
 // 2. If not found, fetches from Buildium API
 // 3. Creates bank account record locally
 // 4. Links property to bank account
-const property = await mapPropertyFromBuildiumWithBankAccount(
-  buildiumData,
-  supabase
-);
+const property = await mapPropertyFromBuildiumWithBankAccount(buildiumData, supabase);
 ```
 
 ### Bank Account → GL Account Resolution
@@ -89,10 +83,7 @@ const property = await mapPropertyFromBuildiumWithBankAccount(
 // 2. If not found, fetches from Buildium API
 // 3. Creates GL account record locally
 // 4. Links bank account to GL account
-const bankAccount = await mapBankAccountFromBuildiumWithGLAccount(
-  buildiumData,
-  supabase
-);
+const bankAccount = await mapBankAccountFromBuildiumWithGLAccount(buildiumData, supabase);
 ```
 
 ### GL Account → Sub Accounts Resolution
@@ -104,10 +95,7 @@ const bankAccount = await mapBankAccountFromBuildiumWithGLAccount(
 // 3. If not found, fetches from Buildium API
 // 4. Creates GL account record locally
 // 5. Links all sub-accounts to parent GL account
-const glAccount = await mapGLAccountFromBuildiumWithSubAccounts(
-  buildiumData,
-  supabase
-);
+const glAccount = await mapGLAccountFromBuildiumWithSubAccounts(buildiumData, supabase);
 ```
 
 ### Lease → Tenants & Contacts Resolution
@@ -136,13 +124,10 @@ import {
   validateBankAccountRelationships,
   validateGLAccountRelationships,
   logValidationResults,
-} from "@/lib/buildium-mappers";
+} from '@/lib/buildium-mappers';
 
 // Automatic validation in enhanced mappers
-const property = await mapPropertyFromBuildiumWithBankAccount(
-  buildiumData,
-  supabase
-);
+const property = await mapPropertyFromBuildiumWithBankAccount(buildiumData, supabase);
 // Console output:
 // ✅ Validation passed for Property 7647 (325 Lexington | Brandon Babel)
 // OR
@@ -171,9 +156,7 @@ const validation = validatePropertyRelationships(propertyData, buildiumData);
 logValidationResults(validation, `Property ${buildiumData.Id}`);
 
 if (!validation.isValid) {
-  throw new Error(
-    `Property validation failed: ${validation.errors.join(", ")}`
-  );
+  throw new Error(`Property validation failed: ${validation.errors.join(', ')}`);
 }
 ```
 
@@ -214,9 +197,7 @@ All basic mappers now have `@deprecated` JSDoc comments:
  * @deprecated Use mapPropertyFromBuildiumWithBankAccount() instead
  * @see mapPropertyFromBuildiumWithBankAccount
  */
-export function mapPropertyFromBuildium(
-  buildiumProperty: BuildiumProperty
-): any;
+export function mapPropertyFromBuildium(buildiumProperty: BuildiumProperty): any;
 ```
 
 **Result**: IDEs will show strikethrough text and deprecation warnings when using basic mappers.
@@ -226,24 +207,17 @@ export function mapPropertyFromBuildium(
 ### Property Sync Script
 
 ```typescript
-import { mapPropertyFromBuildiumWithBankAccount } from "@/lib/buildium-mappers";
+import { mapPropertyFromBuildiumWithBankAccount } from '@/lib/buildium-mappers';
 
 async function syncProperty(propertyId: number) {
   // Fetch from Buildium
   const buildiumProperty = await fetchBuildiumProperty(propertyId);
 
   // ✅ Use enhanced mapper
-  const localData = await mapPropertyFromBuildiumWithBankAccount(
-    buildiumProperty,
-    supabase
-  );
+  const localData = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, supabase);
 
   // Insert/update in database
-  const { data } = await supabase
-    .from("properties")
-    .upsert(localData)
-    .select()
-    .single();
+  const { data } = await supabase.from('properties').upsert(localData).select().single();
 
   return data;
 }
@@ -252,24 +226,17 @@ async function syncProperty(propertyId: number) {
 ### Bank Account Sync Script
 
 ```typescript
-import { mapBankAccountFromBuildiumWithGLAccount } from "@/lib/buildium-mappers";
+import { mapBankAccountFromBuildiumWithGLAccount } from '@/lib/buildium-mappers';
 
 async function syncBankAccount(bankAccountId: number) {
   // Fetch from Buildium
   const buildiumBankAccount = await fetchBuildiumBankAccount(bankAccountId);
 
   // ✅ Use enhanced mapper
-  const localData = await mapBankAccountFromBuildiumWithGLAccount(
-    buildiumBankAccount,
-    supabase
-  );
+  const localData = await mapBankAccountFromBuildiumWithGLAccount(buildiumBankAccount, supabase);
 
   // Insert/update in database
-  const { data } = await supabase
-    .from("bank_accounts")
-    .upsert(localData)
-    .select()
-    .single();
+  const { data } = await supabase.from('bank_accounts').upsert(localData).select().single();
 
   return data;
 }
@@ -278,17 +245,14 @@ async function syncBankAccount(bankAccountId: number) {
 ### Lease Sync Script
 
 ```typescript
-import { mapLeaseFromBuildiumWithTenants } from "@/lib/buildium-mappers";
+import { mapLeaseFromBuildiumWithTenants } from '@/lib/buildium-mappers';
 
 async function syncLease(leaseId: number) {
   // Fetch from Buildium
   const buildiumLease = await fetchBuildiumLease(leaseId);
 
   // ✅ Use enhanced mapper
-  const enhancedLease = await mapLeaseFromBuildiumWithTenants(
-    buildiumLease,
-    supabase
-  );
+  const enhancedLease = await mapLeaseFromBuildiumWithTenants(buildiumLease, supabase);
 
   // Insert/update lease in database
   const leaseData = {
@@ -296,11 +260,7 @@ async function syncLease(leaseId: number) {
     tenantRelationships: undefined, // Remove from lease table data
   };
 
-  const { data: lease } = await supabase
-    .from("leases")
-    .upsert(leaseData)
-    .select()
-    .single();
+  const { data: lease } = await supabase.from('leases').upsert(leaseData).select().single();
 
   // Create lease_contacts relationships
   if (enhancedLease.tenantRelationships) {
@@ -309,7 +269,7 @@ async function syncLease(leaseId: number) {
         lease.id,
         relationship.tenantId,
         relationship.role,
-        supabase
+        supabase,
       );
     }
   }
@@ -361,10 +321,7 @@ grep -r "mapLeaseFromBuildium(" src/ scripts/
 const data = mapPropertyFromBuildium(buildiumData);
 
 // After
-const data = await mapPropertyFromBuildiumWithBankAccount(
-  buildiumData,
-  supabase
-);
+const data = await mapPropertyFromBuildiumWithBankAccount(buildiumData, supabase);
 
 // Before
 const leaseData = mapLeaseFromBuildium(buildiumData);
@@ -402,12 +359,12 @@ After using enhanced mappers, verify relationships are properly set:
 ```typescript
 // Check property has bank account
 const property = await supabase
-  .from("properties")
-  .select("*, bank_accounts(*)")
-  .eq("id", propertyId)
+  .from('properties')
+  .select('*, bank_accounts(*)')
+  .eq('id', propertyId)
   .single();
 
-console.log("Bank account linked:", !!property.operating_bank_account_id);
+console.log('Bank account linked:', !!property.operating_bank_account_id);
 ```
 
 ## 📞 Support

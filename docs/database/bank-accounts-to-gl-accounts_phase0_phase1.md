@@ -71,7 +71,7 @@ Phase 1 adds bank-account-specific fields to `public.gl_accounts` so all Buildiu
 
 When we later backfill (Phase 2), the mapping will be:
 
-- `bank_accounts.buildium_bank_id` → `gl_accounts.buildium_bank_account_id`
+- `bank_accounts.buildium_bank_id` → `gl_accounts.buildium_gl_account_id`
 - `bank_accounts.bank_account_type` → `gl_accounts.bank_account_type`
 - `bank_accounts.account_number` → `gl_accounts.bank_account_number`
 - `bank_accounts.routing_number` → `gl_accounts.bank_routing_number`
@@ -84,6 +84,7 @@ When we later backfill (Phase 2), the mapping will be:
 - `bank_accounts.last_source_ts` → `gl_accounts.bank_last_source_ts`
 
 Notes:
+
 - `gl_accounts.name` remains the display name for the dropdown and Buildium payload.
 - `gl_accounts.description` remains the description for the dropdown/payload (no separate bank-specific description is introduced in Phase 1).
 
@@ -102,6 +103,7 @@ Phase 2 introduces new foreign keys that point directly to `gl_accounts.id` for 
 - `reconciliation_log.bank_gl_account_id`
 
 Backfill logic:
+
 - Populate new FK columns by joining existing `*_bank_account_id` → `bank_accounts.id` → `bank_accounts.gl_account`.
 - Copy bank account fields onto `gl_accounts` and set `gl_accounts.is_bank_account = true`.
   - When multiple `bank_accounts` share the same `gl_account`, the backfill chooses the most recently updated record; Phase 2 also provides a script to split duplicates cleanly.
@@ -116,16 +118,18 @@ Backfill logic:
   - Also writes a `bank_accounts` row for transitional compatibility until Buildium sync is migrated (Phase 4)
 
 Updated UI surfaces to consume the new endpoint:
+
 - Add Property wizard step “Bank Account”: `src/components/AddPropertyModal.tsx`
 - Property banking editor card: `src/components/property/PropertyBankingAndServicesCard.tsx`
 - Banking modals: `src/components/BankingDetailsModal.tsx`, `src/components/legacy/BankingDetailsModal.tsx`
 
 ## Phase 4: Buildium Cutover (Bank Accounts → `gl_accounts`)
 
-Phase 4 ensures all Buildium-facing code treats bank accounts as `gl_accounts` rows flagged with `is_bank_account = true`, and reads/writes Buildium IDs from `gl_accounts.buildium_bank_account_id`.
+Phase 4 ensures all Buildium-facing code treats bank accounts as `gl_accounts` rows flagged with `is_bank_account = true`, and reads/writes Buildium IDs from `gl_accounts.buildium_gl_account_id`.
 
 Key updates:
-- Edge functions and webhook resolution use `gl_accounts.buildium_bank_account_id` and write `*_bank_gl_account_id` on properties.
+
+- Edge functions and webhook resolution use `gl_accounts.buildium_gl_account_id` and write `*_bank_gl_account_id` on properties.
   - `supabase/functions/buildium-sync/index.ts`
   - `supabase/functions/buildium-webhook/index.ts`
 - Buildium-triggered bill payment ingestion resolves `BankAccountId` to `gl_accounts.id` (and only uses `bank_accounts` for legacy best-effort population).

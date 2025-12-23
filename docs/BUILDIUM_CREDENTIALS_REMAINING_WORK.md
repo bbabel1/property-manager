@@ -20,17 +20,20 @@ The core infrastructure for Buildium credentials management is **complete and de
 **Status**: Not implemented
 
 **What's needed**:
+
 - Create a CI script/lint rule to fail on `process.env.BUILDIUM` usage outside `credentials-manager.ts`
 - Add to pre-commit hook or CI pipeline
 - Currently: **138 files** still use `process.env.BUILDIUM` directly
 
 **Action items**:
+
 - [ ] Create `scripts/lint-buildium-credentials.ts` to check for violations
 - [ ] Add to `package.json` scripts (e.g., `lint:buildium-credentials`)
 - [ ] Add to CI pipeline (GitHub Actions or similar)
 - [ ] Optionally add ESLint rule to catch at development time
 
 **Example script**:
+
 ```typescript
 // scripts/lint-buildium-credentials.ts
 // Scans codebase for process.env.BUILDIUM usage outside credentials-manager.ts
@@ -42,29 +45,32 @@ The core infrastructure for Buildium credentials management is **complete and de
 **Status**: ~138 files need updating
 
 **What's needed**:
+
 - Update all API routes to resolve `orgId` and pass it to Buildium operations
 - Files in `src/app/api/buildium/**/*.ts` (~100+ files)
 - Files in other API routes that use Buildium sync
 
 **Pattern to apply**:
+
 ```typescript
 // Before:
 const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals`, {
   headers: {
     'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
     'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-  }
-})
+  },
+});
 
 // After:
-const orgId = await resolveOrgId(request, userId)
-const result = await buildiumFetch('GET', '/rentals', {}, undefined, orgId)
+const orgId = await resolveOrgId(request, userId);
+const result = await buildiumFetch('GET', '/rentals', {}, undefined, orgId);
 // OR
-const client = await getOrgScopedBuildiumClient(orgId)
-const response = await client.getProperties()
+const client = await getOrgScopedBuildiumClient(orgId);
+const response = await client.getProperties();
 ```
 
 **Priority order**:
+
 1. Most-used endpoints (properties, leases, units)
 2. Less-frequently used endpoints
 3. Edge cases and admin routes
@@ -74,6 +80,7 @@ const response = await client.getProperties()
 **Status**: Rules still reference old pattern
 
 **What's needed**:
+
 - Update `.cursor/rules/buildium-integration-rules.mdc` to reference new credential manager
 - Remove references to direct `process.env.BUILDIUM` usage
 - Update script templates to use org-scoped credentials
@@ -83,6 +90,7 @@ const response = await client.getProperties()
 **Status**: Not updated
 
 **What's needed**:
+
 - Update `supabase/functions/buildium-*/index.ts` to use org-scoped credentials
 - Edge functions need to resolve orgId from request context
 - May need to pass orgId as parameter or extract from request
@@ -92,6 +100,7 @@ const response = await client.getProperties()
 **Status**: Not updated
 
 **What's needed**:
+
 - Update `scripts/buildium/**/*.ts` to accept and use `orgId`
 - Scripts may need orgId as command-line argument
 - For system-level scripts, `orgId` can be `undefined` (uses env fallback)
@@ -101,6 +110,7 @@ const response = await client.getProperties()
 **Status**: Not verified
 
 **What's needed**:
+
 - [ ] Test credential storage via UI
 - [ ] Test credential update via UI
 - [ ] Test enable/disable toggle
@@ -118,6 +128,7 @@ const response = await client.getProperties()
 **Status**: Logging in place, metrics may need setup
 
 **What's needed**:
+
 - Verify logging for "Buildium call without orgId" (already implemented)
 - Verify logging for "missing/disabled creds" (already implemented)
 - Consider adding metrics/alerting for:
@@ -131,6 +142,7 @@ const response = await client.getProperties()
 **Status**: Mostly complete
 
 **What's needed**:
+
 - [ ] Update `.cursor/rules/buildium-integration-rules.mdc` with new patterns
 - [ ] Update any developer onboarding docs
 - [ ] Add migration guide for updating existing API routes
@@ -138,19 +150,23 @@ const response = await client.getProperties()
 ## Migration Strategy
 
 ### Phase 1: Enforcement (Do First)
+
 1. Create CI/lint script to prevent new violations
 2. Update Cursor rules to guide developers
 
 ### Phase 2: Critical Routes (Do Next)
+
 1. Update most-used Buildium API routes
 2. Update routes that trigger sync operations
 3. Test thoroughly
 
 ### Phase 3: Remaining Routes (Gradual)
+
 1. Update remaining API routes in batches
 2. Test each batch before moving to next
 
 ### Phase 4: Edge Cases
+
 1. Update edge functions
 2. Update scripts
 3. Remove deprecated shims
@@ -177,7 +193,7 @@ rg "createBuildiumClient\(" --type ts --type tsx | grep -v "getOrgScopedBuildium
 ## Current Status
 
 - **Infrastructure**: ✅ 100% Complete
-- **Core Libraries**: ✅ 100% Complete  
+- **Core Libraries**: ✅ 100% Complete
 - **UI Components**: ✅ 100% Complete
 - **API Routes**: ⚠️ ~0% Complete (138 files need updating)
 - **Edge Functions**: ⚠️ 0% Complete
@@ -186,4 +202,3 @@ rg "createBuildiumClient\(" --type ts --type tsx | grep -v "getOrgScopedBuildium
 - **Testing**: ⚠️ 0% Complete
 
 **Overall Progress**: ~60% Complete (infrastructure done, migration work remains)
-

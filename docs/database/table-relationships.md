@@ -40,6 +40,7 @@ erDiagram
 - **Sync Tracking**: `last_synced_at` tracks when data was last synchronized
 
 Fields (integration):
+
 ```text
 properties.buildium_property_id  BIGINT UNIQUE
 properties.buildium_created_at   TIMESTAMPTZ
@@ -70,6 +71,7 @@ erDiagram
 - **Buildium Integration**: `buildium_unit_id` links to Buildium's unit records
 
 Fields (integration):
+
 ```text
 units.buildium_unit_id      BIGINT UNIQUE
 units.buildium_property_id  BIGINT
@@ -169,7 +171,7 @@ erDiagram
 
 - **Financial Processing**: Handles rent payments, owner distributions, etc.
 
-- **Buildium Integration**: `buildium_bank_account_id` links to Buildium's bank account records
+- **Buildium Integration**: `buildium_gl_account_id` links to Buildium's bank account records for bank GL rows
 
 ### 📚 **GL Accounts** (Chart of Accounts)
 
@@ -193,10 +195,10 @@ erDiagram
 ```
 
 Key Notes:
+
 - Parent/child relationships come from the child’s `buildium_parent_gl_account_id`.
 - The parent record stores a denormalized list of child UUIDs in `sub_accounts` for quick traversal and UI trees.
 - Indexes: `idx_gl_accounts_buildium_id` (btree), `idx_gl_accounts_sub_accounts` (GIN), `idx_gl_accounts_type`.
-
 
 ## Maintenance Relationships
 
@@ -522,5 +524,6 @@ maintaining data integrity and performance.
 - Relationships: None currently. This table is intentionally decoupled (no FKs) to simplify retry workflows and avoid cascading failures.
 
 Notes:
+
 - Use this table to audit failures and drive retry logic in services and Edge Functions.
 - Indexed by `status`, and `(entity, buildium_id)` for fast lookups.

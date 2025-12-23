@@ -93,6 +93,7 @@ const billDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'numeric',
   day: 'numeric',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
 const billCurrencyFormatter = new Intl.NumberFormat('en-US', {
@@ -104,7 +105,7 @@ const billCurrencyFormatter = new Intl.NumberFormat('en-US', {
 
 function formatBillDate(value?: string | null): string {
   if (!value) return '—';
-  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
   const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return billDateFormatter.format(date);
@@ -355,6 +356,7 @@ export default async function FinancialsTab({
     month: '2-digit',
     day: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC', // Keep date-only fields stable regardless of viewer timezone
   });
 
   const emptyStateMessage = noUnitsSelected
@@ -490,8 +492,12 @@ export default async function FinancialsTab({
                               .filter(Boolean)
                               .join(' ');
                             const memo = line.memo || line.transactionMemo || '—';
+                            // Route deposits to deposit edit page, others to journal entry page
+                            const isDeposit = line.transactionType === 'Deposit';
                             const detailHref = line.transactionId
-                              ? `/properties/${propertyPublicId}/financials/entries/${line.transactionId}`
+                              ? isDeposit
+                                ? `/properties/${propertyPublicId}/financials/deposits/${line.transactionId}`
+                                : `/properties/${propertyPublicId}/financials/entries/${line.transactionId}`
                               : null;
                             const rowContent = (
                               <>

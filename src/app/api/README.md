@@ -3,7 +3,7 @@ API Route Organization and Conventions
 Overview
 
 - App router location: routes live under `src/app/api/...`.
-- Group by domain first (properties, units, owners, bank-accounts), and by external system second (buildium/*).
+- Group by domain first (properties, units, owners, bank-accounts), and by external system second (buildium/\*).
 - Keep server-only logic in routes; share cross-cutting helpers from `src/lib`.
 
 Structure
@@ -36,4 +36,3 @@ Don’ts
 
 - Don’t duplicate Buildium headers or base URL handling inside routes.
 - Don’t mix unrelated concerns in a single route handler.
-

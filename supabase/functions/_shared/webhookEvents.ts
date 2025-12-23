@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 

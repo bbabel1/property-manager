@@ -116,12 +116,20 @@ function statusVariant(status: BillStatusLabel) {
   }
 }
 
+const billListDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: '2-digit',
+  day: '2-digit',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
 function formatDate(value?: string | null) {
   if (!value) return '—';
   try {
-    const date = new Date(value);
+    const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
+    const date = new Date(isoLike);
     if (Number.isNaN(date.getTime())) return '—';
-    return date.toLocaleDateString();
+    return billListDateFormatter.format(date);
   } catch {
     return '—';
   }

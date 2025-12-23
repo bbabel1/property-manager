@@ -99,8 +99,7 @@ async function splitDuplicateGlAccountGroups(db: Supabase, apply: boolean) {
       const placeholderBuildiumGlId = await ensureUniqueBuildiumGlAccountId(db, seed)
 
       const newGlPayload: any = {
-        buildium_gl_account_id: placeholderBuildiumGlId,
-        account_number: baseGl.account_number,
+        buildium_gl_account_id: extra.buildium_bank_id ?? placeholderBuildiumGlId,
         name: extra.name ?? baseGl.name,
         description: extra.description ?? baseGl.description,
         type: baseGl.type ?? 'Asset',
@@ -119,7 +118,6 @@ async function splitDuplicateGlAccountGroups(db: Supabase, apply: boolean) {
         is_security_deposit_liability: baseGl.is_security_deposit_liability ?? false,
         updated_at: nowIso(),
         created_at: nowIso(),
-        buildium_bank_account_id: extra.buildium_bank_id ?? null,
         bank_account_type: extra.bank_account_type ?? null,
         bank_account_number: extra.account_number ?? null,
         bank_routing_number: extra.routing_number ?? null,
@@ -165,7 +163,7 @@ async function splitDuplicateGlAccountGroups(db: Supabase, apply: boolean) {
     // Ensure the primary gl_account row has bank fields populated from the chosen primary bank account.
     const primaryUpdate: any = {
       is_bank_account: true,
-      buildium_bank_account_id: primary.buildium_bank_id ?? null,
+      buildium_gl_account_id: primary.buildium_bank_id ?? primary.buildium_gl_account_id ?? null,
       bank_account_type: primary.bank_account_type ?? null,
       bank_account_number: primary.account_number ?? null,
       bank_routing_number: primary.routing_number ?? null,
@@ -219,4 +217,3 @@ main().catch((err) => {
   console.error('❌ Failed:', err)
   process.exit(1)
 })
-

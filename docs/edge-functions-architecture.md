@@ -52,27 +52,27 @@ server-side processing via Supabase Edge Functions.
 **Request Format**:
 
 ```json
-
 {
   "entityType": "property|owner",
-  "entityData": { /* entity data */ },
+  "entityData": {
+    /* entity data */
+  },
 
   "operation": "create|update"
 }
-
 ```
 
 **Response Format**:
 
 ```json
-
 {
   "success": true,
-  "data": { /* Buildium response */ },
+  "data": {
+    /* Buildium response */
+  },
 
   "message": "Entity synced successfully"
 }
-
 ```
 
 ### 2. `buildium-webhook` Function
@@ -166,26 +166,20 @@ server-side processing via Supabase Edge Functions.
 ### Retry Logic
 
 ```typescript
-
 // Automatic retry with exponential backoff
 for (let attempt = 0; attempt <= this.retryAttempts; attempt++) {
-
   try {
-    const response = await fetch(url, config)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    return await response.json()
+    const response = await fetch(url, config);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
   } catch (error) {
     if (attempt < this.retryAttempts) {
-      await new Promise(resolve =>
-        setTimeout(resolve, this.retryDelay * (attempt + 1))
-
-      )
-      continue
+      await new Promise((resolve) => setTimeout(resolve, this.retryDelay * (attempt + 1)));
+      continue;
     }
-    throw error
+    throw error;
   }
 }
-
 ```
 
 ### Error Categories
@@ -267,33 +261,29 @@ npx supabase functions serve buildium-status
 ### Frontend Client
 
 ```typescript
-
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
 
 // Sync property to Buildium
-const result = await buildiumEdgeClient.syncPropertyToBuildium(propertyData)
+const result = await buildiumEdgeClient.syncPropertyToBuildium(propertyData);
 
 // Get sync status
-const status = await buildiumEdgeClient.getSyncStatus('property', '123')
+const status = await buildiumEdgeClient.getSyncStatus('property', '123');
 
 // Retry failed syncs
-const retryResult = await buildiumEdgeClient.retryFailedSyncs('property')
-
+const retryResult = await buildiumEdgeClient.retryFailedSyncs('property');
 ```
 
 ### Direct Edge Function Calls
 
 ```typescript
-
 // Call Edge Function directly
 const { data, error } = await supabase.functions.invoke('buildium-sync', {
   body: {
     entityType: 'property',
     entityData: propertyData,
-    operation: 'create'
-  }
-})
-
+    operation: 'create',
+  },
+});
 ```
 
 ## 🔄 Migration from Direct API Calls
@@ -301,22 +291,18 @@ const { data, error } = await supabase.functions.invoke('buildium-sync', {
 ### Before (Direct API)
 
 ```typescript
-
 // Direct Buildium API call (insecure)
 const response = await fetch('https://api.buildium.com/v1/properties', {
-  headers: { 'Authorization': `Bearer ${API_KEY}` },
-  body: JSON.stringify(propertyData)
-})
-
+  headers: { Authorization: `Bearer ${API_KEY}` },
+  body: JSON.stringify(propertyData),
+});
 ```
 
 ### After (Edge Function)
 
 ```typescript
-
 // Secure Edge Function call
-const result = await buildiumEdgeClient.syncPropertyToBuildium(propertyData)
-
+const result = await buildiumEdgeClient.syncPropertyToBuildium(propertyData);
 ```
 
 ## 🎯 Next Steps

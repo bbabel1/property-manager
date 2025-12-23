@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Save, Building2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import type { BankGlAccountSummary, CreateBankAccountFormValues } from '@/components/forms/types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import type { Database } from '@/types/database';
 
 type CreateBankAccountModalProps = {
   isOpen: boolean;
@@ -22,7 +23,7 @@ const BANK_ACCOUNT_TYPES = [
   'Business Savings',
 ];
 
-const COUNTRIES = [
+const COUNTRIES: Database['public']['Enums']['countries'][] = [
   'United States',
   'Canada',
   'United Kingdom',
@@ -42,6 +43,8 @@ const INITIAL_FORM: CreateBankAccountFormValues = {
   account_number: '',
   routing_number: '',
   country: 'United States',
+  bank_information_lines: ['', '', '', '', ''],
+  company_information_lines: ['', '', '', '', ''],
 };
 
 export default function CreateBankAccountModal({
@@ -53,6 +56,7 @@ export default function CreateBankAccountModal({
     ...INITIAL_FORM,
   }));
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingOrg, setIsLoadingOrg] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -112,6 +116,63 @@ export default function CreateBankAccountModal({
     setError(null);
     onClose();
   };
+
+  const handleLineChange = (
+    section: 'bank_information_lines' | 'company_information_lines',
+    index: number,
+    value: string,
+  ) => {
+    setFormData((prev) => {
+      const nextLines = [...prev[section]];
+      nextLines[index] = value;
+      return { ...prev, [section]: nextLines };
+    });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    const fetchOrgDefaults = async () => {
+      setIsLoadingOrg(true);
+      try {
+        const response = await fetchWithSupabaseAuth('/api/organization');
+        if (!response.ok) return;
+        const data = await response.json().catch(() => null);
+        const org = data?.organization;
+        const contact = org?.Contact;
+        const addr = contact?.Address;
+        const cityStatePostal = [addr?.City, addr?.State, addr?.PostalCode]
+          .filter((part: string | null | undefined) => typeof part === 'string' && part.trim().length)
+          .join(', ');
+        const defaults = [
+          (org?.CompanyName as string | null) ?? '',
+          (addr?.AddressLine1 as string | null) ?? '',
+          (addr?.AddressLine2 as string | null) ?? (addr?.AddressLine3 as string | null) ?? '',
+          cityStatePostal,
+          '',
+        ];
+
+        if (cancelled) return;
+        setFormData((prev) => {
+          const current = prev.company_information_lines || [];
+          const hasUserInput = current.some((line) => line && line.trim().length > 0);
+          if (hasUserInput) return prev;
+          const merged = Array.from({ length: 5 }).map((_, idx) => current[idx] || defaults[idx] || '');
+          return { ...prev, company_information_lines: merged };
+        });
+      } catch {
+        /* ignore org defaults load failures */
+      } finally {
+        if (!cancelled) setIsLoadingOrg(false);
+      }
+    };
+
+    fetchOrgDefaults();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   return (
     <Dialog
@@ -236,6 +297,10 @@ export default function CreateBankAccountModal({
                     type="text"
                     value={formData.routing_number}
                     onChange={(e) => handleInputChange('routing_number', e.target.value)}
+                    inputMode="numeric"
+                    pattern="^[0-9]{9}$"
+                    maxLength={9}
+                    minLength={9}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     placeholder="e.g., 021000021"
                     required
@@ -263,6 +328,43 @@ export default function CreateBankAccountModal({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                  Bank Information
+                </p>
+                {formData.bank_information_lines.map((line, idx) => (
+                  <input
+                    key={`bank-info-${idx}`}
+                    type="text"
+                    value={line}
+                    onChange={(e) => handleLineChange('bank_information_lines', idx, e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                    Company Information
+                  </p>
+                  {isLoadingOrg && (
+                    <span className="text-muted-foreground text-[11px]">Loading defaults…</span>
+                  )}
+                </div>
+                {formData.company_information_lines.map((line, idx) => (
+                  <input
+                    key={`company-info-${idx}`}
+                    type="text"
+                    value={line}
+                    onChange={(e) =>
+                      handleLineChange('company_information_lines', idx, e.target.value)
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                ))}
               </div>
             </div>
           </div>

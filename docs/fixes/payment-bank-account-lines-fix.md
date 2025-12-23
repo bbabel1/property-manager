@@ -2,7 +2,9 @@
 
 ## Problem
 
-When tenants made payments (Rent Income or Security Deposits), the transaction was missing a debit line to the property's bank account ("Trust"). This caused the Cash Balance calculation to be incorrect because it only saw credit lines (to AR/Revenue) but no corresponding bank account debit.
+When tenants made payments (Rent Income or Security Deposits), the transaction was missing a debit
+line to the property's bank account ("Trust"). This caused the Cash Balance calculation to be
+incorrect because it only saw credit lines (to AR/Revenue) but no corresponding bank account debit.
 
 ## Solution
 
@@ -135,4 +137,3 @@ GROUP BY p.id, p.name;
 - If a property doesn't have a bank GL account configured, the line won't be added (this is expected)
 - The debit amount equals the sum of all credit lines to maintain double-entry accounting
 - Edge functions (webhooks) run in Deno, so they can't use the same logging mechanism
-

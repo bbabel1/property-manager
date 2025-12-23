@@ -5,14 +5,17 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 ⚠️ **Auth Status**: Supabase Auth is the only auth system. NextAuth has been removed.
 
 ## Live Application
+
 - https://pm.managedbyora.com – Production app, backed by Supabase (auth, Postgres, storage) and Buildium data sync; environment configured via the variables listed below.
 
 ## Project Overview & Value Proposition
+
 - Unified operational suite: properties, owners, leases, banking, monthly statements.
 - Supabase-first architecture: SSR-friendly auth, database types, RLS-ready.
 - Opinionated monthly log workflow with PDF statements and multi-recipient delivery.
 
 ## Complete Tech Stack
+
 - **Hosting & runtime:** Next.js 15 (App Router, SSR/ISR/edge support), React 18, TypeScript 5, `tsx` for TypeScript scripts; production URL served at `https://pm.managedbyora.com` on Vercel (Next.js-compatible host; infra/IaC lives under `infra/` if added).
 - **External services:** Supabase (PostgreSQL, Auth, Storage) via `@supabase/supabase-js` and `@supabase/ssr`; Buildium API for property/accounting sync and webhooks; Sentry via `@sentry/nextjs` for errors/performance; Google Maps JS API for map components; Gmail OAuth + API via `googleapis`; Resend for statement email delivery; Ngrok for local webhook testing (see `docs/buildium-webhook-setup-guide.md`).
 - **Data layer & infra libs:** `pg`/`@types/pg` for direct Postgres access; `dotenv` for env loading in scripts; Supabase migrations in `supabase/migrations/`; `sharp` for image/PDF asset handling; `pino` + `pino-pretty` for structured logging.
@@ -28,6 +31,7 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 - **Application structure:** Domain modules sit under `src/modules/<domain>/` (services, schemas, UI entrypoints); shared primitives in `src/components/`, cross-cutting infra in `src/lib/`, routes/API handlers in `src/app/`, and environment validation in `src/env/`.
 
 ## Routes & Feature Map
+
 - **Pages**
   - `/` – Marketing/entry splash.
   - `/(protected)/dashboard` – Org-level overview cards and metrics.
@@ -48,17 +52,20 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
   - Admin/operations: `/api/admin/*`, `/api/debug/*`, `/api/work-orders/*`, `/api/webhooks/*`.
 
 ## Architecture & Domain References
+
 - [Architecture guide](docs/architecture.md) – Layering, data flow, and integration patterns.
 - [Domain model](docs/domain-model.md) – Key entities, relationships, and module boundaries.
 - [Performance strategy](docs/performance-strategy.md) – Rendering budget, data-fetching choices, and caching approaches.
 
 ## Quick Start
-1) Install: `npm install`  
-2) Env: `cp env.example .env.local` then fill values (see table below).  
-3) Database: apply SQL in `supabase/migrations/` (CLI or dashboard). See `docs/database/supabase-setup.md`.  
-4) Run dev server: `npm run dev` → open localhost:3000 in your browser  
+
+1. Install: `npm install`
+2. Env: `cp env.example .env.local` then fill values (see table below).
+3. Database: apply SQL in `supabase/migrations/` (CLI or dashboard). See `docs/database/supabase-setup.md`.
+4. Run dev server: `npm run dev` → open localhost:3000 in your browser
 
 ## Running & Tooling
+
 - `npm run dev` – Next.js dev server
 - `npm run lint` – ESLint (TS + Next rules)
 - `npm run typecheck` – Strict TS project check
@@ -70,16 +77,16 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 
 ## Environment Variables (summary)
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-side Supabase operations |
-| `BUILDIUM_BASE_URL`, `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_WEBHOOK_SECRET` | Yes (Buildium) | Buildium API + webhook |
-| `NEXT_PUBLIC_APP_URL` | Yes | Base app URL |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Yes | Maps components (client zod requires it) |
-| `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` | Optional | Statement email delivery |
-| `COMPANY_*`, `COMPANY_LOGO_URL` | Optional | Branding for PDFs |
+| Variable                                                                                       | Required       | Purpose                                  |
+| ---------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                                     | Yes            | Supabase project URL                     |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`                                                                | Yes            | Supabase anon key                        |
+| `SUPABASE_SERVICE_ROLE_KEY`                                                                    | Yes            | Server-side Supabase operations          |
+| `BUILDIUM_BASE_URL`, `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET`, `BUILDIUM_WEBHOOK_SECRET` | Yes (Buildium) | Buildium API + webhook                   |
+| `NEXT_PUBLIC_APP_URL`                                                                          | Yes            | Base app URL                             |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`                                                              | Yes            | Maps components (client zod requires it) |
+| `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`                                      | Optional       | Statement email delivery                 |
+| `COMPANY_*`, `COMPANY_LOGO_URL`                                                                | Optional       | Branding for PDFs                        |
 
 See `ENVIRONMENT_SETUP.md` and `env.example` for full notes.
 
@@ -100,6 +107,7 @@ tests/                   # Test docs/config (see tests/README.md)
 ```
 
 ## Major Features (with entrypoints)
+
 - Properties/Owners/Units: `src/app/(protected)/properties/*`, services in `src/modules/properties`
 - Leases: lease services in `src/modules/leases`
 - Banking: account services in `src/modules/banking`
@@ -108,27 +116,32 @@ tests/                   # Test docs/config (see tests/README.md)
 - Auth: Supabase middleware/providers, see `docs/architecture.md`
 
 ## Testing Strategy
+
 - Lint + typecheck on every change (`npm run lint`, `npm run typecheck`).
 - Playwright/Vitest hooks are stubbed; re-enable as needed (see `tests/README.md`).
 - Env validation gate via `npm run ci:env-check`.
 
 ## Deployment Notes
+
 - Supabase: run migrations before deploy; refresh generated types (`npm run types:remote`).
 - Next.js hosting: set env vars per environment; ensure `NEXT_PUBLIC_APP_URL` matches domain.
 - Monitoring: Sentry/OTel optional—leave DSN empty to disable.
 
 ## Contribution & Coding Standards
+
 - Formatting: Prettier + Tailwind plugin; lint-staged enforces on commit.
 - Code style: PascalCase components, camelCase functions, path aliases via `@/`.
 - Keep domain logic in `src/modules/<domain>/services` and validation in `src/modules/<domain>/schemas`.
 - Security: No secrets in code; use env files and provider secrets.
 
 ## Troubleshooting / FAQ
+
 - Env validation fails: ensure all required keys are set; Maps key must be non-empty.
 - Supabase errors locally: confirm service role key and project URL match your local CLI link.
 - Styling issues: run `npm run format` to apply Prettier/Tailwind sorting.
 
 ## Documentation Index
+
 - Full index: [`docs/README.md`](docs/README.md) lists every file under `docs/`.
 - Overview docs: [`architecture.md`](docs/architecture.md), [`domain-model.md`](docs/domain-model.md), [`performance-strategy.md`](docs/performance-strategy.md), [`features.md`](docs/features.md), [`decisions.md`](docs/decisions.md).
 - Category highlights: [`architecture/CURRENT_ARCHITECTURE_ANALYSIS.md`](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md), [`api/api-documentation.md`](docs/api/api-documentation.md), [`database/DATABASE_SCHEMA.md`](docs/database/DATABASE_SCHEMA.md), [`design-system/enhanced-greys.md`](docs/design-system/enhanced-greys.md), [`observability/logging.md`](docs/observability/logging.md), [`security/secrets-management.md`](docs/security/secrets-management.md), [`runbooks/seed-reset.md`](docs/runbooks/seed-reset.md), [`reports/MIGRATION_READY_CHECKLIST.md`](docs/reports/MIGRATION_READY_CHECKLIST.md), [`ai-analysis/architecture-insights.md`](docs/ai-analysis/architecture-insights.md), [`ui-components/section-detail.md`](docs/ui-components/section-detail.md).

@@ -49,4 +49,5 @@ combining Prisma and Supabase provides flexibility while maintaining data integr
 - Consider performance optimization
 
 ---
-*This analysis was generated using Cursor AI and provides intelligent insights about your codebase.*
+
+_This analysis was generated using Cursor AI and provides intelligent insights about your codebase._

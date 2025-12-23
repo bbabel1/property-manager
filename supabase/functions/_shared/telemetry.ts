@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 import type { NormalizedBuildiumWebhook } from "./webhookEvents.ts"
 import type { RoutingDecision } from "./eventRouting.ts"
 

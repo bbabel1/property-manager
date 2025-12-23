@@ -21,7 +21,6 @@ SELECT * FROM properties WHERE id = 'c21aee3e-54f3-4b02-8966-cfdf2a9e348d' LIMIT
 **Returns:**
 
 ```json
-
 {
   "id": "c21aee3e-54f3-4b02-8966-cfdf2a9e348d",
   "name": "Sunset Apartments",
@@ -35,12 +34,11 @@ SELECT * FROM properties WHERE id = 'c21aee3e-54f3-4b02-8966-cfdf2a9e348d' LIMIT
   "property_type": "Mult-Family",
   // "primary_owner": "John Smith", // removed - now determined from ownerships table
   "status": "Active",
-  "reserve": 200.00,
+  "reserve": 200.0,
   "year_built": 2010,
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-15T00:00:00Z"
 }
-
 ```
 
 ### 2. Units Query
@@ -58,7 +56,6 @@ SELECT * FROM units WHERE property_id = 'c21aee3e-54f3-4b02-8966-cfdf2a9e348d' O
 **Returns:**
 
 ```json
-
 [
   {
     "id": "unit-1",
@@ -99,7 +96,6 @@ SELECT * FROM units WHERE property_id = 'c21aee3e-54f3-4b02-8966-cfdf2a9e348d' O
     "updated_at": "2024-01-01T00:00:00Z"
   }
 ]
-
 ```
 
 ### 3. Ownership Query (with Join)
@@ -117,7 +113,6 @@ SELECT *, owners(*) FROM ownerships WHERE property_id = 'c21aee3e-54f3-4b02-8966
 **Returns:**
 
 ```json
-
 [
   {
     "id": "ownership-1",
@@ -148,7 +143,6 @@ SELECT *, owners(*) FROM ownerships WHERE property_id = 'c21aee3e-54f3-4b02-8966
     }
   }
 ]
-
 ```
 
 ## Data Processing
@@ -158,32 +152,24 @@ After the queries return, the data is processed:
 ### 1. Units Summary Calculation
 
 ```typescript
-
 const units_summary = {
-  total: units?.length || 0,        // 2
-  occupied: 0,                      // Would need lease data
-  available: units?.length || 0     // 2
-}
-
+  total: units?.length || 0, // 2
+  occupied: 0, // Would need lease data
+  available: units?.length || 0, // 2
+};
 ```
 
 ### 2. Occupancy Rate Calculation
 
 ```typescript
-
-const occupancy_rate = units_summary.total > 0
-  ? Math.round((units_summary.occupied / units_summary.total) * 100)
-
-  : 0;  // 0% (since occupied = 0)
-
+const occupancy_rate =
+  units_summary.total > 0 ? Math.round((units_summary.occupied / units_summary.total) * 100) : 0; // 0% (since occupied = 0)
 ```
 
 ### 3. Owners Count
 
 ```typescript
-
-const total_owners = ownership?.length || 0;  // 1
-
+const total_owners = ownership?.length || 0; // 1
 ```
 
 ### 4. Final PropertyWithDetails Object
@@ -226,7 +212,6 @@ const total_owners = ownership?.length || 0;  // 1
 If any query fails:
 
 ```typescript
-
 // Property query fails
 if (propertyError || !property) {
   return { ...MOCK_PROPERTY, id, isMockData: true };
@@ -243,7 +228,6 @@ if (ownershipError) {
   console.error('Error fetching ownership:', ownershipError);
   // Continue with empty owners array
 }
-
 ```
 
 ## Performance Considerations
@@ -281,11 +265,9 @@ GROUP BY p.id;
 When Supabase is not available, mock data is returned:
 
 ```typescript
-
 if (!supabase) {
   return { ...MOCK_PROPERTY, id, isMockData: true };
 }
-
 ```
 
 This ensures the UI always has data to display, even without a database connection.

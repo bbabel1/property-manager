@@ -21,6 +21,7 @@ This document tracks the migration of Buildium API routes to use org-scoped cred
 #### API Routes to Update
 
 The following API routes need to be updated to:
+
 1. Resolve `orgId` from request context (using existing `resolveOrgId` patterns)
 2. Pass `orgId` to Buildium operations (`buildiumFetch`, `getOrgScopedBuildiumClient`, `buildiumSync.*`, etc.)
 
@@ -28,14 +29,14 @@ The following API routes need to be updated to:
 
 ```typescript
 // 1. Resolve orgId
-const orgId = await resolveOrgId(request, userId)
+const orgId = await resolveOrgId(request, userId);
 
 // 2. Use org-scoped client/fetch
-const client = await getOrgScopedBuildiumClient(orgId)
+const client = await getOrgScopedBuildiumClient(orgId);
 // OR
-const result = await buildiumFetch('GET', '/rentals', {}, undefined, orgId)
+const result = await buildiumFetch('GET', '/rentals', {}, undefined, orgId);
 // OR
-await buildiumSync.syncPropertyToBuildium(property, orgId)
+await buildiumSync.syncPropertyToBuildium(property, orgId);
 ```
 
 **Files to update:**
@@ -109,4 +110,3 @@ rg "createBuildiumClient\(" --type ts --type tsx | grep -v "getOrgScopedBuildium
 - All credential access flows through `getOrgScopedBuildiumConfig()` (central choke point)
 - Credentials are encrypted before storage using the same encryption as Gmail tokens
 - Cache invalidation happens automatically on credential updates
-

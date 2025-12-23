@@ -596,6 +596,7 @@ for Buildium synchronization.
 **Purpose**: Centralized email template management system for organizations with dynamic variable substitution support.
 
 **Schema**:
+
 - `id` (uuid, PK): Primary key
 - `org_id` (uuid, FK → organizations.id): Organization scope
 - `template_key` (text): Unique template identifier (e.g., 'monthly_rental_statement')
@@ -612,6 +613,7 @@ for Buildium synchronization.
 - `updated_by_user_id` (uuid, FK → auth.users.id): User who last updated (auto-set via trigger)
 
 **Constraints**:
+
 - `UNIQUE(org_id, template_key)`: One template per key per organization
 - `CHECK (template_key IN ('monthly_rental_statement'))`: Enum enforcement
 - `CHECK (char_length(subject_template) <= 500)`: Subject length limit
@@ -619,24 +621,28 @@ for Buildium synchronization.
 - `CHECK (body_text_template IS NULL OR char_length(body_text_template) <= 50000)`: Text body length limit
 
 **Indexes**:
+
 - `idx_email_templates_org_id`: On `org_id` for org-scoped queries
 - `idx_email_templates_org_key`: On `(org_id, template_key)` for unique lookups
 - `idx_email_templates_org_key_active`: Partial index on `(org_id, template_key) WHERE status = 'active'` for fast active template lookup
 - `idx_email_templates_status`: Partial index on `(org_id, status) WHERE status = 'active'` for filtering
 
 **Triggers**:
+
 - `trg_email_templates_updated_at`: Auto-updates `updated_at` on UPDATE
 - `trg_email_templates_created_by`: Auto-sets `created_by_user_id` from `auth.uid()` on INSERT (prevents spoofing)
 - `trg_email_templates_updated_by`: Auto-sets `updated_by_user_id` from `auth.uid()` on UPDATE (prevents spoofing)
 - `trg_email_templates_prevent_key_change`: Prevents `template_key` changes after creation
 
 **RLS Policies**:
+
 - `email_templates_select_org_members`: SELECT - Users with org membership can read templates for their orgs
 - `email_templates_insert_admins`: INSERT - Only org_admin/org_manager can create
 - `email_templates_update_admins`: UPDATE - Only org_admin/org_manager can update
 - `email_templates_delete_admins`: DELETE - Only org_admin/org_manager can delete (soft delete via status = 'archived')
 
 **Migrations**:
+
 - `20251207190927_create_email_templates_table.sql`: Creates table, indexes, constraints, triggers, and RLS policies
 - `20251207190928_seed_default_email_templates.sql`: Seeds default Monthly Rental Statement template for all existing organizations
 

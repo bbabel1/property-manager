@@ -49,4 +49,5 @@ maintainable, with proper separation of concerns.
 - Optimize component performance
 
 ---
-*This analysis was generated using Cursor AI and provides intelligent insights about your codebase.*
+
+_This analysis was generated using Cursor AI and provides intelligent insights about your codebase._

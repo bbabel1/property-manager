@@ -159,8 +159,9 @@ POST /api/buildium/sync
 
 #### **6. Journal Entries API Route Updates** ✅
 
-**Files:**  
-- `src/app/api/journal-entries/[transactionId]/route.ts`  
+**Files:**
+
+- `src/app/api/journal-entries/[transactionId]/route.ts`
 - `src/lib/auth/org-access.ts`
 
 **Enhancements:**
@@ -194,7 +195,6 @@ Content-Type: application/json
 ### **Enhanced Property Creation Response:**
 
 ```json
-
 {
   "message": "Property created successfully",
   "property": {
@@ -216,13 +216,11 @@ Content-Type: application/json
     "error": null
   }
 }
-
 ```
 
 ### **Enhanced Owner Creation Response:**
 
 ```json
-
 {
   "id": "owner-id",
   "contact_id": "contact-id",
@@ -241,13 +239,11 @@ Content-Type: application/json
     "error": null
   }
 }
-
 ```
 
 ### **Sync Status Response:**
 
 ```json
-
 {
   "syncStatus": {
     "entityType": "property",
@@ -260,13 +256,11 @@ Content-Type: application/json
     "updatedAt": "2025-01-15T10:30:00Z"
   }
 }
-
 ```
 
 ### **Failed Syncs Response:**
 
 ```json
-
 {
   "failedSyncs": [
     {
@@ -281,7 +275,6 @@ Content-Type: application/json
     }
   ]
 }
-
 ```
 
 ## 🔧 **Usage Examples**
@@ -289,12 +282,11 @@ Content-Type: application/json
 ### **Creating a Property with Buildium Sync:**
 
 ```typescript
-
 const response = await fetch('/api/properties', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-CSRF-Token': csrfToken
+    'X-CSRF-Token': csrfToken,
   },
   body: JSON.stringify({
     name: 'Sample Property',
@@ -304,24 +296,22 @@ const response = await fetch('/api/properties', {
     postalCode: '10001',
     country: 'US',
     propertyType: 'Condo',
-    status: 'Active'
-  })
+    status: 'Active',
+  }),
 });
 
 const result = await response.json();
 console.log('Property created:', result.property);
 console.log('Buildium sync:', result.buildiumSync);
-
 ```
 
 ### **Creating an Owner with Buildium Sync:**
 
 ```typescript
-
 const response = await fetch('/api/owners', {
   method: 'POST',
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   },
   body: JSON.stringify({
     isCompany: false,
@@ -334,20 +324,18 @@ const response = await fetch('/api/owners', {
     primaryCity: 'New York',
     primaryState: 'NY',
     primaryPostalCode: '10002',
-    primaryCountry: 'US'
-  })
+    primaryCountry: 'US',
+  }),
 });
 
 const result = await response.json();
 console.log('Owner created:', result);
 console.log('Buildium sync:', result.buildiumSync);
-
 ```
 
 ### **Checking Sync Status:**
 
 ```typescript
-
 // Get sync status for a specific property
 const response = await fetch('/api/buildium/sync?entityType=property&entityId=123');
 const { syncStatus } = await response.json();
@@ -360,15 +348,14 @@ const { failedSyncs } = await response.json();
 const response = await fetch('/api/buildium/sync', {
   method: 'POST',
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    entityType: 'property'
-  })
+    entityType: 'property',
+  }),
 });
 
 const { success, retried, errors } = await response.json();
-
 ```
 
 ### **Webhook Processing:**

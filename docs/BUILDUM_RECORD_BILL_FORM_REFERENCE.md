@@ -19,21 +19,22 @@ while scrolling.
 
 ## 2. Header Fields
 
-| Label (as rendered) | Control type | Required | Notes & validation |
-| ------------------- | ------------ | -------- | ------------------ |
-| **Property or company** | Combobox | Yes | Populated with all properties. Selection determines unit options. “Company” is the default top-level option. |
-| **Unit** | Combobox | No | Filtered by currently selected property. Default = “Property level”. |
-| **Pay to** | Combobox | Yes | Vendors, sorted alphabetically; search-as-you-type. Required before save. |
-| **Bill date** | Date picker | Yes | Defaults to today. Cannot be empty. |
-| **Post to** | Combobox | Yes | GL accounts. Defaults to last used for the selected vendor. |
-| **Due** | Date picker | Yes | Defaults to Bill date + vendor terms. Accepts manual override. |
-| **Terms** | Combobox | No | Drives “Due” when changed. Available options: “Due on receipt”, “Net 15”, “Net 30”, “Net 45”, “Net 60”. |
-| **Reference #** | Text input | No | Maximum 32 characters. |
-| **Memo** | Textarea | No | Persists to transaction memo and pre-populates new line descriptions. |
-| **Attachment uploader** | Button + drop zone | No | Accepts multiple files; drag & drop enabled; max 25 MB per file, 50 MB combined. |
-| **Apply bill markups** | Checkbox | No | Disabled when property lacks markup configuration. When enabled, auto-adds markup lines after save. |
+| Label (as rendered)     | Control type       | Required | Notes & validation                                                                                           |
+| ----------------------- | ------------------ | -------- | ------------------------------------------------------------------------------------------------------------ |
+| **Property or company** | Combobox           | Yes      | Populated with all properties. Selection determines unit options. “Company” is the default top-level option. |
+| **Unit**                | Combobox           | No       | Filtered by currently selected property. Default = “Property level”.                                         |
+| **Pay to**              | Combobox           | Yes      | Vendors, sorted alphabetically; search-as-you-type. Required before save.                                    |
+| **Bill date**           | Date picker        | Yes      | Defaults to today. Cannot be empty.                                                                          |
+| **Post to**             | Combobox           | Yes      | GL accounts. Defaults to last used for the selected vendor.                                                  |
+| **Due**                 | Date picker        | Yes      | Defaults to Bill date + vendor terms. Accepts manual override.                                               |
+| **Terms**               | Combobox           | No       | Drives “Due” when changed. Available options: “Due on receipt”, “Net 15”, “Net 30”, “Net 45”, “Net 60”.      |
+| **Reference #**         | Text input         | No       | Maximum 32 characters.                                                                                       |
+| **Memo**                | Textarea           | No       | Persists to transaction memo and pre-populates new line descriptions.                                        |
+| **Attachment uploader** | Button + drop zone | No       | Accepts multiple files; drag & drop enabled; max 25 MB per file, 50 MB combined.                             |
+| **Apply bill markups**  | Checkbox           | No       | Disabled when property lacks markup configuration. When enabled, auto-adds markup lines after save.          |
 
 Dynamic rules:
+
 - Changing **Property or company** immediately resets Unit to “Property level” and constrains account autocomplete to property-compatible options.
 - Selecting a vendor with terms recalculates **Due** as `Bill date + vendor terms`.
 - Manual edits to **Due** remain even if vendor or terms change again.
@@ -73,11 +74,11 @@ Additional table behaviours:
 
 Sticky toolbar includes:
 
-| Button | Variant | Behaviour |
-| ------ | ------- | --------- |
-| **Save** | Primary | Validates required header fields + debit lines. Displays inline error toast at top. |
-| **Save & new** | Ghost | Saves and resets form for another bill. |
-| **Cancel** | Ghost | Returns to bills index without saving. |
+| Button         | Variant | Behaviour                                                                           |
+| -------------- | ------- | ----------------------------------------------------------------------------------- |
+| **Save**       | Primary | Validates required header fields + debit lines. Displays inline error toast at top. |
+| **Save & new** | Ghost   | Saves and resets form for another bill.                                             |
+| **Cancel**     | Ghost   | Returns to bills index without saving.                                              |
 
 When validation fails:
 
@@ -131,4 +132,3 @@ When recreating this form locally:
 7. **Persist attachments** via existing file upload pipeline (limit 25 MB per file).
 
 Refer back to this document whenever endpoint behaviour or UI copy changes upstream.
-

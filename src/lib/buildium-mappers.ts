@@ -1835,6 +1835,24 @@ export async function upsertLeaseTransactionWithLines(
     string,
     { name: string | null; type: string | null; subType: string | null }
   >();
+  let propertyBankContext:
+    | {
+        operating_bank_gl_account_id?: string | null;
+        deposit_trust_gl_account_id?: string | null;
+        org_id?: string | null;
+      }
+    | null = null;
+
+  if (defaultLocalPropertyId) {
+    const { data: propRow, error: propErr } = await supabase
+      .from('properties')
+      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
+      .eq('id', defaultLocalPropertyId)
+      .maybeSingle();
+    if (propErr && propErr.code !== 'PGRST116') throw propErr;
+    propertyBankContext = (propRow as any) ?? null;
+  }
+  const propertyOrgId = leaseContext?.orgId ?? (propertyBankContext as any)?.org_id ?? null;
 
   for (const line of lines) {
     const amountAbs = Math.abs(Number(line?.Amount ?? 0));
@@ -1913,10 +1931,16 @@ export async function upsertLeaseTransactionWithLines(
     mappedTx.transaction_type === 'ApplyDeposit';
   const needsBankAccountLine = isPaymentTransaction || isApplyDepositTransaction;
   const hasBankAccountLine = Array.from(glAccountBankFlags.values()).some((isBank) => isBank);
+  const hasProvidedBankLine = bankGlAccountId
+    ? pendingLineRows.some((l) => l.gl_account_id === bankGlAccountId)
+    : false;
+  const hasBankLikeLine = hasBankAccountLine || hasProvidedBankLine;
   const totalAmount = Math.abs(Number(buildiumTx?.TotalAmount ?? buildiumTx?.Amount ?? 0));
   let bankGlAccountIdToUse: string | null = bankGlAccountId;
+  const bankAmountNeeded = debitSum > creditSum ? debitSum : creditSum;
+  const bankPosting = creditSum >= debitSum ? 'Debit' : 'Credit';
 
-  if (needsBankAccountLine && !hasBankAccountLine) {
+  if (needsBankAccountLine && !hasBankLikeLine) {
     logger.warn(
       {
         buildiumTransactionId: buildiumTx?.Id ?? null,
@@ -1944,7 +1968,7 @@ export async function upsertLeaseTransactionWithLines(
 
   if (
     needsBankAccountLine &&
-    !hasBankAccountLine &&
+    !hasBankLikeLine &&
     !hasDepositLiabilityLine &&
     rawTotalAmount >= 0 &&
     debitSum > 0 &&
@@ -1970,20 +1994,20 @@ export async function upsertLeaseTransactionWithLines(
     debitSum = 0;
   }
 
-  if (needsBankAccountLine && !hasBankAccountLine && creditSum > 0 && defaultLocalPropertyId) {
-    if (!bankGlAccountIdToUse) {
-      // Resolve the property's bank GL account (prefer operating, fallback to deposit trust).
-      // NOTE: We intentionally do NOT prefer Undeposited Funds here because the audit requires an actual bank GL
-      // (gl_accounts.is_bank_account = true) on Payment/ApplyDeposit transactions.
-      const { data: propertyRow } = await supabase
-        .from('properties')
-        .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
-        .eq('id', defaultLocalPropertyId)
-        .maybeSingle();
+  if (needsBankAccountLine && !bankGlAccountIdToUse) {
+    bankGlAccountIdToUse = await resolveUndepositedFundsGlAccountId(supabase, propertyOrgId);
+  }
 
+  if (
+    needsBankAccountLine &&
+    !hasBankLikeLine &&
+    bankAmountNeeded > 0 &&
+    defaultLocalPropertyId
+  ) {
+    if (!bankGlAccountIdToUse && propertyBankContext) {
       bankGlAccountIdToUse =
-        (propertyRow as any)?.operating_bank_gl_account_id ??
-        (propertyRow as any)?.deposit_trust_gl_account_id ??
+        (propertyBankContext as any)?.operating_bank_gl_account_id ??
+        (propertyBankContext as any)?.deposit_trust_gl_account_id ??
         null;
       logger.warn(
         {
@@ -1992,35 +2016,35 @@ export async function upsertLeaseTransactionWithLines(
           creditSum,
           totalAmount,
           defaultLocalPropertyId,
-          operatingBankGlAccountId: (propertyRow as any)?.operating_bank_gl_account_id ?? null,
-          depositTrustGlAccountId: (propertyRow as any)?.deposit_trust_gl_account_id ?? null,
+          operatingBankGlAccountId: (propertyBankContext as any)?.operating_bank_gl_account_id ?? null,
+          depositTrustGlAccountId: (propertyBankContext as any)?.deposit_trust_gl_account_id ?? null,
+          orgId: propertyOrgId,
         },
         'Resolved bank GL account id for payment/apply-deposit (inserting balancing bank line)',
       );
-
+    }
   }
 
-  if (bankGlAccountIdToUse) {
-    // Add debit to bank account (cash increases with debit for asset accounts)
-    // The debit amount should equal the credit sum to balance the entry
+  if (needsBankAccountLine && !hasBankLikeLine && bankGlAccountIdToUse && bankAmountNeeded > 0) {
+    // Add bank line in the correct direction: inflows debit cash, outflows credit cash.
     pendingLineRows.push({
       gl_account_id: bankGlAccountIdToUse,
-        amount: creditSum,
-        posting_type: 'Debit',
-        memo: buildiumTx?.Memo ?? mappedTx.memo ?? null,
-        account_entity_type: 'Rental',
-        account_entity_id: defaultBuildiumPropertyId,
-        date: normalizeDateString(buildiumTx?.Date),
-        created_at: nowIso,
-        updated_at: nowIso,
-        buildium_property_id: defaultBuildiumPropertyId,
-        buildium_unit_id: defaultBuildiumUnitId,
-        buildium_lease_id: buildiumTx?.LeaseId ?? null,
-        property_id: defaultLocalPropertyId,
-        unit_id: defaultLocalUnitId,
-      });
-      debitSum += creditSum;
-    }
+      amount: bankAmountNeeded,
+      posting_type: bankPosting,
+      memo: buildiumTx?.Memo ?? mappedTx.memo ?? null,
+      account_entity_type: 'Rental',
+      account_entity_id: defaultBuildiumPropertyId,
+      date: normalizeDateString(buildiumTx?.Date),
+      created_at: nowIso,
+      updated_at: nowIso,
+      buildium_property_id: defaultBuildiumPropertyId,
+      buildium_unit_id: defaultBuildiumUnitId,
+      buildium_lease_id: buildiumTx?.LeaseId ?? null,
+      property_id: defaultLocalPropertyId,
+      unit_id: defaultLocalUnitId,
+    });
+    if (bankPosting === 'Debit') debitSum += bankAmountNeeded;
+    else creditSum += bankAmountNeeded;
   }
 
   const isChargeTransaction =
@@ -2103,6 +2127,15 @@ export async function upsertLeaseTransactionWithLines(
     }
   }
 
+  const finalBankGlAccountId = bankGlAccountIdToUse ?? bankGlAccountId ?? null;
+  if (finalBankGlAccountId && finalBankGlAccountId !== bankGlAccountId) {
+    const { error: bankUpdateErr } = await supabase
+      .from('transactions')
+      .update({ bank_gl_account_id: finalBankGlAccountId, updated_at: nowIso })
+      .eq('id', transactionId);
+    if (bankUpdateErr) throw bankUpdateErr;
+  }
+
   if (needsBankAccountLine && (debitSum === 0 || creditSum === 0)) {
     logger.warn(
       {
@@ -2160,6 +2193,43 @@ async function resolveAccountsReceivableGlAccountId(
   }
 }
 
+export async function resolveUndepositedFundsGlAccountId(
+  supabase: TypedSupabaseClient,
+  orgId: string | null,
+): Promise<string | null> {
+  const lookup = async (column: 'default_account_name' | 'name'): Promise<string | null> => {
+    let query = supabase.from('gl_accounts').select('id').ilike(column, '%undeposited funds%');
+    if (orgId) query = query.eq('org_id', orgId);
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    return (data as any)?.id ?? null;
+  };
+
+  const orgDefaultName = await lookup('default_account_name');
+  if (orgDefaultName) return orgDefaultName;
+  const orgByName = await lookup('name');
+  if (orgByName) return orgByName;
+
+  // Fallback without org scoping
+  const globalDefault = await supabase
+    .from('gl_accounts')
+    .select('id')
+    .ilike('default_account_name', '%undeposited funds%')
+    .limit(1)
+    .maybeSingle();
+  if ((globalDefault.data as any)?.id) return (globalDefault.data as any).id;
+
+  const globalName = await supabase
+    .from('gl_accounts')
+    .select('id')
+    .ilike('name', '%undeposited funds%')
+    .limit(1)
+    .maybeSingle();
+  if ((globalName.data as any)?.id) return (globalName.data as any).id;
+
+  return null;
+}
+
 /**
  * Phase 4: Resolve a Buildium BankAccountId to the local bank GL account id (gl_accounts.id).
  *
@@ -2211,8 +2281,6 @@ export async function resolveBankGlAccountId(
       description: (bank as any)?.Description ?? null,
       is_bank_account: true,
       buildium_gl_account_id: (bank as any)?.Id ?? buildiumBankAccountId,
-      // Retain legacy column for backward compatibility; primary mapping is buildium_gl_account_id.
-      buildium_bank_account_id: (bank as any)?.Id ?? buildiumBankAccountId,
       bank_account_type: mapBankAccountTypeFromBuildium((bank as any)?.BankAccountType) as any,
       bank_account_number:
         (bank as any)?.AccountNumberUnmasked ?? (bank as any)?.AccountNumber ?? null,
@@ -4711,8 +4779,8 @@ type LocalBankAccountInput = {
   name: string;
   bank_account_type?: string | null;
   country?: string | null;
-  account_number: string;
-  routing_number: string;
+  bank_account_number: string;
+  bank_routing_number: string;
   description?: string | null;
   is_active?: boolean | null;
 };
@@ -4724,8 +4792,8 @@ export function mapBankAccountToBuildium(
     Name: localBankAccount.name,
     BankAccountType: mapBankAccountTypeToBuildium(localBankAccount.bank_account_type || 'Checking'),
     Country: mapCountryToBuildium(localBankAccount.country) || 'UnitedStates',
-    AccountNumber: localBankAccount.account_number,
-    RoutingNumber: localBankAccount.routing_number,
+    AccountNumber: localBankAccount.bank_account_number,
+    RoutingNumber: localBankAccount.bank_routing_number,
     Description: localBankAccount.description || undefined,
     IsActive: localBankAccount.is_active !== false,
   };
@@ -4747,8 +4815,8 @@ export function mapBankAccountFromBuildium(buildiumBankAccount: BuildiumBankAcco
     name: buildiumBankAccount.Name,
     description: buildiumBankAccount.Description ?? null,
     bank_account_type: mapBankAccountTypeFromBuildium(buildiumBankAccount.BankAccountType),
-    account_number: buildiumBankAccount.AccountNumber ?? null,
-    routing_number: buildiumBankAccount.RoutingNumber ?? null,
+    bank_account_number: buildiumBankAccount.AccountNumber ?? null,
+    bank_routing_number: buildiumBankAccount.RoutingNumber ?? null,
     is_active: buildiumBankAccount.IsActive ?? null,
     buildium_balance: (buildiumBankAccount as any)?.Balance ?? null,
     country: mapCountryFromBuildium((buildiumBankAccount as any)?.Country) || null,
@@ -4770,8 +4838,8 @@ export async function mapBankAccountFromBuildiumWithGLAccount(
   name: string;
   description: string | null;
   bank_account_type: string;
-  account_number: string | null;
-  routing_number: string | null;
+  bank_account_number: string | null;
+  bank_routing_number: string | null;
   is_active: boolean | null;
   buildium_balance: number | null;
   country: string | null;
@@ -4836,7 +4904,7 @@ function mapBankAccountTypeToBuildium(
   }
 }
 
-function mapBankAccountTypeFromBuildium(
+export function mapBankAccountTypeFromBuildium(
   buildiumType: 'Checking' | 'Savings' | 'MoneyMarket' | 'CertificateOfDeposit',
 ): string {
   switch (buildiumType) {

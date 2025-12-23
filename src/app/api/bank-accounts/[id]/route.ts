@@ -33,7 +33,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from('gl_accounts')
       .select(`
         id,
-        buildium_bank_account_id,
         buildium_gl_account_id,
         name,
         description,
@@ -64,8 +63,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       bank_account_type: (data as any).bank_account_type,
       account_number: (data as any).bank_account_number,
       routing_number: (data as any).bank_routing_number,
-      buildium_bank_id: (data as any).buildium_bank_account_id,
-      buildium_bank_account_id: (data as any).buildium_bank_account_id,
       buildium_gl_account_id: (data as any).buildium_gl_account_id,
       balance: (data as any).bank_balance,
       buildium_balance: (data as any).bank_buildium_balance,
@@ -145,13 +142,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         bank_routing_number: (updated as any).bank_routing_number,
         bank_country: (updated as any).bank_country,
         is_active: (updated as any).is_active ?? true,
-        buildium_bank_account_id: (updated as any).buildium_bank_account_id,
         buildium_gl_account_id: (updated as any).buildium_gl_account_id,
       }
 
       const result = await buildiumEdgeClient.syncBankAccountToBuildium(syncPayload)
       if (!result.success) {
-        const currentBuildiumId = (updated as any).buildium_bank_account_id ?? undefined
+        const currentBuildiumId = (updated as any).buildium_gl_account_id ?? undefined
         if (typeof currentBuildiumId === 'number') {
           await admin.rpc('update_buildium_sync_status', {
             p_entity_type: 'bankAccount',
@@ -164,14 +160,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ success: true, data: updated, buildiumSync: { success: false, error: result.error } })
       }
 
-      if (!(updated as any).buildium_bank_account_id && result.buildiumId) {
+      if (!(updated as any).buildium_gl_account_id && result.buildiumId) {
         await admin
           .from('gl_accounts')
-          .update({ buildium_bank_account_id: result.buildiumId, updated_at: new Date().toISOString() } as any)
+          .update({ buildium_gl_account_id: result.buildiumId, updated_at: new Date().toISOString() } as any)
           .eq('id', id)
       }
 
-      const syncedBuildiumId = result.buildiumId ?? (updated as any).buildium_bank_account_id
+      const syncedBuildiumId = result.buildiumId ?? (updated as any).buildium_gl_account_id
       if (typeof syncedBuildiumId === 'number') {
         await admin.rpc('update_buildium_sync_status', {
           p_entity_type: 'bankAccount',
@@ -180,7 +176,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           p_status: 'synced'
         })
       }
-      return NextResponse.json({ success: true, data: { ...updated, buildium_bank_account_id: result.buildiumId || (updated as any).buildium_bank_account_id } })
+      return NextResponse.json({ success: true, data: { ...updated, buildium_gl_account_id: result.buildiumId || (updated as any).buildium_gl_account_id } })
     }
 
     return NextResponse.json({ success: true, data: updated })

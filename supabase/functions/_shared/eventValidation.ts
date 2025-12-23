@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 export const GENERAL_EVENT_NAMES = [
   'Property.Created',
   'Property.Updated',
@@ -89,10 +90,16 @@ const WORK_ORDER_EVENT_NAMES = [
   'WorkOrder.Deleted',
 ] as const;
 
-const BANK_ACCOUNT_EVENT_NAMES = [
+export const BANK_ACCOUNT_EVENT_NAMES = [
   'BankAccount.Created',
   'BankAccount.Updated',
   'BankAccount.Deleted',
+] as const;
+
+export const BANK_ACCOUNT_TRANSACTION_EVENT_NAMES = [
+  'BankAccount.Transaction.Created',
+  'BankAccount.Transaction.Updated',
+  'BankAccount.Transaction.Deleted',
 ] as const;
 
 export const SUPPORTED_EVENT_NAMES = [
@@ -115,6 +122,7 @@ export const SUPPORTED_EVENT_NAMES = [
   ...VENDOR_EVENT_NAMES,
   ...WORK_ORDER_EVENT_NAMES,
   ...BANK_ACCOUNT_EVENT_NAMES,
+  ...BANK_ACCOUNT_TRANSACTION_EVENT_NAMES,
 ] as const;
 
 export type SupportedEventName = (typeof SUPPORTED_EVENT_NAMES)[number];
@@ -206,30 +214,31 @@ const EVENT_NAME_ALIAS_MAP = new Map<string, SupportedEventName>([
 ] as Array<[string, SupportedEventName]>);
 
 export interface BuildiumWebhookEventLike {
-  Id?: string;
-  EventId?: string;
+  Id?: string | number;
+  EventId?: string | number;
   EventType?: string;
   EventName?: string;
-  EventDate?: string;
-  EventDateTime?: string;
-  EntityId?: number;
-  LeaseId?: number;
-  TransactionId?: number;
-  BillId?: number;
-  PaymentId?: number;
-  BillIds?: number[];
-  GLAccountId?: number;
-  PropertyId?: number;
-  UnitId?: number;
-  TaskId?: number;
-  TaskCategoryId?: number;
-  VendorId?: number;
-  VendorCategoryId?: number;
-  WorkOrderId?: number;
-  RentalOwnerId?: number;
-  TenantId?: number;
-  AccountId?: number;
-  BankAccountId?: number;
+  EventDate?: string | number;
+  EventDateTime?: string | number;
+  TransactionType?: string;
+  EntityId?: number | string;
+  LeaseId?: number | string;
+  TransactionId?: number | string;
+  BillId?: number | string;
+  PaymentId?: number | string;
+  BillIds?: Array<number | string>;
+  GLAccountId?: number | string;
+  PropertyId?: number | string;
+  UnitId?: number | string;
+  TaskId?: number | string;
+  TaskCategoryId?: number | string;
+  VendorId?: number | string;
+  VendorCategoryId?: number | string;
+  WorkOrderId?: number | string;
+  RentalOwnerId?: number | string;
+  TenantId?: number | string;
+  AccountId?: number | string;
+  BankAccountId?: number | string;
   Data?: Record<string, unknown>;
 }
 
@@ -515,6 +524,15 @@ const EVENT_VALIDATION_SPECS: EventValidationSpec[] = [
     match: (name) => name.toLowerCase().includes('bankaccount'),
     required: [
       { label: 'BankAccountId', paths: ['BankAccountId', 'EntityId', 'Data.BankAccountId'] },
+    ],
+  },
+  {
+    group: 'bank-account-transaction',
+    eventNames: BANK_ACCOUNT_TRANSACTION_EVENT_NAMES,
+    match: (name) => name.toLowerCase().includes('bankaccount.transaction'),
+    required: [
+      { label: 'BankAccountId', paths: ['BankAccountId', 'EntityId', 'Data.BankAccountId'] },
+      { label: 'TransactionId', paths: ['TransactionId', 'EntityId', 'Data.TransactionId'] },
     ],
   },
   {

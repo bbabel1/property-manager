@@ -3,9 +3,8 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveUserOrgIds } from '@/lib/auth/org-access'
 import { hasRole, type AppRole } from '@/lib/auth/roles'
-import { normalizeCountryWithDefault } from '@/lib/normalizers'
-import { mapGoogleCountryToEnum } from '@/lib/utils'
-import { normalizeBankAccountType } from '@/lib/gl-bank-account-normalizers'
+import { createBankGlAccountWithBuildium } from '@/lib/bank-account-create'
+import { supabaseAdmin } from '@/lib/db'
 
 // Utility to mask numbers except last 4
 function mask(v: string | null | undefined) {
@@ -24,18 +23,6 @@ async function resolveOrgId(request: NextRequest, userOrgIds: string[]): Promise
   }
   if (!userOrgIds.length) throw new Error('ORG_CONTEXT_REQUIRED')
   return userOrgIds[0]
-}
-
-// Generate a deterministic local-only Buildium GL ID placeholder for an org.
-// Kept within 900,000,000..900,099,999 to reduce collision with real Buildium IDs.
-function computeLocalGlId(orgId: string, bump: number = 0): number {
-  let h = 0
-  for (let i = 0; i < orgId.length; i++) {
-    h = (h * 31 + orgId.charCodeAt(i)) | 0
-  }
-  const base = 900_000_000 + (Math.abs(h) % 100_000) // 900,000,000..900,099,999
-  const id = base + (bump % 100_000)
-  return id
 }
 
 export async function GET(request: NextRequest) {
@@ -89,7 +76,9 @@ const CreateSchema = z.object({
   routing_number: z
     .string()
     .regex(/^[0-9]{9}$/, 'Routing number must be 9 digits'),
-  country: z.string().min(1, 'Country is required')
+  country: z.string().min(1, 'Country is required'),
+  bank_information_lines: z.array(z.string()).max(5).optional().default([]),
+  company_information_lines: z.array(z.string()).max(5).optional().default([]),
 })
 
 export async function POST(request: NextRequest) {
@@ -114,80 +103,44 @@ export async function POST(request: NextRequest) {
       await resolveUserOrgIds({ supabase: auth.supabase, user: auth.user })
     )
 
-    // Prevent duplicate accounts within the same org by routing+account number
-    const { data: existing, error: existingErr } = await auth.supabase
-      .from('gl_accounts')
-      .select('id, name, bank_account_number')
-      .eq('org_id', orgId)
-      .eq('is_bank_account', true)
-      .eq('bank_account_number', body.account_number)
-      .eq('bank_routing_number', body.routing_number)
-      .limit(1)
-      .maybeSingle()
-    if (!existingErr && existing) {
-      return NextResponse.json(
-        {
-          error: 'Bank account already exists',
-          existing: {
-            id: (existing as any).id,
-            name: (existing as any).name,
-            account_number: mask((existing as any).bank_account_number),
+    const result = await createBankGlAccountWithBuildium({
+      supabase: supabaseAdmin || auth.supabase,
+      orgId,
+      payload: body,
+    })
+
+    if (!result.success) {
+      if (result.status === 409 && result.existing) {
+        return NextResponse.json(
+          {
+            error: result.error,
+            existing: {
+              id: result.existing.id,
+              name: result.existing.name,
+              account_number: mask(result.existing.bank_account_number),
+            },
           },
-        },
-        { status: 409 },
+          { status: 409 },
+        )
+      }
+      return NextResponse.json(
+        { error: result.error, details: result.details },
+        { status: result.status || 500 },
       )
     }
 
-    const now = new Date().toISOString()
-    const normalizedCountry = normalizeCountryWithDefault(mapGoogleCountryToEnum(body.country))
-    // Create a new bank GL account row
-    let createdGl: { id: string; bank_account_number?: string | null; bank_routing_number?: string | null; bank_account_type?: string | null; is_active?: boolean | null } | null = null
-    let attempts = 0
-    while (attempts < 25 && !createdGl) {
-      const placeholderId = computeLocalGlId(orgId, attempts)
-      const { data, error } = await auth.supabase
-        .from('gl_accounts')
-        .insert({
-          buildium_gl_account_id: placeholderId,
-          name: body.name,
-          description: body.description || null,
-          type: 'Asset',
-          is_bank_account: true,
-          is_active: true,
-          org_id: orgId,
-          created_at: now,
-          updated_at: now,
-          buildium_bank_account_id: null,
-          bank_account_type: normalizeBankAccountType(body.bank_account_type) as any,
-          bank_account_number: body.account_number,
-          bank_routing_number: body.routing_number,
-          bank_country: normalizedCountry as any,
-          bank_last_source: 'local' as any,
-          bank_last_source_ts: now,
-        } as any)
-        .select('id, bank_account_type, bank_account_number, bank_routing_number, is_active')
-        .single()
-      if (!error && data) {
-        createdGl = data as any
-        break
-      }
-      const msg = String((error as any)?.message || '')
-      if (!/duplicate key value/.test(msg)) {
-        return NextResponse.json({ error: 'Failed to create bank account', details: msg }, { status: 500 })
-      }
-      attempts++
-    }
-
-    if (!createdGl) {
-      return NextResponse.json({ error: 'Failed to create bank account' }, { status: 500 })
-    }
     const maskedData = {
-      id: createdGl.id,
-      name: body.name,
-      bank_account_type: createdGl.bank_account_type ?? null,
-      account_number: mask(createdGl.bank_account_number),
-      routing_number: mask(createdGl.bank_routing_number),
-      is_active: createdGl.is_active ?? true,
+      id: result.record.id,
+      name: result.record.name ?? body.name,
+      bank_account_type: result.record.bank_account_type ?? null,
+      account_number: mask(result.record.bank_account_number),
+      routing_number: mask(result.record.bank_routing_number),
+      is_active: result.record.is_active ?? true,
+      buildium_gl_account_id: result.record.buildium_gl_account_id,
+      bank_balance: result.record.bank_balance ?? null,
+      bank_buildium_balance: result.record.bank_buildium_balance ?? null,
+      bank_check_printing_info: result.record.bank_check_printing_info ?? null,
+      bank_electronic_payments: result.record.bank_electronic_payments ?? null,
     }
 
     return NextResponse.json(maskedData)

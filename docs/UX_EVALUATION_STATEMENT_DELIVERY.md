@@ -5,6 +5,7 @@
 The monthly statement delivery flow requires users to complete multiple prerequisite steps before sending, creating cognitive overhead and potential confusion. While functional, the interface lacks clear visual hierarchy, progressive disclosure, and immediate feedback mechanisms that would make the workflow feel effortless.
 
 **Key Findings:**
+
 - **5 distinct steps** required before sending (Gmail connection, add recipients, generate PDF, verify status, send)
 - **Inline form expansion** creates visual disruption
 - **Status indicators** are small and easy to miss
@@ -136,6 +137,7 @@ The monthly statement delivery flow requires users to complete multiple prerequi
 ### Information Architecture
 
 **Current Structure:**
+
 ```
 Statement Delivery Card
 ├── Gmail Warning (if not connected)
@@ -149,6 +151,7 @@ Statement Delivery Card
 ```
 
 **Issues:**
+
 - **No clear grouping** of prerequisites vs. actions
 - **Status information** scattered across card
 - **Actions** not prioritized by importance
@@ -181,7 +184,7 @@ Statement Delivery Card
 **Recommended:** Add a visual checklist at the top showing prerequisites:
 
 ```tsx
-<div className="space-y-2 mb-4">
+<div className="mb-4 space-y-2">
   <div className="flex items-center gap-2 text-sm">
     {gmailStatus.connected ? (
       <CheckCircle className="h-4 w-4 text-green-600" />
@@ -210,6 +213,7 @@ Statement Delivery Card
 ```
 
 **Benefits:**
+
 - Single place to see all prerequisites
 - Clear visual indication of what's complete
 - Reduces cognitive load
@@ -225,9 +229,7 @@ Statement Delivery Card
   <DialogContent>
     <DialogHeader>
       <DialogTitle>Add Recipient</DialogTitle>
-      <DialogDescription>
-        Add an email recipient for monthly statements
-      </DialogDescription>
+      <DialogDescription>Add an email recipient for monthly statements</DialogDescription>
     </DialogHeader>
     <div className="space-y-4">
       <Input label="Email" type="email" required />
@@ -242,6 +244,7 @@ Statement Delivery Card
 ```
 
 **Benefits:**
+
 - Better focus on task
 - No visual disruption
 - Can include help text more naturally
@@ -262,8 +265,8 @@ Statement Delivery Card
         This will send the statement PDF to {recipientCount} recipient(s):
       </DialogDescription>
     </DialogHeader>
-    <div className="max-h-48 overflow-y-auto space-y-2">
-      {recipients.map(r => (
+    <div className="max-h-48 space-y-2 overflow-y-auto">
+      {recipients.map((r) => (
         <div key={r.email} className="text-sm">
           {r.name} ({r.email}) - {r.role}
         </div>
@@ -273,15 +276,14 @@ Statement Delivery Card
       <Button variant="outline" onClick={() => setShowSendConfirm(false)}>
         Cancel
       </Button>
-      <Button onClick={handleSendStatement}>
-        Send Statement
-      </Button>
+      <Button onClick={handleSendStatement}>Send Statement</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>
 ```
 
 **Benefits:**
+
 - Prevents accidental sends
 - Shows exactly what will happen
 - Builds user confidence
@@ -290,7 +292,8 @@ Statement Delivery Card
 
 **Current:** All actions equal weight
 
-**Recommended:** 
+**Recommended:**
+
 - Make "Send email" button primary and larger
 - Group prerequisites together visually
 - Use card sections with clear headers
@@ -304,22 +307,20 @@ Statement Delivery Card
   <CardContent className="space-y-6">
     {/* Prerequisites Section */}
     <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <h3 className="text-sm font-semibold mb-3">Before Sending</h3>
+      <h3 className="mb-3 text-sm font-semibold">Before Sending</h3>
       {/* Checklist here */}
     </section>
-    
+
     {/* Actions Section */}
     <section className="flex items-center justify-between gap-4">
       <Button variant="outline">View PDF</Button>
-      <Button size="lg" className="flex-1 max-w-xs">
+      <Button size="lg" className="max-w-xs flex-1">
         Send Statement
       </Button>
     </section>
-    
+
     {/* Recipients Section */}
-    <section>
-      {/* Recipients manager */}
-    </section>
+    <section>{/* Recipients manager */}</section>
   </CardContent>
 </Card>
 ```
@@ -334,12 +335,12 @@ Statement Delivery Card
 
 ```tsx
 // Option A: Make role optional with smart default
-<Input label="Role" placeholder="Owner (optional)" />
+<Input label="Role" placeholder="Owner (optional)" />;
 
 // Option B: Progressive disclosure
-{showRoleField && (
-  <Input label="Role" />
-)}
+{
+  showRoleField && <Input label="Role" />;
+}
 ```
 
 #### 6. **Inline Help Text**
@@ -349,7 +350,7 @@ Statement Delivery Card
 **Recommended:** Show help text inline where relevant:
 
 ```tsx
-<div className="text-xs text-slate-500 mt-1">
+<div className="mt-1 text-xs text-slate-500">
   The latest generated PDF will be sent as an attachment
 </div>
 ```
@@ -361,29 +362,28 @@ Statement Delivery Card
 **Recommended:** More actionable empty state:
 
 ```tsx
-<div className="text-center py-8 border-2 border-dashed rounded-lg">
-  <Mail className="h-8 w-8 mx-auto text-slate-400 mb-2" />
-  <p className="text-sm font-medium mb-1">No recipients yet</p>
-  <p className="text-xs text-slate-500 mb-4">
-    Add recipients to send monthly statements via email
-  </p>
-  <Button onClick={() => setShowAddRecipient(true)}>
-    Add First Recipient
-  </Button>
+<div className="rounded-lg border-2 border-dashed py-8 text-center">
+  <Mail className="mx-auto mb-2 h-8 w-8 text-slate-400" />
+  <p className="mb-1 text-sm font-medium">No recipients yet</p>
+  <p className="mb-4 text-xs text-slate-500">Add recipients to send monthly statements via email</p>
+  <Button onClick={() => setShowAddRecipient(true)}>Add First Recipient</Button>
 </div>
 ```
 
 ### 🔧 Low Priority
 
 #### 8. **Keyboard Shortcuts**
+
 - `Cmd/Ctrl + Enter` to send statement
 - `A` to add recipient when focused on card
 
 #### 9. **Bulk Recipient Import**
+
 - CSV upload for multiple recipients
 - Copy/paste from spreadsheet
 
 #### 10. **Recipient Templates**
+
 - Save common recipient groups
 - Quick-add for frequent recipients
 
@@ -409,15 +409,18 @@ Statement Delivery Card
 ### WCAG 2.1 Level AA Compliance
 
 **Contrast Ratios:**
+
 - Status pill text: ✅ Meets 4.5:1 minimum
 - Button text: ✅ Meets 4.5:1 minimum
 - Error messages: ⚠️ Verify amber text meets 4.5:1
 
 **Keyboard Navigation:**
+
 - ✅ All interactive elements keyboard accessible
 - ⚠️ Modal focus trap needed for add recipient dialog
 
 **Screen Reader Support:**
+
 - ⚠️ Status changes not announced
 - ⚠️ Form validation errors need aria-live regions
 
@@ -426,18 +429,21 @@ Statement Delivery Card
 ## Implementation Priority
 
 ### Phase 1: Critical Fixes (Week 1)
+
 1. ✅ Add prerequisite checklist
 2. ✅ Convert inline form to modal
 3. ✅ Add send confirmation dialog
 4. ✅ Improve visual hierarchy
 
 ### Phase 2: UX Enhancements (Week 2)
+
 5. ✅ Progressive form fields
 6. ✅ Inline help text
 7. ✅ Better empty states
 8. ✅ Accessibility improvements
 
 ### Phase 3: Advanced Features (Future)
+
 9. Keyboard shortcuts
 10. Bulk import
 11. Recipient templates
@@ -449,11 +455,13 @@ Statement Delivery Card
 ### Before/After Comparison
 
 **Current:**
+
 - Average time to send: ~2-3 minutes
 - Error rate: ~15% (missing prerequisites)
 - User satisfaction: Unknown
 
 **Target:**
+
 - Average time to send: <1 minute
 - Error rate: <5%
 - User satisfaction: >4.5/5
@@ -488,4 +496,3 @@ The monthly statement delivery flow is functional but requires significant UX im
 4. **Better form patterns** (modals vs. inline expansion)
 
 These changes will transform the current "discover-as-you-go" experience into a guided, confidence-building workflow that users can complete quickly and accurately.
-

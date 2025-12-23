@@ -19,9 +19,11 @@ buildium/
 ## Script Categories
 
 ### **Creation Scripts** (`create/`)
+
 Scripts for creating entities in Buildium and syncing to local database.
 
 **Key Scripts**:
+
 - `add-buildium-property.ts` - Create property in Buildium
 - `create-buildium-lease-records.ts` - Create lease records
 - `create-buildium-charge-records.ts` - Create charge records
@@ -31,9 +33,11 @@ Scripts for creating entities in Buildium and syncing to local database.
 - `create-buildium-gl-accounts.ts` - Create general ledger accounts
 
 ### **Sync Scripts** (`sync/`)
+
 Scripts for synchronizing data between Buildium and local database.
 
 **Key Scripts**:
+
 - `sync-buildium-bank-accounts.ts` - Sync bank accounts
 - `fetch-all-lease-transactions.ts` - Fetch lease transactions
 - `fetch-buildium-lease.ts` - Fetch specific lease
@@ -43,9 +47,11 @@ Scripts for synchronizing data between Buildium and local database.
 - `populate-relationships.ts` - Populate entity relationships
 
 ### **Verification Scripts** (`verify/`)
+
 Scripts for verifying data integrity and relationships.
 
 **Key Scripts**:
+
 - `verify-relationships.ts` - Verify entity relationships
 - `verify-buildium-transaction-lines.ts` - Verify transaction lines
 - `verify-lease-creation.ts` - Verify lease creation
@@ -57,6 +63,7 @@ Scripts for verifying data integrity and relationships.
 ## Common Workflows
 
 ### **Adding a New Property**
+
 ```bash
 # 1. Create property
 npx tsx scripts/buildium/create/add-buildium-property.ts
@@ -72,6 +79,7 @@ npx tsx scripts/buildium/verify/check-unit-created.ts
 ```
 
 ### **Data Synchronization**
+
 ```bash
 # 1. Sync bank accounts
 npx tsx scripts/buildium/sync/sync-buildium-bank-accounts.ts
@@ -84,6 +92,7 @@ npx tsx scripts/buildium/verify/verify-relationships.ts
 ```
 
 ### **Troubleshooting**
+
 ```bash
 # 1. Check property data
 npx tsx scripts/buildium/verify/check-property-fields.ts
@@ -111,18 +120,21 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ## Important Notes
 
 ### **API Rate Limits**
+
 - Respect Buildium API rate limits
 - Use appropriate delays between requests
 - Handle API errors gracefully
 - Log all API interactions
 
 ### **Data Consistency**
+
 - Verify relationships after data creation
 - Check for orphaned records
 - Ensure data integrity constraints
 - Monitor sync status
 
 ### **Error Handling**
+
 - Check script output for errors
 - Verify data integrity after operations
 - Retry failed operations as needed

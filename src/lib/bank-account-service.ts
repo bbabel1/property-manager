@@ -23,7 +23,6 @@ export class BankAccountService {
         `
         id,
         org_id,
-        buildium_bank_account_id,
         buildium_gl_account_id,
         name,
         description,
@@ -90,8 +89,8 @@ export class BankAccountService {
       toUpdate.bank_country = payload.country ?? payload.bank_country
     }
     if (payload.balance !== undefined) toUpdate.bank_balance = payload.balance
-    if (payload.buildiumBankAccountId !== undefined || payload.buildium_bank_account_id !== undefined) {
-      toUpdate.buildium_bank_account_id = payload.buildiumBankAccountId ?? payload.buildium_bank_account_id
+    if (payload.buildiumBankAccountId !== undefined) {
+      toUpdate.buildium_gl_account_id = payload.buildiumBankAccountId
     }
 
     toUpdate.is_bank_account = true
@@ -118,4 +117,3 @@ export class BankAccountService {
 }
 
 export const bankAccountService = new BankAccountService()
-

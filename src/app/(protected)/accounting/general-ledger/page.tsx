@@ -349,6 +349,7 @@ export default async function GeneralLedgerPage({
     month: '2-digit',
     day: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC',
   });
 
   const emptyStateMessage =
@@ -488,9 +489,13 @@ export default async function GeneralLedgerPage({
                               .filter(Boolean)
                               .join(' ');
                             const memo = line.memo || line.transactionMemo || '—';
+                            // Route deposits to deposit edit page, others to journal entry page
+                            const isDeposit = line.transactionType === 'Deposit';
                             const detailHref =
                               line.transactionId && line.propertyId
-                                ? `/properties/${line.propertyId}/financials/entries/${line.transactionId}`
+                                ? isDeposit
+                                  ? `/properties/${line.propertyId}/financials/deposits/${line.transactionId}`
+                                  : `/properties/${line.propertyId}/financials/entries/${line.transactionId}`
                                 : null;
                             const unitPrimary = line.unitLabel || '—';
                             const propertyLabel =

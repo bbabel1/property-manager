@@ -37,7 +37,9 @@ export async function GET(
     if (orderby) queryParams.append('orderby', orderby);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/payments?${queryParams.toString()}`;
+    const buildiumBaseUrl =
+      process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
+    const buildiumUrl = `${buildiumBaseUrl}/bills/${id}/payments?${queryParams.toString()}`;
     
     const response = await fetch(buildiumUrl, {
       method: 'GET',
@@ -106,18 +108,168 @@ export async function POST(
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumBillPaymentCreateSchema);
 
+    const buildiumBaseUrl =
+      process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
+    const buildiumHeaders = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
+      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
+    };
+
+    // Buildium requires payment lines; fetch the bill to mirror its lines
+    const billResponse = await fetch(`${buildiumBaseUrl}/bills/${id}`, {
+      method: 'GET',
+      headers: buildiumHeaders,
+    });
+
+    if (!billResponse.ok) {
+      const errorData = await billResponse.json().catch(() => ({}));
+      logger.error(`Failed to fetch Buildium bill ${id} before creating payment`);
+
+      return NextResponse.json(
+        {
+          error: 'Failed to load Buildium bill for payment',
+          details: errorData,
+        },
+        { status: 502 },
+      );
+    }
+
+    const buildiumBill = await billResponse.json();
+    const billLines = Array.isArray(buildiumBill?.Lines) ? buildiumBill.Lines : [];
+    if (!billLines.length) {
+      return NextResponse.json(
+        {
+          error: 'Buildium bill has no payable lines',
+          details: { billId: id },
+        },
+        { status: 400 },
+      );
+    }
+
+    const totalBillAmount = billLines.reduce((sum: number, line: any) => {
+      const amt = Number(line?.Amount ?? 0);
+      return sum + (Number.isFinite(amt) ? Math.abs(amt) : 0);
+    }, 0);
+
+    if (!Number.isFinite(totalBillAmount) || totalBillAmount <= 0) {
+      return NextResponse.json(
+        {
+          error: 'Buildium bill has no amount to pay',
+          details: { billId: id },
+        },
+        { status: 400 },
+      );
+    }
+
+    if (validatedData.Amount > totalBillAmount) {
+      return NextResponse.json(
+        {
+          error: 'Payment amount exceeds Buildium bill total',
+          details: {
+            paymentAmount: validatedData.Amount,
+            billAmount: totalBillAmount,
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    const entryDateObj = new Date(validatedData.Date);
+    if (Number.isNaN(entryDateObj.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid payment date' },
+        { status: 400 },
+      );
+    }
+    const entryDate = entryDateObj.toISOString().slice(0, 10);
+
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const ratio = validatedData.Amount / totalBillAmount;
+
+    const paymentLines = billLines
+      .map((line: any) => {
+        const baseAmount = Number(line?.Amount ?? 0);
+        const billLineId = Number(line?.Id);
+        const glAccountId =
+          (line?.GLAccount?.Id as number | undefined) ??
+          (line?.GLAccountId as number | undefined) ??
+          (line?.GLAccountID as number | undefined);
+
+        if (!Number.isFinite(glAccountId) || !Number.isFinite(billLineId)) return null;
+
+        const accountingEntity = line?.AccountingEntity ?? {};
+        const unitId =
+          (accountingEntity?.Unit?.Id as number | undefined) ??
+          (accountingEntity?.UnitId as number | undefined);
+
+        return {
+          BillLineId: billLineId,
+          GLAccountId: glAccountId,
+          AccountingEntity: accountingEntity?.Id
+            ? {
+                Id: accountingEntity.Id,
+                AccountingEntityType:
+                  accountingEntity.AccountingEntityType ??
+                  accountingEntity.Type ??
+                  'Rental',
+                ...(unitId ? { UnitId: unitId } : {}),
+              }
+            : undefined,
+          Amount: round(baseAmount * ratio),
+          ...(line?.Memo ? { Memo: line.Memo } : {}),
+        };
+      })
+      .filter(Boolean) as Array<{
+        BillLineId?: number;
+        GLAccountId: number;
+        AccountingEntity?:
+          | {
+              Id: number;
+              AccountingEntityType: string;
+              UnitId?: number;
+            }
+          | undefined;
+        Amount: number;
+        Memo?: string;
+      }>;
+
+    if (!paymentLines.length) {
+      return NextResponse.json(
+        {
+          error: 'Unable to map Buildium bill lines for payment',
+          details: { billId: id },
+        },
+        { status: 400 },
+      );
+    }
+
+    // Fix rounding drift so the line total matches the requested amount
+    const linesTotal = paymentLines.reduce((sum, line) => sum + line.Amount, 0);
+    const roundingDiff = round(validatedData.Amount - linesTotal);
+    if (roundingDiff !== 0) {
+      paymentLines[paymentLines.length - 1].Amount = round(
+        paymentLines[paymentLines.length - 1].Amount + roundingDiff,
+      );
+    }
+
+    const payload = {
+      BankAccountId: validatedData.BankAccountId,
+      Amount: round(validatedData.Amount),
+      EntryDate: entryDate,
+      ReferenceNumber: validatedData.ReferenceNumber,
+      Memo: validatedData.Memo,
+      Lines: paymentLines,
+    };
+
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/payments`;
+    const buildiumUrl = `${buildiumBaseUrl}/bills/${id}/payments`;
     
     const response = await fetch(buildiumUrl, {
       method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
+      headers: buildiumHeaders,
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {

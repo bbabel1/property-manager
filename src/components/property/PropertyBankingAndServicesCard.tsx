@@ -72,7 +72,6 @@ export default function PropertyBankingAndServicesCard({
 
   // GL balances (as-of)
   const [loadingBalances, setLoadingBalances] = useState(false);
-  const [operatingBalance, setOperatingBalance] = useState<number | null>(null);
   const [trustBalance, setTrustBalance] = useState<number | null>(null);
 
   // Management services state
@@ -135,17 +134,12 @@ export default function PropertyBankingAndServicesCard({
     const load = async () => {
       try {
         if (!property?.id) return;
-        const ids = [operatingId, trustId].filter((v) => typeof v === 'string' && v.length > 0);
-        if (!ids.length) return;
+        if (!trustId) return;
         setLoadingBalances(true);
 
-        const [op, tr] = await Promise.all([
-          operatingId ? fetchOne(operatingId) : Promise.resolve(null),
-          trustId ? fetchOne(trustId) : Promise.resolve(null),
-        ]);
+        const tr = await fetchOne(trustId);
 
         if (cancelled) return;
-        setOperatingBalance(op);
         setTrustBalance(tr);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load GL balances');
@@ -158,7 +152,7 @@ export default function PropertyBankingAndServicesCard({
     return () => {
       cancelled = true;
     };
-  }, [property?.id, operatingId, trustId, fin?.as_of]);
+  }, [property?.id, trustId, fin?.as_of]);
 
   useEffect(() => {
     let cancelled = false;
@@ -285,22 +279,12 @@ export default function PropertyBankingAndServicesCard({
               </div>
             </div>
 
-            {(operatingId || trustId) && (
+            {trustId && (
               <div className="space-y-1">
-                <div className="flex items-baseline justify-between gap-6">
-                  <p className={detailLabelClass}>Operating account balance (as of)</p>
-                  <p className={metricValueClass}>
-                    {loadingBalances
-                      ? '—'
-                      : formatCurrency(operatingBalance ?? 0)}
-                  </p>
-                </div>
                 <div className="flex items-baseline justify-between gap-6">
                   <p className={detailLabelClass}>Trust account balance (as of)</p>
                   <p className={metricValueClass}>
-                    {loadingBalances
-                      ? '—'
-                      : formatCurrency(trustBalance ?? 0)}
+                    {loadingBalances ? '—' : formatCurrency(trustBalance ?? 0)}
                   </p>
                 </div>
               </div>

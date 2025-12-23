@@ -127,13 +127,13 @@ const property = await createProperty(buildiumProperty);
 const unit = await createUnit(buildiumUnit); // ❌ May fail if property missing
 
 // WITH THIS PATTERN:
-import { resolveEntityRelationships } from "@/lib/relationship-resolver";
+import { resolveEntityRelationships } from '@/lib/relationship-resolver';
 const result = await resolveEntityRelationships(
   {
     property: buildiumProperty,
     unit: buildiumUnit,
   },
-  supabase
+  supabase,
 ); // ✅ Ensures proper relationships
 ```
 
@@ -141,10 +141,10 @@ const result = await resolveEntityRelationships(
 
 ```typescript
 // ADD THIS AFTER ANY SYNC OPERATION:
-import { validateDataIntegrity } from "@/lib/data-integrity-validator";
+import { validateDataIntegrity } from '@/lib/data-integrity-validator';
 const validation = await validateDataIntegrity(supabase);
 if (!validation.isValid) {
-  console.error("Data integrity compromised:", validation.errors);
+  console.error('Data integrity compromised:', validation.errors);
   // Handle errors appropriately
 }
 ```

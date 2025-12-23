@@ -7,12 +7,14 @@
 ## Quick Reference
 
 ### Import a Property
+
 ```bash
 # Import a property by ID
 npx tsx scripts/buildium/create/add-buildium-property.ts [property-id]
 ```
 
 ### Sync Bank Accounts First
+
 ```bash
 # Sync bank accounts from Buildium before importing properties
 npx tsx scripts/buildium/sync/sync-buildium-bank-accounts.ts
@@ -45,10 +47,9 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ### Database Schema
 
 Ensure your database has the following tables with the correct schema:
+
 - `properties` - Property information
 - `bank_accounts` - Bank account information
-
-
 
 ## Import Process
 
@@ -73,6 +74,7 @@ npx tsx scripts/buildium/create/add-buildium-property.ts [property-id]
 ```
 
 The script will:
+
 1. Fetch property data from Buildium
 2. Create/update the property in the local database
 3. Link to the appropriate bank account if available
@@ -83,8 +85,8 @@ Verify the import was successful:
 
 ```sql
 -- Check property details
-SELECT id, name, operating_bank_account_id, buildium_property_id 
-FROM properties 
+SELECT id, name, operating_bank_account_id, buildium_property_id
+FROM properties
 WHERE buildium_property_id = [your-property-id];
 
 -- Check bank account linking
@@ -99,41 +101,48 @@ WHERE p.buildium_property_id = [your-property-id];
 ### Issue: `operating_bank_account_id` is NULL
 
 **Symptoms:**
+
 - Property is created but `operating_bank_account_id` is NULL
 - Bank account linking fails
 
 **Root Cause:**
+
 - Bank accounts not synced from Buildium
 - Incorrect column name in database queries
 - Buildium property doesn't have an operating bank account
 
 **Solution:**
+
 1. **Sync bank accounts first:**
+
    ```bash
    npx tsx scripts/buildium/sync/sync-buildium-bank-accounts.ts
    ```
 
 2. **Update existing property manually:**
+
    ```sql
-   UPDATE properties 
+   UPDATE properties
    SET operating_bank_account_id = (SELECT id FROM bank_accounts WHERE buildium_bank_id = [bank-id])
    WHERE buildium_property_id = [property-id];
    ```
 
 3. **Verify bank account exists:**
    ```sql
-   SELECT id, name, buildium_bank_id 
-   FROM bank_accounts 
+   SELECT id, name, buildium_bank_id
+   FROM bank_accounts
    WHERE buildium_bank_id = 10407;
    ```
 
 ### Issue: Bank Account Not Found
 
 **Symptoms:**
+
 - Error: "No bank account found with Buildium ID: XXXX"
 - Property created but bank account not linked
 
 **Solution:**
+
 1. Check if the bank account exists in Buildium
 2. Verify the bank account sync was successful
 3. Check the `buildium_bank_id` column in the `bank_accounts` table
@@ -141,6 +150,7 @@ WHERE p.buildium_property_id = [your-property-id];
 ### Issue: Property Already Exists
 
 **Symptoms:**
+
 - Script reports "Property already exists"
 - No new data is imported
 
@@ -148,8 +158,9 @@ WHERE p.buildium_property_id = [your-property-id];
 The script is designed to handle existing properties gracefully. If you need to update an existing property:
 
 1. **Update bank account linking manually:**
+
    ```sql
-   UPDATE properties 
+   UPDATE properties
    SET operating_bank_account_id = (SELECT id FROM bank_accounts WHERE buildium_bank_id = [bank-id])
    WHERE buildium_property_id = [property-id];
    ```
@@ -162,15 +173,15 @@ The script is designed to handle existing properties gracefully. If you need to 
 
 ### Property Mapping
 
-| Buildium Field | Database Field | Notes |
-|----------------|----------------|-------|
-| `Id` | `buildium_property_id` | Buildium property ID |
-| `Name` | `name` | Property name |
-| `Address` | `address_line1`, `address_line2`, etc. | Full address breakdown |
-| `OperatingBankAccountId` | `operating_bank_account_id` | **CRITICAL**: Links to local bank account |
-| `Reserve` | `reserve` | Property reserve amount |
-| `YearBuilt` | `year_built` | Year property was built |
-| `IsActive` | `status` | Converted to 'Active'/'Inactive' |
+| Buildium Field           | Database Field                         | Notes                                     |
+| ------------------------ | -------------------------------------- | ----------------------------------------- |
+| `Id`                     | `buildium_property_id`                 | Buildium property ID                      |
+| `Name`                   | `name`                                 | Property name                             |
+| `Address`                | `address_line1`, `address_line2`, etc. | Full address breakdown                    |
+| `OperatingBankAccountId` | `operating_bank_account_id`            | **CRITICAL**: Links to local bank account |
+| `Reserve`                | `reserve`                              | Property reserve amount                   |
+| `YearBuilt`              | `year_built`                           | Year property was built                   |
+| `IsActive`               | `status`                               | Converted to 'Active'/'Inactive'          |
 
 ### Bank Account Resolution
 
@@ -183,29 +194,27 @@ The script includes a `findBankAccountByBuildiumId()` function that:
 
 ### Unit Mapping
 
-| Buildium Field | Database Field | Notes |
-|----------------|----------------|-------|
-| `Id` | `buildium_unit_id` | Buildium unit ID |
-| `UnitNumber` | `unit_number` | Unit number/identifier |
-| `UnitBathrooms` | `unit_bathrooms` | Number of bathrooms |
-| `UnitBedrooms` | `unit_bedrooms` | Number of bedrooms |
-| `UnitSize` | `unit_size` | Unit size in square feet |
+| Buildium Field  | Database Field     | Notes                    |
+| --------------- | ------------------ | ------------------------ |
+| `Id`            | `buildium_unit_id` | Buildium unit ID         |
+| `UnitNumber`    | `unit_number`      | Unit number/identifier   |
+| `UnitBathrooms` | `unit_bathrooms`   | Number of bathrooms      |
+| `UnitBedrooms`  | `unit_bedrooms`    | Number of bedrooms       |
+| `UnitSize`      | `unit_size`        | Unit size in square feet |
 
 ### Owner Mapping
 
-| Buildium Field | Database Field | Notes |
-|----------------|----------------|-------|
-| `Id` | `buildium_owner_id` | Buildium owner ID |
-| `FirstName` | `first_name` (contacts table) | Owner's first name |
-| `LastName` | `last_name` (contacts table) | Owner's last name |
-| `Email` | `email` (contacts table) | Owner's email |
-| `PrimaryAddress` | `address_line1`, etc. (contacts table) | Owner's address |
+| Buildium Field   | Database Field                         | Notes              |
+| ---------------- | -------------------------------------- | ------------------ |
+| `Id`             | `buildium_owner_id`                    | Buildium owner ID  |
+| `FirstName`      | `first_name` (contacts table)          | Owner's first name |
+| `LastName`       | `last_name` (contacts table)           | Owner's last name  |
+| `Email`          | `email` (contacts table)               | Owner's email      |
+| `PrimaryAddress` | `address_line1`, etc. (contacts table) | Owner's address    |
 
 ## Scripts Reference
 
 ### Main Import Scripts
-
-
 
 ### Supporting Scripts
 
@@ -216,7 +225,6 @@ The script includes a `findBankAccountByBuildiumId()` function that:
 ### Individual Component Scripts
 
 - `add-buildium-property.ts` - Import property only
-
 
 ## Best Practices
 
@@ -242,7 +250,7 @@ Always verify the import was successful:
 
 ```sql
 -- Check property and bank account linking
-SELECT 
+SELECT
   p.name as property_name,
   p.operating_bank_account_id,
   ba.name as bank_account_name,
@@ -266,16 +274,18 @@ npx tsx scripts/buildium/create/add-buildium-property.ts [property-id] 2>&1 | te
 ### Issue: "Cannot find module './utils/logger'"
 
 **Solution:** The import path is incorrect. Fix the path in the script:
+
 ```typescript
 // Change from:
-import { logger } from './utils/logger'
+import { logger } from './utils/logger';
 // To:
-import { logger } from '../../utils/logger'
+import { logger } from '../../utils/logger';
 ```
 
 ### Issue: "Missing required environment variables"
 
 **Solution:** Ensure all environment variables are set in your `.env` file:
+
 ```bash
 # Check environment variables
 echo "BUILDIUM_BASE_URL: $BUILDIUM_BASE_URL"
@@ -286,8 +296,9 @@ echo "BUILDIUM_CLIENT_SECRET: $BUILDIUM_CLIENT_SECRET"
 ### Issue: "Property already exists"
 
 **Solution:** This is expected behavior. The script checks for existing properties to avoid duplicates. If you need to update an existing property, use SQL directly:
+
 ```sql
-UPDATE properties 
+UPDATE properties
 SET operating_bank_account_id = (SELECT id FROM bank_accounts WHERE buildium_bank_id = [bank-id])
 WHERE buildium_property_id = [property-id];
 ```
@@ -321,6 +332,7 @@ If you encounter issues not covered in this guide:
 ## Changelog
 
 ### 2025-01-15
+
 - **FIXED**: `operating_bank_account_id` issue resolved
 - **ADDED**: Bank account sync requirement
 - **IMPROVED**: Error handling and logging

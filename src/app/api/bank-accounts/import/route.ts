@@ -20,11 +20,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unable to resolve bank GL account from Buildium' }, { status: 422 })
     }
 
-    const { data: glRow, error: glErr } = await supabaseAdmin
-      .from('gl_accounts')
-      .select('id, name, buildium_bank_account_id, buildium_gl_account_id, bank_account_type, bank_account_number, bank_routing_number, bank_country, updated_at')
-      .eq('id', glAccountId)
-      .maybeSingle()
+  const { data: glRow, error: glErr } = await supabaseAdmin
+    .from('gl_accounts')
+    .select('id, name, buildium_gl_account_id, bank_account_type, bank_account_number, bank_routing_number, bank_country, updated_at')
+    .eq('id', glAccountId)
+    .maybeSingle()
 
     if (glErr) {
       return NextResponse.json({ success: true, mode: 'synced', glAccountId, data: null })

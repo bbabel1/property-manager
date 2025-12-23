@@ -35,7 +35,6 @@
 1. **In your Buildium dashboard, go to Settings → Webhooks**
 
 2. **Add a new webhook endpoint:**
-
    - **URL**: `https://yourdomain.com/api/webhooks/buildium`
 
    - **Events**: Select all property management events
@@ -139,27 +138,27 @@ curl -X GET "http://localhost:3000/api/buildium/sync" \
 
 ### **Environment Variables:**
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `BUILDIUM_CLIENT_ID` | Yes | - | Your Buildium client ID |
-| `BUILDIUM_CLIENT_SECRET` | Yes | - | Your Buildium client secret |
-| `BUILDIUM_BASE_URL` | Yes | `https://apisandbox.buildium.com/v1` | Buildium API base URL |
-| `BUILDIUM_SYNC_ENABLED` | No | `true` | Enable/disable Buildium sync |
-| `BUILDIUM_RETRY_ATTEMPTS` | No | `3` | Number of retry attempts for failed API calls |
-| `BUILDIUM_RETRY_DELAY` | No | `1000` | Delay between retry attempts (ms) |
-| `BUILDIUM_TIMEOUT` | No | `30000` | API request timeout (ms) |
-| `BUILDIUM_WEBHOOK_SECRET` | Yes | - | Webhook signature verification secret |
-| `BUILDIUM_WEBHOOK_URL` | No | - | Your webhook endpoint URL |
+| Variable                  | Required | Default                              | Description                                   |
+| ------------------------- | -------- | ------------------------------------ | --------------------------------------------- |
+| `BUILDIUM_CLIENT_ID`      | Yes      | -                                    | Your Buildium client ID                       |
+| `BUILDIUM_CLIENT_SECRET`  | Yes      | -                                    | Your Buildium client secret                   |
+| `BUILDIUM_BASE_URL`       | Yes      | `https://apisandbox.buildium.com/v1` | Buildium API base URL                         |
+| `BUILDIUM_SYNC_ENABLED`   | No       | `true`                               | Enable/disable Buildium sync                  |
+| `BUILDIUM_RETRY_ATTEMPTS` | No       | `3`                                  | Number of retry attempts for failed API calls |
+| `BUILDIUM_RETRY_DELAY`    | No       | `1000`                               | Delay between retry attempts (ms)             |
+| `BUILDIUM_TIMEOUT`        | No       | `30000`                              | API request timeout (ms)                      |
+| `BUILDIUM_WEBHOOK_SECRET` | Yes      | -                                    | Webhook signature verification secret         |
+| `BUILDIUM_WEBHOOK_URL`    | No       | -                                    | Your webhook endpoint URL                     |
 
 ### **API Endpoints:**
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/properties` | POST | Create property with Buildium sync |
-| `/api/owners` | POST | Create owner with Buildium sync |
-| `/api/buildium/sync` | GET | Get sync status or failed syncs |
-| `/api/buildium/sync` | POST | Retry failed syncs |
-| `/api/webhooks/buildium` | POST | Process Buildium webhook events |
+| Endpoint                 | Method | Description                        |
+| ------------------------ | ------ | ---------------------------------- |
+| `/api/properties`        | POST   | Create property with Buildium sync |
+| `/api/owners`            | POST   | Create owner with Buildium sync    |
+| `/api/buildium/sync`     | GET    | Get sync status or failed syncs    |
+| `/api/buildium/sync`     | POST   | Retry failed syncs                 |
+| `/api/webhooks/buildium` | POST   | Process Buildium webhook events    |
 
 ## 🛡️ **Security Considerations**
 

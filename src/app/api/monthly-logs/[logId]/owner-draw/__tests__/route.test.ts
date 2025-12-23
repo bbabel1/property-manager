@@ -67,7 +67,7 @@ const supabaseData: Record<TableName, any[]> = {
       id: 'gl-bank-1',
       name: 'Operating Bank GL',
       org_id: 'org-1',
-      buildium_bank_account_id: 4321,
+      buildium_gl_account_id: 4321,
       buildium_gl_account_id: 4321,
       is_bank_account: true,
     },

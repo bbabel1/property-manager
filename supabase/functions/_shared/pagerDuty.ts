@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 type PagerDutyPayload = {
   summary: string
   severity?: 'info' | 'warning' | 'error' | 'critical'

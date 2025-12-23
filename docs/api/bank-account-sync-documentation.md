@@ -22,11 +22,9 @@ local database.
 **Request Body:**
 
 ```json
-
 {
   "forceSync": false
 }
-
 ```
 
 **Parameters:**
@@ -37,7 +35,6 @@ local database.
 **Response:**
 
 ```json
-
 {
   "success": true,
   "message": "Bank accounts synced successfully",
@@ -48,7 +45,6 @@ local database.
     "errors": []
   }
 }
-
 ```
 
 ### 2. Get Bank Account Sync Status
@@ -65,7 +61,6 @@ local database.
 **Response (all bank accounts):**
 
 ```json
-
 [
   {
     "entityType": "bankAccount",
@@ -78,7 +73,6 @@ local database.
     "updatedAt": "2024-01-15T10:30:00Z"
   }
 ]
-
 ```
 
 ### 3. Get Bank Accounts with Sync Option
@@ -97,7 +91,6 @@ sync from Buildium first.
 **Response:**
 
 ```json
-
 [
   {
     "id": "uuid",
@@ -114,32 +107,31 @@ sync from Buildium first.
     "updated_at": "2024-01-15T10:30:00Z"
   }
 ]
-
 ```
 
 ## Data Mapping
 
 ### Buildium to Local Database
 
-| Buildium Field | Local Database Field | Notes |
-|----------------|---------------------|-------|
-| `Id` | `buildium_bank_id` | Buildium's unique identifier |
-| `Name` | `name` | Bank account name |
-| `BankAccountType` | `bank_account_type` | Converted to lowercase |
-| `AccountNumber` | `account_number` | Account number (may be masked) |
-| `RoutingNumber` | `routing_number` | Routing number (may be masked) |
-| `Description` | `description` | Optional description |
-| `IsActive` | Not stored | Used for filtering during sync |
-| `CreatedDate` | Not stored | Buildium creation timestamp |
-| `ModifiedDate` | Not stored | Buildium last modified timestamp |
+| Buildium Field    | Local Database Field | Notes                            |
+| ----------------- | -------------------- | -------------------------------- |
+| `Id`              | `buildium_bank_id`   | Buildium's unique identifier     |
+| `Name`            | `name`               | Bank account name                |
+| `BankAccountType` | `bank_account_type`  | Converted to lowercase           |
+| `AccountNumber`   | `account_number`     | Account number (may be masked)   |
+| `RoutingNumber`   | `routing_number`     | Routing number (may be masked)   |
+| `Description`     | `description`        | Optional description             |
+| `IsActive`        | Not stored           | Used for filtering during sync   |
+| `CreatedDate`     | Not stored           | Buildium creation timestamp      |
+| `ModifiedDate`    | Not stored           | Buildium last modified timestamp |
 
 ### Bank Account Types
 
-| Buildium Type | Local Database Type |
-|---------------|-------------------|
-| `Checking` | `checking` |
-| `Savings` | `savings` |
-| `MoneyMarket` | `money_market` |
+| Buildium Type          | Local Database Type      |
+| ---------------------- | ------------------------ |
+| `Checking`             | `checking`               |
+| `Savings`              | `savings`                |
+| `MoneyMarket`          | `money_market`           |
 | `CertificateOfDeposit` | `certificate_of_deposit` |
 
 ## Sync Process
@@ -174,24 +166,22 @@ sync from Buildium first.
 ### Using the API
 
 ```javascript
-
 // Sync bank accounts from Buildium
 const response = await fetch('/api/bank-accounts/sync', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   },
-  body: JSON.stringify({ forceSync: true })
-})
+  body: JSON.stringify({ forceSync: true }),
+});
 
-const result = await response.json()
-console.log(`Synced: ${result.data.syncedCount}, Updated: ${result.data.updatedCount}`)
+const result = await response.json();
+console.log(`Synced: ${result.data.syncedCount}, Updated: ${result.data.updatedCount}`);
 
 // Get bank accounts with sync
-const bankAccountsResponse = await fetch('/api/bank-accounts?syncFromBuildium=true')
-const bankAccounts = await bankAccountsResponse.json()
-
+const bankAccountsResponse = await fetch('/api/bank-accounts?syncFromBuildium=true');
+const bankAccounts = await bankAccountsResponse.json();
 ```
 
 ### Using the Script
@@ -209,17 +199,14 @@ npx tsx scripts/sync-buildium-bank-accounts.ts
 ### Common Errors
 
 1. **Authentication Error (401)**
-
    - Missing or invalid API key
    - Expired authentication token
 
 2. **Rate Limiting (429)**
-
    - Too many requests to Buildium API
    - Implemented retry logic with exponential backoff
 
 3. **Database Errors**
-
    - Constraint violations
    - Connection issues
    - Permission errors
@@ -227,13 +214,11 @@ npx tsx scripts/sync-buildium-bank-accounts.ts
 ### Error Response Format
 
 ```json
-
 {
   "success": false,
   "error": "Failed to sync bank accounts",
   "details": "Specific error message"
 }
-
 ```
 
 ## Monitoring and Logging
@@ -258,7 +243,6 @@ npx tsx scripts/sync-buildium-bank-accounts.ts
 ## Security Considerations
 
 1. **API Key Protection**
-
    - Store Buildium client ID and secret in environment variables
    - Use service role key for database operations
    - Never expose credentials in client-side code
@@ -266,13 +250,11 @@ npx tsx scripts/sync-buildium-bank-accounts.ts
      details
 
 2. **Data Privacy**
-
    - Account numbers may be masked in Buildium responses
    - Store only necessary information locally
    - Implement proper access controls
 
 3. **Rate Limiting**
-
    - Respect Buildium API rate limits
    - Implement exponential backoff for retries
    - Monitor API usage

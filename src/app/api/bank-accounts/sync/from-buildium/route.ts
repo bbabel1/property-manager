@@ -43,9 +43,10 @@ export async function POST(request: NextRequest) {
             name: acct.Name,
             description: acct.Description ?? null,
             is_bank_account: true,
-            buildium_bank_account_id: acct.Id,
+            buildium_gl_account_id: acct.Id,
             bank_account_type: (mapped as any).bank_account_type ?? null,
-            bank_account_number: (mapped as any).account_number ?? null,
+            bank_account_number:
+              (mapped as any).bank_account_number ?? (mapped as any).account_number ?? null,
             bank_routing_number: (mapped as any).routing_number ?? null,
             bank_country: (mapped as any).country ?? 'United States',
             bank_buildium_balance: typeof (acct as any)?.Balance === 'number' ? (acct as any).Balance : null,

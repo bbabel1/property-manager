@@ -124,11 +124,10 @@ CREATE TABLE properties (
 **Owner Types:**
 
 - **Individual Owners**: `is_company = false`
-
   - Requires first_name OR last_name
   - Personal tax information (SSN)
-- **Company Owners**: `is_company = true`
 
+- **Company Owners**: `is_company = true`
   - Requires company_name
   - Business tax information (EIN)
 
@@ -161,28 +160,29 @@ CREATE TABLE ownership (
 #### Example 1: Equal Ownership, Unequal Distribution
 
 ```typescript
-
 // Property with 2 owners, equal ownership, unequal income distribution
 const ownership = [
-  { owner_id: "owner-a", ownership_percentage: 50, disbursement_percentage: 70 },
-  { owner_id: "owner-b", ownership_percentage: 50, disbursement_percentage: 30 }
+  { owner_id: 'owner-a', ownership_percentage: 50, disbursement_percentage: 70 },
+  { owner_id: 'owner-b', ownership_percentage: 50, disbursement_percentage: 30 },
 ];
 // Owner A gets 70% of rental income despite 50% ownership
-
 ```
 
 #### Example 2: Management Company Arrangement
 
 ```typescript
-
 // Property owner + management company
 
 const ownership = [
-  { owner_id: "property-owner", ownership_percentage: 100, disbursement_percentage: 90, primary: true },
-  { owner_id: "mgmt-company", ownership_percentage: 0, disbursement_percentage: 10 }
+  {
+    owner_id: 'property-owner',
+    ownership_percentage: 100,
+    disbursement_percentage: 90,
+    primary: true,
+  },
+  { owner_id: 'mgmt-company', ownership_percentage: 0, disbursement_percentage: 10 },
 ];
 // Management company gets 10% of income with no equity stake
-
 ```
 
 ### 3. Units (`units` table)
@@ -262,7 +262,6 @@ CHECK (
 ### Owner Distribution Calculation
 
 ```typescript
-
 async function calculateOwnerDistributions(propertyId: string, netIncome: number) {
   // Get ownership records for property
   const { data: ownerships } = await supabase
@@ -283,19 +282,16 @@ async function calculateOwnerDistributions(propertyId: string, netIncome: number
   const distributableIncome = netIncome - reserveAllocation;
 
   // Calculate distributions based on percentages
-  return ownerships.map(ownership => ({
+  return ownerships.map((ownership) => ({
     owner: ownership.owners,
-    distribution: distributableIncome * (ownership.disbursement_percentage / 100)
-
+    distribution: distributableIncome * (ownership.disbursement_percentage / 100),
   }));
 }
-
 ```
 
 ### Property Valuation Logic
 
 ```typescript
-
 async function calculatePropertyValue(propertyId: string) {
   // Get all units and their market rents
   const { data: units } = await supabase
@@ -316,10 +312,9 @@ async function calculatePropertyValue(propertyId: string) {
     monthlyRent,
     annualGrossRent,
     estimatedValue,
-    capRate
+    capRate,
   };
 }
-
 ```
 
 ## Data Integrity Constraints
@@ -351,7 +346,6 @@ ALTER TABLE owners ADD CONSTRAINT check_individual_owner_names
 ### Business Logic Validation
 
 ```typescript
-
 // Validate total ownership percentages don't exceed 100%
 function validateOwnershipPercentages(ownerships: Ownership[]): boolean {
   const totalOwnership = ownerships.reduce((sum, o) => sum + o.ownership_percentage, 0);
@@ -365,7 +359,6 @@ function validateDisbursementPercentages(ownerships: Ownership[]): boolean {
 
   return Math.abs(totalDisbursement - 100) < 0.01; // Allow for rounding
 }
-
 ```
 
 ## Integration Points
@@ -386,27 +379,23 @@ function validateDisbursementPercentages(ownerships: Ownership[]): boolean {
 ## Business Rules Summary
 
 1. **Property Management**:
-
    - Every property requires an operating bank account
    - Reserve funds are property-level and non-distributable
    - Properties can have multiple units with independent rents
 
 2. **Ownership Management**:
-
    - Multiple owners per property supported
    - Ownership % ≠ Disbursement % (allows complex arrangements)
    - Only one primary owner per property
    - Individual and business owner support with appropriate tax handling
 
 3. **Financial Management**:
-
    - Income flows through operating bank accounts
    - Reserve allocation before owner distributions
    - Precise decimal calculations for financial accuracy
    - Check printing capabilities for expense management
 
 4. **Data Integrity**:
-
    - UUID-based primary keys for scalability
    - Comprehensive constraints and validation
    - Row-level security for multi-tenant support

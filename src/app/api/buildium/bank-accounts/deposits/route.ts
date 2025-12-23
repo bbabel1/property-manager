@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumDepositCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,6 +69,36 @@ export async function POST(request: NextRequest) {
     }
 
     const newDeposit = await response.json();
+
+    try {
+      const bankAccountId =
+        (newDeposit as any)?.BankAccountId ??
+        (newDeposit as any)?.bankAccountId ??
+        (data as any)?.BankAccountId ??
+        (data as any)?.bankAccountId;
+      const transactionId =
+        (newDeposit as any)?.Id ??
+        (newDeposit as any)?.TransactionId ??
+        (newDeposit as any)?.id ??
+        (newDeposit as any)?.transactionId;
+      if (bankAccountId && transactionId) {
+        await canonicalUpsertBuildiumBankTransaction({
+          bankAccountId,
+          transactionId,
+        });
+      } else {
+        logger.warn(
+          {
+            bankAccountId,
+            transactionId,
+          },
+          'Skipping canonical upsert for deposit; missing bankAccountId or transactionId',
+        );
+      }
+    } catch (err) {
+      logger.error({ err }, 'Canonical upsert failed for deposit');
+      throw err;
+    }
 
     return NextResponse.json({
       success: true,

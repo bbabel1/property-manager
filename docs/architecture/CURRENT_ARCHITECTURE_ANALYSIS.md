@@ -44,11 +44,9 @@ The property management system now runs a Supabase-only architecture. Authentica
 **Supabase Configuration:**
 
 ```typescript
-
 // src/lib/db.ts
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
-
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 ```
 
 **Migration Status:**
@@ -66,18 +64,16 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 **Current Implementation:**
 
 ```typescript
-
 // Example from src/app/api/properties/route.ts
-import { supabaseAdmin } from '@/lib/db'
+import { supabaseAdmin } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   const { data: property, error } = await supabaseAdmin
     .from('properties')
     .insert(propertyData)
     .select()
-    .single()
+    .single();
 }
-
 ```
 
 **Endpoints Using Supabase:**

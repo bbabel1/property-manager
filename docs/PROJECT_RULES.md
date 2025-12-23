@@ -35,8 +35,8 @@ This document outlines the key rules and guidelines for maintaining code quality
 **Implementation**:
 
 ```typescript
-import { config } from "dotenv";
-config({ path: ".env.local" });
+import { config } from 'dotenv';
+config({ path: '.env.local' });
 ```
 
 ### 3. Error Handling

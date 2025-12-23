@@ -10,11 +10,13 @@ import { calculateFinancialSummary } from '@/lib/monthly-log-calculations';
 const monthFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'long',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
 const monthKeyFormatter = new Intl.DateTimeFormat('en-CA', {
   year: 'numeric',
   month: '2-digit',
+  timeZone: 'UTC',
 });
 
 type MonthlyLogQueryRow = {

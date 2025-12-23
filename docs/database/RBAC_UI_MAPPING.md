@@ -35,7 +35,8 @@ This document maps the RBAC database tables to their UI management interfaces an
 - ✅ Url
 - ✅ Contact: FirstName, LastName, PhoneNumber
 - ✅ Contact address: AddressLine1/2/3, City, State, PostalCode, Country
-- ✅ AccountingSettings: AccountingBookId, DefaultBankAccountId, DefaultAccountingBasis, TrustAccountWarning, FiscalYearEndMonth, FiscalYearEndDay
+- ✅ AccountingSettings: AccountingBookId, DefaultBankAccountId, DefaultAccountingBasis,
+  TrustAccountWarning, FiscalYearEndMonth, FiscalYearEndDay
 
 **API Endpoint**: `/api/organization` (GET, PATCH) - internal scope
 
@@ -151,15 +152,15 @@ const ROLE_OPTIONS = [
 
 ## 📋 Database Table → UI Mapping
 
-| Database Table     | UI Page                  | Status      | Notes                                 |
-| ------------------ | ------------------------ | ----------- | ------------------------------------- |
+| Database Table     | UI Page                  | Status      | Notes                                                    |
+| ------------------ | ------------------------ | ----------- | -------------------------------------------------------- |
 | `organizations`    | `/settings/organization` | ✅ Working  | Backed by /api/organization (profile/contact/accounting) |
-| `org_memberships`  | `/settings/memberships`  | ✅ Working  | Can assign/remove memberships         |
-| `membership_roles` | `/settings/memberships`  | ✅ Working  | Auto-synced when assigning membership |
-| `roles`            | ❌ No UI                 | ⚠️ API Only | Need UI to manage role definitions    |
-| `role_permissions` | ❌ No UI                 | ⚠️ API Only | Need UI to map roles → permissions    |
-| `permissions`      | ❌ No UI                 | ⚠️ API Only | Need UI to manage permission catalog  |
-| `profiles`         | `/settings/profile`      | ✅ Working  | User profile management               |
+| `org_memberships`  | `/settings/memberships`  | ✅ Working  | Can assign/remove memberships                            |
+| `membership_roles` | `/settings/memberships`  | ✅ Working  | Auto-synced when assigning membership                    |
+| `roles`            | ❌ No UI                 | ⚠️ API Only | Need UI to manage role definitions                       |
+| `role_permissions` | ❌ No UI                 | ⚠️ API Only | Need UI to map roles → permissions                       |
+| `permissions`      | ❌ No UI                 | ⚠️ API Only | Need UI to manage permission catalog                     |
+| `profiles`         | `/settings/profile`      | ✅ Working  | User profile management                                  |
 
 ---
 
@@ -328,15 +329,15 @@ const ROLE_OPTIONS = [
 
 ### Missing Endpoints ❌
 
-| Endpoint                  | Method | Purpose              | Needed For                  |
-| ------------------------- | ------ | -------------------- | --------------------------- |
-| `/api/permissions`        | GET    | List all permissions | Permission management UI    |
-| `/api/permissions`        | POST   | Create permission    | Permission management UI    |
-| `/api/roles`              | GET    | List all roles       | Dynamic role dropdown       |
-| `/api/roles/[id]`         | GET    | Get role details     | Role edit page              |
-| `/api/roles/[id]`         | DELETE | Delete role          | Role management             |
-| `/api/admin/users`        | GET    | List all users       | ✅ Used by memberships page |
-| `/api/admin/orgs`         | GET    | List all orgs        | ✅ Used by memberships page |
+| Endpoint           | Method | Purpose              | Needed For                  |
+| ------------------ | ------ | -------------------- | --------------------------- |
+| `/api/permissions` | GET    | List all permissions | Permission management UI    |
+| `/api/permissions` | POST   | Create permission    | Permission management UI    |
+| `/api/roles`       | GET    | List all roles       | Dynamic role dropdown       |
+| `/api/roles/[id]`  | GET    | Get role details     | Role edit page              |
+| `/api/roles/[id]`  | DELETE | Delete role          | Role management             |
+| `/api/admin/users` | GET    | List all users       | ✅ Used by memberships page |
+| `/api/admin/orgs`  | GET    | List all orgs        | ✅ Used by memberships page |
 
 ---
 
@@ -486,7 +487,7 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 **Option A: Use Existing UI** (Easiest)
 
-1. Navigate to: **`http://localhost:3000/settings/memberships`**
+1. Navigate to: **[`http://localhost:3000/settings/memberships`](http://localhost:3000/settings/memberships)**
 2. In "Quick Assign" section:
    - User: Select `brandon@managedbyora.com`
    - Organization: Select `Ora Property Management`
@@ -497,8 +498,12 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 **Option B: Use API Directly**
 
+Set `API_URL` to your instance (for local dev:
+[`http://localhost:3000/api/admin/memberships/simple`](http://localhost:3000/api/admin/memberships/simple))
+and run:
+
 ```bash
-curl -X POST http://localhost:3000/api/admin/memberships/simple \
+curl -X POST "$API_URL" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "e4800813-a9ee-494a-a6a3-7f2d3cae6257",

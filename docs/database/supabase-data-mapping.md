@@ -21,60 +21,52 @@ The database contains several core tables that map to different UI components:
 // Buildium integration + sync metadata
 interface PropertyIntegration {
   buildium_property_id?: number; // Buildium property ID (unique per property)
-  buildium_created_at?: string;  // Timestamp from Buildium when first seen
-  buildium_updated_at?: string;  // Timestamp from Buildium for last update
+  buildium_created_at?: string; // Timestamp from Buildium when first seen
+  buildium_updated_at?: string; // Timestamp from Buildium for last update
 }
 ```
 
 ### Units Card
 
 ```typescript
-
 interface UnitsCardData {
   total_units: number;
   occupied_units: number;
   vacant_units: number;
   maintenance_units: number;
 }
-
 ```
 
 ### Owners Card
 
 ```typescript
-
 interface OwnersCardData {
   total_owners: number;
   active_owners: number;
   inactive_owners: number;
 }
-
 ```
 
 ### Type Card
 
 ```typescript
-
 interface TypeCardData {
   property_type: string;
   square_footage: number;
   bedrooms: number;
   bathrooms: number;
 }
-
 ```
 
 ### Occupancy Card
 
 ```typescript
-
 interface OccupancyCardData {
   occupancy_rate: number;
   total_units: number;
   occupied_units: number;
   vacant_units: number;
 }
-
 ```
 
 ### Property Details
@@ -82,7 +74,6 @@ interface OccupancyCardData {
 #### Property Image
 
 ```typescript
-
 interface PropertyImage {
   id: string;
   property_id: string;
@@ -91,13 +82,11 @@ interface PropertyImage {
   is_primary: boolean;
   created_at: string;
 }
-
 ```
 
 #### Address
 
 ```typescript
-
 interface PropertyAddress {
   address_line_1: string;
   address_line_2?: string;
@@ -106,48 +95,40 @@ interface PropertyAddress {
   postal_code: string;
   country: string;
 }
-
 ```
 
 #### Property Manager
 
 ```typescript
-
 interface PropertyManager {
   id: string;
   name: string;
   email: string;
   phone: string;
 }
-
 ```
 
 #### Property Type
 
 ```typescript
-
 interface PropertyType {
   property_type: string;
   description?: string;
 }
-
 ```
 
 #### Status
 
 ```typescript
-
 interface PropertyStatus {
   is_active: boolean;
   status: 'active' | 'inactive' | 'maintenance';
 }
-
 ```
 
 #### Rental Owners
 
 ```typescript
-
 interface RentalOwners {
   owners: Array<{
     id: string;
@@ -157,34 +138,28 @@ interface RentalOwners {
     ownership_percentage: number;
   }>;
 }
-
 ```
 
 #### Property Reserve
 
 ```typescript
-
 interface PropertyReserve {
   reserve_amount: number;
   reserve_currency: string;
 }
-
 ```
 
 #### Year Built
 
 ```typescript
-
 interface YearBuilt {
   year_built: number;
 }
-
 ```
 
 #### Total Units
 
 ```typescript
-
 interface TotalUnits {
   total_units: number;
   units_breakdown: {
@@ -193,51 +168,43 @@ interface TotalUnits {
     maintenance: number;
   };
 }
-
 ```
 
 #### Operating Account
 
 ```typescript
-
 interface OperatingAccount {
   bank_account_id: string;
   account_name: string;
   account_number: string;
   routing_number: string;
 }
-
 ```
 
 #### Deposit Trust Account
 
 ```typescript
-
 interface DepositTrustAccount {
   bank_account_id: string;
   account_name: string;
   account_number: string;
   routing_number: string;
 }
-
 ```
 
 #### Property Reserve
 
 ```typescript
-
 interface PropertyReserve {
   reserve_amount: number;
   reserve_currency: string;
   reserve_purpose: string;
 }
-
 ```
 
 ## Units Table
 
 ```typescript
-
 interface Unit {
   id: string;
   property_id: string;
@@ -253,18 +220,16 @@ interface Unit {
   updated_at: string;
 
   // Buildium integration
-  buildium_unit_id?: number;     // Unique Buildium unit ID
+  buildium_unit_id?: number; // Unique Buildium unit ID
   buildium_property_id?: number; // Parent Buildium property ID
-  buildium_created_at?: string;  // First-seen timestamp from Buildium
-  buildium_updated_at?: string;  // Last update timestamp from Buildium
+  buildium_created_at?: string; // First-seen timestamp from Buildium
+  buildium_updated_at?: string; // Last update timestamp from Buildium
 }
-
 ```
 
 ## Financial Data
 
 ```typescript
-
 interface FinancialData {
   total_income: number;
   total_expenses: number;
@@ -275,13 +240,11 @@ interface FinancialData {
   property_taxes: number;
   insurance_costs: number;
 }
-
 ```
 
 ## Files Data
 
 ```typescript
-
 interface FileData {
   id: string;
   entity_type: 'property' | 'unit' | 'owner' | 'lease';
@@ -292,13 +255,11 @@ interface FileData {
   file_size: number;
   uploaded_at: string;
 }
-
 ```
 
 ## Vendors Data
 
 ```typescript
-
 interface VendorData {
   id: string;
   name: string;
@@ -314,7 +275,6 @@ interface VendorData {
   category: string;
   is_active: boolean;
 }
-
 ```
 
 ## Database Schema Enhancements

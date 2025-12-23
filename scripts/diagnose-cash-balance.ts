@@ -43,7 +43,7 @@ async function diagnoseCashBalance() {
 
   const { data: bankAccounts } = await supabaseAdmin
     .from('gl_accounts')
-    .select('id, name, account_number, is_bank_account')
+    .select('id, name, bank_account_number, is_bank_account')
     .in('id', bankGlAccountIds);
 
   console.log('Bank GL Accounts:');
@@ -152,4 +152,3 @@ diagnoseCashBalance()
     console.error('Fatal error:', error);
     process.exit(1);
   });
-

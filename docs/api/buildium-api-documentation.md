@@ -66,7 +66,6 @@ Create a webhook endpoint in your application to receive Buildium
 notifications:
 
 ```typescript
-
 // Example: src/app/api/webhooks/buildium/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyWebhookSignature } from '@/lib/webhooks';
@@ -104,7 +103,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
   }
 }
-
 ```
 
 #### 2. Configure Webhook in Buildium
@@ -126,7 +124,6 @@ Set up webhooks in your Buildium account:
 Always verify webhook signatures to ensure requests come from Buildium:
 
 ```typescript
-
 // Example: src/lib/webhooks.ts
 import crypto from 'crypto';
 
@@ -138,25 +135,20 @@ export function verifyWebhookSignature(payload: string, signature: string | null
     .update(payload)
     .digest('hex');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
 }
-
 ```
 
 ### Webhook Event Structure
 
 ```json
-
 {
   "eventId": "evt_123456789",
   "eventType": "lease.payment_received",
   "timestamp": "2024-01-15T10:30:00Z",
   "data": {
     "leaseId": 12345,
-    "paymentAmount": 1500.00,
+    "paymentAmount": 1500.0,
     "paymentDate": "2024-01-15",
     "tenantId": 67890
   },
@@ -165,7 +157,6 @@ export function verifyWebhookSignature(payload: string, signature: string | null
     "version": "1.0"
   }
 }
-
 ```
 
 ### Environment Variables for Webhooks
@@ -205,13 +196,13 @@ Buildium provides webhook testing tools in the admin panel:
 
 ### Common Event Types
 
-| Event Type | Description | Data Included |
-|------------|-------------|---------------|
-| `bank_account.updated` | Bank account modified | Account details, changes |
-| `lease.payment_received` | Payment received | Payment amount, date, tenant |
-| `task.status_changed` | Task status updated | Task details, new status |
-| `property.updated` | Property information changed | Property details, changes |
-| `tenant.moved_in` | Tenant moved in | Tenant details, lease info |
+| Event Type               | Description                  | Data Included                |
+| ------------------------ | ---------------------------- | ---------------------------- |
+| `bank_account.updated`   | Bank account modified        | Account details, changes     |
+| `lease.payment_received` | Payment received             | Payment amount, date, tenant |
+| `task.status_changed`    | Task status updated          | Task details, new status     |
+| `property.updated`       | Property information changed | Property details, changes    |
+| `tenant.moved_in`        | Tenant moved in              | Tenant details, lease info   |
 
 ## Bank Accounts Entity (Complete)
 
@@ -675,7 +666,6 @@ Buildium provides webhook testing tools in the admin panel:
 ### Create Bank Account
 
 ```json
-
 {
   "Name": "Operating Account",
   "BankAccountType": "Checking",
@@ -684,109 +674,95 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "Main operating account",
   "IsActive": true
 }
-
 ```
 
 ### Create Check
 
 ```json
-
 {
   "BankAccountId": 10407,
-  "Amount": 1500.00,
+  "Amount": 1500.0,
   "PayeeName": "ABC Services",
   "Memo": "Monthly maintenance",
   "CheckNumber": "1001",
   "Date": "2024-01-15T00:00:00Z"
 }
-
 ```
 
 ### Create Deposit
 
 ```json
-
 {
   "BankAccountId": 10407,
-  "Amount": 2500.00,
+  "Amount": 2500.0,
   "Description": "Rent payment deposit",
   "Date": "2024-01-15T00:00:00Z"
 }
-
 ```
 
 ### Create Withdrawal
 
 ```json
-
 {
   "BankAccountId": 10407,
-  "Amount": 1000.00,
+  "Amount": 1000.0,
   "Description": "Utility payment withdrawal",
   "Date": "2024-01-15T00:00:00Z"
 }
-
 ```
 
 ### Create Bill
 
 ```json
-
 {
   "VendorId": 12345,
   "PropertyId": 67890,
   "Date": "2024-01-15T00:00:00Z",
   "DueDate": "2024-02-15T00:00:00Z",
-  "Amount": 500.00,
+  "Amount": 500.0,
   "Description": "Monthly maintenance bill",
   "ReferenceNumber": "INV-2024-001",
   "CategoryId": 1,
   "IsRecurring": false
 }
-
 ```
 
 ### Create Bill Payment
 
 ```json
-
 {
   "BankAccountId": 10407,
-  "Amount": 500.00,
+  "Amount": 500.0,
   "Date": "2024-01-20T00:00:00Z",
   "ReferenceNumber": "PAY-2024-001",
   "Memo": "Payment for maintenance bill"
 }
-
 ```
 
 ### Create Bulk Bill Payment
 
 ```json
-
 {
   "BankAccountId": 10407,
   "Bills": [
     {
       "BillId": 123,
-      "Amount": 500.00
+      "Amount": 500.0
     },
     {
       "BillId": 124,
-      "Amount": 300.00
+      "Amount": 300.0
     }
   ],
   "Date": "2024-01-20T00:00:00Z",
   "ReferenceNumber": "BULK-PAY-2024-001",
   "Memo": "Bulk payment for multiple bills"
 }
-
 ```
 
 ### Create General Ledger Entry
 
 ```json
-
 {
   "Date": "2024-01-15T00:00:00Z",
   "ReferenceNumber": "JE-2024-001",
@@ -794,23 +770,21 @@ Buildium provides webhook testing tools in the admin panel:
   "Lines": [
     {
       "AccountId": 1001,
-      "Amount": 5000.00,
+      "Amount": 5000.0,
       "Memo": "Rent income"
     },
     {
       "AccountId": 2001,
-      "Amount": -5000.00,
+      "Amount": -5000.0,
       "Memo": "Accounts receivable"
     }
   ]
 }
-
 ```
 
 ### Create General Ledger Account
 
 ```json
-
 {
   "Name": "Rent Income",
   "AccountType": "Revenue",
@@ -818,13 +792,11 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "Income from rental properties",
   "IsActive": true
 }
-
 ```
 
 ### Create Property
 
 ```json
-
 {
   "Name": "Sunset Apartments",
   "Address": {
@@ -843,103 +815,85 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "Modern apartment complex",
   "IsActive": true
 }
-
 ```
 
 ### Update Property Preferred Vendors
 
 ```json
-
 {
   "VendorIds": [123, 456, 789]
 }
-
 ```
 
 ### Update Property Amenities
 
 ```json
-
 {
   "AmenityIds": [1, 2, 3, 4]
 }
-
 ```
 
 ### Update Property EPay Settings
 
 ```json
-
 {
   "IsEnabled": true,
   "AllowPartialPayments": true,
-  "MinimumPaymentAmount": 100.00,
+  "MinimumPaymentAmount": 100.0,
   "PaymentMethods": ["CreditCard", "DebitCard", "ACH"]
 }
-
 ```
 
 ### Upload Property Image
 
 ```json
-
 {
   "FileName": "property-front-view.jpg",
   "FileData": "base64-encoded-image-data",
   "Description": "Front view of the property"
 }
-
 ```
 
 ### Update Property Image Order
 
 ```json
-
 {
   "ImageIds": [1, 3, 2, 4]
 }
-
 ```
 
 ### Create Property Image from Video
 
 ```json
-
 {
   "VideoUrl": "https://example.com/video.mp4",
   "Description": "Property walkthrough video"
 }
-
 ```
 
 ### Create Property Note
 
 ```json
-
 {
   "Subject": "Maintenance Update",
   "Body": "HVAC system serviced and filters replaced",
   "IsPrivate": false
 }
-
 ```
 
 ### Update Property Note
 
 ```json
-
 {
   "Subject": "Updated Maintenance Record",
   "Body": "HVAC system serviced, filters replaced, and thermostat calibrated",
   "IsPrivate": true
 }
-
 ```
 
 ### Create Unit
 
 ```json
-
 {
   "PropertyId": 12345,
   "UnitNumber": "A101",
@@ -947,84 +901,70 @@ Buildium provides webhook testing tools in the admin panel:
   "Bedrooms": 2,
   "Bathrooms": 1.5,
   "SquareFootage": 1200,
-  "MarketRent": 1800.00,
+  "MarketRent": 1800.0,
   "Description": "Spacious 2-bedroom apartment",
   "IsActive": true
 }
-
 ```
 
 ### Update Unit Amenities
 
 ```json
-
 {
   "AmenityIds": [1, 2, 3, 4]
 }
-
 ```
 
 ### Upload Unit Image
 
 ```json
-
 {
   "FileName": "unit-living-room.jpg",
   "FileData": "base64-encoded-image-data",
   "Description": "Living room view of the unit"
 }
-
 ```
 
 ### Update Unit Image Order
 
 ```json
-
 {
   "ImageIds": [1, 3, 2, 4]
 }
-
 ```
 
 ### Create Unit Image from Video
 
 ```json
-
 {
   "VideoUrl": "https://example.com/unit-walkthrough.mp4",
   "Description": "Unit walkthrough video"
 }
-
 ```
 
 ### Create Unit Note
 
 ```json
-
 {
   "Subject": "Maintenance Request",
   "Body": "Kitchen faucet needs repair",
   "IsPrivate": false
 }
-
 ```
 
 ### Update Unit Note
 
 ```json
-
 {
   "Subject": "Updated Maintenance Request",
   "Body": "Kitchen faucet repaired and tested",
   "IsPrivate": true
 }
-
 ```
 
 ### Create Appliance
 
 ```json
-
 {
   "PropertyId": 12345,
   "UnitId": 67890,
@@ -1037,13 +977,11 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "French door refrigerator",
   "IsActive": true
 }
-
 ```
 
 ### Update Appliance
 
 ```json
-
 {
   "ApplianceType": "Dishwasher",
   "Brand": "Bosch",
@@ -1054,28 +992,24 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "Quiet dishwasher",
   "IsActive": true
 }
-
 ```
 
 ### Create Service History
 
 ```json
-
 {
   "ServiceDate": "2024-03-15T00:00:00Z",
   "ServiceType": "Maintenance",
   "Description": "Annual maintenance check",
-  "Cost": 150.00,
+  "Cost": 150.0,
   "VendorId": 12345,
   "Notes": "All systems functioning"
 }
-
 ```
 
 ### Create Owner
 
 ```json
-
 {
   "FirstName": "John",
   "LastName": "Smith",
@@ -1092,13 +1026,11 @@ Buildium provides webhook testing tools in the admin panel:
   "TaxId": "12-3456789",
   "IsActive": true
 }
-
 ```
 
 ### Update Owner
 
 ```json
-
 {
   "FirstName": "John",
   "LastName": "Smith",
@@ -1115,37 +1047,31 @@ Buildium provides webhook testing tools in the admin panel:
   "TaxId": "98-7654321",
   "IsActive": true
 }
-
 ```
 
 ### Create Owner Note
 
 ```json
-
 {
   "Subject": "Property Discussion",
   "Body": "Discussed property maintenance and rental rates",
   "IsPrivate": false
 }
-
 ```
 
 ### Update Owner Note
 
 ```json
-
 {
   "Subject": "Updated Property Discussion",
   "Body": "Updated discussion notes with new schedule",
   "IsPrivate": true
 }
-
 ```
 
 ### Create Tenant
 
 ```json
-
 {
   "FirstName": "Jane",
   "LastName": "Doe",
@@ -1168,13 +1094,11 @@ Buildium provides webhook testing tools in the admin panel:
   },
   "IsActive": true
 }
-
 ```
 
 ### Update Tenant
 
 ```json
-
 {
   "FirstName": "Jane",
   "LastName": "Smith",
@@ -1197,115 +1121,99 @@ Buildium provides webhook testing tools in the admin panel:
   },
   "IsActive": true
 }
-
 ```
 
 ### Create Tenant Note
 
 ```json
-
 {
   "Subject": "Maintenance Request",
   "Body": "Tenant reported leaky faucet in kitchen",
   "IsPrivate": false
 }
-
 ```
 
 ### Update Tenant Note
 
 ```json
-
 {
   "Subject": "Updated Maintenance Request",
   "Body": "Leaky faucet has been repaired",
   "IsPrivate": true
 }
-
 ```
 
 ### Create Lease
 
 ```json
-
 {
   "PropertyId": 12345,
   "UnitId": 67890,
   "TenantId": 11111,
   "StartDate": "2024-01-01T00:00:00Z",
   "EndDate": "2024-12-31T23:59:59Z",
-  "RentAmount": 1500.00,
-  "SecurityDepositAmount": 1500.00,
-  "PetDepositAmount": 300.00,
+  "RentAmount": 1500.0,
+  "SecurityDepositAmount": 1500.0,
+  "PetDepositAmount": 300.0,
   "LeaseType": "FixedTerm",
   "IsActive": true,
   "Notes": "Standard one-year lease agreement"
 }
-
 ```
 
 ### Update Lease
 
 ```json
-
 {
   "PropertyId": 12345,
   "UnitId": 67890,
   "TenantId": 11111,
   "StartDate": "2024-01-01T00:00:00Z",
   "EndDate": "2025-01-31T23:59:59Z",
-  "RentAmount": 1600.00,
-  "SecurityDepositAmount": 1600.00,
-  "PetDepositAmount": 300.00,
+  "RentAmount": 1600.0,
+  "SecurityDepositAmount": 1600.0,
+  "PetDepositAmount": 300.0,
   "LeaseType": "FixedTerm",
   "IsActive": true,
   "Notes": "Updated lease with rent increase"
 }
-
 ```
 
 ### Create Lease Move Out
 
 ```json
-
 {
   "MoveOutDate": "2024-12-31T23:59:59Z",
   "Reason": "Lease expiration",
   "Notes": "Tenant completed lease term successfully"
 }
-
 ```
 
 ### Create Lease Note
 
 ```json
-
 {
   "Subject": "Maintenance Request",
   "Body": "Tenant reported HVAC issue in unit",
   "IsPrivate": false
 }
-
 ```
 
 ### Update Lease Note
 
 ```json
-
 {
   "Subject": "Updated Maintenance Request",
   "Body": "HVAC issue has been resolved",
   "IsPrivate": true
 }
-
 ```
 
 ### Create Lease Charge
 
 ```json
-
 {
-  "Amount": 1500.00,
+  "Amount": 1500.0,
   "Date": "2024-01-01T00:00:00Z",
   "Description": "Monthly rent payment",
   "ChargeType": "Rent",
@@ -1313,15 +1221,13 @@ Buildium provides webhook testing tools in the admin panel:
   "RecurringFrequency": "Monthly",
   "Notes": "Standard monthly rent charge"
 }
-
 ```
 
 ### Update Lease Charge
 
 ```json
-
 {
-  "Amount": 1600.00,
+  "Amount": 1600.0,
   "Date": "2024-01-01T00:00:00Z",
   "Description": "Updated monthly rent payment",
   "ChargeType": "Rent",
@@ -1329,64 +1235,52 @@ Buildium provides webhook testing tools in the admin panel:
   "RecurringFrequency": "Monthly",
   "Notes": "Updated rent amount due to lease renewal"
 }
-
 ```
 
 ### Update Task History
 
 ```json
-
 {
   "Status": "Completed",
   "Notes": "Task completed successfully",
   "CompletedDate": "2024-01-15T10:30:00Z",
   "AssignedTo": "John Doe"
 }
-
 ```
 
 ### Upload Task History File
 
 ```json
-
 {
   "FileName": "maintenance_report.pdf",
   "FileContent": "base64_encoded_file_content",
   "ContentType": "application/pdf"
 }
-
 ```
 
 ### Create Task Category
 
 ```json
-
 {
   "Name": "Plumbing",
   "Description": "All plumbing related maintenance tasks",
   "Color": "#FF5733"
-
 }
-
 ```
 
 ### Update Task Category
 
 ```json
-
 {
   "Name": "Plumbing Maintenance",
   "Description": "Updated description for plumbing tasks",
   "Color": "#FF5733"
-
 }
-
 ```
 
 ### Create Owner Request
 
 ```json
-
 {
   "OwnerId": 12345,
   "PropertyId": 67890,
@@ -1394,45 +1288,39 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "The kitchen sink is leaking and needs immediate repair",
   "Priority": "High",
   "RequestType": "Maintenance",
-  "EstimatedCost": 250.00,
+  "EstimatedCost": 250.0,
   "RequestedDate": "2024-01-15T10:30:00Z"
 }
-
 ```
 
 ### Update Owner Request
 
 ```json
-
 {
   "Subject": "Updated kitchen sink repair request",
   "Description": "Kitchen sink repair with additional details",
   "Priority": "Urgent",
   "RequestType": "Maintenance",
   "Status": "InProgress",
-  "EstimatedCost": 300.00,
+  "EstimatedCost": 300.0,
   "CompletedDate": "2024-01-20T15:45:00Z"
 }
-
 ```
 
 ### Update Owner Contribution Request
 
 ```json
-
 {
-  "ContributionAmount": 150.00,
+  "ContributionAmount": 150.0,
   "ContributionPercentage": 50,
   "Notes": "Owner agrees to contribute 50% of the repair cost",
   "Status": "Approved"
 }
-
 ```
 
 ### Create Resident Request
 
 ```json
-
 {
   "TenantId": 12345,
   "PropertyId": 67890,
@@ -1441,32 +1329,28 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "The heating system stopped working this morning.",
   "Priority": "High",
   "RequestType": "Maintenance",
-  "EstimatedCost": 200.00,
+  "EstimatedCost": 200.0,
   "RequestedDate": "2024-01-15T08:00:00Z"
 }
-
 ```
 
 ### Update Resident Request
 
 ```json
-
 {
   "Subject": "Updated heating system repair request",
   "Description": "Heating system repair with additional details",
   "Priority": "Urgent",
   "RequestType": "Maintenance",
   "Status": "InProgress",
-  "EstimatedCost": 250.00,
+  "EstimatedCost": 250.0,
   "CompletedDate": "2024-01-16T14:30:00Z"
 }
-
 ```
 
 ### Create To Do Request
 
 ```json
-
 {
   "Subject": "Review monthly financial reports",
   "Description": "Review and analyze monthly financial reports",
@@ -1476,13 +1360,11 @@ Buildium provides webhook testing tools in the admin panel:
   "Category": "Financial Review",
   "Notes": "Focus on revenue trends and expense analysis"
 }
-
 ```
 
 ### Update To Do Request
 
 ```json
-
 {
   "Subject": "Updated monthly financial review",
   "Description": "Review and analyze monthly financial reports with cash flow focus",
@@ -1494,13 +1376,11 @@ Buildium provides webhook testing tools in the admin panel:
   "Notes": "Include cash flow analysis and budget variance",
   "CompletedDate": "2024-01-21T16:30:00Z"
 }
-
 ```
 
 ### Create Work Order
 
 ```json
-
 {
   "PropertyId": 12345,
   "UnitId": 67890,
@@ -1508,38 +1388,34 @@ Buildium provides webhook testing tools in the admin panel:
   "Description": "The HVAC system is not cooling properly",
   "Priority": "High",
   "AssignedTo": "Maintenance Team",
-  "EstimatedCost": 500.00,
+  "EstimatedCost": 500.0,
   "ScheduledDate": "2024-01-25T09:00:00Z",
   "Category": "HVAC Maintenance",
   "Notes": "Tenant reported issue with cooling system"
 }
-
 ```
 
 ### Update Work Order
 
 ```json
-
 {
   "Subject": "Updated HVAC system repair",
   "Description": "HVAC system repair with diagnostic work",
   "Priority": "Urgent",
   "Status": "InProgress",
   "AssignedTo": "Maintenance Team",
-  "EstimatedCost": 600.00,
-  "ActualCost": 550.00,
+  "EstimatedCost": 600.0,
+  "ActualCost": 550.0,
   "ScheduledDate": "2024-01-26T09:00:00Z",
   "Category": "HVAC Maintenance",
   "Notes": "Additional diagnostic work required",
   "CompletedDate": "2024-01-27T16:00:00Z"
 }
-
 ```
 
 ### Create Vendor
 
 ```json
-
 {
   "Name": "ABC Plumbing Services",
   "CategoryId": 12345,
@@ -1558,13 +1434,11 @@ Buildium provides webhook testing tools in the admin panel:
   "Notes": "Reliable plumbing contractor for emergency repairs",
   "IsActive": true
 }
-
 ```
 
 ### Update Vendor
 
 ```json
-
 {
   "Name": "ABC Plumbing & HVAC Services",
   "CategoryId": 12346,
@@ -1583,34 +1457,29 @@ Buildium provides webhook testing tools in the admin panel:
   "Notes": "Reliable plumbing and HVAC contractor for emergency repairs",
   "IsActive": true
 }
-
 ```
 
 ### Create Vendor Credit
 
 ```json
-
 {
-  "Amount": 150.00,
+  "Amount": 150.0,
   "Date": "2024-01-15T10:00:00Z",
   "Description": "Credit for overpayment on invoice #12345",
 
   "ReferenceNumber": "CR-2024-001",
   "Notes": "Customer requested credit for overpayment"
 }
-
 ```
 
 ### Create Vendor Note
 
 ```json
-
 {
   "Subject": "Contract Renewal Discussion",
   "Note": "Discussed contract renewal terms for 2024. Vendor requested 5% increase in rates.",
   "IsPrivate": false
 }
-
 ```
 
 ### Update Vendor Note
@@ -1629,45 +1498,38 @@ increase.",
 ### Create Vendor Refund
 
 ```json
-
 {
-  "Amount": 250.00,
+  "Amount": 250.0,
   "Date": "2024-01-20T14:30:00Z",
   "Description": "Refund for cancelled service appointment",
   "ReferenceNumber": "REF-2024-001",
   "Notes": "Customer cancelled appointment with 24-hour notice"
 }
-
 ```
 
 ### Create Vendor Category
 
 ```json
-
 {
   "Name": "Plumbing Services",
   "Description": "Vendors providing plumbing repair and maintenance services",
   "IsActive": true
 }
-
 ```
 
 ### Update Vendor Category
 
 ```json
-
 {
   "Name": "Plumbing & HVAC Services",
   "Description": "Vendors providing plumbing and HVAC repair and maintenance services",
   "IsActive": true
 }
-
 ```
 
 ### Upload File
 
 ```json
-
 {
   "Name": "Property_Photo_001.jpg",
   "CategoryId": 12345,
@@ -1676,71 +1538,60 @@ increase.",
   "FileType": "image/jpeg",
   "IsPrivate": false
 }
-
 ```
 
 ### Update File
 
 ```json
-
 {
   "Name": "Updated_Property_Photo_001.jpg",
   "CategoryId": 12346,
   "Description": "Updated front view of the property",
   "IsPrivate": true
 }
-
 ```
 
 ### Update File Share Settings
 
 ```json
-
 {
   "IsPublic": true,
   "AllowDownload": true,
   "AllowView": true,
   "ExpirationDate": "2024-12-31T23:59:59Z"
 }
-
 ```
 
 ### Create File Category
 
 ```json
-
 {
   "Name": "Property Photos",
   "Description": "Category for all property-related photos",
   "IsActive": true
 }
-
 ```
 
 ### Update File Category
 
 ```json
-
 {
   "Name": "Property Documents & Photos",
   "Description": "Category for all property-related documents and photos",
   "IsActive": true
 }
-
 ```
 
 ### Update Partial Payment Settings
 
 ```json
-
 {
   "AllowPartialPayments": true,
-  "MinimumPaymentAmount": 50.00,
-  "PartialPaymentFee": 5.00,
+  "MinimumPaymentAmount": 50.0,
+  "PartialPaymentFee": 5.0,
   "PartialPaymentFeeType": "Fixed",
   "ApplyFeeToAllPartialPayments": true
 }
-
 ```
 
 ## Response Format
@@ -1758,12 +1609,10 @@ increase.",
 ## Error Response
 
 ```json
-
 {
   "error": "Error message",
   "details": "Additional error details"
 }
-
 ```
 
 ## Implementation Status

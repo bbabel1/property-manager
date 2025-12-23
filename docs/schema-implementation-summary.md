@@ -87,21 +87,18 @@
 ### **High Priority**
 
 1. **Update Remaining API Routes**
-
    - `src/app/api/properties/[id]/route.ts` - Add PropertyUpdateSchema validation
    - `src/app/api/owners/[id]/route.ts` - Add OwnerUpdateSchema validation
    - `src/app/api/units/[id]/route.ts` - Add UnitUpdateSchema validation
    - Create new API routes for leases, tenants, and ownerships
 
 2. **Update Forms with React Hook Form**
-
    - `src/components/CreateOwnerModal.tsx` - Integrate OwnerCreateSchema
    - `src/components/AddUnitModal.tsx` - Integrate UnitCreateSchema
    - `src/components/CreateStaffModal.tsx` - Integrate StaffCreateSchema
    - `src/components/CreateBankAccountModal.tsx` - Integrate BankAccountCreateSchema
 
 3. **Add Missing API Endpoints**
-
    - `/api/leases` - Lease management endpoints
    - `/api/tenants` - Tenant management endpoints
    - `/api/ownerships` - Ownership relationship endpoints
@@ -109,19 +106,16 @@
 ### **Medium Priority**
 
 1. **Enhanced Validation**
-
    - Add more business logic validation rules
    - Implement conditional validation based on entity relationships
    - Add custom validation for complex scenarios
 
 2. **Error Handling**
-
    - Improve error message formatting
    - Add field-specific error handling in forms
    - Implement validation error logging
 
 3. **Performance Optimization**
-
    - Add validation caching for frequently used schemas
    - Optimize large form validation
    - Implement lazy validation for complex forms
@@ -129,13 +123,11 @@
 ### **Low Priority**
 
 1. **Documentation**
-
    - Add JSDoc comments to all schemas
    - Create API documentation with validation examples
    - Add schema migration guides
 
 2. **Testing**
-
    - Add unit tests for all schemas
    - Add integration tests for API endpoints
    - Add end-to-end tests for form validation
@@ -145,7 +137,6 @@
 ### **API Route Usage**
 
 ```typescript
-
 import { OwnerCreateSchema } from '@/schemas';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
@@ -154,13 +145,11 @@ export async function POST(request: NextRequest) {
   const data = sanitizeAndValidate(body, OwnerCreateSchema);
   // data is now type-safe and validated
 }
-
 ```
 
 ### **Form Usage**
 
 ```typescript
-
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { OwnerCreateSchema, type OwnerCreateInput } from '@/schemas';
@@ -170,17 +159,15 @@ export function CreateOwnerForm() {
     resolver: zodResolver(OwnerCreateSchema),
     defaultValues: {
       isCompany: false,
-      primaryCountry: 'USA'
-    }
+      primaryCountry: 'USA',
+    },
   });
 }
-
 ```
 
 ### **Query Parameter Validation**
 
 ```typescript
-
 import { PropertyQuerySchema } from '@/schemas';
 
 export async function GET(request: NextRequest) {
@@ -188,7 +175,6 @@ export async function GET(request: NextRequest) {
   const query = sanitizeAndValidate(Object.fromEntries(searchParams), PropertyQuerySchema);
   // query.limit, query.offset, query.search are validated
 }
-
 ```
 
 ## 📊 Schema Statistics
