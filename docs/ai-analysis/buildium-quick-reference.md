@@ -75,30 +75,30 @@ docs/
 
 ### Core Tables with Buildium Integration
 
-| Table | Buildium ID Field | Sync Status | Notes |
-|-------|------------------|-------------|-------|
-| `properties` | `buildium_property_id` | ✅ Tracked | Main property data |
-| `owners` | `buildium_owner_id` | ✅ Tracked | Property owners |
-| `lease` | `buildium_lease_id` | ✅ Tracked | Lease agreements |
-| `units` | `buildium_unit_id` | ✅ Tracked | Property units |
-| `bank_accounts` | `buildium_bank_id` | ✅ Tracked | Bank accounts |
+| Table           | Buildium ID Field      | Sync Status | Notes              |
+| --------------- | ---------------------- | ----------- | ------------------ |
+| `properties`    | `buildium_property_id` | ✅ Tracked  | Main property data |
+| `owners`        | `buildium_owner_id`    | ✅ Tracked  | Property owners    |
+| `lease`         | `buildium_lease_id`    | ✅ Tracked  | Lease agreements   |
+| `units`         | `buildium_unit_id`     | ✅ Tracked  | Property units     |
+| `bank_accounts` | `buildium_bank_id`     | ✅ Tracked  | Bank accounts      |
 
 ### Financial Tables
 
-| Table | Buildium ID Field | Status | Notes |
-|-------|------------------|--------|-------|
-| `vendors` | `buildium_vendor_id` | ✅ Implemented | Vendor management |
-| `bills` | `buildium_bill_id` | ✅ Implemented | Bill tracking |
-| `bill_payments` | `buildium_payment_id` | ✅ Implemented | Payment records |
+| Table               | Buildium ID Field      | Status         | Notes             |
+| ------------------- | ---------------------- | -------------- | ----------------- |
+| `vendors`           | `buildium_vendor_id`   | ✅ Implemented | Vendor management |
+| `bills`             | `buildium_bill_id`     | ✅ Implemented | Bill tracking     |
+| `bill_payments`     | `buildium_payment_id`  | ✅ Implemented | Payment records   |
 | `vendor_categories` | `buildium_category_id` | ✅ Implemented | Vendor categories |
 
 ### Integration Tables
 
-| Table | Purpose | Status |
-|-------|---------|--------|
-| `buildium_sync_status` | Track sync status | ✅ Active |
-| `buildium_webhook_events` | Webhook processing | ✅ Active |
-| `buildium_api_cache` | API response caching | ✅ Active |
+| Table                     | Purpose              | Status    |
+| ------------------------- | -------------------- | --------- |
+| `buildium_sync_status`    | Track sync status    | ✅ Active |
+| `buildium_webhook_events` | Webhook processing   | ✅ Active |
+| `buildium_api_cache`      | API response caching | ✅ Active |
 
 ## API Endpoints Quick Reference
 
@@ -240,38 +240,32 @@ docs/
 3. **Add Health Check Endpoint**
 
    ```typescript
-
    // Create /api/health endpoint
    ```
 
 ### 🟡 **Medium Priority (Next Sprint)**
 
 1. **Add Relationship Documentation**
-
    - Create ER diagrams for all tables
    - Document foreign key relationships
    - Add data flow diagrams
 
 2. **Standardize Naming**
-
    - Fix inconsistent naming conventions
    - Update all references
 
 3. **Add Pagination**
-
    - Implement pagination in all list endpoints
    - Add proper response metadata
 
 ### 🟢 **Low Priority (Future)**
 
 1. **Add Comprehensive Testing**
-
    - Unit tests for mappers
    - Integration tests for endpoints
    - End-to-end tests
 
 2. **Performance Optimization**
-
    - Add response caching
    - Implement background processing
    - Add performance monitoring

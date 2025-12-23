@@ -42,21 +42,19 @@ The authentication is handled by the `BuildiumClient` class in
 `src/lib/buildium-client.ts`:
 
 ```typescript
-
-import { BuildiumClient } from '@/lib/buildium-client'
+import { BuildiumClient } from '@/lib/buildium-client';
 
 const client = new BuildiumClient({
   clientId: process.env.BUILDIUM_CLIENT_ID!,
   clientSecret: process.env.BUILDIUM_CLIENT_SECRET!,
-  baseUrl: process.env.BUILDIUM_BASE_URL!
-})
+  baseUrl: process.env.BUILDIUM_BASE_URL!,
+});
 
 // Get access token
-const token = await client.getAccessToken()
+const token = await client.getAccessToken();
 
 // Make API request
-const properties = await client.getProperties()
-
+const properties = await client.getProperties();
 ```
 
 ## Error Handling

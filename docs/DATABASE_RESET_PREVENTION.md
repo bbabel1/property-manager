@@ -96,14 +96,14 @@ You were being asked to sign in because `NODE_ENV` was not set to `development`.
 
 ```typescript
 // Development bypass - check if we're in development mode
-if (process.env.NODE_ENV === "development") {
-  console.log("🔧 Development mode: Bypassing authentication");
+if (process.env.NODE_ENV === 'development') {
+  console.log('🔧 Development mode: Bypassing authentication');
   setUser({
-    id: "dev-user-id",
-    email: "dev@example.com",
+    id: 'dev-user-id',
+    email: 'dev@example.com',
     user_metadata: {},
     app_metadata: {},
-    aud: "authenticated",
+    aud: 'authenticated',
     created_at: new Date().toISOString(),
   } as User);
   setLoading(false);

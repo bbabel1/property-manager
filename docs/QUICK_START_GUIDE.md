@@ -1,18 +1,21 @@
 # Quick Start Guide - Property Management System
 
 > **Last Updated**: 2025-08-25
-> 
+>
 > This guide provides step-by-step instructions for new users to add properties, units, owners, leases, and other entities in the correct sequence.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Supabase project configured and linked
 - Buildium API credentials set in `.env` file
 - Node.js and npm installed
 
 ### Environment Setup
+
 Ensure your `.env` file contains:
+
 ```env
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
@@ -27,11 +30,13 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ## 📋 Complete Workflow: Adding a New Property
 
 ### Step 1: Create Property
+
 **Purpose**: Create the main property entity that will contain units and be owned by owners.
 
 **API Endpoint**: `POST /api/properties`
 
 **Request Body**:
+
 ```json
 {
   "name": "123 Main Street Apartments",
@@ -43,12 +48,13 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
   "country": "US",
   "property_type": "Mult-Family",
   "operating_bank_account_id": 123,
-  "reserve": 5000.00,
+  "reserve": 5000.0,
   "year_built": 2020
 }
 ```
 
 **Response**:
+
 ```json
 {
   "message": "Property created successfully",
@@ -66,11 +72,13 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ```
 
 ### Step 2: Add Units to Property
+
 **Purpose**: Create individual rental units within the property.
 
 **API Endpoint**: `POST /api/units`
 
 **Request Body**:
+
 ```json
 {
   "property_id": "property-uuid-from-step-1",
@@ -78,12 +86,13 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
   "bedrooms": 2,
   "bathrooms": 1,
   "square_footage": 850,
-  "market_rent": 1200.00,
+  "market_rent": 1200.0,
   "unit_type": "Apartment"
 }
 ```
 
 **Response**:
+
 ```json
 {
   "message": "Unit created successfully",
@@ -101,11 +110,13 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ```
 
 ### Step 3: Create Owners
+
 **Purpose**: Create property owners (individuals or companies) who will own the property.
 
 **API Endpoint**: `POST /api/owners`
 
 **For Individual Owner**:
+
 ```json
 {
   "first_name": "John",
@@ -125,6 +136,7 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ```
 
 **For Company Owner**:
+
 ```json
 {
   "company_name": "Doe Properties LLC",
@@ -143,27 +155,31 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ```
 
 ### Step 4: Create Ownership Relationships
+
 **Purpose**: Link owners to properties with ownership percentages and income distribution rights.
 
 **API Endpoint**: `POST /api/ownership`
 
 **Request Body**:
+
 ```json
 {
   "owner_id": "owner-uuid-from-step-3",
   "property_id": "property-uuid-from-step-1",
-  "ownership_percentage": 100.00,
-  "disbursement_percentage": 100.00,
+  "ownership_percentage": 100.0,
+  "disbursement_percentage": 100.0,
   "primary": true
 }
 ```
 
 ### Step 5: Create Tenants
+
 **Purpose**: Create tenant records for individuals who will rent units.
 
 **API Endpoint**: `POST /api/tenants`
 
 **Request Body**:
+
 ```json
 {
   "first_name": "Jane",
@@ -178,30 +194,34 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ```
 
 ### Step 6: Create Lease
+
 **Purpose**: Create a lease agreement between the property and tenants.
 
 **API Endpoint**: `POST /api/leases`
 
 **Request Body**:
+
 ```json
 {
   "property_id": "property-uuid-from-step-1",
   "unit_id": "unit-uuid-from-step-2",
   "start_date": "2025-01-01",
   "end_date": "2025-12-31",
-  "monthly_rent": 1200.00,
-  "security_deposit": 1200.00,
+  "monthly_rent": 1200.0,
+  "security_deposit": 1200.0,
   "lease_status": "Active",
   "rent_cycle": "Monthly"
 }
 ```
 
 ### Step 7: Link Tenants to Lease
+
 **Purpose**: Connect tenants to the lease as lease contacts.
 
 **API Endpoint**: `POST /api/lease-contacts`
 
 **Request Body**:
+
 ```json
 {
   "lease_id": "lease-uuid-from-step-6",
@@ -213,17 +233,19 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ```
 
 ### Step 8: Create Rent Schedule
+
 **Purpose**: Set up recurring rent charges for the lease.
 
 **API Endpoint**: `POST /api/rent-schedules`
 
 **Request Body**:
+
 ```json
 {
   "lease_id": "lease-uuid-from-step-6",
   "start_date": "2025-01-01",
   "end_date": "2025-12-31",
-  "total_amount": 1200.00,
+  "total_amount": 1200.0,
   "rent_cycle": "Monthly",
   "backdate_charges": false
 }
@@ -232,16 +254,19 @@ BUILDIUM_BASE_URL=https://apisandbox.buildium.com/v1
 ## 🔄 Buildium Integration
 
 ### Automatic Sync
+
 - Properties, units, owners, and leases are automatically synced to Buildium when created
 - Check the `buildiumSync` field in API responses for sync status
 - Failed syncs can be retried using the sync management API
 
 ### Manual Sync
+
 If automatic sync fails, you can manually sync:
 
 **API Endpoint**: `POST /api/buildium/sync`
 
 **Request Body**:
+
 ```json
 {
   "entity_type": "properties",
@@ -252,31 +277,37 @@ If automatic sync fails, you can manually sync:
 ## 🛠️ Common Operations
 
 ### Adding Multiple Units
+
 Repeat Step 2 for each unit in the property:
+
 ```json
 {
   "property_id": "same-property-uuid",
   "unit_number": "A2",
   "bedrooms": 1,
   "bathrooms": 1,
-  "market_rent": 1000.00
+  "market_rent": 1000.0
 }
 ```
 
 ### Adding Multiple Owners
+
 Repeat Steps 3-4 for each owner, adjusting ownership percentages:
+
 ```json
 {
   "owner_id": "second-owner-uuid",
   "property_id": "property-uuid",
-  "ownership_percentage": 50.00,
-  "disbursement_percentage": 50.00,
+  "ownership_percentage": 50.0,
+  "disbursement_percentage": 50.0,
   "primary": false
 }
 ```
 
 ### Adding Multiple Tenants to Lease
+
 Repeat Step 7 for each tenant on the lease:
+
 ```json
 {
   "lease_id": "same-lease-uuid",
@@ -290,6 +321,7 @@ Repeat Step 7 for each tenant on the lease:
 ## 📊 Data Relationships
 
 ### Entity Hierarchy
+
 ```
 Property
 ├── Units (one-to-many)
@@ -300,6 +332,7 @@ Property
 ```
 
 ### Key Relationships
+
 - **Property → Units**: One property can have multiple units
 - **Property ↔ Owners**: Many-to-many relationship with ownership percentages
 - **Unit → Lease**: One unit can have one active lease at a time
@@ -309,6 +342,7 @@ Property
 ## 🚨 Important Notes
 
 ### Data Validation
+
 - All required fields must be provided
 - Email addresses must be valid format
 - Phone numbers should include area code
@@ -316,12 +350,14 @@ Property
 - Percentages must be between 0 and 100
 
 ### Buildium Sync
+
 - Sync happens automatically but may fail due to network issues
 - Check sync status in API responses
 - Failed syncs don't prevent local operations
 - Manual retry available for failed syncs
 
 ### Ownership Rules
+
 - Total ownership percentage should equal 100% for all owners of a property
 - Only one owner can be marked as primary per property
 - Ownership and disbursement percentages can be different
@@ -331,32 +367,38 @@ Property
 ### Common Issues
 
 **1. Property Creation Fails**
+
 - Check that operating_bank_account_id exists
 - Ensure all required address fields are provided
 - Verify property_type is valid
 
 **2. Unit Creation Fails**
+
 - Ensure property_id exists and is valid
 - Check that unit_number is unique within the property
 - Verify bedroom/bathroom counts are valid
 
 **3. Owner Creation Fails**
+
 - Check tax_payer_id format (SSN: XXX-XX-XXXX, EIN: XX-XXXXXXX)
 - Ensure email is unique
 - Verify tax address is complete
 
 **4. Lease Creation Fails**
+
 - Ensure property_id and unit_id exist
 - Check that unit is not already leased
 - Verify dates are valid and end_date > start_date
 
 **5. Buildium Sync Fails**
+
 - Check Buildium API credentials
 - Verify network connectivity
 - Check Buildium API status
 - Retry sync manually if needed
 
 ### Getting Help
+
 - Check API response error messages
 - Review database schema documentation
 - Consult Buildium integration guides

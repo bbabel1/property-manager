@@ -202,12 +202,12 @@
 
 ### Medium-Term Actions
 
-5. **Implement data retention policies** for audit/log tables:
+1. **Implement data retention policies** for audit/log tables:
    - `buildium_api_log`: Keep 90 days
    - `buildium_integration_audit_log`: Keep 90 days
    - `buildium_webhook_events`: Archive processed events > 30 days old
 
-6. **Consider removing `property_ownerships_cache`** after ensuring:
+2. **Consider removing `property_ownerships_cache`** after ensuring:
    - Ownerships table is always properly populated
    - Remove fallback logic in `property-service.ts`
    - Test thoroughly before removal

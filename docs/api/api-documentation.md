@@ -135,6 +135,7 @@ Authorization: Bearer <your-jwt-token>
 **GET /api/email-templates**
 
 Query parameters:
+
 - `status` (optional): Filter by status (`active`, `inactive`, `archived`)
 - `templateKey` (optional): Filter by template key
 - `page` (optional): Page number (default: 1)
@@ -143,6 +144,7 @@ Query parameters:
 **POST /api/email-templates**
 
 Request body:
+
 ```json
 {
   "template_key": "monthly_rental_statement",
@@ -159,6 +161,7 @@ Request body:
 **POST /api/email-templates/{id}/preview**
 
 Request body (optional):
+
 ```json
 {
   "variables": {
@@ -169,6 +172,7 @@ Request body (optional):
 ```
 
 Response:
+
 ```json
 {
   "subject": "Monthly Statement - 123 Main St",
@@ -179,6 +183,7 @@ Response:
 ```
 
 **Error Codes:**
+
 - `TEMPLATE_NOT_FOUND` - Template doesn't exist or wrong org
 - `INVALID_TEMPLATE_KEY` - Unknown template_key enum value
 - `INVALID_VARIABLES` - Unknown variables in template

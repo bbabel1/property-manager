@@ -98,7 +98,7 @@ npx tsx scripts/implement-data-integrity-fixes.ts
 
 ```typescript
 // Use this pattern for all complex entity operations
-import { resolveEntityRelationships } from "@/lib/relationship-resolver";
+import { resolveEntityRelationships } from '@/lib/relationship-resolver';
 
 const result = await resolveEntityRelationships(
   {
@@ -108,7 +108,7 @@ const result = await resolveEntityRelationships(
     tenant: buildiumTenant,
     owner: buildiumOwner,
   },
-  supabase
+  supabase,
 );
 ```
 
@@ -116,7 +116,7 @@ const result = await resolveEntityRelationships(
 
 ```typescript
 // Automatically handles failed sync operations
-import { runSyncRecovery } from "@/lib/sync-error-recovery";
+import { runSyncRecovery } from '@/lib/sync-error-recovery';
 const recoveryResult = await runSyncRecovery(supabase);
 ```
 
@@ -124,10 +124,8 @@ const recoveryResult = await runSyncRecovery(supabase);
 
 ```typescript
 // All API calls now use proper rate limiting
-import { rateLimitedBuildiumRequest } from "@/lib/buildium-rate-limiter";
-const data = await rateLimitedBuildiumRequest(() =>
-  fetchFromBuildium(endpoint)
-);
+import { rateLimitedBuildiumRequest } from '@/lib/buildium-rate-limiter';
+const data = await rateLimitedBuildiumRequest(() => fetchFromBuildium(endpoint));
 ```
 
 ## 📈 **Current System Health:**

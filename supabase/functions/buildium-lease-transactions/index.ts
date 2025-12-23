@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { verifyBuildiumSignature } from '../_shared/buildiumSignature.ts';
@@ -236,6 +237,42 @@ async function resolveOrgIdFromBuildiumAccount(
   return data?.id ?? null;
 }
 
+async function resolveUndepositedFundsGlAccountId(
+  supabase: any,
+  orgId: string | null,
+): Promise<string | null> {
+  const lookup = async (column: 'default_account_name' | 'name'): Promise<string | null> => {
+    let query = supabase.from('gl_accounts').select('id').ilike(column, '%undeposited funds%');
+    if (orgId) query = query.eq('org_id', orgId);
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    return (data as any)?.id ?? null;
+  };
+
+  const scopedDefault = await lookup('default_account_name');
+  if (scopedDefault) return scopedDefault;
+  const scopedName = await lookup('name');
+  if (scopedName) return scopedName;
+
+  const globalDefault = await supabase
+    .from('gl_accounts')
+    .select('id')
+    .ilike('default_account_name', '%undeposited funds%')
+    .limit(1)
+    .maybeSingle();
+  if ((globalDefault.data as any)?.id) return (globalDefault.data as any).id;
+
+  const globalName = await supabase
+    .from('gl_accounts')
+    .select('id')
+    .ilike('name', '%undeposited funds%')
+    .limit(1)
+    .maybeSingle();
+  if ((globalName.data as any)?.id) return (globalName.data as any).id;
+
+  return null;
+}
+
 async function upsertLeaseTransactionWithLines(
   supabase: any,
   buildiumClient: BuildiumClient,
@@ -306,6 +343,45 @@ async function upsertLeaseTransactionWithLines(
     buildiumAccountId ?? leaseTx?.AccountId ?? null,
   );
   const orgIdLocal = orgFromAccount ?? leaseOrgId ?? null;
+
+  // Resolve property/unit context up-front (used for transaction header + later bank resolution)
+  let propertyIdLocal: string | null = null;
+  let defaultBuildiumPropertyId: number | null = null;
+  let defaultBuildiumUnitId: number | null = null;
+  let defaultUnitIdLocal: string | null = null;
+  let propertyBankContext:
+    | {
+        operating_bank_gl_account_id?: string | null;
+        deposit_trust_gl_account_id?: string | null;
+        org_id?: string | null;
+      }
+    | null = null;
+
+  if (leaseIdLocal) {
+    const { data: leaseRow } = await supabase
+      .from('lease')
+      .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
+      .eq('id', leaseIdLocal)
+      .maybeSingle();
+    propertyIdLocal = (leaseRow as any)?.property_id ?? null;
+    defaultBuildiumPropertyId = (leaseRow as any)?.buildium_property_id ?? null;
+    defaultBuildiumUnitId = (leaseRow as any)?.buildium_unit_id ?? null;
+    defaultUnitIdLocal = (leaseRow as any)?.unit_id ?? null;
+  }
+
+  if (propertyIdLocal) {
+    const { data: propertyRow, error: propertyErr } = await supabase
+      .from('properties')
+      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
+      .eq('id', propertyIdLocal)
+      .maybeSingle();
+    if (propertyErr && propertyErr.code !== 'PGRST116') throw propertyErr;
+    propertyBankContext = propertyRow ?? null;
+  }
+
+  const propertyOrgId = (propertyBankContext as any)?.org_id ?? null;
+  const unitIdLocalFromTx = await resolveLocalUnitId(supabase, unitIdRaw ?? null);
+  const unitIdLocalForHeader = unitIdLocalFromTx ?? defaultUnitIdLocal ?? null;
 
   let transactionId: string;
   if (existing?.id) {
@@ -398,24 +474,6 @@ async function upsertLeaseTransactionWithLines(
     accountsPayableGlId = (apGl as any)?.id ?? null;
   }
 
-  // Get property ID and other context from lease record for bank account resolution
-  let propertyIdLocal: string | null = null;
-  let defaultBuildiumPropertyId: number | null = null;
-  let defaultBuildiumUnitId: number | null = null;
-  let defaultUnitIdLocal: string | null = null;
-  if (leaseIdLocal) {
-    const { data: leaseRow } = await supabase
-      .from('lease')
-      .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
-      .eq('id', leaseIdLocal)
-      .maybeSingle();
-    propertyIdLocal = (leaseRow as any)?.property_id ?? null;
-    defaultBuildiumPropertyId = (leaseRow as any)?.buildium_property_id ?? null;
-    defaultBuildiumUnitId = (leaseRow as any)?.buildium_unit_id ?? null;
-    defaultUnitIdLocal = (leaseRow as any)?.unit_id ?? null;
-  }
-  const unitIdLocalForHeader = unitIdLocal ?? defaultUnitIdLocal ?? null;
-
   for (const line of lines) {
     const amountAbs = Math.abs(Number(line?.Amount ?? 0));
     let posting = resolvePostingType(line);
@@ -455,7 +513,7 @@ async function upsertLeaseTransactionWithLines(
     const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? null;
     const linePropertyIdLocal =
       (await resolveLocalPropertyId(supabase, buildiumPropertyId)) ?? propertyIdLocal;
-    const unitIdLocal = await resolveLocalUnitId(supabase, buildiumUnitId);
+    const unitIdLocalResolved = await resolveLocalUnitId(supabase, buildiumUnitId);
     const accountingEntityTypeRaw = line?.AccountingEntity?.AccountingEntityType ?? null;
     const accountEntityType =
       (accountingEntityTypeRaw || '').toString().toLowerCase() === 'company' ? 'Company' : 'Rental';
@@ -476,7 +534,7 @@ async function upsertLeaseTransactionWithLines(
       buildium_lease_id: leaseTx.LeaseId ?? null,
       lease_id: leaseIdLocal,
       property_id: linePropertyIdLocal,
-      unit_id: unitIdLocal,
+      unit_id: unitIdLocalResolved,
       reference_number: line?.ReferenceNumber ?? null,
       is_cash_posting: line?.IsCashPosting ?? null,
       accounting_entity_type_raw: accountingEntityTypeRaw,
@@ -519,44 +577,57 @@ async function upsertLeaseTransactionWithLines(
 
   // For Payment and ApplyDeposit transactions, ensure there's a bank account debit line
   const hasBankAccountLine = Array.from(glAccountBankFlags.values()).some((isBank) => isBank);
+  const hasProvidedBankLine = bankGlAccountId
+    ? pendingLineRows.some((l) => l.gl_account_id === bankGlAccountId)
+    : false;
+  const hasBankLikeLine = hasBankAccountLine || hasProvidedBankLine;
   let bankGlAccountIdToUse: string | null = bankGlAccountId ?? null;
 
-  if (needsBankAccountLine && !hasBankAccountLine && credit > 0 && propertyIdLocal) {
-    // Resolve the property's bank GL account (prefer operating, fallback to deposit trust)
-    const { data: propertyRow } = await supabase
-      .from('properties')
-      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
-      .eq('id', propertyIdLocal)
-      .maybeSingle();
+  if (needsBankAccountLine && !bankGlAccountIdToUse) {
+    bankGlAccountIdToUse = await resolveUndepositedFundsGlAccountId(supabase, propertyOrgId);
+  }
 
-    const bankGlAccountId =
-      (propertyRow as any)?.operating_bank_gl_account_id ??
-      (propertyRow as any)?.deposit_trust_gl_account_id ??
+  const bankAmountNeeded = isOutflow ? debit : credit;
+
+  if (
+    needsBankAccountLine &&
+    !hasBankLikeLine &&
+    bankAmountNeeded > 0 &&
+    propertyIdLocal &&
+    !bankGlAccountIdToUse
+  ) {
+    const bankGlAccountIdResolved =
+      (propertyBankContext as any)?.operating_bank_gl_account_id ??
+      (propertyBankContext as any)?.deposit_trust_gl_account_id ??
       null;
-
-    if (bankGlAccountId) {
-      bankGlAccountIdToUse = bankGlAccountId;
-      // Add debit to bank account (cash increases with debit for asset accounts)
-      pendingLineRows.push({
-        transaction_id: transactionId,
-        gl_account_id: bankGlAccountId,
-        amount: credit,
-        posting_type: 'Debit',
-        memo: leaseTx?.Memo ?? leaseTx?.Journal?.Memo ?? null,
-        account_entity_type: 'Rental',
-        account_entity_id: defaultBuildiumPropertyId,
-        date: normalizeDate(leaseTx.Date),
-        created_at: now,
-        updated_at: now,
-        buildium_property_id: defaultBuildiumPropertyId,
-        buildium_unit_id: defaultBuildiumUnitId,
-        buildium_lease_id: leaseTx.LeaseId ?? null,
-        lease_id: leaseIdLocal,
-        property_id: propertyIdLocal,
-        unit_id: defaultUnitIdLocal,
-      });
-      debit += credit;
+    if (bankGlAccountIdResolved) {
+      bankGlAccountIdToUse = bankGlAccountIdResolved;
     }
+  }
+
+  if (needsBankAccountLine && !hasBankLikeLine && bankGlAccountIdToUse && bankAmountNeeded > 0) {
+    // Add bank line in the correct direction: inflows debit cash, outflows credit cash.
+    const bankPosting = isOutflow ? 'Credit' : 'Debit';
+    pendingLineRows.push({
+      transaction_id: transactionId,
+      gl_account_id: bankGlAccountIdToUse,
+      amount: bankAmountNeeded,
+      posting_type: bankPosting,
+      memo: leaseTx?.Memo ?? leaseTx?.Journal?.Memo ?? null,
+      account_entity_type: 'Rental',
+      account_entity_id: defaultBuildiumPropertyId,
+      date: normalizeDate(leaseTx.Date),
+      created_at: now,
+      updated_at: now,
+      buildium_property_id: defaultBuildiumPropertyId,
+      buildium_unit_id: defaultBuildiumUnitId,
+      buildium_lease_id: leaseTx.LeaseId ?? null,
+      lease_id: leaseIdLocal,
+      property_id: propertyIdLocal,
+      unit_id: defaultUnitIdLocal,
+    });
+    if (bankPosting === 'Debit') debit += bankAmountNeeded;
+    else credit += bankAmountNeeded;
   }
 
   // Replace deposit/payment splits (DepositDetails.PaymentTransactions)
@@ -584,9 +655,14 @@ async function upsertLeaseTransactionWithLines(
 
   // Safeguard: for tenant inflow payments, ensure we have both A/R credit and bank debit
   if (isInflow) {
-    const hasNonBank = pendingLineRows.some(
-      (l) => l.gl_account_id && !glAccountBankFlags.get(String(l.gl_account_id)),
-    );
+    const isBankLine = (glAccountId: unknown): boolean => {
+      const id = glAccountId != null ? String(glAccountId) : null;
+      if (!id) return false;
+      if (bankGlAccountIdToUse && id === String(bankGlAccountIdToUse)) return true;
+      return glAccountBankFlags.get(id) === true;
+    };
+
+    const hasNonBank = pendingLineRows.some((l) => l.gl_account_id && !isBankLine(l.gl_account_id));
     const hasAr = pendingLineRows.some((l) => l.gl_account_id === accountsReceivableGlId);
     const hasBank = pendingLineRows.some((l) => l.gl_account_id === bankGlAccountIdToUse);
     const totalAmountAbs = Math.abs(Number(transactionHeader.total_amount) || 0);
@@ -643,6 +719,15 @@ async function upsertLeaseTransactionWithLines(
 
   if (debit > 0 && credit > 0 && Math.abs(debit - credit) > 0.0001) {
     throw new Error(`Double-entry integrity violation: debits (${debit}) != credits (${credit})`);
+  }
+
+  const finalBankGlAccountId = bankGlAccountIdToUse ?? bankGlAccountId ?? null;
+  if (finalBankGlAccountId && finalBankGlAccountId !== bankGlAccountId) {
+    const { error: bankUpdateErr } = await supabase
+      .from('transactions')
+      .update({ bank_gl_account_id: finalBankGlAccountId, updated_at: now })
+      .eq('id', transactionId);
+    if (bankUpdateErr) throw bankUpdateErr;
   }
 
   return transactionId;

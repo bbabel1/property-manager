@@ -55,7 +55,6 @@ type LocalTaskRecord = LocalEntityBase & { buildium_task_id?: number | null };
 type LocalBillRecord = LocalEntityBase & { buildium_bill_id?: number | null };
 type LocalBankAccountRecord = LocalEntityBase & {
   // Phase 4+: bank accounts are modeled as gl_accounts rows.
-  buildium_bank_account_id?: number | string | null;
   buildium_bank_id?: number | string | null; // legacy alias
   buildium_gl_account_id?: number | string | null;
   name?: string | null;
@@ -767,25 +766,40 @@ export class BuildiumSyncService {
 
     try {
       // Phase 4+: Source of truth is gl_accounts bank fields on the bank GL row.
+      const bankBuildiumId = (buildiumBankAccount as any)?.Id ?? null;
       const glBuildiumId =
         (buildiumBankAccount as any)?.GLAccountId ??
         (buildiumBankAccount as any)?.GLAccount?.Id ??
         null;
+      if (bankBuildiumId == null) throw new Error('Buildium bank account is missing Id');
 
-      if (glBuildiumId == null) {
-        throw new Error('Buildium bank account is missing GLAccountId');
+      let glRow;
+      let glFindErr;
+      try {
+        const res = await supabase
+          .from('gl_accounts')
+          .select('id')
+          .eq('buildium_gl_account_id', bankBuildiumId)
+          .maybeSingle();
+        glRow = res.data;
+        glFindErr = res.error;
+      } catch (err) {
+        glFindErr = err as any;
       }
-
-      const { data: glRow, error: glFindErr } = await supabase
-        .from('gl_accounts')
-        .select('id')
-        .eq('buildium_gl_account_id', glBuildiumId)
-        .maybeSingle();
+      if ((!glRow || !(glRow as any).id) && glBuildiumId != null) {
+        const { data: fallbackRow, error: fbErr } = await supabase
+          .from('gl_accounts')
+          .select('id')
+          .eq('buildium_gl_account_id', glBuildiumId)
+          .maybeSingle();
+        glRow = fallbackRow ?? glRow;
+        glFindErr = glFindErr || fbErr;
+      }
 
       if (glFindErr) throw glFindErr;
       if (!glRow?.id) {
         throw new Error(
-          `GL account ${glBuildiumId} not found locally for bank account ${buildiumBankAccount.Id}`,
+          `GL account not found locally for bank account ${bankBuildiumId}`,
         );
       }
 
@@ -803,7 +817,7 @@ export class BuildiumSyncService {
           is_bank_account: true,
           name: (buildiumBankAccount as any)?.Name ?? null,
           description: (buildiumBankAccount as any)?.Description ?? null,
-          buildium_bank_account_id: (buildiumBankAccount as any)?.Id ?? null,
+          buildium_gl_account_id: bankBuildiumId ?? glBuildiumId ?? null,
           bank_account_type: toLocalType((buildiumBankAccount as any)?.BankAccountType),
           bank_account_number:
             (buildiumBankAccount as any)?.AccountNumberUnmasked ??
@@ -826,7 +840,7 @@ export class BuildiumSyncService {
       if (updErr) throw updErr;
 
       logger.info(
-        { glAccountId: glRow.id, buildiumId: buildiumBankAccount.Id },
+        { glAccountId: glRow.id, buildiumId: bankBuildiumId },
         'Bank account updated on gl_accounts from Buildium',
       );
       return { success: true, localId: glRow.id };
@@ -1266,7 +1280,9 @@ export class BuildiumSyncService {
 
       let buildiumId: number | null = null;
       const existingBuildiumIdRaw =
-        localBankAccount.buildium_bank_account_id ?? localBankAccount.buildium_bank_id ?? null;
+        localBankAccount.buildium_gl_account_id ??
+        localBankAccount.buildium_bank_id ??
+        null;
       const existingBuildiumId =
         typeof existingBuildiumIdRaw === 'number'
           ? existingBuildiumIdRaw
@@ -1275,13 +1291,14 @@ export class BuildiumSyncService {
             ? Number(existingBuildiumIdRaw)
             : null;
 
-      const glBuildiumIdRaw = localBankAccount.buildium_gl_account_id ?? null;
       const glBuildiumId =
-        typeof glBuildiumIdRaw === 'number'
-          ? glBuildiumIdRaw
-          : typeof glBuildiumIdRaw === 'string' && Number.isFinite(Number(glBuildiumIdRaw))
-            ? Number(glBuildiumIdRaw)
-            : null;
+        existingBuildiumId ??
+        (typeof localBankAccount.buildium_gl_account_id === 'number'
+          ? localBankAccount.buildium_gl_account_id
+          : typeof localBankAccount.buildium_gl_account_id === 'string' &&
+              Number.isFinite(Number(localBankAccount.buildium_gl_account_id))
+            ? Number(localBankAccount.buildium_gl_account_id)
+            : null);
       if (!glBuildiumId) {
         throw new Error('Bank GL account is missing buildium_gl_account_id');
       }
@@ -1342,7 +1359,7 @@ export class BuildiumSyncService {
       await supabase
         .from('gl_accounts')
         .update({
-          buildium_bank_account_id: buildiumId,
+          buildium_gl_account_id: buildiumId,
           bank_last_source: 'buildium' as any,
           bank_last_source_ts: new Date().toISOString(),
           updated_at: new Date().toISOString(),

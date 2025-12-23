@@ -71,13 +71,11 @@ curl -X POST https://yourdomain.com/api/webhooks/buildium \
 ### Expected Response
 
 ```json
-
 {
   "success": true,
   "message": "Webhook processed successfully",
   "eventId": "test-event-123"
 }
-
 ```
 
 ## Verification

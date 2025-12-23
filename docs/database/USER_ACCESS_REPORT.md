@@ -1,4 +1,4 @@
-# User Access Report: brandon@managedbyora.com
+# User Access Report for [brandon@managedbyora.com][contact-email]
 
 **Date**: 2025-01-31  
 **User ID**: `e4800813-a9ee-494a-a6a3-7f2d3cae6257`
@@ -7,14 +7,16 @@
 
 ## Executive Summary
 
-**brandon@managedbyora.com CAN access the platform because of TWO RLS policies that grant access:**
+**[brandon@managedbyora.com][contact-email] CAN access the platform because of TWO RLS policies that grant access:**
 
 1. ✅ **`properties_org_member_read`** - Checks `org_memberships` table
 2. ✅ **`properties_org_read`** - Uses `is_org_member()` helper function
 
-Both policies evaluate to TRUE because the user has a record in `org_memberships` linking them to "Ora Property Management" organization.
+Both policies evaluate to TRUE because the user has a record in `org_memberships` linking them to
+"Ora Property Management" organization.
 
-**The new RBAC system (roles/permissions) is NOT required for basic access** - it's only needed for granular permission checks.
+**The new RBAC system (roles/permissions) is NOT required for basic access** - it's only needed for
+granular permission checks.
 
 ---
 
@@ -22,7 +24,7 @@ Both policies evaluate to TRUE because the user has a record in `org_memberships
 
 ### 1. User Authentication ✅
 
-- **Email**: brandon@managedbyora.com
+- **Email**: [brandon@managedbyora.com][contact-email]
 - **Status**: Active, email confirmed
 - **Last sign in**: December 14, 2025
 - **Created**: September 19, 2025
@@ -123,15 +125,17 @@ USING: EXISTS (
 
 ## Why User Can Navigate the Platform
 
-### ✅ READ Access Granted By:
+### ✅ READ Access Granted By
 
 1. **`org_memberships` record exists** for "Ora Property Management"
 2. **RLS policies check `org_memberships`**, not `membership_roles`
 3. **Helper function `is_org_member()`** has this logic:
+
    ```sql
    -- First check: membership_roles (new RBAC)
    -- Fallback: org_memberships (legacy)
    ```
+
    Since `org_memberships` has a record, the fallback grants access
 
 ### ❓ WRITE/UPDATE Access
@@ -145,7 +149,7 @@ USING: EXISTS (
 
 ---
 
-## Architecture: Two-Tier Access System
+## Architecture – Two-Tier Access System
 
 ### Tier 1: Organization Membership (Currently Active)
 
@@ -204,7 +208,7 @@ function is_org_member(user_id, org_id) {
 1. **Assign a role to the user**:
 
    ```sql
-   -- Assign "Developer" role to brandon@managedbyora.com
+   -- Assign "Developer" role to the user
    INSERT INTO public.membership_roles (user_id, org_id, role_id)
    VALUES (
      'e4800813-a9ee-494a-a6a3-7f2d3cae6257',
@@ -223,17 +227,20 @@ function is_org_member(user_id, org_id) {
 
 ## Conclusion
 
-**brandon@managedbyora.com can navigate the platform because:**
+**[brandon@managedbyora.com][contact-email] can navigate the platform because:**
 
 - ✅ User is authenticated
 - ✅ User has `org_memberships` record for "Ora Property Management"
 - ✅ RLS policies check `org_memberships` (via `is_org_member()` helper)
 - ✅ The helper function's fallback logic grants access
 
-**The RBAC system (roles/permissions) is built but not required for basic access.** It's used for granular permission checks, which aren't enforced yet because the user has no roles assigned.
+**The RBAC system (roles/permissions) is built but not required for basic access.** It's used for
+granular permission checks, which aren't enforced yet because the user has no roles assigned.
 
 This is actually a **well-designed system** - it allows:
 
 - Basic access via simple org membership
 - Granular control via optional RBAC layer
 - Graceful degradation during migration
+
+[contact-email]: mailto:brandon@managedbyora.com

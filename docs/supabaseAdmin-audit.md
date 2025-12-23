@@ -3,6 +3,7 @@
 Legend: ✅ guarded + scoped; ⚠️ partial; ⛔ needs guard; N/A uses session client
 
 Checked routes (representative/high-risk first):
+
 - ✅ `src/app/api/admin/memberships/route.ts` – org admin check + platform_admin gating
 - ✅ `src/app/api/admin/memberships/simple/route.ts` – org admin check + platform_admin gating
 - ✅ `src/app/api/tenants/[id]/route.ts` – org admin guard + org_id filter (service role)
@@ -33,7 +34,9 @@ Checked routes (representative/high-risk first):
 - ⚠️ Buildium sync routes (e.g., `/api/buildium/...`, `/api/work-orders/route.ts`) – service role; need org scoping audit per handler
 
 Next to audit:
+
 - Remaining Buildium sync orchestration routes (account-info, sync dashboards) – ensure platform_admin + rate limits and document any org-scoped requirements if added later.
 
 Method:
+
 - For each service-role usage, ensure: (1) resolve org_id from resource or request, (2) require org member/admin as appropriate, (3) filter by org_id, (4) avoid cross-org data when no org hint.

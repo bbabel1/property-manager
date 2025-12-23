@@ -35,7 +35,7 @@ const checks: Record<string, CheckFn> = {
     const { data, error } = await client
       .from('gl_accounts')
       .select(
-        'id, name, is_bank_account, buildium_gl_account_id, buildium_bank_account_id, bank_account_number, bank_routing_number, bank_country, bank_account_type',
+        'id, name, is_bank_account, buildium_gl_account_id, bank_account_number, bank_routing_number, bank_country, bank_account_type',
       )
       .eq('is_bank_account', true)
 
@@ -51,7 +51,7 @@ const checks: Record<string, CheckFn> = {
 
     return missingPayload.map(
       (row) =>
-        `Bank GL ${row.id} (${row.name ?? 'unnamed'}) missing payload fields; has GL=${row.buildium_gl_account_id}, BuildiumBank=${row.buildium_bank_account_id}`,
+        `Bank GL ${row.id} (${row.name ?? 'unnamed'}) missing payload fields; buildium_gl_account_id=${row.buildium_gl_account_id}`,
     )
   },
 

@@ -80,16 +80,14 @@ and API routing.
 ### Database Client Configuration
 
 ```typescript
-
 // src/lib/db.ts
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
 // Client-side operations (browser)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Server-side operations (API routes)
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
-
+export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 ```
 
 ### Authentication
@@ -102,28 +100,20 @@ export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 All endpoints follow consistent error handling patterns:
 
 ```typescript
-
 try {
   // Supabase operation
-  const { data, error } = await supabaseAdmin.from('table').operation()
+  const { data, error } = await supabaseAdmin.from('table').operation();
 
   if (error) {
-    console.error('Error:', error)
-    return NextResponse.json(
-      { error: 'Operation failed' },
-      { status: 500 }
-    )
+    console.error('Error:', error);
+    return NextResponse.json({ error: 'Operation failed' }, { status: 500 });
   }
 
-  return NextResponse.json(data)
+  return NextResponse.json(data);
 } catch (error) {
-  console.error('Unexpected error:', error)
-  return NextResponse.json(
-    { error: 'Internal server error' },
-    { status: 500 }
-  )
+  console.error('Unexpected error:', error);
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
-
 ```
 
 ## API Endpoints
@@ -168,23 +158,21 @@ Creates a new property with optional ownership and staff assignments.
 **Response:**
 
 ```typescript
-
 // Success (201)
 {
-  message: "Property created successfully";
+  message: 'Property created successfully';
   property: Property;
 }
 
 // Error (400)
 {
-  error: "Missing required fields";
+  error: 'Missing required fields';
 }
 
 // Error (500)
 {
-  error: "Failed to create property" | "Failed to create ownership records";
+  error: 'Failed to create property' | 'Failed to create ownership records';
 }
-
 ```
 
 **Database Operations:**
@@ -248,13 +236,19 @@ Retrieves all properties with related data using Supabase joins.
 **Response:**
 
 ```typescript
-
 // Success (200)
 Array<{
   // Property fields
   id: string;
   name: string;
-  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
+  property_type:
+    | 'Condo'
+    | 'Co-op'
+    | 'Condop'
+    | 'Rental Building'
+    | 'Mult-Family'
+    | 'Townhouse'
+    | null;
   address_line1: string;
   // ... other property fields
 
@@ -289,22 +283,18 @@ Array<{
       // ... other staff fields
     };
   }>;
-}>
+}>;
 
 // Error (500)
 {
-  error: "Failed to fetch properties";
+  error: 'Failed to fetch properties';
 }
-
 ```
 
 **Database Query:**
 
 ```typescript
-
-const { data: properties, error } = await supabaseAdmin
-  .from('properties')
-  .select(`
+const { data: properties, error } = await supabaseAdmin.from('properties').select(`
     *,
 
     ownership!property_id (
@@ -321,8 +311,7 @@ const { data: properties, error } = await supabaseAdmin
       staff!staff_id (*)
 
     )
-  `)
-
+  `);
 ```
 
 **Features:**
@@ -340,13 +329,8 @@ const { data: properties, error } = await supabaseAdmin
 **Basic CRUD Operations:**
 
 ```typescript
-
 // Create
-const { data, error } = await supabaseAdmin
-  .from('table_name')
-  .insert(record)
-  .select()
-  .single()
+const { data, error } = await supabaseAdmin.from('table_name').insert(record).select().single();
 
 // Read with filters
 const { data, error } = await supabaseAdmin
@@ -354,31 +338,24 @@ const { data, error } = await supabaseAdmin
   .select('*')
 
   .eq('field', value)
-  .limit(10)
+  .limit(10);
 
 // Update
 const { data, error } = await supabaseAdmin
   .from('table_name')
   .update(changes)
   .eq('id', recordId)
-  .select()
+  .select();
 
 // Delete
-const { error } = await supabaseAdmin
-  .from('table_name')
-  .delete()
-  .eq('id', recordId)
-
+const { error } = await supabaseAdmin.from('table_name').delete().eq('id', recordId);
 ```
 
 **Advanced Joins:**
 
 ```typescript
-
 // Many-to-many relationships
-const { data } = await supabaseAdmin
-  .from('properties')
-  .select(`
+const { data } = await supabaseAdmin.from('properties').select(`
     name,
     ownership!inner (
       ownership_percentage,
@@ -387,8 +364,7 @@ const { data } = await supabaseAdmin
         last_name
       )
     )
-  `)
-
+  `);
 ```
 
 ### Row Level Security (RLS)
@@ -425,14 +401,19 @@ CREATE POLICY "Users can only see their properties" ON properties
 ### Client-Side Validation
 
 ```typescript
-
 // Type definitions ensure compile-time validation
 interface CreatePropertyRequest {
   name: string;
-  property_type: 'Condo' | 'Co-op' | 'Condop' | 'Rental Building' | 'Mult-Family' | 'Townhouse' | null;
+  property_type:
+    | 'Condo'
+    | 'Co-op'
+    | 'Condop'
+    | 'Rental Building'
+    | 'Mult-Family'
+    | 'Townhouse'
+    | null;
   // ... other fields with proper types
 }
-
 ```
 
 ### Database Constraints
@@ -454,19 +435,14 @@ CHECK (disbursement_percentage >= 0 AND disbursement_percentage <= 100)
 ### API-Level Validation
 
 ```typescript
-
 // Required field validation
 if (!propertyType || !name || !addressLine1 || !city || !state || !postalCode || !country) {
-  return NextResponse.json(
-    { error: 'Missing required fields' },
-    { status: 400 }
-  )
+  return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
 }
 
 // Type conversion with validation
 const reserve = reserve ? parseFloat(reserve.toString()) : null;
 const yearBuilt = yearBuilt ? parseInt(yearBuilt) : null;
-
 ```
 
 ## Future API Endpoints
@@ -527,22 +503,20 @@ CREATE INDEX idx_properties_address_search ON properties(city, state, postal_cod
 ### Caching Strategy
 
 ```typescript
-
 // Future implementation with Next.js caching
 export async function GET() {
   const properties = await unstable_cache(
     async () => {
-      const { data } = await supabaseAdmin.from('properties').select('*')
+      const { data } = await supabaseAdmin.from('properties').select('*');
 
-      return data
+      return data;
     },
     ['properties-list'],
-    { revalidate: 300 } // 5 minutes
-  )()
+    { revalidate: 300 }, // 5 minutes
+  )();
 
-  return NextResponse.json(properties)
+  return NextResponse.json(properties);
 }
-
 ```
 
 ## Security Best Practices
@@ -568,66 +542,57 @@ SUPABASE_SERVICE_ROLE_KEY="secret-service-role-key"
 ### Data Sanitization
 
 ```typescript
-
 // Sanitize and validate all inputs
 const sanitizedData = {
   name: sanitizeString(name),
   reserve: validateCurrency(reserve),
-  year_built: validateYear(yearBuilt)
-}
-
+  year_built: validateYear(yearBuilt),
+};
 ```
 
 ## Error Codes Reference
 
-| Status | Error | Description |
-|--------|-------|-------------|
-| 200 | - | Success |
-| 201 | - | Resource created |
-| 400 | Missing required fields | Required fields not provided |
-| 400 | Invalid data format | Data validation failed |
-| 401 | Unauthorized | Authentication required |
-| 403 | Forbidden | Insufficient permissions |
-| 404 | Resource not found | Requested resource doesn't exist |
-| 409 | Conflict | Duplicate resource or constraint violation |
-| 500 | Internal server error | Unexpected server error |
-| 500 | Database error | Supabase operation failed |
+| Status | Error                   | Description                                |
+| ------ | ----------------------- | ------------------------------------------ |
+| 200    | -                       | Success                                    |
+| 201    | -                       | Resource created                           |
+| 400    | Missing required fields | Required fields not provided               |
+| 400    | Invalid data format     | Data validation failed                     |
+| 401    | Unauthorized            | Authentication required                    |
+| 403    | Forbidden               | Insufficient permissions                   |
+| 404    | Resource not found      | Requested resource doesn't exist           |
+| 409    | Conflict                | Duplicate resource or constraint violation |
+| 500    | Internal server error   | Unexpected server error                    |
+| 500    | Database error          | Supabase operation failed                  |
 
 ## Testing Examples
 
 ### Unit Tests (Future)
 
 ```typescript
-
 describe('/api/properties', () => {
   it('should create property with owners', async () => {
-    const response = await request(app)
-      .post('/api/properties')
-      .send(mockPropertyData)
-      .expect(201)
+    const response = await request(app).post('/api/properties').send(mockPropertyData).expect(201);
 
-    expect(response.body.property).toHaveProperty('id')
-    expect(response.body.message).toBe('Property created successfully')
-  })
-})
-
+    expect(response.body.property).toHaveProperty('id');
+    expect(response.body.message).toBe('Property created successfully');
+  });
+});
 ```
 
 ### Integration Tests (Future)
 
 ```typescript
-
 describe('Property creation flow', () => {
   it('should create property and ownership records', async () => {
     // Test full workflow including database operations
-    const property = await createProperty(mockData)
-    const ownership = await getOwnership(property.id)
+    const property = await createProperty(mockData);
+    const ownership = await getOwnership(property.id);
 
-    expect(ownership).toHaveLength(2)
-    expect(ownership[0].primary).toBe(true)
-  })
-})
-
+    expect(ownership).toHaveLength(2);
+    expect(ownership[0].primary).toBe(true);
+  });
+});
 ```
 
 This API documentation reflects the current Supabase-based implementation and provides guidance for future development

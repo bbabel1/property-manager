@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts"
 import { SUPPORTED_EVENT_NAMES, canonicalizeEventName } from "./eventValidation.ts"
 
@@ -53,6 +54,7 @@ export const BuildiumWebhookEventSchema = z
     EventDateTime: dateValueSchema.optional(),
     EntityId: identifierSchema.optional(),
     LeaseId: z.number().optional(),
+    TransactionType: z.string().optional(),
     TransactionId: z.number().optional(),
     BillId: z.number().optional(),
     BillIds: z.array(z.number()).optional(),

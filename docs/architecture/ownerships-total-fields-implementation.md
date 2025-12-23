@@ -16,7 +16,7 @@ the sum of units and count of active properties for each owner.
 - Created functions to calculate and update total fields:
   - `calculate_owner_total_units(owner_uuid UUID)` - Sums total_units from all properties owned by an owner
 - `calculate_owner_total_properties(owner_uuid UUID)` - Counts active properties (status != 'Inactive') owned by an
-owner
+  owner
   - `update_owner_total_fields(owner_uuid UUID)` - Updates total_units and total_properties for a specific owner
   - `update_all_owners_total_fields()` - Updates total fields for all owners
 - Created trigger functions to handle automatic updates:
@@ -112,16 +112,14 @@ CREATE TABLE ownerships (
 The new fields are available in the Ownership interface and can be used in components that display owner information:
 
 ```typescript
-
 import { Ownership } from '@/types/ownerships';
 
 // Access the calculated fields
 const ownership: Ownership = {
   // ... other fields
-  totalUnits: 25,        // Sum of all property units
-  totalProperties: 3     // Count of active properties
+  totalUnits: 25, // Sum of all property units
+  totalProperties: 3, // Count of active properties
 };
-
 ```
 
 ## API Integration

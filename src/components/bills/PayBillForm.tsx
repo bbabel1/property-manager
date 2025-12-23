@@ -23,6 +23,7 @@ type PayBillFormProps = {
     id: string;
     buildiumBillId: number | null;
     totalAmount: number;
+    remainingAmount: number;
     vendorName: string;
     dueDate: string | null;
     date: string;
@@ -59,10 +60,14 @@ export default function PayBillForm({
 }: PayBillFormProps) {
   const router = useRouter();
 
-  const billTotal = useMemo(
-    () => Math.abs(Number(bill.totalAmount ?? 0)),
-    [bill.totalAmount],
-  );
+  const billTotal = useMemo(() => Math.abs(Number(bill.totalAmount ?? 0)), [bill.totalAmount]);
+  const billRemaining = useMemo(() => {
+    const parsed = Number(bill.remainingAmount ?? 0);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return Math.abs(parsed);
+    }
+    return billTotal;
+  }, [bill.remainingAmount, billTotal]);
   const resolvedDefaultBankAccountId = useMemo(() => {
     if (!bankAccounts.length) return '';
     if (
@@ -77,7 +82,7 @@ export default function PayBillForm({
   const [form, setForm] = useState<FormState>(() => {
     const today = new Date();
     const isoDate = today.toISOString().slice(0, 10);
-    const amount = billTotal;
+    const amount = billRemaining;
     return {
       bankAccountId: resolvedDefaultBankAccountId,
       date: isoDate,
@@ -100,9 +105,10 @@ export default function PayBillForm({
   }, [form.amount]);
 
   const remainingAmount = useMemo(() => {
-    const remaining = billTotal - paymentAmountValue;
+    const base = billRemaining > 0 ? billRemaining : billTotal;
+    const remaining = base - paymentAmountValue;
     return remaining > 0 ? remaining : 0;
-  }, [billTotal, paymentAmountValue]);
+  }, [billRemaining, billTotal, paymentAmountValue]);
 
   const bankAccountOptions = useMemo(
     () =>
@@ -237,6 +243,7 @@ export default function PayBillForm({
               value={form.date}
               onChange={(nextDate) => setForm((prev) => ({ ...prev, date: nextDate }))}
               disabled={submitting}
+              openOnFocus={false}
             />
           </div>
 
@@ -256,12 +263,12 @@ export default function PayBillForm({
             <p className="text-muted-foreground text-xs">
               Bill total: {formatCurrency(billTotal)}
             </p>
-            {paymentAmountValue > billTotal && (
+            {paymentAmountValue > (billRemaining || billTotal) && (
               <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
                 <span>⚠️</span>
                 <span>
-                  Amount exceeds bill total by{' '}
-                  {formatCurrency(paymentAmountValue - billTotal)}
+                  Amount exceeds remaining by{' '}
+                  {formatCurrency(paymentAmountValue - (billRemaining || billTotal))}
                 </span>
               </p>
             )}

@@ -132,16 +132,15 @@ Created `src/lib/buildium-client.ts` with a comprehensive API client:
 ### **Creating a Property with Buildium Sync:**
 
 ```typescript
-
-import { createBuildiumClient } from '@/lib/buildium-client'
-import { supabase } from '@/lib/db'
+import { createBuildiumClient } from '@/lib/buildium-client';
+import { supabase } from '@/lib/db';
 
 // Create Buildium client
 const buildiumClient = createBuildiumClient({
   baseUrl: process.env.BUILDIUM_BASE_URL!,
   clientId: process.env.BUILDIUM_CLIENT_ID!,
-  clientSecret: process.env.BUILDIUM_CLIENT_SECRET!
-})
+  clientSecret: process.env.BUILDIUM_CLIENT_SECRET!,
+});
 
 // Create property locally
 const { data: property, error } = await supabase
@@ -154,12 +153,12 @@ const { data: property, error } = await supabase
     postal_code: '10001',
     country: 'US',
     property_type: 'Condo',
-    status: 'Active'
+    status: 'Active',
   })
   .select()
-  .single()
+  .single();
 
-if (error) throw error
+if (error) throw error;
 
 // Sync to Buildium
 try {
@@ -171,28 +170,27 @@ try {
       City: property.city,
       State: property.state,
       PostalCode: property.postal_code,
-      Country: property.country
+      Country: property.country,
     },
-    IsActive: true
-  })
+    IsActive: true,
+  });
 
   // Update local record with Buildium ID
   await supabase
     .from('properties')
     .update({
       buildium_property_id: buildiumProperty.Id,
-      buildium_created_at: buildiumProperty.CreatedDate
+      buildium_created_at: buildiumProperty.CreatedDate,
     })
-    .eq('id', property.id)
+    .eq('id', property.id);
 
   // Update sync status
   await supabase.rpc('update_buildium_sync_status', {
     p_entity_type: 'property',
     p_entity_id: property.id,
     p_buildium_id: buildiumProperty.Id,
-    p_status: 'synced'
-  })
-
+    p_status: 'synced',
+  });
 } catch (error) {
   // Handle Buildium sync errors
   await supabase.rpc('update_buildium_sync_status', {
@@ -200,66 +198,70 @@ try {
     p_entity_id: property.id,
     p_buildium_id: null,
     p_status: 'failed',
-    p_error_message: error.message
-  })
-  throw error
+    p_error_message: error.message,
+  });
+  throw error;
 }
-
 ```
 
 ### **Processing Webhook Events:**
 
 ```typescript
-
-import { BuildiumClient } from '@/lib/buildium-client'
-import { supabase } from '@/lib/db'
+import { BuildiumClient } from '@/lib/buildium-client';
+import { supabase } from '@/lib/db';
 
 export async function processBuildiumWebhook(payload: any) {
   const buildiumClient = new BuildiumClient({
     baseUrl: process.env.BUILDIUM_BASE_URL!,
     clientId: process.env.BUILDIUM_CLIENT_ID!,
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET!
-  })
+    clientSecret: process.env.BUILDIUM_CLIENT_SECRET!,
+  });
 
   // Log webhook event
-  await supabase
-    .from('buildium_webhook_events')
-    .insert({
-      event_id: payload.Events[0].Id,
-      event_type: payload.Events[0].EventType,
-      event_data: payload.Events[0]
-    })
+  await supabase.from('buildium_webhook_events').insert({
+    event_id: payload.Events[0].Id,
+    event_type: payload.Events[0].EventType,
+    event_data: payload.Events[0],
+  });
 
   // Process each event
   for (const event of payload.Events) {
-    await buildiumClient.processWebhookEvent(event)
+    await buildiumClient.processWebhookEvent(event);
   }
 }
-
 ```
 
 ### **Batch Synchronization:**
 
 ```typescript
-
-import { BuildiumClient } from '@/lib/buildium-client'
+import { BuildiumClient } from '@/lib/buildium-client';
 
 const buildiumClient = new BuildiumClient({
   baseUrl: process.env.BUILDIUM_BASE_URL!,
   clientId: process.env.BUILDIUM_CLIENT_ID!,
-  clientSecret: process.env.BUILDIUM_CLIENT_SECRET!
-})
+  clientSecret: process.env.BUILDIUM_CLIENT_SECRET!,
+});
 
 // Batch create properties
 const properties = [
-  { Name: 'Property 1', PropertyType: 'Rental', Address: { /* ... */ } },
+  {
+    Name: 'Property 1',
+    PropertyType: 'Rental',
+    Address: {
+      /* ... */
+    },
+  },
 
-  { Name: 'Property 2', PropertyType: 'Commercial', Address: { /* ... */ } }
+  {
+    Name: 'Property 2',
+    PropertyType: 'Commercial',
+    Address: {
+      /* ... */
+    },
+  },
+];
 
-]
-
-const results = await buildiumClient.batchCreateProperties(properties)
-
+const results = await buildiumClient.batchCreateProperties(properties);
 ```
 
 ## 🛡️ **Error Handling & Validation**

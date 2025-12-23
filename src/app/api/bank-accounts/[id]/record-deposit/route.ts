@@ -1,0 +1,472 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
+import { requireRole } from '@/lib/auth/guards';
+import { supabaseAdmin } from '@/lib/db';
+import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
+import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
+
+const parseCurrencyInput = (value: string | null | undefined) => {
+  if (typeof value !== 'string') return 0;
+  const sanitized = value.replace(/[^\d.-]/g, '');
+  const parsed = Number(sanitized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const OtherItemSchema = z
+  .object({
+    id: z.string(),
+    propertyId: z.string().optional(),
+    unitId: z.string().optional(),
+    glAccountId: z.string().min(1),
+    description: z.string().max(2000).optional(),
+    amount: z.string(),
+  })
+  .refine((item) => parseCurrencyInput(item.amount) >= 0, 'Invalid amount');
+
+const PayloadSchema = z.object({
+  bankAccountId: z.string().min(1),
+  date: z.string().min(1),
+  memo: z.string().max(2000).optional(),
+  printDepositSlips: z.boolean().optional(),
+  paymentTransactionIds: z.array(z.string()).optional(),
+  otherItems: z.array(OtherItemSchema).optional(),
+});
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireRole('platform_admin');
+    const { id: pageBankAccountId } = await params;
+
+    const body = await request.json().catch(() => null);
+    const parsed = PayloadSchema.safeParse(body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues?.[0];
+      return NextResponse.json(
+        { error: { code: 'VALIDATION_ERROR', message: issue?.message ?? 'Invalid request' } },
+        { status: 400 },
+      );
+    }
+
+    const payload = parsed.data;
+    const targetBankAccountId = payload.bankAccountId || pageBankAccountId;
+
+    // Load bank account and org context
+    const { data: bankAccount, error: bankErr } = await supabaseAdmin
+      .from('gl_accounts')
+      .select('id, org_id, buildium_gl_account_id')
+      .eq('id', targetBankAccountId)
+      .eq('is_bank_account', true)
+      .maybeSingle();
+    if (bankErr || !bankAccount) {
+      return NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: 'Bank account not found' } },
+        { status: 404 },
+      );
+    }
+
+    const orgId = (bankAccount as any).org_id ?? null;
+    const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin as any, orgId);
+    if (!udfGlAccountId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'UNPROCESSABLE_ENTITY',
+            message: 'Undeposited Funds GL account could not be resolved.',
+          },
+        },
+        { status: 422 },
+      );
+    }
+
+    const paymentIds = payload.paymentTransactionIds ?? [];
+    const otherItems = payload.otherItems ?? [];
+
+    let paymentsTotal = 0;
+    const paymentRows: Array<{
+      id: string;
+      amount: number;
+      buildium_transaction_id: number | null;
+      property_id: string | null;
+      unit_id: string | null;
+      tenant_id: string | null;
+      paid_to_tenant_id: string | null;
+    }> = [];
+    if (paymentIds.length > 0) {
+      const { data: payments, error: payErr } = await supabaseAdmin
+        .from('transactions')
+        .select(
+          `
+          id,
+          total_amount,
+          buildium_transaction_id,
+          bank_gl_account_id,
+          memo,
+          tenant_id,
+          paid_to_tenant_id,
+          transaction_lines!inner(gl_account_id, amount, posting_type, property_id, unit_id)
+        `,
+        )
+        .in('id', paymentIds)
+        .eq('transaction_lines.gl_account_id', udfGlAccountId)
+        .limit(1000);
+      if (payErr) throw payErr;
+
+      (payments || []).forEach((row: any) => {
+        if (row?.bank_gl_account_id !== udfGlAccountId) return;
+        const lineAmount =
+          (row?.transaction_lines || [])
+            .filter((l: any) => l?.gl_account_id === udfGlAccountId)
+            .reduce((max: number, l: any) => {
+              const v = Math.abs(Number(l?.amount ?? NaN));
+              return Number.isFinite(v) && v > max ? v : max;
+            }, 0) || 0;
+        const amtRaw = Number(row?.total_amount ?? 0);
+        const lineWithProperty = (row?.transaction_lines || []).find(
+          (l: any) => l?.gl_account_id === udfGlAccountId && l?.property_id,
+        );
+        const amt = lineAmount > 0 ? lineAmount : amtRaw;
+        paymentRows.push({
+          id: String(row.id),
+          amount: Number.isFinite(amt) ? amt : 0,
+          buildium_transaction_id:
+            typeof row?.buildium_transaction_id === 'number' ? row.buildium_transaction_id : null,
+          property_id: (lineWithProperty as any)?.property_id || null,
+          unit_id: (lineWithProperty as any)?.unit_id || null,
+          tenant_id: row?.tenant_id ? String(row.tenant_id) : null,
+          paid_to_tenant_id: row?.paid_to_tenant_id ? String(row.paid_to_tenant_id) : null,
+        });
+      });
+      paymentsTotal = paymentRows.reduce((sum, p) => sum + (Number.isFinite(p.amount) ? p.amount : 0), 0);
+    }
+
+    const propertyIds = Array.from(
+      new Set(
+        [
+          ...paymentRows.map((p) => p.property_id).filter(Boolean),
+          ...otherItems.map((i) => i.propertyId).filter(Boolean),
+        ].map(String),
+      ),
+    ).slice(0, 500);
+    const unitIds = Array.from(
+      new Set(
+        [
+          ...paymentRows.map((p) => p.unit_id).filter(Boolean),
+          ...otherItems.map((i) => i.unitId).filter(Boolean),
+        ].map(String),
+      ),
+    ).slice(0, 500);
+    const propertyLabelById = new Map<string, string>();
+    const propertyBuildiumById = new Map<string, number>();
+    if (propertyIds.length > 0) {
+      const { data: props } = await supabaseAdmin
+        .from('properties')
+        .select('id, name, address_line1, buildium_property_id')
+        .in('id', propertyIds)
+        .limit(1000);
+      (props || []).forEach((p: any) => {
+        const label = `${p?.name || 'Property'}${p?.address_line1 ? ` • ${p.address_line1}` : ''}`;
+        if (p?.id) {
+          const idStr = String(p.id);
+          propertyLabelById.set(idStr, label);
+          if (typeof p?.buildium_property_id === 'number') {
+            propertyBuildiumById.set(idStr, p.buildium_property_id);
+          }
+        }
+      });
+    }
+    const unitLabelById = new Map<string, string>();
+    if (unitIds.length > 0) {
+      const { data: units } = await supabaseAdmin
+        .from('units')
+        .select('id, unit_number, unit_name, buildium_unit_id')
+        .in('id', unitIds)
+        .limit(2000);
+      (units || []).forEach((u: any) => {
+        const label = u?.unit_number || u?.unit_name || 'Unit';
+        if (u?.id) unitLabelById.set(String(u.id), label);
+      });
+    }
+
+    const unitBuildiumById = new Map<string, number>();
+    if (unitIds.length > 0) {
+      const { data: units } = await supabaseAdmin
+        .from('units')
+        .select('id, buildium_unit_id')
+        .in('id', unitIds)
+        .limit(2000);
+      (units || []).forEach((u: any) => {
+        if (typeof u?.buildium_unit_id === 'number') unitBuildiumById.set(String(u.id), u.buildium_unit_id);
+      });
+    }
+
+    const tenantIds = new Set<string>();
+    paymentRows.forEach((p) => {
+      if (p.tenant_id) tenantIds.add(p.tenant_id);
+      if (p.paid_to_tenant_id) tenantIds.add(p.paid_to_tenant_id);
+    });
+    const tenantNameById = new Map<string, string>();
+    if (tenantIds.size > 0) {
+      const { data: tenants } = await supabaseAdmin
+        .from('tenants')
+        .select(
+          `
+          id,
+          contacts:contacts!tenants_contact_id_fkey (
+            display_name,
+            first_name,
+            last_name,
+            company_name
+          )
+        `,
+        )
+        .in('id', Array.from(tenantIds))
+        .limit(2000);
+      (tenants || []).forEach((t: any) => {
+        const contact = (t?.contacts || {}) as {
+          display_name?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          company_name?: string | null;
+        };
+        const name =
+          contact.display_name ||
+          [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim() ||
+          contact.company_name ||
+          null;
+        if (name && t?.id) tenantNameById.set(String(t.id), name);
+      });
+    }
+
+    const paidByLabels = new Set<string>();
+    paymentRows.forEach((p) => {
+      const tenantName =
+        (p.tenant_id && tenantNameById.get(p.tenant_id)) ||
+        (p.paid_to_tenant_id && tenantNameById.get(p.paid_to_tenant_id)) ||
+        null;
+      const propLabel = p.property_id ? propertyLabelById.get(String(p.property_id)) : null;
+      const unitLabel = p.unit_id ? unitLabelById.get(String(p.unit_id)) : null;
+      const fallbackLabel = propLabel ? `${propLabel}${unitLabel ? ` · ${unitLabel}` : ''}` : unitLabel;
+      const finalLabel = tenantName || fallbackLabel;
+      if (finalLabel) paidByLabels.add(finalLabel);
+    });
+    const paidByLabel =
+      paidByLabels.size > 1
+        ? `${Array.from(paidByLabels)[0]} +${paidByLabels.size - 1}`
+        : Array.from(paidByLabels)[0] || null;
+
+    const otherTotal = otherItems.reduce((sum, item) => sum + parseCurrencyInput(item.amount), 0);
+    const total = paymentsTotal + otherTotal;
+
+    if (!Number.isFinite(total) || total <= 0) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Select at least one payment or add an other deposit item amount.',
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Create deposit transaction header
+    const { data: depositTx, error: depositErr } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        date: payload.date,
+        memo: payload.memo ?? null,
+        paid_by_label: paidByLabel,
+        total_amount: total,
+        transaction_type: 'Deposit',
+        status: 'Paid',
+        org_id: orgId,
+        bank_gl_account_id: targetBankAccountId,
+        print_receipt: Boolean(payload.printDepositSlips),
+        email_receipt: false,
+        created_at: nowIso,
+        updated_at: nowIso,
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (depositErr || !depositTx?.id) {
+      throw depositErr ?? new Error('Failed to create deposit');
+    }
+
+    const depositTransactionId = String(depositTx.id);
+
+    // Transaction lines: debit bank, credit undeposited funds (for selected payments), plus credits for other items.
+    const lineRows: any[] = [];
+    lineRows.push({
+      transaction_id: depositTransactionId,
+      gl_account_id: targetBankAccountId,
+      amount: total,
+      posting_type: 'Debit',
+      memo: payload.memo ?? null,
+      account_entity_type: 'Company',
+      account_entity_id: null,
+      date: payload.date,
+      property_id: null,
+      unit_id: null,
+      created_at: nowIso,
+      updated_at: nowIso,
+    });
+
+    if (paymentsTotal > 0) {
+      lineRows.push({
+        transaction_id: depositTransactionId,
+        gl_account_id: udfGlAccountId,
+        amount: paymentsTotal,
+        posting_type: 'Credit',
+        memo: payload.memo ?? null,
+        account_entity_type: 'Company',
+        account_entity_id: null,
+        date: payload.date,
+        property_id: null,
+        unit_id: null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    }
+
+    otherItems.forEach((item) => {
+      const amt = parseCurrencyInput(item.amount);
+      if (!Number.isFinite(amt) || amt <= 0) return;
+      lineRows.push({
+        transaction_id: depositTransactionId,
+        gl_account_id: item.glAccountId,
+        amount: amt,
+        posting_type: 'Credit',
+        memo: item.description ?? payload.memo ?? null,
+        account_entity_type: item.propertyId ? 'Rental' : 'Company',
+        account_entity_id: null,
+        date: payload.date,
+        property_id: item.propertyId || null,
+        unit_id: item.unitId || null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    });
+
+    const { error: linesErr } = await supabaseAdmin.from('transaction_lines').insert(lineRows);
+    if (linesErr) throw linesErr;
+
+    // Link payment transactions to this deposit (for downstream display/filtering).
+    if (paymentRows.length > 0) {
+      const splitRows = paymentRows.map((p) => {
+        const buildiumPropertyId =
+          p.property_id != null ? propertyBuildiumById.get(String(p.property_id)) : null;
+        const buildiumUnitId = p.unit_id != null ? unitBuildiumById.get(String(p.unit_id)) : null;
+        return {
+          transaction_id: depositTransactionId,
+          amount: p.amount,
+          buildium_payment_transaction_id: p.buildium_transaction_id,
+          accounting_entity_type: buildiumPropertyId ? 'Rental' : null,
+          accounting_entity_id: buildiumPropertyId ?? null,
+          accounting_unit_id: buildiumUnitId ?? null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+      });
+      const { error: splitErr } = await supabaseAdmin
+        .from('transaction_payment_transactions')
+        .insert(splitRows);
+      if (splitErr) throw splitErr;
+    }
+
+    // Push to Buildium (best-effort)
+    try {
+      const bankBuildiumId =
+        (bankAccount as any)?.buildium_gl_account_id != null
+          ? Number((bankAccount as any)?.buildium_gl_account_id)
+          : null;
+      const paymentBuildiumIds = paymentRows
+        .map((p) => p.buildium_transaction_id)
+        .filter((id): id is number => typeof id === 'number');
+
+      if (bankBuildiumId && (paymentBuildiumIds.length > 0 || otherItems.length > 0)) {
+        const buildiumClient = await getOrgScopedBuildiumClient(orgId ?? undefined);
+
+        // Map other deposit items to Buildium lines (only include when GL + property/unit Buildium IDs are present)
+        const otherLines: any[] = [];
+        if (otherItems.length > 0) {
+          const glIds = Array.from(new Set(otherItems.map((i) => i.glAccountId).filter(Boolean))).slice(0, 500);
+          const { data: glRows } = await supabaseAdmin
+            .from('gl_accounts')
+            .select('id, buildium_gl_account_id')
+            .in('id', glIds);
+          const glBuildiumById = new Map<string, number>();
+          (glRows || []).forEach((g: any) => {
+            if (typeof g?.buildium_gl_account_id === 'number')
+              glBuildiumById.set(String(g.id), g.buildium_gl_account_id);
+          });
+
+          otherItems.forEach((item) => {
+            const amt = parseCurrencyInput(item.amount);
+            if (!Number.isFinite(amt) || amt <= 0) return;
+            const glBuildiumId = glBuildiumById.get(String(item.glAccountId));
+            if (typeof glBuildiumId !== 'number') return;
+
+            let accountingEntity: any = null;
+            if (item.propertyId) {
+              const buildiumPropertyId = propertyBuildiumById.get(String(item.propertyId));
+              const buildiumUnitId = item.unitId ? unitBuildiumById.get(String(item.unitId)) : undefined;
+              if (typeof buildiumPropertyId === 'number') {
+                accountingEntity = {
+                  Id: buildiumPropertyId,
+                  AccountingEntityType: 'Rental',
+                  UnitId: typeof buildiumUnitId === 'number' ? buildiumUnitId : undefined,
+                };
+              }
+            }
+
+            otherLines.push({
+              GLAccountId: glBuildiumId,
+              AccountingEntity: accountingEntity,
+              Memo: item.description || payload.memo || undefined,
+              Amount: amt,
+            });
+          });
+        }
+
+        const buildiumPayload: Record<string, unknown> = {
+          EntryDate: payload.date,
+          Memo: payload.memo || undefined,
+          PaymentTransactionIds: paymentBuildiumIds,
+          Lines: otherLines,
+        };
+
+        const buildiumResult = await buildiumClient.makeRequest<any>(
+          'POST',
+          `/bankaccounts/${bankBuildiumId}/deposits`,
+          buildiumPayload,
+        );
+
+        const buildiumDepositId =
+          typeof buildiumResult?.Id === 'number' ? buildiumResult.Id : buildiumResult?.id ?? null;
+        if (buildiumDepositId != null) {
+          await supabaseAdmin
+            .from('transactions')
+            .update({ buildium_transaction_id: buildiumDepositId, updated_at: new Date().toISOString() })
+            .eq('id', depositTransactionId);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync deposit to Buildium', err);
+    }
+
+    return NextResponse.json({ data: { transactionId: depositTransactionId } }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to record deposit',
+        },
+      },
+      { status: 500 },
+    );
+  }
+}

@@ -166,7 +166,7 @@ type InsuranceFormState = {
 
 function toDateInputValue(value: string | null): string {
   if (!value) return '';
-  const isoCandidate = value.includes('T') ? value : `${value}T00:00:00`;
+  const isoCandidate = value.includes('T') ? value : `${value}T00:00:00Z`;
   const parsed = new Date(isoCandidate);
   if (Number.isNaN(parsed.getTime())) {
     return value.slice(0, 10);
@@ -229,11 +229,13 @@ const workOrderDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
 function formatWorkOrderDate(value: string | null | undefined): string {
   if (!value) return '—';
-  const date = new Date(value);
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
+  const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return workOrderDateFormatter.format(date);
 }
@@ -252,6 +254,7 @@ const billDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
 const billCurrencyFormatter = new Intl.NumberFormat('en-US', {
@@ -263,7 +266,7 @@ const billCurrencyFormatter = new Intl.NumberFormat('en-US', {
 
 function formatBillDate(value: string | null): string {
   if (!value) return '—';
-  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
   const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return billDateFormatter.format(date);

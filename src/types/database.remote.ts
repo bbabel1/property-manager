@@ -2339,7 +2339,6 @@ export type Database = {
             | null
           bank_last_source_ts: string | null
           bank_routing_number: string | null
-          buildium_bank_account_id: number | null
           buildium_gl_account_id: number
           buildium_parent_gl_account_id: number | null
           cash_flow_classification: string | null
@@ -2378,7 +2377,6 @@ export type Database = {
             | null
           bank_last_source_ts?: string | null
           bank_routing_number?: string | null
-          buildium_bank_account_id?: number | null
           buildium_gl_account_id: number
           buildium_parent_gl_account_id?: number | null
           cash_flow_classification?: string | null
@@ -2417,7 +2415,6 @@ export type Database = {
             | null
           bank_last_source_ts?: string | null
           bank_routing_number?: string | null
-          buildium_bank_account_id?: number | null
           buildium_gl_account_id?: number
           buildium_parent_gl_account_id?: number | null
           cash_flow_classification?: string | null

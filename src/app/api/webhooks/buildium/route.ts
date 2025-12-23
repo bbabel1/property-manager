@@ -53,6 +53,66 @@ function computeHmac(raw: string, secret: string) {
   }
 }
 
+type EdgeForwardResult = { ok: true } | { ok: false; status: number; body: string }
+
+async function forwardBankTransactionToEdge(event: any): Promise<EdgeForwardResult> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  const secret = process.env.BUILDIUM_WEBHOOK_SECRET || ''
+
+  if (!supabaseUrl) return { ok: false, status: 500, body: 'missing NEXT_PUBLIC_SUPABASE_URL' }
+  if (!serviceKey) return { ok: false, status: 500, body: 'missing SUPABASE_SERVICE_ROLE_KEY' }
+  if (!secret) return { ok: false, status: 500, body: 'missing BUILDIUM_WEBHOOK_SECRET' }
+
+  const url = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/buildium-webhook`
+  const payload = JSON.stringify({ Events: [event] })
+  const timestamp = String(Date.now())
+
+  // Edge function verifies Buildium HMAC signatures; emulate Buildium headers here.
+  const signature = computeHmac(`${timestamp}.${payload}`, secret).base64
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // Supabase Edge Functions are JWT-gated by default; use service role for server-to-server calls.
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+      // Buildium signature headers expected by the edge function.
+      'buildium-webhook-timestamp': timestamp,
+      'x-buildium-signature': signature,
+    },
+    body: payload,
+  })
+
+  const bodyText = await res.text().catch(() => '')
+
+  if (!res.ok) {
+    return { ok: false, status: res.status, body: bodyText || res.statusText || 'edge-forward-failed' }
+  }
+
+  // The edge function returns HTTP 200 for the request even if one or more events failed.
+  // Validate the response body so we don't silently mark a webhook as processed when downstream work failed.
+  try {
+    const parsed = bodyText ? (JSON.parse(bodyText) as any) : null
+    const failed = Number(parsed?.failed ?? 0)
+    const results = Array.isArray(parsed?.results) ? parsed.results : []
+    const anyFailed = failed > 0 || results.some((r: any) => r && r.success === false)
+    if (anyFailed) {
+      return {
+        ok: false,
+        status: 502,
+        body: bodyText || 'edge-forward-partial-failure',
+      }
+    }
+  } catch {
+    // If we can't parse a success response, treat it as a failure so the webhook can be retried/inspected.
+    return { ok: false, status: 502, body: bodyText || 'edge-forward-unparseable-success-response' }
+  }
+
+  return { ok: true }
+}
+
 function verifySignature(req: NextRequest, raw: string): { ok: boolean; reason?: string } {
   // Try multiple possible header names for Buildium signature
   const sig = 
@@ -252,7 +312,16 @@ export async function POST(req: NextRequest) {
   }
 
   const signatureHeader = req.headers.get('x-buildium-signature') || ''
-  const results: { eventId: string | number | null; status: 'processed' | 'duplicate' | 'error' | 'invalid' | 'tombstoned'; error?: string }[] = []
+  const results: {
+    eventId: string | number | null
+    status: 'processed' | 'duplicate' | 'error' | 'invalid' | 'tombstoned'
+    error?: string
+    forwarded?: 'edge'
+    repaired?: boolean
+    reprocessed?: boolean
+    edgeStatus?: number
+    edgeBodyPreview?: string
+  }[] = []
   const storedEvents: NormalizedBuildiumWebhook[] = []
 
   const buildiumCreds = {
@@ -1197,6 +1266,39 @@ export async function POST(req: NextRequest) {
       if (s === 'cancelled' || s === 'canceled') return 'Cancelled'
       return status
     }
+    const resolveUndepositedFundsGlAccountIdLocal = async (orgId: string | null) => {
+      const lookup = async (column: 'default_account_name' | 'name') => {
+        let query = admin.from('gl_accounts').select('id').ilike(column, '%undeposited funds%')
+        if (orgId) query = query.eq('org_id', orgId)
+        const { data, error } = await query.limit(1).maybeSingle()
+        if (error && error.code !== 'PGRST116') throw error
+        return (data as any)?.id ?? null
+      }
+      const scopedDefault = await lookup('default_account_name')
+      if (scopedDefault) return scopedDefault
+      const scopedName = await lookup('name')
+      if (scopedName) return scopedName
+
+      const { data: globalDefault, error: g1 } = await admin
+        .from('gl_accounts')
+        .select('id')
+        .ilike('default_account_name', '%undeposited funds%')
+        .limit(1)
+        .maybeSingle()
+      if (g1 && (g1 as any).code !== 'PGRST116') throw g1
+      if ((globalDefault as any)?.id) return (globalDefault as any).id
+
+      const { data: globalName, error: g2 } = await admin
+        .from('gl_accounts')
+        .select('id')
+        .ilike('name', '%undeposited funds%')
+        .limit(1)
+        .maybeSingle()
+      if (g2 && (g2 as any).code !== 'PGRST116') throw g2
+      if ((globalName as any)?.id) return (globalName as any).id
+
+      return null
+    }
     const upsertLeaseTransactionWithLinesLocal = async (
       leaseTx: any,
       fetchGL: (id: number) => Promise<any>,
@@ -1222,6 +1324,8 @@ export async function POST(req: NextRequest) {
         memo: leaseTx?.Journal?.Memo ?? leaseTx?.Memo ?? null,
         payment_method: paymentMethod,
         payee_tenant_id: payeeTenantBuildiumId ?? null,
+        bank_gl_account_id: null as any,
+        bank_gl_account_buildium_id: null as any,
         updated_at: now,
       }
       const { data: existing, error: findErr } = await admin.from('transactions').select('id').eq('buildium_transaction_id', leaseTx.Id).single()
@@ -1238,6 +1342,49 @@ export async function POST(req: NextRequest) {
       const defaultBuildiumUnitId = (leaseRow as any)?.buildium_unit_id ?? null
       const defaultPropertyId = (leaseRow as any)?.property_id ?? null
       const defaultUnitId = (leaseRow as any)?.unit_id ?? null
+
+      // Resolve property org + bank context (for Undeposited Funds + fallback)
+      let propertyBankContext: any = null
+      if (defaultPropertyId) {
+        const { data: prop, error: perr } = await admin
+          .from('properties')
+          .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
+          .eq('id', defaultPropertyId)
+          .maybeSingle()
+        if (perr && perr.code !== 'PGRST116') throw perr
+        propertyBankContext = prop ?? null
+      }
+      const propertyOrgId = (propertyBankContext as any)?.org_id ?? orgId ?? null
+
+      // Resolve provided bank GL (if Buildium sent it)
+      const bankGlBuildiumId = (leaseTx as any)?.DepositDetails?.BankGLAccountId ?? null
+      const bankGlAccountId = bankGlBuildiumId ? await ensureGLAccountId(bankGlBuildiumId, fetchGL) : null
+
+      // Choose final bank GL with precedence: provided bank GL -> org-scoped Undeposited Funds -> property bank fallback
+      let bankGlAccountIdToUse: string | null = bankGlAccountId ?? null
+      const txType = String(header.transaction_type || '').toLowerCase()
+      const isPaymentTransaction = txType === 'payment'
+      const isApplyDepositTransaction = txType === 'applydeposit'
+      const isBillPaymentTransaction = txType.includes('billpayment')
+      const isOwnerDrawTransaction = txType.includes('owner')
+      const isVendorPayment = isPaymentTransaction && !(leaseTx?.LeaseId || leaseIdLocal) && !(leaseTx?.Unit?.Id || leaseTx?.UnitId)
+      const isInflow = (isPaymentTransaction && !isVendorPayment) || isApplyDepositTransaction
+      const isOutflow = isBillPaymentTransaction || isOwnerDrawTransaction || isVendorPayment
+      const needsBankAccountLine = isInflow || isOutflow
+
+      if (needsBankAccountLine && !bankGlAccountIdToUse) {
+        bankGlAccountIdToUse = await resolveUndepositedFundsGlAccountIdLocal(propertyOrgId)
+      }
+      if (needsBankAccountLine && !bankGlAccountIdToUse && propertyBankContext) {
+        bankGlAccountIdToUse =
+          (propertyBankContext as any)?.operating_bank_gl_account_id ??
+          (propertyBankContext as any)?.deposit_trust_gl_account_id ??
+          null
+      }
+
+      header.bank_gl_account_id = bankGlAccountIdToUse ?? bankGlAccountId ?? null
+      header.bank_gl_account_buildium_id = bankGlBuildiumId ?? null
+
       let transactionId: string
       if (existing?.id) {
         const { data, error } = await admin.from('transactions').update({ ...header, lease_id: leaseIdLocal, org_id: orgId, tenant_id: payeeTenantLocal }).eq('id', existing.id).select('id').single()
@@ -1248,15 +1395,33 @@ export async function POST(req: NextRequest) {
         if (error) throw error
         transactionId = data.id
       }
+
       await admin.from('transaction_lines').delete().eq('transaction_id', transactionId)
       const lines = Array.isArray(leaseTx?.Journal?.Lines) ? leaseTx.Journal.Lines : Array.isArray(leaseTx?.Lines) ? leaseTx.Lines : []
       let debit = 0, credit = 0
+      const pendingLines: any[] = []
+      const glAccountBankFlags = new Map<string, boolean>()
+
+      const loadIsBankAccount = async (glAccountId: string) => {
+        if (glAccountBankFlags.has(glAccountId)) return glAccountBankFlags.get(glAccountId) === true
+        const { data: glRow, error: glErr } = await admin
+          .from('gl_accounts')
+          .select('is_bank_account')
+          .eq('id', glAccountId)
+          .maybeSingle()
+        if (glErr && glErr.code !== 'PGRST116') throw glErr
+        const isBank = Boolean((glRow as any)?.is_bank_account)
+        glAccountBankFlags.set(glAccountId, isBank)
+        return isBank
+      }
+
       for (const line of lines) {
         const amountAbs = Math.abs(Number(line?.Amount ?? 0))
         const posting = resolvePostingType(line)
         const glBuildiumId = typeof line?.GLAccount === 'number' ? line?.GLAccount : (line?.GLAccount?.Id ?? line?.GLAccountId ?? null)
         const glId = await ensureGLAccountId(glBuildiumId, fetchGL)
         if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`)
+        await loadIsBankAccount(glId)
         const buildiumPropertyId = line?.PropertyId ?? defaultBuildiumPropertyId ?? null
         const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? defaultBuildiumUnitId ?? null
         const propertyIdLocal =
@@ -1264,7 +1429,7 @@ export async function POST(req: NextRequest) {
           defaultPropertyId ??
           null
         const unitIdLocal = (await resolveLocalUnitId(buildiumUnitId)) ?? defaultUnitId ?? null
-        await admin.from('transaction_lines').insert({
+        pendingLines.push({
           transaction_id: transactionId,
           gl_account_id: glId,
           amount: amountAbs,
@@ -1285,6 +1450,39 @@ export async function POST(req: NextRequest) {
         if (posting === 'Debit') debit += amountAbs
         else credit += amountAbs
       }
+
+      // Insert balancing bank/Undeposited Funds debit line only when Buildium did not provide one
+      const hasBankAccountLine = Array.from(glAccountBankFlags.values()).some((v) => v === true)
+      const hasProvidedBankLine = bankGlAccountId ? pendingLines.some((l) => l.gl_account_id === bankGlAccountId) : false
+      const hasBankLikeLine = hasBankAccountLine || hasProvidedBankLine
+
+      if (needsBankAccountLine && !hasBankLikeLine && bankGlAccountIdToUse && credit > 0) {
+        pendingLines.push({
+          transaction_id: transactionId,
+          gl_account_id: bankGlAccountIdToUse,
+          amount: credit,
+          posting_type: 'Debit',
+          memo: leaseTx?.Memo ?? header.memo ?? null,
+          account_entity_type: 'Rental',
+          account_entity_id: defaultBuildiumPropertyId,
+          date: normalizeDate(leaseTx.Date),
+          created_at: now,
+          updated_at: now,
+          buildium_property_id: defaultBuildiumPropertyId,
+          buildium_unit_id: defaultBuildiumUnitId,
+          buildium_lease_id: leaseTx.LeaseId ?? null,
+          lease_id: leaseIdLocal,
+          property_id: defaultPropertyId,
+          unit_id: defaultUnitId,
+        })
+        debit += credit
+      }
+
+      if (pendingLines.length) {
+        const { error: lineErr } = await admin.from('transaction_lines').insert(pendingLines)
+        if (lineErr) throw lineErr
+      }
+
       if (debit > 0 && credit > 0 && Math.abs(debit - credit) > 0.0001) {
         throw new Error(`Double-entry integrity violation: debits (${debit}) != credits (${credit})`)
       }
@@ -1556,18 +1754,71 @@ export async function POST(req: NextRequest) {
       const headerDate = normalizeDate(payment?.EntryDate ?? payment?.Date ?? null)
       const paymentMethod = mapPaymentMethod(payment?.PaymentMethod) || (payment?.CheckNumber ? 'Check' : null)
 
-      // Resolve local bank account + GL
-      const bankGlAccountId = await resolveBankGlAccountId(payment?.BankAccountId ?? null, admin)
+      // Resolve local bank account + GL (prefer the Buildium BankAccountId provided by the payment payload)
+      const bankAccountIdRaw =
+        payment?.BankAccountId ??
+        (payment as any)?.BankAccountID ??
+        (payment as any)?.BankAccount?.Id ??
+        null
+      const bankAccountId =
+        bankAccountIdRaw != null && Number.isFinite(Number(bankAccountIdRaw))
+          ? Number(bankAccountIdRaw)
+          : null
+
+      let bankGlAccountId = await resolveBankGlAccountId(bankAccountId, admin)
+      if (bankAccountId && bankGlAccountId) {
+        // Sanity-check the resolved GL account to ensure it matches the Buildium BankAccountId.
+        const { data: resolvedGl } = await admin
+          .from('gl_accounts')
+          .select('id, buildium_gl_account_id')
+          .eq('id', bankGlAccountId)
+          .maybeSingle()
+
+        const resolvedBuildiumId = (resolvedGl as any)?.buildium_gl_account_id ?? null
+        if (resolvedBuildiumId == null || Number(resolvedBuildiumId) !== bankAccountId) {
+          const { data: exactBankGl } = await admin
+            .from('gl_accounts')
+            .select('id')
+            .eq('buildium_gl_account_id', bankAccountId)
+            .maybeSingle()
+          if (exactBankGl?.id) {
+            bankGlAccountId = exactBankGl.id
+          }
+        }
+      }
+
       if (!bankGlAccountId) {
-        throw new Error(`Missing bank GL account for bill payment ${paymentId ?? ''}`)
+        throw new Error(
+          `Missing bank GL account for bill payment ${paymentId ?? ''} (BankAccountId=${bankAccountId ?? 'null'})`,
+        )
       }
 
       // Pick vendor/category from existing bill transaction if present
       const { data: billTxMeta } = await admin
         .from('transactions')
-        .select('vendor_id, category_id, org_id')
+        .select('id, vendor_id, category_id, org_id')
         .eq('buildium_bill_id', billId)
+        .eq('transaction_type', 'Bill')
         .maybeSingle()
+
+      let apGlAccountId: string | null = null
+      if (billTxMeta?.id) {
+        const { data: billLines, error: billLinesErr } = await admin
+          .from('transaction_lines')
+          .select('gl_account_id, posting_type, gl_accounts(type)')
+          .eq('transaction_id', billTxMeta.id)
+          .limit(10)
+        if (billLinesErr) {
+          console.error('Failed to load bill lines for AP resolution', billLinesErr)
+        } else if (billLines?.length) {
+          const apLine = billLines.find(
+            (line: any) =>
+              String(line?.posting_type || '').toLowerCase() === 'credit' &&
+              String((line as any)?.gl_accounts?.type || '').toLowerCase() === 'liability',
+          )
+          apGlAccountId = (apLine as any)?.gl_account_id ?? null
+        }
+      }
 
       // Find existing payment transaction by buildium_transaction_id
       let existing: { id: string; created_at: string } | null = null
@@ -1583,14 +1834,77 @@ export async function POST(req: NextRequest) {
 
       let debitSum = 0
       let creditSum = 0
-
-      const totalAmount = totalFromLines || Number(payment?.Amount ?? 0) || debitSum || creditSum || 0
-
       const orgFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId ?? payment?.AccountId ?? null)
+      // Build lines from payment lines (debits), plus balancing credit to bank
+      const pendingLines: Array<Omit<{
+        transaction_id: string
+        gl_account_id: string
+        amount: number
+        posting_type: string
+        memo: string | null
+        account_entity_type: 'Rental' | 'Company'
+        account_entity_id: number | null
+        date: string
+        created_at: string
+        updated_at: string
+        buildium_property_id: number | null
+        buildium_unit_id: number | null
+        buildium_lease_id: null
+        property_id: string | null
+        unit_id: string | null
+      }, 'transaction_id'>> = []
+      const paymentLines = Array.isArray(payment?.Lines) ? payment.Lines : []
+      const lineDate = headerDate ?? new Date().toISOString().slice(0, 10)
+      for (const line of paymentLines) {
+        const glBuildiumId = line?.GLAccountId ?? line?.GLAccount?.Id ?? null
+        const glId = apGlAccountId ?? (await ensureGLAccountId(glBuildiumId, fetchGL))
+        if (!glId) throw new Error(`GL account not found for bill payment line. BuildiumId=${glBuildiumId}`)
+        const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
+        const buildiumUnitId = line?.AccountingEntity?.UnitId ?? line?.AccountingEntity?.Unit?.Id ?? null
+        const propertyIdLocal = await resolveLocalPropertyId(buildiumPropertyId)
+        const unitIdLocal = await resolveLocalUnitId(buildiumUnitId)
+        const entityTypeRaw = line?.AccountingEntity?.AccountingEntityType || 'Rental'
+        const entityType: 'Rental' | 'Company' = String(entityTypeRaw).toLowerCase() === 'rental' ? 'Rental' : 'Company'
+        const amount = Math.abs(Number(line?.Amount ?? 0))
+        // Buildium bill payment lines do not include PostingType; treat them as debits against the bill/AP.
+        const posting =
+          line?.PostingType ||
+          line?.posting_type ||
+          line?.PostingTypeEnum ||
+          line?.PostingTypeString
+            ? resolvePostingType(line)
+            : ('Debit' as const)
+        if (posting === 'Debit') debitSum += amount
+        else creditSum += amount
+        pendingLines.push({
+          gl_account_id: glId,
+          amount,
+          posting_type: posting,
+          memo: line?.Memo ?? null,
+          account_entity_type: entityType,
+          account_entity_id: buildiumPropertyId,
+          date: lineDate,
+          created_at: now,
+          updated_at: now,
+          buildium_property_id: buildiumPropertyId,
+          buildium_unit_id: buildiumUnitId,
+          buildium_lease_id: null,
+          property_id: propertyIdLocal,
+          unit_id: unitIdLocal,
+        })
+      }
+
+      let totalAmount = totalFromLines || Number(payment?.Amount ?? 0) || debitSum || creditSum || 0
+      if (!Number.isFinite(totalAmount) || totalAmount === 0) {
+        totalAmount = debitSum || creditSum || 0
+      }
+      totalAmount = Math.abs(totalAmount)
+
       const header = {
         buildium_transaction_id: paymentId,
         buildium_bill_id: billId,
-        date: headerDate ?? new Date().toISOString().slice(0, 10),
+        bill_transaction_id: billTxMeta?.id ?? null,
+        date: lineDate,
         paid_date: headerDate,
         total_amount: totalAmount,
         check_number: payment?.CheckNumber ?? null,
@@ -1599,6 +1913,7 @@ export async function POST(req: NextRequest) {
         transaction_type: 'Payment',
         status: 'Paid',
         bank_gl_account_id: bankGlAccountId,
+        bank_gl_account_buildium_id: bankAccountId,
         vendor_id: billTxMeta?.vendor_id ?? null,
         category_id: billTxMeta?.category_id ?? null,
         org_id: orgFromAccount ?? billTxMeta?.org_id ?? null,
@@ -1626,48 +1941,11 @@ export async function POST(req: NextRequest) {
         transactionId = data.id
       }
 
-      // Build lines from payment lines (debits), plus balancing credit to bank
-      const pendingLines: any[] = []
-      const paymentLines = Array.isArray(payment?.Lines) ? payment.Lines : []
-      for (const line of paymentLines) {
-        const glBuildiumId = line?.GLAccountId ?? line?.GLAccount?.Id ?? null
-        const glId = await ensureGLAccountId(glBuildiumId, fetchGL)
-        if (!glId) throw new Error(`GL account not found for bill payment line. BuildiumId=${glBuildiumId}`)
-        const buildiumPropertyId = line?.AccountingEntity?.Id ?? null
-        const buildiumUnitId = line?.AccountingEntity?.UnitId ?? line?.AccountingEntity?.Unit?.Id ?? null
-        const propertyIdLocal = await resolveLocalPropertyId(buildiumPropertyId)
-        const unitIdLocal = await resolveLocalUnitId(buildiumUnitId)
-        const entityTypeRaw = line?.AccountingEntity?.AccountingEntityType || 'Rental'
-        const entityType: 'Rental' | 'Company' = String(entityTypeRaw).toLowerCase() === 'rental' ? 'Rental' : 'Company'
-        const amount = Math.abs(Number(line?.Amount ?? 0))
-        const posting = resolvePostingType(line)
-        if (posting === 'Debit') debitSum += amount
-        else creditSum += amount
-        pendingLines.push({
-          transaction_id: transactionId,
-          gl_account_id: glId,
-          amount,
-          posting_type: posting,
-          memo: line?.Memo ?? null,
-          account_entity_type: entityType,
-          account_entity_id: buildiumPropertyId,
-          date: header.date,
-          created_at: now,
-          updated_at: now,
-          buildium_property_id: buildiumPropertyId,
-          buildium_unit_id: buildiumUnitId,
-          buildium_lease_id: null,
-          property_id: propertyIdLocal,
-          unit_id: unitIdLocal,
-        })
-      }
-
       if (totalAmount > 0) {
         creditSum += totalAmount
         // Use property/unit from first debit line for context if present
         const sample = pendingLines[0] ?? {}
         pendingLines.push({
-          transaction_id: transactionId,
           gl_account_id: bankGlAccountId,
           amount: totalAmount,
           posting_type: 'Credit',
@@ -1688,7 +1966,8 @@ export async function POST(req: NextRequest) {
       // Replace existing lines
       await admin.from('transaction_lines').delete().eq('transaction_id', transactionId)
       if (pendingLines.length) {
-        await admin.from('transaction_lines').insert(pendingLines)
+        const linesWithTransactionId = pendingLines.map((line) => ({ ...line, transaction_id: transactionId }))
+        await admin.from('transaction_lines').insert(linesWithTransactionId)
       }
       if (debitSum > 0 && creditSum > 0 && Math.abs(debitSum - creditSum) > 0.0001) {
         throw new Error(`Double-entry integrity violation on bill payment ${paymentId}: debits (${debitSum}) != credits (${creditSum})`)
@@ -1734,6 +2013,84 @@ export async function POST(req: NextRequest) {
       }
 
       if (storeResult.status === 'duplicate') {
+        // Normally we skip duplicates. However, BankAccount.Transaction.Created previously flowed through
+        // the Next.js handler (placeholder "processed") without creating ledger transactions. If we see a
+        // duplicate for that event but the deposit transaction is missing, forward to the edge processor
+        // as a repair path (edge handler is idempotent by buildium_transaction_id).
+        if (normalized.eventName === 'BankAccount.Transaction.Created') {
+          const txIdRaw = event?.TransactionId ?? event?.Data?.TransactionId ?? null
+          const txIdNum = Number(txIdRaw)
+          if (Number.isFinite(txIdNum) && txIdNum > 0) {
+            const { data: existingTx } = await admin
+              .from('transactions')
+              .select('id')
+              .eq('buildium_transaction_id', txIdNum)
+              .maybeSingle()
+
+            if (!existingTx?.id) {
+              try {
+                const forwardResult = await forwardBankTransactionToEdge(event)
+                if (!forwardResult.ok) {
+                  await markWebhookError(
+                    admin,
+                    eventKey,
+                    `edge-forward-failed:${forwardResult.status}:${String(forwardResult.body).slice(0, 220)}`,
+                  )
+                  results.push({
+                    eventId: normalized.buildiumWebhookId,
+                    status: 'error',
+                    error: 'edge-forward-failed',
+                    edgeStatus: forwardResult.status,
+                    edgeBodyPreview: String(forwardResult.body).slice(0, 220),
+                  })
+                  continue
+                }
+              } catch (err) {
+                await markWebhookError(
+                  admin,
+                  eventKey,
+                  `edge-forward-exception:${(err as Error)?.message || 'unknown'}`,
+                )
+                results.push({ eventId: normalized.buildiumWebhookId, status: 'error', error: 'edge-forward-exception' })
+                continue
+              }
+
+              results.push({ eventId: normalized.buildiumWebhookId, status: 'processed', forwarded: 'edge', repaired: true })
+              continue
+            }
+          }
+        } else if (normalized.eventName === 'BankAccount.Transaction.Updated') {
+          // Always forward duplicate updates to the edge function so the existing deposit is refreshed.
+          try {
+            const forwardResult = await forwardBankTransactionToEdge(event)
+            if (!forwardResult.ok) {
+              await markWebhookError(
+                admin,
+                eventKey,
+                `edge-forward-failed:${forwardResult.status}:${String(forwardResult.body).slice(0, 220)}`,
+              )
+              results.push({
+                eventId: normalized.buildiumWebhookId,
+                status: 'error',
+                error: 'edge-forward-failed',
+                edgeStatus: forwardResult.status,
+                edgeBodyPreview: String(forwardResult.body).slice(0, 220),
+              })
+              continue
+            }
+            results.push({ eventId: normalized.buildiumWebhookId, status: 'processed', forwarded: 'edge', reprocessed: true })
+            continue
+          } catch (err) {
+            await markWebhookError(
+              admin,
+              eventKey,
+              `edge-forward-exception:${(err as Error)?.message || 'unknown'}`,
+            )
+            results.push({ eventId: normalized.buildiumWebhookId, status: 'error', error: 'edge-forward-exception' })
+            continue
+          }
+        }
+
         results.push({ eventId: normalized.buildiumWebhookId, status: 'duplicate' })
         continue
       }
@@ -1793,6 +2150,47 @@ export async function POST(req: NextRequest) {
             console.warn('[buildium-webhook] Could not fetch lease transaction for local upsert', { leaseId, transactionId })
           }
         }
+      }
+
+      // Forward BankAccount.Transaction.Created/Updated to the edge webhook processor (deposit → bank debit + UDF credit).
+      // Buildium cannot call the edge endpoint directly because /functions/v1 requires JWT; Next.js forwards with service role.
+      if (normalized.eventName === 'BankAccount.Transaction.Created' || normalized.eventName === 'BankAccount.Transaction.Updated') {
+        try {
+          const forwardResult = await forwardBankTransactionToEdge(event)
+          if (!forwardResult.ok) {
+            await markWebhookError(
+              admin,
+              eventKey,
+              `edge-forward-failed:${forwardResult.status}:${String(forwardResult.body).slice(0, 220)}`,
+            )
+            results.push({
+              eventId,
+              status: 'error',
+              error: 'edge-forward-failed',
+              edgeStatus: forwardResult.status,
+              edgeBodyPreview: String(forwardResult.body).slice(0, 220),
+            })
+            continue
+          }
+        } catch (err) {
+          await markWebhookError(
+            admin,
+            eventKey,
+            `edge-forward-exception:${(err as Error)?.message || 'unknown'}`,
+          )
+          results.push({ eventId, status: 'error', error: 'edge-forward-exception' })
+          continue
+        }
+
+        await admin
+          .from('buildium_webhook_events')
+          .update({ status: 'processed', processed_at: new Date().toISOString(), processed: true })
+          .eq('buildium_webhook_id', normalized.buildiumWebhookId)
+          .eq('event_name', normalized.eventName)
+          .eq('event_created_at', normalized.eventCreatedAt)
+
+        results.push({ eventId, status: 'processed', forwarded: 'edge' })
+        continue
       }
 
       // Process lease updates/creates/deletes (non-transaction)

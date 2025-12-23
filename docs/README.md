@@ -4,10 +4,14 @@
 
 ## Architecture Documentation
 
-- [Current Architecture Analysis](architecture/CURRENT_ARCHITECTURE_ANALYSIS.md) - System state and hybrid architecture
-- [Migration Status and Roadmap](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Conversion progress tracking
-- [Business Logic Documentation](architecture/BUSINESS_LOGIC_DOCUMENTATION.md) - Property management business rules
-- [Supabase Auth Implementation](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication implementation guide
+- [Current Architecture Analysis](architecture/CURRENT_ARCHITECTURE_ANALYSIS.md) - System state and
+  hybrid architecture
+- [Migration Status and Roadmap](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Conversion progress
+  tracking
+- [Business Logic Documentation](architecture/BUSINESS_LOGIC_DOCUMENTATION.md) - Property management
+  business rules
+- [Supabase Auth Implementation](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication
+  implementation guide
 
 ## API Documentation
 
@@ -17,17 +21,20 @@
 
 - [Database Schema](database/DATABASE_SCHEMA.md) - Complete schema overview
 - [Supabase Setup Guide](database/supabase-setup.md) - Initial setup instructions
-- [Transaction Fields Propagation](database/TRANSACTION_FIELDS_PROPAGATION.md) - Where new Buildium transaction fields surface across UI/sync
-- [Transaction Payment Splits RLS](database/TRANSACTION_PAYMENT_SPLITS_RLS.md) - RLS details for payment split table
+- [Transaction Fields Propagation](database/TRANSACTION_FIELDS_PROPAGATION.md) - Where new Buildium
+  transaction fields surface across UI/sync
+- [Transaction Payment Splits RLS](database/TRANSACTION_PAYMENT_SPLITS_RLS.md) - RLS details for
+  payment split table
 
 ## Migration Guides
 
-- [Prisma to Supabase Migration](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Step-by-step migration guide
+- [Prisma to Supabase Migration](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Step-by-step
+  migration guide
 - [NextAuth to Supabase Auth](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication migration
 
 ## Monitoring
 
-This documentation is automatically updated by the documentation monitoring system. 
+This documentation is automatically updated by the documentation monitoring system.
 
 **Last automated check**: 2025-10-08T02:51:22.289Z
 
@@ -37,16 +44,19 @@ This documentation is automatically updated by the documentation monitoring syst
 
 ## Runbooks
 
-- [Transaction Ingestion Validation](runbooks/transaction-ingestion-validation.md) - How to validate Buildium transaction mapping after mapper/API changes
+- [Transaction Ingestion Validation](runbooks/transaction-ingestion-validation.md) - How to validate
+  Buildium transaction mapping after mapper/API changes
 
 **Monitoring patterns**:
+
 - API routes (`src/app/api/**/*.ts`)
-- Database migrations (`supabase/migrations/*.sql`) 
+- Database migrations (`supabase/migrations/*.sql`)
 - Authentication files (`src/lib/auth*`, `src/app/auth*`)
 - Business logic (`src/types/*`, `src/lib/*-service.ts`)
 - Dependencies (`package.json`)
 
 To run manual documentation updates:
+
 ```bash
 npm run docs:update
 ```

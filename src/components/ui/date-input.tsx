@@ -90,6 +90,14 @@ export type DateInputProps = Omit<NativeInputProps, "type" | "value" | "onChange
   containerClassName?: string;
   hideClear?: boolean;
   hideYear?: boolean;
+  /**
+   * Whether the picker should open on focus. Defaults to true.
+   */
+  openOnFocus?: boolean;
+  /**
+   * Whether the picker should open on click/keyboard. Defaults to true.
+   */
+  openOnClick?: boolean;
 };
 
 const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInput(
@@ -109,6 +117,8 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
     onKeyDown,
     name,
     hideYear,
+    openOnFocus = true,
+    openOnClick = true,
     ...inputProps
   },
   ref,
@@ -261,21 +271,26 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
   };
 
   const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
-    if (!disabled && !ignoreNextOpenRef.current) {
+    if (!disabled && openOnFocus && !ignoreNextOpenRef.current) {
       setIsOpen(true);
     }
     onFocus?.(event);
   };
 
   const handleClick = (event: MouseEvent<HTMLInputElement>) => {
-    if (!disabled && !ignoreNextOpenRef.current) {
+    if (!disabled && openOnClick && !ignoreNextOpenRef.current) {
       setIsOpen(true);
     }
     onClick?.(event);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (!disabled && !ignoreNextOpenRef.current && (event.key === "Enter" || event.key === " ")) {
+    if (
+      !disabled &&
+      openOnClick &&
+      !ignoreNextOpenRef.current &&
+      (event.key === "Enter" || event.key === " ")
+    ) {
       event.preventDefault();
       setIsOpen(true);
     }

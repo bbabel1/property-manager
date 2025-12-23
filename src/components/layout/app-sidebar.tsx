@@ -206,7 +206,10 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
     <SidebarProvider>
       <div className="min-h-svh w-full">
         <div className="flex w-full">
-          <UISidebar collapsible="offcanvas" className="border-sidebar-border font-sans">
+          <UISidebar
+            collapsible="offcanvas"
+            className="border-sidebar-border font-sans z-30"
+          >
             <SidebarHeader className="border-sidebar-border items-center gap-0 border-b px-4 py-5">
               <Image
                 src="/ora-logo-wordmark.svg"

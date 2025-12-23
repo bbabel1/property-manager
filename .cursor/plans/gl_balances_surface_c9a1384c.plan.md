@@ -24,7 +24,7 @@ todos:
 ## Goals
 
 - Provide a **Buildium-like as-of balance** surface: **debits minus credits up to date**.
-- Support **optional property scoping** using your chosen semantics: mirror `get_property_financials` scoping *plus* `transaction_lines.buildium_property_id` matching.
+- Support **optional property scoping** using your chosen semantics: mirror `get_property_financials` scoping _plus_ `transaction_lines.buildium_property_id` matching.
 - Add an optional **snapshot/cache layer** for speed/audit.
 - Expose an internal API: `GET /api/gl-accounts/balances` with Zod validation, org-authorization, filtering, and pagination.
 
@@ -40,7 +40,7 @@ todos:
 
 Create a **stable SQL function** returning a single numeric balance.
 
-- **Balance definition**: 
+- **Balance definition**:
 - `debits_sum - credits_sum` up to `p_as_of` (inclusive)
 - treat `posting_type` case-insensitively (avoid assuming exact `'Debit'/'Credit'` casing)
 - **Property scoping** (only when `p_property_id is not null`): include `transaction_lines` where any of the following holds:
@@ -60,7 +60,7 @@ Since you confirmed a parameterized view should be a set-returning function, we�
 - **Rows returned**:
 - **Global** rows (`property_id is null`) for every GL account
 - **Property-scoped** rows (`property_id = properties.id`) for every GL account × property
-    - Note: this can be large. We’ll keep it correct first; if it becomes too slow, we can introduce an alternate function that accepts `p_property_id` to compute just one property.
+  - Note: this can be large. We’ll keep it correct first; if it becomes too slow, we can introduce an alternate function that accepts `p_property_id` to compute just one property.
 
 ### 3) Snapshots table: `public.gl_account_balances`
 
@@ -107,8 +107,8 @@ Add [`src/app/api/gl-accounts/balances/route.ts`](/Users/brandonbabel/property-m
 - **Data source selection**:
 - If `useCache=true`, first try `gl_account_balances` for the requested key(s).
 - If cache miss (or `useCache=false`): compute live via DB functions:
-    - single account: call `gl_account_balance_as_of(glAccountId, asOfDate, propertyId)`
-    - list: call `v_gl_account_balances_as_of(asOfDate)` and filter to `propertyId` if provided
+  - single account: call `gl_account_balance_as_of(glAccountId, asOfDate, propertyId)`
+  - list: call `v_gl_account_balances_as_of(asOfDate)` and filter to `propertyId` if provided
 - Return a consistent JSON shape: `{ success: true, data, pageInfo }`.
 
 ## Data-flow diagram
@@ -126,8 +126,6 @@ flowchart TD
   DbFn2 --> Response
   Job[refresh_gl_account_balances] --> CacheLookup
 ```
-
-
 
 ## Files we expect to add/change
 

@@ -45,6 +45,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'numeric',
   day: 'numeric',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -56,7 +57,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 function formatDate(value?: string | null): string {
   if (!value) return '—';
-  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
   const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return dateFormatter.format(date);
@@ -306,7 +307,8 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
 
   const paymentsWithDisplay = payments.map((p) => {
     const debitSum = paymentLineSums.get(p.id) ?? 0;
-    const displayAmount = Number(p.total_amount ?? 0) || debitSum || 0;
+    const rawAmount = Number(p.total_amount ?? 0) || debitSum || 0;
+    const displayAmount = Math.abs(rawAmount);
     return {
       ...p,
       bankName: bankAccountMap.get((p as any).bank_gl_account_id || '')?.name ?? '—',
@@ -321,11 +323,16 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
   );
 
   const billAmount = Number(bill.total_amount ?? 0) || 0;
+  const lineItemsInitialTotalFallback = rawLines.reduce((sum, line) => {
+    const amount = Math.abs(Number(line?.amount ?? 0)) || 0;
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+  const billDueAmount = billAmount > 0 ? billAmount : lineItemsInitialTotalFallback;
   const billDateLabel = formatDate(bill.date);
   const billDueLabel = formatDate(bill.due_date);
   const statusNormalized = (() => {
-    if (paymentsTotal > 0 && paymentsTotal < billAmount) return 'Partially paid' as BillStatusLabel;
-    if (paymentsTotal >= billAmount && billAmount > 0) return 'Paid' as BillStatusLabel;
+    if (paymentsTotal > 0 && paymentsTotal < billDueAmount) return 'Partially paid' as BillStatusLabel;
+    if (paymentsTotal >= billDueAmount && billDueAmount > 0) return 'Paid' as BillStatusLabel;
     return normalizeBillStatus(bill.status);
   })();
   const statusLabel = deriveBillStatusFromDates(statusNormalized, bill.due_date ?? null, bill.paid_date ?? null);

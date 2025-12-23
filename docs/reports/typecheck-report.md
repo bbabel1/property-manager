@@ -1,4 +1,2 @@
-
 > property-manager@0.1.0 typecheck
 > tsc --noEmit
-

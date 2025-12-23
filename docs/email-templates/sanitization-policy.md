@@ -87,6 +87,7 @@ The following attributes are **forbidden** and will be removed:
 ## Fallback Behavior
 
 If sanitization fails or DOMPurify is not available:
+
 - All HTML tags are stripped
 - Plain text is returned
 - A warning is logged
@@ -100,4 +101,3 @@ npm install isomorphic-dompurify @types/dompurify
 ```
 
 The sanitization module will automatically use `isomorphic-dompurify` for server-side rendering and `dompurify` for client-side usage.
-

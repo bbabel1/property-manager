@@ -21,7 +21,7 @@ type BankAccountSummaryRow = {
   id: string;
   name: string | null;
   bank_account_number: string | null;
-  buildium_bank_account_id: number | string | null;
+  buildium_gl_account_id: number | string | null;
   is_active: boolean | null;
   org_id: string | null;
 };
@@ -128,6 +128,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
       orgId: string | null;
     }
   >();
+  let lineDebitTotal = 0;
 
   for (const line of lines) {
     const propertyId = typeof line?.property_id === 'string' ? line.property_id : null;
@@ -138,6 +139,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
     const debitAmount = postingType === 'credit' ? 0 : Math.abs(amount);
     if (debitAmount > 0) {
       propertyTotals.set(propertyId, (propertyTotals.get(propertyId) ?? 0) + debitAmount);
+      lineDebitTotal += debitAmount;
     }
 
     if (!propertyMeta.has(propertyId)) {
@@ -173,7 +175,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
   if (orgId) {
     const bankAccountsRes = await db
       .from('gl_accounts')
-      .select('id, name, bank_account_number, buildium_bank_account_id, buildium_gl_account_id, is_active, org_id')
+      .select('id, name, bank_account_number, buildium_gl_account_id, is_active, org_id')
       .eq('org_id', orgId)
       .eq('is_bank_account', true)
       .order('name', { ascending: true });
@@ -187,14 +189,77 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
       : [];
   }
 
+  const buildiumBillId =
+    typeof bill.buildium_bill_id === 'number' ? bill.buildium_bill_id : null;
+  const paymentsRes =
+    buildiumBillId !== null
+      ? await db
+          .from('transactions')
+          .select('id, total_amount, payment_method, paid_date, date, buildium_bill_id')
+          .eq('transaction_type', 'Payment')
+          .eq('buildium_bill_id', buildiumBillId)
+      : null;
+  if (paymentsRes?.error) {
+    console.error('Failed to load bill payments for payment modal', paymentsRes.error);
+  }
+
+  const payments = Array.isArray(paymentsRes?.data) ? paymentsRes.data : [];
+  const paymentIds = payments.map((p) => p.id).filter(Boolean);
+  let paymentLineSums = new Map<string, number>();
+  if (paymentIds.length) {
+    const { data: paymentLines, error: payLineErr } = await db
+      .from('transaction_lines')
+      .select('transaction_id, posting_type, amount')
+      .in('transaction_id', paymentIds);
+    if (payLineErr) {
+      console.error('Failed to load payment lines for bill payment modal', payLineErr);
+    } else if (paymentLines) {
+      paymentLineSums = paymentLines.reduce((map, line) => {
+        const amt = Number(line?.amount ?? 0);
+        const isDebit = String(line?.posting_type || '').toLowerCase() === 'debit';
+        const add = isDebit ? Math.abs(amt) : 0;
+        const key = line?.transaction_id as string;
+        map.set(key, (map.get(key) ?? 0) + add);
+        return map;
+      }, new Map<string, number>());
+    }
+  }
+
+  const paymentsTotal = payments.reduce((sum, p) => {
+    const displayAmount = Number(p.total_amount ?? 0) || paymentLineSums.get(p.id) || 0;
+    return sum + (Number.isFinite(displayAmount) ? Math.abs(displayAmount) : 0);
+  }, 0);
+
+  const billAmount = Number(bill.total_amount ?? 0) || 0;
+  const billDueAmount = billAmount > 0 ? billAmount : lineDebitTotal;
+  const billRemainingAmount = Math.max(billDueAmount - paymentsTotal, 0);
+
+  // Ensure the property's operating bank account is present, even if it's inactive or not flagged as a bank account
+  const operatingBankAccountId = primaryProperty?.operatingBankAccountId ?? null;
+  if (
+    operatingBankAccountId &&
+    !bankAccountsRaw.some((row) => String(row.id) === String(operatingBankAccountId))
+  ) {
+    const { data: fallbackBank, error: fallbackErr } = await db
+      .from('gl_accounts')
+      .select('id, name, bank_account_number, buildium_gl_account_id, is_active, org_id')
+      .eq('id', operatingBankAccountId)
+      .maybeSingle();
+
+    if (fallbackErr) {
+      console.error('Failed to load operating bank account fallback for bill payment', fallbackErr);
+    } else if (fallbackBank) {
+      bankAccountsRaw.unshift(fallbackBank as BankAccountSummaryRow);
+    }
+  }
+
   const bankAccounts = bankAccountsRaw.map((row) => {
     const accountNumber =
       typeof row.bank_account_number === 'string' ? row.bank_account_number : null;
     const lastFour =
       accountNumber && accountNumber.length > 4 ? accountNumber.slice(-4) : accountNumber;
     const masked = lastFour ? `••••${lastFour}` : null;
-    const rawBuildiumId =
-      (row as any).buildium_gl_account_id ?? (row as any).buildium_bank_account_id ?? null;
+    const rawBuildiumId = (row as any).buildium_gl_account_id ?? null;
     return {
       id: String(row.id),
       name: String(row.name ?? 'Bank account'),
@@ -211,8 +276,9 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
 
   const payBillFormBill = {
     id: String(bill.id),
-    buildiumBillId: typeof bill.buildium_bill_id === 'number' ? bill.buildium_bill_id : null,
-    totalAmount: Number(bill.total_amount ?? 0),
+    buildiumBillId: buildiumBillId,
+    totalAmount: billDueAmount,
+    remainingAmount: billRemainingAmount,
     vendorName,
     dueDate: bill.due_date ?? null,
     date: bill.date ?? '',
@@ -227,7 +293,9 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
       <PayBillModal
         bill={payBillFormBill}
         bankAccounts={bankAccounts}
-        defaultBankAccountId={primaryProperty?.operatingBankAccountId ?? null}
+        defaultBankAccountId={
+          operatingBankAccountId ? String(operatingBankAccountId) : null
+        }
       />
     </>
   );

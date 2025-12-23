@@ -323,49 +323,53 @@ export default function AuthCallback() {
 **Auth Middleware** (`src/middleware.ts`):
 
 ```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
+  const res = NextResponse.next();
   const supabase = createServerClient(url, anon, {
     cookies: {
       get: (name) => req.cookies.get(name)?.value,
       set: (name, value, options) => res.cookies.set({ name, value, ...options }),
       remove: (name, options) => res.cookies.set({ name, value: '', ...options }),
     },
-  })
+  });
 
-  const { data } = await supabase.auth.getUser()
-  const user = data?.user
-  const pathname = req.nextUrl.pathname
-  const protectedPrefixes = ['/dashboard', '/properties', '/owners', '/units']
-  const requiresAuth = protectedPrefixes.some((p) => pathname.startsWith(p))
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
+  const pathname = req.nextUrl.pathname;
+  const protectedPrefixes = ['/dashboard', '/properties', '/owners', '/units'];
+  const requiresAuth = protectedPrefixes.some((p) => pathname.startsWith(p));
 
   if (requiresAuth && !user) {
-    const redirectUrl = req.nextUrl.clone()
-    redirectUrl.pathname = '/auth/signin'
-    redirectUrl.searchParams.set('next', pathname + req.nextUrl.search)
-    return NextResponse.redirect(redirectUrl)
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = '/auth/signin';
+    redirectUrl.searchParams.set('next', pathname + req.nextUrl.search);
+    return NextResponse.redirect(redirectUrl);
   }
 
   if (user && pathname.startsWith('/auth')) {
-    const url = req.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+    const url = req.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
   }
 
-  return res
+  return res;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/properties/:path*', '/owners/:path*', '/units/:path*', '/auth/:path*'],
-}
-
+  matcher: [
+    '/dashboard/:path*',
+    '/properties/:path*',
+    '/owners/:path*',
+    '/units/:path*',
+    '/auth/:path*',
+  ],
+};
 ```
 
 **Protected Layout** (`src/app/(protected)/layout.tsx`):
@@ -472,44 +476,40 @@ export default function RootLayout({
 **Sign Up Flow:**
 
 ```typescript
-
 const signUp = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`
-    }
-  })
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
 
   if (!error) {
     // User will receive confirmation email
     // Redirect to email confirmation page
   }
 
-  return { data, error }
-}
-
+  return { data, error };
+};
 ```
 
 **Sign In Flow:**
 
 ```typescript
-
 const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
-    password
-  })
+    password,
+  });
 
   if (!error) {
     // Automatic redirect to dashboard
-    router.push('/dashboard')
+    router.push('/dashboard');
   }
 
-  return { data, error }
-}
-
+  return { data, error };
+};
 ```
 
 ### 2. Magic Link Authentication
@@ -517,23 +517,21 @@ const signIn = async (email: string, password: string) => {
 **Magic Link Flow:**
 
 ```typescript
-
 const signInWithMagicLink = async (email: string) => {
   const { data, error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`
-    }
-  })
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
 
   if (!error) {
     // User receives email with magic link
     // Show message to check email
   }
 
-  return { data, error }
-}
-
+  return { data, error };
+};
 ```
 
 ### 3. Session Management
@@ -541,57 +539,55 @@ const signInWithMagicLink = async (email: string) => {
 **Client-Side Session Handling:**
 
 ```typescript
-
 useEffect(() => {
   // Get initial session
   supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session)
-    setUser(session?.user ?? null)
-  })
+    setSession(session);
+    setUser(session?.user ?? null);
+  });
 
   // Listen for auth state changes
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, session) => {
+    setSession(session);
+    setUser(session?.user ?? null);
 
-      if (event === 'SIGNED_IN') {
-        router.push('/dashboard')
-      }
-
-      if (event === 'SIGNED_OUT') {
-        router.push('/auth/signin')
-      }
+    if (event === 'SIGNED_IN') {
+      router.push('/dashboard');
     }
-  )
 
-  return () => subscription.unsubscribe()
-}, [])
+    if (event === 'SIGNED_OUT') {
+      router.push('/auth/signin');
+    }
+  });
 
+  return () => subscription.unsubscribe();
+}, []);
 ```
 
 **Server-Side Session Validation:**
 
 ```typescript
-
 // src/lib/auth-server.ts
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 export async function getServerSession() {
-  const supabase = createServerComponentClient({ cookies })
-  const { data: { session } } = await supabase.auth.getSession()
-  return session
+  const supabase = createServerComponentClient({ cookies });
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session;
 }
 
 export async function requireAuth() {
-  const session = await getServerSession()
+  const session = await getServerSession();
   if (!session) {
-    throw new Error('Authentication required')
+    throw new Error('Authentication required');
   }
-  return session
+  return session;
 }
-
 ```
 
 ## Row Level Security Integration
@@ -736,20 +732,18 @@ ALTER TABLE owners ADD COLUMN auth_user_id UUID REFERENCES auth.users(id);
 ### Automated Testing
 
 ```typescript
-
 // Example test
 describe('Authentication Flow', () => {
   it('should sign up user successfully', async () => {
     const { data, error } = await supabase.auth.signUp({
       email: 'test@example.com',
-      password: 'password123'
-    })
+      password: 'password123',
+    });
 
-    expect(error).toBeNull()
-    expect(data.user).toBeDefined()
-  })
-})
-
+    expect(error).toBeNull();
+    expect(data.user).toBeDefined();
+  });
+});
 ```
 
 ## Security Considerations

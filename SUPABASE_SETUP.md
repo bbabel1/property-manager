@@ -165,16 +165,19 @@ CREATE POLICY "Allow all operations on properties" ON properties
 ### Using the Custom Hook
 
 ```tsx
-
-import { useSupabaseQuery, useSupabaseMutation } from '@/lib/hooks/useSupabase'
+import { useSupabaseQuery, useSupabaseMutation } from '@/lib/hooks/useSupabase';
 
 // In your component
 function PropertiesList() {
-  const { data: properties, loading, error } = useSupabaseQuery('properties', {
-    orderBy: { column: 'created_at', ascending: false }
-  })
+  const {
+    data: properties,
+    loading,
+    error,
+  } = useSupabaseQuery('properties', {
+    orderBy: { column: 'created_at', ascending: false },
+  });
 
-  const { insert, loading: insertLoading } = useSupabaseMutation()
+  const { insert, loading: insertLoading } = useSupabaseMutation();
 
   const addProperty = async () => {
     const newProperty = await insert('properties', {
@@ -184,63 +187,57 @@ function PropertiesList() {
       total_units: 10,
       occupied_units: 8,
       available_units: 2,
-      status: 'Active'
-    })
+      status: 'Active',
+    });
 
     if (newProperty) {
-      console.log('Property added:', newProperty)
+      console.log('Property added:', newProperty);
     }
-  }
+  };
 
-  if (loading) return <div>Loading...</div>
-  if (error) return <div>Error: {error}</div>
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <div>
-      {properties.map(property => (
+      {properties.map((property) => (
         <div key={property.id}>{property.name}</div>
       ))}
       <button onClick={addProperty} disabled={insertLoading}>
         Add Property
       </button>
     </div>
-  )
+  );
 }
-
 ```
 
 ### Direct Supabase Client Usage
 
 ```tsx
-
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase';
 
 // Fetch data
 const { data, error } = await supabase
   .from('properties')
   .select('*')
 
-  .eq('status', 'Active')
+  .eq('status', 'Active');
 
 // Insert data
 const { data, error } = await supabase
   .from('properties')
   .insert([{ name: 'New Property', address: '123 Main St' }])
-  .select()
+  .select();
 
 // Update data
 const { data, error } = await supabase
   .from('properties')
   .update({ status: 'Inactive' })
   .eq('id', 'property-id')
-  .select()
+  .select();
 
 // Delete data
-const { error } = await supabase
-  .from('properties')
-  .delete()
-  .eq('id', 'property-id')
-
+const { error } = await supabase.from('properties').delete().eq('id', 'property-id');
 ```
 
 ## Next Steps

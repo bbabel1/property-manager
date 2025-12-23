@@ -18,22 +18,15 @@ Step 1: Property Type
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean;` | Yes | Prop: isOpen |
-| `onClose` | `()` | Yes | Prop: onClose |
+| Prop      | Type       | Required | Description   |
+| --------- | ---------- | -------- | ------------- |
+| `isOpen`  | `boolean;` | Yes      | Prop: isOpen  |
+| `onClose` | `()`       | Yes      | Prop: onClose |
 
 #### Usage Example
 
 ```tsx
-
-<AddPropertyModal
-  isOpen={/* boolean; */}
-
-  onClose={/* () */}
-
-/>
-
+<AddPropertyModal isOpen={/* boolean; */} onClose={/* () */} />
 ```
 
 ---
@@ -46,40 +39,32 @@ Basic validation
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onSuccess` | `: () => void` | No | onSuccess prop of type : () => void |
-| `propertyId` | `string` | Yes | propertyId prop of type string |
-| `property` | `: {` | No | property prop of type : { |
-| `address_line1` | `string` | Yes | address_line1 prop of type string |
-| `address_line2` | `: string` | No | address_line2 prop of type : string |
-| `address_line3` | `: string` | No | address_line3 prop of type : string |
-| `city` | `string` | Yes | city prop of type string |
-| `state` | `string` | Yes | state prop of type string |
-| `postal_code` | `string` | Yes | postal_code prop of type string |
-| `country` | `string` | Yes | country prop of type string |
+| Prop            | Type           | Required | Description                         |
+| --------------- | -------------- | -------- | ----------------------------------- |
+| `isOpen`        | `boolean`      | Yes      | isOpen prop of type boolean         |
+| `onClose`       | `() => void`   | Yes      | onClose prop of type () => void     |
+| `onSuccess`     | `: () => void` | No       | onSuccess prop of type : () => void |
+| `propertyId`    | `string`       | Yes      | propertyId prop of type string      |
+| `property`      | `: {`          | No       | property prop of type : {           |
+| `address_line1` | `string`       | Yes      | address_line1 prop of type string   |
+| `address_line2` | `: string`     | No       | address_line2 prop of type : string |
+| `address_line3` | `: string`     | No       | address_line3 prop of type : string |
+| `city`          | `string`       | Yes      | city prop of type string            |
+| `state`         | `string`       | Yes      | state prop of type string           |
+| `postal_code`   | `string`       | Yes      | postal_code prop of type string     |
+| `country`       | `string`       | Yes      | country prop of type string         |
 
 #### Usage Example
 
 ```tsx
-
 <AddUnitModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   propertyId={/* string */}
-
   address_line1={/* string */}
-
   city={/* string */}
-
   state={/* string */}
-
   postal_code={/* string */}
-
   country={/* string */}
 
   // onSuccess={/* : () => void */}
@@ -89,9 +74,7 @@ Basic validation
   // address_line2={/* : string */}
 
   // address_line3={/* : string */}
-
 />
-
 ```
 
 ---
@@ -104,28 +87,22 @@ Fetch bank accounts when modal opens
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onSuccess` | `() => void` | Yes | onSuccess prop of type () => void |
-| `property` | `PropertyWithDetails` | Yes | property prop of type PropertyWithDetails |
+| Prop        | Type                  | Required | Description                               |
+| ----------- | --------------------- | -------- | ----------------------------------------- |
+| `isOpen`    | `boolean`             | Yes      | isOpen prop of type boolean               |
+| `onClose`   | `() => void`          | Yes      | onClose prop of type () => void           |
+| `onSuccess` | `() => void`          | Yes      | onSuccess prop of type () => void         |
+| `property`  | `PropertyWithDetails` | Yes      | property prop of type PropertyWithDetails |
 
 #### Usage Example
 
 ```tsx
-
 <BankingDetailsModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   onSuccess={/* () => void */}
-
   property={/* PropertyWithDetails */}
-
 />
-
 ```
 
 ---
@@ -138,40 +115,31 @@ Sample US addresses for demonstration
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `value` | `string` | Yes | Current value |
-| `onChange` | `(value: string) => void` | Yes | onChange prop of type (value: string) => void |
-| `onPlaceSelect` | `: (place: {` | No | onPlaceSelect prop of type : (place: { |
-| `address` | `string` | Yes | address prop of type string |
-| `city` | `string` | Yes | city prop of type string |
-| `state` | `string` | Yes | state prop of type string |
-| `postalCode` | `string` | Yes | postalCode prop of type string |
-| `country` | `string` | Yes | country prop of type string |
+| Prop            | Type                      | Required | Description                                   |
+| --------------- | ------------------------- | -------- | --------------------------------------------- |
+| `value`         | `string`                  | Yes      | Current value                                 |
+| `onChange`      | `(value: string) => void` | Yes      | onChange prop of type (value: string) => void |
+| `onPlaceSelect` | `: (place: {`             | No       | onPlaceSelect prop of type : (place: {        |
+| `address`       | `string`                  | Yes      | address prop of type string                   |
+| `city`          | `string`                  | Yes      | city prop of type string                      |
+| `state`         | `string`                  | Yes      | state prop of type string                     |
+| `postalCode`    | `string`                  | Yes      | postalCode prop of type string                |
+| `country`       | `string`                  | Yes      | country prop of type string                   |
 
 #### Usage Example
 
 ```tsx
-
 <BasicAddressAutocomplete
   value={/* string */}
-
   onChange={/* (value: string) => void */}
-
   address={/* string */}
-
   city={/* string */}
-
   state={/* string */}
-
   postalCode={/* string */}
-
   country={/* string */}
 
   // onPlaceSelect={/* : (place: { */}
-
 />
-
 ```
 
 ---
@@ -184,25 +152,20 @@ If response is not JSON, use status text
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onSuccess` | `(newAccount: any) => void` | Yes | onSuccess prop of type (newAccount: any) => void |
+| Prop        | Type                        | Required | Description                                      |
+| ----------- | --------------------------- | -------- | ------------------------------------------------ |
+| `isOpen`    | `boolean`                   | Yes      | isOpen prop of type boolean                      |
+| `onClose`   | `() => void`                | Yes      | onClose prop of type () => void                  |
+| `onSuccess` | `(newAccount: any) => void` | Yes      | onSuccess prop of type (newAccount: any) => void |
 
 #### Usage Example
 
 ```tsx
-
 <CreateBankAccountModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   onSuccess={/* (newAccount: any) => void */}
-
 />
-
 ```
 
 ---
@@ -215,31 +178,24 @@ Basic Information
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onCreateOwner` | `(ownerData: any) => void` | Yes | onCreateOwner prop of type (ownerData: any) => void |
-| `isLoading` | `boolean` | Yes | isLoading prop of type boolean |
-| `error` | `string | null` | Yes | Error state or message |
+| Prop            | Type                       | Required | Description                                         |
+| --------------- | -------------------------- | -------- | --------------------------------------------------- | ---------------------- |
+| `isOpen`        | `boolean`                  | Yes      | isOpen prop of type boolean                         |
+| `onClose`       | `() => void`               | Yes      | onClose prop of type () => void                     |
+| `onCreateOwner` | `(ownerData: any) => void` | Yes      | onCreateOwner prop of type (ownerData: any) => void |
+| `isLoading`     | `boolean`                  | Yes      | isLoading prop of type boolean                      |
+| `error`         | `string                    | null`    | Yes                                                 | Error state or message |
 
 #### Usage Example
 
 ```tsx
-
 <CreateOwnerModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   onCreateOwner={/* (ownerData: any) => void */}
-
   isLoading={/* boolean */}
-
   error={/* string | null */}
-
 />
-
 ```
 
 ---
@@ -252,25 +208,20 @@ If response is not JSON, use status text
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onSuccess` | `(newStaff: any) => void` | Yes | onSuccess prop of type (newStaff: any) => void |
+| Prop        | Type                      | Required | Description                                    |
+| ----------- | ------------------------- | -------- | ---------------------------------------------- |
+| `isOpen`    | `boolean`                 | Yes      | isOpen prop of type boolean                    |
+| `onClose`   | `() => void`              | Yes      | onClose prop of type () => void                |
+| `onSuccess` | `(newStaff: any) => void` | Yes      | onSuccess prop of type (newStaff: any) => void |
 
 #### Usage Example
 
 ```tsx
-
 <CreateStaffModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   onSuccess={/* (newStaff: any) => void */}
-
 />
-
 ```
 
 ---
@@ -283,31 +234,25 @@ Basic Information
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onUpdateOwner` | `(ownerData: any) => void` | Yes | onUpdateOwner prop of type (ownerData: any) => void |
-| `ownerData` | `any` | Yes | ownerData prop of type any |
-| `isUpdating` | `: boolean` | No | isUpdating prop of type : boolean |
+| Prop            | Type                       | Required | Description                                         |
+| --------------- | -------------------------- | -------- | --------------------------------------------------- |
+| `isOpen`        | `boolean`                  | Yes      | isOpen prop of type boolean                         |
+| `onClose`       | `() => void`               | Yes      | onClose prop of type () => void                     |
+| `onUpdateOwner` | `(ownerData: any) => void` | Yes      | onUpdateOwner prop of type (ownerData: any) => void |
+| `ownerData`     | `any`                      | Yes      | ownerData prop of type any                          |
+| `isUpdating`    | `: boolean`                | No       | isUpdating prop of type : boolean                   |
 
 #### Usage Example
 
 ```tsx
-
 <EditOwnerModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   onUpdateOwner={/* (ownerData: any) => void */}
-
   ownerData={/* any */}
 
   // isUpdating={/* : boolean */}
-
 />
-
 ```
 
 ---
@@ -320,28 +265,22 @@ primary_owner removed - now determined from ownerships table
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isOpen` | `boolean` | Yes | isOpen prop of type boolean |
-| `onClose` | `() => void` | Yes | onClose prop of type () => void |
-| `onSuccess` | `() => void` | Yes | onSuccess prop of type () => void |
-| `property` | `PropertyWithDetails` | Yes | property prop of type PropertyWithDetails |
+| Prop        | Type                  | Required | Description                               |
+| ----------- | --------------------- | -------- | ----------------------------------------- |
+| `isOpen`    | `boolean`             | Yes      | isOpen prop of type boolean               |
+| `onClose`   | `() => void`          | Yes      | onClose prop of type () => void           |
+| `onSuccess` | `() => void`          | Yes      | onSuccess prop of type () => void         |
+| `property`  | `PropertyWithDetails` | Yes      | property prop of type PropertyWithDetails |
 
 #### Usage Example
 
 ```tsx
-
 <EditPropertyModal
   isOpen={/* boolean */}
-
   onClose={/* () => void */}
-
   onSuccess={/* () => void */}
-
   property={/* PropertyWithDetails */}
-
 />
-
 ```
 
 ---
@@ -354,28 +293,22 @@ Check immediately
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `google` | `!!googleAvailable` | Yes | Prop: google |
-| `maps` | `!!mapsAvailable` | Yes | Prop: maps |
-| `places` | `!!placesAvailable` | Yes | Prop: places |
-| `fullObject` | `window.google` | Yes | Prop: fullObject |
+| Prop         | Type                | Required | Description      |
+| ------------ | ------------------- | -------- | ---------------- |
+| `google`     | `!!googleAvailable` | Yes      | Prop: google     |
+| `maps`       | `!!mapsAvailable`   | Yes      | Prop: maps       |
+| `places`     | `!!placesAvailable` | Yes      | Prop: places     |
+| `fullObject` | `window.google`     | Yes      | Prop: fullObject |
 
 #### Usage Example
 
 ```tsx
-
 <GoogleMapsDebug
   google={/* !!googleAvailable */}
-
   maps={/* !!mapsAvailable */}
-
   places={/* !!placesAvailable */}
-
   fullObject={/* window.google */}
-
 />
-
 ```
 
 ---
@@ -388,40 +321,31 @@ Optionally, you could poll for a short time if you expect the script to load aft
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `value` | `string` | Yes | Current value |
-| `onChange` | `(value: string) => void` | Yes | onChange prop of type (value: string) => void |
-| `onPlaceSelect` | `: (place: {` | No | onPlaceSelect prop of type : (place: { |
-| `address` | `string` | Yes | address prop of type string |
-| `city` | `string` | Yes | city prop of type string |
-| `state` | `string` | Yes | state prop of type string |
-| `postalCode` | `string` | Yes | postalCode prop of type string |
-| `country` | `string` | Yes | country prop of type string |
+| Prop            | Type                      | Required | Description                                   |
+| --------------- | ------------------------- | -------- | --------------------------------------------- |
+| `value`         | `string`                  | Yes      | Current value                                 |
+| `onChange`      | `(value: string) => void` | Yes      | onChange prop of type (value: string) => void |
+| `onPlaceSelect` | `: (place: {`             | No       | onPlaceSelect prop of type : (place: {        |
+| `address`       | `string`                  | Yes      | address prop of type string                   |
+| `city`          | `string`                  | Yes      | city prop of type string                      |
+| `state`         | `string`                  | Yes      | state prop of type string                     |
+| `postalCode`    | `string`                  | Yes      | postalCode prop of type string                |
+| `country`       | `string`                  | Yes      | country prop of type string                   |
 
 #### Usage Example
 
 ```tsx
-
 <GooglePlacesAutocomplete
   value={/* string */}
-
   onChange={/* (value: string) => void */}
-
   address={/* string */}
-
   city={/* string */}
-
   state={/* string */}
-
   postalCode={/* string */}
-
   country={/* string */}
 
   // onPlaceSelect={/* : (place: { */}
-
 />
-
 ```
 
 ---
@@ -434,40 +358,31 @@ React component
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `value` | `string` | Yes | Current value |
-| `onChange` | `(value: string) => void` | Yes | onChange prop of type (value: string) => void |
-| `onPlaceSelect` | `: (place: {` | No | onPlaceSelect prop of type : (place: { |
-| `address` | `string` | Yes | address prop of type string |
-| `city` | `string` | Yes | city prop of type string |
-| `state` | `string` | Yes | state prop of type string |
-| `postalCode` | `string` | Yes | postalCode prop of type string |
-| `country` | `string` | Yes | country prop of type string |
+| Prop            | Type                      | Required | Description                                   |
+| --------------- | ------------------------- | -------- | --------------------------------------------- |
+| `value`         | `string`                  | Yes      | Current value                                 |
+| `onChange`      | `(value: string) => void` | Yes      | onChange prop of type (value: string) => void |
+| `onPlaceSelect` | `: (place: {`             | No       | onPlaceSelect prop of type : (place: {        |
+| `address`       | `string`                  | Yes      | address prop of type string                   |
+| `city`          | `string`                  | Yes      | city prop of type string                      |
+| `state`         | `string`                  | Yes      | state prop of type string                     |
+| `postalCode`    | `string`                  | Yes      | postalCode prop of type string                |
+| `country`       | `string`                  | Yes      | country prop of type string                   |
 
 #### Usage Example
 
 ```tsx
-
 <HybridAddressAutocomplete
   value={/* string */}
-
   onChange={/* (value: string) => void */}
-
   address={/* string */}
-
   city={/* string */}
-
   state={/* string */}
-
   postalCode={/* string */}
-
   country={/* string */}
 
   // onPlaceSelect={/* : (place: { */}
-
 />
-
 ```
 
 ---
@@ -480,40 +395,31 @@ Clear previous timeout
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `value` | `string` | Yes | Current value |
-| `onChange` | `(value: string) => void` | Yes | onChange prop of type (value: string) => void |
-| `onPlaceSelect` | `: (place: {` | No | onPlaceSelect prop of type : (place: { |
-| `address` | `string` | Yes | address prop of type string |
-| `city` | `string` | Yes | city prop of type string |
-| `state` | `string` | Yes | state prop of type string |
-| `postalCode` | `string` | Yes | postalCode prop of type string |
-| `country` | `string` | Yes | country prop of type string |
+| Prop            | Type                      | Required | Description                                   |
+| --------------- | ------------------------- | -------- | --------------------------------------------- |
+| `value`         | `string`                  | Yes      | Current value                                 |
+| `onChange`      | `(value: string) => void` | Yes      | onChange prop of type (value: string) => void |
+| `onPlaceSelect` | `: (place: {`             | No       | onPlaceSelect prop of type : (place: {        |
+| `address`       | `string`                  | Yes      | address prop of type string                   |
+| `city`          | `string`                  | Yes      | city prop of type string                      |
+| `state`         | `string`                  | Yes      | state prop of type string                     |
+| `postalCode`    | `string`                  | Yes      | postalCode prop of type string                |
+| `country`       | `string`                  | Yes      | country prop of type string                   |
 
 #### Usage Example
 
 ```tsx
-
 <LiveAddressAutocomplete
   value={/* string */}
-
   onChange={/* (value: string) => void */}
-
   address={/* string */}
-
   city={/* string */}
-
   state={/* string */}
-
   postalCode={/* string */}
-
   country={/* string */}
 
   // onPlaceSelect={/* : (place: { */}
-
 />
-
 ```
 
 ---
@@ -526,19 +432,14 @@ React component
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `callbackUrl` | `'/auth/signin'` | Yes | Prop: callbackUrl |
+| Prop          | Type             | Required | Description       |
+| ------------- | ---------------- | -------- | ----------------- |
+| `callbackUrl` | `'/auth/signin'` | Yes      | Prop: callbackUrl |
 
 #### Usage Example
 
 ```tsx
-
-<sidebar
-  callbackUrl={/* '/auth/signin' */}
-
-/>
-
+<sidebar callbackUrl={/* '/auth/signin' */} />
 ```
 
 ---
@@ -551,22 +452,19 @@ Mock files data - in a real app, this would come from your database
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `propertyId` | `string` | Yes | propertyId prop of type string |
-| `isMockData` | `: boolean` | No | isMockData prop of type : boolean |
+| Prop         | Type        | Required | Description                       |
+| ------------ | ----------- | -------- | --------------------------------- |
+| `propertyId` | `string`    | Yes      | propertyId prop of type string    |
+| `isMockData` | `: boolean` | No       | isMockData prop of type : boolean |
 
 #### Usage Example
 
 ```tsx
-
 <PropertyFiles
   propertyId={/* string */}
 
   // isMockData={/* : boolean */}
-
 />
-
 ```
 
 ---
@@ -579,22 +477,19 @@ Mock financial data - in a real app, this would come from your database
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `propertyId` | `string` | Yes | propertyId prop of type string |
-| `isMockData` | `: boolean` | No | isMockData prop of type : boolean |
+| Prop         | Type        | Required | Description                       |
+| ------------ | ----------- | -------- | --------------------------------- |
+| `propertyId` | `string`    | Yes      | propertyId prop of type string    |
+| `isMockData` | `: boolean` | No       | isMockData prop of type : boolean |
 
 #### Usage Example
 
 ```tsx
-
 <PropertyFinancials
   propertyId={/* string */}
 
   // isMockData={/* : boolean */}
-
 />
-
 ```
 
 ---
@@ -607,22 +502,19 @@ Call the callback to refresh the property data
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `property` | `PropertyWithDetails` | Yes | property prop of type PropertyWithDetails |
-| `onPropertyUpdate` | `: () => void` | No | onPropertyUpdate prop of type : () => void |
+| Prop               | Type                  | Required | Description                                |
+| ------------------ | --------------------- | -------- | ------------------------------------------ |
+| `property`         | `PropertyWithDetails` | Yes      | property prop of type PropertyWithDetails  |
+| `onPropertyUpdate` | `: () => void`        | No       | onPropertyUpdate prop of type : () => void |
 
 #### Usage Example
 
 ```tsx
-
 <PropertySummary
   property={/* PropertyWithDetails */}
 
   // onPropertyUpdate={/* : () => void */}
-
 />
-
 ```
 
 ---
@@ -635,17 +527,16 @@ Mock units data - fallback when API is not available
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `propertyId` | `string` | Yes | propertyId prop of type string |
-| `isMockData` | `: boolean` | No | isMockData prop of type : boolean |
-| `property` | `: PropertyWithDetails` | No | property prop of type : PropertyWithDetails |
-| `onUnitsChange` | `: () => void` | No | onUnitsChange prop of type : () => void |
+| Prop            | Type                    | Required | Description                                 |
+| --------------- | ----------------------- | -------- | ------------------------------------------- |
+| `propertyId`    | `string`                | Yes      | propertyId prop of type string              |
+| `isMockData`    | `: boolean`             | No       | isMockData prop of type : boolean           |
+| `property`      | `: PropertyWithDetails` | No       | property prop of type : PropertyWithDetails |
+| `onUnitsChange` | `: () => void`          | No       | onUnitsChange prop of type : () => void     |
 
 #### Usage Example
 
 ```tsx
-
 <PropertyUnits
   propertyId={/* string */}
 
@@ -654,9 +545,7 @@ Mock units data - fallback when API is not available
   // property={/* : PropertyWithDetails */}
 
   // onUnitsChange={/* : () => void */}
-
 />
-
 ```
 
 ---
@@ -669,22 +558,19 @@ Mock vendors data - in a real app, this would come from your database
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `propertyId` | `string` | Yes | propertyId prop of type string |
-| `isMockData` | `: boolean` | No | isMockData prop of type : boolean |
+| Prop         | Type        | Required | Description                       |
+| ------------ | ----------- | -------- | --------------------------------- |
+| `propertyId` | `string`    | Yes      | propertyId prop of type string    |
+| `isMockData` | `: boolean` | No       | isMockData prop of type : boolean |
 
 #### Usage Example
 
 ```tsx
-
 <PropertyVendors
   propertyId={/* string */}
 
   // isMockData={/* : boolean */}
-
 />
-
 ```
 
 ---
@@ -697,19 +583,14 @@ React component
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `children` | `React.ReactNode` | Yes | Prop: children |
+| Prop       | Type              | Required | Description    |
+| ---------- | ----------------- | -------- | -------------- |
+| `children` | `React.ReactNode` | Yes      | Prop: children |
 
 #### Usage Example
 
 ```tsx
-
-<providers
-  children={/* React.ReactNode */}
-
-/>
-
+<providers children={/* React.ReactNode */} />
 ```
 
 ---
@@ -717,11 +598,12 @@ React component
 ### Dropdown
 
 Dropdown component (Headless UI Listbox)
-  Props:
-  - value: selected value
-  - onChange: function to call with new value
-  - options: array of { value, label }
-  - placeholder: string to show when no value is selected
+Props:
+
+- value: selected value
+- onChange: function to call with new value
+- options: array of { value, label }
+- placeholder: string to show when no value is selected
 
 **File:** `src/components/ui/Dropdown.tsx`
 
@@ -737,103 +619,72 @@ React component
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `visible` | `outline-none` | Yes | Prop: visible |
-| `visible` | `ring-2` | Yes | Prop: visible |
-| `visible` | `ring-ring` | Yes | Prop: visible |
-| `visible` | `ring-offset-2` | Yes | Prop: visible |
-| `disabled` | `pointer-events-none` | Yes | Prop: disabled |
-| `disabled` | `opacity-50"` | Yes | Prop: disabled |
-| `variants` | `{` | Yes | Prop: variants |
-| `variant` | `{` | Yes | Prop: variant |
-| `default` | `"bg-primary` | Yes | Prop: default |
-| `hover` | `bg-primary/90"` | Yes | Prop: hover |
-| `destructive` | `"bg-destructive` | Yes | Prop: destructive |
-| `hover` | `bg-destructive/90"` | Yes | Prop: hover |
-| `outline` | `"border` | Yes | Prop: outline |
-| `hover` | `bg-accent` | Yes | Prop: hover |
-| `hover` | `text-accent-foreground"` | Yes | Prop: hover |
-| `secondary` | `"bg-secondary` | Yes | Prop: secondary |
-| `hover` | `bg-secondary/80"` | Yes | Prop: hover |
-| `ghost` | `"hover:bg-accent` | Yes | Prop: ghost |
-| `hover` | `text-accent-foreground"` | Yes | Prop: hover |
-| `link` | `"text-primary` | Yes | Prop: link |
-| `hover` | `underline"` | Yes | Prop: hover |
-| `size` | `{` | Yes | Prop: size |
-| `default` | `"h-10` | Yes | Prop: default |
-| `sm` | `"h-9` | Yes | Prop: sm |
-| `lg` | `"h-11` | Yes | Prop: lg |
-| `icon` | `"h-10` | Yes | Prop: icon |
-| `defaultVariants` | `{` | Yes | Prop: defaultVariants |
-| `variant` | `"default"` | Yes | Prop: variant |
-| `size` | `"default"` | Yes | Prop: size |
+| Prop              | Type                      | Required | Description           |
+| ----------------- | ------------------------- | -------- | --------------------- |
+| `visible`         | `outline-none`            | Yes      | Prop: visible         |
+| `visible`         | `ring-2`                  | Yes      | Prop: visible         |
+| `visible`         | `ring-ring`               | Yes      | Prop: visible         |
+| `visible`         | `ring-offset-2`           | Yes      | Prop: visible         |
+| `disabled`        | `pointer-events-none`     | Yes      | Prop: disabled        |
+| `disabled`        | `opacity-50"`             | Yes      | Prop: disabled        |
+| `variants`        | `{`                       | Yes      | Prop: variants        |
+| `variant`         | `{`                       | Yes      | Prop: variant         |
+| `default`         | `"bg-primary`             | Yes      | Prop: default         |
+| `hover`           | `bg-primary/90"`          | Yes      | Prop: hover           |
+| `destructive`     | `"bg-destructive`         | Yes      | Prop: destructive     |
+| `hover`           | `bg-destructive/90"`      | Yes      | Prop: hover           |
+| `outline`         | `"border`                 | Yes      | Prop: outline         |
+| `hover`           | `bg-accent`               | Yes      | Prop: hover           |
+| `hover`           | `text-accent-foreground"` | Yes      | Prop: hover           |
+| `secondary`       | `"bg-secondary`           | Yes      | Prop: secondary       |
+| `hover`           | `bg-secondary/80"`        | Yes      | Prop: hover           |
+| `ghost`           | `"hover:bg-accent`        | Yes      | Prop: ghost           |
+| `hover`           | `text-accent-foreground"` | Yes      | Prop: hover           |
+| `link`            | `"text-primary`           | Yes      | Prop: link            |
+| `hover`           | `underline"`              | Yes      | Prop: hover           |
+| `size`            | `{`                       | Yes      | Prop: size            |
+| `default`         | `"h-10`                   | Yes      | Prop: default         |
+| `sm`              | `"h-9`                    | Yes      | Prop: sm              |
+| `lg`              | `"h-11`                   | Yes      | Prop: lg              |
+| `icon`            | `"h-10`                   | Yes      | Prop: icon            |
+| `defaultVariants` | `{`                       | Yes      | Prop: defaultVariants |
+| `variant`         | `"default"`               | Yes      | Prop: variant         |
+| `size`            | `"default"`               | Yes      | Prop: size            |
 
 #### Usage Example
 
 ```tsx
-
 <button
   visible={/* outline-none */}
-
   visible={/* ring-2 */}
-
   visible={/* ring-ring */}
-
   visible={/* ring-offset-2 */}
-
   disabled={/* pointer-events-none */}
-
   disabled={/* opacity-50" */}
-
   variants={/* { */}
-
   variant={/* { */}
-
   default={/* "bg-primary */}
-
   hover={/* bg-primary/90" */}
-
   destructive={/* "bg-destructive */}
-
   hover={/* bg-destructive/90" */}
-
   outline={/* "border */}
-
   hover={/* bg-accent */}
-
   hover={/* text-accent-foreground" */}
-
   secondary={/* "bg-secondary */}
-
   hover={/* bg-secondary/80" */}
-
   ghost={/* "hover:bg-accent */}
-
   hover={/* text-accent-foreground" */}
-
   link={/* "text-primary */}
-
   hover={/* underline" */}
-
   size={/* { */}
-
   default={/* "h-10 */}
-
   sm={/* "h-9 */}
-
   lg={/* "h-11 */}
-
   icon={/* "h-10 */}
-
   defaultVariants={/* { */}
-
   variant={/* "default" */}
-
   size={/* "default" */}
-
 />
-
 ```
 
 ---
@@ -846,17 +697,16 @@ React component
 
 #### Props
 
-| Prop | Type | Required | Description |
-|------|------|----------|-------------|
-| `isMockData` | `boolean` | Yes | isMockData prop of type boolean |
-| `className` | `: string` | No | className prop of type : string |
-| `showIcon` | `: boolean` | No | showIcon prop of type : boolean |
-| `variant` | `: 'badge' | 'banner' | 'inline'` | No | Visual variant |
+| Prop         | Type        | Required | Description                     |
+| ------------ | ----------- | -------- | ------------------------------- | --- | -------------- |
+| `isMockData` | `boolean`   | Yes      | isMockData prop of type boolean |
+| `className`  | `: string`  | No       | className prop of type : string |
+| `showIcon`   | `: boolean` | No       | showIcon prop of type : boolean |
+| `variant`    | `: 'badge'  | 'banner' | 'inline'`                       | No  | Visual variant |
 
 #### Usage Example
 
 ```tsx
-
 <mock-data-indicator
   isMockData={/* boolean */}
 
@@ -865,9 +715,7 @@ React component
   // showIcon={/* : boolean */}
 
   // variant={/* : 'badge' | 'banner' | 'inline' */}
-
 />
-
 ```
 
 ---

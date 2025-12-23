@@ -38,28 +38,25 @@ Each entity has its own schema file with the following structure:
 ### Basic Schema Usage
 
 ```typescript
-
 import { PropertyCreateSchema, OwnerCreateSchema } from '@/schemas';
 
 // Validate property creation data
 const propertyData = {
-  name: "Sunset Apartments",
-  addressLine1: "123 Main St",
-  city: "Los Angeles",
-  state: "CA",
-  postalCode: "90210",
-  country: "USA",
-  propertyType: "Mult-Family"
+  name: 'Sunset Apartments',
+  addressLine1: '123 Main St',
+  city: 'Los Angeles',
+  state: 'CA',
+  postalCode: '90210',
+  country: 'USA',
+  propertyType: 'Mult-Family',
 };
 
 const validatedData = PropertyCreateSchema.parse(propertyData);
-
 ```
 
 ### API Route Usage
 
 ```typescript
-
 import { OwnerCreateSchema } from '@/schemas';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 
@@ -70,7 +67,6 @@ export async function POST(request: NextRequest) {
   // data is now type-safe and validated
   const newOwner = await createOwner(data);
 }
-
 ```
 
 ### Form Validation with React Hook Form
@@ -108,7 +104,6 @@ export function AddUnitForm() {
 ### Query Parameters Validation
 
 ```typescript
-
 import { PropertyQuerySchema } from '@/schemas';
 
 export async function GET(request: NextRequest) {
@@ -118,7 +113,6 @@ export async function GET(request: NextRequest) {
   // query.limit, query.offset, query.search are validated
   const properties = await getProperties(query);
 }
-
 ```
 
 ## Schema Features
@@ -128,9 +122,7 @@ export async function GET(request: NextRequest) {
 All schemas generate TypeScript types automatically:
 
 ```typescript
-
 import type { PropertyCreateInput } from '@/schemas';
-
 ```
 
 ### Validation Rules
@@ -152,21 +144,26 @@ import type { PropertyCreateInput } from '@/schemas';
 Some schemas include custom business logic:
 
 ```typescript
-
 // Ownership percentage validation
-const OwnershipPercentageValidationSchema = z.object({
-  propertyId: z.string(),
-  ownerships: z.array(z.object({
-    ownershipPercentage: z.number().min(0).max(100)
-  }))
-}).refine((data) => {
-  const total = data.ownerships.reduce((sum, o) => sum + o.ownershipPercentage, 0);
+const OwnershipPercentageValidationSchema = z
+  .object({
+    propertyId: z.string(),
+    ownerships: z.array(
+      z.object({
+        ownershipPercentage: z.number().min(0).max(100),
+      }),
+    ),
+  })
+  .refine(
+    (data) => {
+      const total = data.ownerships.reduce((sum, o) => sum + o.ownershipPercentage, 0);
 
-  return total <= 100;
-}, {
-  message: "Total ownership percentage cannot exceed 100%"
-});
-
+      return total <= 100;
+    },
+    {
+      message: 'Total ownership percentage cannot exceed 100%',
+    },
+  );
 ```
 
 ## Best Practices
@@ -184,7 +181,6 @@ const OwnershipPercentageValidationSchema = z.object({
 ## Error Handling
 
 ```typescript
-
 import { ZodError } from 'zod';
 
 try {
@@ -192,13 +188,12 @@ try {
 } catch (error) {
   if (error instanceof ZodError) {
     // Handle validation errors
-    const fieldErrors = error.errors.map(err => ({
+    const fieldErrors = error.errors.map((err) => ({
       field: err.path.join('.'),
-      message: err.message
+      message: err.message,
     }));
   }
 }
-
 ```
 
 ## Extending Schemas
@@ -206,19 +201,17 @@ try {
 To add new validation rules:
 
 ```typescript
-
 // Add custom validation
 export const CustomPropertySchema = PropertyCreateSchema.extend({
-  customField: z.string().min(1, "Custom field is required")
+  customField: z.string().min(1, 'Custom field is required'),
 });
 
 // Add conditional validation
 export const ConditionalSchema = PropertyCreateSchema.refine(
   (data) => data.propertyType !== 'Mult-Family' || data.totalUnits > 1,
   {
-    message: "Multi-family properties must have more than 1 unit",
-    path: ["totalUnits"]
-  }
+    message: 'Multi-family properties must have more than 1 unit',
+    path: ['totalUnits'],
+  },
 );
-
 ```

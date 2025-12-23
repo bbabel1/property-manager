@@ -14,17 +14,17 @@ normalizes all column names to lowercase snake_case for consistency.
 
 The following columns were renamed:
 
-| Old Name | New Name |
-|----------|----------|
-| `"Service Start"` | `service_start` |
-| `"Service End"` | `service_end` |
-| `"Service Plan"` | `service_plan` |
-| `"Fee Type"` | `fee_type` |
-| `"Fee Percent"` | `fee_percent` |
-| `"Management Fee"` | `fee_dollar_amount` |
-| `"Fee Frequency"` | `fee_frequency` |
-| `"Active Services"` | `active_services` |
-| `"Fee Notes"` | `fee_notes` |
+| Old Name            | New Name            |
+| ------------------- | ------------------- |
+| `"Service Start"`   | `service_start`     |
+| `"Service End"`     | `service_end`       |
+| `"Service Plan"`    | `service_plan`      |
+| `"Fee Type"`        | `fee_type`          |
+| `"Fee Percent"`     | `fee_percent`       |
+| `"Management Fee"`  | `fee_dollar_amount` |
+| `"Fee Frequency"`   | `fee_frequency`     |
+| `"Active Services"` | `active_services`   |
+| `"Fee Notes"`       | `fee_notes`         |
 
 ### Files Updated
 
@@ -53,6 +53,7 @@ names)
 ### Option 2: Using the Migration Script
 
 1. Ensure your environment variables are set:
+
    ```bash
 
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
@@ -60,6 +61,7 @@ names)
    ```
 
 2. Run the migration script:
+
    ```bash
 
    npm run tsx scripts/run-column-normalization.ts
@@ -68,6 +70,7 @@ names)
 ### Option 3: Using Supabase CLI
 
 1. Apply the migration using Supabase CLI:
+
    ```bash
 
    supabase db push
@@ -88,12 +91,10 @@ After running the migration, verify the changes:
    ```
 
 2. **Test API endpoints**:
-
    - GET `/api/units?propertyId=<id>`
    - POST `/api/units`
 
 3. **Test application functionality**:
-
    - Navigate to property pages
    - Add/edit units
    - Verify all data displays correctly
@@ -109,11 +110,9 @@ The `src/types/units.ts` file has been updated to include:
 ### New Enums Added
 
 ```typescript
-
 export type ServicePlan = 'Full' | 'Basic' | 'A-la-carte';
 export type FeeFrequency = 'Monthly' | 'Annually';
 export type FeeType = 'Percentage' | 'Flat Rate';
-
 ```
 
 ### New Fields Added

@@ -51,9 +51,11 @@ The system automatically maintains the `total_units` count through database trig
 1. **INSERT**: When a new unit is added, the trigger updates the property's
 
    `total_units`
+
 2. **UPDATE**: When a unit's status or property_id changes, the trigger updates
 
    affected properties
+
 3. **DELETE**: When a unit is deleted, the trigger updates the property's
 
    `total_units`

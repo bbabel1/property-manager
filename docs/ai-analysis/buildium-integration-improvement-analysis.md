@@ -73,13 +73,9 @@ async function syncAllData() {
   const properties = await buildiumClient.getProperties();
   const owners = await buildiumClient.getOwners();
   const leases = await buildiumClient.getLeases();
-  
+
   // Process all data
-  await Promise.all([
-    syncProperties(properties),
-    syncOwners(owners),
-    syncLeases(leases)
-  ]);
+  await Promise.all([syncProperties(properties), syncOwners(owners), syncLeases(leases)]);
 }
 ```
 
@@ -102,4 +98,5 @@ async function syncAllData() {
 - Consider incremental sync strategy
 
 ---
-*This analysis was generated using Cursor AI and provides intelligent insights about your codebase.*
+
+_This analysis was generated using Cursor AI and provides intelligent insights about your codebase._

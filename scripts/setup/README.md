@@ -9,16 +9,19 @@ This directory contains scripts for initial project setup, environment configura
 ## Scripts
 
 ### `setup-environment.ts`
+
 **Purpose**: Configure environment variables and validate configuration
 **When to Use**: First-time project setup or environment changes
 **Dependencies**: `.env` file with required variables
 
 ### `setup-database.ts`
+
 **Purpose**: Initialize database schema and create required tables
 **When to Use**: First-time database setup or schema reset
 **Dependencies**: Supabase project linked and configured
 
 ### `setup-buildium-connection.ts`
+
 **Purpose**: Test Buildium API connection and validate credentials
 **When to Use**: After Buildium credentials are configured
 **Dependencies**: Buildium API credentials in environment

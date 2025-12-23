@@ -61,10 +61,12 @@ const shortDateFormatter = new Intl.DateTimeFormat('en-US', {
   month: '2-digit',
   day: '2-digit',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 const monthLabelFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'long',
   year: 'numeric',
+  timeZone: 'UTC',
 });
 
 const formatSignedCurrency = (value: number) => {
@@ -76,7 +78,7 @@ const formatSignedCurrency = (value: number) => {
 
 const formatDateString = (value?: string | null) => {
   if (!value) return '—';
-  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
   const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return shortDateFormatter.format(date);
@@ -84,7 +86,7 @@ const formatDateString = (value?: string | null) => {
 
 const formatPeriodStartLabel = (value?: string | null) => {
   if (!value) return '—';
-  const isoLike = value.includes('T') ? value : `${value}T00:00:00`;
+  const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
   const date = new Date(isoLike);
   if (Number.isNaN(date.getTime())) return '—';
   return monthLabelFormatter.format(date);
@@ -740,7 +742,7 @@ export default async function UnitDetailsNested({
 
     const toTimestamp = (value: string | null) => {
       if (!value) return Number.NaN;
-      const iso = value.includes('T') ? value : `${value}T00:00:00`;
+      const iso = value.includes('T') ? value : `${value}T00:00:00Z`;
       const ms = Date.parse(iso);
       return Number.isNaN(ms) ? Number.NaN : ms;
     };

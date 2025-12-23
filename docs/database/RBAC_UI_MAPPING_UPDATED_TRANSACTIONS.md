@@ -3,6 +3,7 @@
 This note captures the new Buildium-aligned transaction fields and the `transaction_payment_transactions` table so we can surface them correctly in UI flows and secure them with RLS.
 
 ## New transaction columns (header)
+
 - `buildium_last_updated_at` — sync freshness from Buildium
 - `payment_method_raw` — raw PaymentDetail method (UI should prefer normalized `payment_method` when present)
 - `payee_buildium_id`, `payee_buildium_type`, `payee_name`, `payee_href`
@@ -13,11 +14,13 @@ This note captures the new Buildium-aligned transaction fields and the `transact
 - `bank_gl_account_id`, `bank_gl_account_buildium_id`
 
 ## New line metadata (transaction_lines)
+
 - `reference_number`
 - `is_cash_posting`
 - `accounting_entity_type_raw` (raw Buildium AccountingEntityType)
 
 ## New table: `transaction_payment_transactions`
+
 - Captures DepositDetails.PaymentTransactions splits:
   - `transaction_id` (FK to transactions, CASCADE delete)
   - `buildium_payment_transaction_id`
@@ -27,13 +30,16 @@ This note captures the new Buildium-aligned transaction fields and the `transact
   - timestamps
 
 ## UI surfaces to update
+
 - Transaction detail panes (leases, properties, units): include payee/internal status, bank GL, unit/application, and splits.
 - Receipts/deposit views: show PaymentTransactions splits and bank GL.
 - Financial reports that depend on cash vs. non-cash postings: use `is_cash_posting`/`reference_number` when present.
 
 ## RLS / access considerations
+
 - `transaction_payment_transactions` should mirror `transactions` org/lease scoping for read/write. Ensure policies restrict to the same org/lease visibility used for `transactions`.
 - When selecting transactions, prefer joins that stay within the user’s org scope; do not expose raw Buildium hrefs/types to unauthorized orgs.
 
 ## API alignment
+
 - Lease transaction detail route now returns the new fields (PaymentDetail, DepositDetails, lines). Extend other transaction endpoints similarly if they drive UI.

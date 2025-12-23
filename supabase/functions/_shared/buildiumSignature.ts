@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 const encoder = new TextEncoder()
 const DEFAULT_TIMESTAMP_WINDOW_MS = 5 * 60 * 1000
 const defaultReplayCache = new Map<string, number>()

@@ -1,4 +1,4 @@
-import type { Database } from '@/types/database'
+import type { Database, Json } from '@/types/database'
 type GlAccountRow = Database['public']['Tables']['gl_accounts']['Row']
 
 export type BankAccountSummary = {
@@ -27,6 +27,11 @@ export type BankGlAccountSummary = Pick<
   account_number?: string | null
   routing_number?: string | null
   country?: Database['public']['Enums']['countries'] | null
+  buildium_gl_account_id?: number | null
+  bank_balance?: number | null
+  bank_buildium_balance?: number | null
+  bank_check_printing_info?: Json | null
+  bank_electronic_payments?: Json | null
 }
 
 export type CreateBankAccountFormValues = {
@@ -36,7 +41,11 @@ export type CreateBankAccountFormValues = {
   account_number: string
   routing_number: string
   country: string
+  bank_information_lines: string[]
+  company_information_lines: string[]
 }
+
+export type BankAccountFormValues = CreateBankAccountFormValues
 
 export type BankingDetailsFormValues = {
   reserve: number

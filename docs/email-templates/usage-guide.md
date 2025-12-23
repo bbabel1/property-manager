@@ -74,10 +74,10 @@ const template = await getEmailTemplate(orgId, 'monthly_rental_statement');
 if (template && template.status === 'active') {
   // Build variables
   const variables = await buildTemplateVariables(monthlyLogId, orgId);
-  
+
   // Render template
   const rendered = await renderEmailTemplate(template, variables);
-  
+
   // Use rendered.subject, rendered.bodyHtml, rendered.bodyText
 }
 ```
@@ -112,32 +112,31 @@ Variables are automatically formatted based on their format type:
 ## Common Patterns
 
 ### Conditional Content (Manual)
+
 Since templates don't support conditional logic, use descriptive variable names and handle empty values in the template:
 
 ```html
-{{#if propertyAddressLine2}}
-  {{propertyAddressLine1}}, {{propertyAddressLine2}}
-{{else}}
-  {{propertyAddressLine1}}
-{{/if}}
+{{#if propertyAddressLine2}} {{propertyAddressLine1}}, {{propertyAddressLine2}} {{else}}
+{{propertyAddressLine1}} {{/if}}
 ```
 
 Note: Actual conditional syntax not supported - use fallback values or separate templates.
 
 ### Currency Display
+
 ```html
 <p>Net to Owner: <strong>{{netToOwner}}</strong></p>
 ```
 
 ### Date Display
+
 ```html
 <p>Statement Period: {{periodMonth}}</p>
 <p>Created: {{statementCreatedAt}}</p>
 ```
 
 ### Links
-```html
-<a href="{{pdfUrl}}">Download Statement PDF</a>
-<a href="{{statementUrl}}">View in App</a>
-```
 
+```html
+<a href="{{pdfUrl}}">Download Statement PDF</a> <a href="{{statementUrl}}">View in App</a>
+```

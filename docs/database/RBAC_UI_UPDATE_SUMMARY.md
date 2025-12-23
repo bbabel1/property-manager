@@ -7,7 +7,7 @@
 
 ## ✅ Changes Made
 
-### Updated: `/settings/memberships` Page
+### Updated – `/settings/memberships` Page
 
 **File**: `src/app/(protected)/settings/memberships/page.tsx`
 
@@ -147,9 +147,11 @@ Based on the access report, these roles are now available in the dropdown:
 
 ## 🧪 Testing
 
-### To Test the Changes:
+### To Test the Changes
 
-1. **Navigate to**: `http://localhost:3000/settings/memberships`
+1. **Navigate to**:
+
+   [Memberships settings page][membership-url]
 
 2. **Verify**:
    - Role dropdown shows 6 roles (not 7 hardcoded ones)
@@ -163,6 +165,7 @@ Based on the access report, these roles are now available in the dropdown:
    - Click "Assign Membership"
 
 4. **Verify in database**:
+
    ```sql
    SELECT mr.*, r.name as role_name
    FROM public.membership_roles mr
@@ -174,7 +177,7 @@ Based on the access report, these roles are now available in the dropdown:
 
 ## 🔄 API Flow
 
-### When Assigning a Membership:
+### When Assigning a Membership
 
 1. **UI**: User selects role name (e.g., "Developer")
 2. **API**: `POST /api/admin/memberships/simple` with `{ role: "Developer" }`
@@ -218,7 +221,7 @@ Based on the access report, these roles are now available in the dropdown:
 
 ## 🎉 Impact
 
-**brandon@managedbyora.com can now**:
+**[brandon@managedbyora.com][contact-email] can now**:
 
 1. See all 6 actual roles from the database
 2. Assign any of those roles to users
@@ -226,3 +229,6 @@ Based on the access report, these roles are now available in the dropdown:
 4. Have their role assignment properly recorded in `membership_roles` table
 
 **The RBAC system is now connected to the UI!**
+
+[membership-url]: http://localhost:3000/settings/memberships
+[contact-email]: mailto:brandon@managedbyora.com

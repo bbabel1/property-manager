@@ -106,4 +106,3 @@ await supabase.functions.invoke('buildium-lease-transactions-api', {
 - List calls do not persist. Use `get`/`create`/`update` with `persist: true` to write rows.
 - Payment method mapping is not applied in the webhook per your direction.
 - GL Account resolution occurs when persisting lines; unknown GL accounts are fetched from Buildium and inserted minimally.
-

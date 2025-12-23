@@ -1,4 +1,4 @@
-# Quick Guide: Assign Role to brandon@managedbyora.com
+# Quick Guide: Assign Role to [brandon@managedbyora.com](mailto:brandon@managedbyora.com)
 
 **Date**: 2025-01-31
 
@@ -16,7 +16,7 @@ The `/settings/memberships` page has been updated to fetch roles from the databa
 
 Open your browser and go to:
 
-```
+```text
 http://localhost:3000/settings/memberships
 ```
 
@@ -117,7 +117,7 @@ WHERE u.email = 'brandon@managedbyora.com';
 
 **Expected Result**:
 
-```
+```text
 email                    | org_name                | role_name | role_description          | assigned_at
 -------------------------|-------------------------|-----------|---------------------------|-------------
 brandon@managedbyora.com | Ora Property Management | Developer | Full access to all actions| 2025-01-31...

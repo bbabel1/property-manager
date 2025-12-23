@@ -61,6 +61,7 @@ NEXT_PUBLIC_SITE_URL=https://yourdomain.com
 - **Event Types**: Configure in Buildium dashboard for the events you want to
 
   receive
+
 - **Signature Verification**: Implemented using `BUILDIUM_WEBHOOK_SECRET`
 
 ## API Endpoints

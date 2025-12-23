@@ -1,4 +1,5 @@
 <!-- 0bc28b84-5a1c-4d45-abe4-cdca1c8942fa cd066035-dfd9-4678-9671-42a7342f3d4f -->
+
 Building Compliance Management Implementation Plan
 Overview
 Build a unified compliance management system for NYC regulatory obligations. The system will track compliance assets (elevators, boilers, facades, etc.), sync data from NYC APIs, generate recurring compliance tasks, and provide dashboards at portfolio, property, and asset levels.
@@ -11,7 +12,7 @@ Extend design system for compliance: badges for status/severity/agency; filter c
 
 Phase 1: Database Schema & Core Models
 1.1 Create Compliance Tables Migration
-File: supabase/migrations/[timestamp]_create_compliance_tables.sql
+File: supabase/migrations/[timestamp]\_create_compliance_tables.sql
 
 Create core tables with enhanced constraints and indexes:
 
@@ -185,7 +186,7 @@ Alternative cron script (if preferred over Edge Function):
 Similar logic, runs via cron scheduler
 Phase 3: Compliance Program & Item Generation
 3.1 Seed Default Compliance Programs
-File: supabase/migrations/[timestamp]_seed_compliance_programs.sql
+File: supabase/migrations/[timestamp]\_seed_compliance_programs.sql
 
 Insert default NYC compliance programs:
 

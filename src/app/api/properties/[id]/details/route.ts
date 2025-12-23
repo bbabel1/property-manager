@@ -134,11 +134,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const units = (unitsRes as any).data
     const img = undefined
     if (op) {
-      const acct = (op as any).bank_account_number ?? (op as any).account_number
+      const acct = (op as any).bank_account_number ?? null
       operating_account = { id: op.id, name: op.name, last4: acct ? String(acct).slice(-4) : null }
     }
     if (tr) {
-      const acct = (tr as any).bank_account_number ?? (tr as any).account_number
+      const acct = (tr as any).bank_account_number ?? null
       deposit_trust_account = { id: tr.id, name: tr.name, last4: acct ? String(acct).slice(-4) : null }
     }
 

@@ -931,7 +931,7 @@ export class BuildiumEdgeClient {
   async syncBankAccountToBuildium(bankAccountData: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
     try {
       const existingId =
-        bankAccountData?.buildium_bank_account_id ??
+        bankAccountData?.buildium_gl_account_id ??
         bankAccountData?.buildium_bank_id ??
         bankAccountData?.Id ??
         null

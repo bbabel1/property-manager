@@ -3,7 +3,7 @@
 > Generated on: 2025-01-15
 >
 > This document provides a comprehensive reference for all Buildium API endpoints implemented in the Property Management
-System.
+> System.
 
 ## Overview
 
@@ -49,7 +49,6 @@ GET /api/buildium/properties
 **Response**:
 
 ```json
-
 {
   "success": true,
   "data": [
@@ -70,7 +69,6 @@ GET /api/buildium/properties
     "offset": 0
   }
 }
-
 ```
 
 #### Get Property by ID
@@ -90,7 +88,6 @@ GET /api/buildium/properties/{id}
 **Response**:
 
 ```json
-
 {
   "success": true,
   "data": {
@@ -104,7 +101,6 @@ GET /api/buildium/properties/{id}
     "last_synced_at": "2025-01-15T10:00:00Z"
   }
 }
-
 ```
 
 #### Create Property
@@ -120,7 +116,6 @@ POST /api/buildium/properties
 **Request Body**:
 
 ```json
-
 {
   "name": "New Property",
   "address": "456 Oak Ave",
@@ -130,13 +125,11 @@ POST /api/buildium/properties
   "propertyType": "Residential",
   "yearBuilt": 2020
 }
-
 ```
 
 **Response**:
 
 ```json
-
 {
   "success": true,
   "data": {
@@ -149,7 +142,6 @@ POST /api/buildium/properties
     "postalCode": "54321"
   }
 }
-
 ```
 
 #### Update Property
@@ -169,7 +161,6 @@ PUT /api/buildium/properties/{id}
 **Request Body**:
 
 ```json
-
 {
   "name": "Updated Property Name",
   "address": "456 Oak Ave",
@@ -177,7 +168,6 @@ PUT /api/buildium/properties/{id}
   "state": "CA",
   "postalCode": "54321"
 }
-
 ```
 
 #### Property-Specific Endpoints
@@ -268,7 +258,6 @@ POST /api/buildium/units
 **Request Body**:
 
 ```json
-
 {
   "propertyId": 123,
   "unitNumber": "A101",
@@ -276,7 +265,6 @@ POST /api/buildium/units
   "bathrooms": 1,
   "squareFootage": 1000
 }
-
 ```
 
 #### Update Unit
@@ -354,7 +342,6 @@ POST /api/buildium/owners
 **Request Body**:
 
 ```json
-
 {
   "firstName": "John",
   "lastName": "Doe",
@@ -367,7 +354,6 @@ POST /api/buildium/owners
     "postalCode": "12345"
   }
 }
-
 ```
 
 #### Update Owner
@@ -436,7 +422,6 @@ POST /api/buildium/leases
 **Request Body**:
 
 ```json
-
 {
   "propertyId": 123,
   "unitId": 456,
@@ -446,7 +431,6 @@ POST /api/buildium/leases
   "securityDeposit": 2000,
   "tenantId": 789
 }
-
 ```
 
 #### Update Lease
@@ -537,7 +521,6 @@ POST /api/buildium/leases/{leaseId}/payments
 **Request Body**:
 
 ```json
-
 {
   "type": "payment",
   "amount": 2000,
@@ -545,7 +528,6 @@ POST /api/buildium/leases/{leaseId}/payments
   "memo": "January rent payment",
   "paymentMethod": "ElectronicPayment"
 }
-
 ```
 
 #### Update Transaction
@@ -592,7 +574,6 @@ POST /api/buildium/bank-accounts
 **Request Body**:
 
 ```json
-
 {
   "name": "Main Operating Account",
   "accountNumber": "1234567890",
@@ -600,7 +581,6 @@ POST /api/buildium/bank-accounts
   "accountType": "Checking",
   "bankName": "Sample Bank"
 }
-
 ```
 
 #### Update Bank Account
@@ -712,7 +692,6 @@ POST /api/buildium/tasks
 **Request Body**:
 
 ```json
-
 {
   "propertyId": 123,
   "unitId": 456,
@@ -721,7 +700,6 @@ POST /api/buildium/tasks
   "priority": "Medium",
   "categoryId": 789
 }
-
 ```
 
 #### Update Task
@@ -793,7 +771,6 @@ POST /api/buildium/work-orders
 **Request Body**:
 
 ```json
-
 {
   "taskId": 123,
   "propertyId": 456,
@@ -803,7 +780,6 @@ POST /api/buildium/work-orders
   "assignedTo": "John Smith",
   "estimatedCost": 150
 }
-
 ```
 
 #### Update Work Order
@@ -852,7 +828,6 @@ POST /api/buildium/vendors
 **Request Body**:
 
 ```json
-
 {
   "name": "ABC Plumbing",
   "email": "contact@abcplumbing.com",
@@ -865,7 +840,6 @@ POST /api/buildium/vendors
   },
   "services": ["Plumbing", "HVAC"]
 }
-
 ```
 
 #### Update Vendor
@@ -954,7 +928,6 @@ POST /api/buildium/bills
 **Request Body**:
 
 ```json
-
 {
   "propertyId": 123,
   "vendorId": 456,
@@ -972,7 +945,6 @@ POST /api/buildium/bills
     }
   ]
 }
-
 ```
 
 #### Update Bill
@@ -1044,7 +1016,6 @@ POST /api/buildium/files
 **Request Body** (multipart/form-data):
 
 ```json
-
 {
   "file": "<file_binary>",
   "title": "Lease Agreement",
@@ -1053,7 +1024,6 @@ POST /api/buildium/files
   "entityId": 123,
   "categoryId": 456
 }
-
 ```
 
 #### Update File
@@ -1154,12 +1124,10 @@ POST /api/buildium/sync
 **Request Body**:
 
 ```json
-
 {
   "entities": ["properties", "units", "owners", "leases", "transactions"],
   "forceSync": false
 }
-
 ```
 
 #### Sync Specific Entity
@@ -1179,12 +1147,10 @@ POST /api/buildium/sync/{entity}
 **Request Body**:
 
 ```json
-
 {
   "forceSync": false,
   "ids": [123, 456, 789]
 }
-
 ```
 
 ### 🔗 **Webhook Endpoints**
@@ -1202,7 +1168,6 @@ POST /api/webhooks/buildium
 **Request Body**:
 
 ```json
-
 {
   "eventType": "property.updated",
   "entityId": 123,
@@ -1214,7 +1179,6 @@ POST /api/webhooks/buildium
     }
   }
 }
-
 ```
 
 ## Error Handling
@@ -1222,7 +1186,6 @@ POST /api/webhooks/buildium
 All endpoints return consistent error responses:
 
 ```json
-
 {
   "success": false,
   "error": {
@@ -1234,7 +1197,6 @@ All endpoints return consistent error responses:
     }
   }
 }
-
 ```
 
 ### Common Error Codes

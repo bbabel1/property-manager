@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 export type LeaseOrgLookupResult = { id: number; org_id: string | null }
 
 // Resolve local lease id and org, falling back to property org when the lease row has a null org_id.

@@ -1,3 +1,4 @@
+// deno-lint-ignore-file
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 function buildiumHeaders() {
@@ -62,4 +63,3 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: false, error: (e as Error).message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
   }
 })
-
