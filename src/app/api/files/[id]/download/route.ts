@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Access check via RLS
     const { data: file, error: fileErr } = await supabase
       .from('files')
-      .select('id, storage_provider, bucket, storage_key, file_name, mime_type, buildium_file_id')
+      .select('id, storage_provider, bucket, storage_key, file_name, mime_type, buildium_file_id, org_id')
       .eq('id', fileId)
       .is('deleted_at', null)
       .maybeSingle();
@@ -65,18 +66,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Missing Buildium file ID' }, { status: 400 });
       }
 
-      const base = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
-      const headers = {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      };
-
-      const res = await fetch(`${base}/files/${buildiumFileId}/download`, {
-        method: 'POST',
-        headers,
-      });
+      const orgId = (file as { org_id?: string | null })?.org_id ?? undefined;
+      const res = await buildiumFetch('POST', `/files/${buildiumFileId}/download`, undefined, undefined, orgId);
 
       if (!res.ok) {
         return NextResponse.json(
@@ -85,7 +76,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         );
       }
 
-      const json = await res.json();
+      const json = res.json as { DownloadUrl?: string } | null;
       if (json?.DownloadUrl) {
         return NextResponse.redirect(json.DownloadUrl);
       }

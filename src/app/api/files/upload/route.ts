@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
 import { requireUser } from '@/lib/auth';
 import {
-  createBuildiumClient,
-  defaultBuildiumConfig,
+  getOrgScopedBuildiumClient,
   type BuildiumUploadTicket,
 } from '@/lib/buildium-client';
+import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager';
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils';
 import {
   uploadLeaseDocumentToBuildium,
@@ -389,10 +389,23 @@ async function maybeUploadBillFileToBuildium(options: {
   fileName: string;
   mimeType?: string;
   base64: string;
+  orgId?: string | null;
 }): Promise<BuildiumFileSyncResult | null> {
-  const { admin, transactionId, fileId, fileName, mimeType, base64 } = options;
+  const { admin, transactionId, fileId, fileName, mimeType, base64, orgId } = options;
 
-  if (!process.env.BUILDIUM_CLIENT_ID || !process.env.BUILDIUM_CLIENT_SECRET) {
+  // Resolve orgId from transaction if not provided
+  let resolvedOrgId = orgId;
+  if (!resolvedOrgId) {
+    const { data: txnRow } = await admin
+      .from('transactions')
+      .select('org_id')
+      .eq('id', toStringId(transactionId))
+      .maybeSingle();
+    resolvedOrgId = txnRow?.org_id ?? undefined;
+  }
+
+  const buildiumConfig = await getOrgScopedBuildiumConfig(resolvedOrgId ?? undefined);
+  if (!buildiumConfig) {
     logger.warn('Buildium credentials missing; skipping bill file sync');
     return null;
   }
@@ -435,7 +448,7 @@ async function maybeUploadBillFileToBuildium(options: {
         ? buildiumPropertyIdRaw
         : Number(buildiumPropertyIdRaw);
 
-    const buildiumClient = createBuildiumClient(defaultBuildiumConfig);
+    const buildiumClient = await getOrgScopedBuildiumClient(resolvedOrgId ?? undefined);
 
     const existingFiles: BuildiumBillFile[] = await buildiumClient
       .getBillFiles(buildiumBillId)
@@ -606,6 +619,7 @@ async function uploadFileToBuildiumEntity(options: {
   buildiumEntityId: number;
   buildiumCategoryId: number | null;
   categoryName: string | null;
+  orgId?: string | null;
 }): Promise<BuildiumFileSyncResult | null> {
   const {
     admin,
@@ -617,14 +631,19 @@ async function uploadFileToBuildiumEntity(options: {
     buildiumEntityId,
     buildiumCategoryId,
     categoryName,
+    orgId,
   } = options;
 
-  if (!process.env.BUILDIUM_CLIENT_ID || !process.env.BUILDIUM_CLIENT_SECRET) {
+  // Resolve orgId from file if not provided
+  let resolvedOrgId = orgId ?? (file as { org_id?: string | null })?.org_id ?? undefined;
+
+  const buildiumConfig = await getOrgScopedBuildiumConfig(resolvedOrgId);
+  if (!buildiumConfig) {
     logger.warn('Buildium credentials missing; skipping file sync');
     return null;
   }
 
-  const buildiumClient = createBuildiumClient(defaultBuildiumConfig);
+  const buildiumClient = await getOrgScopedBuildiumClient(resolvedOrgId);
   type BuildiumUploadPayload = {
     FileName: string;
     Title?: string | null;
@@ -1342,6 +1361,7 @@ export async function POST(request: NextRequest) {
       fileName,
       mimeType,
       base64: base64ForSync,
+      orgId,
     });
     if (buildiumSync?.updatedFile) {
       latestFileRow = buildiumSync.updatedFile;
@@ -1357,6 +1377,7 @@ export async function POST(request: NextRequest) {
       base64: base64ForSync,
       category: resolvedCategoryName,
       buildiumCategoryId,
+      orgId,
     });
     if (buildiumSync?.updatedFile) {
       latestFileRow = buildiumSync.updatedFile;
@@ -1373,6 +1394,7 @@ export async function POST(request: NextRequest) {
       buildiumEntityId,
       buildiumCategoryId,
       categoryName: resolvedCategoryName,
+      orgId,
     });
     if (buildiumSync?.updatedFile) {
       latestFileRow = buildiumSync.updatedFile;
