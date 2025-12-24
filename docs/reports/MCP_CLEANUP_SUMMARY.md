@@ -1,5 +1,7 @@
 # MCP Cleanup Summary
 
+<!-- markdownlint-configure-file {"MD013": false, "MD031": false} -->
+
 ## Changes Made
 
 ### 1. MCP Configuration Updated

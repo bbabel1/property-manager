@@ -6,7 +6,7 @@
 
 ## 📁 Current Scripts Directory Structure
 
-```
+```text
 scripts/
 ├── README.md                        # Main scripts documentation
 ├── buildium/                       # Buildium integration (create/sync)

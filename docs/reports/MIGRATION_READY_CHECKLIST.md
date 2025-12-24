@@ -1,5 +1,7 @@
 # File Storage Consolidation - Migration Ready Checklist
 
+<!-- markdownlint-configure-file {"MD013": false, "MD031": false} -->
+
 ## ✅ Pre-Migration Verification
 
 ### Code Updates Completed

@@ -1,5 +1,7 @@
 Seed and Reset Data
 
+<!-- markdownlint-configure-file {"MD013": false, "MD029": false, "MD031": false} -->
+
 Overview
 
 - `scripts/seed.ts`: inserts best‑effort demo data (contacts → owners → a sample property).
