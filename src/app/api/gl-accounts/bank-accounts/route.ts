@@ -6,6 +6,23 @@ import { resolveUserOrgIds } from '@/lib/auth/org-access'
 import { hasRole, type AppRole } from '@/lib/auth/roles'
 import { createBankGlAccountWithBuildium } from '@/lib/bank-account-create'
 import { supabaseAdmin } from '@/lib/db'
+import type { Tables } from '@/types/database'
+
+type BankAccountRow = Pick<
+  Tables<'gl_accounts'>,
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'is_active'
+  | 'bank_account_type'
+  | 'bank_account_number'
+  | 'bank_country'
+  | 'buildium_gl_account_id'
+  | 'bank_balance'
+  | 'bank_buildium_balance'
+  | 'bank_check_printing_info'
+  | 'bank_electronic_payments'
+>
 
 function mask(v: string | null | undefined) {
   if (!v) return null
@@ -41,7 +58,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load bank accounts', details: error.message }, { status: 500 })
     }
 
-    const rows = (data || []).map((a: any) => ({
+    const rows = (data || []).map((a: BankAccountRow) => ({
       id: a.id,
       name: a.name,
       description: a.description,

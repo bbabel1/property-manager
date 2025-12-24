@@ -6,6 +6,15 @@ import { hasRole, type AppRole } from '@/lib/auth/roles'
 import { createBankGlAccountWithBuildium } from '@/lib/bank-account-create'
 import { supabaseAdmin } from '@/lib/db'
 
+type BankAccountRow = {
+  id: string
+  name: string | null
+  bank_account_type: string | null
+  bank_account_number: string | null
+  bank_routing_number: string | null
+  is_active: boolean | null
+}
+
 // Utility to mask numbers except last 4
 function mask(v: string | null | undefined) {
   if (!v) return null
@@ -38,18 +47,18 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true })
 
     if (error) {
-      const msg = String((error as any)?.message || '')
+      const msg = String(error?.message || '')
       return NextResponse.json({ error: 'Failed to load bank accounts', details: msg }, { status: 500 })
     }
 
-    const rows = (data || []).map((a: any) => ({
+    const rows = (data as BankAccountRow[] | null | undefined)?.map((a) => ({
       id: a.id,
       name: a.name,
       bank_account_type: a.bank_account_type,
       account_number: mask(a.bank_account_number),
       routing_number: mask(a.bank_routing_number),
       is_active: a.is_active,
-    }))
+    })) ?? []
 
     return NextResponse.json(rows)
   } catch (error) {

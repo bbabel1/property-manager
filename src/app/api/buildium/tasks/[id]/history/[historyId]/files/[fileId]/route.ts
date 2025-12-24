@@ -54,6 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium task history file`);
 
     return NextResponse.json(
@@ -112,6 +113,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error deleting Buildium task history file`);
 
     return NextResponse.json(
@@ -172,6 +174,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error downloading Buildium task history file`);
 
     return NextResponse.json(

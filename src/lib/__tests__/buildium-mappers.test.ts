@@ -94,12 +94,27 @@ describe('mapPaymentMethodToEnum', () => {
 });
 
 describe('resolveUndepositedFundsGlAccountId', () => {
-  const makeSupabaseStub = (responses: Array<{ data: any; error: any }>) => {
-    const calls: any[] = [];
+  type SupabaseResponse = { data: { id: string } | null; error: { code?: string } | null };
+  type SupabaseCall = {
+    table: string;
+    select: string | null;
+    ilike: { column: string; pattern: string } | null;
+    eq: { column: string; value: string | null } | null;
+    limit: number | null;
+  };
+
+  const makeSupabaseStub = (responses: SupabaseResponse[]) => {
+    const calls: SupabaseCall[] = [];
     let idx = 0;
     const stub = {
       from(table: string) {
-        const call = { table, select: null as string | null, ilike: null as any, eq: null as any, limit: null as number | null };
+        const call: SupabaseCall = {
+          table,
+          select: null,
+          ilike: null,
+          eq: null,
+          limit: null,
+        };
         return {
           select(sel: string) {
             call.select = sel;
@@ -109,7 +124,7 @@ describe('resolveUndepositedFundsGlAccountId', () => {
             call.ilike = { column, pattern };
             return this;
           },
-          eq(column: string, value: any) {
+          eq(column: string, value: string | null) {
             call.eq = { column, value };
             return this;
           },
@@ -124,7 +139,7 @@ describe('resolveUndepositedFundsGlAccountId', () => {
           },
         };
       },
-    } as any;
+    } as unknown as Parameters<typeof resolveUndepositedFundsGlAccountId>[0];
     return { stub, calls };
   };
 

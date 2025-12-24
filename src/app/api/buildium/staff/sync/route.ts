@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { mapStaffToBuildium } from '@/lib/buildium-mappers'
+import type { Database } from '@/types/database'
+
+type StaffUpdate = Database['public']['Tables']['staff']['Update']
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use Buildium Users endpoint: POST /v1/users (create) or PUT /v1/users/{id} (update)
-    const localBuildiumId: number | null = (st as any)?.buildium_user_id ?? null
+    const localBuildiumId = typeof st.buildium_user_id === 'number' ? st.buildium_user_id : null
     const isUpdate = typeof localBuildiumId === 'number' && Number.isFinite(localBuildiumId)
     const url = isUpdate ? `${base.replace(/\/$/, '')}/users/${localBuildiumId}` : `${base.replace(/\/$/, '')}/users`
     const method = isUpdate ? 'PUT' : 'POST'
@@ -48,20 +51,21 @@ export async function POST(request: NextRequest) {
     })
 
     if (!res.ok) {
-      let details: any = null
+      let details: unknown = null
       try { details = await res.json() } catch {}
       return NextResponse.json({ error: 'Buildium staff sync failed', status: res.status, endpoint: url, method, details }, { status: 502 })
     }
 
-    const data = await res.json().catch(() => ({} as any))
-    const buildiumId: number | null = typeof data?.Id === 'number' ? data.Id : null
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    const buildiumId: number | null = typeof (data as { Id?: unknown })?.Id === 'number' ? (data as { Id: number }).Id : null
     if (buildiumId) {
-      await db.from('staff').update({ buildium_user_id: buildiumId } as any).eq('id', staffId)
+      const updatePayload: StaffUpdate = { buildium_user_id: buildiumId }
+      await db.from('staff').update(updatePayload).eq('id', staffId)
     }
 
     return NextResponse.json({ success: true, buildiumId, data })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  } catch (e: unknown) {
+    if (e instanceof Error && e.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

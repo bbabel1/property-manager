@@ -6,6 +6,14 @@ import { BuildiumToDoRequestCreateSchema } from '@/schemas/buildium';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import type { Database } from '@/types/database';
+
+type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
+type BuildiumToDoRequest = {
+  Id?: number | string | null;
+  RequestedByUserEntity?: { Type?: string | number | null } | null;
+  [key: string]: unknown;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -69,7 +77,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const toDoRequests = await response.json();
+    const toDoRequests = (await response.json()) as unknown;
 
     // Optional response filtering by RequestedByUserEntity.Type
     const requestedByTypeParam = searchParams.get('requestedByType');
@@ -79,18 +87,20 @@ export async function GET(request: NextRequest) {
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
 
-    const filtered = Array.isArray(toDoRequests) && requestedTypes.length > 0
-      ? toDoRequests.filter((item: any) => {
-          const t = item?.RequestedByUserEntity?.Type;
-          if (!t) return includeUnspecified;
-          return requestedTypes.includes(String(t).toLowerCase());
-        })
-      : toDoRequests;
+    const toDoRequestArray: BuildiumToDoRequest[] = Array.isArray(toDoRequests) ? toDoRequests : [];
+    const filtered =
+      Array.isArray(toDoRequests) && requestedTypes.length > 0
+        ? toDoRequestArray.filter((item) => {
+            const t = item.RequestedByUserEntity?.Type;
+            if (!t) return includeUnspecified;
+            return requestedTypes.includes(String(t).toLowerCase());
+          })
+        : toDoRequests;
 
     // Persist to local tasks with task_kind='todo' and required category
     try {
       await Promise.all(
-        (Array.isArray(toDoRequests) ? toDoRequests : []).map(async (item: any) => {
+        toDoRequestArray.map(async (item) => {
           const localData = await mapTaskFromBuildiumWithRelations(item, supabaseAdmin, {
             taskKind: 'todo',
             requireCategory: true,
@@ -109,12 +119,12 @@ export async function GET(request: NextRequest) {
           if (existing?.id) {
             await supabaseAdmin
               .from('tasks')
-              .update({ ...localData, updated_at: now } as any)
+              .update({ ...localData, updated_at: now } as Partial<TaskInsert>)
               .eq('id', existing.id)
           } else {
             await supabaseAdmin
               .from('tasks')
-              .insert({ ...localData, created_at: now, updated_at: now } as any)
+              .insert({ ...localData, created_at: now, updated_at: now } as Partial<TaskInsert>)
           }
         })
       )
@@ -131,6 +141,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium to-do requests`);
 
     return NextResponse.json(
@@ -202,7 +213,7 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString()
       await supabaseAdmin
         .from('tasks')
-        .insert({ ...localData, created_at: now, updated_at: now } as any)
+        .insert({ ...localData, created_at: now, updated_at: now } as Partial<TaskInsert>)
     } catch (persistErr) {
       logger.warn({ err: String(persistErr) }, 'Failed to persist created To-Do request to tasks')
     }
@@ -213,6 +224,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium to-do request`);
 
     return NextResponse.json(

@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation';
-import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { supabase, supabaseAdmin } from '@/lib/db';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
+import InfoCard from '@/components/layout/InfoCard';
 import EditDepositForm from '@/components/bank-accounts/EditDepositForm';
 
 type BankAccount = {
@@ -26,7 +26,21 @@ export default async function BankAccountDepositEditPage({
   params: Promise<{ id: string; transactionId: string }>;
 }) {
   const { id: bankAccountId, transactionId } = await params;
-  const db = await getSupabaseServerClient();
+  const db = supabaseAdmin || supabase;
+  const renderError = (message: string) => (
+    <PageShell>
+      <PageHeader title="Edit deposit" />
+      <PageBody>
+        <InfoCard title="Edit deposit">
+          <p className="text-sm text-red-600">{message}</p>
+        </InfoCard>
+      </PageBody>
+    </PageShell>
+  );
+
+  if (!db) {
+    return renderError('Database client is unavailable.');
+  }
 
   // Fetch transaction and verify it's a Deposit
   const { data: transaction } = await db
@@ -36,7 +50,7 @@ export default async function BankAccountDepositEditPage({
     .maybeSingle();
 
   if (!transaction || transaction.transaction_type !== 'Deposit') {
-    notFound();
+    return renderError('Deposit transaction not found.');
   }
 
   // Verify this deposit belongs to this bank account context
@@ -49,7 +63,7 @@ export default async function BankAccountDepositEditPage({
       .eq('gl_account_id', bankAccountId)
       .limit(1)
       .maybeSingle();
-    if (!bankLine) notFound();
+    if (!bankLine) return renderError('Deposit not found for this bank account.');
   }
 
   // Fetch bank GL account name

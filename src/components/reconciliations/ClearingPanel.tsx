@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { fmtCurrency } from './ReconHelpers'
 
@@ -16,12 +16,12 @@ export default function ClearingPanel({
   const [selectedIds, setSelectedIds] = useState<(string|number)[]>([])
   const [isPending, startTransition] = useTransition()
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch(`/api/buildium/bank-accounts/reconciliations/${reconciliationId}/transactions`, { cache: 'no-store' })
     const json = await res.json()
     setRows(Array.isArray(json?.data) ? json.data : [])
-  }
-  useEffect(() => { load() }, [reconciliationId])
+  }, [reconciliationId])
+  useEffect(() => { void load() }, [load, reconciliationId])
 
   function toggle(id: string|number, checked: boolean) {
     setSelectedIds(prev => checked ? [...new Set([...prev, id])] : prev.filter(x => x !== id))
@@ -81,4 +81,3 @@ export default function ClearingPanel({
     </div>
   )
 }
-

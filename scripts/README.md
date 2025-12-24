@@ -6,7 +6,7 @@
 
 ## 📁 Directory Structure
 
-```
+```text
 scripts/
 ├── README.md                        # This file - main documentation
 ├── buildium/                        # Buildium integration (create/sync/verify)

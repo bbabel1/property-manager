@@ -24,6 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const payload = data?.data || data
     return NextResponse.json({ success: true, data: payload });
   } catch (error) {
+    logger.error({ error });
     logger.error('Error fetching Buildium GL account balance');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

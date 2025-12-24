@@ -11,6 +11,26 @@ import { z } from 'zod'
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { normalizeBankAccountType } from '@/lib/gl-bank-account-normalizers'
 
+type BankAccountRow = {
+  id: string
+  buildium_gl_account_id: number | null
+  name: string | null
+  description: string | null
+  bank_account_type: string | null
+  bank_account_number: string | null
+  bank_routing_number: string | null
+  bank_balance: number | null
+  bank_buildium_balance: number | null
+  is_active: boolean | null
+  bank_country: string | null
+  bank_check_printing_info: unknown
+  bank_electronic_payments: unknown
+  created_at: string
+  updated_at: string
+}
+
+type BuildiumSyncResult = { success: boolean; buildiumId?: number; error?: string }
+
 const BankAccountUpdateLocalSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
@@ -31,48 +51,50 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const client = getServerSupabaseClient()
     const { data, error } = await client
       .from('gl_accounts')
-      .select(`
-        id,
-        buildium_gl_account_id,
-        name,
-        description,
-        bank_account_type,
-        bank_account_number,
-        bank_routing_number,
-        bank_balance,
-        bank_buildium_balance,
-        is_active,
-        bank_country,
-        bank_check_printing_info,
-        bank_electronic_payments,
-        created_at,
-        updated_at
-      `)
+      .select(
+        `
+          id,
+          buildium_gl_account_id,
+          name,
+          description,
+          bank_account_type,
+          bank_account_number,
+          bank_routing_number,
+          bank_balance,
+          bank_buildium_balance,
+          is_active,
+          bank_country,
+          bank_check_printing_info,
+          bank_electronic_payments,
+          created_at,
+          updated_at
+        `,
+      )
       .eq('id', (await params).id)
       .eq('is_bank_account', true)
-      .single()
+      .single<BankAccountRow>()
     if (error) {
-      if ((error as any).code === 'PGRST116') return NextResponse.json({ error: 'Bank account not found' }, { status: 404 })
+      if (error.code === 'PGRST116') return NextResponse.json({ error: 'Bank account not found' }, { status: 404 })
       return NextResponse.json({ error: 'Failed to fetch bank account', details: error.message }, { status: 500 })
     }
     // Backwards-compatible response shape for older clients
     return NextResponse.json({
-      id: (data as any).id,
-      name: (data as any).name,
-      description: (data as any).description,
-      bank_account_type: (data as any).bank_account_type,
-      account_number: (data as any).bank_account_number,
-      routing_number: (data as any).bank_routing_number,
-      buildium_gl_account_id: (data as any).buildium_gl_account_id,
-      balance: (data as any).bank_balance,
-      buildium_balance: (data as any).bank_buildium_balance,
-      is_active: (data as any).is_active,
-      country: (data as any).bank_country,
-      check_printing_info: (data as any).bank_check_printing_info,
-      electronic_payments: (data as any).bank_electronic_payments,
-      created_at: (data as any).created_at,
-      updated_at: (data as any).updated_at,
-      gl_account: (data as any).id,
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      bank_account_type: data.bank_account_type,
+      account_number: data.bank_account_number,
+      routing_number: data.bank_routing_number,
+      buildium_gl_account_id: data.buildium_gl_account_id,
+      balance: data.bank_balance,
+      buildium_balance: data.bank_buildium_balance,
+      is_active: data.is_active,
+      country: data.bank_country,
+      check_printing_info: data.bank_check_printing_info,
+      electronic_payments: data.bank_electronic_payments,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      gl_account: data.id,
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
@@ -84,7 +106,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(request)
+    await requireUser(request)
     const id = (await params).id
 
     // Support query param override for sync
@@ -97,7 +119,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const now = new Date().toISOString()
 
     // Prepare DB update payload
-    const toDb: any = {}
+    const toDb: Record<string, unknown> = {}
     if (validated.name !== undefined) toDb.name = validated.name
     if (validated.description !== undefined) toDb.description = validated.description
     if (validated.bankAccountType !== undefined) toDb.bank_account_type = normalizeBankAccountType(validated.bankAccountType)
@@ -125,7 +147,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .update(toDb)
       .eq('id', id)
       .select('*')
-      .single()
+      .single<BankAccountRow>()
 
     if (error) {
       return NextResponse.json({ error: 'Failed to update bank account', details: error.message }, { status: 500 })
@@ -133,21 +155,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Optional two-way sync to Buildium
     if (syncToBuildium) {
-      const syncPayload: any = {
-        id: (updated as any).id,
-        name: (updated as any).name,
-        description: (updated as any).description,
-        bank_account_type: (updated as any).bank_account_type,
-        bank_account_number: (updated as any).bank_account_number,
-        bank_routing_number: (updated as any).bank_routing_number,
-        bank_country: (updated as any).bank_country,
-        is_active: (updated as any).is_active ?? true,
-        buildium_gl_account_id: (updated as any).buildium_gl_account_id,
+      const syncPayload = {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        bank_account_type: updated.bank_account_type,
+        bank_account_number: updated.bank_account_number,
+        bank_routing_number: updated.bank_routing_number,
+        bank_country: updated.bank_country,
+        is_active: updated.is_active ?? true,
+        buildium_gl_account_id: updated.buildium_gl_account_id,
       }
 
-      const result = await buildiumEdgeClient.syncBankAccountToBuildium(syncPayload)
+      const result: BuildiumSyncResult = await buildiumEdgeClient.syncBankAccountToBuildium(syncPayload)
       if (!result.success) {
-        const currentBuildiumId = (updated as any).buildium_gl_account_id ?? undefined
+        const currentBuildiumId = updated.buildium_gl_account_id ?? undefined
         if (typeof currentBuildiumId === 'number') {
           await admin.rpc('update_buildium_sync_status', {
             p_entity_type: 'bankAccount',
@@ -160,14 +182,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ success: true, data: updated, buildiumSync: { success: false, error: result.error } })
       }
 
-      if (!(updated as any).buildium_gl_account_id && result.buildiumId) {
+      if (!updated.buildium_gl_account_id && result.buildiumId) {
         await admin
           .from('gl_accounts')
-          .update({ buildium_gl_account_id: result.buildiumId, updated_at: new Date().toISOString() } as any)
+          .update({ buildium_gl_account_id: result.buildiumId, updated_at: new Date().toISOString() })
           .eq('id', id)
       }
 
-      const syncedBuildiumId = result.buildiumId ?? (updated as any).buildium_gl_account_id
+      const syncedBuildiumId = result.buildiumId ?? updated.buildium_gl_account_id
       if (typeof syncedBuildiumId === 'number') {
         await admin.rpc('update_buildium_sync_status', {
           p_entity_type: 'bankAccount',
@@ -176,7 +198,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           p_status: 'synced'
         })
       }
-      return NextResponse.json({ success: true, data: { ...updated, buildium_gl_account_id: result.buildiumId || (updated as any).buildium_gl_account_id } })
+      return NextResponse.json({
+        success: true,
+        data: { ...updated, buildium_gl_account_id: result.buildiumId || updated.buildium_gl_account_id },
+      })
     }
 
     return NextResponse.json({ success: true, data: updated })

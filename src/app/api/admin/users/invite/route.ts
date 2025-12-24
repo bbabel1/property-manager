@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
 import { AppRole, RoleRank } from '@/lib/auth/roles'
-import { pickDefaultProfileNameForRoles } from '@/lib/permission-profiles'
 import { mapUIStaffRoleToDB } from '@/lib/enums/staff-roles'
 
 const ALLOWED_ROLES: AppRole[] = [
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
       const message = parsed.error.issues.map(i => i.message).join('\n') || 'Invalid payload'
       return NextResponse.json({ error: message }, { status: 400 })
     }
-    const { email: rawEmail, org_id: rawOrgId, roles: rawRoles, permission_profile_id, staff_role } = parsed.data
+    const { email: rawEmail, org_id: rawOrgId, roles: rawRoles, permission_profile_id: _permission_profile_id, staff_role } = parsed.data
 
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: 'Server not configured with service role' }, { status: 500 })
@@ -80,8 +79,6 @@ export async function POST(request: NextRequest) {
     }
 
     normalizedRoles.sort((a, b) => RoleRank[b] - RoleRank[a])
-    const topRole = normalizedRoles[0]
-
     const supabaseAdmin = requireSupabaseAdmin('admin invite user')
 
     // Check if user already exists
@@ -204,8 +201,9 @@ export async function POST(request: NextRequest) {
         created: !existingUserRow?.user_id
       }
     })
-  } catch (e: any) {
-    const msg = typeof e?.message === 'string' ? e.message : 'Internal Server Error'
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    const msg = typeof error?.message === 'string' ? error.message : 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }

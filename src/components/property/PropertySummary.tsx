@@ -2,14 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Building2,
   MapPin,
   Camera,
-  CheckCircle,
-  XCircle,
   Home,
-  Users,
-  DollarSign,
   Banknote,
 } from 'lucide-react';
 import EditLink from '@/components/ui/EditLink';
@@ -86,13 +81,13 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
 
   // Helper functions to get bank account information
   const getOperatingBankAccount = () => {
-    const operatingGlId = (property as any).operating_bank_gl_account_id;
+    const operatingGlId = property.operating_bank_gl_account_id;
     if (!operatingGlId) return null;
     return bankAccounts.find((account) => account.id === operatingGlId);
   };
 
   const getDepositTrustBankAccount = () => {
-    const depositGlId = (property as any).deposit_trust_gl_account_id;
+    const depositGlId = property.deposit_trust_gl_account_id;
     if (!depositGlId) return null;
     return bankAccounts.find((account) => account.id === depositGlId);
   };
@@ -171,7 +166,7 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
                       PROPERTY TYPE
                     </p>
                     <p className="text-foreground font-semibold">
-                      {(property as any).property_type || 'None'}
+                      {property.property_type || 'None'}
                     </p>
                   </div>
 
@@ -194,7 +189,7 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
                     </p>
                     {property.owners && property.owners.length > 0 ? (
                       <div className="space-y-2">
-                        {property.owners.map((owner, index) => (
+                        {property.owners.map((owner) => (
                           <div
                             key={owner.id}
                             className="border-l-2 border-[var(--color-brand-500)] pl-3"

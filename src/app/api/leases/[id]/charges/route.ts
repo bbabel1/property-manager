@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
 import { hasSupabaseAdmin } from '@/lib/supabase-client'
 import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
+import type { Database as DatabaseSchema } from '@/types/database'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
 import {
   buildLinesFromAllocations,
@@ -12,6 +13,26 @@ import {
   amountsRoughlyEqual
 } from '@/lib/lease-transaction-helpers'
 import { supabaseAdmin } from '@/lib/db'
+
+type TransactionLineWithAccount = Pick<
+  DatabaseSchema['public']['Tables']['transaction_lines']['Row'],
+  'id' | 'amount' | 'posting_type' | 'gl_account_id' | 'property_id' | 'unit_id' | 'memo'
+> & {
+  gl_accounts: Pick<DatabaseSchema['public']['Tables']['gl_accounts']['Row'], 'name' | 'sub_type' | 'type'> | null
+}
+
+type TransactionLease = Pick<
+  DatabaseSchema['public']['Tables']['lease']['Row'],
+  'id' | 'property_id' | 'unit_id' | 'org_id'
+> | null
+
+type TransactionWithLines = Pick<
+  DatabaseSchema['public']['Tables']['transactions']['Row'],
+  'id' | 'date' | 'memo' | 'transaction_type'
+> & {
+  lease: TransactionLease
+  transaction_lines: TransactionLineWithAccount[]
+}
 
 const EnterChargeSchema = z.object({
   date: z.string().min(1),
@@ -59,10 +80,11 @@ export async function POST(
       .limit(1)
 
     if (txErr || !txRows?.length) return
-    const tx = txRows[0] as any
+    const tx = (txRows[0] ?? null) as TransactionWithLines | null
+    if (!tx) return
     if ((tx.transaction_type || '').toLowerCase() !== 'charge') return
 
-    const lines: any[] = Array.isArray(tx.transaction_lines) ? tx.transaction_lines : []
+    const lines = Array.isArray(tx.transaction_lines) ? tx.transaction_lines : []
     const hasAr = lines.some((line) => {
       const name = (line?.gl_accounts?.name || '').toString().toLowerCase()
       const subType = (line?.gl_accounts?.sub_type || '').toString().toLowerCase().replace(/[\s_-]+/g, '')
@@ -80,7 +102,7 @@ export async function POST(
     const arAmount = creditSum - debitSum
     if (!(arAmount > 0)) return
 
-    const orgId = (tx.lease as any)?.org_id ?? null
+    const orgId = tx.lease?.org_id ?? null
     const { data: orgArRow } =
       orgId != null
         ? await db
@@ -95,13 +117,13 @@ export async function POST(
       .select('id')
       .ilike('name', 'Accounts Receivable')
       .maybeSingle()
-    const arGlId = (orgArRow as any)?.id ?? (fallbackArRow as any)?.id ?? null
+    const arGlId = orgArRow?.id ?? fallbackArRow?.id ?? null
     if (!arGlId) return
 
     const nowIso = new Date().toISOString()
     const lineDate = typeof tx.date === 'string' && tx.date ? tx.date : nowIso.slice(0, 10)
-    const propertyId = (tx.lease as any)?.property_id ?? lines[0]?.property_id ?? null
-    const unitId = (tx.lease as any)?.unit_id ?? lines[0]?.unit_id ?? null
+    const propertyId = tx.lease?.property_id ?? lines[0]?.property_id ?? null
+    const unitId = tx.lease?.unit_id ?? lines[0]?.unit_id ?? null
 
     await db.from('transaction_lines').insert({
       transaction_id: transactionId,
@@ -111,10 +133,10 @@ export async function POST(
       memo: tx?.memo ?? null,
       date: lineDate,
       account_entity_type: 'Rental',
-      account_entity_id: (tx.lease as any)?.property_id ?? null,
+      account_entity_id: null,
       property_id: propertyId,
       unit_id: unitId,
-      lease_id: (tx.lease as any)?.id ?? leaseId,
+      lease_id: tx.lease?.id ?? leaseId,
       created_at: nowIso,
       updated_at: nowIso,
     })
@@ -156,8 +178,8 @@ export async function POST(
       payload
     )
 
-    let normalized: any = null
-    let responseLines: any[] = []
+    let normalized: Record<string, unknown> | null = null
+    let responseLines: Array<Record<string, unknown>> = []
     const memoValue = parsed.data.memo ?? null
 
     if (result.localId) {

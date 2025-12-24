@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
     const callerOrgRole = (callerRolesRows || [])
-      .map((r: any) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
+      .map((r) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
       .filter(Boolean)?.[0] as AppRole | null
     const validation = validateMembershipChange({
       callerOrgRole,
@@ -206,9 +206,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, role: top })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    if (e?.message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : null
+    if (message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

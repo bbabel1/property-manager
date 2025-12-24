@@ -11,6 +11,7 @@
 
 import 'dotenv/config';
 import { createClient, type PostgrestSingleResponse } from '@supabase/supabase-js';
+import { inspect } from 'node:util';
 import { computeCanonicalParties } from '@/lib/transaction-canonical';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -29,6 +30,18 @@ if (!BUILDUM_CLIENT_ID || !BUILDUM_CLIENT_SECRET) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
+
+const writeLine = (stream: NodeJS.WritableStream, value: unknown) => {
+  const text = typeof value === 'string' ? value : inspect(value, { depth: 6 });
+  stream.write(`${text}\n`);
+};
+
+const logError = (message: string, detail?: unknown) => {
+  const suffix = detail !== undefined ? ` ${inspect(detail, { depth: 4 })}` : '';
+  writeLine(process.stderr, `${message}${suffix}`);
+};
+
+const logInfo = (value: unknown) => writeLine(process.stdout, value);
 
 type TxRow = {
   id: string;
@@ -65,6 +78,15 @@ type BuildiumBankTxDetail = {
       Amount?: number | null;
     }> | null;
   } | null;
+  PaidBy?: Array<{
+    AccountingEntity?: {
+      Id?: number | null;
+      AccountingEntityType?: string | null;
+      Href?: string | null;
+      Unit?: { Id?: number | null; Href?: string | null } | null;
+    } | null;
+    Amount?: number | null;
+  }> | null;
 };
 
 async function fetchDetail(bankAccountId: number, transactionId: number): Promise<BuildiumBankTxDetail> {
@@ -225,8 +247,7 @@ async function main() {
         processed += 1;
       } catch (err) {
         errors += 1;
-        // eslint-disable-next-line no-console
-        console.error('Failed backfill', { id: row.id, err });
+        logError('Failed backfill', { id: row.id, err });
       }
       // Be kind to Buildium API
       await new Promise((r) => setTimeout(r, 250));
@@ -235,8 +256,7 @@ async function main() {
     offset += limit;
   }
 
-  // eslint-disable-next-line no-console
-  console.log(
+  logInfo(
     JSON.stringify(
       {
         processed,
@@ -249,8 +269,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error(err);
+  logError('Unhandled error', err);
   process.exit(1);
 });
-

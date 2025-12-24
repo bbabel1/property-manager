@@ -40,8 +40,15 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
   const { user, signOut } = useAuth();
 
   const displayName = useMemo(() => {
-    const meta: any = user?.user_metadata || {};
-    const full = meta.full_name || meta.name || `${meta.first_name ?? ''} ${meta.last_name ?? ''}`.trim();
+    const meta =
+      (user?.user_metadata as
+        | { full_name?: string; name?: string; first_name?: string; last_name?: string }
+        | null
+        | undefined) ?? {};
+    const full =
+      meta.full_name ||
+      meta.name ||
+      `${meta.first_name ?? ''} ${meta.last_name ?? ''}`.trim();
     return (full && full.length > 1 ? full : user?.email) || 'Signed in';
   }, [user]);
 
@@ -54,7 +61,9 @@ export function Sidebar({ activeSection, onNavigate }: SidebarProps) {
   }, [displayName]);
 
   const roleLabel = useMemo(() => {
-    const roles = ((user?.app_metadata as any)?.claims?.roles ?? []) as AppRole[];
+    const claims = (user?.app_metadata as { claims?: { roles?: AppRole[] } } | null | undefined)
+      ?.claims;
+    const roles = claims?.roles ?? [];
     if (!roles?.length) return '';
     const highest = roles.sort((a, b) => (RoleRank[b] ?? 0) - (RoleRank[a] ?? 0))[0];
     switch (highest) {

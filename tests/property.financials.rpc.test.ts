@@ -9,6 +9,35 @@ type SupabaseClient = ReturnType<typeof createClient<Database>>;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+type TransactionLineSpec = {
+  amount?: number | null;
+  posting_type?: string | null;
+  transaction_id?: string | number | null;
+  gl_accounts?: {
+    name?: string | null;
+    type?: string | null;
+    sub_type?: string | null;
+    is_bank_account?: boolean | null;
+    is_security_deposit_liability?: boolean | null;
+  };
+};
+
+type TransactionSpec = {
+  id?: string | number | null;
+  transaction_type?: string | null;
+  total_amount?: number | null;
+};
+
+type CashBalanceCase = {
+  name: string;
+  transactionLines: TransactionLineSpec[];
+  transactions?: TransactionSpec[];
+  reserve?: number;
+  expected?: Record<string, unknown>;
+};
+
+const cases: CashBalanceCase[] = cashBalanceCases as CashBalanceCase[];
+
 type SeededCase = {
   orgId: string;
   propertyId: string;
@@ -16,6 +45,12 @@ type SeededCase = {
   leaseId: number | null;
   glAccountIds: string[];
   transactionIds: string[];
+};
+
+type RpcFinancials = {
+  cash_balance?: number | null;
+  security_deposits?: number | null;
+  available_balance?: number | null;
 };
 
 const nowIso = () => new Date().toISOString();
@@ -30,7 +65,7 @@ const toPostingType = (value?: string | null) => {
 async function seedFixtureCase(
   db: SupabaseClient,
   asOf: string,
-  spec: (typeof cashBalanceCases)[number],
+  spec: CashBalanceCase,
 ): Promise<SeededCase> {
   const orgId = crypto.randomUUID();
   const propertyId = crypto.randomUUID();
@@ -118,7 +153,7 @@ async function seedFixtureCase(
   let glCounter = 1;
 
   for (const line of spec.transactionLines) {
-    const ga = (line.gl_accounts || {}) as any;
+    const ga = line.gl_accounts ?? {};
     const key = JSON.stringify(ga);
     if (glAccountMap.has(key)) continue;
     const glId = crypto.randomUUID();
@@ -148,11 +183,13 @@ async function seedFixtureCase(
   const transactionIds: string[] = [];
   for (const tx of spec.transactions || []) {
     const txId = tx.id ? String(tx.id) : crypto.randomUUID();
+    const txType =
+      (tx.transaction_type ?? 'Payment') as Database['public']['Enums']['transaction_type_enum'];
     const insertTx = await db.from('transactions').insert({
       id: txId,
       lease_id: leaseId,
       org_id: orgId,
-      transaction_type: tx.transaction_type as any,
+      transaction_type: txType,
       total_amount: tx.total_amount ?? 0,
       status: 'Paid',
       date: asOf,
@@ -217,27 +254,28 @@ if (!url || !key) {
   });
   describe('property financials RPC alignment', () => {
     const asOf = new Date().toISOString().slice(0, 10);
-    for (const spec of cashBalanceCases) {
+    for (const spec of cases) {
       it(`RPC should match helper rollup for ${spec.name}`, async () => {
         const seeded = await seedFixtureCase(db, asOf, spec);
         try {
-          const { data: rpcData, error } = await (db as any).rpc('get_property_financials', {
+          const { data: rpcData, error } = await db.rpc('get_property_financials', {
             p_property_id: seeded.propertyId,
             p_as_of: asOf,
           });
           expect(error).toBeNull();
+          const rpcFin = (rpcData as RpcFinancials | null) ?? null;
           const { fin: helperFin } = await fetchPropertyFinancials(
             seeded.propertyId,
             asOf,
-            db as any,
+            db,
           );
 
           const close = (a?: number | null, b?: number | null, tol = 0.5) =>
             Math.abs((a || 0) - (b || 0)) <= tol;
 
-          expect(close(rpcData?.cash_balance, helperFin.cash_balance)).toBe(true);
-          expect(close(rpcData?.security_deposits, helperFin.security_deposits)).toBe(true);
-          expect(close(rpcData?.available_balance, helperFin.available_balance)).toBe(true);
+          expect(close(rpcFin?.cash_balance, helperFin.cash_balance)).toBe(true);
+          expect(close(rpcFin?.security_deposits, helperFin.security_deposits)).toBe(true);
+          expect(close(rpcFin?.available_balance, helperFin.available_balance)).toBe(true);
         } finally {
           await cleanupFixtureCase(db, seeded);
         }

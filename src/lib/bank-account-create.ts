@@ -58,6 +58,10 @@ type BankAccountRow = {
   bank_country: Database['public']['Enums']['countries'] | null;
   is_active: boolean | null;
   buildium_gl_account_id: number | null;
+  bank_balance: number | null;
+  bank_buildium_balance: number | null;
+  bank_check_printing_info: Json | null;
+  bank_electronic_payments: Json | null;
 };
 
 export type CreateBankAccountResult =
@@ -128,7 +132,8 @@ const buildRequiredCheckPrintingInfo = (
     FractionalNumber: '',
   };
 
-  const source = existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {};
+  const source =
+    existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {};
 
   const assignIf = (key: string, value: unknown) => {
     if (typeof value === 'string' || typeof value === 'number') {
@@ -146,12 +151,22 @@ const buildRequiredCheckPrintingInfo = (
 
   bankLines.forEach((line, idx) => {
     const existingLine = source[`BankInformationLine${idx + 1}`];
-    const chosen = typeof line === 'string' && line.length ? line : (typeof existingLine === 'string' ? existingLine : '');
+    const chosen =
+      typeof line === 'string' && line.length
+        ? line
+        : typeof existingLine === 'string'
+          ? existingLine
+          : '';
     base[`BankInformationLine${idx + 1}`] = chosen;
   });
   companyLines.forEach((line, idx) => {
     const existingLine = source[`CompanyInformationLine${idx + 1}`];
-    const chosen = typeof line === 'string' && line.length ? line : (typeof existingLine === 'string' ? existingLine : '');
+    const chosen =
+      typeof line === 'string' && line.length
+        ? line
+        : typeof existingLine === 'string'
+          ? existingLine
+          : '';
     base[`CompanyInformationLine${idx + 1}`] = chosen;
   });
 
@@ -305,13 +320,7 @@ export async function createBankGlAccountWithBuildium({
     buildiumBody.CheckPrintingInfo = checkPrintingInfo;
   }
 
-  const buildiumRes = await buildiumFetch(
-    'POST',
-    '/bankaccounts',
-    undefined,
-    buildiumBody,
-    orgId,
-  );
+  const buildiumRes = await buildiumFetch('POST', '/bankaccounts', undefined, buildiumBody, orgId);
 
   if (!buildiumRes.ok) {
     const details =
@@ -354,7 +363,9 @@ export async function createBankGlAccountWithBuildium({
       : null;
   const bankAccountType = normalizeBankAccountType(mappedBuildiumType ?? normalizedType);
   const accountNumber =
-    buildiumAccount?.AccountNumberUnmasked ?? buildiumAccount?.AccountNumber ?? payload.account_number;
+    buildiumAccount?.AccountNumberUnmasked ??
+    buildiumAccount?.AccountNumber ??
+    payload.account_number;
   const routingNumber = buildiumAccount?.RoutingNumber ?? payload.routing_number;
   const balance = typeof buildiumAccount?.Balance === 'number' ? buildiumAccount.Balance : null;
   const country =
@@ -596,16 +607,15 @@ export async function updateBankGlAccountWithBuildium({
     bank_account_number: accountNumber,
     bank_routing_number: routingNumber,
     bank_country: country ?? null,
-    bank_check_printing_info: buildiumAccount?.CheckPrintingInfo ?? checkPrintingInfoPayload ?? null,
+    bank_check_printing_info:
+      buildiumAccount?.CheckPrintingInfo ?? checkPrintingInfoPayload ?? null,
     bank_electronic_payments: buildiumAccount?.ElectronicPayments ?? null,
     bank_buildium_balance: balance,
     bank_balance: balance,
     bank_last_source: 'buildium' as const,
     bank_last_source_ts: now,
     is_active:
-      typeof buildiumAccount?.IsActive === 'boolean'
-        ? buildiumAccount.IsActive
-        : isActiveFlag,
+      typeof buildiumAccount?.IsActive === 'boolean' ? buildiumAccount.IsActive : isActiveFlag,
     org_id: orgId,
     updated_at: now,
   };

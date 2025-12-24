@@ -147,7 +147,7 @@ export default async function MaintenancePage() {
       'id, buildium_work_order_id, subject, status, priority, scheduled_date, created_at, updated_at, property_id, unit_id, vendor_id, assigned_to',
     )
     .order('created_at', { ascending: false })
-    .limit(50)) as { data: WorkOrderRow[] | null; error: any };
+    .limit(50)) as { data: WorkOrderRow[] | null; error: unknown };
 
   if (workOrdersError) {
     console.error('Failed to load work orders', workOrdersError);
@@ -229,7 +229,7 @@ export default async function MaintenancePage() {
           'display_name' | 'company_name' | 'first_name' | 'last_name'
         > | null;
       }> | null;
-      error: any;
+      error: unknown;
     };
     if (error) {
       console.error('Failed to load vendors for work orders', error);
@@ -251,7 +251,7 @@ export default async function MaintenancePage() {
       .from('tasks')
       .select('id, subject, task_kind, buildium_task_id, unit_id, property_id, created_at')
       .in('unit_id', unitIds)
-      .order('created_at', { ascending: false })) as { data: TaskRow[] | null; error: any };
+      .order('created_at', { ascending: false })) as { data: TaskRow[] | null; error: unknown };
     if (error) {
       console.error('Failed to load unit tasks for work orders', error);
     } else {
@@ -268,7 +268,7 @@ export default async function MaintenancePage() {
       .from('tasks')
       .select('id, subject, task_kind, buildium_task_id, unit_id, property_id, created_at')
       .in('property_id', propertyIds)
-      .order('created_at', { ascending: false })) as { data: TaskRow[] | null; error: any };
+      .order('created_at', { ascending: false })) as { data: TaskRow[] | null; error: unknown };
     if (error) {
       console.error('Failed to load property tasks for work orders', error);
     } else {

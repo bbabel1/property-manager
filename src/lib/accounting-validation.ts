@@ -1,6 +1,11 @@
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 
-const DEFAULT_TOLERANCE = 0.01;
+/**
+ * Standardized tolerance for double-entry balance validation.
+ * 0.01 represents 1 cent, which is appropriate for currency transactions.
+ * This constant should be used consistently across all balance validation.
+ */
+export const DOUBLE_ENTRY_TOLERANCE = 0.01;
 
 const normalizeAmount = (value: unknown): number => {
   if (typeof value === 'number') {
@@ -10,10 +15,20 @@ const normalizeAmount = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Validates that a transaction follows double-entry bookkeeping principles:
+ * 1. Must have at least one debit line and one credit line
+ * 2. Total debits must equal total credits (within tolerance)
+ *
+ * @param transactionId - The transaction ID to validate
+ * @param db - Supabase client (defaults to admin client)
+ * @param tolerance - Tolerance for balance difference (defaults to DOUBLE_ENTRY_TOLERANCE)
+ * @throws Error if transaction is unbalanced or missing required posting types
+ */
 export async function assertTransactionBalanced(
   transactionId: string,
   db: TypedSupabaseClient = supabaseAdmin,
-  tolerance: number = DEFAULT_TOLERANCE,
+  tolerance: number = DOUBLE_ENTRY_TOLERANCE,
 ): Promise<void> {
   const { data: lines, error } = await db
     .from('transaction_lines')
@@ -24,20 +39,35 @@ export async function assertTransactionBalanced(
     throw new Error(`Failed to validate transaction lines: ${error.message}`);
   }
 
-  const { debits, credits } = (lines ?? []).reduce(
+  const { debits, credits, debitCount, creditCount } = (lines ?? []).reduce(
     (acc, line) => {
       const amount = Math.abs(normalizeAmount((line as any)?.amount));
-      const postingType = String((line as any)?.posting_type ?? '');
-      if (postingType === 'Debit') acc.debits += amount;
-      if (postingType === 'Credit') acc.credits += amount;
+      const postingType = String((line as any)?.posting_type ?? '').trim();
+      if (postingType === 'Debit') {
+        acc.debits += amount;
+        acc.debitCount += 1;
+      }
+      if (postingType === 'Credit') {
+        acc.credits += amount;
+        acc.creditCount += 1;
+      }
       return acc;
     },
-    { debits: 0, credits: 0 },
+    { debits: 0, credits: 0, debitCount: 0, creditCount: 0 },
   );
 
-  if (Math.abs(debits - credits) > tolerance) {
+  // Require at least one debit and one credit line
+  if (debitCount === 0 || creditCount === 0) {
     throw new Error(
-      `Transaction is unbalanced (debits=${debits.toFixed(2)}, credits=${credits.toFixed(2)}).`,
+      `Transaction must have at least one debit and one credit line (found ${debitCount} debits, ${creditCount} credits).`,
+    );
+  }
+
+  // Validate balance within tolerance
+  const difference = Math.abs(debits - credits);
+  if (difference > tolerance) {
+    throw new Error(
+      `Transaction is unbalanced (debits=${debits.toFixed(2)}, credits=${credits.toFixed(2)}, difference=${difference.toFixed(2)}, tolerance=${tolerance}).`,
     );
   }
 }
@@ -81,4 +111,3 @@ export async function assertTransactionHasBankLine(
     throw new Error('Transaction is missing a bank account line.');
   }
 }
-

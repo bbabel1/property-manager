@@ -21,7 +21,6 @@ export async function GET(
       return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 });
     }
     const supabaseAdmin = requireSupabaseAdmin('lease documents presign get');
-    const supabase = await getSupabaseServerClient();
     const { id, docId } = await params;
     const leaseIdNum = Number(id);
     const fileId = docId;
@@ -146,10 +145,11 @@ export async function GET(
       { error: 'Presign not supported for this storage provider' },
       { status: 501 },
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
     try {
       logger.error(
-        { correlation_id: corr, error: e?.message || e },
+        { correlation_id: corr, error: message },
         'Presign lease document (GET) failed',
       );
     } catch {}

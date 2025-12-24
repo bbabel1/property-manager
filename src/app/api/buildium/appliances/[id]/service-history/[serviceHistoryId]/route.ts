@@ -54,6 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium appliance service history`);
 
     return NextResponse.json(
@@ -106,6 +107,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info(`Buildium appliance service history updated successfully`)
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium appliance service history`)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

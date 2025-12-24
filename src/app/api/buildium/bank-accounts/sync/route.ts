@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const { user } = await requireRole('platform_admin')
+    await requireRole('platform_admin')
     
     const url = new URL(request.url)
     const { searchParams } = url

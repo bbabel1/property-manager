@@ -1,4 +1,6 @@
 import { config } from 'dotenv';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../src/types/database';
 
 config({ path: '.env' });
 config({ path: '.env.local', override: false });
@@ -7,12 +9,24 @@ async function run() {
   const dbModule = await import('../src/lib/db');
   const buildiumModule = await import('../src/lib/buildium-client');
 
-  const supabase =
-    (dbModule as any).supabaseAdmin || (dbModule as any).default?.supabaseAdmin || (dbModule as any).default?.default;
+  const supabase: SupabaseClient<Database> =
+    (dbModule as { supabaseAdmin?: SupabaseClient<Database> }).supabaseAdmin ||
+    (dbModule as { default?: { supabaseAdmin?: SupabaseClient<Database> } }).default
+      ?.supabaseAdmin ||
+    ((dbModule as { default?: { default?: SupabaseClient<Database> } }).default?.default as
+      | SupabaseClient<Database>
+      | undefined) ||
+    (() => {
+      throw new Error('supabaseAdmin client not resolved from src/lib/db');
+    })();
+
   const getOrgScopedBuildiumClient =
-    (buildiumModule as any).getOrgScopedBuildiumClient ||
-    (buildiumModule as any).default?.getOrgScopedBuildiumClient ||
-    (buildiumModule as any).default?.default?.getOrgScopedBuildiumClient;
+    (buildiumModule as { getOrgScopedBuildiumClient?: (orgId?: string) => Promise<any> })
+      .getOrgScopedBuildiumClient ||
+    (buildiumModule as { default?: { getOrgScopedBuildiumClient?: (orgId?: string) => Promise<any> } })
+      .default?.getOrgScopedBuildiumClient ||
+    (buildiumModule as { default?: { default?: { getOrgScopedBuildiumClient?: (orgId?: string) => Promise<any> } } })
+      .default?.default?.getOrgScopedBuildiumClient;
 
   if (!supabase) {
     throw new Error('supabaseAdmin client not resolved from src/lib/db');
@@ -35,6 +49,10 @@ async function run() {
     return;
   }
 
+  if (!deposit.bank_gl_account_id) {
+    throw new Error('Deposit is missing bank_gl_account_id');
+  }
+
   const { data: bank, error: bankErr } = await supabase
     .from('gl_accounts')
     .select('id, name, buildium_gl_account_id')
@@ -50,9 +68,12 @@ async function run() {
     .eq('transaction_id', depositId);
   if (splitsErr) throw splitsErr;
   const paymentBuildiumIds = (splits || [])
-    .map((s: any) => s.buildium_payment_transaction_id)
-    .filter((v: any): v is number => typeof v === 'number');
-  const amountFromSplits = (splits || []).reduce((sum: number, s: any) => sum + Number(s?.amount ?? 0), 0);
+    .map((s) => s.buildium_payment_transaction_id)
+    .filter((v): v is number => typeof v === 'number');
+  const amountFromSplits = (splits || []).reduce(
+    (sum: number, s) => sum + Number(s?.amount ?? 0),
+    0,
+  );
 
   if (paymentBuildiumIds.length === 0) throw new Error('No Buildium payment transaction IDs found');
 
@@ -61,18 +82,21 @@ async function run() {
     EntryDate: deposit.date,
     Memo: deposit.memo ?? undefined,
     PaymentTransactionIds: paymentBuildiumIds,
-    Lines: [] as any[],
+    Lines: [] as Array<Record<string, unknown>>,
   };
 
   console.log('Requesting Buildium deposit with payload', payload);
 
-  const result = await buildiumClient.makeRequest<any>(
+  const result = await buildiumClient.makeRequest(
     'POST',
     `/bankaccounts/${bankBuildiumId}/deposits`,
     payload,
   );
 
-  const buildiumDepositId = typeof result?.Id === 'number' ? result.Id : (result as any)?.id ?? null;
+  const buildiumDepositId =
+    typeof result?.Id === 'number'
+      ? result.Id
+      : (result as { id?: number | string | null })?.id ?? null;
   console.log('Buildium response', result);
 
   if (buildiumDepositId != null) {
@@ -94,4 +118,3 @@ run().catch((err) => {
   console.error(err);
   process.exitCode = 1;
 });
-

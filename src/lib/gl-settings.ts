@@ -1,4 +1,5 @@
-import { supabase as supa, supabaseAdmin, type TypedSupabaseClient } from '@/lib/db'
+import { supabase as supa, supabaseAdmin } from '@/lib/db'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type OrgGlSettings = {
   org_id: string
@@ -20,26 +21,27 @@ const REQUIRED_KEYS: (keyof OrgGlSettings)[] = [
 ]
 
 export async function getOrgGlSettingsOrThrow(orgId: string): Promise<OrgGlSettings> {
-  const db: TypedSupabaseClient = supabaseAdmin || supa
+  const db: SupabaseClient = (supabaseAdmin || supa) as unknown as SupabaseClient
   const { data, error } = await db
     .from('settings_gl_accounts')
     .select('*')
     .eq('org_id', orgId)
     .maybeSingle()
   if (error) throw error
-  if (!data) {
+  const typedData = data as OrgGlSettings | null
+  if (!typedData) {
     throw new Error(`GL account settings missing for org ${orgId}`)
   }
 
   const settings: OrgGlSettings = {
-    org_id: data.org_id,
-    ar_lease: data.ar_lease,
-    rent_income: data.rent_income,
-    cash_operating: data.cash_operating,
-    cash_trust: data.cash_trust,
-    tenant_deposit_liability: data.tenant_deposit_liability,
-    late_fee_income: data.late_fee_income,
-    write_off: data.write_off,
+    org_id: typedData.org_id,
+    ar_lease: typedData.ar_lease,
+    rent_income: typedData.rent_income,
+    cash_operating: typedData.cash_operating,
+    cash_trust: typedData.cash_trust,
+    tenant_deposit_liability: typedData.tenant_deposit_liability,
+    late_fee_income: typedData.late_fee_income,
+    write_off: typedData.write_off,
   }
 
   for (const k of REQUIRED_KEYS) {

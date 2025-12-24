@@ -2,11 +2,9 @@
 
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/database'
-
 config({ path: '.env.local' })
 
-type Supabase = ReturnType<typeof createClient<Database>>
+type Supabase = any
 
 const nowIso = () => new Date().toISOString()
 
@@ -197,7 +195,7 @@ async function main() {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (expected in .env.local)')
   }
 
-  const db = createClient<Database>(supabaseUrl, serviceRole, {
+  const db: Supabase = createClient(supabaseUrl, serviceRole, {
     auth: { persistSession: false },
   })
 

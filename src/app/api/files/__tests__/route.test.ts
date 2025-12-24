@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { Mock } from 'vitest';
 
 import { FILE_ENTITY_TYPES } from '@/lib/files';
 
@@ -15,7 +16,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 vi.mock('@/lib/files', async () => {
-  const actual = await vi.importActual<any>('@/lib/files');
+  const actual = await vi.importActual<typeof import('@/lib/files')>('@/lib/files');
   return { ...actual, getFilesByEntity };
 });
 
@@ -50,7 +51,10 @@ describe('GET /api/files', () => {
 
   it('falls back to user org when header/query missing', async () => {
     const { requireUser } = await import('@/lib/auth');
-    (requireUser as any).mockResolvedValueOnce({ id: 'user-1', app_metadata: { org_id: 'org-ctx' } });
+    (requireUser as unknown as Mock).mockResolvedValueOnce({
+      id: 'user-1',
+      app_metadata: { org_id: 'org-ctx' },
+    });
 
     const res = await GET(makeRequest(`entityType=${FILE_ENTITY_TYPES.PROPERTIES}&entityId=5`));
     expect(res.status).toBe(200);

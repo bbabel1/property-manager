@@ -8034,6 +8034,15 @@ export type Database = {
           total_size: string
         }[]
       }
+      gl_account_balance_as_of: {
+        Args: {
+          p_org_id: string
+          p_gl_account_id: string
+          p_as_of: string
+          p_property_id?: string | null
+        }
+        Returns: number
+      }
       gl_account_activity:
         | {
             Args: { p_from: string; p_to: string }
@@ -8166,6 +8175,10 @@ export type Database = {
       reconcile_monthly_log_balance: {
         Args: { p_monthly_log_id: string }
         Returns: undefined
+      }
+      refresh_mat_view_concurrently: {
+        Args: { view_name: string }
+        Returns: unknown
       }
       refresh_schema_cache: { Args: never; Returns: undefined }
       release_compliance_lock: { Args: { lock_key: string }; Returns: boolean }

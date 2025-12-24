@@ -24,6 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.info('Buildium GL account fetched successfully');
     return NextResponse.json({ success: true, data: payload });
   } catch (error) {
+    logger.error({ error });
     logger.error('Error fetching Buildium GL account');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -49,6 +50,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info('Buildium GL account updated successfully');
     return NextResponse.json({ success: true, data: payload });
   } catch (error) {
+    logger.error({ error });
     logger.error('Error updating Buildium GL account');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

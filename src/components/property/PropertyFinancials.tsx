@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { DollarSign, TrendingUp, TrendingDown, Users, Building, Banknote } from 'lucide-react'
+import { DollarSign } from 'lucide-react'
 
 interface PropertyFinancialsProps {
   propertyId: string

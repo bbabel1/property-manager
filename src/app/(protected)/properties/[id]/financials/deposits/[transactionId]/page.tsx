@@ -89,7 +89,7 @@ export default async function DepositEditPage({
   }
 
   const { data: bankAccountsData } = await bankAccountsQuery;
-  const bankAccounts: BankAccount[] = (bankAccountsData || []).map((acc: any) => ({
+  const bankAccounts: BankAccount[] = (bankAccountsData || []).map((acc) => ({
     id: acc.id,
     name: acc.name,
     account_number: acc.account_number,
@@ -115,7 +115,8 @@ export default async function DepositEditPage({
           unitNumber = unit.unit_number || null;
           unitName = unit.unit_name || null;
           if (unit.properties && typeof unit.properties === 'object' && 'name' in unit.properties) {
-            propertyName = (unit.properties as any).name || null;
+            const unitProperty = unit.properties as { name?: string | null };
+            propertyName = unitProperty.name ?? null;
           }
         }
       }

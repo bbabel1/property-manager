@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Calendar, DollarSign, CreditCard, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PAYMENT_METHOD_OPTIONS } from '@/lib/enums/payment-method';
@@ -33,6 +34,7 @@ interface GLAccount {
   id: string;
   name: string;
   account_number: string;
+  type?: string | null;
 }
 
 interface PaymentFormData {
@@ -67,14 +69,7 @@ export default function CreatePaymentForm({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Load GL accounts on mount
-  useEffect(() => {
-    if (isOpen) {
-      loadGLAccounts();
-    }
-  }, [isOpen]);
-
-  const loadGLAccounts = async () => {
+  const loadGLAccounts = useCallback(async () => {
     setGlLoading(true);
     setGlError(null);
     try {
@@ -97,7 +92,14 @@ export default function CreatePaymentForm({
     } finally {
       setGlLoading(false);
     }
-  };
+  }, []);
+
+  // Load GL accounts on mount
+  useEffect(() => {
+    if (isOpen) {
+      void loadGLAccounts();
+    }
+  }, [isOpen, loadGLAccounts]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -241,22 +243,23 @@ export default function CreatePaymentForm({
     }));
   };
 
-  const autoAllocateAmount = () => {
-    const amount = parseFloat(formData.amount) || 0;
-    if (amount > 0 && formData.allocations.length === 1) {
-      setFormData((prev) => {
+  const autoAllocateAmount = useCallback((nextAmount?: number) => {
+    setFormData((prev) => {
+      const parsedAmount = nextAmount ?? parseFloat(prev.amount);
+      const amountValue = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+      if (amountValue > 0 && prev.allocations.length === 1) {
         const current = prev.allocations[0]?.amount ?? '';
-        const nextValue = amount.toString();
+        const nextValue = amountValue.toString();
         if (current === nextValue) return prev;
         return { ...prev, allocations: [{ ...prev.allocations[0], amount: nextValue }] };
-      });
-    }
-  };
+      }
+      return prev;
+    });
+  }, []);
 
   useEffect(() => {
     autoAllocateAmount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.amount, formData.allocations.length]);
+  }, [autoAllocateAmount, formData.amount, formData.allocations.length]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -305,7 +308,7 @@ export default function CreatePaymentForm({
                       setFormData((prev) => ({ ...prev, amount: e.target.value }));
                       // Auto-allocate if only one allocation
                       if (formData.allocations.length === 1) {
-                        setTimeout(autoAllocateAmount, 100);
+                        setTimeout(() => autoAllocateAmount(parseFloat(e.target.value)), 100);
                       }
                     }}
                     className={errors.amount ? 'border-red-500' : ''}
@@ -394,11 +397,14 @@ export default function CreatePaymentForm({
                             No GL accounts available
                           </SelectItem>
                         ) : (
-                          glAccounts.map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.account_number} - {account.name}
-                            </SelectItem>
-                          ))
+                          <GlAccountSelectItems
+                            accounts={glAccounts.map((a) => ({
+                              id: a.id,
+                              label: `${a.account_number} - ${a.name}`,
+                              // This form fetches Asset/AR accounts; default to Asset when type isn't present.
+                              type: typeof a.type === 'string' ? a.type : 'Asset',
+                            }))}
+                          />
                         )}
                       </SelectContent>
                     </Select>

@@ -1,5 +1,7 @@
 Deploy Runbook
 
+<!-- markdownlint-configure-file {"MD013": false, "MD029": false, "MD031": false} -->
+
 Scope
 
 - App: Next.js (App Router) + TypeScript

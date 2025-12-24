@@ -224,7 +224,6 @@ export default function EditTransactionForm({
           {state.status === 'ready' && state.payload.type === 'charge' ? (
             <EnterChargeForm
               leaseId={leaseId}
-              leaseSummary={leaseSummary}
               accounts={accountOptions}
               mode="edit"
               transactionId={transactionId}

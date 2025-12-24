@@ -758,24 +758,6 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
   }
 
-  const deleteLinesResult = await admin
-    .from('transaction_lines')
-    .delete()
-    .eq('transaction_id', transactionId);
-  if (deleteLinesResult.error) {
-    logIssue(
-      'failed to delete existing lines',
-      {
-        supabaseError: {
-          message: deleteLinesResult.error.message,
-          hint: deleteLinesResult.error.hint,
-        },
-      },
-      'error',
-    );
-    return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
-  }
-
   const accountEntityType: 'Rental' | 'Company' = propertyRow ? 'Rental' : 'Company';
   const accountEntityId = propertyRow?.buildium_property_id ?? null;
   const propertyUuid = propertyRow?.id ?? null;
@@ -797,27 +779,42 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     updated_at: nowIso,
   }));
 
-  const insertLinesResult = await admin.from('transaction_lines').insert(lineRows);
-    if (insertLinesResult.error) {
-      logIssue(
-        'failed to insert updated lines',
-        {
-          supabaseError: {
-            message: insertLinesResult.error.message,
-            hint: insertLinesResult.error.hint,
-          },
+  // Use SQL function for atomic replace with locking and validation
+  const { error: replaceError } = await admin.rpc('replace_transaction_lines', {
+    p_transaction_id: transactionId,
+    p_lines: lineRows.map((line) => ({
+      gl_account_id: line.gl_account_id,
+      amount: line.amount,
+      posting_type: line.posting_type,
+      memo: line.memo,
+      account_entity_type: line.account_entity_type,
+      account_entity_id: line.account_entity_id,
+      property_id: line.property_id,
+      unit_id: line.unit_id,
+      buildium_property_id: line.buildium_property_id,
+      buildium_unit_id: line.buildium_unit_id,
+      buildium_lease_id: null,
+      date: line.date,
+      created_at: line.created_at,
+      updated_at: line.updated_at,
+    })),
+    p_validate_balance: true,
+  });
+
+  if (replaceError) {
+    logIssue(
+      'failed to replace transaction lines',
+      {
+        supabaseError: {
+          message: replaceError.message,
+          hint: replaceError.hint,
         },
-        'error',
-      );
-      if (Array.isArray(originalLines) && originalLines.length > 0) {
-        const restoredLines = (originalLines as Record<string, unknown>[]).map((line) => ({
-          ...line,
-          updated_at: nowIso,
-        })) as TablesInsert<'transaction_lines'>[];
-        await admin.from('transaction_lines').insert(restoredLines);
-      }
-      return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
-    }
+      },
+      'error',
+    );
+    // No need to restore - SQL function automatically rolls back on error
+    return NextResponse.json({ error: 'Unable to update journal entry' }, { status: 500 });
+  }
 
   const journalUpdate = await admin
     .from('journal_entries')

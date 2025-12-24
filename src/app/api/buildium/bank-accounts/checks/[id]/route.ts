@@ -1,16 +1,14 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumCheckUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: checkId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
-    const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check' }, 'Fetching Buildium check details');
 
@@ -42,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error({ error, checkId: (await params).id }, 'Error fetching Buildium check details');
+    logger.error({ error, checkId }, 'Error fetching Buildium check details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium check details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -51,10 +49,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: checkId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
-    const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'update_buildium_check' }, 'Updating Buildium check');
 
@@ -92,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error({ error, checkId: (await params).id }, 'Error updating Buildium check');
+    logger.error({ error, checkId }, 'Error updating Buildium check');
     return NextResponse.json(
       { error: 'Failed to update Buildium check', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

@@ -31,15 +31,24 @@ function parsePage(value: string | null): number {
   return parsed;
 }
 
-function mapProperty(record: any): EntityItem {
-  const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const name = typeof record?.name === 'string' && record.name.trim().length
-    ? record.name.trim()
-    : null;
-  const address = typeof record?.address_line1 === 'string' && record.address_line1.trim().length
-    ? record.address_line1.trim()
-    : null;
-  const cityState = [record?.city, record?.state].filter(Boolean).join(', ');
+const toId = (value: unknown): string =>
+  typeof value === 'string' || typeof value === 'number' ? value.toString() : '';
+
+const stringOrNull = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  }
+  return null;
+};
+
+function mapProperty(record: Record<string, unknown>): EntityItem {
+  const id = toId(record.id);
+  const name = stringOrNull(record.name);
+  const address = stringOrNull(record.address_line1);
+  const city = stringOrNull(record.city);
+  const state = stringOrNull(record.state);
+  const cityState = [city, state].filter(Boolean).join(', ');
 
   return {
     id,
@@ -48,16 +57,10 @@ function mapProperty(record: any): EntityItem {
   };
 }
 
-function mapUnit(record: any): EntityItem {
-  const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const unitNumber =
-    typeof record?.unit_number === 'string' && record.unit_number.trim().length
-      ? record.unit_number.trim()
-      : null;
-  const status =
-    typeof record?.status === 'string' && record.status.trim().length
-      ? record.status.trim()
-      : null;
+function mapUnit(record: Record<string, unknown>): EntityItem {
+  const id = toId(record.id);
+  const unitNumber = stringOrNull(record.unit_number);
+  const status = stringOrNull(record.status);
 
   return {
     id,
@@ -66,16 +69,10 @@ function mapUnit(record: any): EntityItem {
   };
 }
 
-function mapLease(record: any): EntityItem {
-  const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const unitNumber =
-    typeof record?.unit_number === 'string' && record.unit_number.trim().length
-      ? record.unit_number.trim()
-      : null;
-  const status =
-    typeof record?.status === 'string' && record.status.trim().length
-      ? record.status.trim()
-      : null;
+function mapLease(record: Record<string, unknown>): EntityItem {
+  const id = toId(record.id);
+  const unitNumber = stringOrNull(record.unit_number);
+  const status = stringOrNull(record.status);
 
   return {
     id,
@@ -84,20 +81,14 @@ function mapLease(record: any): EntityItem {
   };
 }
 
-function mapTenant(record: any): EntityItem {
-  const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const fullName =
-    typeof record?.full_name === 'string' && record.full_name.trim().length
-      ? record.full_name.trim()
-      : null;
-  const composedName = [record?.first_name, record?.last_name]
-    .filter((part) => typeof part === 'string' && part.trim().length)
+function mapTenant(record: Record<string, unknown>): EntityItem {
+  const id = toId(record.id);
+  const fullName = stringOrNull(record.full_name);
+  const composedName = [stringOrNull(record.first_name), stringOrNull(record.last_name)]
+    .filter(Boolean)
     .join(' ')
     .trim();
-  const email =
-    typeof record?.email === 'string' && record.email.trim().length
-      ? record.email.trim()
-      : null;
+  const email = stringOrNull(record.email);
 
   return {
     id,
@@ -106,23 +97,24 @@ function mapTenant(record: any): EntityItem {
   };
 }
 
-function mapOwner(record: any): EntityItem {
-  const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const contacts = Array.isArray(record?.contacts) ? record.contacts : [record?.contacts];
-  const contact = contacts.find(Boolean) ?? {};
+function mapOwner(record: Record<string, unknown>): EntityItem {
+  const id = toId(record.id);
+  const contactsRaw = Array.isArray(record.contacts)
+    ? record.contacts
+    : record.contacts
+      ? [record.contacts]
+      : [];
+  const contact = contactsRaw.find(
+    (entry): entry is Record<string, unknown> =>
+      Boolean(entry) && typeof entry === 'object',
+  );
 
-  const companyName =
-    typeof contact?.company_name === 'string' && contact.company_name.trim().length
-      ? contact.company_name.trim()
-      : null;
-  const personName = [contact?.first_name, contact?.last_name]
-    .filter((part) => typeof part === 'string' && part.trim().length)
+  const companyName = stringOrNull(contact?.company_name);
+  const personName = [stringOrNull(contact?.first_name), stringOrNull(contact?.last_name)]
+    .filter(Boolean)
     .join(' ')
     .trim();
-  const email =
-    typeof contact?.primary_email === 'string' && contact.primary_email.trim().length
-      ? contact.primary_email.trim()
-      : null;
+  const email = stringOrNull(contact?.primary_email);
 
   return {
     id,
@@ -131,20 +123,11 @@ function mapOwner(record: any): EntityItem {
   };
 }
 
-function mapVendor(record: any): EntityItem {
-  const id = record?.id?.toString?.() ?? String(record?.id ?? '');
-  const companyName =
-    typeof record?.company_name === 'string' && record.company_name.trim().length
-      ? record.company_name.trim()
-      : null;
-  const vendorName =
-    typeof record?.name === 'string' && record.name.trim().length
-      ? record.name.trim()
-      : null;
-  const email =
-    typeof record?.email === 'string' && record.email.trim().length
-      ? record.email.trim()
-      : null;
+function mapVendor(record: Record<string, unknown>): EntityItem {
+  const id = toId(record.id);
+  const companyName = stringOrNull(record.company_name);
+  const vendorName = stringOrNull(record.name);
+  const email = stringOrNull(record.email);
 
   return {
     id,

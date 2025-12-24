@@ -48,8 +48,9 @@ export async function GET() {
     const { data, error } = await supabaseAdmin.from('organizations').select('id, name').order('name')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ organizations: data || [] })
-  } catch (e: any) {
-    const msg = e?.message || 'Internal Server Error'
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    const msg = error?.message || 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }
@@ -92,8 +93,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ organization: data })
-  } catch (e: any) {
-    const msg = e?.message || 'Internal Server Error'
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    const msg = error?.message || 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }

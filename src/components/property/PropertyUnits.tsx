@@ -1,24 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Building, Plus, Search, Filter, Bed, Bath, Ruler, DollarSign, Calendar, MapPin, Users } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Building, Plus, Search, Filter, Bed, Bath, Ruler, DollarSign, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Unit } from '@/types/units'
 import AddUnitModal from '../AddUnitModal'
 
 interface PropertyUnitsProps {
   propertyId: string
-  property?: any
   onUnitsChange?: () => void
 }
 
-export function PropertyUnits({ propertyId, property, onUnitsChange }: PropertyUnitsProps) {
+export function PropertyUnits({ propertyId, onUnitsChange }: PropertyUnitsProps) {
   const [units, setUnits] = useState<Unit[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showAddUnitModal, setShowAddUnitModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const fetchUnits = async () => {
+  const fetchUnits = useCallback(async () => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/units?propertyId=${propertyId}`)
@@ -35,11 +34,11 @@ export function PropertyUnits({ propertyId, property, onUnitsChange }: PropertyU
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [propertyId])
 
   useEffect(() => {
     fetchUnits()
-  }, [propertyId])
+  }, [fetchUnits, propertyId])
 
   const filteredUnits = units.filter(unit =>
     unit.unitNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -47,7 +46,7 @@ export function PropertyUnits({ propertyId, property, onUnitsChange }: PropertyU
     unit.description?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const getUnitStatus = (unit: Unit) => {
+  const getUnitStatus = () => {
     // TODO: Implement real status logic based on lease data
     return 'Available'
   }
@@ -119,8 +118,8 @@ export function PropertyUnits({ propertyId, property, onUnitsChange }: PropertyU
             <div key={unit.id} className="bg-card rounded-lg border border-border p-6 transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <h3 className="font-semibold text-lg">Unit {unit.unitNumber}</h3>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(getUnitStatus(unit))}`}>
-                  {getUnitStatus(unit)}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(getUnitStatus())}`}>
+                  {getUnitStatus()}
                 </span>
               </div>
               

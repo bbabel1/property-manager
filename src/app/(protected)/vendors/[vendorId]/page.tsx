@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { supabase, supabaseAdmin } from '@/lib/db';
 import type { Database } from '@/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   VendorsDetailsClient,
@@ -24,7 +25,7 @@ export default async function VendorDetailsPage({
   params: Promise<{ vendorId: string }>;
 }) {
   const { vendorId } = await params;
-  const db = supabaseAdmin || supabase;
+  const db = (supabaseAdmin || supabase) as SupabaseClient<Database>;
 
   const [vendorRes, categoriesRes, expenseAccountsRes] = await Promise.all([
     db
@@ -109,6 +110,17 @@ export default async function VendorDetailsPage({
   let recentWorkOrders: RecentVendorWorkOrder[] = [];
   let bills: VendorBillRow[] = [];
   try {
+    type WorkOrderWithProperty = {
+      id: string;
+      subject: string | null;
+      status: string | null;
+      priority: string | null;
+      scheduled_date: string | null;
+      updated_at: string | null;
+      created_at: string | null;
+      property: { id?: string | null; name?: string | null } | null;
+    };
+
     const workOrdersRes = await db
       .from('work_orders')
       .select(
@@ -128,15 +140,15 @@ export default async function VendorDetailsPage({
       )
       .eq('vendor_id', vendor.id)
       .order('updated_at', { ascending: false })
-      .limit(5);
+      .limit(5)
+      .returns<WorkOrderWithProperty[]>();
 
     if (workOrdersRes.error) {
       console.error('Failed to load vendor work orders', workOrdersRes.error);
     } else if (Array.isArray(workOrdersRes.data)) {
-      recentWorkOrders = (workOrdersRes.data as any[]).map((workOrder) => {
-        const property =
-          workOrder?.property && typeof workOrder.property === 'object'
-            ? (workOrder.property as { id?: string | null; name?: string | null })
+      recentWorkOrders = workOrdersRes.data.map((workOrder) => {
+        const property = workOrder.property && typeof workOrder.property === 'object'
+            ? workOrder.property
             : null;
 
         const record: RecentVendorWorkOrder = {
@@ -164,6 +176,17 @@ export default async function VendorDetailsPage({
   }
 
   try {
+    type VendorBillSelectRow = {
+      id: string | number | null;
+      date: string | null;
+      due_date: string | null;
+      total_amount: number | null;
+      memo: string | null;
+      reference_number: string | null;
+      buildium_bill_id: number | string | null;
+      transaction_type: string | null;
+    };
+
     const billsRes = await db
       .from('transactions')
       .select(
@@ -172,13 +195,14 @@ export default async function VendorDetailsPage({
       .eq('vendor_id', vendor.id)
       .eq('transaction_type', 'Bill')
       .order('due_date', { ascending: false })
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .returns<VendorBillSelectRow[]>();
 
     if (billsRes.error) {
       console.error('Failed to load vendor bills', billsRes.error);
     }
 
-    const billRows = (billsRes.data as any[] | null) ?? [];
+    const billRows = billsRes.data ?? [];
     const billIds = billRows
       .map((row) => (row?.id != null ? String(row.id) : null))
       .filter((id): id is string => Boolean(id));
@@ -195,29 +219,35 @@ export default async function VendorDetailsPage({
     >();
 
     if (billIds.length) {
+      type LineSelectRow = {
+        transaction_id: string | null;
+        memo: string | null;
+        gl_accounts?: { name?: string | null; account_number?: string | null } | null;
+        properties?: { name?: string | null } | null;
+        units?: { unit_number?: string | null; unit_name?: string | null } | null;
+      };
+
       const linesRes = await db
         .from('transaction_lines')
         .select(
           'transaction_id, memo, gl_accounts(name, account_number), properties(name), units(unit_number, unit_name)',
         )
-        .in('transaction_id', billIds);
+        .in('transaction_id', billIds)
+        .returns<LineSelectRow[]>();
 
       if (linesRes.error) {
         console.error('Failed to load vendor bill lines', linesRes.error);
       } else if (Array.isArray(linesRes.data)) {
-        for (const line of linesRes.data as any[]) {
+        for (const line of linesRes.data) {
           const txId = line?.transaction_id ? String(line.transaction_id) : null;
           if (!txId || lineByTransactionId.has(txId)) continue;
-          const unitLabel =
-            (line?.units as any)?.unit_number ||
-            (line?.units as any)?.unit_name ||
-            null;
+          const unitLabel = line?.units?.unit_number || line?.units?.unit_name || null;
 
           lineByTransactionId.set(txId, {
-            propertyName: (line?.properties as any)?.name ?? null,
+            propertyName: line?.properties?.name ?? null,
             unitLabel: unitLabel || null,
-            accountName: (line?.gl_accounts as any)?.name ?? null,
-            accountNumber: (line?.gl_accounts as any)?.account_number ?? null,
+            accountName: line?.gl_accounts?.name ?? null,
+            accountNumber: line?.gl_accounts?.account_number ?? null,
             lineMemo: typeof line?.memo === 'string' ? line.memo : null,
           });
         }

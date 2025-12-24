@@ -13,8 +13,7 @@ import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
 
 export default async function SummaryTab({ params }: { params: Promise<{ id: string }> }) {
   const { id: slug } = await params;
-  const { internalId: propertyId, publicId: propertyPublicId } =
-    await resolvePropertyIdentifier(slug);
+  const { internalId: propertyId } = await resolvePropertyIdentifier(slug);
   // Prefer direct service call in RSC to avoid internal HTTP hop.
   // Fetch property details and financials in parallel for faster TTFB.
   // Use UTC date to avoid timezone issues - get today's date in UTC
@@ -98,15 +97,19 @@ export default async function SummaryTab({ params }: { params: Promise<{ id: str
 
   return (
     <PageColumns
-      primary={
-        <Stack gap="lg">
-          <PropertyDetailsCard property={property as any} />
-          <LocationCard property={property} />
-          <PropertyRecentNotesSection propertyId={property.id} />
-          <PropertyRecentFilesSection
-            propertyId={property.id}
-            buildiumPropertyId={property.buildium_property_id ?? null}
-            orgId={(property as any).org_id ?? null}
+          primary={
+            <Stack gap="lg">
+              <PropertyDetailsCard property={property} />
+              <LocationCard property={property} />
+              <PropertyRecentNotesSection propertyId={property.id} />
+              <PropertyRecentFilesSection
+                propertyId={property.id}
+                buildiumPropertyId={property.buildium_property_id ?? null}
+                orgId={
+                  property && typeof property === 'object' && 'org_id' in property
+                    ? (property as { org_id?: string | null }).org_id ?? null
+                    : null
+                }
           />
         </Stack>
       }

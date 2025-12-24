@@ -34,8 +34,8 @@ type PropertyRow = { id: string; name: string | null; address_line1: string | nu
 type UnitRow = { id: string; property_id: string | null; unit_number: string | null; unit_name: string | null }
 type AccountRow = { id: string; name: string | null; account_number: string | null; type: string | null }
 
-export default async function EditBillPage({ params }: { params: { billId: string } }) {
-  const { billId } = params
+export default async function EditBillPage({ params }: { params: Promise<{ billId: string }> }) {
+  const { billId } = await params
   const db = supabaseAdmin || supabase
 
   const billRes = await db

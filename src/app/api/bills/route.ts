@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers';
 import { logger } from '@/lib/logger';
+import type { Database as DatabaseSchema } from '@/types/database';
 
-export const DebitLineSchema = z.object({
+const DebitLineSchema = z.object({
   property_id: z.string().trim().min(1).optional().nullable(),
   unit_id: z.string().trim().min(1).optional().nullable(),
   gl_account_id: z.string().trim().min(1, 'Account is required'),
@@ -13,7 +14,7 @@ export const DebitLineSchema = z.object({
   amount: z.number().positive('Line amount must be greater than zero'),
 });
 
-export const CreateBillSchema = z.object({
+const CreateBillSchema = z.object({
   bill_date: z.string().min(1, 'Bill date is required'),
   due_date: z.string().min(1, 'Due date is required'),
   vendor_id: z.string().min(1, 'Vendor is required'),
@@ -48,6 +49,9 @@ const normalizeEntityId = (value?: string | null) => {
   const trimmed = value.trim();
   return trimmed || null;
 };
+
+type TransactionInsert = DatabaseSchema['public']['Tables']['transactions']['Insert'];
+type TransactionLineInsert = DatabaseSchema['public']['Tables']['transaction_lines']['Insert'];
 
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
@@ -122,22 +126,22 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
   const billDate = data.bill_date.slice(0, 10);
   const dueDate = data.due_date.slice(0, 10);
+  const headerInsert: TransactionInsert = {
+    transaction_type: 'Bill',
+    date: billDate,
+    due_date: dueDate,
+    vendor_id: toNullableNumber(data.vendor_id) ?? data.vendor_id,
+    reference_number: data.reference_number?.trim() || null,
+    memo: data.memo || null,
+    status: 'Due',
+    total_amount: totalAmount,
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+
   const { data: transactionRows, error: insertError } = await admin
     .from('transactions')
-    .insert(
-      {
-        transaction_type: 'Bill',
-        date: billDate,
-        due_date: dueDate,
-        vendor_id: toNullableNumber(data.vendor_id) ?? data.vendor_id,
-        reference_number: data.reference_number?.trim() || null,
-        memo: data.memo || null,
-        status: 'Due',
-        total_amount: totalAmount,
-        created_at: nowIso,
-        updated_at: nowIso,
-      } as any,
-    )
+    .insert(headerInsert)
     .select('id')
     .maybeSingle();
 
@@ -151,7 +155,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Bill header was not created' }, { status: 500 });
   }
 
-  const debitRows = lines.map((line) => {
+  const debitRows: TransactionLineInsert[] = lines.map((line) => {
     const propertyId = line.property_id ?? null;
     const unitId = propertyId ? line.unit_id ?? null : null;
     const buildiumPropertyId = propertyId ? propertyBuildiumIdMap.get(propertyId) ?? null : null;
@@ -183,7 +187,7 @@ export async function POST(request: Request) {
   const templateBuildiumUnitId = templatePropertyRow?.buildium_unit_id ?? null;
 
   const creditEntityType = templateBuildiumPropertyId ? 'Rental' : 'Company';
-  const creditRow = {
+  const creditRow: TransactionLineInsert = {
     transaction_id: billId,
     gl_account_id: data.post_to_account_id,
     amount: totalAmount,
@@ -202,7 +206,7 @@ export async function POST(request: Request) {
   };
 
   try {
-    await admin.from('transaction_lines').insert([...debitRows, creditRow] as any[]);
+    await admin.from('transaction_lines').insert([...debitRows, creditRow]);
   } catch (error) {
     console.error('Failed to insert bill lines', error);
     await admin.from('transactions').delete().eq('id', billId);

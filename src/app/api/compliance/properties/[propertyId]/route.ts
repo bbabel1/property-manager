@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Property Compliance API Route
  *
@@ -27,8 +24,12 @@ import type {
   ComplianceAssetType,
   ComplianceDeviceCategory,
   ComplianceProgram,
+  CompliancePropertyProgramOverride,
+  ComplianceItem,
+  ComplianceEvent,
 } from '@/types/compliance';
 import type { Json } from '@/types/database';
+import type { Database } from '@/types/database';
 
 type StatusChip = 'on_track' | 'at_risk' | 'non_compliant';
 
@@ -51,7 +52,32 @@ type AssetMeta = Pick<
   | 'device_technology'
   | 'device_subtype'
   | 'is_private_residence'
-> & { metadata: Json | null };
+> & { metadata: Json | null; pressure_type: string | null };
+
+type ProgramRow = ComplianceProgram & {
+  template?: {
+    id: string;
+    code: string;
+    jurisdiction: string;
+    frequency_months: number;
+    lead_time_days: number;
+    applies_to: ComplianceProgram['applies_to'];
+    severity_score: number;
+  } | null;
+};
+
+type ComplianceItemWithProgram = ComplianceItem & {
+  program?: { code?: string | null } | null;
+};
+
+type PropertyRow = Database['public']['Tables']['properties']['Row'];
+type BuildingRow = Database['public']['Tables']['buildings']['Row'];
+type AssetWithSchedule = ComplianceAsset & {
+  last_inspection_at?: string | null;
+  next_due?: string | null;
+  upcoming_inspections?: number;
+  pressure_type: string | null;
+};
 
 function normalizeEventResult(status?: string | null): string | null {
   if (!status) return null;
@@ -118,14 +144,23 @@ function normalizePressureType(value?: string | null): 'low_pressure' | 'high_pr
   return null;
 }
 
-function getBoilerPressure(asset: any): 'low_pressure' | 'high_pressure' | null {
+type AssetWithMetadata = Partial<ComplianceAsset> & {
+  metadata?: Json | null;
+  pressure_type?: string | null;
+  pressuretype?: string | null;
+};
+
+function getBoilerPressure(asset: AssetWithMetadata | null | undefined): 'low_pressure' | 'high_pressure' | null {
   if (!asset) return null;
-  const meta = (asset as any)?.metadata || {};
-  return (
-    normalizePressureType((meta as any).pressure_type) ||
-    normalizePressureType((meta as any).pressuretype) ||
-    normalizePressureType((asset as any).pressure_type)
-  );
+  const meta = (asset.metadata ?? {}) as Record<string, unknown>;
+  const metaPressure =
+    typeof meta.pressure_type === 'string'
+      ? meta.pressure_type
+      : typeof meta.pressuretype === 'string'
+        ? meta.pressuretype
+        : null;
+  const assetPressure = typeof asset.pressure_type === 'string' ? asset.pressure_type : null;
+  return normalizePressureType(metaPressure || assetPressure);
 }
 
 function categorizeElevatorEvent(
@@ -150,7 +185,7 @@ function categorizeElevatorEvent(
 }
 
 function computeElevatorSchedule(
-  asset: any,
+  asset: AssetWithMetadata,
   events: Array<{
     asset_id?: string | null;
     inspection_type?: string | null;
@@ -200,16 +235,25 @@ function computeElevatorSchedule(
     }
   }
 
-  const meta = ((asset as any)?.metadata || {}) as Record<string, any>;
-  updateLast(
-    'NYC_ELV_PERIODIC',
-    parseDate(meta.periodic_latest_inspection) || dateFromYear(meta.periodic_report_year),
-  );
-  updateLast(
-    'NYC_ELV_CAT1',
-    parseDate(meta.cat1_latest_report_filed) || dateFromYear(meta.cat1_report_year),
-  );
-  updateLast('NYC_ELV_CAT5', parseDate(meta.cat5_latest_report_filed));
+  const meta = (asset?.metadata ?? {}) as Record<string, unknown>;
+  const periodicLatest =
+    typeof meta.periodic_latest_inspection === 'string' ? meta.periodic_latest_inspection : null;
+  const periodicYear =
+    typeof meta.periodic_report_year === 'string' || typeof meta.periodic_report_year === 'number'
+      ? meta.periodic_report_year
+      : null;
+  const cat1Latest =
+    typeof meta.cat1_latest_report_filed === 'string' ? meta.cat1_latest_report_filed : null;
+  const cat1Year =
+    typeof meta.cat1_report_year === 'string' || typeof meta.cat1_report_year === 'number'
+      ? meta.cat1_report_year
+      : null;
+  const cat5Latest =
+    typeof meta.cat5_latest_report_filed === 'string' ? meta.cat5_latest_report_filed : null;
+
+  updateLast('NYC_ELV_PERIODIC', parseDate(periodicLatest) || dateFromYear(periodicYear));
+  updateLast('NYC_ELV_CAT1', parseDate(cat1Latest) || dateFromYear(cat1Year));
+  updateLast('NYC_ELV_CAT5', parseDate(cat5Latest));
 
   const dueCandidates: Date[] = [];
   for (const program of programs) {
@@ -280,7 +324,8 @@ export async function GET(
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
 
-    const buildingId = (property as any).building_id as string | null;
+    const propertyRow = property as PropertyRow;
+    const buildingId = propertyRow.building_id ?? null;
     const buildingQuery = buildingId
       ? supabaseAdmin
           .from('buildings')
@@ -334,8 +379,19 @@ export async function GET(
         .eq('property_id', propertyId)
         .eq('org_id', orgId),
     ]);
-    let items = itemsResult;
-    let assets = assetsResult;
+    const building = (buildingResp?.data as BuildingRow | null) ?? null;
+    let items: ComplianceItemWithProgram[] = Array.isArray(itemsResult)
+      ? (itemsResult as ComplianceItemWithProgram[])
+      : [];
+    let assets: AssetWithSchedule[] = Array.isArray(assetsResult)
+      ? (assetsResult as Array<Partial<AssetWithSchedule>>).map((asset) => {
+          const pressure_type =
+            typeof (asset as { pressure_type?: unknown }).pressure_type === 'string'
+              ? (asset as { pressure_type?: string }).pressure_type
+              : null;
+          return { ...asset, pressure_type } as AssetWithSchedule;
+        })
+      : [];
 
     if (programsResp.error) {
       logger.error(
@@ -353,9 +409,8 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to load compliance programs' }, { status: 500 });
     }
 
-    const programs = programsResp.data || [];
+    const programs: ProgramRow[] = (programsResp.data as ProgramRow[]) || [];
     const filings = filingsResp?.data || [];
-    const building = buildingResp?.data || null;
     if (buildingResp && buildingResp.error) {
       logger.warn(
         { error: buildingResp.error, propertyId, orgId },
@@ -363,61 +418,80 @@ export async function GET(
       );
     }
 
+    const boroughCodeRaw = propertyRow.borough_code ?? building?.borough_code ?? null;
+    const borough_code =
+      typeof boroughCodeRaw === 'string'
+        ? Number.isNaN(Number(boroughCodeRaw))
+          ? null
+          : Number(boroughCodeRaw)
+        : boroughCodeRaw ?? null;
+
     const propertyMeta = {
-      id: property.id as string,
-      borough: property.borough as string | null,
-      borough_code: (property as any)?.borough_code ?? (building as any)?.borough_code ?? null,
-      bin: property.bin as string | null,
-      occupancy_group: (building as any)?.occupancy_group || null,
-      occupancy_description: (building as any)?.occupancy_description || null,
-      is_one_two_family: (building as any)?.is_one_two_family ?? null,
-      is_private_residence_building: (building as any)?.is_private_residence_building ?? null,
-      residential_units: (building as any)?.residential_units ?? null,
-      property_total_units: (property as any)?.total_units ?? null,
+      id: propertyRow.id,
+      borough: propertyRow.borough,
+      borough_code,
+      bin: propertyRow.bin,
+      occupancy_group: building?.occupancy_group ?? null,
+      occupancy_description: building?.occupancy_description ?? null,
+      is_one_two_family: building?.is_one_two_family ?? null,
+      is_private_residence_building: building?.is_private_residence_building ?? null,
+      residential_units: building?.residential_units ?? null,
+      property_total_units: propertyRow.total_units ?? null,
     };
 
-    const assetMetas: AssetMeta[] = Array.isArray(assets)
-      ? (assets as any[]).map((asset: any) => {
-          const deviceCategory =
-            typeof (asset as any).device_category === 'string'
-              ? ((asset as any).device_category as ComplianceDeviceCategory)
-              : null;
-          const normalizedAssetType =
-            (canonicalAssetType(asset) as ComplianceAssetType | null) ??
-            (typeof (asset as any).asset_type === 'string'
-              ? ((asset as any).asset_type as ComplianceAssetType)
-              : null) ??
-            'other';
-          return {
-            id: asset.id as string,
-            property_id: asset.property_id as string,
-            asset_type: normalizedAssetType,
-            external_source: (asset as any).external_source as string | null,
-            active: (asset as any).active !== false,
-            metadata: ((asset as any).metadata ?? {}) as Json,
-            device_category: deviceCategory,
-            device_technology: (asset as any).device_technology as string | null,
-            device_subtype: (asset as any).device_subtype as string | null,
-            is_private_residence: (asset as any).is_private_residence as boolean | null,
-          };
-        })
-      : [];
+    const assetMetas: AssetMeta[] = assets.map((asset) => {
+      const meta = (asset.metadata ?? {}) as Record<string, unknown>;
+      const metaPressure =
+        typeof meta.pressure_type === 'string'
+          ? meta.pressure_type
+          : typeof meta.pressuretype === 'string'
+            ? meta.pressuretype
+            : null;
+      const assetPressure =
+        typeof (asset as { pressure_type?: unknown }).pressure_type === 'string'
+          ? (asset as { pressure_type?: string }).pressure_type
+          : null;
+      const deviceCategory =
+        typeof asset.device_category === 'string'
+          ? (asset.device_category as ComplianceDeviceCategory)
+          : null;
+      const canonical = canonicalAssetType(asset) as ComplianceAssetType | null;
+      const normalizedAssetType: ComplianceAssetType =
+        canonical ??
+        (typeof asset.asset_type === 'string'
+          ? ((asset.asset_type as string).toLowerCase() as ComplianceAssetType)
+          : null) ??
+        'other';
+      return {
+        id: asset.id,
+        property_id: asset.property_id,
+        asset_type: normalizedAssetType,
+        external_source: asset.external_source,
+        active: asset.active !== false,
+        metadata: meta as Json,
+        device_category: deviceCategory,
+        device_technology: asset.device_technology ?? null,
+        device_subtype: asset.device_subtype ?? null,
+        is_private_residence: asset.is_private_residence ?? null,
+        pressure_type: metaPressure ?? assetPressure ?? null,
+      } as AssetMeta;
+    });
 
     const assetMetaMap = new Map(assetMetas.map((asset) => [asset.id, asset]));
-    const overrides = overridesResp?.data || [];
-    const overrideByProgram = new Map(
-      overrides.map((override: any) => [override.program_id as string, override]),
-    );
+    const overrides: CompliancePropertyProgramOverride[] = overridesResp?.data || [];
+    const overrideByProgram = new Map(overrides.map((override) => [override.program_id, override]));
 
-    const programsWithContext = (programs || []).map((program: any) => {
-      const override = overrideByProgram.get(program.id) || null;
+    const programsWithContext = (programs || []).map((program) => {
+      const override = overrideByProgram.get(program.id ?? '') || null;
       const suppressed = override?.is_assigned === false;
       const assigned = override ? override.is_assigned !== false : false;
-      const overrideFields = (program as any)?.override_fields || {};
+      const overrideFields = (program.override_fields || {}) as Record<string, unknown>;
       const criteriaRows =
-        (overrideFields as any)?.criteria_rows || (overrideFields as any)?.criteriaRows;
+        (overrideFields as { criteria_rows?: unknown; criteriaRows?: unknown }).criteria_rows ??
+        (overrideFields as { criteriaRows?: unknown }).criteriaRows ??
+        null;
       const hasDefinedCriteriaRows = Array.isArray(criteriaRows);
-      const criteriaRowsEmpty = hasDefinedCriteriaRows && (criteriaRows as any[]).length === 0;
+      const criteriaRowsEmpty = hasDefinedCriteriaRows && criteriaRows.length === 0;
       const matchesProperty = criteriaRowsEmpty ? false : programTargetsProperty(program, propertyMeta);
       const matchesAssets = criteriaRowsEmpty
         ? false
@@ -443,16 +517,12 @@ export async function GET(
       };
     });
 
-    const applicablePrograms = programsWithContext.filter((program: any) => program.applicable);
-    const enabledPrograms = applicablePrograms.filter(
-      (program: any) => program.effective_is_enabled,
-    );
-    const enabledProgramIds = new Set(enabledPrograms.map((p: any) => p.id as string));
-    const programContextById = new Map(
-      applicablePrograms.map((program: any) => [program.id as string, program]),
-    );
+    const applicablePrograms = programsWithContext.filter((program) => program.applicable);
+    const enabledPrograms = applicablePrograms.filter((program) => program.effective_is_enabled);
+    const enabledProgramIds = new Set(enabledPrograms.map((p) => p.id));
+    const programContextById = new Map(applicablePrograms.map((program) => [program.id, program]));
 
-    const itemMatchesCriteria = (item: any) => {
+    const itemMatchesCriteria = (item: ComplianceItemWithProgram) => {
       if (!enabledProgramIds.has(item.program_id)) return false;
       const program = programContextById.get(item.program_id);
       if (!program || program.suppressed) return false;
@@ -469,14 +539,14 @@ export async function GET(
     // Clean up mismatched boiler programs (LP vs HP) based on asset pressure; also regenerate correct items if missing.
     try {
       const pressureByAsset = new Map<string, 'low_pressure' | 'high_pressure'>();
-      const boilerAssets = (assets || []).filter((a: any) => (a as any).asset_type === 'boiler');
-      boilerAssets.forEach((asset: any) => {
+      const boilerAssets = (assets || []).filter((asset) => asset.asset_type === 'boiler');
+      boilerAssets.forEach((asset) => {
         const pressure = getBoilerPressure(asset);
-        if (pressure) pressureByAsset.set(asset.id as string, pressure);
+        if (pressure) pressureByAsset.set(asset.id, pressure);
       });
 
-      const lpProgram = (programs || []).find((p: any) => p.code === 'NYC_BOILER_LP_ANNUAL');
-      const hpProgram = (programs || []).find((p: any) => p.code === 'NYC_BOILER_HP_ANNUAL');
+      const lpProgram = (programs || []).find((p) => p.code === 'NYC_BOILER_LP_ANNUAL');
+      const hpProgram = (programs || []).find((p) => p.code === 'NYC_BOILER_HP_ANNUAL');
 
       const boilerDeletes: string[] = [];
       const boilerGenerate: string[] = [];
@@ -527,7 +597,10 @@ export async function GET(
           );
         }
 
-        items = await ComplianceService.getItemsByProperty(propertyId, orgId);
+        items = (await ComplianceService.getItemsByProperty(
+          propertyId,
+          orgId,
+        )) as ComplianceItemWithProgram[];
       }
     } catch (cleanupErr) {
       logger.warn({ error: cleanupErr, propertyId, orgId }, 'Boiler pressure cleanup skipped');
@@ -535,7 +608,7 @@ export async function GET(
 
     // Ensure compliance items exist for enabled programs; generate missing items without per-program loops.
     try {
-      const itemsByProgram = new Map<string, Array<any>>();
+      const itemsByProgram = new Map<string, ComplianceItemWithProgram[]>();
       (items || []).forEach((item) => {
         const arr = itemsByProgram.get(item.program_id) || [];
         arr.push(item);
@@ -557,11 +630,11 @@ export async function GET(
         const generationTasks: Promise<unknown>[] = [];
 
         if (needsAssetGeneration && assets && assets.length > 0) {
-          const uniqueAssetIds = Array.from(new Set((assets as any[]).map((asset) => asset.id)));
+          const uniqueAssetIds = Array.from(new Set(assets.map((asset) => asset.id)));
           generationTasks.push(
             Promise.all(
               uniqueAssetIds.map((assetId) =>
-                generator.generateItemsForAsset(assetId as string, orgId, 12),
+                generator.generateItemsForAsset(assetId, orgId, 12),
               ),
             ),
           );
@@ -573,7 +646,10 @@ export async function GET(
 
         if (generationTasks.length > 0) {
           await Promise.all(generationTasks);
-          items = await ComplianceService.getItemsByProperty(propertyId, orgId);
+          items = (await ComplianceService.getItemsByProperty(
+            propertyId,
+            orgId,
+          )) as ComplianceItemWithProgram[];
         }
       }
     } catch (genErr) {
@@ -586,14 +662,12 @@ export async function GET(
     // Ensure only programs that apply to this property/device are returned after generation
     items = (items || []).filter((item) => itemMatchesCriteria(item));
 
-    const eventsData = eventsResp.data || [];
+    const eventsData: ComplianceEvent[] = (eventsResp.data as ComplianceEvent[]) || [];
 
-    const elevatorPrograms = enabledPrograms.filter((p: any) =>
-      ELEVATOR_PROGRAM_CODES.includes(p.code),
-    );
+    const elevatorPrograms = enabledPrograms.filter((p) => ELEVATOR_PROGRAM_CODES.includes(p.code));
 
-    const assetsWithSchedule = (assets || []).map((asset: any) => {
-      if ((asset as any).asset_type !== 'elevator') return asset;
+    const assetsWithSchedule = (assets || []).map((asset) => {
+      if (asset.asset_type !== 'elevator') return asset;
       const { lastInspection, nextDue } = computeElevatorSchedule(
         asset,
         eventsData,
@@ -609,16 +683,21 @@ export async function GET(
     assets = assetsWithSchedule;
 
     const hasHpdRegistration =
-      Boolean((property as any)?.hpd_registration_id) ||
-      Boolean((building as any)?.hpd_registration) ||
-      Boolean(((building as any)?.hpd_registration as any)?.registrationid);
+      Boolean(propertyRow?.hpd_registration_id) ||
+      Boolean(building?.hpd_registration) ||
+      Boolean((building?.hpd_registration as Record<string, unknown> | null | undefined)?.registrationid);
 
+    const registrationEndDateRaw =
+      (building?.hpd_registration as Record<string, unknown> | null | undefined)?.registrationenddate ||
+      null;
     const registrationEndDate =
-      ((building as any)?.hpd_registration as any)?.registrationenddate || null;
+      typeof registrationEndDateRaw === 'string' && registrationEndDateRaw.length > 0
+        ? registrationEndDateRaw
+        : null;
     const hpdDueUpdates: Array<{ id: string; due_date: string }> = [];
 
     items = (items || []).map((item) => {
-      if ((item as any)?.program?.code === 'NYC_HPD_REGISTRATION') {
+      if (item?.program?.code === 'NYC_HPD_REGISTRATION') {
         let updated = item;
         if (!hasHpdRegistration) {
           const nextAction = item.next_action || 'File HPD Multiple Dwelling Registration';
@@ -692,7 +771,7 @@ export async function GET(
     });
 
     // Add upcoming_inspections to each asset
-    assets = assets.map((asset: any) => ({
+    assets = assets.map((asset) => ({
       ...asset,
       upcoming_inspections: upcomingInspectionsByDevice.get(asset.id) || 0,
     }));
@@ -718,9 +797,9 @@ export async function GET(
       )
       .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())[0];
     const elevatorNextDue = assetsWithSchedule
-      .map((asset: any) => asset.next_due)
-      .filter(Boolean)
-      .sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime())[0];
+      .map((asset) => asset.next_due)
+      .filter((d): d is string => typeof d === 'string' && d.length > 0)
+      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
     const nextDue = earliestDueItem?.due_date || elevatorNextDue || null;
 
     const lastSync = eventsData[0]?.created_at || null;
@@ -741,8 +820,8 @@ export async function GET(
     );
 
     const hpd = {
-      registration_id: (property as any)?.hpd_registration_id || null,
-      building_id: (property as any)?.hpd_building_id || null,
+      registration_id: propertyRow.hpd_registration_id || null,
+      building_id: propertyRow.hpd_building_id || null,
       violations: byAgency.HPD?.count || 0,
       complaints: 0,
       last_event_date: byAgency.HPD?.lastDate || null,
@@ -760,8 +839,10 @@ export async function GET(
 
     // Determine how many devices have a usable status (aligns with UI filtering)
     const devicesWithStatus = assets.filter((asset) => {
-      const meta = (asset as any)?.metadata as Record<string, any> | null | undefined;
-      const status = meta?.device_status || meta?.status;
+      const meta = (asset.metadata ?? null) as Record<string, unknown> | null;
+      const status =
+        (meta?.device_status as string | undefined | null) ||
+        (meta?.status as string | undefined | null);
       return Boolean(status);
     }).length;
 
@@ -788,13 +869,13 @@ export async function GET(
 
     return NextResponse.json({
       property: {
-        id: property.id,
-        name: property.name,
-        address_line1: property.address_line1,
-        borough: property.borough,
-        bin: property.bin,
-        building_id: (property as any).building_id || null,
-        total_units: (property as any).total_units || null,
+        id: propertyRow.id,
+        name: propertyRow.name,
+        address_line1: propertyRow.address_line1,
+        borough: propertyRow.borough,
+        bin: propertyRow.bin,
+        building_id: propertyRow.building_id || null,
+        total_units: propertyRow.total_units || null,
       },
       building,
       items,

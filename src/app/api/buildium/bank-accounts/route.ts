@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger'
 import { BuildiumBankAccountCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
+type BuildiumBankAccount = { Name?: string | null; Description?: string | null }
+
 export async function GET(request: NextRequest) {
   try {
     // Authentication
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
     // Optional search (client-side filter on Name/Description)
     const search = searchParams.get('search')?.toLowerCase();
     if (search && Array.isArray(bankAccounts)) {
-      bankAccounts = bankAccounts.filter((ba: any) => {
+      bankAccounts = (bankAccounts as BuildiumBankAccount[]).filter((ba) => {
         const name = String(ba?.Name || '').toLowerCase();
         const desc = String(ba?.Description || '').toLowerCase();
         return name.includes(search) || desc.includes(search);

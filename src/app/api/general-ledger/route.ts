@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { endOfMonth, startOfMonth } from 'date-fns';
 import { supabaseAdmin } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/guards';
-import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
+import {
+  buildLedgerGroups,
+  mapTransactionLine,
+  type LedgerLine,
+} from '@/server/financials/ledger-utils';
+import type { Tables } from '@/types/database';
 
 type SearchParams = Record<string, string | undefined>;
 
 type PropertyRecord = {
-  id: string;
-  public_id?: string | null;
+  id: string | number;
+  public_id?: string | number | null;
   name?: string | null;
   org_id?: string | null;
 };
@@ -33,8 +38,8 @@ const normalizeBasis = (basis: unknown): 'cash' | 'accrual' =>
 
 export async function GET(request: NextRequest) {
   try {
-    // Ensure the caller is authenticated; reuse their Supabase session for RLS.
-    await requireAuth();
+    // Ensure the caller is authenticated; use admin client for cross-org queries.
+    const { user } = await requireAuth();
 
     const db = supabaseAdmin;
     if (!db) {
@@ -61,10 +66,32 @@ export async function GET(request: NextRequest) {
     const fromStr = from.toISOString().slice(0, 10);
     const toStr = to.toISOString().slice(0, 10);
 
-    const { data: propertyData } = await db
+    // Get user's org_ids to scope property queries
+    const userOrgIds: string[] = [];
+    if (user?.id) {
+      const { data: memberships } = await db
+        .from('org_memberships')
+        .select('org_id')
+        .eq('user_id', user.id);
+      if (memberships) {
+        userOrgIds.push(...memberships.map((m) => String(m.org_id)).filter(Boolean));
+      }
+    }
+
+    // Build property query scoped to user's orgs
+    let propertyQuery = db
       .from('properties')
       .select('id, public_id, name, org_id')
       .order('name', { ascending: true });
+
+    if (userOrgIds.length > 0) {
+      propertyQuery = propertyQuery.in('org_id', userOrgIds);
+    } else {
+      // If user has no org memberships, return empty result set
+      propertyQuery = propertyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+    }
+
+    const { data: propertyData } = await propertyQuery;
 
     const propertyRows = (propertyData || []) as PropertyRecord[];
     const propertyLabelById = new Map(
@@ -77,7 +104,10 @@ export async function GET(request: NextRequest) {
       ]),
     );
     const propertyOrgById = new Map(
-      propertyRows.map((property) => [String(property.id), property.org_id ? String(property.org_id) : null]),
+      propertyRows.map((property) => [
+        String(property.id),
+        property.org_id ? String(property.org_id) : null,
+      ]),
     );
 
     const orgIds = Array.from(
@@ -90,8 +120,11 @@ export async function GET(request: NextRequest) {
 
     const orgBasisById = new Map<string, 'cash' | 'accrual'>();
     if (orgIds.length) {
-      const { data: orgRows } = await db.from('organizations').select('id, default_accounting_basis').in('id', orgIds);
-      (orgRows || []).forEach((org: any) => {
+      const { data: orgRows } = await db
+        .from('organizations')
+        .select('id, default_accounting_basis')
+        .in('id', orgIds);
+      (orgRows || []).forEach((org: Pick<Tables<'organizations'>, 'id' | 'default_accounting_basis'>) => {
         if (!org?.id) return;
         orgBasisById.set(String(org.id), normalizeBasis(org.default_accounting_basis));
       });
@@ -140,21 +173,26 @@ export async function GET(request: NextRequest) {
 
     let unitsData: UnitRecord[] = [];
     if (allPropertyIds.length) {
-      const { data: unitsResponse } = await db.from('units').select('id, unit_number, unit_name, property_id');
+      const { data: unitsResponse } = await db
+        .from('units')
+        .select('id, unit_number, unit_name, property_id');
       unitsData = (unitsResponse || []) as UnitRecord[];
     }
 
-    const unitsByProperty = unitsData.reduce<Record<string, { id: string; label: string }[]>>((acc, unit) => {
-      const propertyId = unit.property_id ? String(unit.property_id) : null;
-      if (!propertyId) return acc;
-      const bucket = acc[propertyId] ?? [];
-      bucket.push({
-        id: String(unit.id),
-        label: unit.unit_number || unit.unit_name || 'Unit',
-      });
-      acc[propertyId] = bucket;
-      return acc;
-    }, {});
+    const unitsByProperty = unitsData.reduce<Record<string, { id: string; label: string }[]>>(
+      (acc, unit) => {
+        const propertyId = unit.property_id ? String(unit.property_id) : null;
+        if (!propertyId) return acc;
+        const bucket = acc[propertyId] ?? [];
+        bucket.push({
+          id: String(unit.id),
+          label: unit.unit_number || unit.unit_name || 'Unit',
+        });
+        acc[propertyId] = bucket;
+        return acc;
+      },
+      {},
+    );
 
     Object.values(unitsByProperty).forEach((list) => {
       list.sort((a, b) => a.label.localeCompare(b.label));
@@ -194,7 +232,9 @@ export async function GET(request: NextRequest) {
     }
 
     const unitFilterIds =
-      noUnitsSelected || selectedUnitIds.length === 0 || selectedUnitIds.length === allUnitIds.length
+      noUnitsSelected ||
+      selectedUnitIds.length === 0 ||
+      selectedUnitIds.length === allUnitIds.length
         ? null
         : selectedUnitIds;
 
@@ -234,7 +274,10 @@ export async function GET(request: NextRequest) {
         group: account.type || 'Other',
         groupLabel: account.type ? `${account.type} accounts` : 'Other accounts',
       }))
-      .sort((a, b) => (a.group || 'Other').localeCompare(b.group || 'Other') || a.label.localeCompare(b.label));
+      .sort(
+        (a, b) =>
+          (a.group || 'Other').localeCompare(b.group || 'Other') || a.label.localeCompare(b.label),
+      );
 
     const allAccountIds = accountOptions.map((option) => option.value);
     let selectedAccountIds = accountsExplicitNone
@@ -250,7 +293,9 @@ export async function GET(request: NextRequest) {
     }
 
     const accountFilterIds =
-      accountsExplicitNone || selectedAccountIds.length === allAccountIds.length ? null : selectedAccountIds;
+      accountsExplicitNone || selectedAccountIds.length === allAccountIds.length
+        ? null
+        : selectedAccountIds;
 
     const basisParam = sp.basis === 'cash' ? 'cash' : defaultBasis;
 
@@ -258,10 +303,8 @@ export async function GET(request: NextRequest) {
       selectedPropertyPublicIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
     const qBase = () =>
-      db
-        .from('transaction_lines')
-        .select(
-          `transaction_id,
+      db.from('transaction_lines').select(
+        `transaction_id,
            property_id,
            unit_id,
            date,
@@ -274,15 +317,17 @@ export async function GET(request: NextRequest) {
            units(unit_number, unit_name),
            transactions(id, transaction_type, memo, reference_number),
            properties(id, name)`,
-        );
+      );
 
-    const mapLine = (row: Record<string, unknown>): LedgerLine => {
+    const mapLine = (row: Record<string, unknown>): LedgerLine | null => {
       const mapped = mapTransactionLine(row);
+      if (!mapped) return null; // Filter out lines with invalid posting_type
       const propertyId = mapped.propertyId ?? (row?.property_id ? String(row.property_id) : null);
       return {
         ...mapped,
         propertyId,
-        propertyLabel: mapped.propertyLabel ?? (propertyId ? propertyLabelById.get(propertyId) || null : null),
+        propertyLabel:
+          mapped.propertyLabel ?? (propertyId ? propertyLabelById.get(propertyId) || null : null),
       };
     };
 
@@ -290,14 +335,52 @@ export async function GET(request: NextRequest) {
     let priorLines: LedgerLine[] = [];
 
     if (shouldQueryLedger) {
+      // Ensure transaction_lines queries are scoped to user's orgs via property_id
+      // Build a set of property IDs that belong to user's orgs
+      const userOrgPropertyIds = propertyRows
+        .filter((p) => p.org_id && userOrgIds.includes(String(p.org_id)))
+        .map((p) => String(p.id));
+
       const baseFilter = qBase();
-      const commonFilter = propertyFilterIds ? baseFilter.in('property_id', propertyFilterIds) : baseFilter;
+      // Apply property filter AND ensure properties are in user's orgs
+      let commonFilter = baseFilter;
+      if (propertyFilterIds) {
+        // Intersect selected properties with user's org-scoped properties
+        const scopedPropertyIds = propertyFilterIds.filter((id) => userOrgPropertyIds.includes(id));
+        if (scopedPropertyIds.length === 0) {
+          // No valid properties in user's orgs, return empty result
+          commonFilter = baseFilter.eq('property_id', '00000000-0000-0000-0000-000000000000');
+        } else {
+          commonFilter = baseFilter.in('property_id', scopedPropertyIds);
+        }
+      } else {
+        // If no property filter, still scope to user's org properties
+        if (userOrgPropertyIds.length > 0) {
+          commonFilter = baseFilter.in('property_id', userOrgPropertyIds);
+        } else {
+          commonFilter = baseFilter.eq('property_id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
 
       let periodQuery = commonFilter.gte('date', fromStr).lte('date', toStr);
       if (unitFilterIds) periodQuery = periodQuery.in('unit_id', unitFilterIds);
       if (accountFilterIds) periodQuery = periodQuery.in('gl_account_id', accountFilterIds);
 
-      let priorQuery = propertyFilterIds ? qBase().in('property_id', propertyFilterIds) : qBase();
+      let priorQuery = baseFilter;
+      if (propertyFilterIds) {
+        const scopedPropertyIds = propertyFilterIds.filter((id) => userOrgPropertyIds.includes(id));
+        if (scopedPropertyIds.length > 0) {
+          priorQuery = qBase().in('property_id', scopedPropertyIds);
+        } else {
+          priorQuery = qBase().eq('property_id', '00000000-0000-0000-0000-000000000000');
+        }
+      } else {
+        if (userOrgPropertyIds.length > 0) {
+          priorQuery = qBase().in('property_id', userOrgPropertyIds);
+        } else {
+          priorQuery = qBase().eq('property_id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
       priorQuery = priorQuery.lt('date', fromStr);
       if (unitFilterIds) priorQuery = priorQuery.in('unit_id', unitFilterIds);
       if (accountFilterIds) priorQuery = priorQuery.in('gl_account_id', accountFilterIds);
@@ -305,8 +388,12 @@ export async function GET(request: NextRequest) {
       const [{ data: periodData, error: periodError }, { data: priorData, error: priorError }] =
         await Promise.all([periodQuery, priorQuery]);
 
-      periodLines = periodError ? [] : (periodData || []).map(mapLine);
-      priorLines = priorError ? [] : (priorData || []).map(mapLine);
+      periodLines = periodError
+        ? []
+        : (periodData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
+      priorLines = priorError
+        ? []
+        : (priorData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
     }
 
     const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });

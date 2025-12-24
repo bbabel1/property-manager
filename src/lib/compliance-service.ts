@@ -11,24 +11,19 @@ import type {
   ComplianceAssetInsert,
   ComplianceAssetUpdate,
   ComplianceAssetFilters,
+  ComplianceAssetWithRelations,
+  ComplianceEvent,
   ComplianceItem,
-  ComplianceItemInsert,
-  ComplianceItemUpdate,
   ComplianceItemFilters,
+  ComplianceItemUpdate,
   ComplianceItemWithRelations,
+  ComplianceItemWorkOrder,
+  CompliancePortfolioSummary,
+  ComplianceProgram,
+  CompliancePropertySummary,
   ComplianceViolation,
-  ComplianceViolationInsert,
-  ComplianceViolationUpdate,
   ComplianceViolationFilters,
   ComplianceViolationWithRelations,
-  ComplianceProgram,
-  ComplianceProgramInsert,
-  ComplianceProgramUpdate,
-  ComplianceEvent,
-  ComplianceEventInsert,
-  ComplianceAssetWithRelations,
-  CompliancePortfolioSummary,
-  CompliancePropertySummary,
 } from '@/types/compliance'
 import { logger } from './logger'
 
@@ -294,12 +289,18 @@ export class ComplianceService {
           .order('issue_date', { ascending: false }),
       ])
 
+      const typedItem = item as (ComplianceItem & {
+        program?: ComplianceProgram | null
+        asset?: ComplianceAsset | null
+        property?: ComplianceItemWithRelations['property']
+      })
+
       return {
-        ...(item as ComplianceItem),
-        program: (item as any).program as ComplianceProgram | undefined,
-        asset: (item as any).asset as ComplianceAsset | undefined,
-        property: (item as any).property as any,
-        work_orders: (workOrders.data || []) as any[],
+        ...typedItem,
+        program: typedItem.program ?? undefined,
+        asset: typedItem.asset ?? undefined,
+        property: typedItem.property,
+        work_orders: (workOrders.data || []) as ComplianceItemWorkOrder[],
         events: (events.data || []) as ComplianceEvent[],
         violations: (violations.data || []) as ComplianceViolation[],
       }

@@ -650,6 +650,19 @@ export interface BuildiumLeaseSecurityDeposit {
   Memo?: string;
 }
 
+export type BuildiumLeasePerson = BuildiumTenant & {
+  Status?: string;
+  MoveInDate?: string;
+  MoveOutDate?: string;
+};
+
+export interface BuildiumLeaseMoveOut {
+  TenantId?: number;
+  MoveOutDate?: string;
+  NoticeGivenDate?: string;
+  Reason?: string;
+}
+
 export interface BuildiumLease {
   Id: number;
   PropertyId: number;
@@ -668,18 +681,15 @@ export interface BuildiumLease {
     Rent: number;
   };
   AutomaticallyMoveOutTenants: boolean;
+  AccountId?: number;
   CreatedDateTime: string; // ISO 8601
   LastUpdatedDateTime: string; // ISO 8601
   PaymentDueDay: number;
   // Additional fields that may be present
-  CurrentTenants?: any[];
-  Cosigners?: any[];
-  MoveOutData?: any[];
-  Tenants?: Array<{
-    Id: number;
-    Status: string;
-    MoveInDate: string;
-  }>;
+  CurrentTenants?: BuildiumLeasePerson[];
+  Cosigners?: BuildiumLeasePerson[];
+  MoveOutData?: BuildiumLeaseMoveOut[];
+  Tenants?: BuildiumLeasePerson[];
 }
 
 export interface BuildiumLeaseCreate {

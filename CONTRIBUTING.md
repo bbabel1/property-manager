@@ -1,6 +1,7 @@
 # Contributing to Property Manager
 
-Thanks for considering a contribution! This guide explains how to set up your environment, our coding standards, and the PR process.
+Thanks for considering a contribution! This guide explains how to set up your environment, our coding standards, and
+the PR process.
 
 ## Quick Start
 

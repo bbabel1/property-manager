@@ -1,3 +1,4 @@
+import { cache as reactCache } from 'react'
 import { supabase, supabaseAdmin } from './db'
 import type { Database } from '@/types/database'
 import { normalizeStaffRole } from './staff-role'
@@ -49,6 +50,16 @@ type PropertyShell = Pick<
   service_plan?: string | null
 }
 
+type PropertyAggregates = {
+  occupancy_rate?: number | string | null
+  total_active_units?: number | null
+  total_units?: number | null
+  total_occupied_units?: number | null
+  total_vacant_units?: number | null
+  operating_bank_gl_account_id?: string | null
+  deposit_trust_gl_account_id?: string | null
+}
+
 async function loadPropertyPlanName(db: SupabaseClient<Database>, propertyId: string) {
   const { data: assignment } = await db
     .from('service_plan_assignments')
@@ -74,15 +85,23 @@ export class PropertyService {
         try {
           const res = await fetch(`/api/properties/${id}/details`, { next: { revalidate: 60, tags: [`property-details:${id}`] } })
           if (res.ok) {
-            const data = await res.json()
+            const data = await res.json() as Partial<PropertyShell> & {
+              property_type?: string | null
+              buildium_property_id?: string | number | null
+              service_assignment?: string | null
+              service_plan?: string | null
+            }
+            const status = (data.status ?? 'Inactive') as PropertyShell['status']
+            const propertyType = (data.property_type ?? null) as PropertyShell['property_type']
+            const serviceAssignment = (data.service_assignment ?? 'Property Level') as PropertyShell['service_assignment']
             return {
-              id: data.id,
-              name: data.name,
-              status: data.status,
-              property_type: (data as any)?.property_type,
-              buildium_property_id: (data as any)?.buildium_property_id ?? null,
-              service_assignment: (data as any)?.service_assignment ?? null,
-              service_plan: (data as any)?.service_plan ?? null,
+              id: String(data.id ?? ''),
+              name: String(data.name ?? ''),
+              status,
+              property_type: propertyType,
+              buildium_property_id: data.buildium_property_id ?? null,
+              service_assignment: serviceAssignment,
+              service_plan: data.service_plan ?? null,
             }
           }
         } catch {}
@@ -177,6 +196,8 @@ export class PropertyService {
         address: property.address_line1
       })
 
+      const propertyWithAgg = property as Property & PropertyAggregates
+
       // Fetch units and ownerships in parallel for speed
       console.log('🔍 Fetching units and ownerships for property ID:', id)
       const [unitsRes, ownershipRes] = await Promise.all([
@@ -263,9 +284,9 @@ export class PropertyService {
       }
 
       // Calculate summary data preferring DB-maintained aggregates, then fallback to units list
-      const aggTotal = (property.total_active_units ?? property.total_units) || 0
-      const aggOccupied = property.total_occupied_units ?? undefined
-      const aggVacant = property.total_vacant_units ?? undefined
+      const aggTotal = (propertyWithAgg.total_active_units ?? propertyWithAgg.total_units) || 0
+      const aggOccupied = propertyWithAgg.total_occupied_units ?? undefined
+      const aggVacant = propertyWithAgg.total_vacant_units ?? undefined
 
       // Fallbacks using units table if aggregates not present
       const occupiedFromUnits = (units || []).filter(u => u.status === 'Occupied').length
@@ -286,7 +307,7 @@ export class PropertyService {
       })
 
       // Use DB computed occupancy_rate when available; otherwise derive from summary
-      const occRaw = (property as { occupancy_rate?: number | string | null }).occupancy_rate
+      const occRaw = propertyWithAgg.occupancy_rate
       const occupancy_rate = (typeof occRaw === 'number' ? occRaw : (occRaw != null ? Number(occRaw) : undefined)) ?? (
         units_summary.total > 0
           ? Math.round((units_summary.occupied / units_summary.total) * 100)
@@ -334,11 +355,11 @@ export class PropertyService {
       // Enrich: banking accounts (names + masked last4)
       let operating_account: PropertyWithDetails['operating_account'] | undefined
       let deposit_trust_account: PropertyWithDetails['deposit_trust_account'] | undefined
-      if ((property as any).operating_bank_gl_account_id) {
+      if (propertyWithAgg.operating_bank_gl_account_id) {
         const { data: op } = await dbClient
           .from('gl_accounts')
           .select('id, name, bank_account_number')
-          .eq('id', (property as any).operating_bank_gl_account_id)
+          .eq('id', propertyWithAgg.operating_bank_gl_account_id)
           .maybeSingle()
         const opRow = op as { id?: string; name?: string | null; bank_account_number?: string | null } | null
         if (opRow) {
@@ -349,11 +370,11 @@ export class PropertyService {
           }
         }
       }
-      if ((property as any).deposit_trust_gl_account_id) {
+      if (propertyWithAgg.deposit_trust_gl_account_id) {
         const { data: tr } = await dbClient
           .from('gl_accounts')
           .select('id, name, bank_account_number')
-          .eq('id', (property as any).deposit_trust_gl_account_id)
+          .eq('id', propertyWithAgg.deposit_trust_gl_account_id)
           .maybeSingle()
         const trRow = tr as { id?: string; name?: string | null; bank_account_number?: string | null } | null
         if (trRow) {
@@ -374,24 +395,34 @@ export class PropertyService {
           .select('role, staff:staff(id, first_name, last_name, email, phone)')
           .eq('property_id', id)
 
-        const managerAssignmentsArray = Array.isArray(managerAssignments)
+        type ManagerAssignment = {
+          role?: string | null
+          staff?:
+            | {
+                first_name?: string | null
+                last_name?: string | null
+                email?: string | null
+                phone?: string | null
+              }
+            | Array<{
+                first_name?: string | null
+                last_name?: string | null
+                email?: string | null
+                phone?: string | null
+              }>
+            | null
+        }
+
+        const managerAssignmentsArray: ManagerAssignment[] = Array.isArray(managerAssignments)
           ? managerAssignments
           : [];
 
         const managerAssignment =
           managerAssignmentsArray.find(
-            (assignment) => normalizeStaffRole((assignment as { role?: string | null }).role) === 'Property Manager'
+            (assignment) => normalizeStaffRole(assignment.role) === 'Property Manager'
           ) ?? null
-        const staffEntry = (managerAssignment as any)?.staff ?? null
-        const staffRecord = (Array.isArray(staffEntry) ? staffEntry[0] : staffEntry) as
-          | {
-              first_name?: string | null
-              last_name?: string | null
-              email?: string | null
-              phone?: string | null
-            }
-          | null
-          | undefined
+        const staffEntry = managerAssignment?.staff ?? null
+        const staffRecord = Array.isArray(staffEntry) ? staffEntry[0] : staffEntry
 
         if (staffRecord) {
           property_manager_name =
@@ -550,12 +581,9 @@ export class PropertyService {
 
 // Server-side cache helpers (noop on client). Use in RSC layouts to avoid refetch on tab switches.
 export const getPropertyShellCached = ((): ((id: string) => Promise<PropertyShell | null>) => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { cache } = require('react') as { cache: <T extends (...args: any[]) => any>(fn: T) => T }
-    return cache((id: string) => PropertyService.getPropertyShell(id))
-  } catch {
-    // Fallback (client): just call through
-    return (id: string) => PropertyService.getPropertyShell(id)
+  if (typeof reactCache === 'function') {
+    return reactCache((id: string) => PropertyService.getPropertyShell(id))
   }
+  // Fallback (client): just call through
+  return (id: string) => PropertyService.getPropertyShell(id)
 })()

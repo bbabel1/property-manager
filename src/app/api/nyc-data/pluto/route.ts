@@ -28,7 +28,14 @@ const digitsOnly = (value: string | null) => {
   return digits || null;
 };
 
-async function fetchJson(url: string, appToken?: string | null) {
+type BuildingRow = {
+  id: string;
+  bin: string | null;
+  bbl: string | null;
+  pluto: Record<string, unknown> | null;
+};
+
+async function fetchJson(url: string, appToken?: string | null): Promise<unknown> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (appToken) headers['X-App-Token'] = appToken;
 
@@ -47,12 +54,13 @@ async function lookupBblFromDob(bin: string, appToken?: string | null, baseUrl?:
   url.searchParams.set('$limit', '1');
 
   const json = await fetchJson(url.toString(), appToken);
-  const row = Array.isArray(json) ? json[0] : null;
+  const row = Array.isArray(json) ? (json[0] as Record<string, unknown> | undefined) : null;
   if (!row) return null;
 
-  const block = digitsOnly((row as any).block);
-  const lot = digitsOnly((row as any).lot);
-  const boroughRaw = typeof row?.borough === 'string' ? row.borough.trim().toLowerCase() : '';
+  const block = digitsOnly(typeof row['block'] === 'string' ? row['block'] : null);
+  const lot = digitsOnly(typeof row['lot'] === 'string' ? row['lot'] : null);
+  const boroughRaw =
+    typeof row['borough'] === 'string' ? row['borough'].trim().toLowerCase() : '';
   const boroughCode = BOROUGH_CODE_LOOKUP[boroughRaw] || null;
 
   if (!boroughCode || !block || !lot) return null;
@@ -70,8 +78,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Provide bin or bbl' }, { status: 400 });
     }
 
-    let building: { id: string; bin: string | null; bbl: string | null; pluto: any | null } | null =
-      null;
+    let building: BuildingRow | null = null;
     if (bin) {
       const { data, error } = await supabaseAdmin
         .from('buildings')
@@ -84,12 +91,20 @@ export async function GET(request: NextRequest) {
         logger.warn({ error, bin }, 'PLUTO lookup: failed to read building by BIN');
       }
 
-      building = (data as any) || null;
+      building = (data as BuildingRow | null) || null;
       if (!bbl) {
+        const plutoRecord =
+          building?.pluto && typeof building.pluto === 'object' ? building.pluto : null;
         bbl =
-          digitsOnly((building as any)?.bbl) ||
-          digitsOnly((building as any)?.pluto?.bbl) ||
-          digitsOnly((building as any)?.pluto?.appbbl) ||
+          digitsOnly(building?.bbl) ||
+          digitsOnly(
+            typeof plutoRecord?.['bbl'] === 'string' ? (plutoRecord['bbl'] as string) : null,
+          ) ||
+          digitsOnly(
+            typeof plutoRecord?.['appbbl'] === 'string'
+              ? (plutoRecord['appbbl'] as string)
+              : null,
+          ) ||
           null;
       }
     }

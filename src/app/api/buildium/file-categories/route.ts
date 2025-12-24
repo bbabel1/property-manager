@@ -6,6 +6,11 @@ import { BuildiumFileCategoryCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import type { BuildiumFileCategory } from '@/types/buildium';
+import type { Database } from '@/types/database';
+
+type FileCategoryRow = Database['public']['Tables']['file_categories']['Row'];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,7 +48,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium file categories fetch failed`);
 
       return NextResponse.json(
@@ -55,22 +60,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rawPayload = await response.json().catch(() => ([] as BuildiumFileCategory[]));
+    const rawPayload: unknown = await response.json().catch(() => []);
+    const payloadObject = isRecord(rawPayload) ? rawPayload : null;
 
     let categories: BuildiumFileCategory[] = [];
     if (Array.isArray(rawPayload)) {
-      categories = rawPayload;
-    } else if (Array.isArray(rawPayload?.data)) {
-      categories = rawPayload.data as BuildiumFileCategory[];
-    } else if (Array.isArray(rawPayload?.value)) {
-      categories = rawPayload.value as BuildiumFileCategory[];
-    } else if (typeof rawPayload === 'object' && rawPayload !== null && 'items' in rawPayload && Array.isArray(rawPayload.items)) {
-      categories = rawPayload.items as BuildiumFileCategory[];
+      categories = rawPayload as BuildiumFileCategory[];
+    } else if (payloadObject && Array.isArray(payloadObject.data)) {
+      categories = payloadObject.data as BuildiumFileCategory[];
+    } else if (payloadObject && Array.isArray(payloadObject.value)) {
+      categories = payloadObject.value as BuildiumFileCategory[];
+    } else if (payloadObject && 'items' in payloadObject && Array.isArray((payloadObject as { items?: unknown }).items)) {
+      categories = (payloadObject as { items: unknown[] }).items as BuildiumFileCategory[];
     } else {
       logger.warn(
         {
           payloadType: typeof rawPayload,
-          keys: rawPayload && typeof rawPayload === 'object' ? Object.keys(rawPayload) : null,
+          keys: payloadObject ? Object.keys(payloadObject) : null,
         },
         'Unexpected Buildium file categories response shape',
       );
@@ -84,11 +90,12 @@ export async function GET(request: NextRequest) {
     if (sync && Array.isArray(categories)) {
       try {
         const supabase = await getSupabaseServerClient();
+        const metadata = isRecord(user?.user_metadata) ? user.user_metadata : null;
         const orgId =
           searchParams.get('orgId') ||
           request.headers.get('x-org-id') ||
-          (user?.user_metadata?.org_id as string | undefined) ||
-          (Array.isArray(user?.user_metadata?.org_ids) ? String(user.user_metadata.org_ids[0]) : undefined);
+          (metadata && typeof metadata.org_id === 'string' ? metadata.org_id : undefined) ||
+          (Array.isArray(metadata?.org_ids) ? String(metadata.org_ids[0]) : undefined);
 
         if (!orgId) {
           return NextResponse.json(
@@ -117,8 +124,8 @@ export async function GET(request: NextRequest) {
         const maxCreates = 5;
         let createdCount = 0;
         let updatedCount = 0;
-        const createdRecords: any[] = [];
-        const updatedRecords: any[] = [];
+        const createdRecords: FileCategoryRow[] = [];
+        const updatedRecords: FileCategoryRow[] = [];
 
         for (const category of categories) {
           if (!category || typeof category.Id !== 'number') continue;
@@ -219,6 +226,7 @@ export async function GET(request: NextRequest) {
       count: Array.isArray(categories) ? categories.length : 0,
     });
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium file categories`);
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -234,10 +242,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
+    const { user: _user } = await requireRole('platform_admin');
 
     // Parse and validate request body
-    const body = await request.json();
+    const body: unknown = await request.json().catch(() => ({}));
 
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumFileCategoryCreateSchema);
@@ -257,7 +265,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium file category creation failed`);
 
       return NextResponse.json(
@@ -269,7 +277,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const category = await response.json();
+    const categoryJson: unknown = await response.json().catch(() => ({}));
+    const category =
+      categoryJson && typeof categoryJson === 'object'
+        ? (categoryJson as Record<string, unknown>)
+        : {};
 
     logger.info(`Buildium file category created successfully`);
 
@@ -281,6 +293,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium file category`);
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

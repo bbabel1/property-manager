@@ -40,6 +40,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium work order`);
 
     return NextResponse.json(
@@ -93,6 +94,7 @@ export async function PUT(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium work order`);
 
     return NextResponse.json(

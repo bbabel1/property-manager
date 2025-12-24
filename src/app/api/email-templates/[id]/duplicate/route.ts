@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { supabaseAdmin } from '@/lib/db';
@@ -32,7 +32,8 @@ export async function POST(
       .eq('org_id', orgId)
       .single();
 
-    if (!membership || !['org_admin', 'org_manager', 'platform_admin'].includes(membership.role)) {
+    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
+    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
       return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
     }
 
@@ -63,16 +64,17 @@ export async function POST(
     }
 
     return NextResponse.json(duplicated, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error duplicating email template:', error);
 
-    if (error.name === 'ZodError') {
+    if (error instanceof ZodError) {
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Validation failed',
-            details: error.errors,
+            details: error.issues,
+            formatted: error.format(),
           },
         },
         { status: 400 },

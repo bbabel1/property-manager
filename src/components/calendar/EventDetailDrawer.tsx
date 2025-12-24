@@ -319,7 +319,7 @@ export function EventDetailDrawer({
                 {guests.map((guest) => (
                   <div key={guest.id} className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={guest.avatar || undefined} />
+                      <AvatarImage src={guest.avatar || undefined} alt={guest.name || 'Guest'} />
                       <AvatarFallback
                         className={cn('text-xs text-white', getAvatarColor(guest.color))}
                       >

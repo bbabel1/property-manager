@@ -162,7 +162,7 @@ export function RentScheduleForm({
 
       setSubmitting(false)
     },
-    [defaults?.rent_cycle, formValues, leaseId, onSuccess]
+    [cycleDropdown, formValues, leaseId, onSuccess, statusDropdown]
   )
 
   return (

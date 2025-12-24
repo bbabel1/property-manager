@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 'use client';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,9 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { X, Edit } from 'lucide-react';
+import { Edit } from 'lucide-react';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,13 +25,23 @@ type Contact = {
   email?: string;
   phone?: string;
 };
+type AppMetadata = {
+  roles?: string[];
+  claims?: { roles?: string[] };
+  user_types?: string[];
+  platform_developer?: boolean;
+  default_org_id?: string;
+  org_roles?: Record<string, string[]>;
+  staff_role?: string | null;
+};
+
 type UserRow = {
   id: string;
   email: string;
   created_at?: string;
   last_sign_in_at?: string;
   memberships: Membership[];
-  app_metadata?: any;
+  app_metadata?: AppMetadata | null;
   contact?: Contact;
   staff?: { id: number; role: string | null } | null;
 };
@@ -113,10 +120,7 @@ export default function UsersRolesPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editOrgRoles, setEditOrgRoles] = useState<Record<string, string[]>>({});
   const [editError, setEditError] = useState<string | null>(null);
-  const [editSelectedStaffRole, setEditSelectedStaffRole] = useState<string | null>(null);
 
-  // Edit contact state
-  const [editContact, setEditContact] = useState<Contact | null>(null);
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -126,25 +130,12 @@ export default function UsersRolesPage() {
     const uniqueRoles = Array.from(new Set(roles.filter(Boolean)));
     setEditOrgRoles((prev) => ({ ...prev, [orgId]: uniqueRoles }));
     setEditSelectedRoles(uniqueRoles.length ? uniqueRoles : []);
-
-    // Keep staff role in sync with org when possible
-    if (editingUser?.staff?.role) {
-      setEditSelectedStaffRole(editingUser.staff.role);
-    }
   };
 
   const handleRoleToggle = (role: string) => {
     setSelectedRoles((prev) =>
       prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
     );
-  };
-
-  const handleInviteUserTypeSelect = (type: string) => {
-    setSelectedUserTypes((prev) => (prev.includes(type) ? prev : [...prev, type]));
-  };
-
-  const handleInviteUserTypeRemove = (type: string) => {
-    setSelectedUserTypes((prev) => prev.filter((t) => t !== type));
   };
 
   const handleInviteUserTypeToggle = (type: string) => {
@@ -161,14 +152,6 @@ export default function UsersRolesPage() {
     setRolesForOrg(editSelectedOrg, next);
   };
 
-  const handleEditUserTypeSelect = (type: string) => {
-    setEditUserTypes((prev) => (prev.includes(type) ? prev : [...prev, type]));
-  };
-
-  const handleEditUserTypeRemove = (type: string) => {
-    setEditUserTypes((prev) => prev.filter((t) => t !== type));
-  };
-
   const handleEditUserTypeToggle = (type: string) => {
     setEditUserTypes((prev) =>
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
@@ -178,8 +161,8 @@ export default function UsersRolesPage() {
   const startEditUser = (user: UserRow) => {
     setEditingUser(user);
     setEditError(null);
-    const meta = (user.app_metadata ?? {}) as any;
-    const existingUserTypes = Array.isArray(meta?.user_types) ? (meta.user_types as string[]) : [];
+    const meta = user.app_metadata ?? {};
+    const existingUserTypes = Array.isArray(meta.user_types) ? meta.user_types : [];
     setEditUserTypes(normalizeUserTypes(existingUserTypes));
     setEditPlatformDev(
       Boolean(
@@ -195,8 +178,8 @@ export default function UsersRolesPage() {
         const rolesForMembership =
           Array.isArray(membership.roles) && membership.roles.length
             ? membership.roles
-            : (membership as any).role
-              ? [(membership as any).role as string]
+            : (membership as { role?: string }).role
+              ? [(membership as { role?: string }).role as string]
               : [];
         const uiRole = rolesForMembership.includes('org_admin')
           ? 'admin'
@@ -225,12 +208,10 @@ export default function UsersRolesPage() {
 
     // Pre-populate contact details
     if (user.contact) {
-      setEditContact(user.contact);
       setEditFirstName(user.contact.first_name || '');
       setEditLastName(user.contact.last_name || '');
       setEditPhone(user.contact.phone || '');
     } else {
-      setEditContact(null);
       setEditFirstName('');
       setEditLastName('');
       setEditPhone('');
@@ -246,7 +227,6 @@ export default function UsersRolesPage() {
     setEditSelectedRoles([]);
     setEditOrgRoles({});
     setEditError(null);
-    setEditContact(null);
     setEditFirstName('');
     setEditLastName('');
     setEditPhone('');
@@ -279,8 +259,9 @@ export default function UsersRolesPage() {
         const data = await res.json();
         throw new Error(data?.error || 'Failed to update contact details');
       }
-    } catch (e: any) {
-      console.error('Failed to save contact details:', e.message);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error('Failed to save contact details:', message);
       // Don't throw here - we still want to save roles even if contact fails
     }
   };
@@ -346,8 +327,9 @@ export default function UsersRolesPage() {
       const updated = await fetch('/api/admin/users').then((r) => r.json());
       setUsers(updated.users || []);
       cancelEdit();
-    } catch (e: any) {
-      setEditError(e?.message || 'Failed to update roles');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to update roles';
+      setEditError(message);
     } finally {
       setEditBusy(false);
     }
@@ -399,8 +381,9 @@ export default function UsersRolesPage() {
       setSelectedUserTypes([]);
       setInvitePlatformDev(false);
       setShowInviteDialog(false);
-    } catch (e: any) {
-      setInviteErr(e?.message || 'Failed to invite user');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to invite user';
+      setInviteErr(message);
     } finally {
       setInviting(false);
     }
@@ -419,8 +402,9 @@ export default function UsersRolesPage() {
         if (o?.error) throw new Error(o.error);
         setUsers(u.users || []);
         setOrgs(o.organizations || []);
-      } catch (e: any) {
-        setPageError(e?.message || 'Failed to load users');
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to load users';
+        setPageError(message);
       } finally {
         setLoading(false);
       }
@@ -496,8 +480,9 @@ export default function UsersRolesPage() {
         }
       }
       handleCreateOrgDialogChange(false);
-    } catch (e: any) {
-      setCreateOrgErr(e?.message || 'Failed to create organization');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to create organization';
+      setCreateOrgErr(message);
     } finally {
       setCreatingOrg(false);
     }
@@ -591,9 +576,9 @@ export default function UsersRolesPage() {
                         )}
                       </td>
                       <td className="py-2 pr-4">
-                        {Array.isArray((u.app_metadata as any)?.user_types) &&
-                        (u.app_metadata as any)?.user_types.length
-                          ? (u.app_metadata as any).user_types.join(', ')
+                        {Array.isArray(u.app_metadata?.user_types) &&
+                        u.app_metadata?.user_types.length
+                          ? u.app_metadata.user_types.join(', ')
                           : '—'}
                       </td>
                       <td className="py-2 pr-4">

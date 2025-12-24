@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import DynamicOverlay from '@/components/ui/DynamicOverlay';
 import RecurringChargeForm from '@/components/leases/RecurringChargeForm';

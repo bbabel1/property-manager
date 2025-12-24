@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { GoogleCalendarView } from '@/components/calendar/GoogleCalendarView'
 import { CalendarEvent, CalendarEventFilter, DEFAULT_EVENT_FILTERS, GoogleCalendarEvent, EVENT_COLORS } from '@/types/calendar'
 import {
@@ -16,7 +16,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true)
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setLoading(true)
     try {
       const monthStart = startOfMonth(currentMonth)
@@ -89,12 +89,11 @@ export default function CalendarPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentMonth, filters])
 
   useEffect(() => {
     fetchEvents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonth, filters])
+  }, [fetchEvents])
 
   if (loading) {
     return (

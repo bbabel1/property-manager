@@ -47,7 +47,10 @@ export async function GET() {
       email: integration.email,
       expiresAt: integration.token_expires_at,
       hasRefreshToken: !!integration.refresh_token_encrypted,
-      updatedAt: (integration as any).updated_at ?? null,
+      updatedAt:
+        'updated_at' in integration
+          ? (integration as { updated_at?: string | null }).updated_at ?? null
+          : null,
     });
   } catch (error) {
     console.error('Error fetching Gmail status:', error);

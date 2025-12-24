@@ -8,6 +8,7 @@ import { requireUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/db'
+import type { TypedSupabaseClient } from '@/lib/db'
 import { ComplianceItemGenerator } from '@/lib/compliance-item-generator'
 
 export async function POST(
@@ -29,7 +30,7 @@ export async function POST(
     const { periods_ahead } = await request.json().catch(() => ({}))
     const periodsAhead = typeof periods_ahead === 'number' ? periods_ahead : 12
 
-    const admin = supabaseAdmin as any
+    const admin: TypedSupabaseClient = supabaseAdmin
 
     const { data: membership, error: membershipError } = await admin
       .from('org_memberships')
@@ -86,7 +87,12 @@ export async function POST(
       logger.error({ error: assetsError, orgId }, 'Failed to fetch assets for generation')
       return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 })
     }
-    const assets: { id: string; property_id: string }[] = Array.isArray(assetRows) ? (assetRows as any[]) : []
+    const assets: { id: string; property_id: string }[] = Array.isArray(assetRows)
+      ? assetRows.flatMap((a) => {
+          if (!a?.id) return []
+          return [{ id: String(a.id), property_id: String(a.property_id) }]
+        })
+      : []
 
     const propertyList = Array.isArray(properties) ? properties : []
     for (const property of propertyList) {

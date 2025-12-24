@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/db'
 import { resolveBankGlAccountId } from '@/lib/buildium-mappers'
 import { normalizeBankAccountType } from '@/lib/gl-bank-account-normalizers'
+import type { Database } from '@/types/database'
 
 export type ListBankAccountsParams = {
   limit?: number
@@ -11,12 +12,14 @@ export type ListBankAccountsParams = {
   orgId?: string
 }
 
+type BankAccountRow = Database['public']['Tables']['gl_accounts']['Row']
+
 export class BankAccountService {
   /**
    * Phase 5: Bank accounts are `gl_accounts` rows flagged with `is_bank_account=true`.
    * This service keeps the old name/export for compatibility.
    */
-  async list(params: ListBankAccountsParams = {}) {
+  async list(params: ListBankAccountsParams = {}): Promise<BankAccountRow[]> {
     let q = supabase
       .from('gl_accounts')
       .select(
@@ -41,7 +44,13 @@ export class BankAccountService {
 
     if (params.orgId) q = q.eq('org_id', params.orgId)
     if (params.bankAccountType) {
-      q = q.eq('bank_account_type', normalizeBankAccountType(params.bankAccountType))
+      const normalizedType = normalizeBankAccountType(params.bankAccountType)
+      if (normalizedType) {
+        q = q.eq(
+          'bank_account_type',
+          normalizedType as Database['public']['Enums']['bank_account_type_enum'],
+        )
+      }
     }
     if (typeof params.isActive === 'boolean') q = q.eq('is_active', params.isActive)
     if (params.search && params.search.trim()) {
@@ -55,10 +64,10 @@ export class BankAccountService {
 
     const { data, error } = await q
     if (error) throw error
-    return data || []
+    return (data as BankAccountRow[] | null) ?? []
   }
 
-  async get(id: string) {
+  async get(id: string): Promise<BankAccountRow> {
     const { data, error } = await supabase
       .from('gl_accounts')
       .select('*')
@@ -66,15 +75,35 @@ export class BankAccountService {
       .eq('is_bank_account', true)
       .single()
     if (error) throw error
-    return data
+    return data as BankAccountRow
   }
 
-  async update(id: string, payload: any) {
-    const toUpdate: any = {}
+  async update(
+    id: string,
+    payload: {
+      name?: string
+      description?: string
+      bankAccountType?: string
+      bank_account_type?: string
+      accountNumber?: string | null
+      bank_account_number?: string | null
+      routingNumber?: string | null
+      bank_routing_number?: string | null
+      isActive?: boolean
+      is_active?: boolean
+      country?: string | null
+      bank_country?: string | null
+      balance?: number | null
+      buildiumBankAccountId?: number | string | null
+    },
+  ): Promise<BankAccountRow> {
+    const toUpdate: Database['public']['Tables']['gl_accounts']['Update'] = {}
     if (payload.name !== undefined) toUpdate.name = payload.name
     if (payload.description !== undefined) toUpdate.description = payload.description
     if (payload.bankAccountType !== undefined || payload.bank_account_type !== undefined) {
-      toUpdate.bank_account_type = normalizeBankAccountType(payload.bankAccountType || payload.bank_account_type)
+      const normalizedType = normalizeBankAccountType(payload.bankAccountType || payload.bank_account_type)
+      toUpdate.bank_account_type = (normalizedType ??
+        null) as Database['public']['Tables']['gl_accounts']['Row']['bank_account_type']
     }
     if (payload.accountNumber !== undefined || payload.bank_account_number !== undefined) {
       toUpdate.bank_account_number = payload.accountNumber ?? payload.bank_account_number
@@ -86,11 +115,16 @@ export class BankAccountService {
       toUpdate.is_active = payload.isActive ?? payload.is_active
     }
     if (payload.country !== undefined || payload.bank_country !== undefined) {
-      toUpdate.bank_country = payload.country ?? payload.bank_country
+      const country = payload.country ?? payload.bank_country ?? null
+      toUpdate.bank_country = country as Database['public']['Tables']['gl_accounts']['Row']['bank_country']
     }
     if (payload.balance !== undefined) toUpdate.bank_balance = payload.balance
     if (payload.buildiumBankAccountId !== undefined) {
-      toUpdate.buildium_gl_account_id = payload.buildiumBankAccountId
+      const glId =
+        payload.buildiumBankAccountId === null
+          ? null
+          : Number(payload.buildiumBankAccountId)
+      toUpdate.buildium_gl_account_id = glId ?? undefined
     }
 
     toUpdate.is_bank_account = true
@@ -98,16 +132,16 @@ export class BankAccountService {
 
     const { data, error } = await supabase
       .from('gl_accounts')
-      .update(toUpdate as any)
+      .update(toUpdate)
       .eq('id', id)
       .select()
       .single()
     if (error) throw error
-    return data
+    return data as BankAccountRow
   }
 
-  async importFromBuildium(buildiumBankId: number) {
-    const glId = await resolveBankGlAccountId(buildiumBankId, supabase as any)
+  async importFromBuildium(buildiumBankId: number): Promise<{ mode: 'synced'; data: BankAccountRow }> {
+    const glId = await resolveBankGlAccountId(buildiumBankId, supabase)
     if (!glId) {
       throw new Error('Failed to resolve bank account from Buildium')
     }

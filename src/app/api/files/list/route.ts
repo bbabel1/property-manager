@@ -2,19 +2,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth';
-import { supabaseAdminMaybe } from '@/lib/db';
+import { supabaseAdminMaybe, type TypedSupabaseClient } from '@/lib/db';
 import {
   FILE_ENTITY_TYPES,
   mapBuildiumEntityTypeToFile,
   normalizeEntityType,
   type EntityTypeEnum,
 } from '@/lib/files';
+import type { Database } from '@/types/database';
 
 type MinimalUser = {
   id: string;
   email?: string;
   user_metadata?: Record<string, unknown> | null;
   app_metadata?: Record<string, unknown> | null;
+};
+
+type FileRow = Database['public']['Tables']['files']['Row'];
+type ContactRow = Pick<
+  Database['public']['Tables']['contacts']['Row'],
+  'id' | 'display_name' | 'first_name' | 'last_name' | 'company_name' | 'primary_email' | 'primary_phone'
+>;
+type FileCategoryRow = Pick<
+  Database['public']['Tables']['file_categories']['Row'],
+  'id' | 'buildium_category_id' | 'category_name'
+>;
+type PropertyRow = Pick<
+  Database['public']['Tables']['properties']['Row'],
+  'id' | 'name' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'property_type' | 'buildium_property_id'
+> & { address_line_1?: string | null };
+type UnitRow = Pick<
+  Database['public']['Tables']['units']['Row'],
+  'id' | 'unit_number' | 'property_id' | 'buildium_unit_id' | 'buildium_property_id'
+>;
+type LeaseRow = Pick<
+  Database['public']['Tables']['lease']['Row'],
+  'id' | 'buildium_lease_id' | 'property_id' | 'unit_id' | 'buildium_property_id' | 'buildium_unit_id' | 'status'
+>;
+type TenantRow = {
+  id: string;
+  buildium_tenant_id: number | null;
+  contact?: ContactRow | null;
+};
+type OwnerRow = Pick<
+  Database['public']['Tables']['owners']['Row'],
+  'id' | 'buildium_owner_id' | 'contact_id'
+>;
+type VendorRow = {
+  id: string;
+  buildium_vendor_id: number | null;
+  contact?: ContactRow | null;
+};
+
+type FileWithResolvedEntity = Omit<FileRow, 'entity_type' | 'entity_id'> & {
+  entity_type: EntityTypeEnum;
+  entity_id: number | string;
 };
 
 const ENTITY_FILTER_MAP: Record<string, EntityTypeEnum[]> = {
@@ -33,7 +75,7 @@ const ENTITY_FILTER_MAP: Record<string, EntityTypeEnum[]> = {
 
 async function resolveOrgId(
   request: NextRequest,
-  supabase: any,
+  supabase: TypedSupabaseClient,
   user: MinimalUser,
 ): Promise<string> {
   const isValidUUID = (str: string): boolean => {
@@ -163,7 +205,7 @@ async function resolveOrgId(
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
       .limit(1);
-    orgId = normalizeOrgId((rows?.[0] as Record<string, unknown> | undefined)?.org_id);
+    orgId = normalizeOrgId(rows?.[0]?.org_id);
   }
 
   // If user.id is not a valid UUID, try to look up user by email if available
@@ -172,30 +214,34 @@ async function resolveOrgId(
     // Try to find the real user by email using users_with_auth view
     // This view joins auth.users with profiles and org_memberships
     try {
-      const { data: userRow } = await supabaseAdminMaybe
-        .from('users_with_auth')
-        .select('user_id, org_ids')
+      // users_with_auth is a view that may not be in generated types, use type assertion
+      const { data: userRow } = await (supabaseAdminMaybe as unknown as TypedSupabaseClient)
+        .from('users_with_auth' as never)
+        .select('user_id, memberships')
         .eq('email', user.email)
-        .maybeSingle<{ user_id?: string; org_ids?: unknown[] }>();
+        .maybeSingle<{ user_id?: string; memberships?: Array<{ org_id?: string; role?: string }> }>();
       if (userRow?.user_id) {
         addCandidateUserId(userRow.user_id);
       }
 
-      if (userRow?.org_ids && Array.isArray(userRow.org_ids) && userRow.org_ids.length > 0) {
-        // Use the first org_id from the user's org_ids array
-        orgId = normalizeOrgId(userRow.org_ids[0]);
-        addClaimOrgIds(userRow.org_ids);
+      // Extract org_ids from memberships array
+      const orgIdsFromMemberships = userRow?.memberships
+        ?.map((m) => m.org_id)
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0) ?? [];
+
+      if (orgIdsFromMemberships.length > 0) {
+        // Use the first org_id from the user's memberships
+        orgId = normalizeOrgId(orgIdsFromMemberships[0]);
+        addClaimOrgIds(orgIdsFromMemberships);
       } else if (userRow?.user_id && isValidUUID(userRow.user_id)) {
-        // If we found the user but no org_ids, try to get org from org_memberships
+        // If we found the user but no memberships, try to get org from org_memberships directly
         const { data: membershipRows } = await supabaseAdminMaybe
           .from('org_memberships')
           .select('org_id')
           .eq('user_id', userRow.user_id)
           .order('created_at', { ascending: true })
           .limit(1);
-        orgId = normalizeOrgId(
-          (membershipRows?.[0] as Record<string, unknown> | undefined)?.org_id,
-        );
+        orgId = normalizeOrgId(membershipRows?.[0]?.org_id);
       }
     } catch (emailLookupError) {
       // Silently fail and fall through to first org fallback
@@ -283,9 +329,9 @@ async function resolveOrgId(
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request);
-    const cookieClient = await getSupabaseServerClient();
+    const cookieClient = (await getSupabaseServerClient()) as unknown as TypedSupabaseClient;
     // Use admin client in non-production if available for better debugging
-    const supabase =
+    const supabase: TypedSupabaseClient =
       process.env.NODE_ENV !== 'production' && supabaseAdminMaybe
         ? supabaseAdminMaybe
         : cookieClient;
@@ -445,7 +491,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch files' }, { status: 500 });
     }
 
-    const filesList = files || [];
+    const filesList: FileRow[] = files ?? [];
 
     // Note: file_links table was dropped in migration 20251103000000_143_consolidate_file_storage.sql
     // Entity info is now stored directly in files.entity_type and files.entity_id columns
@@ -468,7 +514,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Get entity info from files table (entity_type and entity_id are now direct columns)
-      let entityType: string | null = null;
+      let entityType: EntityTypeEnum | null = null;
       let entityIdNum: number | string | null = null;
 
       // Primary source: entity_type and entity_id columns
@@ -478,12 +524,6 @@ export async function GET(request: NextRequest) {
           entityType = normalized;
           entityIdNum = file.entity_id ?? null;
         }
-      }
-
-      // Fallback: try buildium_entity_type/buildium_entity_id (legacy support)
-      if (!entityType && file.buildium_entity_type) {
-        entityType = mapBuildiumEntityTypeToFile(file.buildium_entity_type);
-        entityIdNum = file.buildium_entity_id || null;
       }
 
       // If still not found, try to extract from storage_key
@@ -603,7 +643,7 @@ export async function GET(request: NextRequest) {
             .select('id, buildium_category_id, category_name')
             .eq('org_id', orgId)
             .in('buildium_category_id', Array.from(categoryIds))
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as FileCategoryRow[], error: null }),
       propertyIds.size
         ? supabase
             .from('properties')
@@ -612,21 +652,21 @@ export async function GET(request: NextRequest) {
             )
             .in('buildium_property_id', Array.from(propertyIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as PropertyRow[], error: null }),
       unitIds.size
         ? supabase
             .from('units')
             .select('id, unit_number, property_id, buildium_unit_id, buildium_property_id')
             .in('buildium_unit_id', Array.from(unitIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as UnitRow[], error: null }),
       localUnitIds.size
         ? supabase
             .from('units')
             .select('id, unit_number, property_id, buildium_unit_id, buildium_property_id')
             .in('id', Array.from(localUnitIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as UnitRow[], error: null }),
       leaseIds.size
         ? supabase
             .from('lease')
@@ -635,28 +675,32 @@ export async function GET(request: NextRequest) {
             )
             .in('buildium_lease_id', Array.from(leaseIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as LeaseRow[], error: null }),
       tenantIds.size
         ? supabase
             .from('tenants')
-            .select('id, buildium_tenant_id, full_name, first_name, last_name, email')
+            .select(
+              'id, buildium_tenant_id, contact:contacts(id, display_name, first_name, last_name, company_name, primary_email, primary_phone)',
+            )
             .in('buildium_tenant_id', Array.from(tenantIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as TenantRow[], error: null }),
       ownerIds.size
         ? supabase
             .from('owners')
             .select('id, buildium_owner_id, contact_id')
             .in('buildium_owner_id', Array.from(ownerIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as OwnerRow[], error: null }),
       vendorIds.size
         ? supabase
             .from('vendors')
-            .select('id, buildium_vendor_id, name, company_name')
+            .select(
+              'id, buildium_vendor_id, contact:contacts(id, display_name, first_name, last_name, company_name, primary_email, primary_phone)',
+            )
             .in('buildium_vendor_id', Array.from(vendorIds))
             .eq('org_id', orgId)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        : Promise.resolve({ data: [] as VendorRow[], error: null }),
     ]);
 
     if (categoryRes.error) {
@@ -694,8 +738,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const propertiesByBuildiumId = new Map<number, any>();
-    const propertiesByLocalId = new Map<string, any>();
+    const propertiesByBuildiumId = new Map<number, PropertyRow>();
+    const propertiesByLocalId = new Map<string, PropertyRow>();
     for (const property of propertyRes.data || []) {
       if (typeof property.buildium_property_id === 'number') {
         propertiesByBuildiumId.set(property.buildium_property_id, property);
@@ -705,8 +749,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const unitsByBuildiumId = new Map<number, any>();
-    const unitsByLocalId = new Map<string, any>();
+    const unitsByBuildiumId = new Map<number, UnitRow>();
+    const unitsByLocalId = new Map<string, UnitRow>();
     for (const unit of unitRes.data || []) {
       if (typeof unit.buildium_unit_id === 'number') {
         unitsByBuildiumId.set(unit.buildium_unit_id, unit);
@@ -726,8 +770,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const leasesByBuildiumId = new Map<number, any>();
-    const leasesById = new Map<number, any>();
+    const leasesByBuildiumId = new Map<number, LeaseRow>();
+    const leasesById = new Map<number, LeaseRow>();
     for (const lease of leaseRes.data || []) {
       if (typeof lease.buildium_lease_id === 'number') {
         leasesByBuildiumId.set(lease.buildium_lease_id, lease);
@@ -737,14 +781,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const tenantsByBuildiumId = new Map<number, any>();
+    const tenantsByBuildiumId = new Map<number, TenantRow>();
     for (const tenant of tenantRes.data || []) {
       if (typeof tenant.buildium_tenant_id === 'number') {
         tenantsByBuildiumId.set(tenant.buildium_tenant_id, tenant);
       }
     }
 
-    const ownersByBuildiumId = new Map<number, any>();
+    const ownersByBuildiumId = new Map<number, OwnerRow & { contact?: ContactRow }>();
     const contactIds = new Set<number>();
     for (const owner of ownerRes.data || []) {
       if (typeof owner.contact_id === 'number') {
@@ -752,18 +796,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let contactsById = new Map<number, any>();
+    let contactsById = new Map<number, ContactRow>();
     if (contactIds.size) {
       const { data: contactsData, error: contactsError } = await supabase
         .from('contacts')
-        .select('id, display_name, full_name, first_name, last_name')
+        .select('id, display_name, first_name, last_name, company_name, primary_email, primary_phone')
         .in('id', Array.from(contactIds));
       if (contactsError) {
         console.error('Failed to load contacts for owner display:', contactsError);
       } else {
-        contactsById = new Map(
-          (contactsData || []).map((contact: any) => [contact.id as number, contact]),
-        );
+        contactsById = new Map((contactsData || []).map((contact) => [contact.id as number, contact]));
       }
     }
 
@@ -776,7 +818,7 @@ export async function GET(request: NextRequest) {
         ownersByBuildiumId.set(owner.buildium_owner_id, { ...owner, contact });
       }
     }
-    const vendorsByBuildiumId = new Map<number, any>();
+    const vendorsByBuildiumId = new Map<number, VendorRow>();
     for (const vendor of vendorRes.data || []) {
       if (typeof vendor.buildium_vendor_id === 'number') {
         vendorsByBuildiumId.set(vendor.buildium_vendor_id, vendor);
@@ -864,7 +906,7 @@ export async function GET(request: NextRequest) {
 
     const enrichedFiles = filesList.map((file) => {
       // Get entity info from files table (entity_type and entity_id are now direct columns)
-      let entityType: string | null = null;
+      let entityType: EntityTypeEnum | null = null;
       let entityId: number | string | null = null;
 
       // Primary source: entity_type and entity_id columns
@@ -874,12 +916,6 @@ export async function GET(request: NextRequest) {
           entityType = normalized;
           entityId = file.entity_id ?? null;
         }
-      }
-
-      // Fallback: try buildium_entity_type/buildium_entity_id (legacy support)
-      if (!entityType && file.buildium_entity_type) {
-        entityType = mapBuildiumEntityTypeToFile(file.buildium_entity_type);
-        entityId = file.buildium_entity_id || null;
       }
 
       // If still not found, try to extract from storage_key
@@ -922,14 +958,20 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Create a file object with entity_type and entity_id for compatibility
-      const fileWithEntity = {
+      const normalizedFileEntity =
+        normalizeEntityType(file.entity_type) ?? FILE_ENTITY_TYPES.PROPERTIES;
+      const resolvedEntityType = entityType ?? normalizedFileEntity;
+      const resolvedEntityId =
+        typeof entityId === 'number' || typeof entityId === 'string' ? entityId : file.entity_id;
+
+      // Create a file object with resolved entity_type and entity_id for compatibility
+      const fileWithEntity: FileWithResolvedEntity = {
         ...file,
-        entity_type: entityType || null,
-        entity_id: entityId || null,
+        entity_type: resolvedEntityType,
+        entity_id: resolvedEntityId,
       };
 
-      const filterValue = mapEntityTypeToFilterValue(entityType || undefined);
+      const filterValue = mapEntityTypeToFilterValue(resolvedEntityType);
       const categoryName =
         (typeof file.buildium_category_id === 'number'
           ? categoryByBuildiumId.get(file.buildium_category_id)?.name
@@ -1001,21 +1043,18 @@ function mapEntityTypeToFilterValue(entityType: unknown): string | null {
 }
 
 type EntityContext = {
-  propertiesByBuildiumId: Map<number, any>;
-  propertiesByLocalId: Map<string, any>;
-  unitsByBuildiumId: Map<number, any>;
-  unitsByLocalId: Map<string, any>;
-  leasesByBuildiumId: Map<number, any>;
-  leasesById: Map<number, any>;
-  tenantsByBuildiumId: Map<number, any>;
-  ownersByBuildiumId: Map<number, any>;
-  vendorsByBuildiumId: Map<number, any>;
+  propertiesByBuildiumId: Map<number, PropertyRow>;
+  propertiesByLocalId: Map<string, PropertyRow>;
+  unitsByBuildiumId: Map<number, UnitRow>;
+  unitsByLocalId: Map<string, UnitRow>;
+  leasesByBuildiumId: Map<number, LeaseRow>;
+  leasesById: Map<number, LeaseRow>;
+  tenantsByBuildiumId: Map<number, TenantRow>;
+  ownersByBuildiumId: Map<number, OwnerRow & { contact?: ContactRow }>;
+  vendorsByBuildiumId: Map<number, VendorRow>;
 };
 
-function resolveEntityPresentation(
-  file: any,
-  context: EntityContext,
-): {
+function resolveEntityPresentation(file: FileWithResolvedEntity, context: EntityContext): {
   location: string;
   entityUrl?: string;
 } {
@@ -1140,10 +1179,14 @@ function resolveEntityPresentation(
     case FILE_ENTITY_TYPES.TENANTS: {
       const tenant = context.tenantsByBuildiumId.get(entityIdNum);
       if (tenant) {
+        const contact = tenant.contact;
+        const contactName =
+          contact && `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
         const name =
-          tenant.full_name ||
-          `${tenant.first_name || ''} ${tenant.last_name || ''}`.trim() ||
-          tenant.email ||
+          contact?.display_name ||
+          contact?.company_name ||
+          (contactName && contactName.trim()) ||
+          contact?.primary_email ||
           `Tenant #${entityIdNum}`;
         const entityUrl = tenant.id ? `/tenants/${tenant.id}` : undefined;
         return { location: name, entityUrl };
@@ -1155,11 +1198,14 @@ function resolveEntityPresentation(
     case FILE_ENTITY_TYPES.ASSOCIATION_OWNERS: {
       const owner = context.ownersByBuildiumId.get(entityIdNum);
       if (owner) {
-        const contact = owner.contact || {};
+        const contact = owner.contact;
+        const contactName =
+          contact && `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
         const name =
-          contact.display_name ||
-          contact.full_name ||
-          `${contact.first_name || ''} ${contact.last_name || ''}`.trim() ||
+          contact?.display_name ||
+          contact?.company_name ||
+          (contactName && contactName.trim()) ||
+          contact?.primary_email ||
           `Owner #${entityIdNum}`;
         const entityUrl = owner.id ? `/owners/${owner.id}` : undefined;
         return { location: name, entityUrl };
@@ -1169,7 +1215,15 @@ function resolveEntityPresentation(
     case FILE_ENTITY_TYPES.VENDORS: {
       const vendor = context.vendorsByBuildiumId.get(entityIdNum);
       if (vendor) {
-        const name = vendor.name || vendor.company_name || `Vendor #${entityIdNum}`;
+        const contact = vendor.contact;
+        const contactName =
+          contact && `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+        const name =
+          contact?.display_name ||
+          contact?.company_name ||
+          (contactName && contactName.trim()) ||
+          contact?.primary_email ||
+          `Vendor #${entityIdNum}`;
         const entityUrl = vendor.id ? `/vendors/${vendor.id}` : undefined;
         return { location: name, entityUrl };
       }

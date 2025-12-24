@@ -95,7 +95,7 @@ export default function ReceivePaymentForm({
       ? globalThis.crypto.randomUUID()
       : Math.random().toString(36).slice(2);
 
-  const { tenantsWithBuildiumId, tenantsMissingBuildiumId, tenantDropdownOptions } = useMemo(() => {
+  const { tenantsWithBuildiumId, tenantDropdownOptions } = useMemo(() => {
     const allTenants = tenants || [];
     const withBuildium = allTenants.filter(
       (tenant) => tenant?.buildiumTenantId != null && Number.isFinite(Number(tenant.buildiumTenantId)),
@@ -125,7 +125,7 @@ export default function ReceivePaymentForm({
           ]
         : [];
 
-    return { tenantsWithBuildiumId: withBuildium, tenantsMissingBuildiumId: withoutBuildium, tenantDropdownOptions: options };
+    return { tenantsWithBuildiumId: withBuildium, tenantDropdownOptions: options };
   }, [tenants]);
 
   const defaultTenantValue =
@@ -280,7 +280,7 @@ export default function ReceivePaymentForm({
           if (key === 'allocations') fieldErrors.allocations = issue.message;
           else if (typeof key === 'string') fieldErrors[key] = issue.message;
         }
-        setErrors(fieldErrors as any);
+        setErrors(fieldErrors);
         setSubmitting(false);
         return;
       }
@@ -336,11 +336,11 @@ export default function ReceivePaymentForm({
           }),
         });
 
-        const body = await res.json().catch(() => null);
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
         if (!res.ok) {
           throw new Error(
-            body && typeof (body as any)?.error === 'string'
-              ? ((body as any).error as string)
+            body && typeof body?.error === 'string'
+              ? body.error
               : 'Failed to record payment',
           );
         }
@@ -369,7 +369,7 @@ export default function ReceivePaymentForm({
 
       setSubmitting(false);
     },
-    [form, leaseId, onSuccess, defaultTenantValue, allocationsTotal],
+    [allocationsTotal, defaultTenantValue, form, leaseId, onSuccess, tenants],
   );
 
   return (

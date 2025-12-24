@@ -31,14 +31,11 @@ async function testWebhook() {
 
   // Dynamic import to ensure env vars are loaded first
   const { supabaseAdmin } = await import('../src/lib/db.js');
-  const { BuildiumClient } = await import('../src/lib/buildium-edge-client.js');
-  const buildiumClient = new BuildiumClient();
 
   try {
     const result = await processBankAccountTransactionEvent(
       supabaseAdmin,
       WEBHOOK_EVENT as any,
-      buildiumClient,
     );
 
     console.log('\n' + '='.repeat(60));
@@ -72,4 +69,3 @@ testWebhook()
     console.error('\n❌ Test failed:', error);
     process.exit(1);
   });
-

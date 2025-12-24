@@ -243,23 +243,13 @@ export async function POST(
       return null;
     };
 
-    let bankGlAccount:
-      | {
-          id: string;
-          org_id: string | null;
-          name: string | null;
-          buildium_gl_account_id: unknown;
-          is_bank_account: unknown;
-        }
-      | null = null;
-
     const { data, error } = await supabaseAdmin
       .from('gl_accounts')
       .select('id, org_id, name, buildium_gl_account_id, is_bank_account')
       .eq('id', bankGlAccountIdCandidate)
       .maybeSingle();
     if (error) throw error;
-    bankGlAccount = (data as any) ?? null;
+    const bankGlAccount = data;
 
     if (!bankGlAccount?.id) {
       return NextResponse.json(
@@ -273,7 +263,7 @@ export async function POST(
       );
     }
 
-    if (!Boolean((bankGlAccount as any).is_bank_account)) {
+    if (bankGlAccount.is_bank_account !== true) {
       return NextResponse.json(
         {
           error: {
@@ -285,7 +275,7 @@ export async function POST(
       );
     }
 
-    const buildiumBankAccountId = parseBuildiumId((bankGlAccount as any).buildium_gl_account_id);
+    const buildiumBankAccountId = parseBuildiumId(bankGlAccount.buildium_gl_account_id);
 
     if (buildiumBankAccountId == null) {
       return NextResponse.json(
@@ -304,7 +294,7 @@ export async function POST(
     const { data: ownerDrawAccount, error: ownerDrawError } = await supabaseAdmin
       .from('gl_accounts')
       .select('id, name, buildium_gl_account_id')
-      .eq('org_id', orgId ?? (bankGlAccount as any).org_id ?? '')
+      .eq('org_id', orgId ?? bankGlAccount.org_id ?? '')
       .ilike('name', 'owner draw')
       .order('updated_at', { ascending: false })
       .limit(1)

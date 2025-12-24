@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium bulk bill payment`);
 
     return NextResponse.json(

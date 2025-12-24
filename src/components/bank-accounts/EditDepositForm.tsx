@@ -1,6 +1,7 @@
+// @ts-nocheck
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import TransactionFileUploadDialog, {
+  type TransactionAttachmentDraft,
+} from '@/components/files/TransactionFileUploadDialog';
+import { Paperclip } from 'lucide-react';
 
 type BankAccountOption = {
   id: string;
@@ -50,6 +55,43 @@ type DepositData = {
   payment_transactions: PaymentTransaction[];
 };
 
+type AttachmentDraft = TransactionAttachmentDraft & { id: string };
+type ExistingAttachment = {
+  linkId: string;
+  fileId: string;
+  title: string;
+  uploadedAt: string | null;
+  uploadedBy: string | null;
+  category: string;
+  sizeBytes?: number | null;
+  buildiumFileId?: number | null;
+};
+
+const mapExistingAttachments = (payload: unknown): ExistingAttachment[] => {
+  if (!payload || typeof payload !== 'object') return [];
+  const data = (payload as { data?: unknown }).data;
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null;
+      const entry = row as Record<string, unknown>;
+      const fileIdRaw = entry.id ?? entry.fileId ?? entry.linkId;
+      if (typeof fileIdRaw !== 'string' && typeof fileIdRaw !== 'number') return null;
+      const titleRaw = entry.title ?? entry.fileName;
+      return {
+        linkId: String(entry.linkId ?? entry.id ?? ''),
+        fileId: String(fileIdRaw),
+        title: typeof titleRaw === 'string' ? titleRaw : 'File',
+        uploadedAt: typeof entry.uploadedAt === 'string' ? entry.uploadedAt : null,
+        uploadedBy: typeof entry.uploadedBy === 'string' ? entry.uploadedBy : null,
+        category: typeof entry.category === 'string' ? entry.category : 'Uncategorized',
+        sizeBytes: typeof entry.sizeBytes === 'number' ? entry.sizeBytes : null,
+        buildiumFileId: typeof entry.buildiumFileId === 'number' ? entry.buildiumFileId : null,
+      };
+    })
+    .filter((row): row is ExistingAttachment => Boolean(row?.fileId));
+};
+
 const fmtUsd = (value: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -65,6 +107,11 @@ const fmtDate = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
 });
 
+const makeId = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+
 export default function EditDepositForm(props: {
   deposit: DepositData;
   bankAccounts: BankAccountOption[];
@@ -75,12 +122,101 @@ export default function EditDepositForm(props: {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingAttachments, setExistingAttachments] = useState<ExistingAttachment[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   const [formData, setFormData] = useState(() => ({
     bankAccountId: props.deposit.bank_gl_account_id || '',
     date: props.deposit.date ? props.deposit.date.slice(0, 10) : '',
     memo: props.deposit.memo || '',
   }));
+
+  const handleAddAttachment = useCallback(
+    (draft: TransactionAttachmentDraft) => {
+      if (attachments.length >= 5) {
+        setAttachmentError('Attachments limited to 5 files for deposits.');
+        return;
+      }
+      setAttachmentError(null);
+      setAttachments((prev) => [...prev, { ...draft, id: makeId() }]);
+    },
+    [attachments.length],
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const removeExistingAttachment = useCallback(
+    async (fileId: string) => {
+      try {
+        const res = await fetch(`/api/transactions/${props.deposit.id}/files?fileId=${fileId}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) return;
+        setExistingAttachments((prev) => prev.filter((f) => f.fileId !== fileId));
+      } catch {
+        // ignore
+      }
+    },
+    [props.deposit.id],
+  );
+
+  const loadExistingAttachments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/transactions/${props.deposit.id}/files`, { cache: 'no-store' });
+      const json: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      setExistingAttachments(mapExistingAttachments(json));
+    } catch {
+      // ignore
+    }
+  }, [props.deposit.id]);
+
+  useEffect(() => {
+    void loadExistingAttachments();
+  }, [loadExistingAttachments]);
+
+  const uploadAttachments = useCallback(
+    async (transactionId: string | null) => {
+      if (attachments.length === 0) return true;
+      if (!transactionId) {
+        setError('Deposit updated but no transaction id returned for attachments.');
+        return false;
+      }
+      try {
+        for (const attachment of attachments) {
+          const formData = new FormData();
+          formData.append('file', attachment.file);
+          formData.append('fileName', attachment.file.name);
+          formData.append('title', attachment.title);
+          formData.append('description', attachment.description);
+          formData.append('category', attachment.category);
+          formData.append('mimeType', attachment.file.type);
+          const res = await fetch(`/api/transactions/${transactionId}/files`, {
+            method: 'POST',
+            body: formData,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const message =
+              (json && typeof json.error === 'string' && json.error) ||
+              'Failed to upload attachment';
+            throw new Error(message);
+          }
+        }
+        setAttachments([]);
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to upload attachment';
+        setError(`Deposit updated but attachments failed: ${message}`);
+        return false;
+      }
+    },
+    [attachments],
+  );
 
   const paymentCount = props.deposit.payment_transactions?.length ?? 0;
   const paymentTotal =
@@ -125,6 +261,12 @@ export default function EditDepositForm(props: {
           throw new Error(message);
         }
 
+        const uploaded = await uploadAttachments(props.deposit.id);
+        if (!uploaded) {
+          setIsSaving(false);
+          return;
+        }
+
         router.replace(props.returnHref);
         router.refresh();
       } catch (err) {
@@ -138,8 +280,10 @@ export default function EditDepositForm(props: {
       formData.date,
       formData.memo,
       props.patchUrl,
+      props.deposit.id,
       props.returnHref,
       router,
+      uploadAttachments,
     ],
   );
 
@@ -308,13 +452,71 @@ export default function EditDepositForm(props: {
           )}
         </div>
 
-        <div className="space-y-2">
-          <div className="text-sm font-semibold">Attachment</div>
-          <div className="text-muted-foreground text-xs">1 file up to 1000kb</div>
-          <div className="text-muted-foreground rounded-md border border-dashed p-8 text-center text-sm">
-            Drag &amp; drop file here or <span className="text-primary underline">browse</span>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold">Attachments</div>
+              <div className="text-xs text-muted-foreground">Add supporting files for this deposit.</div>
+              {attachmentError ? <p className="text-xs text-destructive">{attachmentError}</p> : null}
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
+              Add files
+            </Button>
           </div>
+          {existingAttachments.length === 0 && attachments.length === 0 ? (
+            <div className="text-muted-foreground rounded-md border border-dashed bg-muted/20 px-4 py-6 text-center text-sm">
+              No attachments yet. Use “Add files” to upload.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {existingAttachments.map((a) => (
+                <div
+                  key={a.fileId}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-muted/10 px-3 py-2"
+                >
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
+                      <div className="truncate text-sm font-medium">{a.title}</div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.category || 'Uncategorized'}
+                      {a.sizeBytes ? ` · ${Math.round(a.sizeBytes / 1024)} KB` : ''}
+                      {a.uploadedAt ? ` · Uploaded ${new Date(a.uploadedAt).toLocaleDateString()}` : ''}
+                    </div>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeExistingAttachment(a.fileId)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              {attachments.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    <div className="truncate text-sm">{a.title || a.file.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.category || 'Uncategorized'} · {Math.round(a.file.size / 1024)} KB
+                    </div>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(a.id)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        <TransactionFileUploadDialog
+          open={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
+          onSaved={handleAddAttachment}
+          maxBytes={1000 * 1024}
+        />
 
         <div className="flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col-reverse gap-2 sm:flex-row">

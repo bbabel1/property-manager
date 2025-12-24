@@ -413,7 +413,8 @@ export function GeneralJournalEntryForm({
     }
   }, [requiresUnitSelection, getValues, setValue]);
 
-  const lines = useWatch({ control, name: 'lines' }) ?? [];
+  const watchedLines = useWatch({ control, name: 'lines' });
+  const lines = useMemo(() => watchedLines ?? [], [watchedLines]);
   const lineControls = fieldControls?.lineControls ?? {};
   const lockedLineSet = useMemo(
     () => new Set(fieldControls?.lockedLineIndices ?? []),

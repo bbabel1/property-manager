@@ -1,7 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BuildiumFileEntityType } from '@/types/buildium';
-
-type SupabaseClient = ReturnType<typeof createClient<any>> | any;
+import type { Database } from '@/types/database';
 
 export const FILE_ENTITY_TYPES = {
   PROPERTIES: 'Properties',
@@ -17,7 +16,10 @@ export const FILE_ENTITY_TYPES = {
   VENDORS: 'Vendors',
 } as const;
 
-export type EntityTypeEnum = (typeof FILE_ENTITY_TYPES)[keyof typeof FILE_ENTITY_TYPES];
+type FilesTable = Database['public']['Tables']['files'];
+type FileCategoryTable = Database['public']['Tables']['file_categories'];
+
+export type EntityTypeEnum = Database['public']['Enums']['files_entity_type_enum'];
 
 const ENTITY_TYPE_NORMALIZATION: Record<string, EntityTypeEnum> = {
   [FILE_ENTITY_TYPES.PROPERTIES]: FILE_ENTITY_TYPES.PROPERTIES,
@@ -103,45 +105,22 @@ export function mapBuildiumEntityTypeToFile(
   return BUILDIUM_TO_FILE_ENTITY_TYPE[entityType] ?? FILE_ENTITY_TYPES.PROPERTIES;
 }
 
-// File row matching new simplified files table
-export interface FileRow {
-  id: string;
-  org_id: string;
-  file_name: string;
-  title: string;
-  description: string | null;
-  mime_type: string | null;
-  size_bytes: number | null;
-  entity_type: EntityTypeEnum;
-  entity_id: number;
+type FileInsert = FilesTable['Insert'];
+type FileUpdate = FilesTable['Update'];
+type FileRowBase = FilesTable['Row'];
+
+export type FileRow = FileRowBase & {
   buildium_entity_type?: BuildiumFileEntityType | null;
   buildium_entity_id?: number | null;
-  buildium_category_id: number | null;
-  storage_provider: string | null;
-  bucket: string | null;
-  storage_key: string | null;
-  external_url: string | null;
-  buildium_file_id: number | null;
-  buildium_href: string | null;
-  is_private: boolean;
-  sha256: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
+};
+
+type FileInsertWithExtras = FileInsert & {
+  buildium_entity_type?: BuildiumFileEntityType | null;
+  buildium_entity_id?: number | null;
+};
 
 // File category row matching file_categories table
-export interface FileCategoryRow {
-  id: string;
-  org_id: string;
-  category_name: string;
-  buildium_category_id: number | null;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type FileCategoryRow = FileCategoryTable['Row'];
 
 export function getEntityTypeFallback(entityType: EntityTypeEnum): EntityTypeEnum | null {
   return ENTITY_TYPE_FALLBACKS[entityType] ?? null;
@@ -183,7 +162,7 @@ function isUnsupportedEntityTypeError(error: unknown): boolean {
  * Get files for a specific entity (by entity_type and entity_id)
  */
 export async function getFilesByEntity(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   orgId: string,
   entityTypeInput: EntityTypeEnum | BuildiumFileEntityType | string,
   entityId: number,
@@ -210,7 +189,7 @@ export async function getFilesByEntity(
     entityTypesToTry.push(fallbackType);
   }
 
-  let lastError: any = null;
+  let lastError: unknown = null;
   for (let index = 0; index < entityTypesToTry.length; index++) {
     const typeToQuery = entityTypesToTry[index];
     const { data, error } = await client
@@ -240,8 +219,8 @@ export async function getFilesByEntity(
 
     if (!unsupported) {
       const enhancedError = new Error(
-        `Failed to fetch files: ${error.message || 'Unknown error'}`,
-      ) as Error & { originalError?: any; context?: any };
+        `Failed to fetch files: ${(error as { message?: string } | null)?.message || 'Unknown error'}`,
+      ) as Error & { originalError?: unknown; context?: Record<string, unknown> };
       enhancedError.originalError = error;
       enhancedError.context = {
         orgId,
@@ -258,14 +237,17 @@ export async function getFilesByEntity(
     }
   }
 
-  console.warn('Files lookup failed for all entity_type attempts; returning empty list', {
-    orgId,
-    entityType: normalizedEntityType,
-    rawEntityType: entityTypeInput,
-    fallbackType,
-    entityId,
-    lastError: lastError?.message,
-  });
+  console.warn(
+    'Files lookup failed for all entity_type attempts; returning empty list',
+    {
+      orgId,
+      entityType: normalizedEntityType,
+      rawEntityType: entityTypeInput,
+      fallbackType,
+      entityId,
+      lastError: (lastError as { message?: string } | null)?.message,
+    },
+  );
   return [];
 }
 
@@ -273,7 +255,7 @@ export async function getFilesByEntity(
  * Get all file categories for an organization
  */
 export async function getFileCategories(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   orgId: string,
   includeInactive = false,
 ): Promise<FileCategoryRow[]> {
@@ -292,7 +274,10 @@ export async function getFileCategories(
 /**
  * Get a single file by ID
  */
-export async function getFileById(client: SupabaseClient, fileId: string): Promise<FileRow | null> {
+export async function getFileById(
+  client: SupabaseClient<Database>,
+  fileId: string,
+): Promise<FileRow | null> {
   const { data, error } = await client
     .from('files')
     .select('*')
@@ -311,7 +296,7 @@ export async function getFileById(client: SupabaseClient, fileId: string): Promi
  * Create a new file record
  */
 export async function createFile(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   fileData: {
     org_id: string;
     file_name: string;
@@ -345,17 +330,17 @@ export async function createFile(
     buildiumEntityColumnsSupported !== false &&
     (fileData.buildium_entity_type !== undefined || fileData.buildium_entity_id !== undefined);
 
-  let lastError: any = null;
+  let lastError: unknown = null;
   for (let index = 0; index < entityTypesToTry.length; index++) {
     const typeToInsert = entityTypesToTry[index];
-    const basePayload = {
+    const basePayload: FileInsertWithExtras = {
       ...fileData,
       entity_type: typeToInsert,
       is_private: fileData.is_private ?? true,
       storage_provider: fileData.storage_provider ?? 'supabase',
     };
 
-    const preparePayload = (withBuildium: boolean) => {
+    const preparePayload = (withBuildium: boolean): FileInsert | FileInsertWithExtras => {
       const {
         buildium_entity_type,
         buildium_entity_id,
@@ -371,26 +356,39 @@ export async function createFile(
       if (buildium_entity_id !== undefined) {
         payloadWithBuildium.buildium_entity_id = buildium_entity_id ?? null;
       }
-      return payloadWithBuildium;
+      return payloadWithBuildium as FileInsertWithExtras;
     };
 
     const attemptInsert = async (withBuildium: boolean) =>
-      client.from('files').insert(preparePayload(withBuildium)).select().single();
+      client
+        .from('files')
+        .insert(preparePayload(withBuildium) as FileInsert)
+        .select()
+        .single();
 
-    let data: any;
-    let error: any;
+    let data: FileRow | null = null;
+    let error: unknown = null;
 
     if (shouldAttemptBuildiumColumns) {
-      ({ data, error } = await attemptInsert(buildiumEntityColumnsSupported !== false));
+      const response = await attemptInsert(buildiumEntityColumnsSupported !== false);
+      data = (response.data as FileRow | null) ?? null;
+      error = response.error;
 
-      if (error && isMissingBuildiumColumnsError(error)) {
+      if (
+        error &&
+        isMissingBuildiumColumnsError(error as { message?: string; details?: string; hint?: string })
+      ) {
         buildiumEntityColumnsSupported = false;
-        ({ data, error } = await attemptInsert(false));
+        const fallbackResponse = await attemptInsert(false);
+        data = (fallbackResponse.data as FileRow | null) ?? null;
+        error = fallbackResponse.error;
       } else if (!error && buildiumEntityColumnsSupported === null) {
         buildiumEntityColumnsSupported = true;
       }
     } else {
-      ({ data, error } = await attemptInsert(false));
+      const response = await attemptInsert(false);
+      data = (response.data as FileRow | null) ?? null;
+      error = response.error;
     }
 
     if (!error) {
@@ -410,18 +408,22 @@ export async function createFile(
     const isLastAttempt = index === entityTypesToTry.length - 1;
 
     if (!unsupported || isLastAttempt) {
-      throw error;
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
-  throw lastError ?? new Error('Failed to create file record');
+  const fallbackError =
+    lastError instanceof Error
+      ? lastError
+      : new Error(String(lastError ?? 'Failed to create file record'));
+  throw fallbackError;
 }
 
 /**
  * Update an existing file record
  */
 export async function updateFile(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   fileId: string,
   updates: Partial<{
     file_name: string;
@@ -446,7 +448,7 @@ export async function updateFile(
 /**
  * Soft delete a file (set deleted_at)
  */
-export async function deleteFile(client: SupabaseClient, fileId: string): Promise<void> {
+export async function deleteFile(client: SupabaseClient<Database>, fileId: string): Promise<void> {
   const { error } = await client
     .from('files')
     .update({ deleted_at: new Date().toISOString() })
@@ -459,7 +461,7 @@ export async function deleteFile(client: SupabaseClient, fileId: string): Promis
  * Get or create a file category by Buildium category ID
  */
 export async function getOrCreateFileCategory(
-  client: SupabaseClient,
+  client: SupabaseClient<Database>,
   orgId: string,
   buildiumCategoryId: number,
   categoryData: {

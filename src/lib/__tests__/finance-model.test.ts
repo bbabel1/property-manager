@@ -15,16 +15,22 @@ describe('signedAmountFromTransaction', () => {
     const rentPayment = {
       transaction_type: 'rent income payment',
       total_amount: 0,
-      transaction_lines: [
-        { amount: 5000, posting_type: 'debit', gl_accounts: { type: 'asset' } },
-        { amount: 5000, posting_type: 'credit', gl_accounts: { type: 'income' } },
-      ],
-    };
+  transaction_lines: [
+    { amount: 5000, posting_type: 'debit', gl_accounts: { type: 'asset' } },
+    { amount: 5000, posting_type: 'credit', gl_accounts: { type: 'income' } },
+  ],
+};
 
-    const balance = [rentCharge, rentPayment, rentPayment].reduce(
-      (sum, tx) => sum + signedAmountFromTransaction(tx as any),
-      0,
-    );
+const transactions: Array<Parameters<typeof signedAmountFromTransaction>[0]> = [
+  rentCharge,
+  rentPayment,
+  rentPayment,
+];
+
+const balance = transactions.reduce(
+  (sum, tx) => sum + signedAmountFromTransaction(tx),
+  0,
+);
 
     expect(balance).toBe(-5000);
   });

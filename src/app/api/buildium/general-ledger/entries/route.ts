@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: entries, count: Array.isArray(entries) ? entries.length : undefined })
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium general ledger entries`);
 
     return NextResponse.json(
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: entry }, { status: 201 })
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium general ledger entry`);
 
     return NextResponse.json(

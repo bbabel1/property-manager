@@ -12,15 +12,19 @@ const ImportSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     await requireUser(request)
+    const admin = supabaseAdmin
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Service role unavailable' }, { status: 501 })
+    }
     const body = await request.json()
     const { buildiumBankId } = sanitizeAndValidate(body, ImportSchema)
 
-    const glAccountId = await resolveBankGlAccountId(buildiumBankId, supabaseAdmin as any)
+    const glAccountId = await resolveBankGlAccountId(buildiumBankId, admin)
     if (!glAccountId) {
       return NextResponse.json({ success: false, error: 'Unable to resolve bank GL account from Buildium' }, { status: 422 })
     }
 
-  const { data: glRow, error: glErr } = await supabaseAdmin
+  const { data: glRow, error: glErr } = await admin
     .from('gl_accounts')
     .select('id, name, buildium_gl_account_id, bank_account_type, bank_account_number, bank_routing_number, bank_country, updated_at')
     .eq('id', glAccountId)

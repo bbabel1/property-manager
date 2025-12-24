@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
-type SyncResult = Record<string, unknown> | null
+type SyncResult = Record<string, unknown> | null | undefined
 
 export default function GLSyncPage() {
   const [loading, setLoading] = useState<string | null>(null)

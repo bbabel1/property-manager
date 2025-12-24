@@ -636,7 +636,6 @@ export default function MonthlyLogTransactionOverlay({
           <EnterChargeForm
             key="charge"
             leaseId={leaseId}
-            leaseSummary={leaseSummary}
             accounts={accountOptions}
             onCancel={handleOverlayClose}
             onSuccess={handleTransactionSuccess}

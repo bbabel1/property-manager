@@ -1,5 +1,4 @@
 import { PageBody, PageShell, Stack } from '@/components/layout/page-shell';
-import PageHeader from '@/components/layout/PageHeader';
 import ServiceCatalogAdmin from '@/components/settings/ServiceCatalogAdmin';
 
 export default function ServiceCatalogAdminPage() {

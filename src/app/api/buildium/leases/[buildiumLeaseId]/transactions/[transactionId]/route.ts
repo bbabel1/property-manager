@@ -79,6 +79,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium lease transaction`);
 
     return NextResponse.json(
@@ -133,6 +134,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
+    logger.error({ error });
     logger.error('Error updating Buildium lease transaction')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

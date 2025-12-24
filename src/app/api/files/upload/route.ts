@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
 import { requireUser } from '@/lib/auth';
-import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client';
+import {
+  createBuildiumClient,
+  defaultBuildiumConfig,
+  type BuildiumUploadTicket,
+} from '@/lib/buildium-client';
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils';
 import {
   uploadLeaseDocumentToBuildium,
@@ -655,23 +659,16 @@ async function uploadFileToBuildiumEntity(options: {
     return payload;
   };
 
-  type BuildiumUploadTicket = {
-    BucketUrl?: string;
-    FormData?: Record<string, unknown>;
-    PhysicalFileName?: string | number | null;
-    Href?: string | null;
-  };
-
   let ticket: BuildiumUploadTicket | null = null;
   let usedCategoryId = false;
   try {
     const payload = applyCategory(true);
     usedCategoryId = payload.CategoryId != null;
-    ticket = (await buildiumClient.createFileUploadRequest(
+    ticket = await buildiumClient.createFileUploadRequest(
       buildiumEntityType,
       buildiumEntityId,
       payload,
-    )) as BuildiumUploadTicket | null;
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const categoryError =
@@ -691,11 +688,11 @@ async function uploadFileToBuildiumEntity(options: {
       'Retrying Buildium upload request without category id',
     );
     const fallbackPayload = applyCategory(false);
-    ticket = (await buildiumClient.createFileUploadRequest(
+    ticket = await buildiumClient.createFileUploadRequest(
       buildiumEntityType,
       buildiumEntityId,
       fallbackPayload,
-    )) as BuildiumUploadTicket | null;
+    );
     usedCategoryId = false;
   }
 
@@ -708,14 +705,11 @@ async function uploadFileToBuildiumEntity(options: {
     return { buildiumFile: null, error: errorMessage };
   }
 
-    const ticketFileId = extractBuildiumFileIdFromPayload(ticket as Record<string, unknown>);
-    const ticketHref =
-      typeof ticket?.Href === 'string'
-        ? String(ticket.Href)
-        : null;
+  const ticketFileId = extractBuildiumFileIdFromPayload(ticket as Record<string, unknown>);
+  const ticketHref = typeof ticket?.Href === 'string' ? String(ticket.Href) : null;
 
-    const formData = new FormData();
-  Object.entries(ticket.FormData as Record<string, unknown>).forEach(([key, value]) => {
+  const formData = new FormData();
+  Object.entries(ticket.FormData ?? {}).forEach(([key, value]) => {
     if (value != null) {
       formData.append(key, String(value));
     }
@@ -830,7 +824,7 @@ export async function POST(request: NextRequest) {
   let user: Awaited<ReturnType<typeof requireUser>>;
   try {
     user = await requireUser(request);
-  } catch (authError) {
+  } catch (_authError) {
     return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   }
 
@@ -840,7 +834,6 @@ export async function POST(request: NextRequest) {
   let fileNameInput: string | null = null;
   let mimeType: string | undefined;
   let category: string | null = null;
-  let role: string | null = null;
   let isPrivate: boolean | undefined;
   let buildiumCategoryIdInput: number | null | undefined;
   let description: string | null = null;
@@ -887,11 +880,6 @@ export async function POST(request: NextRequest) {
     const rawCategory = form.get('category');
     if (typeof rawCategory === 'string') {
       category = rawCategory;
-    }
-
-    const rawRole = form.get('role');
-    if (typeof rawRole === 'string') {
-      role = rawRole;
     }
 
     const rawIsPrivate = form.get('isPrivate');
@@ -941,9 +929,6 @@ export async function POST(request: NextRequest) {
 
     if (typeof body.category === 'string') {
       category = body.category;
-    }
-    if (typeof body.role === 'string') {
-      role = body.role;
     }
 
     if (body.isPrivate !== undefined && body.isPrivate !== null) {
@@ -1312,14 +1297,21 @@ export async function POST(request: NextRequest) {
       buildium_entity_type: finalBuildiumEntityType,
       buildium_entity_id: buildiumEntityId,
     });
-  } catch (fileErr: any) {
+  } catch (fileErr: unknown) {
+    const fileErrRecord = fileErr as Record<string, unknown>;
+    const message =
+      typeof fileErrRecord?.message === 'string'
+        ? fileErrRecord.message
+        : fileErr instanceof Error
+          ? fileErr.message
+          : 'Unknown error';
     console.error(
       'createFile failed',
       JSON.stringify(
         {
-          error: fileErr?.message,
-          details: fileErr?.details,
-          hint: fileErr?.hint,
+          error: message,
+          details: fileErrRecord?.details,
+          hint: fileErrRecord?.hint,
           category: resolvedCategoryName,
           buildiumCategoryId,
           fileEntityType,
@@ -1333,7 +1325,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Failed to create file record',
-        details: fileErr?.message ?? 'Unknown error',
+        details: message,
       },
       { status: 500 },
     );

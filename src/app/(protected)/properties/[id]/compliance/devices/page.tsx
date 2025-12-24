@@ -58,14 +58,14 @@ export default function PropertyDevicesPage() {
         setPropertyName(data?.property?.name || 'Property')
         const rows =
           (data?.assets as ComplianceAsset[] | undefined)?.map((a) => {
-            const meta = (a as any)?.metadata as Record<string, any> | null
+            const meta = (a?.metadata as Record<string, unknown> | null) || null
             return {
               id: a.id,
               name: a.name || a.external_source_id || 'Device',
               asset_type: a.asset_type || meta?.device_type || null,
               status: meta?.device_status || meta?.status || null,
-              last_inspection: (a as any)?.last_inspection_at || null,
-              next_due: (a as any)?.next_due || null,
+              last_inspection: (a as { last_inspection_at?: string | null })?.last_inspection_at || null,
+              next_due: (a as { next_due?: string | null })?.next_due || null,
             }
           }) || []
         setDevices(rows)

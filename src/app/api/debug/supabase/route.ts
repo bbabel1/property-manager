@@ -5,7 +5,22 @@ export async function GET() {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   const svc = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
-  const result: any = {
+  const result: {
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL_present: boolean
+      NEXT_PUBLIC_SUPABASE_ANON_KEY_present: boolean
+      NEXT_PUBLIC_SUPABASE_ANON_KEY_len: number
+      SUPABASE_SERVICE_ROLE_KEY_present: boolean
+      SUPABASE_SERVICE_ROLE_KEY_len: 'set' | 'unset'
+    }
+    health: {
+      url: string | null
+      ok: boolean
+      status: number
+      error: string | null
+      body?: string
+    }
+  } = {
     env: {
       NEXT_PUBLIC_SUPABASE_URL_present: !!url,
       NEXT_PUBLIC_SUPABASE_ANON_KEY_present: anon.length > 0,
@@ -41,10 +56,9 @@ export async function GET() {
     } catch {
       // ignore
     }
-  } catch (e: any) {
-    result.health.error = e?.message || String(e)
+  } catch (e: unknown) {
+    result.health.error = e instanceof Error ? e.message : String(e)
   }
 
   return NextResponse.json(result, { status: 200 })
 }
-

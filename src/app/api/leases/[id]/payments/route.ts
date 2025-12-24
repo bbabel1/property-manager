@@ -56,7 +56,7 @@ export async function POST(
     }
 
     const allocationAccountIds = parsed.data.allocations.map((line) => line.account_id)
-    const { data: allocationAccounts, error: allocationAccountsError } = await supabaseAdmin
+    const { data: _allocationAccounts, error: allocationAccountsError } = await supabaseAdmin
       .from('gl_accounts')
       .select('id, name, type')
       .in('id', allocationAccountIds)
@@ -88,7 +88,7 @@ export async function POST(
         .maybeSingle()
 
       const operatingBankGlAccountId =
-        (propertyRow as any)?.operating_bank_gl_account_id ?? null
+        propertyRow?.operating_bank_gl_account_id ?? null
       if (!operatingBankGlAccountId) return null
 
       return fetchBankAccountBuildiumId(operatingBankGlAccountId, supabaseAdmin).catch(() => null)
@@ -131,14 +131,14 @@ export async function POST(
       buildiumPayload
     )
 
-    let normalized: any = null
-    let responseLines: any[] = []
+    let normalized: Record<string, unknown> | null = null
+    let responseLines: Record<string, unknown>[] = []
     const memoValue = parsed.data.memo ?? null
     if (result.localId) {
       const record = await fetchTransactionWithLines(result.localId)
       if (record) {
         normalized = { ...record.transaction, memo: memoValue }
-        responseLines = record.lines ?? []
+        responseLines = (record.lines ?? []) as Record<string, unknown>[]
       }
     }
 
@@ -152,7 +152,7 @@ export async function POST(
         lease_id: leaseContext.leaseId,
         buildium_transaction_id: result.buildium?.Id ?? null,
       }
-      responseLines = lines
+      responseLines = lines as Record<string, unknown>[]
     }
 
     return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })

@@ -1,5 +1,7 @@
 # Buildium Webhook Handling Review
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## Current Design and Data Flow
 
 - See `docs/buildium-webhook-pipeline.md` for the current end-to-end pipeline diagram and handler coverage.

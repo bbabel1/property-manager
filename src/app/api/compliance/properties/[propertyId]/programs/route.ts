@@ -12,6 +12,7 @@ import {
 } from '@/lib/compliance-programs';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 import type {
+  ComplianceAsset,
   ComplianceAssetType,
   ComplianceDeviceCategory,
   ComplianceProgram,
@@ -58,6 +59,7 @@ type AssetMeta = {
   device_technology: string | null;
   device_subtype: string | null;
   is_private_residence: boolean | null;
+  pressure_type: string | null;
 };
 
 export async function POST(
@@ -165,30 +167,38 @@ export async function POST(
     };
 
     const assetMetas: AssetMeta[] = Array.isArray(assets)
-      ? (assets as AssetMeta[]).map((asset) => {
+      ? (assets as ComplianceAsset[]).map((asset) => {
+          const metaRecord = (asset.metadata ?? {}) as Record<string, unknown>;
           const deviceCategory =
             typeof asset.device_category === 'string'
               ? (asset.device_category as ComplianceDeviceCategory)
               : null;
-          const normalizedAssetType =
-            (canonicalAssetType(asset) as ComplianceAssetType | null) ??
-            (typeof asset.asset_type === 'string'
-              ? (asset.asset_type as ComplianceAssetType)
-              : null) ??
-            'other';
-          const metadata = (asset.metadata ?? {}) as Json;
-          return {
+          const pressure_type: string | null =
+            (typeof metaRecord.pressure_type === 'string'
+              ? metaRecord.pressure_type
+              : typeof (asset as { pressure_type?: unknown }).pressure_type === 'string'
+                ? (asset as { pressure_type?: string }).pressure_type
+                : null) ?? null;
+          const baseMeta: AssetMeta = {
             id: asset.id as string,
             property_id: asset.property_id as string,
-            asset_type: normalizedAssetType,
+            asset_type: 'other',
             external_source: asset.external_source as string | null,
             active: asset.active !== false,
-            metadata,
+            metadata: metaRecord as Json,
             device_category: deviceCategory,
             device_technology: asset.device_technology as string | null,
             device_subtype: asset.device_subtype as string | null,
             is_private_residence: asset.is_private_residence as boolean | null,
+            pressure_type: pressure_type ?? null,
           };
+          baseMeta.asset_type =
+            canonicalAssetType(baseMeta) ??
+            (typeof asset.asset_type === 'string'
+              ? (asset.asset_type as ComplianceAssetType)
+              : null) ??
+            'other';
+          return baseMeta;
         })
       : [];
 

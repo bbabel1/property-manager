@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: transactions, count: Array.isArray(transactions) ? transactions.length : undefined })
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium general ledger transactions`);
 
     return NextResponse.json(

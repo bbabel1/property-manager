@@ -517,7 +517,6 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
         <BillsTabSwitcher
           className="space-y-6"
           initialTab={currentTab}
-          unpaidDefaults={unpaidDefaultStatusSlugs}
           paidDefaults={Array.from(paidDefaultStatusSlugs)}
           unpaidContent={renderTabPanel(unpaidRows)}
           paidContent={renderTabPanel(paidRows)}

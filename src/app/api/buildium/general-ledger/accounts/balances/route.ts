@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
+import type { BuildiumGLAccount, BuildiumGLAccountBalance } from '@/types/buildium';
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,8 +42,8 @@ export async function GET(request: NextRequest) {
       body: { method: 'GET', entityType: 'glAccounts', params: { limit, offset, type } }
     })
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 })
-    const accounts = listData?.data || listData
-    const balances: any[] = [];
+    const accounts = (listData?.data || listData) as BuildiumGLAccount[] | undefined;
+    const balances: BuildiumGLAccountBalance[] = [];
 
     // Step 2: for each account, fetch its balance
     for (const acc of accounts || []) {
@@ -51,8 +52,8 @@ export async function GET(request: NextRequest) {
         body: { method: 'GET', entityType: 'glAccountBalance', entityId: acc.Id, asOfDate }
       })
       if (!balErr) {
-        const bal = balData?.data || balData
-        balances.push(bal)
+        const bal = (balData?.data || balData) as BuildiumGLAccountBalance | null;
+        if (bal) balances.push(bal);
       }
     }
 
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: balances, count: balances.length });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium general ledger account balances`);
 
     return NextResponse.json(

@@ -1,5 +1,7 @@
 # Tenant Isolation Coverage (service-role routes)
 
+<!-- markdownlint-configure-file {"MD060": false} -->
+
 Status legend: ✅ guarded & scoped, ⚠️ partial, ⛔ needs guard
 
 | Route                                       | Risk             | Status | Notes                                                                                                                |

@@ -75,9 +75,42 @@ type ManagementServicesSummary = {
   billingFrequency: string | null;
 };
 
+type ServicePlanAssignmentRow = {
+  id: string | number | null;
+  plan_id: string | number | null;
+  plan_fee_amount: number | null;
+  plan_fee_percent: number | null;
+  plan_fee_frequency: string | null;
+};
+
+type ServiceOfferingAssignmentRow = {
+  offering_id: string | number | null;
+  is_active?: boolean | null;
+};
+
+type ServicePlanServiceRow = {
+  offering_id: string | number | null;
+};
+
+type ServiceOfferingRow = {
+  id: string | number | null;
+  name?: string | null;
+};
+
 interface MonthlyLogDetailPageProps {
   params: Promise<{ logId: string }>;
 }
+
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+  return '';
+};
 
 export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailPageProps) {
   try {
@@ -215,10 +248,15 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 
     // Ensure all data is serializable for client components
     const serializedInitialData = {
-      assignedTransactions: Array.isArray(initialData.assignedTransactions) ? initialData.assignedTransactions : [],
+      assignedTransactions: Array.isArray(initialData.assignedTransactions)
+        ? initialData.assignedTransactions
+        : [],
       financialSummary: initialData.financialSummary || null,
-      unassignedTransactions: Array.isArray(initialData.unassignedTransactions) ? initialData.unassignedTransactions : [],
-      unassignedCursor: typeof initialData.unassignedCursor === 'string' ? initialData.unassignedCursor : null,
+      unassignedTransactions: Array.isArray(initialData.unassignedTransactions)
+        ? initialData.unassignedTransactions
+        : [],
+      unassignedCursor:
+        typeof initialData.unassignedCursor === 'string' ? initialData.unassignedCursor : null,
     };
 
     // Ensure all required fields are properly defined and serializable
@@ -260,9 +298,9 @@ export default async function MonthlyLogDetailPage({ params }: MonthlyLogDetailP
 
     // Ensure tenantOptions is a plain array
     const safeTenantOptions = Array.isArray(activeLeaseContext.tenantOptions)
-      ? activeLeaseContext.tenantOptions.map(option => ({
+      ? activeLeaseContext.tenantOptions.map((option) => ({
           id: String(option.id ?? ''),
-          name: String((option as any).name ?? (option as any).label ?? ''),
+          name: option.name,
           buildiumTenantId: option.buildiumTenantId ?? null,
         }))
       : [];
@@ -359,14 +397,18 @@ async function fetchMonthlyLogRecord(
   `;
 
   const runSelect = async (selectFields: string) =>
-    supabase.from('monthly_logs').select(selectFields).eq('id', logId).maybeSingle();
+    supabase
+      .from('monthly_logs')
+      .select<MonthlyLogRecord>(selectFields)
+      .eq('id', logId)
+      .maybeSingle();
 
   const primaryResult = await traceAsync('monthlyLog.fetch.record', () =>
     runSelect(selectWithLeaseId),
   );
 
   const isMissingLeaseColumn = (err: unknown) => {
-    const message = (err as any)?.message?.toLowerCase?.() ?? '';
+    const message = getErrorMessage(err).toLowerCase();
     return message.includes('lease_id') && message.includes('column');
   };
 
@@ -378,18 +420,18 @@ async function fetchMonthlyLogRecord(
   if (error) {
     console.error('[monthly-log] Failed to load log', {
       logId,
-      error: (error as any)?.message ?? error,
+      error: getErrorMessage(error) || error,
     });
     throw error instanceof Error
       ? error
-      : new Error('[monthly-log] Failed to load log record', { cause: error as any });
+      : new Error('[monthly-log] Failed to load log record', { cause: error });
   }
 
-  if (!data || typeof data !== 'object' || 'error' in (data as any)) {
+  if (!data) {
     return null;
   }
 
-  return data as MonthlyLogRecord;
+  return data;
 }
 
 async function loadActiveLeaseSummary(
@@ -491,7 +533,7 @@ function buildTenantOptions(leaseRow: ActiveLeaseRow): TenantOption[] {
   for (const contact of contacts) {
     if (!contact) continue;
     const record = contact.tenants?.contact;
-    const tenantIdRaw = (contact as any)?.tenant_id ?? contact.tenants?.id ?? null;
+    const tenantIdRaw = contact.tenant_id ?? contact.tenants?.id ?? null;
     if (!record || tenantIdRaw == null) continue;
 
     const displayName =
@@ -533,7 +575,9 @@ async function loadManagementServicesSummary(
 
   const wantsUnitLevel = serviceAssignment === 'Unit Level';
 
-  const loadAssignment = async (scope: 'unit' | 'property') => {
+  const loadAssignment = async (
+    scope: 'unit' | 'property',
+  ): Promise<ServicePlanAssignmentRow | null> => {
     const query = supabase
       .from('service_plan_assignments')
       .select('id, plan_id, plan_fee_amount, plan_fee_percent, plan_fee_frequency')
@@ -548,7 +592,7 @@ async function loadManagementServicesSummary(
         : query.eq('property_id', propertyId).is('unit_id', null);
 
     const { data } = await scoped.maybeSingle();
-    return data ?? null;
+    return (data as ServicePlanAssignmentRow | null) ?? null;
   };
 
   const [unitAssignment, propertyAssignment] = await Promise.all([
@@ -582,29 +626,47 @@ async function loadManagementServicesSummary(
         .select('offering_id, is_active')
         .eq('assignment_id', assignmentId)
         .order('created_at', { ascending: true });
-      const offeringIds = (rows || [])
-        .filter((row: any) => row?.is_active !== false)
-        .map((row: any) => String(row.offering_id))
+      const assignmentRows: ServiceOfferingAssignmentRow[] = Array.isArray(rows)
+        ? (rows as ServiceOfferingAssignmentRow[])
+        : [];
+      const offeringIds = assignmentRows
+        .filter((row) => row.is_active !== false && row.offering_id != null)
+        .map((row) => String(row.offering_id))
         .filter(Boolean);
       if (offeringIds.length) {
         const { data: offerings } = await supabase
           .from('service_offerings')
           .select('id, name')
           .in('id', offeringIds);
-        activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+        const offeringRows: ServiceOfferingRow[] = Array.isArray(offerings)
+          ? (offerings as ServiceOfferingRow[])
+          : [];
+        activeServices = offeringRows
+          .map((offering) => (offering.name ? String(offering.name) : ''))
+          .filter(Boolean);
       }
     } else {
       const { data: rows } = await supabase
         .from('service_plan_services')
         .select('offering_id')
         .eq('plan_id', planId);
-      const offeringIds = (rows || []).map((r: any) => String(r.offering_id)).filter(Boolean);
+      const servicePlanRows: ServicePlanServiceRow[] = Array.isArray(rows)
+        ? (rows as ServicePlanServiceRow[])
+        : [];
+      const offeringIds = servicePlanRows
+        .map((row) => String(row.offering_id ?? ''))
+        .filter(Boolean);
       if (offeringIds.length) {
         const { data: offerings } = await supabase
           .from('service_offerings')
           .select('id, name')
           .in('id', offeringIds);
-        activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+        const offeringRows: ServiceOfferingRow[] = Array.isArray(offerings)
+          ? (offerings as ServiceOfferingRow[])
+          : [];
+        activeServices = offeringRows
+          .map((offering) => (offering.name ? String(offering.name) : ''))
+          .filter(Boolean);
       }
     }
   }

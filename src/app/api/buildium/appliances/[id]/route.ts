@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error(`Error fetching Buildium appliance`);
+    logger.error({ error }, `Error fetching Buildium appliance`);
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error(`Error updating Buildium appliance`);
+    logger.error({ error }, `Error updating Buildium appliance`);
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -182,7 +182,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     });
 
   } catch (error) {
-    logger.error(`Error deleting Buildium appliance`);
+    logger.error({ error }, `Error deleting Buildium appliance`);
 
     return NextResponse.json(
       { error: 'Internal server error' },

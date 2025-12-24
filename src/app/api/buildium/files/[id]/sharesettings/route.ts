@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
@@ -19,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -37,10 +35,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!response.ok) {
       const rawText = await response.text().catch(() => '');
-      let errorData: any = {};
+      let errorData: Record<string, unknown> = {};
       try {
         errorData = rawText ? JSON.parse(rawText) : {};
-      } catch (parseError) {
+      } catch (error) {
+        logger.error({ error });
         errorData = { raw: rawText || 'Unauthorized' };
       }
       logger.error({ status: response.status, errorData }, 'Buildium file share settings fetch failed');
@@ -64,6 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium file share settings`);
 
     return NextResponse.json(
@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    const { user } = await requireRole('platform_admin');
+    await requireRole('platform_admin');
 
     const { id } = await params;
 
@@ -111,10 +111,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!response.ok) {
       const rawText = await response.text().catch(() => '');
-      let errorData: any = {};
+      let errorData: Record<string, unknown> = {};
       try {
         errorData = rawText ? JSON.parse(rawText) : {};
-      } catch (parseError) {
+      } catch (error) {
+        logger.error({ error });
         errorData = { raw: rawText || 'Unauthorized' };
       }
       logger.error({ status: response.status, errorData }, 'Buildium file share settings update failed');
@@ -138,6 +139,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium file share settings`);
 
     return NextResponse.json(

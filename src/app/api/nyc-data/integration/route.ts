@@ -15,7 +15,7 @@ import {
   saveNYCOpenDataConfig,
 } from '@/lib/nyc-open-data/config-manager'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     await requireAuth()
 
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireAuth()
+    await requireAuth()
     const body = await request.json()
 
     const baseUrl = typeof body.baseUrl === 'string' && body.baseUrl.trim().length > 0 ? body.baseUrl.trim() : undefined
@@ -131,7 +131,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   try {
     await requireAuth()
     await deleteNYCOpenDataConfig('global')

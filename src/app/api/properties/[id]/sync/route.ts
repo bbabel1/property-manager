@@ -9,7 +9,55 @@ import {
 } from '@/lib/buildium-mappers';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
-import type { BuildiumUnit, BuildiumLease } from '@/types/buildium';
+import type { BuildiumUnit, BuildiumLease, BuildiumOwnerCreate } from '@/types/buildium';
+
+type UnknownRecord = Record<string, unknown>;
+type PropertyRow = {
+  id: string;
+  name: string | null;
+  structure_description: string | null;
+  status: string | null;
+  reserve: number | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+  year_built: number | null;
+  property_type: string | null;
+  buildium_property_id: number | null;
+  operating_bank_gl_account_id: string | null;
+};
+type ContactRow = {
+  first_name?: string | null;
+  last_name?: string | null;
+  primary_email?: string | null;
+  primary_phone?: string | null;
+  primary_address_line_1?: string | null;
+  primary_address_line_2?: string | null;
+  primary_address_line_3?: string | null;
+  primary_city?: string | null;
+  primary_state?: string | null;
+  primary_postal_code?: string | null;
+  primary_country?: string | null;
+};
+type OwnerRow = {
+  id: string;
+  buildium_owner_id: number | null;
+  tax_address_line1?: string | null;
+  tax_address_line2?: string | null;
+  tax_address_line3?: string | null;
+  tax_city?: string | null;
+  tax_state?: string | null;
+  tax_postal_code?: string | null;
+  tax_country?: string | null;
+  tax_payer_name1?: string | null;
+  tax_payer_name2?: string | null;
+  tax_payer_id?: string | null;
+  is_active?: boolean | null;
+  contacts?: ContactRow[] | ContactRow | null;
+};
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,7 +71,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from('properties')
       .select('*')
       .eq('id', id)
-      .single();
+      .single<PropertyRow>();
     if (propErr || !property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
@@ -31,7 +79,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Resolve Operating Bank Account ID for Buildium
     // In Buildium, the GL Account ID for a bank account IS the bank account ID
     let buildiumOperatingBankAccountId: number | undefined;
-    const operatingGlId: string | null = (property as any).operating_bank_gl_account_id ?? null;
+    const operatingGlId: string | null = property.operating_bank_gl_account_id ?? null;
 
     if (operatingGlId) {
       const { data: gl } = await db
@@ -41,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .maybeSingle();
 
       if (gl) {
-        const glBuildiumId = (gl as any).buildium_gl_account_id;
+        const glBuildiumId = gl.buildium_gl_account_id;
         if (typeof glBuildiumId === 'number' && glBuildiumId > 0) {
           // Use the GL account ID directly as the bank account ID
           buildiumOperatingBankAccountId = glBuildiumId;
@@ -56,26 +104,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Ensure Owners exist in Buildium, collect IDs
     const prelinkedOwnerIds: number[] = [];
-    const ownersPendingCreation: { ownerPayload: any; ownerId: string }[] = [];
+    const ownersPendingCreation: { ownerPayload: Parameters<typeof mapOwnerToBuildium>[0]; ownerId: string }[] = [];
     try {
       const { data: ownerships } = await db
         .from('ownerships')
         .select('owner_id')
         .eq('property_id', id);
-      const ownerIds = (ownerships || []).map((o: any) => String(o.owner_id));
+      const ownerIds = (ownerships || []).map((o) => String(o.owner_id));
       if (ownerIds.length) {
         const { data: owners } = await db
           .from('owners')
           .select('*, contacts!inner(*)')
           .in('id', ownerIds);
         for (const rawOwner of owners || []) {
-          const contactSource = Array.isArray((rawOwner as any).contacts)
-            ? (rawOwner as any).contacts[0]
-            : (rawOwner as any).contacts;
-          const contact = contactSource || {};
+          const owner = rawOwner as OwnerRow;
+          const contactSource = Array.isArray(owner.contacts)
+            ? owner.contacts[0]
+            : owner.contacts || null;
+          const contact: ContactRow = contactSource || {};
 
           const fallbackAddressLine1 =
-            (rawOwner as any)?.tax_address_line1 || property.address_line1 || 'Address';
+            owner?.tax_address_line1 || property.address_line1 || 'Address';
           const normalizedAddressLine1 = (
             contact?.primary_address_line_1 ||
             fallbackAddressLine1 ||
@@ -84,61 +133,51 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           const resolvedAddressLine1 =
             normalizedAddressLine1 && normalizedAddressLine1.toLowerCase() !== 'n/a'
               ? normalizedAddressLine1
-              : fallbackAddressLine1;
+            : fallbackAddressLine1;
 
           const resolvedCity =
-            contact?.primary_city || (rawOwner as any)?.tax_city || property.city || 'New York';
+            contact?.primary_city || owner?.tax_city || property.city || 'New York';
           const resolvedState =
-            contact?.primary_state || (rawOwner as any)?.tax_state || property.state || 'NY';
+            contact?.primary_state || owner?.tax_state || property.state || 'NY';
           const resolvedPostal =
             contact?.primary_postal_code ||
-            (rawOwner as any)?.tax_postal_code ||
+            owner?.tax_postal_code ||
             property.postal_code ||
             '10000';
           const resolvedCountry =
             mapCountryToBuildium(
               contact?.primary_country ||
-                (rawOwner as any)?.tax_country ||
+                owner?.tax_country ||
                 property.country ||
                 'United States',
             ) || 'UnitedStates';
 
-          const ownerForBuildium = {
-            ...rawOwner,
-            FirstName: contact?.first_name || (rawOwner as any)?.tax_payer_name1 || 'Owner',
-            LastName: contact?.last_name || (rawOwner as any)?.tax_payer_name2 || 'Primary',
-            Email: contact?.primary_email || undefined,
-            PhoneNumber: contact?.primary_phone || undefined,
-            Address: {
-              AddressLine1: resolvedAddressLine1,
-              AddressLine2:
-                contact?.primary_address_line_2 ||
-                (rawOwner as any)?.tax_address_line2 ||
-                undefined,
-              AddressLine3:
-                contact?.primary_address_line_3 ||
-                (rawOwner as any)?.tax_address_line3 ||
-                undefined,
-              City: resolvedCity,
-              State: resolvedState,
-              PostalCode: resolvedPostal,
-              Country: resolvedCountry,
-            },
-            TaxId: (rawOwner as any)?.tax_payer_id || undefined,
-            IsActive: (rawOwner as any)?.is_active !== false,
+          const ownerForBuildiumInput: Parameters<typeof mapOwnerToBuildium>[0] = {
+            first_name: contact?.first_name || owner?.tax_payer_name1 || 'Owner',
+            last_name: contact?.last_name || owner?.tax_payer_name2 || 'Primary',
+            email: contact?.primary_email || undefined,
+            phone_number: contact?.primary_phone || undefined,
+            address_line1: resolvedAddressLine1,
+            address_line2: contact?.primary_address_line_2 || owner?.tax_address_line2 || undefined,
+            address_line3: contact?.primary_address_line_3 || owner?.tax_address_line3 || undefined,
+            city: resolvedCity,
+            state: resolvedState,
+            postal_code: resolvedPostal,
+            country: resolvedCountry,
+            tax_id: owner?.tax_payer_id || undefined,
+            is_active: owner?.is_active !== false,
           };
 
-          const ow = rawOwner as any;
-          if (ow.buildium_owner_id) {
-            prelinkedOwnerIds.push(Number(ow.buildium_owner_id));
+          if (owner.buildium_owner_id) {
+            prelinkedOwnerIds.push(Number(owner.buildium_owner_id));
             continue;
           }
 
           if (property.buildium_property_id) {
             const creationResult = await createOwnerDirectly(
-              mapOwnerToBuildium(ownerForBuildium as any),
+              mapOwnerToBuildium(ownerForBuildiumInput),
               Number(property.buildium_property_id),
-              ow.id,
+              owner.id,
               orgId,
             );
             if (!creationResult.success) {
@@ -146,7 +185,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 {
                   error: 'Failed to create owner in Buildium',
                   details: creationResult.error,
-                  ownerId: ow.id,
+                  ownerId: owner.id,
                 },
                 { status: 422 },
               );
@@ -155,31 +194,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             continue;
           }
 
-          ownersPendingCreation.push({ ownerPayload: ownerForBuildium, ownerId: ow.id });
+          ownersPendingCreation.push({ ownerPayload: ownerForBuildiumInput, ownerId: owner.id });
         }
       }
-    } catch (e) {
+    } catch {
       // Non-fatal, but property create may fail later
     }
 
     // Build property payload
     const payload = mapPropertyToBuildium({
-      name: property.name,
+      name: property.name || '',
       structure_description: property.structure_description || undefined,
       is_active: property.status !== 'Inactive',
       buildium_operating_bank_account_id: buildiumOperatingBankAccountId,
       reserve: property.reserve || undefined,
-      address_line1: property.address_line1,
+      address_line1: property.address_line1 || '',
       address_line2: property.address_line2 || undefined,
-      city: property.city,
-      state: property.state,
-      postal_code: property.postal_code,
-      country: property.country,
+      city: property.city || '',
+      state: property.state || '',
+      postal_code: property.postal_code || '',
+      country: property.country || 'United States',
       year_built: property.year_built || undefined,
       rental_type: 'Rental',
-      property_type: property.property_type,
-    } as any);
-    if (prelinkedOwnerIds.length) (payload as any).RentalOwnerIds = prelinkedOwnerIds;
+      property_type: property.property_type || undefined,
+    });
+    if (prelinkedOwnerIds.length) (payload as UnknownRecord).RentalOwnerIds = prelinkedOwnerIds;
 
     // Create or update in Buildium
     const hadExistingBuildiumId = Boolean(property.buildium_property_id);
@@ -198,8 +237,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     } else {
       const res = await buildiumFetch('POST', `/rentals`, undefined, payload, orgId);
-      const resJson = res.json as any;
-      if (!res.ok || !resJson?.Id) {
+      const resJson = res.json as UnknownRecord;
+      if (!res.ok || !resJson || typeof resJson.Id !== 'number') {
         return NextResponse.json(
           {
             error: 'Failed to create property in Buildium',
@@ -221,7 +260,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (buildiumId && ownersPendingCreation.length) {
       for (const item of ownersPendingCreation) {
-        const basePayload = mapOwnerToBuildium(item.ownerPayload as any);
+        const basePayload = mapOwnerToBuildium(item.ownerPayload);
         basePayload.PropertyIds = Array.from(
           new Set([...(basePayload.PropertyIds || []), buildiumId]),
         );
@@ -301,7 +340,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 .toLowerCase();
             const byNumber = new Map<string, BuildiumUnit[]>();
             for (const bu of buildiumUnits) {
-              const key = normalize((bu as any)?.UnitNumber);
+              const key = normalize(bu.UnitNumber);
               if (!key) continue;
               const list = byNumber.get(key);
               if (list) list.push(bu);
@@ -310,7 +349,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
             for (const unitRow of localUnits) {
               if (unitRow?.buildium_unit_id) continue;
-              const key = normalize((unitRow as any)?.unit_number);
+              const key = normalize(unitRow.unit_number);
               if (!key) continue;
               const matches = byNumber.get(key);
               if (matches && matches.length === 1) {
@@ -320,8 +359,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                   .update({
                     buildium_unit_id: match.Id,
                     buildium_property_id: buildiumId,
-                    buildium_created_at: (match as any)?.CreatedDate || new Date().toISOString(),
-                    buildium_updated_at: (match as any)?.ModifiedDate || new Date().toISOString(),
+                    buildium_created_at: match.CreatedDate || new Date().toISOString(),
+                    buildium_updated_at: match.ModifiedDate || new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                   })
                   .eq('id', unitRow.id);
@@ -359,7 +398,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         );
         const buildiumLeases: BuildiumLease[] = Array.isArray(leaseRes.json)
           ? (leaseRes.json as BuildiumLease[])
-          : Array.isArray((leaseRes.json as any)?.Data)
+          : Array.isArray((leaseRes.json as { Data?: BuildiumLease[] } | null)?.Data)
             ? (leaseRes.json as { Data: BuildiumLease[] }).Data
             : [];
 
@@ -372,7 +411,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             .eq('property_id', id);
 
           if (!localLeaseError && Array.isArray(localLeases) && localLeases.length) {
-            const unitIds = Array.from(new Set(localLeases.map((l) => l.unit_id).filter(Boolean)));
+            const unitIds = Array.from(new Set(localLeases.map((l) => l.unit_id).filter(Boolean))) as string[];
             const unitMeta = new Map<
               string,
               { buildium_unit_id: number | null; unit_number: string | null }
@@ -381,7 +420,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               const { data: unitRows } = await db
                 .from('units')
                 .select('id, buildium_unit_id, unit_number')
-                .in('id', unitIds as any);
+                .in('id', unitIds);
               for (const row of unitRows || []) {
                 unitMeta.set(String(row.id), {
                   buildium_unit_id: row.buildium_unit_id ?? null,
@@ -390,7 +429,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               }
             }
 
-            const normalizeDate = (value: any) => {
+            const normalizeDate = (value: unknown) => {
               if (!value) return null;
               try {
                 return new Date(value).toISOString().split('T')[0];
@@ -512,19 +551,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 async function createOwnerDirectly(
-  ownerPayload: any,
+  ownerPayload: BuildiumOwnerCreate,
   buildiumPropertyId: number,
   ownerId: string,
   orgId: string,
 ): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
   try {
-    const payload = {
+    const payload: BuildiumOwnerCreate = {
       ...ownerPayload,
       PropertyIds: Array.from(new Set([...(ownerPayload?.PropertyIds || []), buildiumPropertyId])),
     };
     const createRes = await buildiumFetch('POST', `/rentals/owners`, undefined, payload, orgId);
-    const createJson = createRes.json as any;
-    if (!createRes.ok || !createJson?.Id) {
+    const createJson = createRes.json as UnknownRecord;
+    if (!createRes.ok || typeof createJson?.Id !== 'number') {
       return {
         success: false,
         error: JSON.stringify(createRes.json ?? createRes.errorText ?? 'Unknown error'),

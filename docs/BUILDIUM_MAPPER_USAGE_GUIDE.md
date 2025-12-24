@@ -1,10 +1,10 @@
 # Buildium Mapper Usage Guide
 
-## ✅ FIXED: Production Code Updated (Latest Changes)
+## ✅ FIXED Production Code Updated (Latest Changes)
 
 **Status**: All production code has been updated to use enhanced mappers with proper relationship handling.
 
-### What Was Fixed:
+### What Was Fixed
 
 - ✅ **buildium-sync.ts**: Updated `syncPropertyFromBuildium()` and `syncBankAccountFromBuildium()` to use enhanced mappers
 - ✅ **buildium-webhook/index.ts**: Updated webhook property processing to resolve bank account relationships
@@ -13,7 +13,7 @@
 - ✅ **TypeScript Warnings**: Added `@deprecated` JSDoc comments to basic mappers
 - ✅ **Runtime Validation**: Added validation functions to ensure relationships are properly resolved
 
-### Safeguards Now in Place:
+### Safeguards Now in Place
 
 - 🛡️ **ESLint Prevention**: Import of deprecated mappers will show ESLint errors
 - 🛡️ **TypeScript Warnings**: IDEs will show deprecation warnings for basic mappers
@@ -46,21 +46,21 @@ const property = await mapPropertyFromBuildiumWithBankAccount(buildiumData, supa
 
 ### Enhanced Mappers (Use These)
 
-| Function                                    | Purpose              | Handles Relationships |
-| ------------------------------------------- | -------------------- | --------------------- |
-| `mapPropertyFromBuildiumWithBankAccount()`  | Property mapping     | ✅ Bank accounts      |
-| `mapBankAccountFromBuildiumWithGLAccount()` | Bank account mapping | ✅ GL accounts        |
-| `mapGLAccountFromBuildiumWithSubAccounts()` | GL account mapping   | ✅ Sub accounts       |
-| `mapLeaseFromBuildiumWithTenants()`         | Lease mapping        | ✅ Tenants & Contacts |
+| Function | Purpose | Handles Relationships |
+| --- | --- | --- |
+| `mapPropertyFromBuildiumWithBankAccount()` | Property mapping | ✅ Bank accounts |
+| `mapBankAccountFromBuildiumWithGLAccount()` | Bank account mapping | ✅ GL accounts |
+| `mapGLAccountFromBuildiumWithSubAccounts()` | GL account mapping | ✅ Sub accounts |
+| `mapLeaseFromBuildiumWithTenants()` | Lease mapping | ✅ Tenants & Contacts |
 
 ### Basic Mappers (Deprecated)
 
-| Function                       | Purpose                    | Missing Relationships |
-| ------------------------------ | -------------------------- | --------------------- |
-| `mapPropertyFromBuildium()`    | Basic property mapping     | ❌ Bank accounts      |
-| `mapBankAccountFromBuildium()` | Basic bank account mapping | ❌ GL accounts        |
-| `mapGLAccountFromBuildium()`   | Basic GL account mapping   | ❌ Sub accounts       |
-| `mapLeaseFromBuildium()`       | Basic lease mapping        | ❌ Tenants & Contacts |
+| Function | Purpose | Missing Relationships |
+| --- | --- | --- |
+| `mapPropertyFromBuildium()` | Basic property mapping | ❌ Bank accounts |
+| `mapBankAccountFromBuildium()` | Basic bank account mapping | ❌ GL accounts |
+| `mapGLAccountFromBuildium()` | Basic GL account mapping | ❌ Sub accounts |
+| `mapLeaseFromBuildium()` | Basic lease mapping | ❌ Tenants & Contacts |
 
 ## 🔧 How Enhanced Mappers Work
 
@@ -284,7 +284,7 @@ async function syncLease(leaseId: number) {
 
 Basic mappers show deprecation warnings in development:
 
-```
+```text
 ⚠️ DEPRECATION WARNING: mapPropertyFromBuildium() is deprecated for production use.
    Use mapPropertyFromBuildiumWithBankAccount() instead to ensure proper relationship handling.
 ```
@@ -293,7 +293,7 @@ Basic mappers show deprecation warnings in development:
 
 ESLint will catch incorrect usage and show warnings:
 
-```
+```text
 ⚠️ Use mapPropertyFromBuildiumWithBankAccount() instead to ensure proper bank account relationship handling
 ```
 

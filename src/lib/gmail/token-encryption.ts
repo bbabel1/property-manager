@@ -11,8 +11,6 @@ const ENCRYPTION_KEY = process.env.GMAIL_TOKEN_ENCRYPTION_KEY || process.env.NEX
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const SALT_LENGTH = 64;
-const TAG_LENGTH = 16;
-
 if (!ENCRYPTION_KEY) {
   console.warn('GMAIL_TOKEN_ENCRYPTION_KEY or NEXTAUTH_SECRET not set. Token encryption may fail.');
 }

@@ -8,14 +8,21 @@ type BankAccountDetail = {
   name: string | null;
 };
 
+type BankAccountRow = {
+  id: string;
+  name: string | null;
+  bank_balance: number | null;
+  buildium_gl_account_id: number | null;
+};
+
 type VendorRecord = {
   id: string;
   buildium_vendor_id?: number | null;
   contact?: {
-    display_name?: string;
-    company_name?: string;
-    first_name?: string;
-    last_name?: string;
+    display_name?: string | null;
+    company_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
   };
 };
 
@@ -52,6 +59,7 @@ type GLAccountRow = {
   name: string | null;
   account_number: string | null;
   buildium_gl_account_id: number | null;
+  type: string | null;
   is_bank_account?: boolean | null;
 };
 
@@ -84,8 +92,8 @@ function labelOfUnit(row: UnitRow) {
   return row?.unit_number || row?.unit_name || 'Unit';
 }
 
-export default async function RecordCheckPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function RecordCheckPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const db = supabaseAdmin || supabase;
 
   const [
@@ -97,26 +105,26 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     { data: unitsData },
     { data: glAccountsData },
   ] = await Promise.all([
-    (db as any)
+    db
       .from('gl_accounts')
       .select('id, name')
       .eq('id', id)
       .eq('is_bank_account', true)
       .maybeSingle(),
-    (db as any)
+    db
       .from('gl_accounts')
       .select('id, name, bank_balance, buildium_gl_account_id')
       .eq('is_bank_account', true)
       .order('name', { ascending: true })
       .limit(500),
-    (db as any)
+    db
       .from('vendors')
       .select(
         'id, buildium_vendor_id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
       )
       .order('updated_at', { ascending: false })
       .limit(1000),
-    (db as any)
+    db
       .from('owners')
       .select(
         'id, buildium_owner_id, contacts!owners_contact_fk(display_name, company_name, first_name, last_name, is_company)',
@@ -124,26 +132,26 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
       .eq('is_active', true)
       .order('updated_at', { ascending: false })
       .limit(1000),
-    (db as any)
+    db
       .from('properties')
       .select('id, name, address_line1, buildium_property_id, is_active')
       .eq('is_active', true)
       .order('name', { ascending: true })
       .limit(1000),
-    (db as any)
+    db
       .from('units')
       .select('id, property_id, unit_number, unit_name, buildium_unit_id')
       .order('unit_number', { ascending: true })
       .limit(5000),
-    (db as any)
+    db
       .from('gl_accounts')
-      .select('id, name, account_number, buildium_gl_account_id, is_bank_account')
+      .select('id, name, account_number, type, buildium_gl_account_id, is_bank_account')
       .eq('is_bank_account', false)
       .order('name', { ascending: true })
       .limit(5000),
   ]);
 
-  const account = (accountRaw || null) as BankAccountDetail | null;
+  const account = accountRaw || null;
 
   if (accountError || !account) {
     return (
@@ -153,12 +161,7 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     );
   }
 
-  const allBankAccounts = ((bankAccountsData || []) as any[]) as Array<{
-    id: string;
-    name: string | null;
-    bank_balance: number | null;
-    buildium_gl_account_id: number | null;
-  }>;
+  const allBankAccounts = bankAccountsData || [];
 
   const recordCheckBankAccounts = allBankAccounts.map((row) => ({
     id: String(row.id),
@@ -168,7 +171,7 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     balance: typeof row?.bank_balance === 'number' ? row.bank_balance : null,
   }));
 
-  const vendorsAll = (vendorsData || []) as VendorRecord[];
+  const vendorsAll = vendorsData || [];
   const recordCheckVendors = vendorsAll
     .map((v) => ({
       id: String(v.id),
@@ -177,7 +180,7 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const ownersAll = (ownersData || []) as OwnerRecord[];
+  const ownersAll = ownersData || [];
   const recordCheckOwners = ownersAll
     .map((o) => ({
       id: String(o.id),
@@ -186,14 +189,14 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 
-  const propertyRows = (propertiesData || []) as PropertyRow[];
+  const propertyRows = propertiesData || [];
   const recordCheckProperties = propertyRows.map((p) => ({
     id: String(p.id),
     label: labelOfProperty(p),
     buildiumPropertyId: typeof p.buildium_property_id === 'number' ? p.buildium_property_id : null,
   }));
 
-  const unitRows = (unitsData || []) as UnitRow[];
+  const unitRows = unitsData || [];
   const recordCheckUnits = unitRows.map((u) => ({
     id: String(u.id),
     label: labelOfUnit(u),
@@ -201,12 +204,13 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     buildiumUnitId: typeof u.buildium_unit_id === 'number' ? u.buildium_unit_id : null,
   }));
 
-  const glAccountRows = (glAccountsData || []) as GLAccountRow[];
+  const glAccountRows = glAccountsData || [];
   const recordCheckGlAccounts = glAccountRows.map((a) => ({
     id: String(a.id),
     label: a?.name || a?.account_number || 'Account',
     buildiumGlAccountId:
       typeof a.buildium_gl_account_id === 'number' ? a.buildium_gl_account_id : null,
+    type: a?.type ?? null,
   }));
 
   return (
@@ -230,4 +234,3 @@ export default async function RecordCheckPage({ params }: { params: Promise<{ id
     </PageShell>
   );
 }
-

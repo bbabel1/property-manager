@@ -41,4 +41,5 @@ Next (Compute)
 
 Notes
 
-- This baseline is for staging/dev. For production, enable multi-AZ for RDS, increase instance size, and enable deletion protection/final snapshots.
+- This baseline is for staging/dev. For production, enable multi-AZ for RDS, increase instance size, and enable deletion
+  protection/final snapshots.

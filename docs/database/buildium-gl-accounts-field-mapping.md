@@ -1,5 +1,7 @@
 # Buildium GL Accounts Field Mapping
 
+<!-- markdownlint-configure-file {"MD060": false, "MD013": false} -->
+
 This document outlines the field mapping between Buildium API GL accounts and the local database `gl_accounts` table.
 
 ## Field Mapping Table

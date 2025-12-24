@@ -57,6 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium bill files`);
 
     return NextResponse.json(
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error uploading Buildium bill file`);
 
     return NextResponse.json(

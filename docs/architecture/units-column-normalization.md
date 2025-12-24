@@ -29,15 +29,9 @@ The following columns were renamed:
 ### Files Updated
 
 1. **Database Migration**: `supabase/migrations/20250115000000_normalize_units_columns.sql`
-
-2. **Original Migration**: `supabase/migrations/20250815111240_add_service_fields_to_units.sql` (updated to use correct
-
-names)
-
+2. **Original Migration**: `supabase/migrations/20250815111240_add_service_fields_to_units.sql` (updated to use correct names)
 3. **TypeScript Types**: `src/types/units.ts` (added missing fields and enums)
-
 4. **Migration Script**: `scripts/run-column-normalization.ts`
-
 5. **SQL Script**: `scripts/normalize-units-columns.sql`
 
 ## How to Apply the Changes

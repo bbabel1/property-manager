@@ -5,11 +5,20 @@ import { logger } from '@/lib/logger'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { mapBankAccountFromBuildiumWithGLAccount } from '@/lib/buildium-mappers'
 
+type BuildiumBankAccount = {
+  Id: number
+  Name: string
+  Description?: string | null
+  Balance?: number | null
+  CheckPrintingInfo?: unknown
+  ElectronicPayments?: unknown
+};
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser(request)
     const db = supabaseAdmin || supabase
-    const body = await request.json().catch(() => ({} as any))
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
     const forceSync = Boolean(body?.forceSync)
 
     logger.info({ userId: user.id, forceSync }, 'Starting direct bank accounts sync from Buildium')
@@ -27,7 +36,7 @@ export async function POST(request: NextRequest) {
           { status: res.status || 502 }
         )
       }
-      const accounts: any[] = res.json
+      const accounts: BuildiumBankAccount[] = res.json
       totalFetched += accounts.length
 
       for (const acct of accounts) {
@@ -35,23 +44,25 @@ export async function POST(request: NextRequest) {
           const now = new Date().toISOString()
           // Map Buildium -> local, including GL account resolution (creates GL if missing)
           const mapped = await mapBankAccountFromBuildiumWithGLAccount(acct, db)
-          const glId = (mapped as any)?.gl_account
+          const glId = (mapped as { gl_account?: string | null })?.gl_account
           if (!glId) throw new Error('Missing GL account mapping for bank account')
 
           // Source of truth: gl_accounts bank fields
-          const glUpdate: any = {
+          const glUpdate: Record<string, unknown> = {
             name: acct.Name,
             description: acct.Description ?? null,
             is_bank_account: true,
             buildium_gl_account_id: acct.Id,
-            bank_account_type: (mapped as any).bank_account_type ?? null,
+            bank_account_type: (mapped as Record<string, unknown>).bank_account_type ?? null,
             bank_account_number:
-              (mapped as any).bank_account_number ?? (mapped as any).account_number ?? null,
-            bank_routing_number: (mapped as any).routing_number ?? null,
-            bank_country: (mapped as any).country ?? 'United States',
-            bank_buildium_balance: typeof (acct as any)?.Balance === 'number' ? (acct as any).Balance : null,
-            bank_check_printing_info: (acct as any).CheckPrintingInfo ?? null,
-            bank_electronic_payments: (acct as any).ElectronicPayments ?? null,
+              (mapped as Record<string, unknown>).bank_account_number ??
+              (mapped as Record<string, unknown>).account_number ??
+              null,
+            bank_routing_number: (mapped as Record<string, unknown>).routing_number ?? null,
+            bank_country: (mapped as Record<string, unknown>).country ?? 'United States',
+            bank_buildium_balance: typeof acct?.Balance === 'number' ? acct.Balance : null,
+            bank_check_printing_info: acct.CheckPrintingInfo ?? null,
+            bank_electronic_payments: acct.ElectronicPayments ?? null,
             bank_last_source: 'buildium',
             bank_last_source_ts: now,
             updated_at: now,
@@ -66,8 +77,8 @@ export async function POST(request: NextRequest) {
                 .select('bank_last_source, bank_last_source_ts')
                 .eq('id', glId)
                 .maybeSingle()
-              const src = (existingGl as any)?.bank_last_source
-              const tsStr = (existingGl as any)?.bank_last_source_ts as string | null
+              const src = existingGl?.bank_last_source as string | null
+              const tsStr = existingGl?.bank_last_source_ts as string | null
               if (src === 'local' && tsStr) {
                 const ts = new Date(tsStr)
                 const diffMs = Date.now() - ts.getTime()
@@ -99,7 +110,7 @@ export async function POST(request: NextRequest) {
           } else {
             summary.skipped++
           }
-        } catch (e) {
+        } catch {
           summary.failed++
         }
       }

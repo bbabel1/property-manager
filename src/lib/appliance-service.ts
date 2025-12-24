@@ -8,6 +8,13 @@ import { mapApplianceFromBuildium, mapApplianceToBuildium } from './buildium-map
 export type ApplianceRow = Database['public']['Tables']['appliances']['Row']
 export type ApplianceInsert = Database['public']['Tables']['appliances']['Insert']
 export type ApplianceUpdate = Database['public']['Tables']['appliances']['Update']
+type AppliancePayload = Awaited<ReturnType<typeof mapApplianceFromBuildium>>
+
+const toUpdatePayload = (local: AppliancePayload) =>
+  ({ ...local, updated_at: new Date().toISOString() } as unknown as ApplianceUpdate)
+
+const toInsertPayload = (local: AppliancePayload) =>
+  local as unknown as ApplianceInsert
 
 function ensureClient() {
   return createBuildiumClient({
@@ -48,9 +55,9 @@ export class ApplianceService {
             .single()
 
           if (existing) {
-            await supabase.from('appliances').update({ ...local, updated_at: new Date().toISOString() }).eq('id', existing.id)
+            await supabase.from('appliances').update(toUpdatePayload(local)).eq('id', existing.id)
           } else {
-            await supabase.from('appliances').insert(local)
+            await supabase.from('appliances').insert(toInsertPayload(local))
           }
         } catch (e) {
           logger.error({ applianceId: a.Id, error: (e as Error).message }, 'Failed to persist appliance')
@@ -77,9 +84,9 @@ export class ApplianceService {
           .single()
 
         if (existing) {
-          await supabase.from('appliances').update({ ...local, updated_at: new Date().toISOString() }).eq('id', existing.id)
+          await supabase.from('appliances').update(toUpdatePayload(local)).eq('id', existing.id)
         } else {
-          await supabase.from('appliances').insert(local)
+          await supabase.from('appliances').insert(toInsertPayload(local))
         }
       } catch (e) {
         logger.error({ applianceId: id, error: (e as Error).message }, 'Failed to persist appliance')
@@ -98,7 +105,7 @@ export class ApplianceService {
     )
     const buildium = await client.createAppliance(toBuildium as BuildiumApplianceCreate)
     const local = await mapApplianceFromBuildium(buildium, supabase)
-    const { data, error } = await supabase.from('appliances').insert(local).select('id').single()
+    const { data, error } = await supabase.from('appliances').insert(toInsertPayload(local)).select('id').single()
     if (error) throw error
     return { buildium, localId: data.id }
   }
@@ -120,10 +127,10 @@ export class ApplianceService {
       .single()
 
     if (existing) {
-      await supabase.from('appliances').update({ ...local, updated_at: new Date().toISOString() }).eq('id', existing.id)
+      await supabase.from('appliances').update(toUpdatePayload(local)).eq('id', existing.id)
       return { buildium, localId: existing.id }
     } else {
-      const { data, error } = await supabase.from('appliances').insert(local).select('id').single()
+      const { data, error } = await supabase.from('appliances').insert(toInsertPayload(local)).select('id').single()
       if (error) throw error
       return { buildium, localId: data.id }
     }

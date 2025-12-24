@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
@@ -30,11 +30,7 @@ export default function TemplatesPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  useEffect(() => {
-    fetchTemplates();
-  }, [statusFilter]);
-
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -56,7 +52,11 @@ export default function TemplatesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
+
+  useEffect(() => {
+    void fetchTemplates();
+  }, [fetchTemplates]);
 
   const getStatusBadgeVariant = (status: EmailTemplateStatus) => {
     switch (status) {

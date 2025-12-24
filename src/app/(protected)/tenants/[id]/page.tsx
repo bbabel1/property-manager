@@ -447,7 +447,7 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
 
             <RecentNotesSection tenantId={id} />
 
-            <RecentFilesSection tenantId={id} />
+            <RecentFilesSection />
           </div>
           <div className="hidden lg:block" />
         </div>

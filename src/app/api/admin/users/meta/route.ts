@@ -10,6 +10,13 @@ const DEFAULT_STAFF_ROLE: StaffRole = 'Bookkeeper'
 async function ensureStaffRecord(userId: string) {
   const admin = requireSupabaseAdmin('ensure staff for user meta')
 
+  type ContactSelect = {
+    first_name: string | null
+    last_name: string | null
+    primary_phone: string | null
+    primary_email: string | null
+  }
+
   const { data: existing, error: fetchErr } = await admin
     .from('staff')
     .select('id')
@@ -31,12 +38,13 @@ async function ensureStaffRecord(userId: string) {
       .from('contacts')
       .select('first_name,last_name,primary_phone:primary_phone,primary_email:primary_email')
       .eq('user_id', userId)
+      .returns<ContactSelect>()
       .maybeSingle()
     if (contact) {
       contactFirst = contact.first_name ?? null
       contactLast = contact.last_name ?? null
-      contactPhone = (contact as any)?.primary_phone ?? null
-      contactEmail = (contact as any)?.primary_email ?? null
+      contactPhone = contact.primary_phone ?? null
+      contactEmail = contact.primary_email ?? null
     }
   } catch (err) {
     console.warn('Failed to load contact while auto-provisioning staff', err)
@@ -45,11 +53,17 @@ async function ensureStaffRecord(userId: string) {
   // Derive a reasonable staff role from membership roles
   let resolvedRole: StaffRole = DEFAULT_STAFF_ROLE
   try {
+    type MembershipRoleSelect = { roles: { name: string | null } | null }
     const { data: membershipRoles } = await admin
       .from('membership_roles')
       .select('roles(name)')
       .eq('user_id', userId)
-    const roleSet = new Set((membershipRoles || []).map((r: any) => r?.roles?.name).filter(Boolean))
+      .returns<MembershipRoleSelect[]>()
+    const roleSet = new Set(
+      (membershipRoles ?? [])
+        .map((r) => r?.roles?.name)
+        .filter((name): name is string => Boolean(name))
+    )
     if (roleSet.has('org_admin')) resolvedRole = 'Administrator'
     else if (roleSet.has('org_manager')) resolvedRole = 'Property Manager'
     else if (roleSet.has('org_staff')) resolvedRole = 'Bookkeeper'
@@ -91,17 +105,17 @@ const USER_TYPES = new Set(['staff', 'rental_owner', 'vendor'])
 export async function POST(request: NextRequest) {
   try {
     await requireRole('org_admin')
-    const body = await request.json().catch(() => ({}))
-    const user_id = typeof body?.user_id === 'string' ? body.user_id : null
-    const platform_developer = body?.platform_developer === true
-    const user_types_raw = Array.isArray(body?.user_types) ? body.user_types : []
-    const user_types = Array.from(
-      new Set(
-        user_types_raw
-          .map((v: any) => (typeof v === 'string' ? v.trim().toLowerCase() : ''))
-          .filter((v: string) => USER_TYPES.has(v))
-      )
+  const body = await request.json().catch(() => ({}))
+  const user_id = typeof body?.user_id === 'string' ? body.user_id : null
+  const platform_developer = body?.platform_developer === true
+  const user_types_raw = Array.isArray(body?.user_types) ? body.user_types : []
+  const user_types = Array.from(
+    new Set(
+      user_types_raw
+        .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+        .filter((value: string) => USER_TYPES.has(value))
     )
+  )
 
     if (!user_id) {
       return NextResponse.json({ error: 'user_id is required' }, { status: 400 })
@@ -112,7 +126,13 @@ export async function POST(request: NextRequest) {
     }
 
     const supabaseAdmin = requireSupabaseAdmin('update user metadata')
-    const appMetadata: Record<string, any> = {
+    type AppMetadata = {
+      user_types: string[]
+      roles?: string[]
+      claims?: { roles: string[] }
+    }
+
+    const appMetadata: AppMetadata = {
       user_types: user_types,
     }
     if (platform_developer) {
@@ -136,9 +156,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, app_metadata: appMetadata })
-  } catch (e: any) {
-    if (e?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    if (e?.message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    if (error?.message === 'UNAUTHENTICATED') return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (error?.message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

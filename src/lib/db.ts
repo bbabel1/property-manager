@@ -12,17 +12,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export type TypedSupabaseClient = SupabaseClient<any>;
+export type TypedSupabaseClient = SupabaseClient<Database>;
 
 // Client for frontend/client-side operations (safe to create even if values are undefined; calls will fail clearly)
 export const supabase: TypedSupabaseClient =
-  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : (undefined as any);
+  supabaseUrl && supabaseAnonKey
+    ? createClient<Database>(supabaseUrl, supabaseAnonKey)
+    : (null as unknown as TypedSupabaseClient);
 
 // Admin client for server-side operations (API routes only). Optional if key missing.
 const isServer = typeof window === 'undefined';
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdminInternal =
-  isServer && serviceKey ? createClient(supabaseUrl || '', serviceKey) : undefined;
+  isServer && serviceKey ? createClient<Database>(supabaseUrl || '', serviceKey) : undefined;
 
 if (isServer && !serviceKey) {
   console.warn(

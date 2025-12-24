@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const user = await requireUser(request)
+    await requireUser(request)
     
     const url = new URL(request.url)
     const { searchParams } = url

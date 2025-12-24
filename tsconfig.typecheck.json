@@ -11,6 +11,7 @@
     "scripts",
     "backups",
     "supabase/functions",
+    "src/app/api/**/*",
     "src/lib/webhooks.ts",
     "src/lib/relationship-resolver.ts",
     "src/lib/hooks/useSupabase.ts",

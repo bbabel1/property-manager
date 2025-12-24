@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
@@ -20,7 +18,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const tenant = proxy.data
     logger.info('Buildium tenant fetched successfully')
     return NextResponse.json({ success: true, data: tenant })
-  } catch (e) {
+  } catch (error) {
+    logger.error({ error });
     logger.error('Error fetching Buildium tenant')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -41,7 +40,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const tenant = prox.data
     logger.info('Buildium tenant updated successfully')
     return NextResponse.json({ success: true, data: tenant })
-  } catch (e) {
+  } catch (error) {
+    logger.error({ error });
     logger.error('Error updating Buildium tenant')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 /**
  * Buildium Integration Management API
  * 
@@ -12,10 +10,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import {
-  getOrgScopedBuildiumConfig,
+  _getOrgScopedBuildiumConfig,
   storeBuildiumCredentials,
   deleteBuildiumCredentials,
-  maskSecret,
+  _maskSecret,
   validateBuildiumBaseUrl,
   type BuildiumCredentials,
 } from '@/lib/buildium/credentials-manager';

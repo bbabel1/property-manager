@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import EditLink from '@/components/ui/EditLink';
@@ -43,7 +43,7 @@ export default function StaffPage() {
   const [filterActive, setFilterActive] = useState<boolean>(true);
   const [filterSynced, setFilterSynced] = useState<boolean>(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -51,44 +51,33 @@ export default function StaffPage() {
       if (filterRole) params.set('role', filterRole);
       if (typeof filterActive === 'boolean') params.set('isActive', String(filterActive));
       const res = await fetch(`/api/staff?${params.toString()}`, { cache: 'no-store' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Failed to load staff');
-      let list = (data || []) as any[];
-      if (filterSynced) list = list.filter((s) => s.buildium_staff_id != null);
-      setStaff(list as any);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load staff');
+      const data = (await res.json()) as unknown;
+      if (!res.ok) {
+        const errMsg =
+          data && typeof data === 'object' && 'error' in data && typeof (data as { error?: unknown }).error === 'string'
+            ? (data as { error?: string }).error
+            : 'Failed to load staff';
+        throw new Error(errMsg);
+      }
+      const list = (Array.isArray(data) ? data : []).flatMap((item) => {
+        if (item && typeof item === 'object' && 'id' in item && 'role' in item) {
+          return [item as Staff];
+        }
+        return [];
+      });
+      const filtered = filterSynced ? list.filter((s) => s.buildium_staff_id != null) : list;
+      setStaff(filtered);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to load staff';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterActive, filterRole, filterSynced]);
 
   useEffect(() => {
-    load();
-  }, [filterRole, filterActive, filterSynced]);
-
-  const updateRole = async (id: number, role: string) => {
-    const normalizedRole = normalizeStaffRole(role);
-    if (!normalizedRole) {
-      setError('Invalid role selected');
-      return;
-    }
-    await fetch('/api/staff', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, role: normalizedRole }),
-    });
-    await load();
-  };
-
-  const toggleActive = async (id: number, active: boolean) => {
-    await fetch('/api/staff', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, isActive: active }),
-    });
-    await load();
-  };
+    void load();
+  }, [load]);
 
   const remove = async (id: number) => {
     await fetch(`/api/staff?id=${id}`, { method: 'DELETE' });
@@ -109,8 +98,9 @@ export default function StaffPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || 'Sync failed');
       await load();
-    } catch (e: any) {
-      setSyncError(e.message || 'Sync failed');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Sync failed';
+      setSyncError(message);
     } finally {
       setSyncingId(null);
     }
@@ -131,7 +121,7 @@ export default function StaffPage() {
 
   // Last sync status
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const loadLast = async () => {
+  const loadLast = useCallback(async () => {
     try {
       const res = await fetch('/api/buildium/staff/sync-all', { method: 'GET', cache: 'no-store' });
       const j = await res.json();
@@ -140,10 +130,10 @@ export default function StaffPage() {
     } catch {
       setLastSync(null);
     }
-  };
-  useEffect(() => {
-    loadLast();
   }, []);
+  useEffect(() => {
+    void loadLast();
+  }, [loadLast]);
 
   return (
     <div className="space-y-6">
@@ -195,6 +185,7 @@ export default function StaffPage() {
               Synced to Buildium
             </label>
           </div>
+          {error && <div className="text-destructive mb-3 text-sm">{error}</div>}
           {loading ? (
             <div className="text-muted-foreground">Loading…</div>
           ) : (
@@ -326,8 +317,9 @@ function EditStaffModal({
       if (!res.ok) throw new Error(j?.error || 'Save failed');
       onSaved();
       onClose();
-    } catch (e: any) {
-      setError(e.message || 'Save failed');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Save failed';
+      setError(message);
     } finally {
       setBusy(false);
     }

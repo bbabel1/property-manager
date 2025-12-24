@@ -37,7 +37,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     }
 
     let buildiumUnitId = lease.buildium_unit_id
-    let unitNumber = (lease as any).unit_number
+    let unitNumber = lease.unit_number
     if (!buildiumUnitId && lease.unit_id) {
       const { data: unitRow } = await db
         .from('units')
@@ -56,7 +56,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       ...lease,
       buildium_property_id: buildiumPropertyId,
       buildium_unit_id: buildiumUnitId ?? null,
-      unit_number: unitNumber ?? (lease as any)?.unit_number ?? null
+      unit_number: unitNumber ?? lease.unit_number ?? null
     }
 
     const result = await buildiumSync.syncLeaseToBuildium(payload)
@@ -66,7 +66,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
     logger.info({ leaseId: id, buildiumId: result.buildiumId }, 'Lease synced to Buildium')
     return NextResponse.json({ success: true, buildium_lease_id: result.buildiumId })
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

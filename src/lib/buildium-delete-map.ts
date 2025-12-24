@@ -47,11 +47,12 @@ export function isDeleteEventName(name?: string | null): boolean {
   return DELETE_EVENT_NAME_SET.has(canonical.toLowerCase())
 }
 
-export function looksLikeDelete(event: any): boolean {
+export function looksLikeDelete(event: unknown): boolean {
+  const record = event && typeof event === 'object' ? (event as Record<string, unknown>) : null
   const candidates = [
-    typeof event?.EventType === 'string' ? event.EventType : null,
-    typeof event?.EventName === 'string' ? event.EventName : null,
-    typeof (event as any)?.type === 'string' ? (event as any).type : null,
+    typeof record?.EventType === 'string' ? record.EventType : null,
+    typeof record?.EventName === 'string' ? record.EventName : null,
+    typeof record?.type === 'string' ? record.type : null,
   ].filter(Boolean) as string[]
   return candidates.some((c) => isDeleteEventName(c) || canonicalizeEventName(c).toLowerCase().includes('deleted'))
 }

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { getAvailableVariables } from '@/lib/email-templates/variable-definitions';
@@ -105,16 +105,17 @@ export async function POST(request: NextRequest) {
     const result = await renderEmailTemplate(template, variableValues);
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error previewing draft email template:', error);
 
-    if (error.name === 'ZodError') {
+    if (error instanceof ZodError) {
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Validation failed',
-            details: error.errors,
+            details: error.issues,
+            formatted: error.format(),
           },
         },
         { status: 400 },

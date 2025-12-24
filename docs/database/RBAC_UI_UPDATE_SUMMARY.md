@@ -230,5 +230,5 @@ Based on the access report, these roles are now available in the dropdown:
 
 **The RBAC system is now connected to the UI!**
 
-[membership-url]: http://localhost:3000/settings/memberships
+[membership-url]: <http://localhost:3000/settings/memberships>
 [contact-email]: mailto:brandon@managedbyora.com

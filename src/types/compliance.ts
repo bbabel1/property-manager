@@ -154,7 +154,7 @@ export interface CompliancePropertyProgramOverride {
   program_id: string
   is_assigned: boolean
   is_enabled: boolean | null
-  assigned_at: string
+  assigned_at: string | null
   assigned_by: string | null
   created_at: string
   updated_at: string

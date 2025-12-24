@@ -39,7 +39,7 @@ interface AutomationRule {
   frequency: string;
   task_template: string | null;
   charge_template: string | null;
-  conditions: Record<string, any> | null;
+  conditions: Record<string, unknown> | null;
   is_active: boolean;
 }
 
@@ -69,11 +69,18 @@ export default function AutomationRulesAdmin() {
         throw new Error('Failed to load automation rules');
       }
 
-      const rulesData = await rulesResponse.json();
-      const offeringsData = await offeringsResponse.json();
+      const rulesData = (await rulesResponse.json()) as { data?: AutomationRule[] };
+      const offeringsData = (await offeringsResponse.json()) as {
+        data?: Array<{ id: string | number; name?: string | null }>;
+      };
 
       setRules(rulesData.data || []);
-      setOfferings((offeringsData.data || []).map((o: any) => ({ id: o.id, name: o.name })));
+      setOfferings(
+        (offeringsData.data || []).map((o) => ({
+          id: String(o.id),
+          name: o.name ?? String(o.id),
+        })),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
@@ -264,7 +271,9 @@ interface AutomationRuleFormProps {
 
 function AutomationRuleForm({ rule, offerings, onSave, onCancel }: AutomationRuleFormProps) {
   const [offeringId, setOfferingId] = useState(rule?.offering_id || '');
-  const [ruleType, setRuleType] = useState<string>(rule?.rule_type || 'recurring_task');
+  const [ruleType, setRuleType] = useState<AutomationRule['rule_type']>(
+    rule?.rule_type || 'recurring_task',
+  );
   const [frequency, setFrequency] = useState(rule?.frequency || 'monthly');
   const [taskTemplate, setTaskTemplate] = useState(rule?.task_template || '');
   const [chargeTemplate, setChargeTemplate] = useState(rule?.charge_template || '');
@@ -285,7 +294,7 @@ function AutomationRuleForm({ rule, offerings, onSave, onCancel }: AutomationRul
     try {
       await onSave({
         offering_id: offeringId,
-        rule_type: ruleType as any,
+        rule_type: ruleType,
         frequency,
         task_template: ruleType === 'recurring_task' ? taskTemplate : null,
         charge_template: ruleType === 'recurring_charge' ? chargeTemplate : null,
@@ -316,7 +325,11 @@ function AutomationRuleForm({ rule, offerings, onSave, onCancel }: AutomationRul
 
       <div className="space-y-2">
         <Label htmlFor="rule-type">Rule Type</Label>
-        <Select value={ruleType} onValueChange={setRuleType} required>
+        <Select
+          value={ruleType}
+          onValueChange={(value) => setRuleType(value as AutomationRule['rule_type'])}
+          required
+        >
           <SelectTrigger id="rule-type">
             <SelectValue />
           </SelectTrigger>

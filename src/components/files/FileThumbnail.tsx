@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/components/ui/utils';
@@ -27,6 +28,12 @@ export default function FileThumbnail({
     sm: 'h-8 w-8',
     md: 'h-12 w-12',
     lg: 'h-16 w-16',
+  };
+
+  const sizePixels: Record<NonNullable<FileThumbnailProps['size']>, number> = {
+    sm: 32,
+    md: 48,
+    lg: 64,
   };
 
   const iconSizeClasses = {
@@ -59,12 +66,14 @@ export default function FileThumbnail({
   };
 
   if (isImage && imageUrl) {
+    const dimension = sizePixels[size];
     return (
-      // Using img instead of Next.js Image for dynamic presigned URLs
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <Image
         src={imageUrl}
         alt={fileName}
+        width={dimension}
+        height={dimension}
+        unoptimized
         className={cn('rounded object-cover', sizeClasses[size], className)}
         onError={() => setHasError(true)}
       />

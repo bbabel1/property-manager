@@ -36,12 +36,11 @@ const cleanNullable = (value: string | null | undefined) => {
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } } | { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const auth = await requireAuth();
-    const params = 'params' in context ? context.params : { id: '' };
-    const { id } = params instanceof Promise ? await params : params;
+    const { id } = await params;
     if (!id) return NextResponse.json({ success: false, error: 'Missing account id' }, { status: 400 });
 
     const { data: existing, error: fetchError } = await supabaseAdmin

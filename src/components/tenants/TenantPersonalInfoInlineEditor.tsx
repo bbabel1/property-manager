@@ -68,7 +68,10 @@ export default function TenantPersonalInfoInlineEditor({
         body: JSON.stringify({ tax_id: values.tax_id ?? null, comment: values.comment ?? null })
       })
 
-      const tenantJson = await tenantResponse.json().catch(() => ({} as any))
+      const tenantJson = (await tenantResponse.json().catch(() => ({}))) as {
+        error?: string;
+        buildium_sync_error?: string;
+      }
       if (!tenantResponse.ok) {
         const errorMessage = tenantJson?.error || 'Failed to save personal information'
         throw new Error(errorMessage)

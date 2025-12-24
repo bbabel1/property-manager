@@ -185,7 +185,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
       state: property.state ?? '',
       postal_code: property.postal_code ?? '',
       country: property.country ?? '',
-      property_type: (property as { property_type?: string | null }).property_type ?? null,
+      property_type: property.property_type ?? null,
       status: property.status ?? '',
       year_built: property.year_built ?? null,
       owners: transformedOwners,
@@ -224,18 +224,18 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
   }
 
   const createNewOwner = async (ownerData: {
-    firstName: string
-    lastName: string
-    isCompany: boolean
+    firstName?: string
+    lastName?: string
+    isCompany?: boolean
     companyName?: string
     email?: string
     phoneHome?: string
     phoneMobile?: string
-    addressLine1: string
+    addressLine1?: string
     city?: string
     state?: string
-    postalCode: string
-    country: string
+    postalCode?: string
+    country?: string
   }) => {
     try {
       setIsCreatingOwner(true)
@@ -762,7 +762,7 @@ export default function EditPropertyModal({ isOpen, onClose, onSuccess, property
         isOpen={showCreateOwnerModal}
         onClose={() => setShowCreateOwnerModal(false)}
         onCreateOwner={(ownerData) => {
-          void createNewOwner(ownerData as any);
+          void createNewOwner(ownerData);
         }}
         isLoading={isCreatingOwner}
         error={createOwnerError}

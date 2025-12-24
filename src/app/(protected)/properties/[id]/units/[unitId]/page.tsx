@@ -33,14 +33,8 @@ import {
   type MonthlyLogStage,
   type MonthlyLogStatus,
 } from '@/components/monthly-logs/types';
+import type { Tables } from '@/types/database';
 
-type Fin = {
-  cash_balance?: number;
-  security_deposits?: number;
-  reserve?: number;
-  available_balance?: number;
-  as_of?: string;
-};
 type UnitSubNavKey = 'details' | 'services' | 'ledger' | 'bills' | 'monthly_logs';
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 type MonthlyLogListRow = {
@@ -226,6 +220,71 @@ const isBillStatusSlug = (value: string): value is BillStatusSlug =>
   value === 'paid' ||
   value === 'cancelled';
 
+type UnitRecord = Pick<
+  Tables<'units'>,
+  | 'id'
+  | 'org_id'
+  | 'unit_number'
+  | 'unit_name'
+  | 'balance'
+  | 'deposits_held_balance'
+  | 'prepayments_balance'
+>;
+type PropertyRecord = Pick<Tables<'properties'>, 'id' | 'org_id' | 'name' | 'reserve'> & {
+  units?: UnitRecord[] | null;
+};
+type LeaseRow = Pick<
+  Tables<'lease'>,
+  | 'id'
+  | 'lease_from_date'
+  | 'lease_to_date'
+  | 'status'
+  | 'rent_amount'
+  | 'buildium_lease_id'
+  | 'sync_status'
+  | 'last_sync_error'
+  | 'last_sync_attempt_at'
+>;
+type LeaseContactRow = {
+  lease_id: number | string;
+  tenants: {
+    contact: Pick<
+      Tables<'contacts'>,
+      'display_name' | 'first_name' | 'last_name' | 'company_name' | 'is_company'
+    > | null;
+  } | null;
+};
+type ApplianceRow = Pick<Tables<'appliances'>, 'id' | 'name' | 'type' | 'installation_date'>;
+type TransactionLineRow = Pick<
+  Tables<'transaction_lines'>,
+  'id' | 'transaction_id' | 'memo' | 'amount' | 'posting_type' | 'gl_account_id'
+> & {
+  gl_accounts?: Pick<
+    Tables<'gl_accounts'>,
+    'name' | 'type' | 'sub_type' | 'is_bank_account' | 'is_security_deposit_liability' | 'exclude_from_cash_balances'
+  > | null;
+};
+type TransactionRow = Pick<
+  Tables<'transactions'>,
+  | 'id'
+  | 'date'
+  | 'due_date'
+  | 'paid_date'
+  | 'total_amount'
+  | 'memo'
+  | 'transaction_type'
+  | 'buildium_transaction_id'
+  | 'buildium_lease_id'
+  | 'lease_id'
+  | 'status'
+  | 'reference_number'
+  | 'vendor_id'
+>;
+type VendorRow = {
+  id: string;
+  contact: Pick<Tables<'contacts'>, 'display_name' | 'company_name' | 'first_name' | 'last_name'> | null;
+};
+
 export default async function UnitDetailsNested({
   params,
   searchParams,
@@ -284,29 +343,28 @@ export default async function UnitDetailsNested({
   };
 
   // Fetch property shell + units (server-side, cached by PropertyService)
-  const property = await PropertyService.getPropertyById(propertyId);
+  const property = (await PropertyService.getPropertyById(propertyId)) as
+    | (PropertyRecord & { units?: UnitRecord[] | null })
+    | null;
 
   // Try to find unit from property details; fallback to API
-  let unit = property?.units?.find((u) => String((u as any).id) === String(unitId)) as any;
+  const units = property?.units ?? [];
+  let unit = units.find((u) => String(u?.id ?? '') === String(unitId));
   if (!unit) {
     try {
       const res = await fetch(`/api/units/${unitId}`, { cache: 'no-store' });
-      if (res.ok) unit = await res.json();
+      if (res.ok) unit = (await res.json()) as UnitRecord;
     } catch {}
   }
 
   const propertyIdString = property?.id != null ? String(property.id) : '';
   const unitIdString = unit?.id != null ? String(unit.id) : '';
   const orgIdString =
-    (property as any)?.org_id != null
-      ? String((property as any).org_id)
-      : (unit as any)?.org_id != null
-        ? String((unit as any).org_id)
-        : '';
+    property?.org_id != null ? String(property.org_id) : unit?.org_id != null ? String(unit.org_id) : '';
 
   // Load live leases and join tenant names (local DB)
   const db = supabaseAdmin || supaClient;
-  let leases: any[] = [];
+  let leases: LeaseRow[] = [];
   const tenantNamesByLease: Record<string, string[]> = {};
   if (unit?.id) {
     try {
@@ -317,24 +375,24 @@ export default async function UnitDetailsNested({
         )
         .eq('unit_id', unit.id)
         .order('lease_from_date', { ascending: false });
-      leases = Array.isArray(leaseRows) ? leaseRows : [];
-      const ids = leases.map((l: any) => l.id);
+      leases = Array.isArray(leaseRows) ? (leaseRows as LeaseRow[]) : [];
+      const ids = leases.map((l) => l.id);
       if (ids.length) {
         const { data: lcs } = await db
           .from('lease_contacts')
           .select(
             'lease_id, tenants( id, contact:contacts(display_name, first_name, last_name, company_name, is_company) )',
           )
-          .in('lease_id', ids as any);
+          .in('lease_id', ids);
         if (Array.isArray(lcs)) {
-          for (const row of lcs) {
-            const contact = (row as any)?.tenants?.contact;
+          for (const row of lcs as LeaseContactRow[]) {
+            const contact = row?.tenants?.contact;
             const name =
               contact?.display_name ||
               contact?.company_name ||
               [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
               'Tenant';
-            const key = String((row as any).lease_id);
+            const key = String(row.lease_id);
             tenantNamesByLease[key] = [...(tenantNamesByLease[key] || []), name];
           }
         }
@@ -343,7 +401,7 @@ export default async function UnitDetailsNested({
   }
 
   // Load locally stored appliances for this unit
-  let appliances: any[] = [];
+  let appliances: ApplianceRow[] = [];
   if (unit?.id) {
     try {
       const { data: appRows } = await db
@@ -351,7 +409,7 @@ export default async function UnitDetailsNested({
         .select('id, name, type, installation_date')
         .eq('unit_id', unit.id)
         .order('name');
-      appliances = Array.isArray(appRows) ? appRows : [];
+      appliances = Array.isArray(appRows) ? (appRows as ApplianceRow[]) : [];
     } catch {}
   }
 
@@ -369,12 +427,12 @@ export default async function UnitDetailsNested({
         .order('created_at', { ascending: true });
 
       monthlyLogs = Array.isArray(logRows)
-        ? (logRows as any[])
+        ? (logRows as Tables<'monthly_logs'>[])
             .map((row) => ({
               id: String(row.id),
               periodStart: typeof row?.period_start === 'string' ? row.period_start : '',
-              status: normalizeMonthlyLogStatus((row as any)?.status),
-              stage: normalizeMonthlyLogStage((row as any)?.stage),
+              status: normalizeMonthlyLogStatus(row?.status),
+              stage: normalizeMonthlyLogStage(row?.stage),
             }))
             .filter((row) => row.id && row.periodStart)
         : [];
@@ -382,10 +440,10 @@ export default async function UnitDetailsNested({
   }
 
   // Load all transaction lines associated with this unit or its leases (used for balances and filtering)
-  let transactionLines: any[] = [];
+  let transactionLines: TransactionLineRow[] = [];
   const tlCounts = { unit: 0, lease: 0, buildiumLease: 0 };
-  const transactionLineMap = new Map<string, any>();
-  const collectLines = (rows?: any[] | null) => {
+  const transactionLineMap = new Map<string, TransactionLineRow>();
+  const collectLines = (rows?: TransactionLineRow[] | null) => {
     if (!Array.isArray(rows)) return;
     for (const row of rows) {
       if (row?.gl_accounts?.exclude_from_cash_balances === true) continue;
@@ -402,14 +460,14 @@ export default async function UnitDetailsNested({
         .from('transaction_lines')
         .select(lineSelect)
         .eq('unit_id', unit.id);
-      collectLines(lines);
+      collectLines(lines as TransactionLineRow[] | null);
       tlCounts.unit = Array.isArray(lines) ? lines.length : 0;
     } catch {}
   }
 
   const leaseIdsForLines = Array.isArray(leases)
     ? leases
-        .map((l: any) => {
+        .map((l) => {
           const raw = l?.id;
           if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
           if (typeof raw === 'string' && raw.trim() !== '') {
@@ -423,7 +481,7 @@ export default async function UnitDetailsNested({
 
   const buildiumLeaseIdsForLines = Array.isArray(leases)
     ? leases
-        .map((l: any) => {
+        .map((l) => {
           const raw = l?.buildium_lease_id;
           if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
           if (typeof raw === 'string' && raw.trim() !== '') {
@@ -440,8 +498,8 @@ export default async function UnitDetailsNested({
       const { data: lines } = await db
         .from('transaction_lines')
         .select(lineSelect)
-        .in('lease_id', leaseIdsForLines as any);
-      collectLines(lines);
+        .in('lease_id', leaseIdsForLines);
+      collectLines(lines as TransactionLineRow[] | null);
       tlCounts.lease = Array.isArray(lines) ? lines.length : 0;
     } catch {}
   }
@@ -451,8 +509,8 @@ export default async function UnitDetailsNested({
       const { data: lines } = await db
         .from('transaction_lines')
         .select(lineSelect)
-        .in('buildium_lease_id', buildiumLeaseIdsForLines as any);
-      collectLines(lines);
+        .in('buildium_lease_id', buildiumLeaseIdsForLines);
+      collectLines(lines as TransactionLineRow[] | null);
       tlCounts.buildiumLease = Array.isArray(lines) ? lines.length : 0;
     } catch {}
   }
@@ -460,9 +518,9 @@ export default async function UnitDetailsNested({
   transactionLines = Array.from(transactionLineMap.values());
 
   // Fetch transactions tied to this unit's leases or referenced by transaction lines
-  const transactionMap = new Map<string, any>();
+  const transactionMap = new Map<string, TransactionRow>();
   let tempTransactionKey = 0;
-  const addTransaction = (row: any) => {
+  const addTransaction = (row: TransactionRow | null | undefined) => {
     if (!row) return;
     const hasId = row?.id != null && row.id !== '';
     const key = hasId
@@ -472,15 +530,15 @@ export default async function UnitDetailsNested({
         : `tmp:${tempTransactionKey++}`;
     if (!transactionMap.has(key)) transactionMap.set(key, row);
   };
-  const collectTransactions = (rows?: any[] | null) => {
+  const collectTransactions = (rows?: TransactionRow[] | null) => {
     if (!Array.isArray(rows)) return;
     for (const row of rows) addTransaction(row);
   };
 
-  let transactions: any[] = [];
+  let transactions: TransactionRow[] = [];
   if (leases.length) {
     const leaseIds = leases
-      .map((l: any) => {
+      .map((l) => {
         const raw = l?.id;
         if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
         if (typeof raw === 'string' && raw.trim() !== '') {
@@ -492,7 +550,7 @@ export default async function UnitDetailsNested({
       .filter((id): id is number => id != null);
 
     const buildiumLeaseIds = leases
-      .map((l: any) => {
+      .map((l) => {
         const raw = l?.buildium_lease_id;
         if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
         if (typeof raw === 'string' && raw.trim() !== '') {
@@ -510,8 +568,8 @@ export default async function UnitDetailsNested({
           .select(
             'id, date, due_date, paid_date, total_amount, memo, transaction_type, buildium_transaction_id, buildium_lease_id, lease_id, status, reference_number, vendor_id',
           )
-          .in('lease_id', leaseIds as any);
-        collectTransactions(data);
+          .in('lease_id', leaseIds);
+        collectTransactions(data as TransactionRow[] | null);
       }
     } catch {}
 
@@ -522,8 +580,8 @@ export default async function UnitDetailsNested({
           .select(
             'id, date, due_date, paid_date, total_amount, memo, transaction_type, buildium_transaction_id, buildium_lease_id, lease_id, status, reference_number, vendor_id',
           )
-          .in('buildium_lease_id', buildiumLeaseIds as any);
-        collectTransactions(data);
+          .in('buildium_lease_id', buildiumLeaseIds);
+        collectTransactions(data as TransactionRow[] | null);
       }
     } catch {}
 
@@ -533,8 +591,8 @@ export default async function UnitDetailsNested({
   const lineTransactionIds = Array.from(
     new Set(
       transactionLines
-        .map((line: any) => {
-          const raw = (line as any)?.transaction_id;
+        .map((line) => {
+          const raw = line?.transaction_id;
           if (raw == null) return null;
           if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw);
           if (typeof raw === 'string' && raw.trim() !== '') return raw.trim();
@@ -548,7 +606,7 @@ export default async function UnitDetailsNested({
   if (lineTransactionIds.length) {
     const existingIds = new Set(
       Array.from(transactionMap.values())
-        .map((tx: any) => (tx?.id != null ? String(tx.id) : null))
+        .map((tx) => (tx?.id != null ? String(tx.id) : null))
         .filter((id): id is string => Boolean(id)),
     );
     const missingIds = lineTransactionIds.filter((id) => !existingIds.has(id));
@@ -559,8 +617,8 @@ export default async function UnitDetailsNested({
           .select(
             'id, date, due_date, paid_date, total_amount, memo, transaction_type, buildium_transaction_id, buildium_lease_id, lease_id, status, reference_number, vendor_id',
           )
-          .in('id', missingIds as any);
-        collectTransactions(extra);
+          .in('id', missingIds);
+        collectTransactions(extra as TransactionRow[] | null);
       } catch {}
     }
   }
@@ -569,16 +627,15 @@ export default async function UnitDetailsNested({
 
   // Calculate unit-specific balance from the active lease
   // Prefer DB-maintained columns on the unit when present
-  let unitBalance = typeof (unit as any)?.balance === 'number' ? Number((unit as any).balance) : 0;
-  let activeLeaseRent: number | null = null;
+  let unitBalance = typeof unit?.balance === 'number' ? Number(unit.balance) : 0;
   let activeLeaseId: string | null = null;
-  let depositsHeld =
-    typeof (unit as any)?.deposits_held_balance === 'number'
-      ? Number((unit as any).deposits_held_balance)
+  const depositsHeld =
+    typeof unit?.deposits_held_balance === 'number'
+      ? Number(unit.deposits_held_balance)
       : 0;
-  let prepayments =
-    typeof (unit as any)?.prepayments_balance === 'number'
-      ? Number((unit as any).prepayments_balance)
+  const prepayments =
+    typeof unit?.prepayments_balance === 'number'
+      ? Number(unit.prepayments_balance)
       : 0;
 
   if (leases.length > 0) {
@@ -587,7 +644,6 @@ export default async function UnitDetailsNested({
       leases.find(
         (l) => l.status?.toLowerCase() === 'active' || l.status?.toLowerCase() === 'current',
       ) || leases[0];
-    activeLeaseRent = activeLease?.rent_amount || null;
     activeLeaseId = activeLease?.id || null;
 
     const relevantTransactions = Array.isArray(transactions)
@@ -599,7 +655,7 @@ export default async function UnitDetailsNested({
           const buildiumLeaseMatches =
             activeLease?.buildium_lease_id != null &&
             tx?.buildium_lease_id != null &&
-            Number(tx.buildium_lease_id) === Number((activeLease as any).buildium_lease_id);
+            Number(tx.buildium_lease_id) === Number(activeLease.buildium_lease_id);
           return leaseIdMatches || buildiumLeaseMatches;
         })
       : [];
@@ -616,19 +672,19 @@ export default async function UnitDetailsNested({
   const accountNamesByTransactionId = new Map<string, string>();
   const accountNameSetByTransactionId = new Map<string, Set<string>>();
   for (const line of transactionLines) {
-    const txIdValue = (line as any)?.transaction_id;
+    const txIdValue = line?.transaction_id;
     if (txIdValue == null) continue;
     const txId = String(txIdValue);
     if (!txId) continue;
-    const memo = typeof (line as any)?.memo === 'string' ? (line as any).memo.trim() : '';
+    const memo = typeof line?.memo === 'string' ? line.memo.trim() : '';
     if (memo && !memoByTransactionId.has(txId)) {
       memoByTransactionId.set(txId, memo);
     }
     const accountName =
-      typeof (line as any)?.gl_accounts?.name === 'string'
-        ? (line as any).gl_accounts.name.trim()
-        : typeof (line as any)?.gl_account_id === 'string'
-          ? (line as any).gl_account_id
+      typeof line?.gl_accounts?.name === 'string'
+        ? line.gl_accounts.name.trim()
+        : typeof line?.gl_account_id === 'string'
+          ? line.gl_account_id
           : '';
     if (accountName) {
       const set = accountNameSetByTransactionId.get(txId) ?? new Set<string>();
@@ -687,10 +743,10 @@ export default async function UnitDetailsNested({
 
   const propertyNameLabel = typeof property?.name === 'string' ? property.name : null;
   const unitLabel =
-    typeof (unit as any)?.unit_number === 'string' && (unit as any).unit_number
-      ? (unit as any).unit_number
-      : typeof (unit as any)?.unit_name === 'string' && (unit as any).unit_name
-        ? (unit as any).unit_name
+    typeof unit?.unit_number === 'string' && unit.unit_number
+      ? unit.unit_number
+      : typeof unit?.unit_name === 'string' && unit.unit_name
+        ? unit.unit_name
         : null;
 
   const ledgerRows = (() => {
@@ -706,12 +762,11 @@ export default async function UnitDetailsNested({
               : null;
         if (!rawId) return null;
         const rawDate = typeof tx?.date === 'string' ? tx.date : null;
-          const memoFromTx = typeof tx?.memo === 'string' ? tx.memo.trim() : '';
-          const txIdForMemo = tx?.id != null ? String(tx.id) : null;
-          const resolvedMemo =
-            memoFromTx || (txIdForMemo ? memoByTransactionId.get(txIdForMemo) || '' : '');
-          const accountLabel = txIdForMemo ? accountNamesByTransactionId.get(txIdForMemo) || '' : '';
-          const amount = signedAmountFromTransaction(tx);
+        const memoFromTx = typeof tx?.memo === 'string' ? tx.memo.trim() : '';
+        const txIdForMemo = tx?.id != null ? String(tx.id) : null;
+        const resolvedMemo = memoFromTx || (txIdForMemo ? memoByTransactionId.get(txIdForMemo) || '' : '');
+        const accountLabel = txIdForMemo ? accountNamesByTransactionId.get(txIdForMemo) || '' : '';
+        const amount = signedAmountFromTransaction(tx);
         const typeRaw = tx?.transaction_type ?? tx?.TransactionType ?? tx?.TransactionTypeEnum;
         const typeNormalized = String(typeRaw ?? '').toLowerCase();
         return {
@@ -802,20 +857,12 @@ export default async function UnitDetailsNested({
 
   const leaseIdSet = new Set(
     leases
-      .map((l: any) => {
-        const raw = (l as any)?.id;
-        if (raw == null) return null;
-        return String(raw);
-      })
+      .map((l) => (l?.id != null ? String(l.id) : null))
       .filter((id): id is string => Boolean(id)),
   );
   const buildiumLeaseIdSet = new Set(
     leases
-      .map((l: any) => {
-        const raw = (l as any)?.buildium_lease_id;
-        if (raw == null) return null;
-        return String(raw);
-      })
+      .map((l) => (l?.buildium_lease_id != null ? String(l.buildium_lease_id) : null))
       .filter((id): id is string => Boolean(id)),
   );
 
@@ -845,7 +892,7 @@ export default async function UnitDetailsNested({
         .select(
           'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id',
         )
-        .in('id', billTransactionIds as any)
+        .in('id', billTransactionIds)
         .eq('transaction_type', 'Bill')
         .order('due_date', { ascending: true });
 
@@ -862,17 +909,17 @@ export default async function UnitDetailsNested({
         vendorNames.clear();
         if (vendorIds.length) {
           try {
-            const { data: vendorsData } = await (db as any)
+            const { data: vendorsData } = await db
               .from('vendors')
               .select(
                 'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
               )
-              .in('id', vendorIds as any);
+              .in('id', vendorIds);
 
             for (const vendor of vendorsData || []) {
               const vendorId = vendor?.id != null ? String(vendor.id) : null;
               if (!vendorId) continue;
-              const contact = (vendor as any)?.contact || {};
+              const contact = (vendor as VendorRow)?.contact || {};
               const label =
                 contact.display_name ||
                 contact.company_name ||

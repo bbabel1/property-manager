@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { mapGLAccountFromBuildiumWithSubAccounts } from '@/lib/buildium-mappers';
+import type { Database } from '@/types/database';
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,16 +60,25 @@ export async function POST(request: NextRequest) {
         if (findErr && findErr.code !== 'PGRST116') throw findErr;
 
         if (existing) {
+          const updatePayload: Database['public']['Tables']['gl_accounts']['Update'] = {
+            ...mapped,
+            updated_at: now,
+          };
           const { error } = await supabase
             .from('gl_accounts')
-            .update({ ...(mapped as any), updated_at: now } as any)
+            .update(updatePayload)
             .eq('id', existing.id);
           if (error) throw error;
           updated += 1;
         } else {
+          const insertPayload: Database['public']['Tables']['gl_accounts']['Insert'] = {
+            ...mapped,
+            created_at: now,
+            updated_at: now,
+          };
           const { error } = await supabase
             .from('gl_accounts')
-            .insert({ ...(mapped as any), created_at: now, updated_at: now } as any);
+            .insert(insertPayload);
           if (error) throw error;
           synced += 1;
         }
@@ -80,6 +90,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { synced, updated, failed } });
   } catch (error) {
+    logger.error({ error });
     logger.error('Error syncing GL accounts from Buildium');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

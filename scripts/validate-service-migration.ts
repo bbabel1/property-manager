@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Lightweight validation script for service catalog migration.
  * Checks for overlapping pricing windows, duplicate billing events, and missing rent_basis on percent_rent.

@@ -4,8 +4,23 @@ import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-clie
 import { mapTaskFromBuildiumWithRelations, mapWorkOrderFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { requireRole } from '@/lib/auth/guards';
+import type { Database } from '@/types/database';
 
 const db = supabaseAdmin || supabase;
+type TaskUpdate = Database['public']['Tables']['tasks']['Update'];
+type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
+type WorkOrderUpdate = Database['public']['Tables']['work_orders']['Update'];
+type WorkOrderInsert = Database['public']['Tables']['work_orders']['Insert'];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+const toNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
 
 const BUILD_DEFAULTS = {
   taskId: 12652,
@@ -45,14 +60,23 @@ async function upsertTaskFromBuildium(taskId: number, client: ReturnType<typeof 
   }
 
   if (existing?.id) {
-    const { error } = await db.from('tasks').update(localPayload as any).eq('id', existing.id);
+    const updatePayload: TaskUpdate = {
+      ...localPayload,
+      updated_at: localPayload?.updated_at ?? new Date().toISOString(),
+    };
+    const { error } = await db.from('tasks').update(updatePayload).eq('id', existing.id);
     if (error) throw error;
     return { action: 'updated', localId: existing.id, buildiumId: buildiumTask.Id };
   }
 
+  const insertPayload: TaskInsert = {
+    ...localPayload,
+    created_at: localPayload?.created_at ?? new Date().toISOString(),
+    updated_at: localPayload?.updated_at ?? new Date().toISOString(),
+  };
   const { data: inserted, error: insertError } = await db
     .from('tasks')
-    .insert(localPayload as any)
+    .insert(insertPayload)
     .select('id')
     .single();
   if (insertError) throw insertError;
@@ -74,14 +98,23 @@ async function upsertWorkOrderFromBuildium(
   if (existingError) throw existingError;
 
   if (existing?.id) {
-    const { error } = await db.from('work_orders').update(localPayload as any).eq('id', existing.id);
+    const updatePayload: WorkOrderUpdate = {
+      ...localPayload,
+      updated_at: localPayload?.updated_at ?? new Date().toISOString(),
+    };
+    const { error } = await db.from('work_orders').update(updatePayload).eq('id', existing.id);
     if (error) throw error;
     return { action: 'updated', localId: existing.id, buildiumId: buildiumWorkOrder.Id };
   }
 
+  const insertPayload: WorkOrderInsert = {
+    ...localPayload,
+    created_at: localPayload?.created_at ?? new Date().toISOString(),
+    updated_at: localPayload?.updated_at ?? new Date().toISOString(),
+  };
   const { data: inserted, error: insertError } = await db
     .from('work_orders')
-    .insert(localPayload as any)
+    .insert(insertPayload)
     .select('id')
     .single();
   if (insertError) throw insertError;
@@ -91,9 +124,10 @@ async function upsertWorkOrderFromBuildium(
 export async function POST(request: Request) {
   try {
     await requireRole('platform_admin');
-    const body = await request.json().catch(() => ({}));
-    const taskIdInput = Number(body?.taskId ?? BUILD_DEFAULTS.taskId);
-    const workOrderIdInput = Number(body?.workOrderId ?? BUILD_DEFAULTS.workOrderId);
+    const body: unknown = await request.json().catch(() => ({}));
+    const bodyObj = isRecord(body) ? body : {};
+    const taskIdInput = toNumber(bodyObj.taskId) ?? BUILD_DEFAULTS.taskId;
+    const workOrderIdInput = toNumber(bodyObj.workOrderId) ?? BUILD_DEFAULTS.workOrderId;
 
     if (!Number.isFinite(taskIdInput) || taskIdInput <= 0) {
       return NextResponse.json(

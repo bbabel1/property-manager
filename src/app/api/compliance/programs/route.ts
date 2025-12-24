@@ -9,7 +9,7 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { supabaseAdmin } from '@/lib/db'
 import { sanitizeProgramCriteria } from '@/lib/compliance-programs'
-import type { Json } from '@/types/database'
+import type { Json, TablesInsert } from '@/types/database'
 
 const VALID_JURISDICTIONS = ['NYC_DOB', 'NYC_HPD', 'FDNY', 'NYC_DEP', 'OTHER']
 const VALID_APPLIES_TO = ['property', 'asset', 'both']
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
       body.override_fields && typeof body.override_fields === 'object' ? body.override_fields : {}
     const criteria = sanitizeProgramCriteria(body.criteria)
 
-    const payload = {
+    const payload: TablesInsert<'compliance_programs'> = {
       org_id: orgId,
       template_id: null,
       code,
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('compliance_programs')
-      .insert(payload as any)
+      .insert(payload)
       .select(
         `
         *,

@@ -1,5 +1,7 @@
 # Buildium Webhook Event Support
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## Supported EventNames
 
 - `Property.Created` / `Property.Updated` / `Property.Deleted`

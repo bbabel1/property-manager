@@ -78,7 +78,7 @@ export async function GET(
     });
 
     return NextResponse.json({ event });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching Google Calendar event:', error);
 
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
@@ -91,7 +91,7 @@ export async function GET(
     const formattedError = formatCalendarError(error);
     return NextResponse.json(
       { error: formattedError },
-      { status: error?.response?.status || 500 }
+      { status: (error as { response?: { status?: number } })?.response?.status || 500 }
     );
   }
 }
@@ -110,4 +110,3 @@ export async function DELETE() {
     { status: 501 }
   );
 }
-

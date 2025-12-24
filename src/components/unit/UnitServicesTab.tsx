@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Info } from 'lucide-react';
-import { AssignmentServicesEditor } from '@/components/property/PropertyServicesPageContent';
+import ManagementServiceCard from '@/components/property/ManagementServiceCard';
 
 interface UnitServicesTabProps {
   propertyId: string;
@@ -65,13 +65,19 @@ export default function UnitServicesTab({
       </div>
 
       {isPropertyLevel ? (
-        <AssignmentServicesEditor
+        <ManagementServiceCard
           propertyId={propertyId}
           readOnly
           title="Property Services (View-only)"
+          subtitle="This property is configured at the property level."
         />
       ) : (
-        <AssignmentServicesEditor propertyId={propertyId} unitId={unitId} title="Unit Services" />
+        <ManagementServiceCard
+          propertyId={propertyId}
+          unitId={unitId}
+          title="Unit Services"
+          subtitle={`Configure plan and services for ${unitLabel}.`}
+        />
       )}
     </div>
   );

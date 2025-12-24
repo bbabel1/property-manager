@@ -72,7 +72,7 @@ interface OwnerAPIResponse {
 export default function PropertyDetailsCard({ property }: { property: Property }) {
   const PROPERTY_TYPES: string[] = ['Condo', 'Co-op', 'Condop', 'Mult-Family', 'Townhouse'];
   const [editing, setEditing] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncErr, setSyncErr] = useState<string | null>(null);
   // Use server-provided image first; client fetch only if missing
@@ -126,13 +126,6 @@ export default function PropertyDetailsCard({ property }: { property: Property }
   const formLabelClass = 'block text-sm font-medium text-muted-foreground';
   const formInputClass =
     'h-11 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
-
-  const formatCurrency = (value?: number | null) => {
-    if (value == null || Number.isNaN(Number(value))) return '—';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-      Number(value),
-    );
-  };
 
   async function handleSyncToBuildium(): Promise<boolean> {
     setSyncing(true);
@@ -507,13 +500,15 @@ export default function PropertyDetailsCard({ property }: { property: Property }
         },
         body: JSON.stringify(body),
       });
-      const responseJson = await res.json().catch(() => ({}) as Record<string, unknown>);
+      const responseJson = (await res.json().catch(
+        () => ({}) as { property?: Partial<Property>; error?: string },
+      )) as { property?: Partial<Property>; error?: string };
       if (!res.ok) {
         throw new Error(responseJson?.error || 'Failed to save property');
       }
       const hasBuildiumId = !!property.buildium_property_id;
       // Surface updated data locally in case we skip reload on sync errors
-      const updated = (responseJson as any)?.property;
+      const updated = responseJson.property;
       if (updated) {
         (property as Property).address_line1 = updated.address_line1 ?? property.address_line1;
         (property as Property).address_line2 = updated.address_line2 ?? property.address_line2;

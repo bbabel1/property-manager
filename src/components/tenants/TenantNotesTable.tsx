@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ChevronDown, Download, Plus, PencilLine, Trash2, MoreHorizontal, Eye } from 'lucide-react';
+import { Download, PencilLine, Trash2, Eye } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { Database } from '@/types/database';
@@ -49,7 +49,6 @@ interface TenantNotesTableProps {
 }
 
 export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
-  const [filterValue, setFilterValue] = useState('');
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +59,7 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
   const [saving, setSaving] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchNotes();
-  }, [tenantId]);
-
-  const fetchNotes = async () => {
+  const fetchNotes = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -85,7 +80,11 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, tenantId]);
+
+  useEffect(() => {
+    void fetchNotes();
+  }, [fetchNotes]);
 
   const openEdit = (note: Note) => {
     setEditing(note);
@@ -158,11 +157,7 @@ export default function TenantNotesTable({ tenantId }: TenantNotesTableProps) {
     toast.success('Notes exported');
   };
 
-  const filteredNotes = notes.filter((note) => {
-    const q = filterValue.trim().toLowerCase();
-    if (!q) return true;
-    return (note.note || '').toLowerCase().includes(q);
-  });
+  const filteredNotes = notes;
 
   return (
     <div className="border-border bg-background rounded-lg border shadow-sm">

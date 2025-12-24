@@ -1,0 +1,7 @@
+node_modules
+.cursor
+docs/SERVICE_CATALOG_IMPLEMENTATION_REPORT.md
+docs/PLAN_VERIFICATION_REPORT.md
+docs/UX_EVALUATION_STATEMENT_DELIVERY.md
+docs/supabaseAdmin-audit.md
+docs/database/building-permits.md

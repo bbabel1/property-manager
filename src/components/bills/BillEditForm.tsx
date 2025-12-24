@@ -671,15 +671,26 @@ export default function BillEditForm({
 const FALLBACK_BILL_ERROR_MESSAGE = 'Failed to save bill';
 
 function extractBuildiumErrorMessage(body: unknown): string {
-  const buildiumMessage = describeBuildiumPayload((body as any)?.buildium?.payload);
+  const buildiumPayload =
+    body && typeof body === 'object' && body !== null && 'buildium' in body
+      ? (body as { buildium?: { payload?: unknown } }).buildium?.payload
+      : undefined;
+  const buildiumMessage = describeBuildiumPayload(buildiumPayload);
   if (buildiumMessage) return buildiumMessage;
-  if (typeof (body as any)?.error === 'string') return (body as any).error;
-  if (typeof (body as any)?.details === 'string') return (body as any).details;
+  if (body && typeof body === 'object' && 'error' in body && typeof (body as { error?: unknown }).error === 'string') {
+    return (body as { error: string }).error;
+  }
+  if (body && typeof body === 'object' && 'details' in body && typeof (body as { details?: unknown }).details === 'string') {
+    return (body as { details: string }).details;
+  }
   return FALLBACK_BILL_ERROR_MESSAGE;
 }
 
 function extractBuildiumSuccessDescription(body: unknown): string | null {
-  const payload = (body as any)?.buildium?.payload;
+  const payload =
+    body && typeof body === 'object' && body !== null && 'buildium' in body
+      ? (body as { buildium?: { payload?: unknown } }).buildium?.payload
+      : undefined;
   if (!payload || typeof payload !== 'object') return null;
   const record = payload as Record<string, unknown>;
   if (typeof record.Id === 'number') return `Buildium confirmation #${record.Id}`;

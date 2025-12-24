@@ -6,7 +6,28 @@ import EditLink from '@/components/ui/EditLink';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
-export default function LocationCard({ property }: { property: any }) {
+type LocationProperty = {
+  id: string;
+  name: string;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  address_line3?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  status?: string | null;
+  property_type?: string | null;
+  reserve?: number | null;
+  year_built?: number | null;
+  borough?: string | null;
+  neighborhood?: string | null;
+  longitude?: number | string | null;
+  latitude?: number | string | null;
+  location_verified?: boolean | null;
+};
+
+export default function LocationCard({ property }: { property: LocationProperty }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +50,7 @@ export default function LocationCard({ property }: { property: any }) {
     const fetchToken = async () => {
       try {
         const res = await fetch('/api/csrf', { credentials: 'include' });
-        const j = await res.json().catch(() => ({}) as any);
+        const j = (await res.json().catch(() => ({}))) as { token?: string };
         if (!cancelled) setCsrfToken(j?.token || null);
       } catch {
         if (!cancelled) setCsrfToken(null);
@@ -46,7 +67,7 @@ export default function LocationCard({ property }: { property: any }) {
       setSaving(true);
       setError(null);
       if (!csrfToken) throw new Error('CSRF token not found');
-      const body: any = {
+      const body = {
         // Required by API
         name: property.name,
         address_line1: property.address_line1,
@@ -57,7 +78,7 @@ export default function LocationCard({ property }: { property: any }) {
         postal_code: property.postal_code,
         country: property.country || 'United States',
         status: property.status || 'Active',
-        property_type: (property as any).property_type ?? null,
+        property_type: property.property_type ?? null,
         reserve: property.reserve ?? 0,
         year_built: property.year_built ?? null,
         // Location fields
@@ -73,7 +94,7 @@ export default function LocationCard({ property }: { property: any }) {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}) as any);
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || 'Failed to update location');
       }
       window.location.reload();

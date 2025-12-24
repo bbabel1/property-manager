@@ -1,14 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Plus, Mail, Phone, Calendar, Search } from 'lucide-react'
-import CreateOwnerModal from '@/components/CreateOwnerModal'
-import EditOwnerModal from '@/components/EditOwnerModal'
+import { Users, Plus, Mail, Phone, Calendar } from 'lucide-react'
+import CreateOwnerModal, { type OwnerCreatePayload } from '@/components/CreateOwnerModal'
+import EditOwnerModal, { type OwnerModalData } from '@/components/EditOwnerModal'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import type { Database } from '@/types/database'
 
 type Country = Database['public']['Enums']['countries']
@@ -50,14 +48,9 @@ export default function OwnersPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingOwner, setEditingOwner] = useState<Owner | null>(null)
   const [isUpdatingOwner, setIsUpdatingOwner] = useState(false)
-  const [updateOwnerError, setUpdateOwnerError] = useState<string | null>(null)
 
   // Fetch owners on component mount
-  useEffect(() => {
-    fetchOwners()
-  }, [])
-
-  const fetchOwners = async () => {
+  const fetchOwners = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -67,7 +60,7 @@ export default function OwnersPage() {
         throw new Error('Failed to fetch owners')
       }
       
-      const data = await response.json()
+      const data = (await response.json()) as Owner[]
       
       // Use the real data from the API (total_units is now calculated on the backend)
       setOwners(data)
@@ -77,9 +70,13 @@ export default function OwnersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleCreateOwner = async (ownerData: any) => {
+  useEffect(() => {
+    void fetchOwners()
+  }, [fetchOwners])
+
+  const handleCreateOwner = async (ownerData: OwnerCreatePayload) => {
     try {
       setIsCreatingOwner(true)
       setCreateOwnerError(null)
@@ -99,7 +96,7 @@ export default function OwnersPage() {
         throw new Error(errorData.error || 'Failed to create owner')
       }
 
-      const newOwner = await response.json()
+      const newOwner = (await response.json()) as Owner
       console.log('Owner created successfully:', newOwner)
       
       // Add the new owner to the list
@@ -114,10 +111,9 @@ export default function OwnersPage() {
     }
   }
 
-  const handleEditOwner = async (ownerData: any) => {
+  const handleEditOwner = async (ownerData: OwnerModalData) => {
     try {
       setIsUpdatingOwner(true)
-      setUpdateOwnerError(null)
       
       console.log('Updating owner with data:', ownerData)
       
@@ -134,7 +130,7 @@ export default function OwnersPage() {
         throw new Error(errorData.error || 'Failed to update owner')
       }
 
-      const updatedOwner = await response.json()
+      const updatedOwner = (await response.json()) as Owner
       console.log('Owner updated successfully:', updatedOwner)
       
       // Update the owner in the list
@@ -146,15 +142,10 @@ export default function OwnersPage() {
       
     } catch (error) {
       console.error('Error updating owner:', error)
-      setUpdateOwnerError(error instanceof Error ? error.message : 'Failed to update owner')
+      setError(error instanceof Error ? error.message : 'Failed to update owner')
     } finally {
       setIsUpdatingOwner(false)
     }
-  }
-
-  const handleEditClick = (owner: Owner) => {
-    setEditingOwner(owner)
-    setShowEditModal(true)
   }
 
   const handleOwnerClick = (owner: Owner) => {

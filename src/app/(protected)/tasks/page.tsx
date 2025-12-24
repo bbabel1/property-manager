@@ -11,6 +11,7 @@ import {
   type TaskStatusKey,
 } from '@/lib/tasks/utils';
 import type { Database } from '@/types/database';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
@@ -66,7 +67,7 @@ function buildUnitLabel(
 }
 
 export default async function TasksPage() {
-  const db = supabaseAdmin || supabase;
+  const db = (supabaseAdmin || supabase) as SupabaseClient<Database>;
 
   const { data: taskRows, error: taskError } = (await db
     .from('tasks')
@@ -74,7 +75,7 @@ export default async function TasksPage() {
       'id, subject, status, scheduled_date, updated_at, created_at, priority, category, property_id, unit_id, assigned_to',
     )
     .order('created_at', { ascending: false })
-    .limit(50)) as { data: TaskRow[] | null; error: any };
+    .limit(50)) satisfies { data: TaskRow[] | null; error: PostgrestError | null };
 
   if (taskError) {
     console.error('Failed to load tasks', taskError);
@@ -108,13 +109,10 @@ export default async function TasksPage() {
 
   const unitMap = new Map<string, Pick<UnitRow, 'unit_number'>>();
   if (unitIds.length > 0) {
-    const { data: unitRows, error: unitError } = (await db
+    const { data: unitRows, error: unitError } = await db
       .from('units')
       .select('id, unit_number')
-      .in('id', unitIds)) as {
-      data: Pick<UnitRow, 'id' | 'unit_number'>[] | null;
-      error: any;
-    };
+      .in('id', unitIds);
     if (unitError) {
       console.error('Failed to load units for tasks', unitError);
     } else {

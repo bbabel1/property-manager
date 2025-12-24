@@ -1,12 +1,26 @@
-// @ts-nocheck
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../../src/types/database'
 
 config({ path: '.env.local' })
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
+
+const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+
+type LeaseRow = Database['public']['Tables']['lease']['Row']
+type LeaseRowLite = Pick<
+  LeaseRow,
+  'id' | 'lease_from_date' | 'lease_to_date' | 'status' | 'rent_amount' | 'buildium_lease_id' | 'security_deposit'
+>
+type TransactionLineWithAccount = Database['public']['Tables']['transaction_lines']['Row'] & {
+  gl_accounts: Pick<Database['public']['Tables']['gl_accounts']['Row'], 'type' | 'is_bank_account'> | null
+}
 
 async function findUnitWithLease() {
   try {
@@ -24,6 +38,11 @@ async function findUnitWithLease() {
       return
     }
 
+    if (!lease) {
+      console.error('❌ No lease returned from Supabase')
+      return
+    }
+
     console.log(`🎯 Active Lease: ID ${lease.id}, Unit ID: ${lease.unit_id}, Rent: $${lease.rent_amount}`)
 
     // Get the unit for this lease
@@ -38,6 +57,11 @@ async function findUnitWithLease() {
       return
     }
 
+    if (!unit) {
+      console.error('❌ No unit returned from Supabase')
+      return
+    }
+
     console.log(`🏠 Unit: ${unit.unit_number} (${unit.unit_name}) - Property ID: ${unit.property_id}`)
 
     // Now test the unit details logic with this specific unit
@@ -46,22 +70,24 @@ async function findUnitWithLease() {
     // Load leases for this unit (exact copy of unit details page logic)
     const { data: leaseRows } = await supabase
       .from('lease')
-      .select('id, lease_from_date, lease_to_date, status, rent_amount, buildium_lease_id, sync_status, last_sync_error, last_sync_attempt_at')
+      .select('id, lease_from_date, lease_to_date, status, rent_amount, buildium_lease_id, security_deposit')
       .eq('unit_id', unit.id)
       .order('lease_from_date', { ascending: false })
 
-    const leases = Array.isArray(leaseRows) ? leaseRows : []
+    const leases: LeaseRowLite[] = Array.isArray(leaseRows) ? leaseRows : []
     console.log(`📋 Found ${leases.length} leases for unit ${unit.unit_number}`)
 
     if (leases.length > 0) {
       // Calculate unit-specific balance from active lease
       let unitBalance = 0
-      let activeLeaseRent = null
+      let activeLeaseRent: number | null = null
       let depositsHeld = 0
       let prepayments = 0
       
       // Get the most recent active lease
-      const activeLease = leases.find(l => l.status?.toLowerCase() === 'active' || l.status?.toLowerCase() === 'current') || leases[0]
+      const activeLease = leases.find(
+        l => l.status?.toLowerCase() === 'active' || l.status?.toLowerCase() === 'current'
+      ) || leases[0]
       
       console.log(`\n🎯 Active Lease Found:`)
       console.log(`  - ID: ${activeLease.id}`)
@@ -79,6 +105,7 @@ async function findUnitWithLease() {
             .from('transaction_lines')
             .select('amount, posting_type, gl_account_id, gl_accounts(type, is_bank_account)')
             .eq('lease_id', activeLease.id)
+            .returns<TransactionLineWithAccount[]>()
           
           console.log(`💰 Found ${transactionLines?.length || 0} transaction lines`)
           

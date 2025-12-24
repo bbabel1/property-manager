@@ -6,7 +6,7 @@ import CreateBankAccountModal from '@/components/CreateBankAccountModal';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-type BankAccount = { id: string; name: string; account_number?: string | null };
+type BankAccount = { id: string; name: string; account_number?: string | null; last4?: string | null };
 
 type GlBalanceResponse = {
   success?: boolean;
@@ -24,6 +24,16 @@ type GlBalanceResponse = {
 // Management Services Types
 type MgmtScope = 'Building' | 'Unit';
 type AssignmentLevel = 'Property Level' | 'Unit Level';
+type PropertyBanking = {
+  id: string;
+  reserve?: number | null;
+  operating_bank_gl_account_id?: string | null;
+  deposit_trust_gl_account_id?: string | null;
+  management_scope?: MgmtScope | '' | null;
+  service_assignment?: AssignmentLevel | '' | null;
+  operating_account?: BankAccount | null;
+  deposit_trust_account?: BankAccount | null;
+};
 
 const fieldFocusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-background';
@@ -32,6 +42,14 @@ const eyebrowLabelClass = 'eyebrow-label';
 const metricValueClass = 'text-base font-semibold text-foreground';
 const detailLabelClass = 'text-sm font-medium text-muted-foreground';
 const detailValueClass = 'text-base font-medium text-foreground';
+type CreateBankAccountResult =
+  | BankAccount
+  | {
+      id?: string | number | null;
+      name?: string | null;
+      account_number?: string | null;
+      bankAccount?: BankAccount | null;
+    };
 
 export default function PropertyBankingAndServicesCard({
   property,
@@ -39,7 +57,7 @@ export default function PropertyBankingAndServicesCard({
   showBanking = true,
   showServices = true,
 }: {
-  property: any;
+  property: PropertyBanking;
   fin?: {
     cash_balance?: number;
     security_deposits?: number;
@@ -57,12 +75,8 @@ export default function PropertyBankingAndServicesCard({
 
   // Banking state
   const [reserve, setReserve] = useState<number>(property.reserve || 0);
-  const [operatingId, setOperatingId] = useState<string>(
-    (property as any).operating_bank_gl_account_id || '',
-  );
-  const [trustId, setTrustId] = useState<string>(
-    (property as any).deposit_trust_gl_account_id || '',
-  );
+  const [operatingId, setOperatingId] = useState<string>(property.operating_bank_gl_account_id || '');
+  const [trustId, setTrustId] = useState<string>(property.deposit_trust_gl_account_id || '');
 
   // Banking accounts state
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -75,12 +89,8 @@ export default function PropertyBankingAndServicesCard({
   const [trustBalance, setTrustBalance] = useState<number | null>(null);
 
   // Management services state
-  const [management_scope, setManagementScope] = useState<MgmtScope | ''>(
-    (property as any)?.management_scope || '',
-  );
-  const [service_assignment, setServiceAssignment] = useState<AssignmentLevel | ''>(
-    (property as any)?.service_assignment || '',
-  );
+  const management_scope = property?.management_scope || '';
+  const service_assignment = property?.service_assignment || '';
   const [assignedPlanName, setAssignedPlanName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -158,7 +168,7 @@ export default function PropertyBankingAndServicesCard({
     let cancelled = false;
     const loadAssignment = async () => {
       try {
-        if ((property as any)?.service_assignment === 'Unit Level') {
+        if (property?.service_assignment === 'Unit Level') {
           if (!cancelled) setAssignedPlanName(null);
           return;
         }
@@ -191,7 +201,7 @@ export default function PropertyBankingAndServicesCard({
     const fetchToken = async () => {
       try {
         const res = await fetch('/api/csrf', { credentials: 'include' });
-        const j = await res.json().catch(() => ({}) as any);
+        const j = (await res.json().catch(() => ({}))) as { token?: string };
         if (!cancelled) setCsrfToken(j?.token || null);
       } catch {
         if (!cancelled) setCsrfToken(null);
@@ -227,7 +237,7 @@ export default function PropertyBankingAndServicesCard({
         }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}) as any);
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j?.error || 'Failed to update banking details');
       }
       setEditingBanking(false);
@@ -512,9 +522,12 @@ export default function PropertyBankingAndServicesCard({
           setShowCreateBank(false);
           setCreateTarget(null);
         }}
-        onSuccess={(newAccount: any) => {
+        onSuccess={(newAccount: CreateBankAccountResult) => {
           const id = String(newAccount?.id ?? newAccount?.bankAccount?.id ?? '');
-          const name = newAccount?.name ?? newAccount?.bankAccount?.name ?? 'New Bank Account';
+          const name =
+            newAccount?.name ??
+            newAccount?.bankAccount?.name ??
+            (id ? 'New Bank Account' : 'New Bank Account');
           const account_number =
             newAccount?.account_number ?? newAccount?.bankAccount?.account_number ?? null;
           setBankAccounts((prev) => [

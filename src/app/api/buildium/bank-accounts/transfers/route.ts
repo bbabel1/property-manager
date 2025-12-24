@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin');

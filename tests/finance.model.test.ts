@@ -1,14 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { rollupFinances } from '@/lib/finance/model';
+import type { FinanceRollupParams } from '@/lib/finance/model';
 import cashBalanceCases from './fixtures/finance-cash-balance-spec.json';
 
-const makeTx = (overrides: Partial<any> = {}) => ({
+type TxShape = NonNullable<FinanceRollupParams['transactions']>[number];
+type LineShape = NonNullable<FinanceRollupParams['transactionLines']>[number];
+
+const makeTx = (overrides: Partial<TxShape> = {}): TxShape => ({
   id: overrides.id ?? 'tx',
   transaction_type: overrides.transaction_type ?? 'Payment',
   total_amount: overrides.total_amount ?? 0,
 });
 
-const makeLine = (overrides: Partial<any> = {}) => ({
+const makeLine = (overrides: Partial<LineShape> = {}): LineShape => ({
   amount: overrides.amount ?? 0,
   posting_type: overrides.posting_type ?? 'credit',
   transaction_id: overrides.transaction_id ?? 'tx',
@@ -229,8 +233,8 @@ describe('finance model rollup', () => {
     for (const spec of cashBalanceCases) {
       it(spec.name, () => {
         const { fin, debug } = rollupFinances({
-          transactionLines: spec.transactionLines as any,
-          transactions: spec.transactions as any,
+          transactionLines: spec.transactionLines as FinanceRollupParams['transactionLines'],
+          transactions: spec.transactions as FinanceRollupParams['transactions'],
           propertyReserve: spec.reserve ?? 0,
         });
         if (spec.expected.cash_balance !== undefined) {

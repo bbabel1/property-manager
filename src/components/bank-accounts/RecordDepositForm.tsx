@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Paperclip, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { Paperclip, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import {
   Table,
   TableBody,
@@ -27,7 +28,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/components/ui/utils';
+import TransactionFileUploadDialog, {
+  type TransactionAttachmentDraft,
+} from '@/components/files/TransactionFileUploadDialog';
 
 export type BankAccountOption = {
   id: string;
@@ -42,7 +45,12 @@ export type UnitOption = {
   propertyId: string | null;
   buildiumUnitId: number | null;
 };
-export type GlAccountOption = { id: string; label: string; buildiumGlAccountId: number | null };
+export type GlAccountOption = {
+  id: string;
+  label: string;
+  buildiumGlAccountId: number | null;
+  type: string | null;
+};
 
 export type UndepositedPaymentRow = {
   id: string;
@@ -64,7 +72,7 @@ type OtherDepositItem = {
   amount: string;
 };
 
-type AttachmentPreview = { id: string; file: File };
+type AttachmentDraft = TransactionAttachmentDraft & { id: string };
 
 const makeId = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -135,10 +143,9 @@ export default function RecordDepositForm(props: {
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<Set<string>>(() => new Set());
   const [otherItems, setOtherItems] = useState<OtherDepositItem[]>([]);
 
-  const [attachment, setAttachment] = useState<AttachmentPreview | null>(null);
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [submitIntent, setSubmitIntent] = useState<'save' | 'save-and-new'>('save');
@@ -210,29 +217,62 @@ export default function RecordDepositForm(props: {
     [],
   );
 
-  const validateAndSetAttachment = useCallback((file: File | null) => {
-    if (!file) return;
-    if (file.size > AttachmentLimitBytes) {
-      setAttachmentError('Attachment must be 1000kb or smaller.');
-      return;
-    }
-    setAttachmentError(null);
-    setAttachment({ id: makeId(), file });
-  }, []);
-
-  const onBrowse = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const onDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setIsDragActive(false);
-      const file = (event.dataTransfer.files && event.dataTransfer.files[0]) || null;
-      validateAndSetAttachment(file);
+  const handleAddAttachment = useCallback(
+    (draft: TransactionAttachmentDraft) => {
+      if (attachments.length >= 1) {
+        setAttachmentError('Only one attachment allowed.');
+        return;
+      }
+      if (draft.file.size > AttachmentLimitBytes) {
+        setAttachmentError('Attachment must be 1000kb or smaller.');
+        return;
+      }
+      setAttachmentError(null);
+      setAttachments([{ ...draft, id: makeId() }]);
     },
-    [validateAndSetAttachment],
+    [attachments.length],
+  );
+
+  const uploadAttachments = useCallback(
+    async (transactionId: string | null) => {
+      if (attachments.length === 0) return true;
+      if (!transactionId) {
+        const message = 'Deposit saved but no transaction id was returned to attach the file.';
+        setFormError(message);
+        toast.error(message);
+        return false;
+      }
+      try {
+        for (const attachment of attachments) {
+          const formData = new FormData();
+          formData.append('file', attachment.file);
+          formData.append('fileName', attachment.file.name);
+          formData.append('title', attachment.title);
+          formData.append('description', attachment.description);
+          formData.append('category', attachment.category);
+          formData.append('mimeType', attachment.file.type);
+          const res = await fetch(`/api/transactions/${transactionId}/files`, {
+            method: 'POST',
+            body: formData,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const message =
+              (json && typeof json.error === 'string' && json.error) ||
+              'Failed to upload attachment';
+            throw new Error(message);
+          }
+        }
+        setAttachments([]);
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload attachment';
+        setFormError(`Deposit saved but attachment failed: ${message}`);
+        toast.error(`Attachment failed: ${message}`);
+        return false;
+      }
+    },
+    [attachments],
   );
 
   const resetForNew = useCallback(() => {
@@ -241,7 +281,7 @@ export default function RecordDepositForm(props: {
     setPrintDepositSlips(false);
     setSelectedPaymentIds(new Set());
     setOtherItems([]);
-    setAttachment(null);
+    setAttachments([]);
     setAttachmentError(null);
     setFormError(null);
     setSubmitIntent('save');
@@ -288,6 +328,16 @@ export default function RecordDepositForm(props: {
           throw new Error(message);
         }
 
+        const transactionId =
+          (body?.data && typeof body.data.transactionId === 'string' && body.data.transactionId) ||
+          null;
+
+        const uploaded = await uploadAttachments(transactionId);
+        if (!uploaded) {
+          setIsSaving(false);
+          return;
+        }
+
         toast.success('Deposit recorded');
 
         if (intent === 'save-and-new') {
@@ -314,6 +364,7 @@ export default function RecordDepositForm(props: {
       router,
       selectedPaymentIds,
       totalDepositAmount,
+      uploadAttachments,
     ],
   );
 
@@ -472,11 +523,7 @@ export default function RecordDepositForm(props: {
                             <SelectValue placeholder="Type or select an account..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {props.glAccounts.map((a) => (
-                              <SelectItem key={a.id} value={a.id}>
-                                {a.label}
-                              </SelectItem>
-                            ))}
+                            <GlAccountSelectItems accounts={props.glAccounts} />
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -589,77 +636,50 @@ export default function RecordDepositForm(props: {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between gap-4">
-          <div className="text-sm font-semibold" id="record-deposit-attachment-label">
-            Attachment
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Attachments</div>
+            <div className="text-xs text-muted-foreground">1 file up to 1000kb</div>
           </div>
-          <div className="text-xs text-muted-foreground">1 file up to 1000kb</div>
+          <Button type="button" size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
+            Add files
+          </Button>
         </div>
         {attachmentError && <p className="text-xs text-destructive">{attachmentError}</p>}
-        <label
-          htmlFor="record-deposit-attachment"
-          className={cn(
-            'border-muted-foreground/30 rounded-md border border-dashed p-6 transition-colors',
-            isDragActive && 'border-primary/60 bg-primary/5',
-          )}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(false);
-          }}
-          onDrop={onDrop}
-          aria-labelledby="record-deposit-attachment-label"
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <UploadCloud className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <div className="text-sm text-muted-foreground">
-              Drag &amp; drop file here or{' '}
-              <span className="text-primary underline">browse</span>
-            </div>
+        {attachments.length === 0 ? (
+          <div className="text-muted-foreground rounded-md border border-dashed bg-muted/20 px-4 py-6 text-center text-sm">
+            No attachments yet. Use “Add files” to upload.
           </div>
-        </label>
-
-        <input
-          id="record-deposit-attachment"
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          aria-labelledby="record-deposit-attachment-label"
-          aria-label="Upload attachment"
-          title="Upload attachment"
-          onChange={(e) => {
-            const file = (e.target.files && e.target.files[0]) || null;
-            validateAndSetAttachment(file);
-            e.target.value = '';
-          }}
-        />
-
-        {attachment && (
-          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
-              <div className="truncate text-sm">{attachment.file.name}</div>
-              <div className="text-xs text-muted-foreground">
-                {Math.round(attachment.file.size / 1024)} KB
+        ) : (
+          <div className="space-y-2">
+            {attachments.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <div className="truncate text-sm">{a.title || a.file.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {a.category || 'Uncategorized'} · {Math.round(a.file.size / 1024)} KB
+                  </div>
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAttachments([])}>
+                  Remove
+                </Button>
               </div>
-            </div>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setAttachment(null)}>
-              Remove
-            </Button>
+            ))}
           </div>
         )}
       </div>
+
+      <TransactionFileUploadDialog
+        open={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
+        onSaved={handleAddAttachment}
+        maxBytes={AttachmentLimitBytes}
+      />
 
       <div className="flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">

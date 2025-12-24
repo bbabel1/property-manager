@@ -14,24 +14,18 @@ import {
   HPDClient,
   FDNYClient,
   createNYCAPIClients,
-  type ElevatorDevice,
-  type ElevatorFiling,
-  type Violation,
 } from './nyc-api-client'
 import { syncBuildingPermitsFromOpenData } from './building-permit-sync'
 import type {
   ComplianceAssetInsert,
   ComplianceEventInsert,
   ComplianceViolationInsert,
-  ComplianceItem,
-  ComplianceSyncRequest,
   ComplianceSyncResponse,
   ExternalSyncSource,
   ComplianceDeviceCategory,
   ComplianceViolationStatus,
   ComplianceStatus,
 } from '@/types/compliance'
-import { ComplianceService } from './compliance-service'
 import { getNYCOpenDataConfig } from './nyc-open-data/config-manager'
 import {
   programTargetsAsset,
@@ -392,7 +386,7 @@ export class ComplianceSyncService {
     bin: string,
     propertyId: string,
     orgId: string,
-    force = false
+    _force = false
   ): Promise<{ assets: number; events: number; errors?: string[] }> {
     try {
       const lockKey = `compliance_sync:${orgId}:dob_now`
@@ -648,7 +642,7 @@ export class ComplianceSyncService {
     bin: string,
     propertyId: string,
     orgId: string,
-    force = false
+    _force = false
   ): Promise<{ assets: number; events: number; errors?: string[] }> {
     try {
       const lockKey = `compliance_sync:${orgId}:dob_now`
@@ -796,7 +790,7 @@ export class ComplianceSyncService {
     bin: string,
     propertyId: string,
     orgId: string,
-    force = false
+    _force = false
   ): Promise<{ assets: number; events: number; errors?: string[] }> {
     try {
       const lockKey = `compliance_sync:${orgId}:nyc_open_data:facade`

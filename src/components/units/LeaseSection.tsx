@@ -11,10 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Dropdown } from '@/components/ui/Dropdown';
+import { groupGlAccounts } from '@/lib/gl-accounts/grouping';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Loader2, MoreHorizontal, Plus, UploadCloud, XCircle } from 'lucide-react';
+import { Loader2, Plus, UploadCloud, XCircle } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import AddLink from '@/components/ui/AddLink';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -38,6 +38,23 @@ import {
 } from '@/components/ui/accordion';
 import type { Database } from '@/types/database';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf'];
+const ALLOWED_MIME_TYPES = new Set<string>([
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.presentationml.template',
+  'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
+  'text/plain',
+]);
+const UNSUPPORTED_FILE_MESSAGE =
+  'Unsupported file type. Allowed formats: PDF, images, and Office documents.';
 
 type LeaseRow = Database['public']['Tables']['lease']['Row'];
 type UnitRow = Database['public']['Tables']['units']['Row'];
@@ -174,6 +191,34 @@ function isPropertyApiList(
 ): value is Array<{ id: string | number; name?: string | null; status?: string | null }> {
   return Array.isArray(value);
 }
+
+const toNumericId = (value: unknown): number | null => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const extractLeaseIdFromLeaseResponse = (response: unknown): number | null => {
+  if (!response || typeof response !== 'object') return null;
+
+  const root = response as {
+    lease?: unknown;
+    Lease?: unknown;
+    lease_id?: unknown;
+    leaseId?: unknown;
+  };
+
+  const candidateLease = (root.lease ?? root.Lease) as
+    | { id?: unknown; Id?: unknown; ID?: unknown }
+    | null
+    | undefined;
+
+  const rawIdFromLease =
+    candidateLease?.id ?? candidateLease?.Id ?? candidateLease?.ID ?? null;
+
+  const rawId = rawIdFromLease ?? root.lease_id ?? root.leaseId ?? null;
+
+  return toNumericId(rawId);
+};
 
 // UI component
 
@@ -411,32 +456,18 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
-  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-  const ALLOWED_MIME_PREFIXES = ['image/', 'application/pdf'];
-  const ALLOWED_MIME_TYPES = new Set<string>([
-    'application/msword',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.template',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.template',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/vnd.openxmlformats-officedocument.presentationml.template',
-    'application/vnd.openxmlformats-officedocument.presentationml.slideshow',
-    'text/plain',
-  ]);
-  const UNSUPPORTED_FILE_MESSAGE =
-    'Unsupported file type. Allowed formats: PDF, images, and Office documents.';
-
-  const isAllowedMimeType = (mimeType: string | undefined | null) => {
-    if (!mimeType) return true;
-    for (const prefix of ALLOWED_MIME_PREFIXES) {
-      if (mimeType.startsWith(prefix)) return true;
-    }
-    if (ALLOWED_MIME_TYPES.has(mimeType)) return true;
-    if (mimeType.startsWith('application/vnd.openxmlformats-officedocument')) return true;
-    return false;
-  };
+  const isAllowedMimeType = useCallback(
+    (mimeType: string | undefined | null) => {
+      if (!mimeType) return true;
+      for (const prefix of ALLOWED_MIME_PREFIXES) {
+        if (mimeType.startsWith(prefix)) return true;
+      }
+      if (ALLOWED_MIME_TYPES.has(mimeType)) return true;
+      if (mimeType.startsWith('application/vnd.openxmlformats-officedocument')) return true;
+      return false;
+    },
+    [],
+  );
 
   const handleLeaseFileSelection = useCallback(
     (list: FileList | null) => {
@@ -474,7 +505,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
         return next;
       });
     },
-    [setError],
+    [isAllowedMimeType, setError],
   );
 
   const removePendingLeaseFile = useCallback((id: string) => {
@@ -554,7 +585,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
       }
     }
     return results;
-  }, []);
+  }, [isAllowedMimeType]);
 
   // Load Active properties list when form opens
   useEffect(() => {
@@ -601,13 +632,16 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
             typeof json === 'object' &&
             json !== null &&
             'error' in json &&
-            typeof (json as any).error === 'string'
-              ? String((json as any).error)
+            typeof (json as { error?: unknown }).error === 'string'
+              ? String((json as { error?: string }).error)
               : 'Failed to load GL accounts';
           throw new Error(msg);
         }
         const rows =
-          json && typeof json === 'object' && 'data' in json && Array.isArray((json as any).data)
+          json &&
+          typeof json === 'object' &&
+          'data' in json &&
+          Array.isArray((json as { data?: unknown }).data)
             ? (json as { data: Array<Record<string, unknown>> }).data
             : [];
         const list = rows
@@ -969,17 +1003,17 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
           alt_phone: person.alt_phone ?? null,
           same_as_unit: person.same_as_unit ?? person.same_as_unit_address ?? true,
           same_as_unit_address: person.same_as_unit ?? person.same_as_unit_address ?? true,
-          addr1: person.address_line1 ?? (person as any).addr1 ?? null,
-          addr2: person.address_line2 ?? (person as any).addr2 ?? null,
-          city: person.city ?? (person as any).city ?? null,
-          state: person.state ?? (person as any).state ?? null,
-          postal: person.postal_code ?? (person as any).postal ?? null,
-          country: person.country ?? (person as any).country ?? null,
-          alt_addr1: person.alt_address_line1 ?? (person as any).alt_addr1 ?? null,
-          alt_addr2: person.alt_address_line2 ?? (person as any).alt_addr2 ?? null,
+          addr1: person.address_line1 ?? person.addr1 ?? null,
+          addr2: person.address_line2 ?? person.addr2 ?? null,
+          city: person.city ?? null,
+          state: person.state ?? null,
+          postal: person.postal_code ?? null,
+          country: person.country ?? null,
+          alt_addr1: person.alt_address_line1 ?? person.alt_addr1 ?? null,
+          alt_addr2: person.alt_address_line2 ?? person.alt_addr2 ?? null,
           alt_city: person.alt_city ?? null,
           alt_state: person.alt_state ?? null,
-          alt_postal: person.alt_postal_code ?? (person as any).alt_postal ?? null,
+          alt_postal: person.alt_postal_code ?? person.alt_postal ?? null,
           alt_country: person.alt_country ?? null,
         }));
       }
@@ -1016,16 +1050,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
         throw new Error(errorMessage);
       }
 
-      const responseLease = (json as any)?.lease ?? (json as any)?.Lease ?? null;
-      const derivedLeaseId =
-        responseLease?.id ??
-        responseLease?.Id ??
-        responseLease?.ID ??
-        (json as any)?.lease_id ??
-        (json as any)?.leaseId ??
-        null;
-      const leaseIdNumber =
-        typeof derivedLeaseId === 'number' ? derivedLeaseId : Number(derivedLeaseId);
+      const leaseIdNumber = extractLeaseIdFromLeaseResponse(json);
 
       if (Number.isFinite(leaseIdNumber)) {
         setCreatedLeaseId(Number(leaseIdNumber));
@@ -1802,9 +1827,15 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                                 ),
                               )
                             }
-                            options={glAccounts.map((acc) => ({
-                              value: acc.id,
-                              label: describeGlAccount(acc),
+                            options={groupGlAccounts(
+                              glAccounts.map((acc) => ({
+                                id: acc.id,
+                                label: describeGlAccount(acc),
+                                type: acc.type ?? null,
+                              })),
+                            ).map((g) => ({
+                              label: g.label,
+                              options: g.accounts.map((a) => ({ value: a.id, label: a.label })),
                             }))}
                             placeholder={
                               glAccountsLoading
@@ -1914,9 +1945,15 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                                 ),
                               )
                             }
-                            options={glAccounts.map((acc) => ({
-                              value: acc.id,
-                              label: describeGlAccount(acc),
+                            options={groupGlAccounts(
+                              glAccounts.map((acc) => ({
+                                id: acc.id,
+                                label: describeGlAccount(acc),
+                                type: acc.type ?? null,
+                              })),
+                            ).map((g) => ({
+                              label: g.label,
+                              options: g.accounts.map((a) => ({ value: a.id, label: a.label })),
                             }))}
                             placeholder={
                               glAccountsLoading
@@ -2043,10 +2080,23 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                   </span>
                 ) : null}
               </div>
-              <div
+              <input
+                id="lease-file-input"
+                ref={leaseFileInputRef}
+                type="file"
+                className="sr-only"
+                aria-label="Upload lease documents"
+                multiple
+                accept="application/pdf,image/*"
+                onChange={(event) => {
+                  handleLeaseFileSelection(event.target.files);
+                  if (event.target) event.target.value = '';
+                }}
+              />
+              <label
+                htmlFor="lease-file-input"
                 role="button"
                 tabIndex={0}
-                onClick={() => leaseFileInputRef.current?.click()}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ')
                     leaseFileInputRef.current?.click();
@@ -2062,18 +2112,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 <div className="text-muted-foreground text-center">
                   Drag & drop files here or <span className="underline">Browse</span>
                 </div>
-                <input
-                  ref={leaseFileInputRef}
-                  type="file"
-                  className="hidden"
-                  multiple
-                  accept="application/pdf,image/*"
-                  onChange={(event) => {
-                    handleLeaseFileSelection(event.target.files);
-                    if (event.target) event.target.value = '';
-                  }}
-                />
-              </div>
+              </label>
 
               {pendingLeaseFiles.length ? (
                 <div className="mt-4 space-y-2">

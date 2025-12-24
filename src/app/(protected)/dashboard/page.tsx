@@ -153,12 +153,6 @@ export default function DashboardPage() {
                       <Badge variant="secondary" className="text-xs">
                         {isLoading ? '—' : `${k?.total_units ?? 0} units`}
                       </Badge>
-                      {typeof k?.growth_rate === 'number' && (
-                        <span className="text-muted-foreground text-xs">
-                          {k.growth_rate >= 0 ? '+' : ''}
-                          {k.growth_rate}%
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div className="bg-primary/10 flex h-12 w-12 items-center justify-center rounded-lg">
@@ -374,7 +368,7 @@ export default function DashboardPage() {
               <DollarSign className="text-primary mr-2 h-5 w-5" />
               <CardTitle>Recent Transactions</CardTitle>
             </div>
-            <p className="text-muted-foreground text-xs">Last 24 hours</p>
+            <p className="text-muted-foreground text-xs">Last 7 days</p>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -418,7 +412,7 @@ export default function DashboardPage() {
               </Table>
               {!isLoading && txSlice.length === 0 && (
                 <div className="text-muted-foreground text-sm">
-                  No transactions in the last 24 hours.
+                  No transactions in the last 7 days.
                 </div>
               )}
               {isLoading && txSlice.length === 0 && (
@@ -426,7 +420,7 @@ export default function DashboardPage() {
               )}
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-xs">
-                  {transactions.length} in last 24 hours
+                  {transactions.length} in last 7 days
                 </span>
                 <div className="flex items-center gap-2">
                   <Button

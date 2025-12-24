@@ -9,13 +9,9 @@ import { mapGoogleCountryToEnum } from '@/lib/utils'
 import {
   normalizeAssignmentLevel,
   normalizeAssignmentLevelEnum,
-  normalizeBillingFrequency,
   normalizeCountryWithDefault,
-  normalizeFeeType,
-  normalizeManagementServicesList,
   normalizePropertyStatus,
   normalizePropertyType,
-  normalizeServicePlan,
   toNumberOrDefault,
   toNumberOrNull,
 } from '@/lib/normalizers'
@@ -24,6 +20,12 @@ const ADMIN_ROLE_SET = new Set(['org_admin', 'org_manager', 'platform_admin'])
 
 type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update']
 type OwnershipInsert = DatabaseSchema['public']['Tables']['ownerships']['Insert']
+type PropertyRow = DatabaseSchema['public']['Tables']['properties']['Row']
+type AssignmentLevel = DatabaseSchema['public']['Enums']['assignment_level']
+
+type PropertyUpdatePatch = Omit<PropertiesUpdate, 'service_assignment'> & {
+  service_assignment?: AssignmentLevel | null
+}
 
 export async function PUT(
   request: NextRequest,
@@ -142,7 +144,7 @@ export async function PUT(
 
     // Update the property
     const now = new Date().toISOString()
-    const updatePatch: PropertiesUpdate & Record<string, any> = {
+    const updatePatch: PropertyUpdatePatch = {
       updated_at: now,
       org_id: resolvedOrgId,
     }
@@ -204,12 +206,13 @@ export async function PUT(
 
     const managementScopeInput = getField('management_scope', 'managementScope')
     if (managementScopeInput !== undefined) {
-      updatePatch.management_scope = normalizeAssignmentLevelEnum(managementScopeInput) as any
+      updatePatch.management_scope = normalizeAssignmentLevelEnum(managementScopeInput)
     }
 
     const serviceAssignmentInput = getField('service_assignment', 'serviceAssignment')
     if (serviceAssignmentInput !== undefined) {
-      updatePatch.service_assignment = normalizeAssignmentLevel(serviceAssignmentInput) as any
+      const normalizedServiceAssignment = normalizeAssignmentLevel(serviceAssignmentInput)
+      updatePatch.service_assignment = normalizedServiceAssignment ?? null
     }
 
     const billPayListInput = getField('bill_pay_list', 'billPayList')
@@ -279,7 +282,7 @@ export async function PUT(
         if (hdrOrg && hdrOrg === resolvedOrgId) orgId = hdrOrg
 
         // 1) Try from the updated property row
-        if (!orgId) orgId = (data as any)?.org_id ?? null
+        if (!orgId) orgId = data?.org_id ?? null
 
         // 2) Try reloading the property
         if (!orgId) {
@@ -288,7 +291,7 @@ export async function PUT(
             .select('org_id')
             .eq('id', propertyId)
             .maybeSingle()
-          orgId = (propRow as any)?.org_id ?? null
+          orgId = propRow?.org_id ?? null
         }
 
         // 3) Try user's org membership (first org)
@@ -299,7 +302,7 @@ export async function PUT(
             .eq('user_id', user.id)
             .limit(1)
             .maybeSingle()
-          orgId = (mem as any)?.org_id ?? null
+          orgId = mem?.org_id ?? null
         }
 
         // 4) Try deriving from first owner in payload
@@ -311,7 +314,7 @@ export async function PUT(
               .select('org_id')
               .eq('id', firstOwner.id)
               .maybeSingle()
-            orgId = (own as any)?.org_id ?? null
+            orgId = own?.org_id ?? null
           }
         }
 
@@ -466,6 +469,8 @@ export async function PUT(
       console.log('🔍 API: Skipping ownership updates (no owners provided or empty)')
     }
 
+    let rentalManagerId: number | null = null
+
     // Handle property manager assignment (optional)
     if (Object.prototype.hasOwnProperty.call(body, 'property_manager_id')) {
       const staffId = body.property_manager_id
@@ -521,8 +526,8 @@ export async function PUT(
             .select('buildium_user_id')
             .eq('id', sid)
             .maybeSingle()
-          if (st?.buildium_user_id) {
-            ;(data as any).rental_manager = Number(st.buildium_user_id)
+        if (st?.buildium_user_id) {
+            rentalManagerId = Number(st.buildium_user_id)
           }
         }
       } catch {}
@@ -536,9 +541,12 @@ export async function PUT(
       revalidateTag(`property-financials:${propertyId}`)
     } catch {}
 
-    return NextResponse.json({ 
-      success: true, 
-      property: data 
+    const propertyResponse: (PropertyRow & { rental_manager?: number }) | null =
+      data && rentalManagerId ? { ...data, rental_manager: rentalManagerId } : data
+
+    return NextResponse.json({
+      success: true,
+      property: propertyResponse
     })
 
   } catch (error) {

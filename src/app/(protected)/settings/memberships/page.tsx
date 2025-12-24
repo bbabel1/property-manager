@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -62,35 +62,50 @@ export default function MembershipsPage() {
         if (o?.error) throw new Error(o.error);
         if (r?.error) throw new Error(r.error);
         setUsers(
-          (u.users || []).map((x: any) => ({
-            id: x.id,
-            email: x.email,
-            memberships: x.memberships || [],
-          })),
+          (u.users || []).flatMap((x) => {
+            if (!x?.id || !x?.email) return [];
+            const memberships: Membership[] = Array.isArray(x.memberships)
+              ? x.memberships.map((m) => ({
+                  org_id: String(m?.org_id ?? ''),
+                  org_name: m?.org_name,
+                  roles: Array.isArray(m?.roles)
+                    ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
+                    : [],
+                }))
+              : [];
+            return [
+              {
+                id: String(x.id),
+                email: String(x.email),
+                memberships,
+              },
+            ];
+          }),
         );
         setOrgs(o.organizations || []);
         setRoles(
-          (r.profiles || []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            is_system: p.is_system,
-            org_id: p.org_id,
-          })),
+          (r.profiles || []).flatMap((p) => {
+            if (!p?.id || !p?.name) return [];
+            return [
+              {
+                id: String(p.id),
+                name: String(p.name),
+                description: p.description || undefined,
+                is_system: Boolean(p.is_system),
+                org_id: p.org_id ? String(p.org_id) : null,
+              },
+            ];
+          }),
         );
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load data');
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to load data';
+        setError(message);
       } finally {
         setLoading(false);
       }
     };
     run();
   }, []);
-
-  const selectedUserObj = useMemo(
-    () => users.find((u) => u.id === selectedUser) || null,
-    [users, selectedUser],
-  );
 
   const assign = async () => {
     if (!selectedUser || !selectedOrg || !selectedRole) return;
@@ -108,14 +123,29 @@ export default function MembershipsPage() {
       const u = await fetch('/api/admin/users').then((r) => r.json());
       if (u?.error) throw new Error(u.error);
       setUsers(
-        (u.users || []).map((x: any) => ({
-          id: x.id,
-          email: x.email,
-          memberships: x.memberships || [],
-        })),
+        (u.users || []).flatMap((x) => {
+          if (!x?.id || !x?.email) return [];
+          const memberships: Membership[] = Array.isArray(x.memberships)
+            ? x.memberships.map((m) => ({
+                org_id: String(m?.org_id ?? ''),
+                org_name: m?.org_name,
+                roles: Array.isArray(m?.roles)
+                  ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
+                  : [],
+              }))
+            : [];
+          return [
+            {
+              id: String(x.id),
+              email: String(x.email),
+              memberships,
+            },
+          ];
+        }),
       );
-    } catch (e: any) {
-      setError(e?.message || 'Failed to assign membership');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to assign membership';
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -137,14 +167,29 @@ export default function MembershipsPage() {
       const u = await fetch('/api/admin/users').then((r) => r.json());
       if (u?.error) throw new Error(u.error);
       setUsers(
-        (u.users || []).map((x: any) => ({
-          id: x.id,
-          email: x.email,
-          memberships: x.memberships || [],
-        })),
+        (u.users || []).flatMap((x) => {
+          if (!x?.id || !x?.email) return [];
+          const memberships: Membership[] = Array.isArray(x.memberships)
+            ? x.memberships.map((m) => ({
+                org_id: String(m?.org_id ?? ''),
+                org_name: m?.org_name,
+                roles: Array.isArray(m?.roles)
+                  ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
+                  : [],
+              }))
+            : [];
+          return [
+            {
+              id: String(x.id),
+              email: String(x.email),
+              memberships,
+            },
+          ];
+        }),
       );
-    } catch (e: any) {
-      setError(e?.message || 'Failed to remove membership');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to remove membership';
+      setError(message);
     } finally {
       setBusy(false);
     }

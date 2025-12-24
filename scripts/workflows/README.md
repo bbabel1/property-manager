@@ -4,7 +4,8 @@
 
 ## Overview
 
-This directory contains comprehensive workflow scripts that demonstrate the correct sequence of operations for common tasks in the Property Management System.
+This directory contains comprehensive workflow scripts that demonstrate the correct sequence of operations for common
+tasks in the Property Management System.
 
 ## Scripts
 

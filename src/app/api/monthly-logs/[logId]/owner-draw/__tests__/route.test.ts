@@ -36,7 +36,50 @@ type TableName =
   | 'transactions'
   | 'transaction_lines';
 
-const supabaseData: Record<TableName, any[]> = {
+type MonthlyLogRow = {
+  id: string;
+  org_id: string;
+  property_id: string;
+  unit_id: string;
+  properties: {
+    id: string;
+    org_id: string;
+    buildium_property_id: number;
+    operating_bank_gl_account_id: string;
+  }[];
+  units: { id: string; property_id: string; buildium_property_id: number; buildium_unit_id: number }[];
+};
+type PropertyRow = {
+  id: string;
+  org_id: string;
+  buildium_property_id: number;
+  operating_bank_gl_account_id: string;
+};
+type GlAccountRow = {
+  id: string;
+  name: string;
+  org_id: string;
+  buildium_gl_account_id: number;
+  is_bank_account?: boolean | null;
+};
+type OwnershipRow = {
+  property_id: string;
+  owner_id: string;
+  owners: { id: string; buildium_owner_id: number } | null;
+};
+type TransactionRow = Record<string, unknown>;
+type TransactionLineRow = Record<string, unknown>;
+
+type RowByTable = {
+  monthly_logs: MonthlyLogRow;
+  properties: PropertyRow;
+  gl_accounts: GlAccountRow;
+  ownerships: OwnershipRow;
+  transactions: TransactionRow;
+  transaction_lines: TransactionLineRow;
+};
+
+const supabaseData: { [K in TableName]: RowByTable[K][] } = {
   monthly_logs: [
       {
         id: 'log-1',
@@ -68,7 +111,6 @@ const supabaseData: Record<TableName, any[]> = {
       name: 'Operating Bank GL',
       org_id: 'org-1',
       buildium_gl_account_id: 4321,
-      buildium_gl_account_id: 4321,
       is_bank_account: true,
     },
     {
@@ -89,31 +131,33 @@ const supabaseData: Record<TableName, any[]> = {
   transaction_lines: [],
 };
 
-class QueryBuilder implements PromiseLike<{ data: any; error: any }> {
-  private filters: Array<{ column: string; value: any; op: 'eq' | 'ilike' }> = [];
-  private inFilters: Array<{ column: string; values: any[] }> = [];
+class QueryBuilder<Table extends TableName>
+  implements PromiseLike<{ data: RowByTable[Table][]; error: null }>
+{
+  private filters: Array<{ column: keyof RowByTable[Table]; value: unknown; op: 'eq' | 'ilike' }> = [];
+  private inFilters: Array<{ column: keyof RowByTable[Table]; values: unknown[] }> = [];
   private sort: { column: string; ascending: boolean } | null = null;
   private limitCount: number | null = null;
   private op: 'select' | 'insert' = 'select';
-  private pendingInsert: any[] | null = null;
+  private pendingInsert: RowByTable[Table][] | null = null;
 
-  constructor(private table: TableName) {}
+  constructor(private table: Table) {}
 
   select() {
     return this;
   }
 
-  eq(column: string, value: any) {
+  eq(column: keyof RowByTable[Table], value: unknown) {
     this.filters.push({ column, value, op: 'eq' });
     return this;
   }
 
-  ilike(column: string, value: any) {
+  ilike(column: keyof RowByTable[Table], value: unknown) {
     this.filters.push({ column, value, op: 'ilike' });
     return this;
   }
 
-  in(column: string, values: any[]) {
+  in(column: keyof RowByTable[Table], values: unknown[]) {
     this.inFilters.push({ column, values });
     return this;
   }
@@ -128,7 +172,7 @@ class QueryBuilder implements PromiseLike<{ data: any; error: any }> {
     return this;
   }
 
-  insert(payload: any) {
+  insert(payload: RowByTable[Table] | RowByTable[Table][]) {
     this.op = 'insert';
     this.pendingInsert = Array.isArray(payload) ? payload : [payload];
     return this;
@@ -144,7 +188,7 @@ class QueryBuilder implements PromiseLike<{ data: any; error: any }> {
     return Promise.resolve({ data: rows[0] ?? null, error: null });
   }
 
-  private applyOperation(): any[] {
+  private applyOperation(): RowByTable[Table][] {
     if (this.op === 'insert') {
       const rows = this.pendingInsert ?? [];
       const normalized = rows.map((row) => ({
@@ -195,9 +239,12 @@ class QueryBuilder implements PromiseLike<{ data: any; error: any }> {
     return filtered;
   }
 
-  then<TResult1 = { data: any; error: any }, TResult2 = never>(
-    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | undefined | null,
-    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null,
+  then<TResult1 = { data: RowByTable[Table][]; error: null }, TResult2 = never>(
+    onfulfilled?:
+      | ((value: { data: RowByTable[Table][]; error: null }) => TResult1 | PromiseLike<TResult1>)
+      | undefined
+      | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | undefined | null,
   ): Promise<TResult1 | TResult2> {
     const rows = this.applyOperation();
     const payload = { data: rows, error: null };

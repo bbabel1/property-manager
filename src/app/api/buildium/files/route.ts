@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium files`);
 
     return NextResponse.json(
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error uploading Buildium file`);
 
     return NextResponse.json(

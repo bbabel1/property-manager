@@ -3,6 +3,15 @@ import { z } from 'zod'
 import { requireRole } from '@/lib/auth/guards'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { AllPermissions, type Permission } from '@/lib/permissions'
+import type { Database } from '@/types/database'
+
+type RoleRow = Database['public']['Tables']['roles']['Row']
+type RolePermissionRow = Database['public']['Tables']['role_permissions']['Row'] & {
+  permissions?: { key?: Permission | null } | null
+}
+type RoleWithPermissions = Pick<RoleRow, 'id' | 'org_id' | 'name' | 'description' | 'is_system'> & {
+  role_permissions: RolePermissionRow[] | null
+}
 
 const PayloadSchema = z.object({
   id: z.string().uuid().optional(),
@@ -24,15 +33,17 @@ export async function GET(request: NextRequest) {
       .from('roles')
       .select('id, org_id, name, description, is_system, role_permissions(permission_id, permissions(key))')
       .order('name', { ascending: true })
-      .returns<any[]>()
+      .returns<RoleWithPermissions[]>()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const filtered = (profiles || []).filter((p) => !orgId || p.org_id === orgId || p.org_id === null)
+    const filtered = (profiles ?? []).filter((p) => !orgId || p.org_id === orgId || p.org_id === null)
     const mapped = filtered.map((p) => {
-      const perms = (p.role_permissions || []).map((row: any) => row?.permissions?.key).filter(Boolean)
+      const perms = (p.role_permissions ?? [])
+        .map((row) => row?.permissions?.key)
+        .filter((key): key is Permission => Boolean(key))
       return {
         id: p.id,
         org_id: p.org_id,
@@ -44,8 +55,9 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({ profiles: mapped })
-  } catch (e: any) {
-    const msg = e?.message || 'Internal Server Error'
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    const msg = error?.message || 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }
@@ -65,14 +77,14 @@ export async function POST(request: NextRequest) {
     }
     const payload = parsed.data
     const now = new Date().toISOString()
-    const profileRow = {
+    const profileRow: Database['public']['Tables']['roles']['Update'] = {
       id: payload.id,
       org_id: payload.org_id ?? null,
       name: payload.name.trim(),
       description: payload.description?.trim() || null,
       is_system: payload.is_system ?? false,
       updated_at: now,
-    } as any
+    }
 
     const { data: upserted, error: upsertError } = await supabase
       .from('roles')
@@ -83,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: upsertError.message }, { status: 500 })
     }
 
-    const profileId = payload.id || (upserted as any)?.id
+    const profileId = payload.id || upserted?.id
     if (!profileId) {
       return NextResponse.json({ error: 'Failed to persist profile' }, { status: 500 })
     }
@@ -102,8 +114,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, id: profileId })
-  } catch (e: any) {
-    const msg = e?.message || 'Internal Server Error'
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    const msg = error?.message || 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }

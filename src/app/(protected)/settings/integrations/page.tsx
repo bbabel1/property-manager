@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+'use client'
 
-"use client"
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -66,7 +64,7 @@ export default function WorkspaceIntegrationsPage() {
   const [geoFormOpen, setGeoFormOpen] = useState(false)
 
   // Load Buildium integration status
-  const loadBuildiumStatus = async () => {
+  const loadBuildiumStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/buildium/integration')
       if (response.ok) {
@@ -101,9 +99,9 @@ export default function WorkspaceIntegrationsPage() {
         ),
       )
     }
-  }
+  }, [])
 
-  const loadNYCIntegrationStatus = async () => {
+  const loadNYCIntegrationStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/nyc-data/integration')
       if (!res.ok) return
@@ -133,12 +131,12 @@ export default function WorkspaceIntegrationsPage() {
         ),
       )
     }
-  }
+  }, [])
 
   useEffect(() => {
-    loadBuildiumStatus()
-    loadNYCIntegrationStatus()
-  }, [])
+    void loadBuildiumStatus()
+    void loadNYCIntegrationStatus()
+  }, [loadBuildiumStatus, loadNYCIntegrationStatus])
 
   const handleIntegrationAction = (key: string) => {
     if (key === 'buildium') {

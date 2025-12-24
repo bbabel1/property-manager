@@ -7,9 +7,13 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
   try {
     const admin = requireSupabaseAdmin('update lease contact move-in')
     const { id } = await params
-    const body = await request.json().catch(() => ({} as any))
-    const patch: Record<string, any> = {}
-    if ('move_in_date' in body) patch.move_in_date = body.move_in_date || null
+    const rawBody = await request.json().catch<unknown>(() => ({}))
+    const body =
+      rawBody && typeof rawBody === 'object'
+        ? (rawBody as Partial<{ move_in_date: string | null }>)
+        : {}
+    const patch: { move_in_date?: string | null; updated_at?: string } = {}
+    if ('move_in_date' in body) patch.move_in_date = body.move_in_date ?? null
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
     }
@@ -24,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ success: true, contact: data })
-  } catch (e) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -36,7 +40,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
     const { error } = await admin.from('lease_contacts').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ success: true })
-  } catch (e) {
+  } catch (_error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

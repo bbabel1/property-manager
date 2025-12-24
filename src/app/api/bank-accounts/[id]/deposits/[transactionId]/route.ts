@@ -4,6 +4,29 @@ import { supabaseAdmin } from '@/lib/db';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
 
+type TransactionRow = {
+  id: string;
+  transaction_type: string | null;
+  bank_gl_account_id: string | null;
+  date?: string | null;
+  memo?: string | null;
+  org_id?: string | null;
+  buildium_transaction_id?: number | null;
+  gl_accounts?: { buildium_gl_account_id?: number | null } | null;
+};
+
+type GlAccountRow = { id: string; is_bank_account?: boolean | null; buildium_gl_account_id?: number | null };
+type TransactionLineRow = {
+  id: string;
+  gl_account_id: string | null;
+  amount?: number | null;
+  property_id?: string | null;
+  unit_id?: string | null;
+  posting_type?: string | null;
+};
+type PropertyRow = { id: string; buildium_property_id: number | null };
+type UnitRow = { id: string; buildium_unit_id: number | null };
+
 async function assertDepositInBankAccountContext(params: {
   bankAccountId: string;
   transactionId: string;
@@ -14,14 +37,13 @@ async function assertDepositInBankAccountContext(params: {
     .from('transactions')
     .select('id, transaction_type, bank_gl_account_id')
     .eq('id', transactionId)
-    .maybeSingle();
+    .maybeSingle<TransactionRow>();
 
   if (txError) throw txError;
   if (!tx) return { ok: false as const, status: 404, message: 'Transaction not found' };
-  if ((tx as any).transaction_type !== 'Deposit')
-    return { ok: false as const, status: 400, message: 'Transaction is not a deposit' };
+  if (tx.transaction_type !== 'Deposit') return { ok: false as const, status: 400, message: 'Transaction is not a deposit' };
 
-  if ((tx as any).bank_gl_account_id === bankAccountId) {
+  if (tx.bank_gl_account_id === bankAccountId) {
     return { ok: true as const, tx };
   }
 
@@ -32,7 +54,7 @@ async function assertDepositInBankAccountContext(params: {
     .eq('transaction_id', transactionId)
     .eq('gl_account_id', bankAccountId)
     .limit(1)
-    .maybeSingle();
+    .maybeSingle<TransactionLineRow>();
   if (!line) return { ok: false as const, status: 404, message: 'Deposit not found for this bank account' };
 
   return { ok: true as const, tx };
@@ -70,8 +92,8 @@ export async function PATCH(
           .from('gl_accounts')
           .select('id, is_bank_account')
           .eq('id', bank_gl_account_id)
-          .maybeSingle();
-        if (!glAccount || !(glAccount as any).is_bank_account) {
+          .maybeSingle<GlAccountRow>();
+        if (!glAccount || glAccount.is_bank_account !== true) {
           return NextResponse.json({ error: 'Invalid bank account' }, { status: 400 });
         }
       }
@@ -84,9 +106,10 @@ export async function PATCH(
         .select('id')
         .eq('transaction_id', transactionId)
         .eq('posting_type', 'Debit')
-        .limit(20);
+        .limit(20)
+        .returns<TransactionLineRow[]>();
 
-      const candidateLineId = (debitLines as any[])?.[0]?.id ?? null;
+      const candidateLineId = debitLines?.[0]?.id ?? null;
       if (candidateLineId && bank_gl_account_id) {
         await supabaseAdmin
           .from('transaction_lines')
@@ -120,22 +143,22 @@ export async function PATCH(
         `,
         )
         .eq('id', transactionId)
-        .maybeSingle();
+        .maybeSingle<TransactionRow>();
 
       const buildiumDepositId =
-        txRow && typeof (txRow as any).buildium_transaction_id === 'number'
-          ? (txRow as any).buildium_transaction_id
+        txRow && typeof txRow.buildium_transaction_id === 'number'
+          ? txRow.buildium_transaction_id
           : null;
       const bankBuildiumId =
         txRow &&
-        (txRow as any).gl_accounts &&
-        typeof (txRow as any).gl_accounts.buildium_gl_account_id === 'number'
-          ? (txRow as any).gl_accounts.buildium_gl_account_id
+        txRow.gl_accounts &&
+        typeof txRow.gl_accounts.buildium_gl_account_id === 'number'
+          ? txRow.gl_accounts.buildium_gl_account_id
           : null;
 
       if (buildiumDepositId && bankBuildiumId) {
-        const orgId = (txRow as any)?.org_id ?? null;
-        const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin as any, orgId);
+        const orgId = txRow?.org_id ?? null;
+        const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
 
         // PaymentTransactionIds from splits
         const { data: splits } = await supabaseAdmin
@@ -144,8 +167,8 @@ export async function PATCH(
           .eq('transaction_id', transactionId)
           .not('buildium_payment_transaction_id', 'is', null);
         const paymentBuildiumIds = (splits || [])
-          .map((s: any) => s?.buildium_payment_transaction_id)
-          .filter((v: any): v is number => typeof v === 'number');
+          .map((s) => s?.buildium_payment_transaction_id)
+          .filter((v): v is number => typeof v === 'number');
 
         // Other lines (credits) excluding bank + UDF
         const { data: lines } = await supabaseAdmin
@@ -153,9 +176,10 @@ export async function PATCH(
           .select('gl_account_id, amount, property_id, unit_id, posting_type')
           .eq('transaction_id', transactionId)
           .eq('posting_type', 'Credit')
-          .limit(100);
+          .limit(100)
+          .returns<TransactionLineRow[]>();
 
-        const creditLines = (lines || []).filter((l: any) => {
+        const creditLines = (lines || []).filter((l) => {
           const glId = l?.gl_account_id;
           if (!glId) return false;
           if (glId === bankAccountId) return false;
@@ -163,16 +187,17 @@ export async function PATCH(
           return true;
         });
 
-        const glIds = Array.from(new Set(creditLines.map((l: any) => l?.gl_account_id).filter(Boolean))).map(String);
-        const propertyIds = Array.from(new Set(creditLines.map((l: any) => l?.property_id).filter(Boolean))).map(String);
-        const unitIds = Array.from(new Set(creditLines.map((l: any) => l?.unit_id).filter(Boolean))).map(String);
+        const glIds = Array.from(new Set(creditLines.map((l) => l.gl_account_id).filter(Boolean))).map(String);
+        const propertyIds = Array.from(new Set(creditLines.map((l) => l.property_id).filter(Boolean))).map(String);
+        const unitIds = Array.from(new Set(creditLines.map((l) => l.unit_id).filter(Boolean))).map(String);
 
         const { data: glRows } = await supabaseAdmin
           .from('gl_accounts')
           .select('id, buildium_gl_account_id')
-          .in('id', glIds);
+          .in('id', glIds)
+          .returns<GlAccountRow[]>();
         const glBuildiumById = new Map<string, number>();
-        (glRows || []).forEach((g: any) => {
+        (glRows || []).forEach((g) => {
           if (typeof g?.buildium_gl_account_id === 'number') glBuildiumById.set(String(g.id), g.buildium_gl_account_id);
         });
 
@@ -181,23 +206,23 @@ export async function PATCH(
               .from('properties')
               .select('id, buildium_property_id')
               .in('id', propertyIds)
-          : { data: [] as any[] };
+          : { data: [] as PropertyRow[] };
         const propertyBuildiumById = new Map<string, number>();
-        (propRows || []).forEach((p: any) => {
+        (propRows || []).forEach((p) => {
           if (typeof p?.buildium_property_id === 'number')
             propertyBuildiumById.set(String(p.id), p.buildium_property_id);
         });
 
         const { data: unitRows } = unitIds.length
           ? await supabaseAdmin.from('units').select('id, buildium_unit_id').in('id', unitIds)
-          : { data: [] as any[] };
+          : { data: [] as UnitRow[] };
         const unitBuildiumById = new Map<string, number>();
-        (unitRows || []).forEach((u: any) => {
+        (unitRows || []).forEach((u) => {
           if (typeof u?.buildium_unit_id === 'number') unitBuildiumById.set(String(u.id), u.buildium_unit_id);
         });
 
         const otherLines = creditLines
-          .map((l: any) => {
+          .map((l) => {
             const glBuildiumId = glBuildiumById.get(String(l.gl_account_id));
             if (typeof glBuildiumId !== 'number') return null;
             const buildiumPropertyId = l?.property_id ? propertyBuildiumById.get(String(l.property_id)) : undefined;
@@ -220,14 +245,14 @@ export async function PATCH(
           .filter(Boolean);
 
         const buildiumPayload: Record<string, unknown> = {
-          EntryDate: (txRow as any)?.date ?? undefined,
-          Memo: (txRow as any)?.memo || undefined,
+          EntryDate: txRow?.date ?? undefined,
+          Memo: txRow?.memo || undefined,
           PaymentTransactionIds: paymentBuildiumIds,
           Lines: otherLines,
         };
 
         const buildiumClient = await getOrgScopedBuildiumClient(orgId ?? undefined);
-        await buildiumClient.makeRequest<any>(
+        await buildiumClient.makeRequest(
           'PUT',
           `/bankaccounts/${bankBuildiumId}/deposits/${buildiumDepositId}`,
           buildiumPayload,

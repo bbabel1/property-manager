@@ -44,8 +44,8 @@ describe('GET /api/monthly-logs/[logId]/financial-summary', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    const { requireAuth } = await import('@/lib/auth/guards');
-    (requireAuth as any).mockRejectedValueOnce(new Error('UNAUTHENTICATED'));
+    const guards = await import('@/lib/auth/guards');
+    vi.mocked(guards.requireAuth).mockRejectedValueOnce(new Error('UNAUTHENTICATED'));
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const req = new NextRequest('http://localhost/api/monthly-logs/log-1/financial-summary');

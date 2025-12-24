@@ -7,13 +7,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
-type BuildiumUnitNotePayload = {
-  Id: number | string | null;
-  Subject?: string | null;
-  Body?: string | null;
-  IsPrivate?: boolean | null;
-  [key: string]: unknown;
-};
+type BuildiumUnitNotePayload = Parameters<typeof UnitService.persistNotes>[1][number];
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; noteId: string }> }) {
   try {
@@ -63,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     } catch {
       return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
     }
-    try { await UnitService.persistNotes(Number(id), [note as any], orgId) } catch {}
+    try { await UnitService.persistNotes(Number(id), [note], orgId) } catch {}
 
     logger.info(`Buildium unit note fetched successfully`);
 
@@ -73,6 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium unit note`);
 
     return NextResponse.json(
@@ -138,7 +133,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     } catch {
       return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
     }
-    try { await UnitService.persistNotes(Number(id), [note as any], orgId) } catch {}
+    try { await UnitService.persistNotes(Number(id), [note], orgId) } catch {}
 
     logger.info(`Buildium unit note updated successfully`);
 
@@ -148,6 +143,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium unit note`);
 
     return NextResponse.json(

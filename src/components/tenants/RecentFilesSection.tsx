@@ -4,13 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import TenantFileUploadDialog from '@/components/tenants/TenantFileUploadDialog'
 
-interface RecentFilesSectionProps {
-  tenantId: string
-}
-
-const DEFAULT_CATEGORY = 'Uncategorized'
-
-export default function RecentFilesSection({ tenantId }: RecentFilesSectionProps) {
+export default function RecentFilesSection() {
   const [isOpen, setIsOpen] = useState(false)
   const openModal = () => setIsOpen(true)
 

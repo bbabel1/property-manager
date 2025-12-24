@@ -33,7 +33,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       selectedOwnerId,
       setSelectedOwnerId,
     }),
-    [selectedPropertyId, selectedUnitId, selectedOwnerId]
+    [selectedOwnerId, selectedPropertyId, selectedUnitId, setSelectedOwnerId, setSelectedPropertyId, setSelectedUnitId]
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

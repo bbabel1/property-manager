@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   AlertCircle,
   CheckCircle,
@@ -46,12 +46,7 @@ export default function StatementEmailHistory({
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    fetchHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthlyLogId, refreshToken]);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -78,7 +73,11 @@ export default function StatementEmailHistory({
     } finally {
       setLoading(false);
     }
-  };
+  }, [monthlyLogId]);
+
+  useEffect(() => {
+    void fetchHistory();
+  }, [fetchHistory, refreshToken]);
 
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {

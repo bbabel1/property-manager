@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import type { PostgrestError } from '@supabase/supabase-js';
 import { PageBody, PageColumns, PageHeader, PageShell } from '@/components/layout/page-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,10 @@ import { supabase, supabaseAdmin } from '@/lib/db';
 import BillFileAttachmentsCard from '@/components/bills/BillFileAttachmentsCard';
 import BillActionsMenu from '@/components/bills/BillActionsMenu';
 import type { BillFileRecord } from '@/components/bills/types';
+import type { Database } from '@/types/database';
+
+export type BillPageParams = { billId: string };
+type BillPageProps = { params: Promise<BillPageParams> };
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
@@ -40,6 +45,60 @@ type DetailEntry = {
   value: string | React.ReactNode;
   multiline?: boolean;
 };
+
+type PaymentRow = Pick<
+  Database['public']['Tables']['transactions']['Row'],
+  | 'id'
+  | 'date'
+  | 'paid_date'
+  | 'total_amount'
+  | 'bank_gl_account_id'
+  | 'payment_method'
+  | 'reference_number'
+  | 'check_number'
+  | 'status'
+  | 'transaction_type'
+  | 'buildium_bill_id'
+>;
+
+type BillRecord = Pick<
+  Database['public']['Tables']['transactions']['Row'],
+  | 'id'
+  | 'date'
+  | 'due_date'
+  | 'paid_date'
+  | 'total_amount'
+  | 'status'
+  | 'memo'
+  | 'reference_number'
+  | 'vendor_id'
+  | 'buildium_bill_id'
+  | 'transaction_type'
+  | 'org_id'
+  | 'work_order_id'
+>;
+
+type TransactionLineWithRelations = Database['public']['Tables']['transaction_lines']['Row'] & {
+  gl_accounts?:
+    | Pick<
+        Database['public']['Tables']['gl_accounts']['Row'],
+        'name' | 'account_number' | 'type'
+      >
+    | null;
+  units?: Pick<Database['public']['Tables']['units']['Row'], 'unit_number' | 'unit_name'> | null;
+  properties?: Pick<Database['public']['Tables']['properties']['Row'], 'name'> | null;
+};
+
+type VendorWithContact = Database['public']['Tables']['vendors']['Row'] & {
+  contacts?:
+    | Pick<Database['public']['Tables']['contacts']['Row'], 'display_name' | 'company_name'>
+    | null;
+};
+
+type WorkOrderSummary = Pick<Database['public']['Tables']['work_orders']['Row'], 'id' | 'subject'>;
+
+type ListQueryResult<T> = { data: T[]; error: PostgrestError | null };
+type SingleQueryResult<T> = { data: T | null; error: PostgrestError | null };
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'numeric',
@@ -132,7 +191,7 @@ function statusToVariant(
   }
 }
 
-export default async function BillDetailsPage({ params }: { params: Promise<{ billId: string }> }) {
+export default async function BillDetailsPage({ params }: BillPageProps) {
   const { billId } = await params;
 
   const db = supabaseAdmin || supabase;
@@ -145,6 +204,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     .select(
       'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id, work_order_id',
     )
+    .returns<BillRecord[]>()
     .eq('id', billId)
     .maybeSingle();
 
@@ -158,22 +218,10 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     notFound();
   }
 
-  const paymentsPromise = bill.buildium_bill_id
-    ? db
-        .from('transactions')
-        .select(
-          'id, date, paid_date, total_amount, bank_gl_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
-        )
-        .eq('transaction_type', 'Payment')
-        .eq('buildium_bill_id', bill.buildium_bill_id)
-        .order('date', { ascending: false })
-    : Promise.resolve({ data: [], error: null });
-
-  const [linesRes, vendorRes, paymentsRes, workOrderRes] = await Promise.all([
-    db
-      .from('transaction_lines')
-      .select(
-        `id,
+  const linesPromise: Promise<ListQueryResult<TransactionLineWithRelations>> = db
+    .from('transaction_lines')
+    .select(
+      `id,
          amount,
          memo,
          posting_type,
@@ -184,20 +232,50 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
          gl_accounts(name, account_number, type),
          units(unit_number, unit_name),
          properties(name)`,
-      )
-      .eq('transaction_id', bill.id)
-      .order('created_at', { ascending: true }),
-    bill.vendor_id
-      ? db
-          .from('vendors')
-          .select('id, contacts(display_name, company_name)')
-          .eq('id', bill.vendor_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+    )
+    .returns<TransactionLineWithRelations[]>()
+    .eq('transaction_id', bill.id)
+    .order('created_at', { ascending: true })
+    .then(({ data, error }) => ({ data: data ?? [], error }));
+
+  const vendorPromise: Promise<SingleQueryResult<VendorWithContact>> = bill.vendor_id
+    ? db
+        .from('vendors')
+        .select('id, contacts(display_name, company_name)')
+        .returns<VendorWithContact[]>()
+        .eq('id', bill.vendor_id)
+        .maybeSingle()
+        .then(({ data, error }) => ({ data, error }))
+    : Promise.resolve({ data: null, error: null });
+
+  const paymentsPromise: Promise<ListQueryResult<PaymentRow>> = bill.buildium_bill_id
+    ? db
+        .from('transactions')
+        .select(
+          'id, date, paid_date, total_amount, bank_gl_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
+        )
+        .returns<PaymentRow[]>()
+        .eq('transaction_type', 'Payment')
+        .eq('buildium_bill_id', bill.buildium_bill_id)
+        .order('date', { ascending: false })
+        .then(({ data, error }) => ({ data: data ?? [], error }))
+    : Promise.resolve({ data: [], error: null });
+
+  const workOrderPromise: Promise<SingleQueryResult<WorkOrderSummary>> = bill.work_order_id
+    ? db
+        .from('work_orders')
+        .select('id, subject')
+        .returns<WorkOrderSummary[]>()
+        .eq('id', bill.work_order_id)
+        .maybeSingle()
+        .then(({ data, error }) => ({ data, error }))
+    : Promise.resolve({ data: null, error: null });
+
+  const [linesRes, vendorRes, paymentsRes, workOrderRes] = await Promise.all([
+    linesPromise,
+    vendorPromise,
     paymentsPromise,
-    bill.work_order_id
-      ? db.from('work_orders').select('id, subject').eq('id', bill.work_order_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+    workOrderPromise,
   ]);
 
   if (linesRes?.error) {
@@ -214,21 +292,17 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     console.error('Failed to load work order for bill', workOrderRes.error);
   }
 
-  const rawLines = Array.isArray(linesRes?.data)
-    ? linesRes.data.filter((line) => String(line?.posting_type || '').toLowerCase() !== 'credit')
-    : [];
-  const vendor = vendorRes?.data as
-    | (Record<string, unknown> & {
-        contacts?: { display_name?: string | null; company_name?: string | null } | null;
-      })
-    | null;
+  const rawLines = linesRes.data.filter(
+    (line) => String(line?.posting_type || '').toLowerCase() !== 'credit',
+  );
+  const vendor = vendorRes?.data;
 
   const vendorContact = vendor && typeof vendor.contacts === 'object' ? vendor.contacts : null;
   const vendorName =
     (vendorContact?.display_name as string | undefined) ||
     (vendorContact?.company_name as string | undefined) ||
     'Vendor';
-  const workOrder = (workOrderRes?.data as { id: string; subject: string | null } | null) ?? null;
+  const workOrder = workOrderRes?.data ?? null;
 
   let billFiles: BillFileRecord[] = [];
   try {
@@ -265,9 +339,9 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     console.error('Failed to load bill file attachments', error);
   }
 
-  const payments = Array.isArray(paymentsRes?.data) ? paymentsRes.data : [];
+  const payments: PaymentRow[] = paymentsRes.data;
   const bankAccountIds = payments
-    .map((p) => (p as any).bank_gl_account_id)
+    .map((p) => p.bank_gl_account_id)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
   let bankAccountMap = new Map<string, { name: string | null }>();
   if (bankAccountIds.length) {
@@ -311,7 +385,7 @@ export default async function BillDetailsPage({ params }: { params: Promise<{ bi
     const displayAmount = Math.abs(rawAmount);
     return {
       ...p,
-      bankName: bankAccountMap.get((p as any).bank_gl_account_id || '')?.name ?? '—',
+      bankName: bankAccountMap.get(p.bank_gl_account_id || '')?.name ?? '—',
       displayDate: formatDate(p.paid_date || p.date),
       displayAmount,
       displayMethod: p.payment_method || (p.check_number ? 'Check' : '—'),

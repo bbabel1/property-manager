@@ -101,7 +101,7 @@ export async function PATCH(
       })
     } else {
       // Update other fields
-      const { error: updateError } = await (supabaseAdmin as any)
+      const { error: updateError } = await supabaseAdmin
         .from('compliance_items')
         .update({
           notes: body.notes,

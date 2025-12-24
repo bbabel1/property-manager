@@ -20,27 +20,7 @@ const endOfMonthFromPeriodStart = (periodStart: string): string => {
   return end.toISOString().slice(0, 10);
 };
 
-/**
- * Service name mapping from legacy enum to new offering codes
- */
-const LEGACY_SERVICE_MAPPING: Record<string, string> = {
-  'Rent Collection': 'RENT_COLLECTION',
-  Maintenance: 'MAINTENANCE_REPAIR',
-  Turnovers: 'TURNOVER',
-  Compliance: 'COMPLIANCE_AUDIT',
-  'Bill Pay': 'BILL_PAY_ESCROW',
-  'Condition Reports': 'INSPECTIONS',
-  Renewals: 'RENEWAL',
-};
-
-/**
- * Reverse mapping: offering code to legacy enum name
- */
-const OFFERING_TO_LEGACY_MAPPING: Record<string, string> = Object.fromEntries(
-  Object.entries(LEGACY_SERVICE_MAPPING).map(([k, v]) => [v, k]),
-);
-
-/**
+/** 
  * Write service fee to both old and new structures (dual-write)
  */
 export async function writeServiceFeeDual(params: {
@@ -300,15 +280,15 @@ export async function getLegacyServiceList(params: {
       .select('offering_id, is_active')
       .eq('assignment_id', assignmentId);
     offeringIds = (rows || [])
-      .filter((r: any) => r?.is_active !== false)
-      .map((r: any) => String(r.offering_id))
+      .filter((r) => r?.is_active !== false)
+      .map((r) => String(r.offering_id))
       .filter(Boolean);
   } else {
     const { data: rows } = await db
       .from('service_plan_services')
       .select('offering_id')
       .eq('plan_id', planId);
-    offeringIds = (rows || []).map((r: any) => String(r.offering_id)).filter(Boolean);
+    offeringIds = (rows || []).map((r) => String(r.offering_id)).filter(Boolean);
   }
 
   if (!offeringIds.length) return [];
@@ -318,7 +298,7 @@ export async function getLegacyServiceList(params: {
     .select('id, name')
     .in('id', offeringIds);
 
-  return (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+  return (offerings || []).map((o) => String(o.name || '')).filter(Boolean);
 }
 
 /**

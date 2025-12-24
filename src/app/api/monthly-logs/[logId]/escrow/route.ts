@@ -17,6 +17,24 @@ import {
 } from '@/lib/escrow-calculations';
 import { refreshMonthlyLogTotals } from '@/lib/monthly-log-calculations';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+import type { Database } from '@/types/database';
+
+type PropertyRow = Pick<
+  Database['public']['Tables']['properties']['Row'],
+  'id' | 'org_id' | 'buildium_property_id' | 'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id'
+>;
+type UnitRow = Pick<
+  Database['public']['Tables']['units']['Row'],
+  'id' | 'property_id' | 'buildium_unit_id' | 'buildium_property_id'
+>;
+type MonthlyLogWithRelations = {
+  id: string;
+  org_id: string | null;
+  property_id: string | null;
+  unit_id: string | null;
+  properties?: PropertyRow[] | null;
+  units?: UnitRow[] | null;
+};
 
 // Request validation schema for POST
 const createEscrowTransactionSchema = z.object({
@@ -147,7 +165,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       `,
       )
       .eq('id', logId)
-      .maybeSingle();
+      .maybeSingle<MonthlyLogWithRelations>();
 
     if (logError || !monthlyLog) {
       return NextResponse.json(
@@ -156,23 +174,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    const unitRecord = Array.isArray((monthlyLog as any).units)
-      ? (monthlyLog as any).units[0]
-      : (monthlyLog as any).units;
-    const propertyRecord = Array.isArray((monthlyLog as any).properties)
-      ? (monthlyLog as any).properties[0]
-      : (monthlyLog as any).properties;
+    const unitRecord = Array.isArray(monthlyLog.units) ? monthlyLog.units[0] : monthlyLog.units;
+    const propertyRecord = Array.isArray(monthlyLog.properties)
+      ? monthlyLog.properties[0]
+      : monthlyLog.properties;
 
     let propertyId: string | null =
-      (monthlyLog as any).property_id ?? unitRecord?.property_id ?? propertyRecord?.id ?? null;
-    const unitId: string | null = (monthlyLog as any).unit_id ?? unitRecord?.id ?? null;
-    let orgId: string | null = (monthlyLog as any).org_id ?? propertyRecord?.org_id ?? null;
+      monthlyLog.property_id ?? unitRecord?.property_id ?? propertyRecord?.id ?? null;
+    const unitId: string | null = monthlyLog.unit_id ?? unitRecord?.id ?? null;
+    let orgId: string | null = monthlyLog.org_id ?? propertyRecord?.org_id ?? null;
     let buildiumPropertyId: number | null = propertyRecord?.buildium_property_id ?? null;
     const buildiumUnitId: number | null = unitRecord?.buildium_unit_id ?? null;
-	    let operatingBankGlAccountId: string | null =
-	      (propertyRecord as any)?.operating_bank_gl_account_id ?? null;
-	    let trustBankGlAccountId: string | null =
-	      (propertyRecord as any)?.deposit_trust_gl_account_id ?? null;
+    let operatingBankGlAccountId: string | null = propertyRecord?.operating_bank_gl_account_id ?? null;
+    let trustBankGlAccountId: string | null = propertyRecord?.deposit_trust_gl_account_id ?? null;
 
     if (!propertyId || !unitId) {
       return NextResponse.json(
@@ -197,12 +211,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       if (propertyRow) {
         propertyId = propertyRow.id;
         orgId = orgId ?? propertyRow.org_id ?? null;
-	        buildiumPropertyId =
-	          buildiumPropertyId ?? (propertyRow.buildium_property_id != null ? Number(propertyRow.buildium_property_id) : null);
-	        operatingBankGlAccountId =
-	          operatingBankGlAccountId ?? (propertyRow as any).operating_bank_gl_account_id ?? null;
-	        trustBankGlAccountId =
-	          trustBankGlAccountId ?? (propertyRow as any).deposit_trust_gl_account_id ?? null;
+          buildiumPropertyId =
+            buildiumPropertyId ?? (propertyRow.buildium_property_id != null ? Number(propertyRow.buildium_property_id) : null);
+          operatingBankGlAccountId =
+            operatingBankGlAccountId ?? propertyRow.operating_bank_gl_account_id ?? null;
+          trustBankGlAccountId =
+            trustBankGlAccountId ?? propertyRow.deposit_trust_gl_account_id ?? null;
 	      }
 	    }
 

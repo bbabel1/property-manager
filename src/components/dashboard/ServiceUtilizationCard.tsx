@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Table,
@@ -39,12 +39,7 @@ export default function ServiceUtilizationCard({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, period, propertyId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -65,7 +60,11 @@ export default function ServiceUtilizationCard({
     } finally {
       setLoading(false);
     }
-  };
+  }, [orgId, period, propertyId]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   if (loading) {
     return (

@@ -111,6 +111,13 @@ interface MonthlyStatementTemplateProps {
 
 export default function MonthlyStatementTemplate({ data }: MonthlyStatementTemplateProps) {
   type WithChildren = { children?: React.ReactNode };
+  type ImageLikeProps = {
+    alt?: string;
+    src: string;
+    width?: number;
+    height?: number;
+    unoptimized?: boolean;
+  } & Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'alt' | 'src'>;
   const HeadShim: React.FC<WithChildren> = ({ children }) => <>{children}</>;
   const HtmlWrapper: React.FC<WithChildren> = ({ children }) => <html lang="en">{children}</html>;
   const BodyWrapper: React.FC<WithChildren> = ({ children }) => <body>{children}</body>;
@@ -120,11 +127,10 @@ export default function MonthlyStatementTemplate({ data }: MonthlyStatementTempl
   const isPlaywright = process.env.PLAYWRIGHT_TEST === '1';
   const HeadComponent: React.ComponentType<WithChildren> =
     isVitest || isPlaywright ? HeadShim : (Head as React.ComponentType<WithChildren>);
-  const ImageComponent: React.ComponentType<any> = isVitest || isPlaywright
-    ? ({ alt = '', unoptimized: _omit, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { unoptimized?: boolean }) => (
-        <img alt={alt} {...props} />
-      )
-    : Image;
+  const ImageShim: React.FC<ImageLikeProps> = ({ alt = '', unoptimized: _omit, ...props }) =>
+    React.createElement('img', { alt, ...props });
+  const ImageComponent: React.ComponentType<ImageLikeProps> =
+    isVitest || isPlaywright ? ImageShim : (Image as React.ComponentType<ImageLikeProps>);
   const Root: React.ComponentType<WithChildren> = isVitest
     ? RootShim
     : HtmlWrapper;

@@ -7035,6 +7035,72 @@ export type Database = {
         }
         Relationships: []
       }
+      v_bank_register_transactions: {
+        Row: {
+          id: string | null
+          date: string | null
+          reference_number: string | null
+          memo: string | null
+          total_amount: number | null
+          transaction_type: string | null
+          vendor_id: string | null
+          bank_gl_account_id: string | null
+          bank_amount: number | null
+          bank_posting_type: string | null
+          paid_by_label: string | null
+          paid_to_name: string | null
+          paid_to_type: string | null
+          paid_to_buildium_id: number | null
+          payee_name: string | null
+          payee_buildium_type: string | null
+          payee_buildium_id: number | null
+          is_transfer: boolean | null
+          transfer_other_bank_gl_account_id: string | null
+        }
+        Insert: {
+          id?: string | null
+          date?: string | null
+          reference_number?: string | null
+          memo?: string | null
+          total_amount?: number | null
+          transaction_type?: string | null
+          vendor_id?: string | null
+          bank_gl_account_id?: string | null
+          bank_amount?: number | null
+          bank_posting_type?: string | null
+          paid_by_label?: string | null
+          paid_to_name?: string | null
+          paid_to_type?: string | null
+          paid_to_buildium_id?: number | null
+          payee_name?: string | null
+          payee_buildium_type?: string | null
+          payee_buildium_id?: number | null
+          is_transfer?: boolean | null
+          transfer_other_bank_gl_account_id?: string | null
+        }
+        Update: {
+          id?: string | null
+          date?: string | null
+          reference_number?: string | null
+          memo?: string | null
+          total_amount?: number | null
+          transaction_type?: string | null
+          vendor_id?: string | null
+          bank_gl_account_id?: string | null
+          bank_amount?: number | null
+          bank_posting_type?: string | null
+          paid_by_label?: string | null
+          paid_to_name?: string | null
+          paid_to_type?: string | null
+          paid_to_buildium_id?: number | null
+          payee_name?: string | null
+          payee_buildium_type?: string | null
+          payee_buildium_id?: number | null
+          is_transfer?: boolean | null
+          transfer_other_bank_gl_account_id?: string | null
+        }
+        Relationships: []
+      }
       column_info_cache: {
         Row: {
           comment: string | null
@@ -7942,6 +8008,10 @@ export type Database = {
         Args: { property_uuid: string }
         Returns: number
       }
+      delete_transaction_safe: {
+        Args: { p_transaction_id: string }
+        Returns: undefined
+      }
       enforce_same_org: {
         Args: { child_name: string; child_org: string; parent_org: string }
         Returns: undefined
@@ -8033,6 +8103,15 @@ export type Database = {
           table_size: string
           total_size: string
         }[]
+      }
+      gl_account_balance_as_of: {
+        Args: {
+          p_org_id: string
+          p_gl_account_id: string
+          p_as_of: string
+          p_property_id?: string | null
+        }
+        Returns: number
       }
       gl_account_activity:
         | {
@@ -8166,6 +8245,10 @@ export type Database = {
       reconcile_monthly_log_balance: {
         Args: { p_monthly_log_id: string }
         Returns: undefined
+      }
+      refresh_mat_view_concurrently: {
+        Args: { view_name: string }
+        Returns: unknown
       }
       refresh_schema_cache: { Args: never; Returns: undefined }
       release_compliance_lock: { Args: { lock_key: string }; Returns: boolean }

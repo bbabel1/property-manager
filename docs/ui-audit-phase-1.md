@@ -1,5 +1,7 @@
 # UI Audit — Phase 1 Token & Global Style Rationalization
 
+<!-- markdownlint-configure-file {"MD013": false, "MD056": false} -->
+
 Phase 1 focused on extracting actual usage, reconciling tokens with the Buildium-approved palette/typography, and backfilling interaction utilities so downstream component work is standardized.
 
 ---

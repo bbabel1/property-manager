@@ -29,6 +29,15 @@ async function getGlIdByName(name: string): Promise<string | null> {
   return (data as any)?.id ?? null
 }
 
+type TxLineGlAccount = {
+  name?: string | null
+  type?: string | null
+  sub_type?: string | null
+  is_security_deposit_liability?: boolean | null
+  is_bank_account?: boolean | null
+  exclude_from_cash_balances?: boolean | null
+}
+
 type TxLine = {
   id: string
   transaction_id: string
@@ -39,7 +48,7 @@ type TxLine = {
   amount: number
   posting_type: 'Debit' | 'Credit' | string
   date: string | null
-  gl_accounts: { is_bank_account: boolean | null; exclude_from_cash_balances: boolean | null } | null
+  gl_accounts: TxLineGlAccount | TxLineGlAccount[] | null
 }
 
 type TxRow = {
@@ -99,7 +108,10 @@ async function getLeaseMeta(leaseId: number | null): Promise<{ property_id: stri
 
 function classifyBankLines(lines: TxLine[]) {
   return lines.filter(
-    (l) => l.gl_accounts?.is_bank_account && !l.gl_accounts?.exclude_from_cash_balances,
+    (l) => {
+      const ga = Array.isArray(l.gl_accounts) ? l.gl_accounts[0] : l.gl_accounts
+      return ga?.is_bank_account && !ga?.exclude_from_cash_balances
+    },
   )
 }
 
@@ -200,9 +212,10 @@ async function backfill() {
       let fallbackCredits = 0
 
       for (const line of tx.transaction_lines || []) {
-        const isBank = Boolean(line.gl_accounts?.is_bank_account)
+        const gl = Array.isArray(line.gl_accounts) ? line.gl_accounts[0] : line.gl_accounts
+        const isBank = Boolean(gl?.is_bank_account)
         if (isBank) continue
-        const acc = line.gl_accounts || {}
+        const acc: TxLineGlAccount = gl || {}
         const type = (acc.type || '').toLowerCase()
         const sub = (acc.sub_type || '').toLowerCase()
         const name = (acc.name || '').toLowerCase()

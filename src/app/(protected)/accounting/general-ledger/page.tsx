@@ -3,11 +3,22 @@ import { endOfMonth, startOfMonth } from 'date-fns';
 import DateRangeControls from '@/components/DateRangeControls';
 import LedgerFilters from '@/components/financials/LedgerFilters';
 import ClearFiltersButton from '@/components/financials/ClearFiltersButton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { TableRowLink } from '@/components/ui/table-row-link';
 import { supabaseAdmin } from '@/lib/db';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
-import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
+import {
+  buildLedgerGroups,
+  mapTransactionLine,
+  type LedgerLine,
+} from '@/server/financials/ledger-utils';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 
@@ -23,7 +34,7 @@ type SearchParams = {
 
 type PropertyRecord = {
   id: string;
-  public_id?: string | null;
+  public_id?: string | number | null;
   name?: string | null;
   org_id?: string | null;
 };
@@ -40,6 +51,11 @@ type AccountRecord = {
   name: string;
   account_number?: string | null;
   type?: string | null;
+};
+
+type OrganizationRecord = {
+  id: string;
+  default_accounting_basis?: string | null;
 };
 
 const normalizeBasis = (basis: unknown): 'cash' | 'accrual' =>
@@ -83,7 +99,10 @@ export default async function GeneralLedgerPage({
     ]),
   );
   const propertyOrgById = new Map(
-    propertyRows.map((property) => [String(property.id), property.org_id ? String(property.org_id) : null]),
+    propertyRows.map((property) => [
+      String(property.id),
+      property.org_id ? String(property.org_id) : null,
+    ]),
   );
 
   const orgIds = Array.from(
@@ -96,14 +115,14 @@ export default async function GeneralLedgerPage({
 
   const orgBasisById = new Map<string, 'cash' | 'accrual'>();
   if (orgIds.length) {
-    const { data: orgRows } = await db
+    const { data: orgRowsData } = await db
       .from('organizations')
       .select('id, default_accounting_basis')
       .in('id', orgIds);
 
-    (orgRows || []).forEach((org) => {
-      if (!org?.id) return;
-      orgBasisById.set(String(org.id), normalizeBasis((org as any).default_accounting_basis));
+    const orgRows = (orgRowsData || []) as OrganizationRecord[];
+    orgRows.forEach((org) => {
+      orgBasisById.set(String(org.id), normalizeBasis(org.default_accounting_basis));
     });
   }
 
@@ -157,9 +176,7 @@ export default async function GeneralLedgerPage({
 
   let unitsData: UnitRecord[] = [];
   if (allPropertyIds.length) {
-    const unitsQuery = db
-      .from('units')
-      .select('id, unit_number, unit_name, property_id');
+    const unitsQuery = db.from('units').select('id, unit_number, unit_name, property_id');
     const { data: unitsResponse } = await unitsQuery;
     unitsData = (unitsResponse || []) as UnitRecord[];
   }
@@ -283,10 +300,8 @@ export default async function GeneralLedgerPage({
     selectedPropertyPublicIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
   const qBase = () =>
-    db
-      .from('transaction_lines')
-      .select(
-        `transaction_id,
+    db.from('transaction_lines').select(
+      `transaction_id,
          property_id,
          unit_id,
          date,
@@ -299,17 +314,17 @@ export default async function GeneralLedgerPage({
          units(unit_number, unit_name),
          transactions(id, transaction_type, memo, reference_number),
          properties(id, name)`,
-      );
+    );
 
-  const mapLine = (row: Record<string, unknown>): LedgerLine => {
+  const mapLine = (row: Record<string, unknown>): LedgerLine | null => {
     const mapped = mapTransactionLine(row);
+    if (!mapped) return null; // Filter out lines with invalid posting_type
     const propertyId = mapped.propertyId ?? (row?.property_id ? String(row.property_id) : null);
     return {
       ...mapped,
       propertyId,
       propertyLabel:
-        mapped.propertyLabel ??
-        (propertyId ? propertyLabelMap.get(propertyId) || null : null),
+        mapped.propertyLabel ?? (propertyId ? propertyLabelMap.get(propertyId) || null : null),
     };
   };
 
@@ -318,7 +333,9 @@ export default async function GeneralLedgerPage({
 
   if (shouldQueryLedger) {
     const baseFilter = qBase();
-    const commonFilter = propertyFilterIds ? baseFilter.in('property_id', propertyFilterIds) : baseFilter;
+    const commonFilter = propertyFilterIds
+      ? baseFilter.in('property_id', propertyFilterIds)
+      : baseFilter;
 
     let periodQuery = commonFilter.gte('date', fromStr).lte('date', toStr);
     if (unitFilterIds) periodQuery = periodQuery.in('unit_id', unitFilterIds);
@@ -332,9 +349,12 @@ export default async function GeneralLedgerPage({
     const [{ data: periodData, error: periodError }, { data: priorData, error: priorError }] =
       await Promise.all([periodQuery, priorQuery]);
 
-    periodLines = periodError ? [] : (periodData || []).map(mapLine);
-    priorLines = priorError ? [] : (priorData || []).map(mapLine);
-
+    periodLines = periodError
+      ? []
+      : (periodData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
+    priorLines = priorError
+      ? []
+      : (priorData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
   }
 
   const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
@@ -406,9 +426,7 @@ export default async function GeneralLedgerPage({
             <Table className="text-sm">
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="text-muted-foreground w-[12rem]">
-                    {dateHeading}
-                  </TableHead>
+                  <TableHead className="text-muted-foreground w-[12rem]">{dateHeading}</TableHead>
                   <TableHead className="text-muted-foreground w-[10rem]">Unit</TableHead>
                   <TableHead className="text-muted-foreground">Transaction</TableHead>
                   <TableHead className="text-muted-foreground">Memo</TableHead>
@@ -508,30 +526,32 @@ export default async function GeneralLedgerPage({
                                 <TableRowLink
                                   key={`${group.id}-${line.date}-${idx}`}
                                   href={detailHref}
-                                  className="cursor-pointer hover:bg-muted/60"
+                                  className="hover:bg-muted/60 cursor-pointer"
                                 >
                                   <TableCell>{dateFmt.format(new Date(line.date))}</TableCell>
                                   <TableCell>
                                     <div className="flex flex-col">
                                       <span>{unitPrimary}</span>
                                       {propertyLabel ? (
-                                        <span className="text-muted-foreground text-xs">{propertyLabel}</span>
+                                        <span className="text-muted-foreground text-xs">
+                                          {propertyLabel}
+                                        </span>
                                       ) : null}
                                     </div>
                                   </TableCell>
                                   <TableCell>{txnLabel || '—'}</TableCell>
                                   <TableCell>{memo}</TableCell>
-                                <TableCell
-                                  className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
-                                >
-                                  {fmtSigned(signed)}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {fmtSigned(runningAfter)}
-                                </TableCell>
-                              </TableRowLink>
-                            );
-                          }
+                                  <TableCell
+                                    className={`text-right font-medium ${signed < 0 ? 'text-destructive' : ''}`}
+                                  >
+                                    {fmtSigned(signed)}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {fmtSigned(runningAfter)}
+                                  </TableCell>
+                                </TableRowLink>
+                              );
+                            }
 
                             return (
                               <TableRow key={`${group.id}-${line.date}-${idx}`}>
@@ -540,7 +560,9 @@ export default async function GeneralLedgerPage({
                                   <div className="flex flex-col">
                                     <span>{unitPrimary}</span>
                                     {propertyLabel ? (
-                                      <span className="text-muted-foreground text-xs">{propertyLabel}</span>
+                                      <span className="text-muted-foreground text-xs">
+                                        {propertyLabel}
+                                      </span>
                                     ) : null}
                                   </div>
                                 </TableCell>

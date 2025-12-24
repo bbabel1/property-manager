@@ -90,6 +90,7 @@ const OPEN_DATA_APP_TOKEN =
   process.env.NYC_OPEN_DATA_APP_TOKEN || process.env.NYC_OPEN_DATA_API_KEY;
 
 const SENTINELS = new Set(['n/a', 'na', 'null', 'none', 'undefined', '']);
+type UnknownRecord = Record<string, unknown>;
 
 const BOROUGH_CODES: Record<string, string> = {
   manhattan: '1',
@@ -214,6 +215,29 @@ function digitsOnly(value: string | null | undefined): string | null {
   return digits || null;
 }
 
+function asRecord(value: unknown): UnknownRecord | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as UnknownRecord;
+  }
+  return null;
+}
+
+function getRecordValue(record: UnknownRecord | null, key: string): unknown {
+  return record ? record[key] : null;
+}
+
+function getRecordString(record: UnknownRecord | null, key: string): string | null {
+  return normalizeValue(getRecordValue(record, key));
+}
+
+function getRecordDigits(record: UnknownRecord | null, key: string): string | null {
+  const value = getRecordValue(record, key);
+  if (typeof value === 'string' || typeof value === 'number') {
+    return digitsOnly(String(value));
+  }
+  return digitsOnly(null);
+}
+
 export function computeParid(bbl: string | null | undefined, ease: unknown): string | null {
   const base = digitsOnly(bbl);
   if (!base) return null;
@@ -284,42 +308,40 @@ async function fetchGeoserviceData(params: {
       : undefined,
   });
 
-  const address = (raw as any)?.address || raw;
+  const rawRecord = asRecord(raw) || {};
+  const address = asRecord(rawRecord.address) || rawRecord;
 
-  const bbl = digitsOnly((address as any)?.bbl);
-  const ease_digit = normalizeValue((address as any)?.easement)?.charAt(0) || '0';
+  const bbl = getRecordDigits(address, 'bbl');
+  const ease_digit = getRecordString(address, 'easement')?.charAt(0) || '0';
   const parid = computeParid(bbl, ease_digit);
-  const taxMap = normalizeValue(
-    (address as any)?.taxMapNumberSectionAndVolume || (address as any)?.taxMapNumber,
-  );
-  const condoId = normalizeValue((address as any)?.dofCondominiumIdentificationNumber);
-  const coopId = normalizeValue((address as any)?.cooperativeIdNumber);
+  const taxMap =
+    getRecordString(address, 'taxMapNumberSectionAndVolume') ||
+    getRecordString(address, 'taxMapNumber');
+  const condoId = getRecordString(address, 'dofCondominiumIdentificationNumber');
+  const coopId = getRecordString(address, 'cooperativeIdNumber');
 
   return {
     bbl,
-    block: digitsOnly((address as any)?.taxBlock),
-    lot: digitsOnly((address as any)?.taxLot),
-    bin: digitsOnly((address as any)?.buildingIdentificationNumber),
-    condo_num:
-      condoId ||
-      normalizeValue((address as any)?.condominiumBillingBbl) ||
-      normalizeValue((address as any)?.condominium),
-    coop_num: coopId || normalizeValue((address as any)?.coopNumber),
+    block: getRecordDigits(address, 'taxBlock'),
+    lot: getRecordDigits(address, 'taxLot'),
+    bin: getRecordDigits(address, 'buildingIdentificationNumber'),
+    condo_num: condoId || getRecordString(address, 'condominiumBillingBbl') || getRecordString(address, 'condominium'),
+    coop_num: coopId || getRecordString(address, 'coopNumber'),
     tax_map: taxMap,
-    tax_section: normalizeValue((address as any)?.taxSection) || taxMap,
-    tax_volume: normalizeValue((address as any)?.taxMapNumber) || taxMap,
+    tax_section: getRecordString(address, 'taxSection') || taxMap,
+    tax_volume: getRecordString(address, 'taxMapNumber') || taxMap,
     ease_digit,
     parid,
     raw: {
       BBL: bbl,
-      Tax_Block: digitsOnly((address as any)?.taxBlock),
-      Tax_Lot: digitsOnly((address as any)?.taxLot),
-      BIN: digitsOnly((address as any)?.buildingIdentificationNumber),
-      Condo_Num: normalizeValue((address as any)?.condominiumBillingBin),
-      Co_op_Num: normalizeValue((address as any)?.coopNumber),
-      Tax_Map: normalizeValue((address as any)?.taxMapNumber),
-      Tax_Section: normalizeValue((address as any)?.taxSection),
-      Tax_Volume: normalizeValue((address as any)?.taxMapNumber),
+      Tax_Block: getRecordDigits(address, 'taxBlock'),
+      Tax_Lot: getRecordDigits(address, 'taxLot'),
+      BIN: getRecordDigits(address, 'buildingIdentificationNumber'),
+      Condo_Num: getRecordString(address, 'condominiumBillingBin'),
+      Co_op_Num: getRecordString(address, 'coopNumber'),
+      Tax_Map: getRecordString(address, 'taxMapNumber'),
+      Tax_Section: getRecordString(address, 'taxSection'),
+      Tax_Volume: getRecordString(address, 'taxMapNumber'),
       Easement: ease_digit,
       PARID: parid,
       Geoclient_v2_Response: true,
@@ -336,7 +358,7 @@ async function fetchPlutoRow(
   const url = new URL('resource/64uk-42ks.json', baseUrl || DEFAULT_OPEN_DATA_BASE);
   url.searchParams.set(field, value);
   if (appToken) url.searchParams.set('$$app_token', appToken);
-  const json = await fetchJSON<any[]>(url.toString(), { description: `NYC PLUTO (${field})` });
+  const json = await fetchJSON<UnknownRecord[]>(url.toString(), { description: `NYC PLUTO (${field})` });
   const row = Array.isArray(json) ? json[0] : null;
   return row || null;
 }
@@ -360,15 +382,15 @@ export async function fetchPlutoData(
 
   return {
     ...normalizedRow,
-    Building_Area: normalizeNumber((row as any).bldgarea),
-    Building_Class: normalizeValue((row as any).bldgclass),
-    Common_Area: normalizeNumber((row as any).comarea),
-    Total_Buildings: normalizeNumber((row as any).numbldgs),
-    Total_Floors: normalizeNumber((row as any).numfloors),
-    Residential_Area: normalizeNumber((row as any).resarea),
-    Residential_Units: normalizeNumber((row as any).unitsres),
-    Total_Units: normalizeNumber((row as any).unitstotal),
-    Year_Built: normalizeNumber((row as any).yearbuilt),
+    Building_Area: normalizeNumber(row.bldgarea),
+    Building_Class: normalizeValue(row.bldgclass),
+    Common_Area: normalizeNumber(row.comarea),
+    Total_Buildings: normalizeNumber(row.numbldgs),
+    Total_Floors: normalizeNumber(row.numfloors),
+    Residential_Area: normalizeNumber(row.resarea),
+    Residential_Units: normalizeNumber(row.unitsres),
+    Total_Units: normalizeNumber(row.unitstotal),
+    Year_Built: normalizeNumber(row.yearbuilt),
     PLUTO_Response: true,
   };
 }
@@ -387,7 +409,7 @@ async function fetchHpdBuilding(
   url.searchParams.set('bin', cleanedBin);
   if (appToken) url.searchParams.set('$$app_token', appToken);
 
-  const json = await fetchJSON<any[]>(url.toString(), { description: 'HPD Building' });
+  const json = await fetchJSON<UnknownRecord[]>(url.toString(), { description: 'HPD Building' });
   const row = Array.isArray(json) ? json[0] : null;
   if (!row)
     return { data: null, raw: null, registrationId: null, latitude: null, longitude: null, buildingId: null };
@@ -398,13 +420,13 @@ async function fetchHpdBuilding(
   }
 
   const registrationId =
-    normalizeValue((row as any).registrationid) ||
-    normalizeValue((row as any).registration_id) ||
+    normalizeValue(row.registrationid) ||
+    normalizeValue(row.registration_id) ||
     null;
 
-  const latitude = normalizeNumber((row as any).latitude);
-  const longitude = normalizeNumber((row as any).longitude);
-  const buildingId = normalizeNumber((row as any).buildingid);
+  const latitude = normalizeNumber(row.latitude);
+  const longitude = normalizeNumber(row.longitude);
+  const buildingId = normalizeNumber(row.buildingid);
 
   const hpd: Record<string, unknown> = {
     ownername: normalizeValue(row.ownername),
@@ -422,7 +444,7 @@ async function fetchHpdBuilding(
     registrationtype: normalizeValue(row.registrationtype),
     numfloors: normalizeNumber(row.numfloors),
     numapts: normalizeNumber(row.numapts),
-    numBldgs: normalizeNumber((row as any).numbldgs ?? (row as any).numbldgs),
+    numBldgs: normalizeNumber(row.numbldgs ?? row.numbldgs),
     longitude,
     latitude,
     communityboard: normalizeValue(row.communityboard),
@@ -469,7 +491,7 @@ async function fetchHpdRegistration(
   url.searchParams.set('$where', `registrationid='${registrationId}'`);
   if (appToken) url.searchParams.set('$$app_token', appToken);
 
-  const json = await fetchJSON<any[]>(url.toString(), { description: 'HPD Registration Details' });
+  const json = await fetchJSON<UnknownRecord[]>(url.toString(), { description: 'HPD Registration Details' });
   const row = Array.isArray(json) ? json[0] : null;
   if (!row) return null;
 
@@ -490,10 +512,11 @@ async function fetchHpdRegistration(
   return normalized;
 }
 
-function parseGeometry(feature: any): Array<Array<[number, number]>> {
+function parseGeometry(feature: UnknownRecord | null): Array<Array<[number, number]>> {
   const geom = (feature && (feature.the_geom || feature.geometry)) || null;
   if (!geom) return [];
-  let geoObj: any = geom;
+
+  let geoObj: unknown = geom;
   if (typeof geom === 'string') {
     try {
       geoObj = JSON.parse(geom);
@@ -501,13 +524,24 @@ function parseGeometry(feature: any): Array<Array<[number, number]>> {
       return [];
     }
   }
-  if (!geoObj?.type || !geoObj?.coordinates) return [];
-  if (geoObj.type === 'Polygon') {
-    return Array.isArray(geoObj.coordinates) ? geoObj.coordinates : [];
+
+  if (
+    typeof geoObj === 'object' &&
+    geoObj !== null &&
+    'type' in geoObj &&
+    'coordinates' in geoObj
+  ) {
+    const { type, coordinates } = geoObj as { type?: string; coordinates?: unknown };
+    if (type === 'Polygon' && Array.isArray(coordinates)) {
+      return coordinates as Array<Array<[number, number]>>;
+    }
+    if (type === 'MultiPolygon' && Array.isArray(coordinates)) {
+      return (coordinates as unknown[]).flatMap((poly) =>
+        Array.isArray(poly) ? (poly as Array<Array<[number, number]>>) : [],
+      );
+    }
   }
-  if (geoObj.type === 'MultiPolygon') {
-    return Array.isArray(geoObj.coordinates) ? geoObj.coordinates.flat() : [];
-  }
+
   return [];
 }
 
@@ -537,7 +571,7 @@ async function fetchNtaMatch(
   url.searchParams.set('borocode', boroughCode);
   if (appToken) url.searchParams.set('$$app_token', appToken);
 
-  const json = await fetchJSON<any[]>(url.toString(), { description: 'NTA geometry' });
+  const json = await fetchJSON<UnknownRecord[]>(url.toString(), { description: 'NTA geometry' });
   const features = Array.isArray(json) ? json : [];
   for (const feature of features) {
     const ntaname = normalizeValue(feature.ntaname);
@@ -545,8 +579,7 @@ async function fetchNtaMatch(
     const polygons = parseGeometry(feature);
     for (const ring of polygons) {
       const coords = (ring || []).map(
-        (pt: any) =>
-          [normalizeNumber(pt[0]), normalizeNumber(pt[1])] as [number | null, number | null],
+        (pt) => [normalizeNumber(pt[0]), normalizeNumber(pt[1])] as [number | null, number | null],
       );
       const cleaned = coords.filter(
         (pt): pt is [number, number] => pt[0] !== null && pt[1] !== null,
@@ -708,40 +741,42 @@ export async function enrichBuildingForProperty(
     residential_units: existing?.residential_units || null,
     coop_num: geoservice?.coop_num || existing?.coop_num || null,
     tax_block: geoservice?.block || blockOverride || existing?.tax_block || null,
-  tax_lot: geoservice?.lot || lotOverride || existing?.tax_lot || null,
-  tax_map: geoservice?.tax_map || existing?.tax_map || null,
-  tax_section: geoservice?.tax_section || existing?.tax_section || null,
-  tax_volume: geoservice?.tax_volume || existing?.tax_volume || null,
-  hpd: (existing?.hpd as Json | null | undefined) ?? null,
-  geoservice: geoservice
-    ? (mergeJson(existing?.geoservice, geoservice.raw) as Json)
-    : ((existing?.geoservice as Json | null | undefined) ?? null),
-  geoservice_response_at: geoservice ? now : existing?.geoservice_response_at || null,
-  enrichment_errors: (existing?.enrichment_errors as any) || [],
-};
+    tax_lot: geoservice?.lot || lotOverride || existing?.tax_lot || null,
+    tax_map: geoservice?.tax_map || existing?.tax_map || null,
+    tax_section: geoservice?.tax_section || existing?.tax_section || null,
+    tax_volume: geoservice?.tax_volume || existing?.tax_volume || null,
+    hpd: (existing?.hpd as Json | null | undefined) ?? null,
+    geoservice: geoservice
+      ? (mergeJson(existing?.geoservice, geoservice.raw) as Json)
+      : ((existing?.geoservice as Json | null | undefined) ?? null),
+    geoservice_response_at: geoservice ? now : existing?.geoservice_response_at || null,
+    enrichment_errors: Array.isArray(existing?.enrichment_errors)
+      ? existing.enrichment_errors
+      : [],
+  };
 
-  let pluto = existing?.pluto || null;
+  let pluto = (existing?.pluto as Record<string, unknown> | null | undefined) ?? null;
   let plutoResidentialUnits: number | null = null;
   if (!pluto && resolvedBbl) {
     try {
-      pluto = (await fetchPlutoData(resolvedBbl, OPEN_DATA_APP_TOKEN, DEFAULT_OPEN_DATA_BASE)) as any;
+      pluto = await fetchPlutoData(resolvedBbl, OPEN_DATA_APP_TOKEN, DEFAULT_OPEN_DATA_BASE);
       if (pluto) {
         basePayload.pluto = pluto as Json;
         basePayload.pluto_response_at = now;
         plutoResidentialUnits =
-          normalizeNumber((pluto as any).Residential_Units) ??
-          normalizeNumber((pluto as any).unitsres) ??
+          normalizeNumber(pluto.Residential_Units) ??
+          normalizeNumber(pluto.unitsres) ??
           null;
       }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : 'PLUTO fetch failed');
     }
   } else if (pluto) {
-    basePayload.pluto = pluto as any;
+    basePayload.pluto = pluto as Json;
     basePayload.pluto_response_at = existing?.pluto_response_at || null;
     plutoResidentialUnits =
-      normalizeNumber((pluto as any).Residential_Units) ??
-      normalizeNumber((pluto as any).unitsres) ??
+      normalizeNumber(pluto.Residential_Units) ??
+      normalizeNumber(pluto.unitsres) ??
       null;
   }
 
@@ -763,21 +798,22 @@ export async function enrichBuildingForProperty(
         DEFAULT_OPEN_DATA_BASE,
       );
       if (hpd?.data) {
-        basePayload.hpd_building = hpd.data as any;
-        basePayload.hpd = hpd.raw as any;
+        basePayload.hpd_building = hpd.data as Json;
+        basePayload.hpd = hpd.raw as Json;
         basePayload.hpd_response_at = now;
       }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : 'HPD fetch failed');
     }
   } else if (existing?.hpd_building) {
+    const existingHpdBuilding = asRecord(existing.hpd_building) || null;
     hpd = {
-      data: existing.hpd_building as any,
-      raw: ((existing as any)?.hpd as any) || null,
-      registrationId: normalizeValue((existing.hpd_building as any)?.registrationid),
+      data: existingHpdBuilding,
+      raw: (existing?.hpd as Record<string, unknown> | null | undefined) ?? null,
+      registrationId: normalizeValue(getRecordValue(existingHpdBuilding, 'registrationid')),
       latitude: existing.latitude,
       longitude: existing.longitude,
-      buildingId: normalizeNumber((existing.hpd_building as any)?.buildingid),
+      buildingId: normalizeNumber(getRecordValue(existingHpdBuilding, 'buildingid')),
     };
   }
 
@@ -806,15 +842,16 @@ export async function enrichBuildingForProperty(
         DEFAULT_OPEN_DATA_BASE,
       );
       if (registration) {
+        const registrationPayload: Record<string, unknown> = { ...registration };
         if (hpd?.data) {
           const taken = new Set(Object.keys(hpd.data).map((k) => k.toLowerCase()));
-          for (const key of Object.keys(registration)) {
+          for (const key of Object.keys(registrationPayload)) {
             if (taken.has(key.toLowerCase())) {
-              delete (registration as any)[key];
+              delete registrationPayload[key];
             }
           }
         }
-        basePayload.hpd_registration = registration as any;
+        basePayload.hpd_registration = registrationPayload as Json;
         basePayload.hpd_registration_response_at = now;
       }
     } catch (err) {
@@ -841,7 +878,7 @@ export async function enrichBuildingForProperty(
         DEFAULT_OPEN_DATA_BASE,
       );
       if (nta) {
-        basePayload.nta = { ...nta, NTA_Response: true } as any;
+        basePayload.nta = { ...nta, NTA_Response: true } as Json;
         basePayload.nta_name = nta.ntaname;
         basePayload.nta_code = nta.ntacode;
         basePayload.neighborhood =
@@ -900,7 +937,7 @@ export async function enrichBuildingForProperty(
     normalized_address_key:
       normalizedAddressKey ||
       normalizedAddress?.normalizedAddressKey ||
-      (building as any)?.normalized_address_key ||
+      building?.normalized_address_key ||
       null,
   };
   if (resolvedBin) propertyPatch.bin = resolvedBin;
@@ -919,14 +956,14 @@ export async function enrichBuildingForProperty(
   if (neighborhood) propertyPatch.neighborhood = neighborhood;
   if (latFromBuilding !== undefined && latFromBuilding !== null)
     propertyPatch.latitude = latFromBuilding;
-  if (lngFromBuilding !== undefined && lngFromBuilding !== null)
-    propertyPatch.longitude = lngFromBuilding;
+    if (lngFromBuilding !== undefined && lngFromBuilding !== null)
+      propertyPatch.longitude = lngFromBuilding;
 
   if (errors.length && building) {
     try {
       await db
         .from('buildings')
-        .update({ enrichment_errors: errors as any })
+        .update({ enrichment_errors: errors })
         .eq('id', building.id);
     } catch (err) {
       logger.warn({ err }, 'Failed to persist enrichment errors');
