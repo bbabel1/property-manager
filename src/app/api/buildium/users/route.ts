@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,39 +27,30 @@ export async function GET(request: NextRequest) {
     const roleId = searchParams.get('roleId');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (isActive) queryParams.append('isActive', isActive);
-    if (roleId) queryParams.append('roleId', roleId);
+    const params: Record<string, string> = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (orderby) params.orderby = orderby;
+    if (isActive) params.isActive = isActive;
+    if (roleId) params.roleId = roleId;
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/users?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    // Make request to Buildium API using org-scoped credentials
+    // Note: platform_admin routes may not have org context, so pass undefined
+    const response = await buildiumFetch('GET', '/users', params, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium users fetch failed`);
+      logger.error(`Buildium users fetch failed`, { status: response.status, errorText: response.errorText });
 
       return NextResponse.json(
         { 
           error: 'Failed to fetch users from Buildium',
-          details: errorData
+          details: response.errorText
         },
         { status: response.status }
       );
     }
 
-    const users = await response.json();
+    const users = response.json ?? [];
 
     logger.info(`Buildium users fetched successfully`);
 
