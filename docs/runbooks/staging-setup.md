@@ -1,5 +1,7 @@
 Staging Setup & CI/CD Integration
 
+<!-- markdownlint-configure-file {"MD013": false, "MD029": false, "MD031": false} -->
+
 Goal
 
 - Create a Supabase staging project, apply schema, and connect to CI/CD so migrations and Edge Functions deploy via GitHub Actions.

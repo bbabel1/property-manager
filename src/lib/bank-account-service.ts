@@ -102,8 +102,9 @@ export class BankAccountService {
     if (payload.description !== undefined) toUpdate.description = payload.description
     if (payload.bankAccountType !== undefined || payload.bank_account_type !== undefined) {
       const normalizedType = normalizeBankAccountType(payload.bankAccountType || payload.bank_account_type)
-      toUpdate.bank_account_type = (normalizedType ??
-        null) as Database['public']['Tables']['gl_accounts']['Row']['bank_account_type']
+      toUpdate.bank_account_type = normalizedType
+        ? (normalizedType as Database['public']['Enums']['bank_account_type_enum'])
+        : null
     }
     if (payload.accountNumber !== undefined || payload.bank_account_number !== undefined) {
       toUpdate.bank_account_number = payload.accountNumber ?? payload.bank_account_number
@@ -116,15 +117,18 @@ export class BankAccountService {
     }
     if (payload.country !== undefined || payload.bank_country !== undefined) {
       const country = payload.country ?? payload.bank_country ?? null
-      toUpdate.bank_country = country as Database['public']['Tables']['gl_accounts']['Row']['bank_country']
+      toUpdate.bank_country = country
+        ? (country as Database['public']['Tables']['gl_accounts']['Row']['bank_country'])
+        : null
     }
     if (payload.balance !== undefined) toUpdate.bank_balance = payload.balance
     if (payload.buildiumBankAccountId !== undefined) {
+      const glIdRaw = payload.buildiumBankAccountId
       const glId =
-        payload.buildiumBankAccountId === null
+        glIdRaw === null
           ? null
-          : Number(payload.buildiumBankAccountId)
-      toUpdate.buildium_gl_account_id = glId ?? undefined
+          : Number(glIdRaw)
+      toUpdate.buildium_gl_account_id = Number.isFinite(glId) ? glId : null
     }
 
     toUpdate.is_bank_account = true

@@ -1,5 +1,7 @@
 Migrations Pipeline
 
+<!-- markdownlint-configure-file {"MD013": false, "MD029": false, "MD031": false} -->
+
 Overview
 
 - GitHub Actions workflow `.github/workflows/migrations.yml` applies Supabase SQL migrations after CI succeeds or on manual trigger.

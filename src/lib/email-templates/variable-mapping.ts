@@ -236,7 +236,7 @@ export async function buildTemplateVariables(
 
   // Fetch primary owner contact info
   const primaryOwnerName = await getPrimaryOwnerName(monthlyLog.property_id, db);
-  let ownerContact: Record<string, unknown> | null = null;
+  let ownerContact: OwnerContact | null = null;
   try {
     const { data: ownerships } = await db
       .from('ownerships')
@@ -245,29 +245,32 @@ export async function buildTemplateVariables(
       )
       .eq('property_id', monthlyLog.property_id)
       .order('primary', { ascending: false })
-      .limit(1);
+      .limit(1)
+      .returns<
+        {
+          primary: boolean | null;
+          owners: { contacts: OwnerContact | null } | null;
+        }[]
+      >();
 
     const owner = ownerships?.[0];
-    ownerContact =
-      owner && owner.owners && typeof owner.owners === 'object' && 'contacts' in owner.owners
-        ? ((owner.owners as { contacts?: Record<string, unknown> | null }).contacts ?? null)
-        : null;
+    ownerContact = owner?.owners?.contacts ?? null;
   } catch (error) {
     console.error('Error fetching owner contact:', error);
   }
 
-	  // Fetch bank account if available
+  // Fetch bank account if available
   let bankAccount: { name?: string | null; account_number?: string | null } | null = null;
   if (property?.operating_bank_gl_account_id) {
     const { data: bank } = await db
       .from('gl_accounts')
       .select('name, bank_account_number')
       .eq('id', property.operating_bank_gl_account_id)
-      .maybeSingle();
+      .maybeSingle<Pick<Database['public']['Tables']['gl_accounts']['Row'], 'name' | 'bank_account_number'>>();
     bankAccount = bank
       ? {
           name: bank?.name ?? null,
-          account_number: (bank as { bank_account_number?: string | null })?.bank_account_number ?? null,
+          account_number: bank?.bank_account_number ?? null,
         }
       : null;
   }

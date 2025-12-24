@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +33,33 @@ import {
 import { formatCurrency, getTransactionTypeLabel } from '@/lib/transactions/formatting';
 import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 import type { BuildiumLeaseTransaction } from '@/types/buildium';
+
+type LedgerDetailLine = {
+  Amount?: unknown;
+  GLAccount?: { Name?: string | null } | null;
+  Id?: string | number | null;
+};
+
+type LedgerDetail = BuildiumLeaseTransaction & {
+  Lines?: LedgerDetailLine[];
+  Journal?: { Lines?: LedgerDetailLine[] } | null;
+  PaymentDetail?: {
+    Payee?: { Name?: string | null } | null;
+    IsInternalTransaction?: boolean | null;
+    InternalTransactionStatus?: { IsPending?: boolean | null } | null;
+  } | null;
+  TransactionTypeEnum?: string | null;
+  TransactionType?: string | null;
+  Memo?: string | null;
+  Description?: string | null;
+  CheckNumber?: string | null;
+  ReferenceNumber?: string | null;
+  reference_number?: string | null;
+  UnitNumber?: string | null;
+  TotalAmount?: number | null;
+  Amount?: number | null;
+  Id?: string | number | null;
+};
 
 type LedgerRow = {
   id: string;
@@ -93,7 +119,7 @@ export default function LeaseLedgerPanel({
     | { status: 'idle'; row: null }
     | { status: 'loading'; row: LedgerRow }
     | { status: 'error'; row: LedgerRow | null; message: string }
-    | { status: 'ready'; row: LedgerRow; detail: BuildiumLeaseTransaction }
+    | { status: 'ready'; row: LedgerRow; detail: LedgerDetail }
   >({ status: 'idle', row: null });
 
   const overlayActive = mode !== 'none';
@@ -224,7 +250,7 @@ export default function LeaseLedgerPanel({
         if (!res.ok) {
           throw new Error(payload?.error || 'Unable to load transaction');
         }
-        const detail = (payload?.data ?? payload) as BuildiumLeaseTransaction;
+        const detail = (payload?.data ?? payload) as LedgerDetail;
         if (detailRequestIdRef.current !== requestId) return;
         setDetailState({ status: 'ready', row, detail });
       } catch (error) {
