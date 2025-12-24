@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use server"
 
-import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client'
+import { getOrgScopedBuildiumClient } from '@/lib/buildium-client'
+import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager'
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils'
 import { FILE_ENTITY_TYPES, type FileRow } from '@/lib/files'
 import { logger } from '@/lib/logger'
@@ -245,6 +246,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
   base64: string
   category?: string | null
   buildiumCategoryId?: number | null
+  orgId?: string
 }): Promise<BuildiumFileSyncResult | null> {
   const {
     admin,
@@ -254,11 +256,25 @@ export async function uploadLeaseDocumentToBuildium(options: {
     mimeType,
     base64,
     category,
-    buildiumCategoryId
+    buildiumCategoryId,
+    orgId
   } = options
 
-  if (!process.env.BUILDIUM_CLIENT_ID || !process.env.BUILDIUM_CLIENT_SECRET) {
-    logger.warn('Buildium credentials missing; skipping lease file sync')
+  // Check for org-scoped Buildium credentials
+  let resolvedOrgId = orgId
+  if (!resolvedOrgId) {
+    // Try to resolve orgId from lease
+    const { data: leaseRow } = await admin
+      .from('lease')
+      .select('org_id')
+      .eq('id', leaseId)
+      .maybeSingle()
+    resolvedOrgId = leaseRow?.org_id ?? undefined
+  }
+
+  const buildiumConfig = await getOrgScopedBuildiumConfig(resolvedOrgId)
+  if (!buildiumConfig) {
+    logger.warn({ orgId: resolvedOrgId }, 'Buildium credentials missing; skipping lease file sync')
     return null
   }
 
@@ -285,7 +301,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
     const buildiumPropertyId =
       typeof buildiumPropertyIdRaw === 'number' ? buildiumPropertyIdRaw : Number(buildiumPropertyIdRaw)
 
-    const buildiumClient = createBuildiumClient(defaultBuildiumConfig)
+    const buildiumClient = await getOrgScopedBuildiumClient(resolvedOrgId)
 
     const extractDocumentId = (entry: Record<string, unknown> | null | undefined): number | null => {
       if (!entry) return null
