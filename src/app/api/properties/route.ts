@@ -6,6 +6,7 @@ import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager';
 import type { Database as DatabaseSchema } from '@/types/database';
 import {
   normalizeAssignmentLevel,
@@ -578,7 +579,8 @@ export async function POST(request: NextRequest) {
     // ===================== Buildium Sync (Property → Units → Owners) =====================
     try {
       // Only attempt if explicitly requested and Buildium credentials are configured
-      if (syncToBuildium && process.env.BUILDIUM_CLIENT_ID && process.env.BUILDIUM_CLIENT_SECRET) {
+      const buildiumConfig = await getOrgScopedBuildiumConfig(orgId);
+      if (syncToBuildium && buildiumConfig) {
         // 1) Ensure Owners exist in Buildium and collect their Buildium IDs
         const prelinkedOwnerIds: number[] = [];
         if (owners && owners.length > 0) {

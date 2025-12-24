@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
 import { logger } from '@/lib/logger';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 /**
  * GET /api/leases/[id]/documents/[docId]/presign
@@ -117,24 +118,14 @@ export async function GET(
         return NextResponse.json({ error: 'Missing Buildium file id' }, { status: 400 });
       }
 
-      const base = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
-      const headers = {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      };
-      const res = await fetch(`${base}/files/${buildiumFileId}/download`, {
-        method: 'POST',
-        headers,
-      });
+      const res = await buildiumFetch('POST', `/files/${buildiumFileId}/download`, undefined, undefined, orgId);
       if (!res.ok) {
         return NextResponse.json(
           { error: 'Buildium download URL failed', status: res.status },
           { status: 502 },
         );
       }
-      const json = await res.json();
+      const json = res.json as { DownloadUrl?: string; ExpirationDateTime?: string | null } | null;
       return NextResponse.json(
         { getUrl: json?.DownloadUrl, expiresAt: json?.ExpirationDateTime || null },
         { status: 200 },

@@ -983,6 +983,7 @@ export async function resolveSubAccounts(
 export async function resolveGLAccountId(
   buildiumGLAccountId: number | null | undefined,
   supabase: TypedSupabaseClient,
+  orgId?: string | undefined,
 ): Promise<string | null> {
   if (!buildiumGLAccountId) {
     return null;
@@ -1006,17 +1007,11 @@ export async function resolveGLAccountId(
       return existingGLAccount.id;
     }
 
-    // Step 2: GL account not found, fetch from Buildium API
+    // Step 2: GL account not found, fetch from Buildium API using org-scoped credentials
     console.log(`GL account ${buildiumGLAccountId} not found, fetching from Buildium...`);
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'}/glaccounts/${buildiumGLAccountId}`;
-    const response = await fetch(buildiumUrl, {
-      headers: {
-        Accept: 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const { buildiumFetch } = await import('./buildium-http');
+    const response = await buildiumFetch('GET', `/glaccounts/${buildiumGLAccountId}`, undefined, undefined, orgId);
 
     if (!response.ok) {
       console.error(
@@ -1026,7 +1021,7 @@ export async function resolveGLAccountId(
       return null;
     }
 
-    const buildiumGLAccount = await response.json();
+    const buildiumGLAccount = response.json;
     console.log('Fetched GL account from Buildium:', buildiumGLAccount);
 
     // Step 3: Map and create GL account record with sub_accounts resolution
@@ -1392,6 +1387,9 @@ export async function mapTransactionBillToBuildium(
   }
 
   // Resolve VendorId from vendors table (auto-create in Buildium if missing)
+  // Get orgId from transaction if available
+  const orgId = (tx as { org_id?: string | null })?.org_id ?? null;
+  
   let vendorBuildiumId: number | null = null;
   if (tx.vendor_id) {
     const { data: vendorRow, error: vendErr } = await supabase
@@ -1446,19 +1444,12 @@ export async function mapTransactionBillToBuildium(
         IsActive: vendorRow?.is_active !== false,
       };
 
-      // Create vendor in Buildium
-      const resp = await fetch(`${process.env.BUILDIUM_BASE_URL}/vendors`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-          'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-        },
-        body: JSON.stringify(vendorPayload),
-      });
-      if (resp.ok) {
-        const created = await resp.json();
+      // Create vendor in Buildium using org-scoped credentials
+      const { buildiumFetch } = await import('./buildium-http');
+      const resp = await buildiumFetch('POST', '/vendors', undefined, vendorPayload, orgId ?? undefined);
+      
+      if (resp.ok && resp.json) {
+        const created = resp.json as { Id?: number };
         vendorBuildiumId = created?.Id || null;
         if (vendorBuildiumId) {
           await supabase
@@ -1467,9 +1458,9 @@ export async function mapTransactionBillToBuildium(
             .eq('id', vendorRow.id);
         }
       } else {
-        const details = await resp.json().catch(() => ({}));
+        const details = resp.json ?? {};
         throw new Error(
-          `Failed to auto-create vendor in Buildium: ${resp.status} ${resp.statusText} ${JSON.stringify(details)}`,
+          `Failed to auto-create vendor in Buildium: ${resp.status} ${resp.errorText || 'Unknown error'} ${JSON.stringify(details)}`,
         );
       }
     }
@@ -1526,15 +1517,12 @@ export async function mapTransactionBillToBuildium(
 
       if (!glId) {
         // Try to find matching GL account in Buildium by AccountNumber or Name
-        const resp = await fetch(`${process.env.BUILDIUM_BASE_URL}/generalLedger/accounts`, {
-          headers: {
-            Accept: 'application/json',
-            'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-            'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-          },
-        });
-        if (resp.ok) {
-          const listJson = await resp.json();
+        // Use org-scoped credentials (orgId already extracted from transaction above)
+        const { buildiumFetch } = await import('./buildium-http');
+        const resp = await buildiumFetch('GET', '/generalLedger/accounts', undefined, undefined, orgId ?? undefined);
+        
+        if (resp.ok && resp.json) {
+          const listJson = resp.json;
           const glAccounts = Array.isArray(listJson)
             ? listJson.filter(isBuildiumGLAccountSummary)
             : [];
@@ -2387,6 +2375,7 @@ export async function resolveUndepositedFundsGlAccountId(
 export async function resolveBankGlAccountId(
   buildiumBankAccountId: number | null | undefined,
   supabase: TypedSupabaseClient,
+  orgId?: string | undefined,
 ): Promise<string | null> {
   if (!buildiumBankAccountId) return null;
 
@@ -2399,25 +2388,21 @@ export async function resolveBankGlAccountId(
 
     if (!findErr && existingGl?.id) return existingGl.id;
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'}/bankaccounts/${buildiumBankAccountId}`;
-    const response = await fetch(buildiumUrl, {
-      headers: {
-        Accept: 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    // Use org-scoped Buildium credentials
+    const { buildiumFetch } = await import('./buildium-http');
+    const response = await buildiumFetch('GET', `/bankaccounts/${buildiumBankAccountId}`, undefined, undefined, orgId);
 
     if (!response.ok) return null;
 
-    const bank = (await response.json()) as BuildiumBankAccountExtended;
+    const bank = (response.json as BuildiumBankAccountExtended) ?? null;
+    if (!bank) return null;
     const glBuildiumId =
       (typeof bank.GLAccount === 'number' ? bank.GLAccount : bank.GLAccount?.Id) ??
       bank.GLAccountId ??
       bank.GLAccountID ??
       null;
 
-    const localGlId = await resolveGLAccountId(glBuildiumId, supabase);
+    const localGlId = await resolveGLAccountId(glBuildiumId, supabase, orgId);
     if (!localGlId) return null;
 
     const now = new Date().toISOString();
@@ -4394,17 +4379,13 @@ export async function resolveLocalVendorIdFromBuildium(
     if (!findErr && existing) return existing.id;
     if (findErr && findErr.code !== 'PGRST116') throw findErr;
 
-    // Fetch vendor from Buildium and create
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'}/vendors/${buildiumVendorId}`;
-    const resp = await fetch(buildiumUrl, {
-      headers: {
-        Accept: 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
-    if (!resp.ok) return null;
-    const buildiumVendor = await resp.json();
+    // Fetch vendor from Buildium and create using org-scoped credentials
+    // Note: orgId parameter not available in this function signature, will fall back to env vars
+    const { buildiumFetch } = await import('./buildium-http');
+    const resp = await buildiumFetch('GET', `/vendors/${buildiumVendorId}`, undefined, undefined, undefined);
+    
+    if (!resp.ok || !resp.json) return null;
+    const buildiumVendor = resp.json;
     const vendorPayload = await mapVendorFromBuildiumWithCategory(buildiumVendor, supabase);
     const now = new Date().toISOString();
     if (!vendorPayload.contact_id) {

@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumVendorCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,40 +30,31 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (isActive) queryParams.append('isActive', isActive);
-    if (categoryId) queryParams.append('categoryId', categoryId);
-    if (search) queryParams.append('search', search);
+    const params: Record<string, string> = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (orderby) params.orderby = orderby;
+    if (isActive) params.isActive = isActive;
+    if (categoryId) params.categoryId = categoryId;
+    if (search) params.search = search;
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/vendors?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    // Make request to Buildium API using org-scoped credentials
+    // Note: platform_admin routes may not have org context, so pass undefined
+    const response = await buildiumFetch('GET', '/vendors', params, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium vendors fetch failed`);
+      logger.error(`Buildium vendors fetch failed`, { status: response.status, errorText: response.errorText });
 
       return NextResponse.json(
         { 
           error: 'Failed to fetch vendors from Buildium',
-          details: errorData
+          details: response.errorText
         },
         { status: response.status }
       );
     }
 
-    const vendors = await response.json();
+    const vendors = response.json ?? [];
 
     logger.info(`Buildium vendors fetched successfully`);
 
@@ -103,34 +95,23 @@ export async function POST(request: NextRequest) {
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumVendorCreateSchema);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/vendors`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    // Make request to Buildium API using org-scoped credentials
+    // Note: platform_admin routes may not have org context, so pass undefined
+    const response = await buildiumFetch('POST', '/vendors', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium vendor creation failed`);
+      logger.error(`Buildium vendor creation failed`, { status: response.status, errorText: response.errorText });
 
       return NextResponse.json(
         { 
           error: 'Failed to create vendor in Buildium',
-          details: errorData
+          details: response.errorText
         },
         { status: response.status }
       );
     }
 
-    const vendor = await response.json();
+    const vendor = response.json ?? {};
 
     logger.info(`Buildium vendor created successfully`);
 
