@@ -17,6 +17,7 @@ type BasicLine = {
   transaction_id?: string | number | null;
   property_id?: string | null;
   unit_id?: string | null;
+  account_entity_type?: string | null;
 };
 
 type BasicTransaction = {
@@ -44,6 +45,7 @@ export type FinanceRollupParams = {
   };
   propertyReserve?: MaybeNumber;
   today?: Date;
+  entityType?: 'Rental' | 'Company' | null;
 };
 
 export type FinanceRollupResult = {
@@ -324,7 +326,13 @@ const isPaymentLikeTx = (tx: BasicTransaction): boolean => {
 };
 
 export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult {
-  const transactionLines = Array.isArray(params.transactionLines) ? params.transactionLines : [];
+  // Filter transaction lines by entity type if provided
+  const allTransactionLines = Array.isArray(params.transactionLines) ? params.transactionLines : [];
+  const transactionLines = params.entityType
+    ? allTransactionLines.filter(
+        (line) => line.account_entity_type === params.entityType || !line.account_entity_type
+      )
+    : allTransactionLines;
   const transactions = Array.isArray(params.transactions) ? params.transactions : [];
   const propertyReserve = normalizeNumber(params.propertyReserve ?? 0);
 

@@ -27,6 +27,7 @@ export default async function LedgerPage({ params, searchParams }: { params: Pro
       .select('id, date, memo, posting_type, amount')
       .eq('property_id', propertyId)
       .eq('gl_account_id', gl)
+      .eq('account_entity_type', 'Rental')
       .lte('date', asOf)
       .order('date', { ascending: true })
     rows = (data as LedgerRow[] | null) || []
