@@ -21,7 +21,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     await requireRole('platform_admin');
 
     const { id } = await params;
-    const prox = await buildiumFetch('GET', `/rentals/${id}`)
+    // Note: platform_admin routes may not have org context, so pass undefined
+    // which will fall back to env vars through the credential manager
+    const prox = await buildiumFetch('GET', `/rentals/${id}`, undefined, undefined, undefined)
     if (!prox.ok) {
       logger.error(`Buildium property fetch failed`);
       return NextResponse.json(
@@ -69,7 +71,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyUpdateEnhancedSchema);
-    const prox = await buildiumFetch('PUT', `/rentals/${id}`, undefined, validatedData)
+    // Note: platform_admin routes may not have org context, so pass undefined
+    // which will fall back to env vars through the credential manager
+    const prox = await buildiumFetch('PUT', `/rentals/${id}`, undefined, validatedData, undefined)
     if (!prox.ok) {
       logger.error(`Buildium property update failed`);
       return NextResponse.json(
