@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumToDoRequestUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -21,32 +22,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/todorequests/${id}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    // Make request to Buildium API using org-scoped credentials
+    // Note: platform_admin routes may not have org context, so pass undefined
+    // which will fall back to env vars through the credential manager
+    const response = await buildiumFetch('GET', `/todorequests/${id}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium to-do request fetch failed`);
+      logger.error(`Buildium to-do request fetch failed`, { status: response.status, errorText: response.errorText });
 
       return NextResponse.json(
         { 
           error: 'Failed to fetch to-do request from Buildium',
-          details: errorData
+          details: response.errorText
         },
         { status: response.status }
       );
     }
 
-    const toDoRequest = await response.json();
+    const toDoRequest = response.json;
 
     logger.info(`Buildium to-do request fetched successfully`);
 
@@ -88,34 +81,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumToDoRequestUpdateSchema);
 
-    // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/todorequests/${id}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    // Make request to Buildium API using org-scoped credentials
+    // Note: platform_admin routes may not have org context, so pass undefined
+    // which will fall back to env vars through the credential manager
+    const response = await buildiumFetch('PUT', `/todorequests/${id}`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error(`Buildium to-do request update failed`);
+      logger.error(`Buildium to-do request update failed`, { status: response.status, errorText: response.errorText });
 
       return NextResponse.json(
         { 
           error: 'Failed to update to-do request in Buildium',
-          details: errorData
+          details: response.errorText
         },
         { status: response.status }
       );
     }
 
-    const toDoRequest = await response.json();
+    const toDoRequest = response.json;
 
     logger.info(`Buildium to-do request updated successfully`);
 

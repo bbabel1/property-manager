@@ -15,6 +15,7 @@ import type { BuildiumBillCreate } from '@/types/buildium';
 import { assignTransactionToMonthlyLog, fetchTransactionWithLines } from '@/lib/lease-transaction-helpers';
 import { upsertBillWithLines } from '@/lib/buildium-mappers';
 import { refreshMonthlyLogTotals } from '@/lib/monthly-log-calculations';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
@@ -281,20 +282,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       Lines: lines,
     };
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills`;
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      },
-      body: JSON.stringify(buildiumPayload),
-    });
+    // Use org-scoped Buildium credentials
+    const orgId = logRecord.org_id ?? null;
+    const response = await buildiumFetch('POST', '/bills', undefined, buildiumPayload, orgId ?? undefined);
 
     if (!response.ok) {
-      const details = await response.json().catch(() => ({} as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> }));
+      const details = (response.json as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> }) ?? ({} as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> });
       const message =
         details?.UserMessage ||
         details?.error ||
@@ -315,7 +308,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    const buildiumBill = await response.json();
+    const buildiumBill = (response.json as BuildiumBillCreate) ?? {};
 
     // Buildium's response may omit lines or memo; carry forward what we sent so the local record stays complete.
     const buildiumBillWithLines = {

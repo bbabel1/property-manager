@@ -19,6 +19,7 @@ import {
 import { assignTransactionToMonthlyLog, fetchTransactionWithLines } from '@/lib/lease-transaction-helpers';
 import { BuildiumCheckCreateSchema } from '@/schemas/buildium';
 import type { MonthlyLogTransaction } from '@/types/monthly-log';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 type OwnershipRow = {
   owner_id: string | null;
@@ -401,22 +402,17 @@ export async function POST(
 
     BuildiumCheckCreateSchema.parse(buildiumPayload);
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bankaccounts/${buildiumBankAccountId}/checks`;
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      },
-      body: JSON.stringify(buildiumPayload),
-    });
+    // Use org-scoped Buildium credentials
+    const response = await buildiumFetch(
+      'POST',
+      `/bankaccounts/${buildiumBankAccountId}/checks`,
+      undefined,
+      buildiumPayload,
+      orgId ?? undefined
+    );
 
     if (!response.ok) {
-      const details: BuildiumErrorDetail = await response
-        .json()
-        .catch(() => ({} as BuildiumErrorDetail));
+      const details: BuildiumErrorDetail = (response.json as BuildiumErrorDetail) ?? ({} as BuildiumErrorDetail);
       const message =
         details?.UserMessage ||
         details?.error ||
@@ -441,7 +437,7 @@ export async function POST(
       );
     }
 
-    const buildiumCheck = await response.json().catch(() => ({}));
+    const buildiumCheck = (response.json as Record<string, unknown>) ?? {};
     const nowIso = new Date().toISOString();
 
     const { data: transactionRow, error: transactionError } = await supabaseAdmin
