@@ -1,19 +1,10 @@
 import {
-  createBuildiumClient,
-  defaultBuildiumConfig,
+  getOrgScopedBuildiumClient,
   type BuildiumClient,
 } from './buildium-client';
 import { supabase } from './db';
 import type { BuildiumTenant, BuildiumTenantCreate, BuildiumTenantUpdate } from '@/types/buildium';
 import { findOrCreateContact, findOrCreateTenant } from './buildium-mappers';
-
-function client(): BuildiumClient {
-  return createBuildiumClient({
-    ...defaultBuildiumConfig,
-    clientId: process.env.BUILDIUM_CLIENT_ID || '',
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || '',
-  });
-}
 
 export class TenantService {
   // List Tenants from Buildium (optionally persist to DB)
@@ -24,8 +15,9 @@ export class TenantService {
     offset?: number;
     limit?: number;
     persist?: boolean;
+    orgId?: string;
   }): Promise<BuildiumTenant[]> {
-    const c = client();
+    const c = await getOrgScopedBuildiumClient(params?.orgId);
     const qs = new URLSearchParams();
     if (params?.lastupdatedfrom) qs.append('lastupdatedfrom', params.lastupdatedfrom);
     if (params?.lastupdatedto) qs.append('lastupdatedto', params.lastupdatedto);
@@ -49,8 +41,8 @@ export class TenantService {
   }
 
   // Get one Tenant from Buildium (optionally persist to DB)
-  static async getFromBuildium(id: number, persist = false): Promise<BuildiumTenant | null> {
-    const c = client();
+  static async getFromBuildium(id: number, persist = false, orgId?: string): Promise<BuildiumTenant | null> {
+    const c = await getOrgScopedBuildiumClient(orgId);
     const url = `/rentals/tenants/${id}`;
     const tenant = await c.makeRequest<BuildiumTenant>('GET', url).catch(() => null);
     if (tenant && persist) {
@@ -67,8 +59,9 @@ export class TenantService {
   // Create in Buildium, then map and insert/update in DB
   static async createInBuildiumAndDB(
     payload: BuildiumTenantCreate,
+    orgId?: string,
   ): Promise<{ buildium: BuildiumTenant; localId?: string }> {
-    const c = client();
+    const c = await getOrgScopedBuildiumClient(orgId);
     // Use /rentals/tenants for creating standalone tenants (before lease exists)
     // /leases/tenants requires LeaseId and is for adding tenants to existing leases
     const buildium = await c.makeRequest<BuildiumTenant>('POST', `/rentals/tenants`, payload);
@@ -81,8 +74,9 @@ export class TenantService {
   static async updateInBuildiumAndDB(
     id: number,
     payload: BuildiumTenantUpdate,
+    orgId?: string,
   ): Promise<{ buildium: BuildiumTenant; localId?: string | null }> {
-    const c = client();
+    const c = await getOrgScopedBuildiumClient(orgId);
     const buildium = await c.makeRequest<BuildiumTenant>('PUT', `/rentals/tenants/${id}`, payload);
     let localId: string | null = null;
     try {

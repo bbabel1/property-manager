@@ -10,14 +10,7 @@ import type {
   BuildiumFileDownloadMessage
 } from '@/types/buildium'
 import { mapUnitFromBuildium, mapUnitToBuildium, mapPropertyFromBuildiumWithBankAccount } from './buildium-mappers'
-
-const BASE = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'
-const HEADERS = () => ({
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-  'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-  'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || ''
-})
+import { buildiumFetch } from './buildium-http'
 
 export type UnitRow = Database['public']['Tables']['units']['Row']
 type UnitInsert = Partial<Database['public']['Tables']['units']['Insert']> & { property_id?: string | null }
@@ -55,20 +48,19 @@ export default class UnitService {
     if (params?.persist && !params.orgId) {
       throw new Error('orgId is required when persisting Buildium units');
     }
-    const qs = new URLSearchParams()
-    if (params?.limit) qs.append('limit', String(params.limit))
-    if (params?.offset) qs.append('offset', String(params.offset))
-    if (params?.orderby) qs.append('orderby', params.orderby)
-    if (params?.lastUpdatedFrom) qs.append('lastupdatedfrom', params.lastUpdatedFrom)
-    if (params?.lastUpdatedTo) qs.append('lastupdatedto', params.lastUpdatedTo)
+    const queryParams: Record<string, string> = {}
+    if (params?.limit) queryParams.limit = String(params.limit)
+    if (params?.offset) queryParams.offset = String(params.offset)
+    if (params?.orderby) queryParams.orderby = params.orderby
+    if (params?.lastUpdatedFrom) queryParams.lastupdatedfrom = params.lastUpdatedFrom
+    if (params?.lastUpdatedTo) queryParams.lastupdatedto = params.lastUpdatedTo
     if (params?.propertyIds) {
-      const val = Array.isArray(params.propertyIds) ? params.propertyIds.join(',') : String(params.propertyIds)
-      qs.append('propertyids', val)
+      queryParams.propertyids = Array.isArray(params.propertyIds) ? params.propertyIds.join(',') : String(params.propertyIds)
     }
-
-    const res = await fetch(`${BASE}/rentals/units?${qs.toString()}`, { headers: HEADERS() })
+    
+    const res = await buildiumFetch('GET', '/rentals/units', queryParams, undefined, params?.orgId)
     if (!res.ok) throw new Error(`Buildium units fetch failed: ${res.status}`)
-    const items: BuildiumUnit[] = await res.json()
+    const items: BuildiumUnit[] = (res.json as BuildiumUnit[]) ?? []
 
     if (params?.persist) {
       for (const u of items) {
@@ -86,9 +78,9 @@ export default class UnitService {
     if (persist && !orgId) {
       throw new Error('orgId is required when persisting Buildium units');
     }
-    const res = await fetch(`${BASE}/rentals/units/${id}`, { headers: HEADERS() })
+    const res = await buildiumFetch('GET', `/rentals/units/${id}`, undefined, undefined, orgId)
     if (!res.ok) return null
-    const item: BuildiumUnit = await res.json()
+    const item: BuildiumUnit = (res.json as BuildiumUnit) ?? null
     if (persist) await UnitService.persistBuildiumUnit(item, orgId as string).catch(() => void 0)
     return item
   }
@@ -97,31 +89,25 @@ export default class UnitService {
   static async createInBuildiumAndDB(local: UnitRow): Promise<{ buildium: BuildiumUnit; localId: string }> {
     if (!local.buildium_property_id) throw new Error('Local unit must have buildium_property_id to create in Buildium')
     const payload: BuildiumUnitCreate = mapUnitToBuildium(local)
-    const res = await fetch(`${BASE}/rentals/units`, {
-      method: 'POST',
-      headers: HEADERS(),
-      body: JSON.stringify(payload)
-    })
+    const res = await buildiumFetch('POST', '/rentals/units', undefined, payload, local.org_id ?? undefined)
     if (!res.ok) throw new Error(`Buildium unit create failed: ${res.status}`)
-    const created: BuildiumUnit = await res.json()
+    const created: BuildiumUnit = (res.json as BuildiumUnit) ?? null
+    if (!created) throw new Error('Buildium unit create returned no data')
 
     await UnitService.persistBuildiumUnit(created, local.org_id)
     return { buildium: created, localId: local.id }
   }
 
   // Update in Buildium (by buildium id), then update DB row
-  static async updateInBuildiumAndDB(buildiumId: number, partial: Partial<UnitRow>): Promise<BuildiumUnit> {
+  static async updateInBuildiumAndDB(buildiumId: number, partial: Partial<UnitRow>, orgId?: string): Promise<BuildiumUnit> {
     const payload: BuildiumUnitUpdate = mapUnitToBuildium({
       ...(partial as UnitRow),
       buildium_property_id: partial.buildium_property_id ?? null,
     })
-    const res = await fetch(`${BASE}/rentals/units/${buildiumId}`, {
-      method: 'PUT',
-      headers: HEADERS(),
-      body: JSON.stringify(payload)
-    })
+    const res = await buildiumFetch('PUT', `/rentals/units/${buildiumId}`, undefined, payload, orgId ?? partial.org_id ?? undefined)
     if (!res.ok) throw new Error(`Buildium unit update failed: ${res.status}`)
-    const updated: BuildiumUnit = await res.json()
+    const updated: BuildiumUnit = (res.json as BuildiumUnit) ?? null
+    if (!updated) throw new Error('Buildium unit update returned no data')
 
     // Update local if exists
     const supabase = supabaseAdmin
@@ -168,11 +154,14 @@ export default class UnitService {
 
     if (!propertyId) {
       // Auto-create local property by fetching from Buildium
-      const pres = await fetch(`${BASE}/rentals/${buildiumUnit.PropertyId}`, { headers: HEADERS() })
+      const pres = await buildiumFetch('GET', `/rentals/${buildiumUnit.PropertyId}`, undefined, undefined, orgId)
       if (!pres.ok) {
         throw new Error(`No local property and failed to fetch Buildium property ${buildiumUnit.PropertyId}: ${pres.status}`)
       }
-      const buildiumProperty = await pres.json()
+      const buildiumProperty = (pres.json as Record<string, unknown>) ?? null
+      if (!buildiumProperty) {
+        throw new Error(`No local property and failed to fetch Buildium property ${buildiumUnit.PropertyId}`)
+      }
       const mappedProperty = await mapPropertyFromBuildiumWithBankAccount(
         buildiumProperty,
         supabase,
@@ -281,25 +270,27 @@ export default class UnitService {
   // ------------------------
   // Unit Images
   // ------------------------
-  static async listImages(unitId: number, params?: { limit?: number; offset?: number }): Promise<BuildiumUnitImage[]> {
-    const q = new URLSearchParams()
-    if (params?.limit) q.append('limit', String(params.limit))
-    if (params?.offset) q.append('offset', String(params.offset))
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images?${q.toString()}`, { headers: HEADERS() })
+  static async listImages(unitId: number, params?: { limit?: number; offset?: number; orgId?: string }): Promise<BuildiumUnitImage[]> {
+    const queryParams: Record<string, string> = {}
+    if (params?.limit) queryParams.limit = String(params.limit)
+    if (params?.offset) queryParams.offset = String(params.offset)
+    const res = await buildiumFetch('GET', `/rentals/units/${unitId}/images`, queryParams, undefined, params?.orgId)
     if (!res.ok) throw new Error(`Buildium list unit images failed: ${res.status}`)
-    return res.json()
+    return (res.json as BuildiumUnitImage[]) ?? []
   }
 
-  static async getImage(unitId: number, imageId: number): Promise<BuildiumUnitImage> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images/${imageId}`, { headers: HEADERS() })
+  static async getImage(unitId: number, imageId: number, orgId?: string): Promise<BuildiumUnitImage> {
+    const res = await buildiumFetch('GET', `/rentals/units/${unitId}/images/${imageId}`, undefined, undefined, orgId)
     if (!res.ok) throw new Error(`Buildium get unit image failed: ${res.status}`)
-    return res.json()
+    const image = res.json as BuildiumUnitImage
+    if (!image) throw new Error('Buildium get unit image returned no data')
+    return image
   }
 
   static async uploadImage(
     unitId: number,
     prepared: PreparedImage,
-    options: { Description?: string; ShowInListing?: boolean; PropertyId?: number | string } = {}
+    options: { Description?: string; ShowInListing?: boolean; PropertyId?: number | string; orgId?: string } = {}
   ): Promise<BuildiumUnitImage> {
     const metadata = {
       FileName: prepared.fileName,
@@ -307,25 +298,20 @@ export default class UnitService {
       ShowInListing: options.ShowInListing ?? true
     }
 
-    const existingRes = await fetch(`${BASE}/rentals/units/${unitId}/images`, { headers: HEADERS() })
-    const beforeImages: BuildiumUnitImage[] = existingRes.ok ? await existingRes.json().catch(() => []) : []
+    const existingRes = await buildiumFetch('GET', `/rentals/units/${unitId}/images`, undefined, undefined, options.orgId)
+    const beforeImages: BuildiumUnitImage[] = existingRes.ok ? ((existingRes.json as BuildiumUnitImage[]) ?? []) : []
     const beforeIds = new Set<number>()
     for (const img of Array.isArray(beforeImages) ? beforeImages : []) {
       if (typeof img?.Id === 'number') beforeIds.add(img.Id)
     }
 
-    const ticketRes = await fetch(`${BASE}/rentals/units/${unitId}/images/uploadrequests`, {
-      method: 'POST',
-      headers: HEADERS(),
-      body: JSON.stringify(metadata)
-    })
+    const ticketRes = await buildiumFetch('POST', `/rentals/units/${unitId}/images/uploadrequests`, undefined, metadata, options.orgId)
 
     if (!ticketRes.ok) {
-      const errorText = await ticketRes.text().catch(() => '')
-      throw new Error(`Buildium unit image upload (metadata) failed: ${ticketRes.status} ${errorText}`)
+      throw new Error(`Buildium unit image upload (metadata) failed: ${ticketRes.status} ${ticketRes.errorText || 'Unknown error'}`)
     }
 
-    const ticket: { BucketUrl?: string; FormData?: Record<string, string>; PhysicalFileName?: string } = await ticketRes.json()
+    const ticket: { BucketUrl?: string; FormData?: Record<string, string>; PhysicalFileName?: string } = (ticketRes.json as { BucketUrl?: string; FormData?: Record<string, string>; PhysicalFileName?: string }) ?? {}
     if (!ticket?.BucketUrl || !ticket.FormData) {
       throw new Error('Buildium unit image upload failed: missing upload ticket data')
     }
@@ -356,12 +342,11 @@ export default class UnitService {
     const locateUploadedImage = async (): Promise<BuildiumUnitImage | null> => {
       const attempts = 10
       for (let i = 0; i < attempts; i++) {
-        const listRes = await fetch(`${BASE}/rentals/units/${unitId}/images`, { headers: HEADERS() })
+        const listRes = await buildiumFetch('GET', `/rentals/units/${unitId}/images`, undefined, undefined, options.orgId)
         if (!listRes.ok) {
-          const errorText = await listRes.text().catch(() => '')
-          throw new Error(`Buildium unit image fetch failed after upload: ${listRes.status} ${errorText}`)
+          throw new Error(`Buildium unit image fetch failed after upload: ${listRes.status} ${listRes.errorText || 'Unknown error'}`)
         }
-        const images: BuildiumUnitImage[] = await listRes.json()
+        const images: BuildiumUnitImage[] = (listRes.json as BuildiumUnitImage[]) ?? []
         if (Array.isArray(images)) {
           let candidate = images.find(img => typeof img?.Id === 'number' && !beforeIds.has(img.Id)) || null
           const ticketFileName = (ticket?.PhysicalFileName || '').toLowerCase()
@@ -422,23 +407,17 @@ export default class UnitService {
     }
   }
 
-  static async updateImage(unitId: number, imageId: number, payload: { Description?: string }): Promise<BuildiumUnitImage> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images/${imageId}`, {
-      method: 'PUT',
-      headers: HEADERS(),
-      body: JSON.stringify(payload)
-    })
+  static async updateImage(unitId: number, imageId: number, payload: { Description?: string }, orgId?: string): Promise<BuildiumUnitImage> {
+    const res = await buildiumFetch('PUT', `/rentals/units/${unitId}/images/${imageId}`, undefined, payload, orgId)
     if (!res.ok) throw new Error(`Buildium update unit image failed: ${res.status}`)
-    const img = await res.json()
-    await UnitService.persistImages(unitId, [img]).catch(() => void 0)
+    const img = (res.json as BuildiumUnitImage) ?? null
+    if (!img) throw new Error('Buildium update unit image returned no data')
+    await UnitService.persistImages(unitId, [img], orgId).catch(() => void 0)
     return img
   }
 
-  static async deleteImage(unitId: number, imageId: number): Promise<void> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images/${imageId}`, {
-      method: 'DELETE',
-      headers: HEADERS()
-    })
+  static async deleteImage(unitId: number, imageId: number, orgId?: string): Promise<void> {
+    const res = await buildiumFetch('DELETE', `/rentals/units/${unitId}/images/${imageId}`, undefined, undefined, orgId)
     if (!res.ok) throw new Error(`Buildium delete unit image failed: ${res.status}`)
     // Remove from DB if present
     const localUnitId = await UnitService.resolveLocalUnitId(unitId).catch(() => null)
@@ -447,21 +426,16 @@ export default class UnitService {
     }
   }
 
-  static async downloadImage(unitId: number, imageId: number): Promise<BuildiumFileDownloadMessage> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images/${imageId}/download`, {
-      method: 'POST',
-      headers: HEADERS()
-    })
+  static async downloadImage(unitId: number, imageId: number, orgId?: string): Promise<BuildiumFileDownloadMessage> {
+    const res = await buildiumFetch('POST', `/rentals/units/${unitId}/images/${imageId}/download`, undefined, undefined, orgId)
     if (!res.ok) throw new Error(`Buildium download unit image url failed: ${res.status}`)
-    return res.json()
+    const download = res.json as BuildiumFileDownloadMessage
+    if (!download) throw new Error('Buildium download unit image returned no data')
+    return download
   }
 
-  static async updateImageOrder(unitId: number, imageIds: number[]): Promise<void> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/images/order`, {
-      method: 'PUT',
-      headers: HEADERS(),
-      body: JSON.stringify({ ImageIds: imageIds })
-    })
+  static async updateImageOrder(unitId: number, imageIds: number[], orgId?: string): Promise<void> {
+    const res = await buildiumFetch('PUT', `/rentals/units/${unitId}/images/order`, undefined, { ImageIds: imageIds }, orgId)
     if (!res.ok) throw new Error(`Buildium update unit image order failed: ${res.status}`)
     // Update local sort_index
     const localUnitId = await UnitService.resolveLocalUnitId(unitId).catch(() => null)
@@ -479,44 +453,40 @@ export default class UnitService {
   // ------------------------
   // Unit Notes
   // ------------------------
-  static async listNotes(unitId: number, params?: { limit?: number; offset?: number }): Promise<BuildiumUnitNote[]> {
-    const q = new URLSearchParams()
-    if (params?.limit) q.append('limit', String(params.limit))
-    if (params?.offset) q.append('offset', String(params.offset))
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/notes?${q.toString()}`, { headers: HEADERS() })
+  static async listNotes(unitId: number, params?: { limit?: number; offset?: number; orgId?: string }): Promise<BuildiumUnitNote[]> {
+    const queryParams: Record<string, string> = {}
+    if (params?.limit) queryParams.limit = String(params.limit)
+    if (params?.offset) queryParams.offset = String(params.offset)
+    const res = await buildiumFetch('GET', `/rentals/units/${unitId}/notes`, queryParams, undefined, params?.orgId)
     if (!res.ok) throw new Error(`Buildium list unit notes failed: ${res.status}`)
-    const notes = (await res.json()) as BuildiumUnitNote[]
-    await UnitService.persistNotes(unitId, notes).catch(() => void 0)
+    const notes = (res.json as BuildiumUnitNote[]) ?? []
+    await UnitService.persistNotes(unitId, notes, params?.orgId).catch(() => void 0)
     return notes
   }
 
-  static async getNote(unitId: number, noteId: number): Promise<BuildiumUnitNote> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/notes/${noteId}`, { headers: HEADERS() })
+  static async getNote(unitId: number, noteId: number, orgId?: string): Promise<BuildiumUnitNote> {
+    const res = await buildiumFetch('GET', `/rentals/units/${unitId}/notes/${noteId}`, undefined, undefined, orgId)
     if (!res.ok) throw new Error(`Buildium get unit note failed: ${res.status}`)
-    return res.json() as Promise<BuildiumUnitNote>
-  }
-
-  static async createNote(unitId: number, payload: { Subject: string; Body: string; IsPrivate?: boolean }): Promise<BuildiumUnitNote> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/notes`, {
-      method: 'POST',
-      headers: HEADERS(),
-      body: JSON.stringify(payload)
-    })
-    if (!res.ok) throw new Error(`Buildium create unit note failed: ${res.status}`)
-    const note = (await res.json()) as BuildiumUnitNote
-    await UnitService.persistNotes(unitId, [note]).catch(() => void 0)
+    const note = res.json as BuildiumUnitNote
+    if (!note) throw new Error('Buildium get unit note returned no data')
     return note
   }
 
-  static async updateNote(unitId: number, noteId: number, payload: { Subject?: string; Body?: string; IsPrivate?: boolean }): Promise<BuildiumUnitNote> {
-    const res = await fetch(`${BASE}/rentals/units/${unitId}/notes/${noteId}`, {
-      method: 'PUT',
-      headers: HEADERS(),
-      body: JSON.stringify(payload)
-    })
+  static async createNote(unitId: number, payload: { Subject: string; Body: string; IsPrivate?: boolean }, orgId?: string): Promise<BuildiumUnitNote> {
+    const res = await buildiumFetch('POST', `/rentals/units/${unitId}/notes`, undefined, payload, orgId)
+    if (!res.ok) throw new Error(`Buildium create unit note failed: ${res.status}`)
+    const note = (res.json as BuildiumUnitNote) ?? null
+    if (!note) throw new Error('Buildium create unit note returned no data')
+    await UnitService.persistNotes(unitId, [note], orgId).catch(() => void 0)
+    return note
+  }
+
+  static async updateNote(unitId: number, noteId: number, payload: { Subject?: string; Body?: string; IsPrivate?: boolean }, orgId?: string): Promise<BuildiumUnitNote> {
+    const res = await buildiumFetch('PUT', `/rentals/units/${unitId}/notes/${noteId}`, undefined, payload, orgId)
     if (!res.ok) throw new Error(`Buildium update unit note failed: ${res.status}`)
-    const note = (await res.json()) as BuildiumUnitNote
-    await UnitService.persistNotes(unitId, [note]).catch(() => void 0)
+    const note = (res.json as BuildiumUnitNote) ?? null
+    if (!note) throw new Error('Buildium update unit note returned no data')
+    await UnitService.persistNotes(unitId, [note], orgId).catch(() => void 0)
     return note
   }
 
