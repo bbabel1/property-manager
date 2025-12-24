@@ -11,6 +11,8 @@ import { upsertBillWithLines, resolveBankGlAccountId, mapGLAccountFromBuildiumWi
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
 import type { BuildiumLease, BuildiumLeasePerson } from '@/types/buildium'
+import { buildiumFetch } from '@/lib/buildium-http'
+import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -331,155 +333,92 @@ export async function POST(req: NextRequest) {
   }[] = []
   const storedEvents: NormalizedBuildiumWebhook[] = []
 
-  const buildiumCreds = {
-    baseUrl: process.env.BUILDIUM_BASE_URL,
-    clientId: process.env.BUILDIUM_CLIENT_ID,
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET,
-  }
   const supabaseUrlEnv = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleEnv = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  async function fetchLeaseTransaction(leaseId: number, transactionId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/${leaseId}/transactions/${transactionId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch transaction before forwarding', { status: res.status, body: txt })
+  // Helper to get org-scoped Buildium credentials
+  async function getBuildiumCreds(orgId?: string | null | undefined) {
+    const config = await getOrgScopedBuildiumConfig(orgId ?? undefined)
+    if (!config) {
       return null
     }
-    return res.json()
-  }
-  async function fetchGLAccount(glAccountId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/glaccounts/${glAccountId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch glaccount before forwarding', { status: res.status, body: txt })
-      return null
+    return {
+      baseUrl: config.baseUrl,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
     }
-    return res.json()
   }
 
-  async function fetchLease(leaseId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/${leaseId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchLeaseTransaction(leaseId: number, transactionId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/leases/${leaseId}/transactions/${transactionId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch lease', { status: res.status, body: txt })
+      console.error('[buildium-webhook] Failed to fetch transaction before forwarding', { status: res.status, errorText: res.errorText })
       return null
     }
-    return res.json()
+    return res.json ?? null
+  }
+  
+  async function fetchGLAccount(glAccountId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/glaccounts/${glAccountId}`, undefined, undefined, orgId ?? undefined)
+    if (!res.ok) {
+      console.error('[buildium-webhook] Failed to fetch glaccount before forwarding', { status: res.status, errorText: res.errorText })
+      return null
+    }
+    return res.json ?? null
   }
 
-  async function fetchLeaseTenant(tenantId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/tenants/${tenantId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchLease(leaseId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/leases/${leaseId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch lease tenant', { status: res.status, body: txt })
+      console.error('[buildium-webhook] Failed to fetch lease', { status: res.status, errorText: res.errorText })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchLeaseMoveOut(leaseId: number, tenantId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/${leaseId}/moveouts/${tenantId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchLeaseTenant(tenantId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/leases/tenants/${tenantId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch lease moveout', { status: res.status, body: txt })
+      console.error('[buildium-webhook] Failed to fetch lease tenant', { status: res.status, errorText: res.errorText })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchBill(billId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/bills/${billId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchLeaseMoveOut(leaseId: number, tenantId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/leases/${leaseId}/moveouts/${tenantId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch bill', { status: res.status, body: txt })
+      console.error('[buildium-webhook] Failed to fetch lease moveout', { status: res.status, errorText: res.errorText })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchBillPayment(billId: number, paymentId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/bills/${billId}/payments/${paymentId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchBill(billId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/bills/${billId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch bill payment', { status: res.status, body: txt, billId, paymentId })
+      console.error('[buildium-webhook] Failed to fetch bill', { status: res.status, errorText: res.errorText })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchGLAccountRemote(glAccountId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/glaccounts/${glAccountId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchBillPayment(billId: number, paymentId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/bills/${billId}/payments/${paymentId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch GL account', { status: res.status, body: txt, glAccountId })
+      console.error('[buildium-webhook] Failed to fetch bill payment', { status: res.status, errorText: res.errorText, billId, paymentId })
       return null
     }
-    return res.json()
+    return res.json ?? null
+  }
+
+  async function fetchGLAccountRemote(glAccountId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/glaccounts/${glAccountId}`, undefined, undefined, orgId ?? undefined)
+    if (!res.ok) {
+      console.error('[buildium-webhook] Failed to fetch GL account', { status: res.status, errorText: res.errorText, glAccountId })
+      return null
+    }
+    return res.json ?? null
   }
 
   async function upsertGLAccountWithOrg(gl: UnknownRecord, buildiumAccountId?: number | null) {
@@ -505,40 +444,22 @@ export async function POST(req: NextRequest) {
       }
   }
 
-  async function fetchRentalProperty(propertyId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/${propertyId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchRentalProperty(propertyId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/rentals/${propertyId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch rental property', { status: res.status, body: txt, propertyId })
+      console.error('[buildium-webhook] Failed to fetch rental property', { status: res.status, errorText: res.errorText, propertyId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchRentalUnit(unitId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/units/${unitId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchRentalUnit(unitId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/rentals/units/${unitId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch rental unit', { status: res.status, body: txt, unitId })
+      console.error('[buildium-webhook] Failed to fetch rental unit', { status: res.status, errorText: res.errorText, unitId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
   async function upsertPropertyFromBuildium(buildiumProperty: UnknownRecord, buildiumAccountId?: number | null) {
@@ -595,22 +516,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  async function fetchTaskCategory(categoryId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/tasks/categories/${categoryId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchTaskCategory(categoryId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/tasks/categories/${categoryId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch task category', { status: res.status, body: txt, categoryId })
+      console.error('[buildium-webhook] Failed to fetch task category', { status: res.status, errorText: res.errorText, categoryId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
   async function upsertTaskCategory(buildiumCategory: UnknownRecord, _buildiumAccountId?: number | null) {
@@ -840,94 +752,49 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  async function fetchTask(taskId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/tasks/${taskId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchTask(taskId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/tasks/${taskId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch task', { status: res.status, body: txt, taskId })
+      console.error('[buildium-webhook] Failed to fetch task', { status: res.status, errorText: res.errorText, taskId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchVendorCategory(vendorCategoryId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/vendors/categories/${vendorCategoryId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchVendorCategory(vendorCategoryId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/vendors/categories/${vendorCategoryId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch vendor category', { status: res.status, body: txt, vendorCategoryId })
+      console.error('[buildium-webhook] Failed to fetch vendor category', { status: res.status, errorText: res.errorText, vendorCategoryId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchVendor(vendorId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/vendors/${vendorId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchVendor(vendorId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/vendors/${vendorId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch vendor', { status: res.status, body: txt, vendorId })
+      console.error('[buildium-webhook] Failed to fetch vendor', { status: res.status, errorText: res.errorText, vendorId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchWorkOrder(workOrderId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/workorders/${workOrderId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchWorkOrder(workOrderId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/workorders/${workOrderId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch work order', { status: res.status, body: txt, workOrderId })
+      console.error('[buildium-webhook] Failed to fetch work order', { status: res.status, errorText: res.errorText, workOrderId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
-  async function fetchRentalOwner(rentalOwnerId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/owners/${rentalOwnerId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
-      }
-    })
+  async function fetchRentalOwner(rentalOwnerId: number, orgId?: string | null) {
+    const res = await buildiumFetch('GET', `/rentals/owners/${rentalOwnerId}`, undefined, undefined, orgId ?? undefined)
     if (!res.ok) {
-      const txt = await res.text().catch(() => '')
-      console.error('[buildium-webhook] Failed to fetch rental owner', { status: res.status, body: txt, rentalOwnerId })
+      console.error('[buildium-webhook] Failed to fetch rental owner', { status: res.status, errorText: res.errorText, rentalOwnerId })
       return null
     }
-    return res.json()
+    return res.json ?? null
   }
 
   async function upsertTaskFromBuildium(buildiumTask: UnknownRecord, _buildiumAccountId?: number | null) {
@@ -1103,10 +970,13 @@ export async function POST(req: NextRequest) {
       for (const ev of eventsToForward) {
         const leaseId = ev?.LeaseId ?? ev?.Data?.LeaseId
         const transactionId = ev?.TransactionId ?? ev?.Data?.TransactionId ?? ev?.EntityId
+        const buildiumAccountId = ev?.AccountId ?? ev?.Data?.AccountId ?? null
+        const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+        
         let fullTx = null
         if (leaseId && transactionId) {
           try {
-            fullTx = await fetchLeaseTransaction(Number(leaseId), Number(transactionId))
+            fullTx = await fetchLeaseTransaction(Number(leaseId), Number(transactionId), orgId)
           } catch (err) {
             console.error('[buildium-webhook] Error fetching transaction for enrichment', err)
           }
@@ -1116,6 +986,11 @@ export async function POST(req: NextRequest) {
         enrichedEvents.push(cloned)
       }
 
+      // Get org-scoped credentials for edge function (use first event's orgId if available)
+      const firstEventAccountId = eventsToForward[0]?.AccountId ?? eventsToForward[0]?.Data?.AccountId ?? null
+      const firstOrgId = await resolveOrgIdFromBuildiumAccount(firstEventAccountId)
+      const buildiumCredsForEdge = await getBuildiumCreds(firstOrgId)
+
       const res = await fetch(`${supabaseUrl}/functions/v1/buildium-lease-transactions`, {
         method: 'POST',
         headers: {
@@ -1123,7 +998,7 @@ export async function POST(req: NextRequest) {
           // Edge function expects bearer auth for service role
           Authorization: `Bearer ${serviceRole}`,
         },
-        body: JSON.stringify({ Events: enrichedEvents, credentials: buildiumCreds }),
+        body: JSON.stringify({ Events: enrichedEvents, credentials: buildiumCredsForEdge }),
       })
       if (!res.ok) {
         const details = await res.json().catch(() => ({}))
@@ -2147,13 +2022,15 @@ export async function POST(req: NextRequest) {
           }
         } else if (leaseId && transactionId) {
           // Upsert (create/update)
+          const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+          const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+          
           const tx = await (async () => {
-            try { return await fetchLeaseTransaction(Number(leaseId), Number(transactionId)) } catch { return null }
+            try { return await fetchLeaseTransaction(Number(leaseId), Number(transactionId), orgId) } catch { return null }
           })()
           if (tx) {
             try {
-              const glFetcher = async (glId: number) => fetchGLAccount(glId)
-              const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+              const glFetcher = async (glId: number) => fetchGLAccount(glId, orgId)
               await upsertLeaseTransactionWithLinesLocal(tx, glFetcher, buildiumAccountId)
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert lease transaction locally', err)
@@ -2225,7 +2102,9 @@ export async function POST(req: NextRequest) {
             }
           } else {
             // Fetch lease from Buildium
-            const leaseRemote = await fetchLease(Number(leaseId))
+            const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const leaseRemote = await fetchLease(Number(leaseId), orgId)
             if (!leaseRemote) {
               console.warn('[buildium-webhook] Could not fetch lease for update', { leaseId })
               await markWebhookError(admin, eventKey, `Lease ${leaseId} fetch failed`)
@@ -2234,8 +2113,8 @@ export async function POST(req: NextRequest) {
             } else {
               // Upsert lease + parties locally
               try {
-                const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? leaseRemote?.AccountId ?? null
-                await upsertLeaseWithPartiesLocal(leaseRemote, buildiumAccountId)
+                const resolvedAccountId = buildiumAccountId ?? (leaseRemote as UnknownRecord)?.AccountId ?? null
+                await upsertLeaseWithPartiesLocal(leaseRemote, resolvedAccountId)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert lease locally', err)
                 await markWebhookError(admin, eventKey, `Lease upsert failed: ${(err as Error)?.message || 'unknown'}`)
@@ -2284,8 +2163,10 @@ export async function POST(req: NextRequest) {
             // For MoveOut events we only need to update lease_contact dates; otherwise do full upsert.
             if (type.includes('MoveOut')) {
               const leaseId = event?.LeaseId ?? event?.Data?.LeaseId ?? null
+              const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+              const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
               if (leaseId) {
-                const moveOut = await fetchLeaseMoveOut(Number(leaseId), Number(tenantIdBuildium))
+                const moveOut = await fetchLeaseMoveOut(Number(leaseId), Number(tenantIdBuildium), orgId)
                 if (moveOut) {
                   const leaseLocalId = await resolveLocalLeaseId(leaseId)
                   const tenantLocalId = await (async () => {
@@ -2312,14 +2193,16 @@ export async function POST(req: NextRequest) {
               }
               continue
             }
-            const tenantData = await fetchLeaseTenant(Number(tenantIdBuildium))
+            const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const tenantData = await fetchLeaseTenant(Number(tenantIdBuildium), orgId)
             if (!tenantData) {
               console.warn('[buildium-webhook] Could not fetch lease tenant', { tenantIdBuildium })
             } else {
               // Core contact/tenant updates
               const orgIdFromPayload = Array.isArray(tenantData?.Leases) && tenantData.Leases.length
-                ? await resolveLeaseOrgId(tenantData.Leases[0]?.Id, tenantData.Leases[0]?.PropertyId, event?.AccountId ?? null)
-                : (await resolveLeaseOrgId(null, null, event?.AccountId ?? null))
+                ? await resolveLeaseOrgId(tenantData.Leases[0]?.Id, tenantData.Leases[0]?.PropertyId, buildiumAccountId ?? null)
+                : (await resolveLeaseOrgId(null, null, buildiumAccountId ?? null))
               // If tenant already exists, prefer its contact_id (contact lookup uses that FK)
               let preferredContactId: number | null = null
             let tenantIdLocal: string | null = null
@@ -2433,8 +2316,10 @@ export async function POST(req: NextRequest) {
       if (typeof type === 'string' && type.includes('MoveOut')) {
         const leaseId = event?.LeaseId ?? event?.Data?.LeaseId ?? null
         const tenantIdBuildium = event?.TenantId ?? event?.Data?.TenantId ?? null
+        const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
         if (leaseId && tenantIdBuildium) {
-          const moveOut = await fetchLeaseMoveOut(Number(leaseId), Number(tenantIdBuildium))
+          const moveOut = await fetchLeaseMoveOut(Number(leaseId), Number(tenantIdBuildium), orgId)
           if (moveOut) {
             const leaseLocalId = await resolveLocalLeaseId(leaseId)
             const tenantLocalId = await (async () => {
@@ -2483,11 +2368,12 @@ export async function POST(req: NextRequest) {
                 continue
               }
             } else {
-              const payment = await fetchBillPayment(Number(billId), Number(paymentId))
+              const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+              const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+              const payment = await fetchBillPayment(Number(billId), Number(paymentId), orgId)
               if (payment) {
                 try {
-                  const glFetcher = async (glId: number) => fetchGLAccount(glId)
-                  const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? payment?.AccountId ?? null
+                  const glFetcher = async (glId: number) => fetchGLAccount(glId, orgId)
                   await upsertBillPaymentWithLines(payment, Number(billId), glFetcher, buildiumAccountId)
                 } catch (err) {
                   console.error('[buildium-webhook] Failed to upsert bill payment locally', err)
@@ -2522,11 +2408,13 @@ export async function POST(req: NextRequest) {
               continue
             }
           } else {
-            const bill = await fetchBill(Number(billId))
+            const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const bill = await fetchBill(Number(billId), orgId)
             if (bill) {
-              const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? bill?.AccountId ?? null
+              const resolvedAccountId = buildiumAccountId ?? (bill as UnknownRecord)?.AccountId ?? null
               try {
-                await upsertBillWithLines(bill, admin, buildiumAccountId ?? null)
+                await upsertBillWithLines(bill, admin, resolvedAccountId ?? null)
               } catch (err) {
                 console.error('[buildium-webhook] Failed to upsert bill locally', err)
                 await markWebhookError(admin, eventKey, `Bill upsert failed: ${(err as Error)?.message || 'unknown'}`)
@@ -2565,7 +2453,8 @@ export async function POST(req: NextRequest) {
               continue
             }
           } else {
-            const gl = await fetchGLAccountRemote(Number(glAccountId))
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const gl = await fetchGLAccountRemote(Number(glAccountId), orgId)
             if (gl) {
               try {
                 await upsertGLAccountWithOrg(gl, buildiumAccountId)
@@ -2591,8 +2480,9 @@ export async function POST(req: NextRequest) {
       } else if (typeof type === 'string' && type.toLowerCase().includes('rentalowner')) {
         const ownerId = event?.RentalOwnerId ?? event?.Data?.RentalOwnerId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
         if (ownerId) {
-          const owner = await fetchRentalOwner(Number(ownerId))
+          const owner = await fetchRentalOwner(Number(ownerId), orgId)
           if (owner) {
             try {
               const { linkedProperties } = await upsertRentalOwner(owner, buildiumAccountId)
@@ -2629,8 +2519,9 @@ export async function POST(req: NextRequest) {
       } else if (typeof type === 'string' && type.includes('Rental')) {
         const propertyId = event?.PropertyId ?? event?.Data?.PropertyId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
         if (propertyId) {
-          const rental = await fetchRentalProperty(Number(propertyId))
+          const rental = await fetchRentalProperty(Number(propertyId), orgId)
           if (rental) {
             try {
               await upsertPropertyFromBuildium(rental, buildiumAccountId)
@@ -2661,8 +2552,9 @@ export async function POST(req: NextRequest) {
       } else if (typeof type === 'string' && type.toLowerCase().includes('rentalunit')) {
         const unitId = event?.UnitId ?? event?.Data?.UnitId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
         if (unitId) {
-          const unit = await fetchRentalUnit(Number(unitId))
+          const unit = await fetchRentalUnit(Number(unitId), orgId)
           if (unit) {
             try {
               const localPropId = await resolvePropertyIdByBuildiumPropertyId(unit?.PropertyId, admin)
@@ -2704,7 +2596,8 @@ export async function POST(req: NextRequest) {
               continue
             }
           } else {
-            const cat = await fetchTaskCategory(Number(categoryId))
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const cat = await fetchTaskCategory(Number(categoryId), orgId)
             if (cat) {
               try {
                 await upsertTaskCategory(cat, buildiumAccountId)
@@ -2757,7 +2650,8 @@ export async function POST(req: NextRequest) {
               continue
             }
           } else {
-            const task = await fetchTask(Number(taskId))
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const task = await fetchTask(Number(taskId), orgId)
             if (task) {
               try {
                 await upsertTaskFromBuildium(task, buildiumAccountId)
@@ -2795,7 +2689,8 @@ export async function POST(req: NextRequest) {
               continue
             }
           } else {
-            const vendorCategory = await fetchVendorCategory(Number(vendorCategoryId))
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const vendorCategory = await fetchVendorCategory(Number(vendorCategoryId), orgId)
             if (vendorCategory) {
               try {
                 await upsertVendorCategory(vendorCategory, buildiumAccountId)
@@ -2826,7 +2721,9 @@ export async function POST(req: NextRequest) {
             // Do not delete in DB per request; just acknowledge the event
             console.info('[buildium-webhook] Vendor.Delete received; skipping deletion for testing', { vendorId })
           } else {
-            const vendor = await fetchVendor(Number(vendorId))
+            const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const vendor = await fetchVendor(Number(vendorId), orgId)
             if (vendor) {
               try {
                 await upsertVendor(vendor)
@@ -2869,7 +2766,9 @@ export async function POST(req: NextRequest) {
               continue
             }
           } else {
-            const wo = await fetchWorkOrder(Number(workOrderId))
+            const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+            const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
+            const wo = await fetchWorkOrder(Number(workOrderId), orgId)
             if (wo) {
               try {
                 await upsertWorkOrder(wo)
@@ -2895,8 +2794,9 @@ export async function POST(req: NextRequest) {
       } else if (typeof type === 'string' && type.toLowerCase().includes('rentalowner')) {
         const ownerId = event?.RentalOwnerId ?? event?.Data?.RentalOwnerId ?? event?.EntityId ?? null
         const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null
+        const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
         if (ownerId) {
-          const owner = await fetchRentalOwner(Number(ownerId))
+          const owner = await fetchRentalOwner(Number(ownerId), orgId)
           if (owner) {
             try {
               const { linkedProperties } = await upsertRentalOwner(owner, buildiumAccountId)
