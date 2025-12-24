@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
@@ -11,7 +9,7 @@ import { resolveResourceOrg, requireOrgMember, requireOrgAdmin } from '@/lib/aut
 
 const TABLE = 'property_notes'
 
-function mapRowToBuildiumNote(row: any) {
+function mapRowToBuildiumNote(row: Record<string, unknown>) {
   return {
     Id: row?.id ?? null,
     Subject: row?.subject ?? null,
@@ -27,7 +25,7 @@ function looksLikeUuid(value: string) {
 }
 
 async function resolveLocalPropertyId(propertyRef: string) {
-  const client = supabaseAdmin as any
+  const client = supabaseAdmin
   if (!propertyRef) return null
 
   if (looksLikeUuid(propertyRef)) {
@@ -90,7 +88,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const start = offset
     const end = offset + (limit > 0 ? limit - 1 : 0)
 
-    const client = supabaseAdmin as any
+    const client = supabaseAdmin
     const { data, error } = await client
       .from(TABLE)
       .select('*')
@@ -159,7 +157,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyNoteCreateSchema);
 
-    const client = supabaseAdmin as any
+    const client = supabaseAdmin
     const { data, error } = await client
       .from(TABLE)
       .insert({

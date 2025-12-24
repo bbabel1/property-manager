@@ -10,10 +10,10 @@ import {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> | { taskId: string } },
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   try {
-    const { taskId } = params instanceof Promise ? await params : params;
+    const { taskId } = await params;
     if (!taskId) {
       return NextResponse.json({ error: 'Recurring task id is required' }, { status: 400 });
     }
@@ -76,10 +76,10 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> | { taskId: string } },
+  { params }: { params: Promise<{ taskId: string }> },
 ) {
   try {
-    const { taskId } = params instanceof Promise ? await params : params;
+    const { taskId } = await params;
     if (!taskId) {
       return NextResponse.json({ error: 'Recurring task id is required' }, { status: 400 });
     }

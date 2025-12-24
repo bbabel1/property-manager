@@ -1,14 +1,12 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: checkId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
-    const checkId = (await params).id;
     
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check_files' }, 'Fetching Buildium check files');
 
@@ -41,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error({ error, checkId: (await params).id }, 'Error fetching Buildium check files');
+    logger.error({ error, checkId }, 'Error fetching Buildium check files');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium check files', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

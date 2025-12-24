@@ -1,5 +1,7 @@
 # Buildium Integration Setup Guide
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## 🚀 **Getting Started with Buildium Integration**
 
 ### **Step 1: Get Buildium API Credentials**

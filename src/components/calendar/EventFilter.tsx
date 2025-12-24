@@ -34,8 +34,7 @@ export function EventFilter({ filters, onChange }: EventFilterProps) {
     } catch (error) {
       console.error('Failed to load filters from localStorage:', error)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [onChange])
 
   useEffect(() => {
     try {

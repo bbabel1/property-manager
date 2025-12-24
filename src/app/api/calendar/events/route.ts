@@ -12,7 +12,9 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import { getCalendarClient, withRateLimitRetry, formatCalendarError } from '@/lib/calendar/client';
-import { google } from 'googleapis';
+import type { calendar_v3 } from 'googleapis';
+
+type AttendeeInput = { email?: string | null; name?: string | null };
 
 export async function GET(request: Request) {
   try {
@@ -89,7 +91,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ events });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching Google Calendar events:', error);
 
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
@@ -102,7 +104,7 @@ export async function GET(request: Request) {
     const formattedError = formatCalendarError(error);
     return NextResponse.json(
       { error: formattedError },
-      { status: error?.response?.status || 500 }
+      { status: (error as { response?: { status?: number } })?.response?.status || 500 }
     );
   }
 }
@@ -177,20 +179,27 @@ export async function POST(request: Request) {
       allDayEnd.setDate(allDayEnd.getDate() + 1); // Google expects exclusive end date for all-day
     }
 
-    const event: any = {
+    const attendeeList: calendar_v3.Schema$EventAttendee[] = Array.isArray(attendees)
+      ? (attendees as AttendeeInput[])
+          .filter((a) => typeof a?.email === 'string' && a.email.trim())
+          .map((a) => ({
+            email: a.email?.trim(),
+            displayName: a.name?.trim() || undefined,
+          }))
+      : [];
+
+    const resolvedTimeZone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const event: calendar_v3.Schema$Event = {
       summary,
       description,
       location,
-      attendees: attendees.map((a: any) => ({
-        email: a.email,
-        displayName: a.name,
-      })),
+      attendees: attendeeList.length ? attendeeList : undefined,
       start: allDay
         ? { date: start }
-        : { dateTime: start, timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone },
+        : { dateTime: start, timeZone: resolvedTimeZone },
       end: allDay
         ? { date: allDayEnd?.toISOString().slice(0, 10) }
-        : { dateTime: end, timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone },
+        : { dateTime: end, timeZone: resolvedTimeZone },
     };
 
     if (addConference) {
@@ -212,7 +221,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ event: created });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating Google Calendar event:', error);
 
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
@@ -225,7 +234,7 @@ export async function POST(request: Request) {
     const formattedError = formatCalendarError(error);
     return NextResponse.json(
         { error: formattedError },
-        { status: error?.response?.status || 500 }
+        { status: (error as { response?: { status?: number } })?.response?.status || 500 }
     );
   }
 }

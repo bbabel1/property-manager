@@ -1,5 +1,7 @@
 # RBAC UI Management Guide
 
+<!-- markdownlint-configure-file {"MD060": false, "MD013": false} -->
+
 **Date**: 2025-12-20
 
 ## Overview
@@ -343,9 +345,7 @@ const ROLE_OPTIONS = [
 
 ## 🎯 Quick Start: How to Manage RBAC Today
 
-### For brandon@managedbyora.com
-
-#### Option 1: Use Existing UI (Recommended)
+### For `brandon@managedbyora.com`
 
 1. Go to **`/settings/memberships`**
 2. Select user: `brandon@managedbyora.com`
@@ -483,11 +483,12 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 ## 🚀 Immediate Action Items
 
-### To Assign Roles to brandon@managedbyora.com
+### To Assign Roles to `brandon@managedbyora.com`
 
 **Option A: Use Existing UI** (Easiest)
 
-1. Navigate to: **[`http://localhost:3000/settings/memberships`](http://localhost:3000/settings/memberships)**
+1. Navigate to:
+   [http://localhost:3000/settings/memberships](http://localhost:3000/settings/memberships)
 2. In "Quick Assign" section:
    - User: Select `brandon@managedbyora.com`
    - Organization: Select `Ora Property Management`
@@ -498,8 +499,8 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 **Option B: Use API Directly**
 
-Set `API_URL` to your instance (for local dev:
-[`http://localhost:3000/api/admin/memberships/simple`](http://localhost:3000/api/admin/memberships/simple))
+Set `API_URL` to your instance (for local dev: use
+[local memberships endpoint](http://localhost:3000/api/admin/memberships/simple))
 and run:
 
 ```bash

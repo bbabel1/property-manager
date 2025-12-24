@@ -1,5 +1,7 @@
 # Add Lease Form - Field and Behavior Reference
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 This document outlines the complete field structure, validation rules, and interactive behaviors of the Add Lease form, matching Buildium's functionality while using our application's design system.
 
 ## Overview

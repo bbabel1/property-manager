@@ -46,10 +46,13 @@ table:
 
 ### Service Plans v2 migrations (important)
 
-This repo uses SQL migrations in `supabase/migrations/` as the source of truth. If you are setting up a fresh/local DB or syncing schema changes to a linked project, make sure the following migrations are applied and then regenerate types:
+This repo uses SQL migrations in `supabase/migrations/` as the source of truth. If you are setting up a fresh/local DB
+or syncing schema changes to a linked project, make sure the following migrations are applied and then regenerate types:
 
-- `supabase/migrations/20270127122000_backfill_service_plan_assignments_from_legacy.sql` — Backfilled `service_plan_assignments` from legacy columns
-- `supabase/migrations/20270127123000_drop_legacy_management_fee_columns.sql` — Dropped legacy management-fee/service columns (kept `management_scope`, `service_assignment`, and `bill_pay_*`)
+- `supabase/migrations/20270127122000_backfill_service_plan_assignments_from_legacy.sql` — Backfilled
+  `service_plan_assignments` from legacy columns
+- `supabase/migrations/20270127123000_drop_legacy_management_fee_columns.sql` — Dropped legacy management-fee/service
+  columns (kept `management_scope`, `service_assignment`, and `bill_pay_*`)
 
 After applying migrations, regenerate Supabase types:
 

@@ -5,7 +5,18 @@ import { BuildiumDepositCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
 
-export async function GET(request: NextRequest) {
+type DepositResponse = Record<string, unknown>
+
+const coerceNumericId = (value: unknown) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export async function GET(_request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
@@ -68,19 +79,19 @@ export async function POST(request: NextRequest) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newDeposit = await response.json();
+    const newDeposit = (await response.json()) as DepositResponse;
 
     try {
       const bankAccountId =
-        (newDeposit as any)?.BankAccountId ??
-        (newDeposit as any)?.bankAccountId ??
-        (data as any)?.BankAccountId ??
-        (data as any)?.bankAccountId;
+        coerceNumericId(newDeposit?.BankAccountId) ??
+        coerceNumericId(newDeposit?.bankAccountId) ??
+        coerceNumericId((data as DepositResponse)?.BankAccountId) ??
+        coerceNumericId((data as DepositResponse)?.bankAccountId);
       const transactionId =
-        (newDeposit as any)?.Id ??
-        (newDeposit as any)?.TransactionId ??
-        (newDeposit as any)?.id ??
-        (newDeposit as any)?.transactionId;
+        coerceNumericId(newDeposit?.Id) ??
+        coerceNumericId(newDeposit?.TransactionId) ??
+        coerceNumericId(newDeposit?.id) ??
+        coerceNumericId(newDeposit?.transactionId);
       if (bankAccountId && transactionId) {
         await canonicalUpsertBuildiumBankTransaction({
           bankAccountId,

@@ -69,7 +69,7 @@ export async function POST(
         lease = leaseRow || null;
 
         // Get market rent for capping
-        const { data: unit } = await supabaseAdmin
+        const { data: _unit } = await supabaseAdmin
           .from('units')
           .select('market_rent')
           .eq('id', monthlyLog.unit_id)

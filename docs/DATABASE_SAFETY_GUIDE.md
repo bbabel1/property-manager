@@ -107,14 +107,14 @@ supabase.from('[table_name]').select('[field_name]').limit(1).then(console.log)
 
 ## 🚨 Emergency Stop Protocol
 
-### If AI Assistant Suggests Database Reset:
+### If AI Assistant Suggests Database Reset
 
 1. **STOP immediately** - Do not execute the command
 2. **Ask for clarification** - Request safe alternatives
 3. **Use safe inspection methods** instead
 4. **Follow established patterns** from this guide
 
-### Red Flag Commands:
+### Red Flag Commands
 
 - `supabase db reset`
 - `supabase db reset --linked`
@@ -123,7 +123,7 @@ supabase.from('[table_name]').select('[field_name]').limit(1).then(console.log)
 
 ## 🔧 Database Recovery
 
-### If Database is Accidentally Reset:
+### If Database is Accidentally Reset
 
 ```bash
 # 1. Check migration status
@@ -136,7 +136,7 @@ npx tsx scripts/database/get-table-schema.ts [table_name]
 # 4. Restore from backups if needed
 ```
 
-### Backup Strategy:
+### Backup Strategy
 
 - **Regular backups**: Use Supabase dashboard backups
 - **Migration files**: Keep all migration files in version control

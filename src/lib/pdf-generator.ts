@@ -8,6 +8,7 @@
 import { existsSync } from 'node:fs';
 
 import { chromium, type Browser, type BrowserContext } from 'playwright';
+import type { Page } from 'playwright-core';
 
 const DEFAULT_LAUNCH_ARGS = ['--no-sandbox', '--disable-setuid-sandbox'] as const;
 
@@ -27,6 +28,8 @@ const PLATFORM_BROWSER_CANDIDATES: Partial<Record<NodeJS.Platform, string[]>> = 
     '/usr/bin/google-chrome-stable',
   ],
 };
+
+type PagePdfOptions = Parameters<Page['pdf']>[0];
 
 /**
  * Resolve a Chromium executable path that exists on the host.
@@ -216,7 +219,7 @@ export async function generatePDFFromHTML(
     });
 
     // Default options
-    const pdfOptions = {
+    const pdfOptions: PagePdfOptions = {
       format: options.format || 'Letter',
       margin: options.margin || {
         top: '0.5in',
@@ -232,7 +235,7 @@ export async function generatePDFFromHTML(
     };
 
     // Generate PDF
-    const pdfBuffer = await page.pdf(pdfOptions as any);
+    const pdfBuffer = await page.pdf(pdfOptions);
 
     await context.close();
 
@@ -271,7 +274,7 @@ export async function generatePDFFromURL(
     });
 
     // Default options
-    const pdfOptions = {
+    const pdfOptions: PagePdfOptions = {
       format: options.format || 'Letter',
       margin: options.margin || {
         top: '0.5in',
@@ -287,7 +290,7 @@ export async function generatePDFFromURL(
     };
 
     // Generate PDF
-    const pdfBuffer = await page.pdf(pdfOptions as any);
+    const pdfBuffer = await page.pdf(pdfOptions);
 
     await context.close();
 

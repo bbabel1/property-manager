@@ -128,6 +128,7 @@ WHERE p.buildium_property_id = [your-property-id];
    ```
 
 3. **Verify bank account exists:**
+
    ```sql
    SELECT id, name, buildium_bank_id
    FROM bank_accounts
@@ -295,7 +296,8 @@ echo "BUILDIUM_CLIENT_SECRET: $BUILDIUM_CLIENT_SECRET"
 
 ### Issue: "Property already exists"
 
-**Solution:** This is expected behavior. The script checks for existing properties to avoid duplicates. If you need to update an existing property, use SQL directly:
+**Solution:** This is expected behavior. The script checks for existing properties to avoid duplicates. If you need to
+update an existing property, use SQL directly:
 
 ```sql
 UPDATE properties

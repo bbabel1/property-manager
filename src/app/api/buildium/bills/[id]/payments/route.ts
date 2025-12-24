@@ -4,6 +4,32 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumBillPaymentCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import type { BuildiumBill } from '@/types/buildium';
+
+type BuildiumBillLine = NonNullable<BuildiumBill['Lines']>[number] & {
+  GLAccount?: { Id?: number | null } | number | null;
+  GLAccountID?: number | null;
+  AccountingEntity?:
+    | (NonNullable<BuildiumBill['Lines']>[number]['AccountingEntity'] & {
+        Type?: string | null;
+        Unit?: { Id?: number | null } | null;
+      })
+    | null;
+};
+
+type PaymentLine = {
+  BillLineId?: number;
+  GLAccountId: number;
+  AccountingEntity?:
+    | {
+        Id: number;
+        AccountingEntityType: string;
+        UnitId?: number;
+      }
+    | undefined;
+  Amount: number;
+  Memo?: string;
+};
 
 export async function GET(
   request: NextRequest,
@@ -51,7 +77,7 @@ export async function GET(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium bill payments fetch failed`);
 
       return NextResponse.json(
@@ -63,7 +89,8 @@ export async function GET(
       );
     }
 
-    const payments = await response.json();
+    const paymentsJson: unknown = await response.json().catch(() => []);
+    const payments = Array.isArray(paymentsJson) ? paymentsJson : [];
 
     logger.info(`Buildium bill payments fetched successfully`);
 
@@ -74,6 +101,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium bill payments`);
 
     return NextResponse.json(
@@ -103,7 +131,7 @@ export async function POST(
     const { id } = await context.params;
 
     // Parse and validate request body
-    const body = await request.json();
+    const body: unknown = await request.json().catch(() => ({}));
     
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumBillPaymentCreateSchema);
@@ -124,7 +152,7 @@ export async function POST(
     });
 
     if (!billResponse.ok) {
-      const errorData = await billResponse.json().catch(() => ({}));
+      const errorData: unknown = await billResponse.json().catch(() => ({}));
       logger.error(`Failed to fetch Buildium bill ${id} before creating payment`);
 
       return NextResponse.json(
@@ -136,8 +164,10 @@ export async function POST(
       );
     }
 
-    const buildiumBill = await billResponse.json();
-    const billLines = Array.isArray(buildiumBill?.Lines) ? buildiumBill.Lines : [];
+    const buildiumBill = (await billResponse.json()) as BuildiumBill;
+    const billLines: BuildiumBillLine[] = Array.isArray(buildiumBill?.Lines)
+      ? (buildiumBill.Lines as BuildiumBillLine[])
+      : [];
     if (!billLines.length) {
       return NextResponse.json(
         {
@@ -148,7 +178,7 @@ export async function POST(
       );
     }
 
-    const totalBillAmount = billLines.reduce((sum: number, line: any) => {
+    const totalBillAmount = billLines.reduce((sum: number, line) => {
       const amt = Number(line?.Amount ?? 0);
       return sum + (Number.isFinite(amt) ? Math.abs(amt) : 0);
     }, 0);
@@ -189,17 +219,18 @@ export async function POST(
     const ratio = validatedData.Amount / totalBillAmount;
 
     const paymentLines = billLines
-      .map((line: any) => {
+      .map((line): PaymentLine | null => {
         const baseAmount = Number(line?.Amount ?? 0);
         const billLineId = Number(line?.Id);
-        const glAccountId =
-          (line?.GLAccount?.Id as number | undefined) ??
-          (line?.GLAccountId as number | undefined) ??
-          (line?.GLAccountID as number | undefined);
+        const glAccountId = Number(
+          (typeof line?.GLAccount === 'number' ? line.GLAccount : line?.GLAccount?.Id) ??
+            line?.GLAccountId ??
+            line?.GLAccountID,
+        );
 
         if (!Number.isFinite(glAccountId) || !Number.isFinite(billLineId)) return null;
 
-        const accountingEntity = line?.AccountingEntity ?? {};
+        const accountingEntity = line?.AccountingEntity ?? null;
         const unitId =
           (accountingEntity?.Unit?.Id as number | undefined) ??
           (accountingEntity?.UnitId as number | undefined);
@@ -221,19 +252,7 @@ export async function POST(
           ...(line?.Memo ? { Memo: line.Memo } : {}),
         };
       })
-      .filter(Boolean) as Array<{
-        BillLineId?: number;
-        GLAccountId: number;
-        AccountingEntity?:
-          | {
-              Id: number;
-              AccountingEntityType: string;
-              UnitId?: number;
-            }
-          | undefined;
-        Amount: number;
-        Memo?: string;
-      }>;
+      .filter((line): line is PaymentLine => Boolean(line));
 
     if (!paymentLines.length) {
       return NextResponse.json(
@@ -273,7 +292,7 @@ export async function POST(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium bill payment creation failed`);
 
       return NextResponse.json(
@@ -285,7 +304,11 @@ export async function POST(
       );
     }
 
-    const payment = await response.json();
+    const paymentJson: unknown = await response.json().catch(() => ({}));
+    const payment =
+      paymentJson && typeof paymentJson === 'object'
+        ? (paymentJson as Record<string, unknown>)
+        : {};
 
     logger.info(`Buildium bill payment created successfully`);
 
@@ -295,6 +318,7 @@ export async function POST(
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium bill payment`);
 
     return NextResponse.json(

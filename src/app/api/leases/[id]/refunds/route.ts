@@ -108,13 +108,13 @@ export async function POST(
       payload
     )
 
-    let normalized: any = null
-    let responseLines: any[] = []
+    let normalized: Record<string, unknown> | null = null
+    let responseLines: Record<string, unknown>[] = []
     if (result.localId) {
       const record = await fetchTransactionWithLines(result.localId)
       if (record) {
-        normalized = record.transaction
-        responseLines = record.lines ?? []
+        normalized = record.transaction as Record<string, unknown>
+        responseLines = (record.lines ?? []) as Record<string, unknown>[]
       }
     }
 
@@ -128,7 +128,7 @@ export async function POST(
         lease_id: leaseContext.leaseId,
         buildium_transaction_id: result.buildium?.Id ?? null,
       }
-      responseLines = lines
+      responseLines = lines as Record<string, unknown>[]
     }
 
     return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })

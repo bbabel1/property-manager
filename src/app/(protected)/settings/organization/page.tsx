@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -109,7 +109,7 @@ export default function OrganizationPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  const hydrateForm = (organization: ApiOrganization) => {
+  const hydrateForm = useCallback((organization: ApiOrganization) => {
     const contact = organization.Contact
     const address = contact?.Address
     const accounting = organization.AccountingSettings
@@ -150,9 +150,9 @@ export default function OrganizationPage() {
     }
     setForm(hydrated)
     setInitialForm(hydrated)
-  }
+  }, [])
 
-  const loadBankAccounts = async () => {
+  const loadBankAccounts = useCallback(async () => {
     setBankAccountsLoading(true)
     setBankAccountsError(null)
     try {
@@ -164,17 +164,18 @@ export default function OrganizationPage() {
         return
       }
       const options: BankAccountOption[] = []
-      ;(payload?.data || []).forEach((row: any) => {
+      ;(payload?.data || []).forEach((row) => {
+        const entry = row as { public_id?: unknown; id?: unknown; account_number?: unknown; name?: unknown }
         const value =
-          row.public_id !== undefined && row.public_id !== null
-            ? String(row.public_id)
-            : row.id
-              ? String(row.id)
+          entry.public_id !== undefined && entry.public_id !== null
+            ? String(entry.public_id)
+            : entry.id
+              ? String(entry.id)
               : null
         if (!value) return
-        const num = row.account_number ? ` (${row.account_number})` : ''
+        const num = typeof entry.account_number === 'string' ? ` (${entry.account_number})` : ''
         options.push({
-          label: `${row.name ?? 'Unnamed account'}${num}`,
+          label: `${(entry.name as string | undefined) ?? 'Unnamed account'}${num}`,
           value,
         })
       })
@@ -185,9 +186,9 @@ export default function OrganizationPage() {
     } finally {
       setBankAccountsLoading(false)
     }
-  }
+  }, [])
 
-  const loadOrganization = async () => {
+  const loadOrganization = useCallback(async () => {
     setLoading(true)
     setPageError(null)
     try {
@@ -207,12 +208,12 @@ export default function OrganizationPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [hydrateForm])
 
   useEffect(() => {
-    loadOrganization()
-    loadBankAccounts()
-  }, [])
+    void loadOrganization()
+    void loadBankAccounts()
+  }, [loadOrganization, loadBankAccounts])
 
   const selectedBankAccountId = form.defaultBankAccountId || 'none'
 

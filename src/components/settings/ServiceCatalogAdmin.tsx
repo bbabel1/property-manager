@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -79,7 +80,7 @@ export default function ServiceCatalogAdmin() {
   const [isOfferingDialogOpen, setIsOfferingDialogOpen] = useState(false);
   const [editingOffering, setEditingOffering] = useState<ServiceOffering | null>(null);
   const [deletingOfferingId, setDeletingOfferingId] = useState<string | null>(null);
-  const [glAccounts, setGlAccounts] = useState<Array<{ id: string; name: string }>>([]);
+  const [glAccounts, setGlAccounts] = useState<Array<{ id: string; label: string; type: string | null }>>([]);
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
@@ -182,9 +183,10 @@ export default function ServiceCatalogAdmin() {
           const glAccountsJson = await glAccountsRes.json().catch(() => ({}));
           if (Array.isArray(glAccountsJson?.data)) {
             const items = glAccountsJson.data.map(
-              (a: { id?: string | number; name?: string }) => ({
+              (a: { id?: string | number; name?: string; type?: string | null }) => ({
                 id: String(a.id),
-                name: a.name || 'GL',
+                label: a.name || 'GL',
+                type: typeof a.type === 'string' ? a.type : null,
               }),
             );
             setGlAccounts(items);
@@ -197,13 +199,13 @@ export default function ServiceCatalogAdmin() {
         const settingsRes = await fetch('/api/settings/gl-accounts').catch(() => null);
         const settingsJson = await settingsRes?.json().catch(() => ({}));
         if (settingsRes?.ok && settingsJson) {
-          const items: Array<{ id: string; name: string }> = [];
-          const push = (id: string | number | null | undefined, name: string) => {
-            if (id) items.push({ id: String(id), name });
+          const items: Array<{ id: string; label: string; type: string | null }> = [];
+          const push = (id: string | number | null | undefined, label: string, type: string) => {
+            if (id) items.push({ id: String(id), label, type });
           };
-          push(settingsJson.ar_lease, 'AR Lease');
-          push(settingsJson.management_fee_income, 'Management Fee Income');
-          push(settingsJson.rent_income, 'Rent Income');
+          push(settingsJson.ar_lease, 'AR Lease', 'Asset');
+          push(settingsJson.management_fee_income, 'Management Fee Income', 'Income');
+          push(settingsJson.rent_income, 'Rent Income', 'Income');
           setGlAccounts(items);
         }
       }
@@ -898,11 +900,7 @@ export default function ServiceCatalogAdmin() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value={GL_UNASSIGNED_VALUE}>Unassigned</SelectItem>
-                        {glAccounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
+                      <GlAccountSelectItems accounts={glAccounts} />
                       </SelectContent>
                     </Select>
                   </div>

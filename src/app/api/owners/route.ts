@@ -13,6 +13,31 @@ import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType 
 
 type ContactsInsert = Database['public']['Tables']['contacts']['Insert']
 type OwnersInsert = Database['public']['Tables']['owners']['Insert']
+type ContactsRow = Database['public']['Tables']['contacts']['Row']
+type OwnersRow = Database['public']['Tables']['owners']['Row']
+type ContactSelect = Pick<
+  ContactsRow,
+  | 'id'
+  | 'first_name'
+  | 'last_name'
+  | 'company_name'
+  | 'primary_email'
+  | 'primary_phone'
+  | 'primary_address_line_1'
+  | 'primary_address_line_2'
+  | 'primary_city'
+  | 'primary_state'
+  | 'primary_postal_code'
+  | 'primary_country'
+  | 'is_company'
+>
+type OwnerWithContact = OwnersRow & { contacts: ContactSelect | ContactSelect[] }
+type OwnerWithContactFields = Owner & {
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  displayName: string | null
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,7 +64,7 @@ export async function POST(request: NextRequest) {
     logger.info({ userId: user.id, action: 'create_owner' }, 'Creating owner');
 
     // Parse and validate request body
-    let bodyRaw: any;
+    let bodyRaw: unknown;
     try {
       bodyRaw = await request.json();
     } catch (parseError) {
@@ -60,11 +85,16 @@ export async function POST(request: NextRequest) {
     let data;
     try {
       data = sanitizeAndValidate(body, OwnerCreateSchema);
-    } catch (zerr: any) {
+    } catch (zerr: unknown) {
       // Surface validation errors to the client clearly
-      const details = zerr?.errors?.map((e: any) => e.message).join('; ')
+      const details = Array.isArray((zerr as { errors?: Array<{ message?: string }> }).errors)
+        ? (zerr as { errors?: Array<{ message?: string }> }).errors?.map((e) => e.message).join('; ')
+        : null
       return NextResponse.json(
-        { error: 'Invalid owner input', details: details || zerr?.message || String(zerr) },
+        {
+          error: 'Invalid owner input',
+          details: details || (zerr as { message?: string })?.message || String(zerr),
+        },
         { status: 400 }
       )
     }
@@ -161,6 +191,7 @@ export async function POST(request: NextRequest) {
     // ============================================================================
 
     let buildiumSyncResult: { success: boolean; buildiumId?: number; error?: string } = { success: true, buildiumId: undefined, error: undefined };
+    let contactRecord: ContactsRow | null = null;
 
     try {
       // Get contact data for Buildium sync
@@ -173,11 +204,12 @@ export async function POST(request: NextRequest) {
         .from('contacts')
         .select('*')
         .eq('id', ownerContactId)
-        .single();
+        .single<ContactsRow>();
 
       if (!contact) {
         throw new Error('Contact not found for owner');
       }
+      contactRecord = contact;
 
       const buildiumOwnerData = {
         id: owner.id,
@@ -239,16 +271,16 @@ export async function POST(request: NextRequest) {
 
     // Map response back to application format and include contact display fields
     const mappedOwner = mapOwnerFromDB(owner as OwnerDB);
-    const ownerResponse = {
+    const ownerResponse: OwnerWithContactFields = {
       ...mappedOwner,
       // Include contact-friendly fields for UI display
-      first_name: (contact as any)?.first_name ?? null,
-      last_name: (contact as any)?.last_name ?? null,
-      company_name: (contact as any)?.company_name ?? null,
-      displayName: (contact as any)?.is_company
-        ? (contact as any)?.company_name
-        : `${(contact as any)?.first_name ?? ''} ${(contact as any)?.last_name ?? ''}`.trim() || null
-    } as any
+      first_name: contactRecord?.first_name ?? null,
+      last_name: contactRecord?.last_name ?? null,
+      company_name: contactRecord?.company_name ?? null,
+      displayName: contactRecord?.is_company
+        ? contactRecord?.company_name
+        : `${contactRecord?.first_name ?? ''} ${contactRecord?.last_name ?? ''}`.trim() || null,
+    }
 
     console.log('Owner created successfully:', { 
       ownerId: owner.id, 
@@ -347,7 +379,7 @@ export async function GET(request: NextRequest) {
       queryBuilder = queryBuilder.or(`contacts.first_name.ilike.%${query.search}%,contacts.last_name.ilike.%${query.search}%,contacts.primary_email.ilike.%${query.search}%`);
     }
 
-    const { data: owners, error } = await queryBuilder;
+    const { data: owners, error } = await queryBuilder.returns<OwnerWithContact[]>();
 
     if (error) {
       console.error('Error fetching owners:', { error, userId: user.id });
@@ -358,9 +390,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Map database results to application format - combine owner and contact data
-    const mappedOwners = (owners || []).map((dbOwner: any) => {
+    const mappedOwners = (owners || []).map((dbOwner) => {
       const owner = mapOwnerFromDB(dbOwner as OwnerDB)
-      const contactRaw = (dbOwner as any).contacts
+      const contactRaw = dbOwner.contacts
       const contact = Array.isArray(contactRaw) ? contactRaw[0] : contactRaw
 
       const displayName = contact?.is_company

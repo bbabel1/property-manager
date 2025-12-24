@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, PencilLine, Trash2, Eye } from 'lucide-react'
+import { PencilLine, Trash2, Eye } from 'lucide-react'
 import ActionButton from '@/components/ui/ActionButton'
 import AddNoteModal from '@/components/tenants/AddNoteModal'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
@@ -33,11 +33,7 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
   const [error, setError] = useState<string | null>(null)
   const supabase = getSupabaseBrowserClient()
 
-  useEffect(() => {
-    fetchRecentNotes()
-  }, [tenantId])
-
-  const fetchRecentNotes = async () => {
+  const fetchRecentNotes = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -66,7 +62,11 @@ export default function RecentNotesSection({ tenantId }: RecentNotesSectionProps
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, tenantId])
+
+  useEffect(() => {
+    void fetchRecentNotes()
+  }, [fetchRecentNotes])
 
   const handleNoteAdded = (newNote: Note) => {
     setNotes(prev => [newNote, ...prev])

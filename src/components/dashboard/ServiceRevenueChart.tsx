@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Select,
@@ -34,11 +34,7 @@ export default function ServiceRevenueChart({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, [orgId, period, propertyId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -59,7 +55,11 @@ export default function ServiceRevenueChart({
     } finally {
       setLoading(false);
     }
-  };
+  }, [orgId, period, propertyId]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   // Group data by period and offering
   const groupedData = data.reduce(

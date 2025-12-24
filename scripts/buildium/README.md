@@ -4,11 +4,12 @@
 
 ## Overview
 
-This directory contains scripts for managing Buildium API integration, including entity creation, data synchronization, and verification operations.
+This directory contains scripts for managing Buildium API integration, including entity creation, data synchronization,
+and verification operations.
 
 ## Directory Structure
 
-```
+```text
 buildium/
 ├── create/          # Entity creation scripts
 ├── sync/            # Data synchronization scripts

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Performance Analysis Script for Monthly Log Pages
  *

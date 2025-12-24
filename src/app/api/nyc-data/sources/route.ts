@@ -11,12 +11,21 @@ type DataSourceRow = {
   is_enabled: boolean
 }
 
-const formatSource = (row: any): DataSourceRow => ({
-  id: row.id as string,
-  key: row.key as string,
-  dataset_id: row.dataset_id as string,
-  title: (row.title as string) || null,
-  description: (row.description as string) || null,
+type RawDataSourceRow = {
+  id: string
+  key: string
+  dataset_id: string
+  title: string | null
+  description: string | null
+  is_enabled: boolean | null
+}
+
+const formatSource = (row: RawDataSourceRow): DataSourceRow => ({
+  id: row.id,
+  key: row.key,
+  dataset_id: row.dataset_id,
+  title: row.title ?? null,
+  description: row.description ?? null,
   is_enabled: row.is_enabled !== false,
 })
 
@@ -33,7 +42,8 @@ export async function GET(_request: NextRequest) {
       throw error
     }
 
-    return NextResponse.json({ data: (data || []).map(formatSource) })
+    const rows = (data || []) as RawDataSourceRow[]
+    return NextResponse.json({ data: rows.map(formatSource) })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       return NextResponse.json(
@@ -101,7 +111,7 @@ export async function POST(request: NextRequest) {
         throw error
       }
 
-      result = data ? formatSource(data) : null
+      result = data ? formatSource(data as RawDataSourceRow) : null
     } else {
       const safeKey = key || crypto.randomUUID()
       const { data, error } = await supabaseAdmin
@@ -121,7 +131,7 @@ export async function POST(request: NextRequest) {
         throw error
       }
 
-      result = formatSource(data)
+      result = formatSource(data as RawDataSourceRow)
     }
 
     return NextResponse.json({ data: result }, { status: 201 })

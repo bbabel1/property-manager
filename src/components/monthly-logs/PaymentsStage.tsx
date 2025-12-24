@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { DollarSign, TrendingDown, TrendingUp, AlertCircle, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,10 +30,6 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
   const [error, setError] = useState<string | null>(null);
   const [showCreatePayment, setShowCreatePayment] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [monthlyLogId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const formatCurrency = (amount: number) => {
     // Handle NaN, null, undefined, or invalid numbers
     const safeAmount = isNaN(amount) || amount == null ? 0 : amount;
@@ -48,7 +44,7 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
     fetchData();
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +70,11 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [monthlyLogId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (loading) {
     return (

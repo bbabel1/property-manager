@@ -35,9 +35,11 @@ import { cn } from '@/components/ui/utils';
 
 type GLAccount = Database['public']['Tables']['gl_accounts']['Row'];
 
-type ApiResponse =
-  | { success: true; data: GLAccount[] }
-  | { success?: false; error?: string; data?: GLAccount[] };
+type ApiResponse = {
+  success?: boolean;
+  data?: GLAccount[];
+  error?: string;
+};
 
 const placeholder = '—';
 
@@ -92,8 +94,8 @@ export function ChartOfAccountsTable() {
         const res = await fetch('/api/gl-accounts', { cache: 'no-store' });
         const payload = (await res.json()) as ApiResponse;
         if (cancelled) return;
-        if (!res.ok || (payload as any)?.error) {
-          throw new Error((payload as any)?.error || 'Failed to load accounts');
+        if (!res.ok || (payload as ApiResponse)?.error) {
+          throw new Error((payload as ApiResponse)?.error || 'Failed to load accounts');
         }
         const data = Array.isArray(payload?.data) ? payload.data : [];
         setAccounts(data);
@@ -273,7 +275,12 @@ export function ChartOfAccountsTable() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json().catch(() => null)) as any;
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        data?: GLAccount;
+        buildiumSync?: { success?: boolean; error?: string; skipped?: boolean };
+      } | null;
       if (!res.ok || json?.success === false) {
         const message = json?.error || 'Failed to save changes';
         throw new Error(message);

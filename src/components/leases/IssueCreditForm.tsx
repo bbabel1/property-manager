@@ -160,7 +160,7 @@ export default function IssueCreditForm({
           if (key === 'allocations') fieldErrors.allocations = issue.message;
           else if (typeof key === 'string') fieldErrors[key] = issue.message;
         }
-        setErrors(fieldErrors as any);
+        setErrors(fieldErrors);
         setSubmitting(false);
         return;
       }
@@ -188,11 +188,11 @@ export default function IssueCreditForm({
           }),
         });
 
-        const body = await res.json().catch(() => null);
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
         if (!res.ok) {
           throw new Error(
-            body && typeof (body as any)?.error === 'string'
-              ? ((body as any).error as string)
+            body && typeof body?.error === 'string'
+              ? body.error
               : 'Failed to issue credit',
           );
         }

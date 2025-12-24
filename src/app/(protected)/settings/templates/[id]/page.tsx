@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
@@ -62,15 +62,7 @@ export default function TemplateEditorPage() {
 
   const bodyValue = bodyViewMode === 'html' ? bodyHtmlTemplate : bodyTextTemplate;
 
-  useEffect(() => {
-    if (!isNew) {
-      fetchTemplate();
-    } else {
-      setLoading(false);
-    }
-  }, [templateId, isNew]);
-
-  const fetchTemplate = async () => {
+  const fetchTemplate = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/email-templates/${templateId}`);
@@ -94,7 +86,15 @@ export default function TemplateEditorPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [templateId]);
+
+  useEffect(() => {
+    if (!isNew) {
+      void fetchTemplate();
+    } else {
+      setLoading(false);
+    }
+  }, [isNew, fetchTemplate]);
 
   const insertVariable = (
     variableKey: string,
@@ -205,9 +205,10 @@ export default function TemplateEditorPage() {
       }
 
       alert('Test email sent');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error sending test email:', err);
-      alert(err.message || 'Failed to send test email');
+      const message = err instanceof Error ? err.message : 'Failed to send test email';
+      alert(message);
     } finally {
       setTestSending(false);
     }
@@ -221,7 +222,11 @@ export default function TemplateEditorPage() {
       const htmlForSave =
         bodyViewMode === 'text' ? convertPlainTextToHtml(bodyTextTemplate || '') : bodyHtmlTemplate;
 
-      const payload: any = {
+      const payload: Partial<EmailTemplate> & {
+        subject_template: string;
+        body_html_template: string;
+        body_text_template: string | null;
+      } = {
         name,
         description: description || null,
         subject_template: subjectTemplate,
@@ -258,9 +263,10 @@ export default function TemplateEditorPage() {
       } else {
         await fetchTemplate();
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error saving template:', err);
-      setError(err.message || 'Failed to save template');
+      const message = err instanceof Error ? err.message : 'Failed to save template';
+      setError(message);
     } finally {
       setSaving(false);
     }

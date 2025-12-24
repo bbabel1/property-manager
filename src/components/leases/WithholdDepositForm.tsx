@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -50,6 +50,8 @@ type FormState = {
   allocations: AllocationRow[];
 };
 
+type FormErrors = Partial<Record<keyof FormState, string>> & { allocations?: string };
+
 export interface WithholdDepositFormProps {
   leaseId: number | string;
   leaseSummary: {
@@ -81,9 +83,7 @@ export default function WithholdDepositForm({
     memo: 'Deposit applied to balances',
     allocations: [{ id: createId(), account_id: accounts?.[0]?.id ?? '', amount: '' }],
   });
-  const [errors, setErrors] = useState<
-    Partial<Record<keyof FormState, string>> & { allocations?: string }
-  >({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -123,7 +123,7 @@ export default function WithholdDepositForm({
   );
 
   const handleSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setSubmitting(true);
       setFormError(null);
@@ -142,13 +142,13 @@ export default function WithholdDepositForm({
 
       const parsed = WithholdDepositSchema.safeParse(payload);
       if (!parsed.success) {
-        const fieldErrors: Record<string, string> = {};
+        const fieldErrors: FormErrors = {};
         for (const issue of parsed.error.issues) {
           const key = issue.path?.[0];
           if (key === 'allocations') fieldErrors.allocations = issue.message;
           else if (typeof key === 'string') fieldErrors[key] = issue.message;
         }
-        setErrors(fieldErrors as any);
+        setErrors(fieldErrors);
         setSubmitting(false);
         return;
       }
@@ -168,11 +168,18 @@ export default function WithholdDepositForm({
           }),
         });
 
-        const body = await res.json().catch(() => null);
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+          data?: unknown;
+          transaction?: unknown;
+          lease?: unknown;
+          lease_id?: string | number;
+          leaseId?: string | number;
+        } | null;
         if (!res.ok) {
           throw new Error(
-            body && typeof (body as any)?.error === 'string'
-              ? ((body as any).error as string)
+            body && typeof body.error === 'string'
+              ? body.error
               : 'Failed to withhold deposit',
           );
         }
@@ -198,7 +205,7 @@ export default function WithholdDepositForm({
 
       setSubmitting(false);
     },
-    [form, leaseId, onSuccess, allocationsTotal],
+    [accounts, allocationsTotal, form, leaseId, onSuccess],
   );
 
   return (

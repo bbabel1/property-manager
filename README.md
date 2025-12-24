@@ -1,12 +1,14 @@
 # Ora Property Management
 
-A modern property management platform built on Next.js 15, TypeScript, and Supabase—covering properties, owners, units, leases, banking, and monthly logs in one stack.
+A modern property management platform built on Next.js 15, TypeScript, and Supabase—covering properties,
+owners, units, leases, banking, and monthly logs in one stack.
 
 ⚠️ **Auth Status**: Supabase Auth is the only auth system. NextAuth has been removed.
 
 ## Live Application
 
-- https://pm.managedbyora.com – Production app, backed by Supabase (auth, Postgres, storage) and Buildium data sync; environment configured via the variables listed below.
+- <https://pm.managedbyora.com> – Production app, backed by Supabase (auth, Postgres, storage) and Buildium
+  data sync; environment configured via the variables listed below.
 
 ## Project Overview & Value Proposition
 
@@ -16,26 +18,50 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 
 ## Complete Tech Stack
 
-- **Hosting & runtime:** Next.js 15 (App Router, SSR/ISR/edge support), React 18, TypeScript 5, `tsx` for TypeScript scripts; production URL served at `https://pm.managedbyora.com` on Vercel (Next.js-compatible host; infra/IaC lives under `infra/` if added).
-- **External services:** Supabase (PostgreSQL, Auth, Storage) via `@supabase/supabase-js` and `@supabase/ssr`; Buildium API for property/accounting sync and webhooks; Sentry via `@sentry/nextjs` for errors/performance; Google Maps JS API for map components; Gmail OAuth + API via `googleapis`; Resend for statement email delivery; Ngrok for local webhook testing (see `docs/buildium-webhook-setup-guide.md`).
-- **Data layer & infra libs:** `pg`/`@types/pg` for direct Postgres access; `dotenv` for env loading in scripts; Supabase migrations in `supabase/migrations/`; `sharp` for image/PDF asset handling; `pino` + `pino-pretty` for structured logging.
-- **Observability & tracing:** OpenTelemetry stack (`@opentelemetry/sdk-node`, `resources`, `semantic-conventions`, `exporter-trace-otlp-http`, `instrumentation-{fetch,http,pg,pino}`) feeding traces to your collector; app-level instrumentation lives in `instrumentation.ts`.
-- **Alerting & incident routing:** PagerDuty Events v2 integration wired via `LOG_FORWARDER_URL` and `PAGERDUTY_ROUTING_KEY` (see `src/lib/pagerduty.ts` and Supabase edge function helpers under `supabase/functions/_shared/pagerDuty.ts`).
+- **Hosting & runtime:** Next.js 15 (App Router, SSR/ISR/edge support), React 18, TypeScript 5, `tsx` for TypeScript
+  scripts; production URL served at `https://pm.managedbyora.com` on Vercel (Next.js-compatible host; infra/IaC lives
+  under `infra/` if added).
+- **External services:** Supabase (PostgreSQL, Auth, Storage) via `@supabase/supabase-js` and `@supabase/ssr`;
+  Buildium API for property/accounting sync and webhooks; Sentry via `@sentry/nextjs` for errors/performance; Google
+  Maps JS API for map components; Gmail OAuth + API via `googleapis`; Resend for statement email delivery; Ngrok for
+  local webhook testing (see `docs/buildium-webhook-setup-guide.md`).
+- **Data layer & infra libs:** `pg`/`@types/pg` for direct Postgres access; `dotenv` for env loading in scripts;
+  Supabase migrations in `supabase/migrations/`; `sharp` for image/PDF asset handling; `pino` + `pino-pretty` for
+  structured logging.
+- **Observability & tracing:** OpenTelemetry stack (`@opentelemetry/sdk-node`, `resources`, `semantic-conventions`,
+  `exporter-trace-otlp-http`, `instrumentation-{fetch,http,pg,pino}`) feeding traces to your collector; app-level
+  instrumentation lives in `instrumentation.ts`.
+- **Alerting & incident routing:** PagerDuty Events v2 integration wired via `LOG_FORWARDER_URL` and
+  `PAGERDUTY_ROUTING_KEY` (see `src/lib/pagerduty.ts` and Supabase edge function helpers under
+  `supabase/functions/_shared/pagerDuty.ts`).
 - **Data fetching & state:** `swr` for client caching; `zustand` for lightweight client state stores.
 - **Forms & validation:** `react-hook-form`, `@hookform/resolvers`, and `zod` for typed schemas and validation.
-- **Styling & theming:** Tailwind CSS v4 with plugins (`@tailwindcss/forms`, `@tailwindcss/typography`, `@tailwindcss/container-queries`, `@tailwindcss/postcss`), utility helpers (`tailwind-merge`, `class-variance-authority`, `clsx`), and `next-themes` for theme toggling.
-- **UI components & interactions:** Radix UI suite (`@radix-ui/react-*` accordion/alert-dialog/dialog/dropdown/tabs/tooltip/etc.), `@headlessui/react` primitives, `cmdk` command palette, `lucide-react` icons, `sonner` toasts, drag-and-drop via `@dnd-kit/{core,sortable,modifiers}`, `react-resizable-panels` for layout resizing, `vaul` sheets/drawers, `embla-carousel-react` sliders, `recharts` charts, `react-day-picker`, and `input-otp`.
+- **Styling & theming:** Tailwind CSS v4 with plugins (`@tailwindcss/forms`, `@tailwindcss/typography`,
+  `@tailwindcss/container-queries`, `@tailwindcss/postcss`), utility helpers (`tailwind-merge`,
+  `class-variance-authority`, `clsx`), and `next-themes` for theme toggling.
+- **UI components & interactions:** Radix UI suite (`@radix-ui/react-*` accordion/alert-dialog/dialog/dropdown/tabs/
+  tooltip/etc.), `@headlessui/react` primitives, `cmdk` command palette, `lucide-react` icons, `sonner` toasts,
+  drag-and-drop via `@dnd-kit/{core,sortable,modifiers}`, `react-resizable-panels` for layout resizing, `vaul`
+  sheets/drawers, `embla-carousel-react` sliders, `recharts` charts, `react-day-picker`, and `input-otp`.
 - **Utilities:** `date-fns` for date/time handling and formatting.
-- **Testing, linting & formatting:** `playwright` for end-to-end coverage (currently stubbed), `eslint` + `eslint-config-next` + `@eslint/eslintrc`, `stylelint` + `stylelint-config-standard` + `stylelint-config-tailwindcss`, `prettier` + `prettier-plugin-tailwindcss`, `markdownlint` + `markdownlint-cli`, and `typescript` for strict type checks (including env validation via `npm run ci:env-check` with Zod).
-- **Developer workflow:** `husky` + `lint-staged` for git hook enforcement, `concurrently` for multi-process dev tasks, type definitions via `@types/{node,react,react-dom}`, and Supabase CLI usage (`npx supabase@latest`) embedded in package scripts for schema dumps and type generation.
-- **Application structure:** Domain modules sit under `src/modules/<domain>/` (services, schemas, UI entrypoints); shared primitives in `src/components/`, cross-cutting infra in `src/lib/`, routes/API handlers in `src/app/`, and environment validation in `src/env/`.
+- **Testing, linting & formatting:** `playwright` for end-to-end coverage (currently stubbed), `eslint` +
+  `eslint-config-next` + `@eslint/eslintrc`, `stylelint` + `stylelint-config-standard` + `stylelint-config-tailwindcss`,
+  `prettier` + `prettier-plugin-tailwindcss`, `markdownlint` + `markdownlint-cli`, and `typescript` for strict type
+  checks (including env validation via `npm run ci:env-check` with Zod).
+- **Developer workflow:** `husky` + `lint-staged` for git hook enforcement, `concurrently` for multi-process dev tasks,
+  type definitions via `@types/{node,react,react-dom}`, and Supabase CLI usage (`npx supabase@latest`) embedded in
+  package scripts for schema dumps and type generation.
+- **Application structure:** Domain modules sit under `src/modules/<domain>/` (services, schemas, UI entrypoints);
+  shared primitives in `src/components/`, cross-cutting infra in `src/lib/`, routes/API handlers in `src/app/`, and
+  environment validation in `src/env/`.
 
 ## Routes & Feature Map
 
 - **Pages**
   - `/` – Marketing/entry splash.
   - `/(protected)/dashboard` – Org-level overview cards and metrics.
-  - `/(protected)/properties`, `/(protected)/owners`, `/(protected)/units`, `/(protected)/tenants` – Core portfolio management lists and detail pages.
+  - `/(protected)/properties`, `/(protected)/owners`, `/(protected)/units`, `/(protected)/tenants` – Core
+    portfolio management lists and detail pages.
   - `/(protected)/leases` – Lease workflows and contacts.
   - `/(protected)/bank-accounts`, `/(protected)/reconciliations` – Banking, imports, and reconciliation flows.
   - `/(protected)/monthly-logs` – Monthly log review, statements, and recurring tasks.
@@ -45,17 +71,20 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 
 - **API endpoints (selected)**
   - Health/metrics: `/api/health`, `/api/metrics`, `/api/metrics/rum`.
-  - Core CRUD: `/api/properties`, `/api/owners`, `/api/units`, `/api/leases`, `/api/tenants`, `/api/vendors`, `/api/bills`, `/api/bank-accounts`.
+  - Core CRUD: `/api/properties`, `/api/owners`, `/api/units`, `/api/leases`, `/api/tenants`, `/api/vendors`,
+    `/api/bills`, `/api/bank-accounts`.
   - Files: `/api/files/*` for listing, upload, categories, and attachments.
   - Monthly logs & accounting: `/api/monthly-logs/*`, `/api/journal-entries/*`, `/api/reconciliations/*`.
-  - Buildium integration: `/api/buildium/*` (accounting lock periods, properties, leases, bank accounts, tasks, sync, etc.).
+  - Buildium integration: `/api/buildium/*` (accounting lock periods, properties, leases, bank accounts, tasks,
+    sync, etc.).
   - Admin/operations: `/api/admin/*`, `/api/debug/*`, `/api/work-orders/*`, `/api/webhooks/*`.
 
 ## Architecture & Domain References
 
 - [Architecture guide](docs/architecture.md) – Layering, data flow, and integration patterns.
 - [Domain model](docs/domain-model.md) – Key entities, relationships, and module boundaries.
-- [Performance strategy](docs/performance-strategy.md) – Rendering budget, data-fetching choices, and caching approaches.
+- [Performance strategy](docs/performance-strategy.md) – Rendering budget, data-fetching choices, and caching
+  approaches.
 
 ## Quick Start
 
@@ -77,6 +106,7 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 
 ## Environment Variables (summary)
 
+<!-- markdownlint-disable MD013 -->
 | Variable                                                                                       | Required       | Purpose                                  |
 | ---------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------- |
 | `NEXT_PUBLIC_SUPABASE_URL`                                                                     | Yes            | Supabase project URL                     |
@@ -87,6 +117,7 @@ A modern property management platform built on Next.js 15, TypeScript, and Supab
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`                                                              | Yes            | Maps components (client zod requires it) |
 | `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`                                      | Optional       | Statement email delivery                 |
 | `COMPANY_*`, `COMPANY_LOGO_URL`                                                                | Optional       | Branding for PDFs                        |
+<!-- markdownlint-enable MD013 -->
 
 See `ENVIRONMENT_SETUP.md` and `env.example` for full notes.
 
@@ -143,6 +174,22 @@ tests/                   # Test docs/config (see tests/README.md)
 ## Documentation Index
 
 - Full index: [`docs/README.md`](docs/README.md) lists every file under `docs/`.
-- Overview docs: [`architecture.md`](docs/architecture.md), [`domain-model.md`](docs/domain-model.md), [`performance-strategy.md`](docs/performance-strategy.md), [`features.md`](docs/features.md), [`decisions.md`](docs/decisions.md).
-- Category highlights: [`architecture/CURRENT_ARCHITECTURE_ANALYSIS.md`](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md), [`api/api-documentation.md`](docs/api/api-documentation.md), [`database/DATABASE_SCHEMA.md`](docs/database/DATABASE_SCHEMA.md), [`design-system/enhanced-greys.md`](docs/design-system/enhanced-greys.md), [`observability/logging.md`](docs/observability/logging.md), [`security/secrets-management.md`](docs/security/secrets-management.md), [`runbooks/seed-reset.md`](docs/runbooks/seed-reset.md), [`reports/MIGRATION_READY_CHECKLIST.md`](docs/reports/MIGRATION_READY_CHECKLIST.md), [`ai-analysis/architecture-insights.md`](docs/ai-analysis/architecture-insights.md), [`ui-components/section-detail.md`](docs/ui-components/section-detail.md).
-- Additional top-level guides: onboarding and operational notes such as [`QUICK_START_GUIDE.md`](docs/QUICK_START_GUIDE.md), Buildium guides (e.g., [`buildium-integration-guide.md`](docs/buildium-integration-guide.md)), monthly log references (e.g., [`MONTHLY_LOG_README.md`](docs/MONTHLY_LOG_README.md)), and safety/process docs (e.g., [`DATABASE_SAFETY_GUIDE.md`](docs/DATABASE_SAFETY_GUIDE.md)).
+- Overview docs: [`architecture.md`](docs/architecture.md), [`domain-model.md`](docs/domain-model.md),
+  [`performance-strategy.md`](docs/performance-strategy.md), [`features.md`](docs/features.md),
+  [`decisions.md`](docs/decisions.md).
+- Category highlights:
+  [`architecture/CURRENT_ARCHITECTURE_ANALYSIS.md`](docs/architecture/CURRENT_ARCHITECTURE_ANALYSIS.md),
+  [`api/api-documentation.md`](docs/api/api-documentation.md),
+  [`database/DATABASE_SCHEMA.md`](docs/database/DATABASE_SCHEMA.md),
+  [`design-system/enhanced-greys.md`](docs/design-system/enhanced-greys.md),
+  [`observability/logging.md`](docs/observability/logging.md),
+  [`security/secrets-management.md`](docs/security/secrets-management.md),
+  [`runbooks/seed-reset.md`](docs/runbooks/seed-reset.md),
+  [`reports/MIGRATION_READY_CHECKLIST.md`](docs/reports/MIGRATION_READY_CHECKLIST.md),
+  [`ai-analysis/architecture-insights.md`](docs/ai-analysis/architecture-insights.md),
+  [`ui-components/section-detail.md`](docs/ui-components/section-detail.md).
+- Additional top-level guides: onboarding and operational notes such as
+  [`QUICK_START_GUIDE.md`](docs/QUICK_START_GUIDE.md), Buildium guides (e.g.,
+  [`buildium-integration-guide.md`](docs/buildium-integration-guide.md)), monthly log references (e.g.,
+  [`MONTHLY_LOG_README.md`](docs/MONTHLY_LOG_README.md)), and safety/process docs (e.g.,
+  [`DATABASE_SAFETY_GUIDE.md`](docs/DATABASE_SAFETY_GUIDE.md)).

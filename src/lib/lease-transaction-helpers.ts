@@ -36,6 +36,22 @@ export interface MonthlyLogContext {
 
 const AMOUNT_TOLERANCE = 0.01;
 
+type BankAccountGlRow = {
+  buildium_gl_account_id?: number | string | null;
+  is_bank_account?: boolean | null;
+};
+
+const parseBuildiumGlAccountId = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
 export async function fetchLeaseContextById(
   leaseId: number,
   db: TypedSupabaseClient = supabaseAdmin,
@@ -219,15 +235,11 @@ export async function fetchBankAccountBuildiumId(
       .eq('id', bankAccountId)
       .maybeSingle();
 
-    if (!glError && glRow && Boolean((glRow as any).is_bank_account)) {
+    const glAccount = (glRow ?? null) as BankAccountGlRow | null;
+
+    if (!glError && glAccount?.is_bank_account) {
       // Buildium treats the bank account ID as the bank GL account ID.
-      const candidate = (glRow as any).buildium_gl_account_id;
-      const parsed =
-        typeof candidate === 'number'
-          ? candidate
-          : typeof candidate === 'string' && Number.isFinite(Number(candidate))
-            ? Number(candidate)
-            : null;
+      const parsed = parseBuildiumGlAccountId(glAccount.buildium_gl_account_id);
       if (parsed != null) return parsed;
     }
   }

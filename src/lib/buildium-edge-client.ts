@@ -3,6 +3,31 @@
 
 import { supabase } from './db'
 import { FunctionsHttpError } from '@supabase/supabase-js'
+import type {
+  BuildiumTenant,
+  BuildiumTenantNote,
+  BuildiumLeaseTransaction,
+  BuildiumLeaseTransactionCreate,
+  BuildiumLeaseTransactionUpdate,
+  BuildiumRecurringTransaction,
+  BuildiumRecurringTransactionCreate,
+  BuildiumRecurringTransactionUpdate,
+  BuildiumProperty,
+  BuildiumOwner,
+  BuildiumWorkOrder,
+  BuildiumAppliance,
+  BuildiumLease,
+  BuildiumGLAccount,
+  BuildiumGLEntry,
+  BuildiumBankAccount,
+  BuildiumPropertyImage,
+} from '@/types/buildium'
+
+type EdgeResult<T = unknown> = { success: boolean; data?: T; error?: string }
+type EdgeListResult<T = unknown> = { success: boolean; data?: T[]; error?: string }
+type EdgeSyncResult = { success: boolean; synced?: number; updated?: number; failed?: number; error?: string }
+type EdgeDeleteResult = { success: boolean; deleted?: boolean; error?: string }
+type EdgeIdResult = { success: boolean; buildiumId?: number; error?: string }
 
 export class BuildiumEdgeClient {
   private supabaseUrl: string
@@ -21,7 +46,7 @@ export class BuildiumEdgeClient {
     orderby?: string
     offset?: number
     limit?: number
-  }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  }): Promise<EdgeListResult<BuildiumTenant>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenant', operation: 'list', entityData: params || {} }
@@ -38,7 +63,7 @@ export class BuildiumEdgeClient {
     orderby?: string
     offset?: number
     limit?: number
-  }): Promise<{ success: boolean; synced?: number; updated?: number; error?: string }> {
+  }): Promise<EdgeSyncResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenant', operation: 'syncFromBuildium', entityData: params || {} }
@@ -49,7 +74,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createTenantInBuildium(payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createTenantInBuildium(payload: Record<string, unknown>): Promise<EdgeResult<BuildiumTenant>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenant', operation: 'create', entityData: payload }
@@ -60,7 +85,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateTenantInBuildium(id: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateTenantInBuildium(id: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumTenant>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenant', operation: 'update', entityData: { ...payload, Id: id, buildium_tenant_id: id } }
@@ -71,7 +96,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getTenantFromBuildium(id: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getTenantFromBuildium(id: number): Promise<EdgeResult<BuildiumTenant>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { method: 'GET', entityType: 'tenant', entityId: id }
@@ -82,7 +107,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async listTenantNotesFromBuildium(tenantId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  async listTenantNotesFromBuildium(tenantId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<EdgeListResult<BuildiumTenantNote>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenantNote', operation: 'list', entityData: { tenantId, ...(params || {}) } }
@@ -93,7 +118,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createTenantNoteInBuildium(tenantId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createTenantNoteInBuildium(tenantId: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumTenantNote>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenantNote', operation: 'create', entityData: { tenantId, ...payload } }
@@ -104,7 +129,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateTenantNoteInBuildium(tenantId: number, noteId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateTenantNoteInBuildium(tenantId: number, noteId: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumTenantNote>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'tenantNote', operation: 'update', entityData: { tenantId, noteId, ...payload } }
@@ -119,7 +144,7 @@ export class BuildiumEdgeClient {
   // LEASE TRANSACTIONS VIA EDGE FUNCTIONS
   // ============================================================================
 
-  async listLeaseTransactions(leaseId: number, params?: { orderby?: string; offset?: number; limit?: number; dateFrom?: string; dateTo?: string }): Promise<{ success: boolean; data?: any[]; error?: string }>{
+  async listLeaseTransactions(leaseId: number, params?: { orderby?: string; offset?: number; limit?: number; dateFrom?: string; dateTo?: string }): Promise<EdgeListResult<BuildiumLeaseTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'list', leaseId, ...(params || {}) }
@@ -130,7 +155,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getLeaseTransaction(leaseId: number, transactionId: number, persist = false): Promise<{ success: boolean; data?: any; error?: string }>{
+  async getLeaseTransaction(leaseId: number, transactionId: number, persist = false): Promise<EdgeResult<BuildiumLeaseTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'get', leaseId, transactionId, persist }
@@ -141,7 +166,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createLeaseTransaction(leaseId: number, payload: any, persist = true): Promise<{ success: boolean; data?: any; error?: string }>{
+  async createLeaseTransaction(leaseId: number, payload: BuildiumLeaseTransactionCreate | Record<string, unknown>, persist = true): Promise<EdgeResult<BuildiumLeaseTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'create', leaseId, payload, persist }
@@ -152,7 +177,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateLeaseTransaction(leaseId: number, transactionId: number, payload: any, persist = true): Promise<{ success: boolean; data?: any; error?: string }>{
+  async updateLeaseTransaction(leaseId: number, transactionId: number, payload: BuildiumLeaseTransactionUpdate | Record<string, unknown>, persist = true): Promise<EdgeResult<BuildiumLeaseTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'update', leaseId, transactionId, payload, persist }
@@ -163,7 +188,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async listRecurringLeaseTransactions(leaseId: number): Promise<{ success: boolean; data?: any[]; error?: string }>{
+  async listRecurringLeaseTransactions(leaseId: number): Promise<EdgeListResult<BuildiumRecurringTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'listRecurring', leaseId }
@@ -174,7 +199,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getRecurringLeaseTransaction(leaseId: number, recurringId: number): Promise<{ success: boolean; data?: any; error?: string }>{
+  async getRecurringLeaseTransaction(leaseId: number, recurringId: number): Promise<EdgeResult<BuildiumRecurringTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'getRecurring', leaseId, recurringId }
@@ -185,7 +210,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createRecurringLeaseTransaction(leaseId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }>{
+  async createRecurringLeaseTransaction(leaseId: number, payload: BuildiumRecurringTransactionCreate | Record<string, unknown>): Promise<EdgeResult<BuildiumRecurringTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'createRecurring', leaseId, payload }
@@ -196,7 +221,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateRecurringLeaseTransaction(leaseId: number, recurringId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }>{
+  async updateRecurringLeaseTransaction(leaseId: number, recurringId: number, payload: BuildiumRecurringTransactionUpdate | Record<string, unknown>): Promise<EdgeResult<BuildiumRecurringTransaction>>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'updateRecurring', leaseId, recurringId, payload }
@@ -207,7 +232,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async deleteRecurringLeaseTransaction(leaseId: number, recurringId: number): Promise<{ success: boolean; deleted?: boolean; error?: string }>{
+  async deleteRecurringLeaseTransaction(leaseId: number, recurringId: number): Promise<EdgeDeleteResult>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-lease-transactions-api', {
         body: { action: 'deleteRecurring', leaseId, recurringId }
@@ -221,7 +246,7 @@ export class BuildiumEdgeClient {
   // SYNC OPERATIONS
   // ============================================================================
 
-  async syncPropertyToBuildium(propertyData: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
+  async syncPropertyToBuildium(propertyData: Record<string, unknown>): Promise<EdgeIdResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -251,7 +276,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async syncOwnerToBuildium(ownerData: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
+  async syncOwnerToBuildium(ownerData: Record<string, unknown>): Promise<EdgeIdResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -281,7 +306,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getPropertyFromBuildium(propertyId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getPropertyFromBuildium(propertyId: number): Promise<EdgeResult<BuildiumProperty>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -308,7 +333,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getOwnerFromBuildium(ownerId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getOwnerFromBuildium(ownerId: number): Promise<EdgeResult<BuildiumOwner>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -346,7 +371,7 @@ export class BuildiumEdgeClient {
     categoryId?: number
     limit?: number
     offset?: number
-  }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  }): Promise<EdgeListResult<BuildiumWorkOrder>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -370,7 +395,7 @@ export class BuildiumEdgeClient {
     categoryId?: number
     limit?: number
     offset?: number
-  }): Promise<{ success: boolean; synced?: number; updated?: number; error?: string }> {
+  }): Promise<EdgeSyncResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -387,7 +412,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async createWorkOrderInBuildium(payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createWorkOrderInBuildium(payload: Record<string, unknown>): Promise<EdgeResult<BuildiumWorkOrder>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -404,7 +429,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async updateWorkOrderInBuildium(id: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateWorkOrderInBuildium(id: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumWorkOrder>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -421,7 +446,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async syncWorkOrderToBuildium(local: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async syncWorkOrderToBuildium(local: Record<string, unknown>): Promise<EdgeResult<BuildiumWorkOrder>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -448,7 +473,7 @@ export class BuildiumEdgeClient {
     applianceType?: string
     limit?: number
     offset?: number
-  }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  }): Promise<EdgeListResult<BuildiumAppliance>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'appliance', operation: 'list', entityData: params || {} }
@@ -471,7 +496,7 @@ export class BuildiumEdgeClient {
     orderby?: string
     offset?: number
     limit?: number
-  }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  }): Promise<EdgeListResult<BuildiumLease>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'lease', operation: 'list', entityData: params || {} }
@@ -482,7 +507,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getLeaseFromBuildium(leaseId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getLeaseFromBuildium(leaseId: number): Promise<EdgeResult<BuildiumLease>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'lease', operation: 'get', entityData: { Id: leaseId } }
@@ -495,7 +520,7 @@ export class BuildiumEdgeClient {
 
   async syncLeasesFromBuildium(params?: {
     propertyids?: number[]; unitids?: number[]; lastupdatedfrom?: string; lastupdatedto?: string; orderby?: string; offset?: number; limit?: number
-  }): Promise<{ success: boolean; synced?: number; updated?: number; failed?: number; error?: string }> {
+  }): Promise<EdgeSyncResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'lease', operation: 'syncFromBuildium', entityData: params || {} }
@@ -506,7 +531,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createLeaseInBuildium(payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createLeaseInBuildium(payload: Record<string, unknown>): Promise<EdgeResult<BuildiumLease>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'lease', operation: 'create', entityData: payload }
@@ -517,7 +542,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateLeaseInBuildium(id: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateLeaseInBuildium(id: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumLease>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'lease', operation: 'update', entityData: { ...payload, Id: id, buildium_lease_id: id } }
@@ -532,7 +557,7 @@ export class BuildiumEdgeClient {
   // LEASE NOTES VIA EDGE FUNCTIONS
   // ============================================================================
 
-  async listLeaseNotes(leaseId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  async listLeaseNotes(leaseId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<EdgeListResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseNote', operation: 'list', entityData: { leaseId, ...(params || {}) } }
@@ -543,7 +568,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getLeaseNote(leaseId: number, noteId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getLeaseNote(leaseId: number, noteId: number): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseNote', operation: 'get', entityData: { leaseId, noteId } }
@@ -554,7 +579,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createLeaseNote(leaseId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createLeaseNote(leaseId: number, payload: Record<string, unknown>): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseNote', operation: 'create', entityData: { leaseId, ...payload } }
@@ -565,7 +590,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateLeaseNote(leaseId: number, noteId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateLeaseNote(leaseId: number, noteId: number, payload: Record<string, unknown>): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseNote', operation: 'update', entityData: { leaseId, noteId, ...payload } }
@@ -580,7 +605,7 @@ export class BuildiumEdgeClient {
   // LEASE RECURRING TRANSACTIONS VIA EDGE FUNCTIONS
   // ============================================================================
 
-  async listLeaseRecurringTransactions(leaseId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  async listLeaseRecurringTransactions(leaseId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<EdgeListResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseRecurring', operation: 'list', entityData: { leaseId, ...(params || {}) } }
@@ -591,7 +616,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getLeaseRecurringTransaction(leaseId: number, recurringId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getLeaseRecurringTransaction(leaseId: number, recurringId: number): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseRecurring', operation: 'get', entityData: { leaseId, recurringId } }
@@ -602,7 +627,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createLeaseRecurringTransaction(leaseId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createLeaseRecurringTransaction(leaseId: number, payload: Record<string, unknown>): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseRecurring', operation: 'create', entityData: { leaseId, ...payload } }
@@ -613,7 +638,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateLeaseRecurringTransaction(leaseId: number, recurringId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateLeaseRecurringTransaction(leaseId: number, recurringId: number, payload: Record<string, unknown>): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseRecurring', operation: 'update', entityData: { leaseId, recurringId, ...payload } }
@@ -639,7 +664,7 @@ export class BuildiumEdgeClient {
   // LEASE MOVE OUTS VIA EDGE FUNCTIONS
   // ============================================================================
 
-  async listLeaseMoveOuts(leaseId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  async listLeaseMoveOuts(leaseId: number, params?: { limit?: number; offset?: number; orderby?: string }): Promise<EdgeListResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseMoveOut', operation: 'list', entityData: { leaseId, ...(params || {}) } }
@@ -650,7 +675,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async getLeaseMoveOut(leaseId: number, moveOutId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getLeaseMoveOut(leaseId: number, moveOutId: number): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseMoveOut', operation: 'get', entityData: { leaseId, moveOutId } }
@@ -661,7 +686,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createLeaseMoveOut(leaseId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createLeaseMoveOut(leaseId: number, payload: Record<string, unknown>): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'leaseMoveOut', operation: 'create', entityData: { leaseId, ...payload } }
@@ -689,7 +714,7 @@ export class BuildiumEdgeClient {
     applianceType?: string
     limit?: number
     offset?: number
-  }): Promise<{ success: boolean; synced?: number; updated?: number; error?: string }> {
+  }): Promise<EdgeSyncResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'appliance', operation: 'syncFromBuildium', entityData: params || {} }
@@ -700,7 +725,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createApplianceInBuildium(payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createApplianceInBuildium(payload: Record<string, unknown>): Promise<EdgeResult<BuildiumAppliance>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'appliance', operation: 'create', entityData: payload }
@@ -711,7 +736,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateApplianceInBuildium(id: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateApplianceInBuildium(id: number, payload: Record<string, unknown>): Promise<EdgeResult<BuildiumAppliance>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'appliance', operation: 'update', entityData: { ...payload, Id: id, buildium_appliance_id: id } }
@@ -722,7 +747,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async listApplianceServiceHistory(applianceId: number, params?: { limit?: number; offset?: number }): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  async listApplianceServiceHistory(applianceId: number, params?: { limit?: number; offset?: number }): Promise<EdgeListResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'applianceServiceHistory', operation: 'list', entityData: { applianceId, ...(params || {}) } }
@@ -733,7 +758,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async createApplianceServiceHistory(applianceId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async createApplianceServiceHistory(applianceId: number, payload: Record<string, unknown>): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'applianceServiceHistory', operation: 'create', entityData: { applianceId, ...payload } }
@@ -744,7 +769,7 @@ export class BuildiumEdgeClient {
     } catch (e) { return { success: false, error: (e as Error).message } }
   }
 
-  async updateApplianceServiceHistory(applianceId: number, serviceHistoryId: number, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async updateApplianceServiceHistory(applianceId: number, serviceHistoryId: number, payload: Record<string, unknown>): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'applianceServiceHistory', operation: 'update', entityData: { applianceId, serviceHistoryId, ...payload } }
@@ -758,7 +783,7 @@ export class BuildiumEdgeClient {
   // SYNC STATUS OPERATIONS
   // ============================================================================
 
-  async getSyncStatus(entityType: string, entityId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getSyncStatus(entityType: string, entityId: string): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-status', {
         body: {
@@ -781,7 +806,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getFailedSyncs(entityType?: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getFailedSyncs(entityType?: string): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-status', {
         body: {
@@ -803,7 +828,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async retryFailedSyncs(entityType?: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  async retryFailedSyncs(entityType?: string): Promise<EdgeResult> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-status', {
         body: {
@@ -829,7 +854,7 @@ export class BuildiumEdgeClient {
   // BANK ACCOUNT OPERATIONS
   // ============================================================================
 
-  async syncBankAccountsFromBuildium(options: { forceSync?: boolean } = {}): Promise<{ success: boolean; data?: any; error?: string }> {
+  async syncBankAccountsFromBuildium(options: { forceSync?: boolean } = {}): Promise<EdgeResult<{ synced?: number; updated?: number }>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -860,7 +885,7 @@ export class BuildiumEdgeClient {
   // GENERAL LEDGER OPERATIONS
   // ============================================================================
 
-  async syncGLAccountsFromBuildium(options: { type?: string; subType?: string; isActive?: boolean; limit?: number; offset?: number } = {}): Promise<{ success: boolean; data?: any; error?: string }> {
+  async syncGLAccountsFromBuildium(options: { type?: string; subType?: string; isActive?: boolean; limit?: number; offset?: number } = {}): Promise<EdgeResult<{ synced?: number; updated?: number }>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -878,7 +903,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async syncGLEntriesFromBuildium(options: { dateFrom?: string; dateTo?: string; glAccountId?: number; limit?: number; offset?: number; overlapDays?: number } = {}): Promise<{ success: boolean; data?: any; error?: string }> {
+  async syncGLEntriesFromBuildium(options: { dateFrom?: string; dateTo?: string; glAccountId?: number; limit?: number; offset?: number; overlapDays?: number } = {}): Promise<EdgeResult<{ synced?: number; updated?: number }>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -896,7 +921,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getGLAccountFromBuildium(id: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getGLAccountFromBuildium(id: number): Promise<EdgeResult<BuildiumGLAccount>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { method: 'GET', entityType: 'glAccount', entityId: id }
@@ -909,7 +934,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async syncGLAccountToBuildium(glAccount: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  async syncGLAccountToBuildium(glAccount: Record<string, unknown>): Promise<EdgeResult<BuildiumGLAccount>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -928,7 +953,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async syncBankAccountToBuildium(bankAccountData: any): Promise<{ success: boolean; buildiumId?: number; error?: string }> {
+  async syncBankAccountToBuildium(bankAccountData: Record<string, unknown>): Promise<EdgeIdResult> {
     try {
       const existingId =
         bankAccountData?.buildium_gl_account_id ??
@@ -964,7 +989,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getBankAccountFromBuildium(bankAccountId: number): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getBankAccountFromBuildium(bankAccountId: number): Promise<EdgeResult<BuildiumBankAccount>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: {
@@ -991,7 +1016,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getBankAccountSyncStatus(bankAccountId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getBankAccountSyncStatus(bankAccountId: string): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-status', {
         body: {
@@ -1014,7 +1039,7 @@ export class BuildiumEdgeClient {
     }
   }
 
-  async getAllBankAccountSyncStatuses(): Promise<{ success: boolean; data?: any; error?: string }> {
+  async getAllBankAccountSyncStatuses(): Promise<EdgeResult<Record<string, unknown>>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-status', {
         body: {
@@ -1037,7 +1062,7 @@ export class BuildiumEdgeClient {
   }
 
   // Property image operations
-  async uploadPropertyImage(propertyId: string, imageData: any): Promise<any> {
+  async uploadPropertyImage(propertyId: string, imageData: unknown): Promise<EdgeResult<BuildiumPropertyImage>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { 
@@ -1057,7 +1082,7 @@ export class BuildiumEdgeClient {
         throw new Error(data?.error || 'Unknown error')
       }
 
-      return data.data
+      return { success: true, data: data.data }
     } catch (error) {
       if (error instanceof FunctionsHttpError) {
         try {
@@ -1073,11 +1098,11 @@ export class BuildiumEdgeClient {
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('Failed to upload property image:', errorMessage)
-      throw new Error(errorMessage)
+      return { success: false, error: errorMessage }
     }
   }
 
-  async updatePropertyImage(propertyId: string, imageId: string, imageData: any): Promise<any> {
+  async updatePropertyImage(propertyId: string, imageId: string, imageData: unknown): Promise<EdgeResult<BuildiumPropertyImage>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { 
@@ -1098,15 +1123,15 @@ export class BuildiumEdgeClient {
         throw new Error(data?.error || 'Unknown error')
       }
 
-      return data.data
+      return { success: true, data: data.data }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('Failed to update property image:', errorMessage)
-      throw new Error(errorMessage)
+      return { success: false, error: errorMessage }
     }
   }
 
-  async deletePropertyImage(propertyId: string, imageId: string): Promise<{ success: boolean; error?: string }> {
+  async deletePropertyImage(propertyId: string, imageId: string): Promise<EdgeResult<void>> {
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { 
@@ -1135,7 +1160,7 @@ export class BuildiumEdgeClient {
   }
 
   // Generic raw proxy to Edge (keeps secrets at Edge)
-  async proxyRaw(method: string, path: string, params?: Record<string, any>, payload?: any): Promise<{ success: boolean; data?: any; error?: string }>{
+  async proxyRaw(method: string, path: string, params?: Record<string, unknown>, payload?: unknown): Promise<EdgeResult>{
     try {
       const { data, error } = await supabase.functions.invoke('buildium-sync', {
         body: { entityType: 'raw', operation: 'fetch', method, params: params || {}, payload }

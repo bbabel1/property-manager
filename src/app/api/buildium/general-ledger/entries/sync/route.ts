@@ -4,6 +4,22 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { supabase } from '@/lib/db';
 import { upsertGLEntryWithLines } from '@/lib/buildium-mappers';
+import type { Database } from '@/types/database';
+
+type GlImportCursorRow = Database['public']['Tables']['gl_import_cursors']['Row'];
+type GlImportCursorUpsert = Database['public']['Tables']['gl_import_cursors']['Insert'];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+const toNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value : undefined;
 
 async function getCursor(key: string) {
   const { data, error } = await supabase
@@ -12,13 +28,17 @@ async function getCursor(key: string) {
     .eq('key', key)
     .single()
   if (error && error.code !== 'PGRST116') throw error
-  return data as { key: string; last_imported_at: string; window_days: number } | null
+  return data as GlImportCursorRow | null
 }
 
 async function setCursor(key: string, lastImportedAt: string, windowDays?: number) {
   const now = new Date().toISOString()
-  const payload: any = { key, last_imported_at: lastImportedAt, updated_at: now }
-  if (typeof windowDays === 'number') payload.window_days = windowDays
+  const payload: GlImportCursorUpsert = {
+    key,
+    last_imported_at: lastImportedAt,
+    updated_at: now,
+    ...(typeof windowDays === 'number' ? { window_days: windowDays } : {}),
+  }
   // Upsert by key
   const { error } = await supabase
     .from('gl_import_cursors')
@@ -35,9 +55,14 @@ export async function POST(request: NextRequest) {
 
     await requireRole('platform_admin');
 
-    const body = await request.json().catch(() => ({}));
-    let { dateFrom, dateTo } = body || {};
-    const { glAccountId, limit = 100, offset = 0, overlapDays = 7 } = body || {};
+    const body: unknown = await request.json().catch(() => ({}));
+    const bodyObj = isRecord(body) ? body : {};
+    let dateFrom = toStringValue(bodyObj.dateFrom);
+    let dateTo = toStringValue(bodyObj.dateTo);
+    const glAccountId = toNumber(bodyObj.glAccountId);
+    const limit = toNumber(bodyObj.limit) ?? 100;
+    const offset = toNumber(bodyObj.offset) ?? 0;
+    const overlapDays = toNumber(bodyObj.overlapDays) ?? 7;
 
     // Idempotent windowing: if no dateFrom/dateTo passed, derive from cursor
     if (!dateFrom || !dateTo) {
@@ -71,12 +96,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error('Buildium GL entries fetch (for sync) failed');
       return NextResponse.json({ error: 'Failed to fetch GL entries', details: errorData }, { status: response.status });
     }
 
-    const entries = await response.json();
+    const entriesJson: unknown = await response.json().catch(() => []);
+    const entries = Array.isArray(entriesJson)
+      ? entriesJson.filter(isRecord)
+      : [];
     let upserted = 0; let failed = 0;
     for (const entry of entries || []) {
       try {
@@ -94,6 +122,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { upserted, failed, dateFrom, dateTo } });
   } catch (error) {
+    logger.error({ error });
     logger.error('Error syncing GL entries from Buildium');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -1,8 +1,6 @@
 // deno-lint-ignore-file
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 
-import { canonicalizeEventName } from "./eventValidation.ts"
+import { canonicalizeEventName } from "./eventValidation"
 
 export interface NormalizedBuildiumWebhook {
   buildiumWebhookId: string

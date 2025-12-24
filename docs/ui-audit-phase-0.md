@@ -1,5 +1,7 @@
 # UI Audit — Phase 0 Discovery
 
+<!-- markdownlint-configure-file {"MD013": false, "MD060": false} -->
+
 Phase 0 establishes a single baseline for tokens, typography, and UI entry points so later remediation can focus on deltas instead of archaeology. This document captures the current sources of truth, inventories every UI surface that renders user-facing styling, and outlines the alignment sessions needed to confirm scope and known deviations.
 
 ---

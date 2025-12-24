@@ -78,6 +78,7 @@ type GLAccountRow = {
   name: string | null;
   account_number: string | null;
   buildium_gl_account_id: number | null;
+  type: string | null;
   is_bank_account?: boolean | null;
 };
 
@@ -109,12 +110,12 @@ function labelOfProperty(name: string | null) {
 }
 
 function normalizeUnit(unit: TxRow['units']): (TxUnit & { properties: TxProperty | null }) | null {
-  const unitObj = Array.isArray(unit) ? unit?.[0] ?? null : unit ?? null;
+  const unitObj = Array.isArray(unit) ? (unit?.[0] ?? null) : (unit ?? null);
   if (!unitObj) return null;
   const propertiesRaw = unitObj.properties;
   const properties = Array.isArray(propertiesRaw)
-    ? propertiesRaw?.[0] ?? null
-    : propertiesRaw ?? null;
+    ? (propertiesRaw?.[0] ?? null)
+    : (propertiesRaw ?? null);
   return {
     unit_number: unitObj.unit_number ?? null,
     unit_name: unitObj.unit_name ?? null,
@@ -127,20 +128,22 @@ export default async function RecordDepositPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const db = supabaseAdmin || supabase;
 
-  const [{ data: accountRaw, error: accountError }, { data: bankAccountsData }] = await Promise.all([
-    db
-      .from('gl_accounts')
-      .select('id, name, org_id')
-      .eq('id', id)
-      .eq('is_bank_account', true)
-      .maybeSingle(),
-    db
-      .from('gl_accounts')
-      .select('id, name, bank_balance')
-      .eq('is_bank_account', true)
-      .order('name', { ascending: true })
-      .limit(500),
-  ]);
+  const [{ data: accountRaw, error: accountError }, { data: bankAccountsData }] = await Promise.all(
+    [
+      db
+        .from('gl_accounts')
+        .select('id, name, org_id')
+        .eq('id', id)
+        .eq('is_bank_account', true)
+        .maybeSingle(),
+      db
+        .from('gl_accounts')
+        .select('id, name, bank_balance')
+        .eq('is_bank_account', true)
+        .order('name', { ascending: true })
+        .limit(500),
+    ],
+  );
 
   const account = (accountRaw || null) as BankAccountDetail | null;
 
@@ -162,7 +165,9 @@ export default async function RecordDepositPage({ params }: { params: Promise<{ 
       .not('buildium_payment_transaction_id', 'is', null)
       .limit(10000);
 
-    const deposited = (depositedRows || []) as Array<{ buildium_payment_transaction_id: number | null }>;
+    const deposited = (depositedRows || []) as Array<{
+      buildium_payment_transaction_id: number | null;
+    }>;
     deposited.forEach((row) => {
       const idNum = Number(row.buildium_payment_transaction_id ?? NaN);
       if (Number.isFinite(idNum)) depositedBuildiumPaymentIds.add(idNum);
@@ -319,7 +324,7 @@ export default async function RecordDepositPage({ params }: { params: Promise<{ 
         .limit(5000),
       db
         .from('gl_accounts')
-        .select('id, name, account_number, buildium_gl_account_id, is_bank_account')
+        .select('id, name, account_number, type, buildium_gl_account_id, is_bank_account')
         .eq('is_bank_account', false)
         .order('name', { ascending: true })
         .limit(5000),
@@ -343,6 +348,7 @@ export default async function RecordDepositPage({ params }: { params: Promise<{ 
     label: a?.name || a?.account_number || 'Account',
     buildiumGlAccountId:
       typeof a.buildium_gl_account_id === 'number' ? a.buildium_gl_account_id : null,
+    type: a?.type ?? null,
   }));
 
   return (

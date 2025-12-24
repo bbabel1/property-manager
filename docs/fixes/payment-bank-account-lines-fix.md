@@ -2,9 +2,10 @@
 
 ## Problem
 
-When tenants made payments (Rent Income or Security Deposits), the transaction was missing a debit
-line to the property's bank account ("Trust"). This caused the Cash Balance calculation to be
-incorrect because it only saw credit lines (to AR/Revenue) but no corresponding bank account debit.
+When tenants made payments (Rent Income or Security Deposits), the transaction was missing a
+debit line to the property's bank account ("Trust"). This caused the Cash Balance calculation to
+be incorrect because it only saw credit lines (to AR/Revenue) but no corresponding bank account
+debit.
 
 ## Solution
 

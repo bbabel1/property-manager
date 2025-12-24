@@ -10,7 +10,7 @@ config({ path: '.env.local' })
 type BankAccountType = 'checking' | 'savings' | 'money_market' | 'certificate_of_deposit'
 type Country = Database['public']['Enums']['countries']
 
-const supabase = createClient<Database>(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )

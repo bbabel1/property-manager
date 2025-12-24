@@ -64,6 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium property video image`);
 
     return NextResponse.json(

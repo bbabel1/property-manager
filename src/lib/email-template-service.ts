@@ -203,8 +203,6 @@ export async function updateEmailTemplate(
 
   // Validate variables if templates are being updated
   if (updates.subject_template || updates.body_html_template) {
-    const templateKey = currentTemplate.data.template_key as EmailTemplateKey;
-    const availableVariables = getAvailableVariables(templateKey);
     const parsedAvailableVars = Array.isArray(currentTemplate.data.available_variables)
       ? currentTemplate.data.available_variables
       : JSON.parse(JSON.stringify(currentTemplate.data.available_variables || []));
@@ -218,11 +216,11 @@ export async function updateEmailTemplate(
       }
     }
 
-  if (updates.body_html_template) {
-    const validation = validateTemplateVariables(updates.body_html_template, varsToUse);
-    if (!validation.valid) {
-      throw new Error(
-        `Invalid variables in HTML body: ${validation.invalidVariables.join(', ')}`,
+    if (updates.body_html_template) {
+      const validation = validateTemplateVariables(updates.body_html_template, varsToUse);
+      if (!validation.valid) {
+        throw new Error(
+          `Invalid variables in HTML body: ${validation.invalidVariables.join(', ')}`,
         );
       }
     }
@@ -235,18 +233,20 @@ export async function updateEmailTemplate(
   }
 
   // Build update object
-  const updateData: any = {};
+  const updateData: Omit<EmailTemplateUpdate, 'available_variables'> & {
+    available_variables?: Json;
+    updated_by_user_id: string;
+  } = {
+    updated_by_user_id: userId,
+  };
   if (updates.name !== undefined) updateData.name = updates.name;
   if (updates.description !== undefined) updateData.description = updates.description;
-  if (updates.subject_template !== undefined)
-    updateData.subject_template = updates.subject_template;
+  if (updates.subject_template !== undefined) updateData.subject_template = updates.subject_template;
   if (sanitizedHtml !== undefined) updateData.body_html_template = sanitizedHtml;
-  if (updates.body_text_template !== undefined)
-    updateData.body_text_template = updates.body_text_template;
+  if (updates.body_text_template !== undefined) updateData.body_text_template = updates.body_text_template;
   if (updates.available_variables !== undefined)
-    updateData.available_variables = updates.available_variables;
+    updateData.available_variables = updates.available_variables as unknown as Json;
   if (updates.status !== undefined) updateData.status = updates.status;
-  updateData.updated_by_user_id = userId;
 
   // Optimistic concurrency check
   if (expectedUpdatedAt) {

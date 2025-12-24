@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { vi, beforeAll } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import type { TypedSupabaseClient } from '@/lib/db';
 
 beforeAll(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost';
@@ -9,9 +9,11 @@ beforeAll(() => {
     process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role';
 });
 
+const supabaseStub = {} as unknown as TypedSupabaseClient;
+
 vi.mock('@/lib/db', () => ({
-  supabase: {} as any,
-  supabaseAdmin: {} as any,
+  supabase: supabaseStub,
+  supabaseAdmin: supabaseStub,
 }));
 
 const { calculateServiceFee } = await import('@/lib/service-pricing');

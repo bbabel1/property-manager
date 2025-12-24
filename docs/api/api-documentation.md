@@ -1,5 +1,7 @@
 # API Endpoints Reference
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 > Quick reference for API endpoints in the Property Management System
 
 ## Authentication
@@ -212,7 +214,8 @@ src/app/api/
 ├── staff/route.ts
 ├── units/route.ts
 ├── management-service/
-│   └── config/route.ts
+│   ├── config/route.ts
+│   └── units/route.ts
 └── buildium/
     ├── bank-accounts/route.ts
     ├── properties/route.ts

@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import type { Database as DatabaseSchema } from '@/types/database'
+
+type BankAccountRow = Pick<DatabaseSchema['public']['Tables']['gl_accounts']['Row'], 'id' | 'buildium_gl_account_id'>
+type PropertyAccountRow = Pick<
+  DatabaseSchema['public']['Tables']['properties']['Row'],
+  'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id'
+>
+type ReconciliationInsert = DatabaseSchema['public']['Tables']['reconciliation_log']['Insert']
+
+type BuildiumReconciliation = {
+  Id?: number
+  id?: number
+  StatementEndingDate?: string
+  statementEndingDate?: string
+  IsFinished?: boolean
+  isFinished?: boolean
+}
+
+type BuildiumBalance = {
+  EndingBalance?: number
+  endingBalance?: number
+  TotalChecksAndWithdrawals?: number
+  totalChecksAndWithdrawals?: number
+  TotalDepositsAndAdditions?: number
+  totalDepositsAndAdditions?: number
+}
 
 // On-demand sync job for Buildium reconciliations → reconciliation_log
 export async function GET(req: NextRequest) {
@@ -11,7 +37,7 @@ export async function GET(req: NextRequest) {
   const bankAccountId = url.searchParams.get('bankAccountId')
   const propertyId = url.searchParams.get('propertyId')
 
-  let bankAccounts: { id: string; buildium_gl_account_id: number | null }[] = []
+  let bankAccounts: BankAccountRow[] = []
   try {
     // Phase 4: bank accounts are gl_accounts rows flagged is_bank_account=true
     let query = admin.from('gl_accounts').select('id, buildium_gl_account_id').eq('is_bank_account', true)
@@ -43,8 +69,8 @@ export async function GET(req: NextRequest) {
           .maybeSingle()
         if (pr) {
           const ids = [
-            (pr as any).operating_bank_gl_account_id,
-            (pr as any).deposit_trust_gl_account_id,
+            (pr as PropertyAccountRow).operating_bank_gl_account_id,
+            (pr as PropertyAccountRow).deposit_trust_gl_account_id,
           ].filter(Boolean)
           if (ids.length) bankAccounts = bankAccounts.filter(b => ids.includes(b.id))
         }
@@ -65,7 +91,7 @@ export async function GET(req: NextRequest) {
         logger.warn({ bank: buildiumBankAccountId, status: res.status }, 'Reconciliations fetch failed')
         continue
       }
-      const recs: any[] = await res.json()
+      const recs = (await res.json()) as BuildiumReconciliation[]
       for (const r of recs) {
         totalRecs++
         // Map to local property via properties.operating_bank_gl_account_id or deposit_trust_gl_account_id (fallback legacy)
@@ -80,7 +106,7 @@ export async function GET(req: NextRequest) {
           if (prop) property_id = prop.id
         } catch {}
 
-        const payload: any = {
+        const payload: Partial<ReconciliationInsert> = {
           buildium_reconciliation_id: r?.Id ?? r?.id,
           buildium_bank_account_id: buildiumBankAccountId,
           bank_gl_account_id: ba.id,
@@ -101,8 +127,8 @@ export async function GET(req: NextRequest) {
           })
           if (balRes.ok) {
             totalBalances++
-            const b = await balRes.json()
-            const balPatch: any = {
+            const b = (await balRes.json()) as BuildiumBalance
+            const balPatch: Partial<ReconciliationInsert> = {
               buildium_reconciliation_id: bid,
               ending_balance: b?.EndingBalance ?? b?.endingBalance ?? null,
               total_checks_withdrawals: b?.TotalChecksAndWithdrawals ?? b?.totalChecksAndWithdrawals ?? null,

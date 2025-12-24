@@ -11,7 +11,9 @@ vi.mock('next/head', () => ({
 }));
 
 vi.mock('next/image', () => {
-  const MockImage = ({ alt = '', ...props }: any) => <img alt={alt} {...props} />;
+  type MockImageProps = React.ImgHTMLAttributes<HTMLImageElement> & { unoptimized?: boolean };
+  const MockImage = ({ alt = '', unoptimized: _omit, ...props }: MockImageProps) =>
+    React.createElement('img', { alt, ...props });
   return { __esModule: true, default: MockImage };
 });
 

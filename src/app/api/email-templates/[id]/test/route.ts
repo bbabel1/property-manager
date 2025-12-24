@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
-import { getEmailTemplate, renderEmailTemplate } from '@/lib/email-template-service';
+import { renderEmailTemplate } from '@/lib/email-template-service';
 import {
   TemplateRenderSchema,
   type EmailTemplateKey,
@@ -19,7 +19,7 @@ import { supabaseAdmin } from '@/lib/db';
 import { getAvailableVariables } from '@/lib/email-templates/variable-definitions';
 import { sendEmailViaGmail } from '@/lib/gmail/send-email';
 import { getStaffGmailIntegration } from '@/lib/gmail/token-manager';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
 const TestEmailSchema = TemplateRenderSchema.extend({
   to: z.string().email(),
@@ -66,7 +66,8 @@ export async function POST(
       .eq('org_id', orgId)
       .single();
 
-    if (!membership || !['org_admin', 'org_manager', 'platform_admin'].includes(membership.role)) {
+    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
+    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
       return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
     }
 
@@ -193,16 +194,17 @@ export async function POST(
       success: true,
       messageId: emailResult.messageId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error sending test email:', error);
 
-    if (error.name === 'ZodError') {
+    if (error instanceof ZodError) {
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Validation failed',
-            details: error.errors,
+            details: error.issues,
+            formatted: error.format(),
           },
         },
         { status: 400 },

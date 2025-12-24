@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth';
 import { getFileCategories } from '@/lib/files';
 import { supabaseAdminMaybe } from '@/lib/db';
+import type { TypedSupabaseClient } from '@/lib/db';
 
 type MinimalUser = {
   id: string;
@@ -12,7 +13,7 @@ type MinimalUser = {
 
 async function resolveOrgId(
   request: NextRequest,
-  supabase: any,
+  supabase: TypedSupabaseClient,
   user: MinimalUser,
 ): Promise<string> {
   const normalizeOrgId = (value: unknown): string | null => {

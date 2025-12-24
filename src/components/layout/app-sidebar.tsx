@@ -36,7 +36,7 @@ import {
   Calendar,
   ShieldCheck,
 } from 'lucide-react';
-import { ReactNode, useMemo, useState, useRef, useEffect } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
 import { Guard } from '@/components/Guard';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -142,8 +142,10 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
     setSubmenuPosition(null);
   }, [pathname]);
 
-  const matchesPath = (href?: string) =>
-    Boolean(href && (pathname === href || pathname.startsWith(`${href}/`)));
+  const matchesPath = useCallback(
+    (href?: string) => Boolean(href && (pathname === href || pathname.startsWith(`${href}/`))),
+    [pathname],
+  );
 
   const activeMeta = useMemo(() => {
     for (const item of NAV_ITEMS) {
@@ -157,7 +159,7 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
     }
     const fallback = NAV_ITEMS[0];
     return { item: fallback, label: fallback.label };
-  }, [pathname]);
+  }, [matchesPath]);
 
   const activeId = activeMeta.item.id;
   const activeLabel = activeMeta.label;
@@ -180,7 +182,9 @@ export function AppSidebarLayout({ children, title }: { children: ReactNode; tit
   }, [displayName]);
 
   const roleLabel = useMemo(() => {
-    const roles = ((user?.app_metadata as any)?.claims?.roles ?? []) as AppRole[];
+    const claims = (user?.app_metadata as { claims?: { roles?: AppRole[] } } | null | undefined)
+      ?.claims;
+    const roles = claims?.roles ?? [];
     if (!roles?.length) return '';
     // Pick highest ranked role
     const highest = roles.sort((a, b) => (RoleRank[b] ?? 0) - (RoleRank[a] ?? 0))[0];

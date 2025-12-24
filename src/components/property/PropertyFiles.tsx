@@ -1,11 +1,11 @@
-import { FileText, Upload, Download, Search, Filter, Folder, File, Image, FileType, Calendar, User } from 'lucide-react'
+import { FileText, Upload, Download, Search, Filter, Folder, File, Image as ImageIcon, FileType } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PropertyFilesProps {
   propertyId: string
 }
 
-export function PropertyFiles({ propertyId }: PropertyFilesProps) {
+export function PropertyFiles({ propertyId: _propertyId }: PropertyFilesProps) {
   // TODO: Implement real file management with database integration
   const files: any[] = []
 
@@ -15,7 +15,7 @@ export function PropertyFiles({ propertyId }: PropertyFilesProps) {
         return <FileText className="w-5 h-5 text-red-500" />
       case 'jpg':
       case 'png':
-        return <Image className="w-5 h-5 text-blue-500" />
+        return <ImageIcon className="w-5 h-5 text-blue-500" aria-hidden="true" />
       case 'xlsx':
       case 'xls':
         return <FileType className="w-5 h-5 text-green-500" />
@@ -25,8 +25,6 @@ export function PropertyFiles({ propertyId }: PropertyFilesProps) {
         return <File className="w-5 h-5 text-gray-500" />
     }
   }
-
-  const categories = ['All', 'Legal Documents', 'Architecture', 'Photos', 'Leases', 'Maintenance', 'Insurance']
 
   return (
     <div className="space-y-6">

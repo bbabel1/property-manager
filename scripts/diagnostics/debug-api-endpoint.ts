@@ -1,12 +1,22 @@
-// @ts-nocheck
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../../src/types/database'
 
 config({ path: '.env' })
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
+
+const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+
+type PropertyRow = Pick<
+  Database['public']['Tables']['properties']['Row'],
+  'id' | 'name' | 'cash_balance' | 'security_deposits' | 'available_balance' | 'reserve' | 'cash_updated_at'
+>
 
 async function debugAPIEndpoint() {
   console.log('🔍 Debugging API endpoint...\n')
@@ -34,7 +44,7 @@ async function debugAPIEndpoint() {
     .from('properties')
     .select('id, name, cash_balance, security_deposits, available_balance, reserve, cash_updated_at')
     .eq('id', propertyId)
-    .single()
+    .single<PropertyRow>()
   
   if (propertyError) {
     console.error('❌ Property Error:', propertyError.message)
@@ -68,7 +78,8 @@ async function debugAPIEndpoint() {
       console.log('   Error Response:', errorText)
     }
   } catch (e) {
-    console.log('   ❌ API call failed:', e.message)
+    const message = e instanceof Error ? e.message : String(e)
+    console.log('   ❌ API call failed:', message)
     console.log('   This is expected if the dev server is not running')
   }
 
@@ -76,8 +87,6 @@ async function debugAPIEndpoint() {
 }
 
 debugAPIEndpoint().catch(console.error)
-
-
 
 
 

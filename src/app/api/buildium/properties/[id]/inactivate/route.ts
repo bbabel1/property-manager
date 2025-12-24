@@ -52,6 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error inactivating Buildium property`);
 
     return NextResponse.json(

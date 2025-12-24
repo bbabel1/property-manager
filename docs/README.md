@@ -30,7 +30,8 @@
 
 - [Prisma to Supabase Migration](architecture/MIGRATION_STATUS_AND_ROADMAP.md) - Step-by-step
   migration guide
-- [NextAuth to Supabase Auth](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication migration
+- [NextAuth to Supabase Auth](architecture/SUPABASE_AUTH_IMPLEMENTATION.md) - Authentication
+  migration
 
 ## Monitoring
 
@@ -44,8 +45,8 @@ This documentation is automatically updated by the documentation monitoring syst
 
 ## Runbooks
 
-- [Transaction Ingestion Validation](runbooks/transaction-ingestion-validation.md) - How to validate
-  Buildium transaction mapping after mapper/API changes
+- [Transaction Ingestion Validation](runbooks/transaction-ingestion-validation.md) - How to
+  validate Buildium transaction mapping after mapper/API changes
 
 **Monitoring patterns**:
 

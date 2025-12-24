@@ -1,12 +1,21 @@
-// @ts-nocheck
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../../src/types/database'
 
 config({ path: '.env.local' })
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
+
+const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+
+type TransactionLineWithAccount = Database['public']['Tables']['transaction_lines']['Row'] & {
+  gl_accounts: Pick<Database['public']['Tables']['gl_accounts']['Row'], 'type' | 'is_bank_account' | 'name'> | null
+}
 
 async function checkLeaseTransactions() {
   try {
@@ -38,6 +47,7 @@ async function checkLeaseTransactions() {
       .select('id, amount, posting_type, date, memo, gl_account_id, gl_accounts(type, is_bank_account, name)')
       .eq('lease_id', activeLease.id)
       .order('date', { ascending: false })
+      .returns<TransactionLineWithAccount[]>()
 
     if (txError) {
       console.error('❌ Error fetching transaction lines:', txError)

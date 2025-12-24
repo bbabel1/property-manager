@@ -7,7 +7,7 @@ type LeaseBalances = { balance?: number; prepayments?: number; depositsHeld?: nu
  */
 export const resolveLeaseBalances = (
   balances: LeaseBalances,
-  transactions: unknown[],
+  transactions: Array<Parameters<typeof signedAmountFromTransaction>[0]>,
 ): { balance: number; prepayments: number; depositsHeld: number } => {
   const normalized = {
     balance: Number(balances?.balance ?? 0) || 0,
@@ -17,7 +17,7 @@ export const resolveLeaseBalances = (
 
   if (!normalized.balance && Array.isArray(transactions) && transactions.length) {
     const localBalance = transactions.reduce(
-      (sum: number, tx) => sum + signedAmountFromTransaction(tx as any),
+      (sum: number, tx) => sum + signedAmountFromTransaction(tx),
       0,
     );
     normalized.balance = localBalance;

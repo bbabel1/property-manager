@@ -76,6 +76,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium lease charges`);
 
     return NextResponse.json(
@@ -147,6 +148,7 @@ export async function POST(
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium lease charge`);
 
     return NextResponse.json(

@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
 
     const filtered = Array.isArray(residentRequests) && requestedTypes.length > 0
-      ? residentRequests.filter((item: any) => {
-          const t = item?.RequestedByUserEntity?.Type;
+      ? residentRequests.filter((item) => {
+          const t = (item as { RequestedByUserEntity?: { Type?: unknown } })?.RequestedByUserEntity?.Type;
           if (!t) return includeUnspecified;
           return requestedTypes.includes(String(t).toLowerCase());
         })
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     // Persist to local tasks with task_kind='resident'
     try {
       await Promise.all(
-        (Array.isArray(residentRequests) ? residentRequests : []).map(async (item: any) => {
+        (Array.isArray(residentRequests) ? residentRequests : []).map(async (item) => {
           const localData = await mapTaskFromBuildiumWithRelations(item, supabaseAdmin, {
             taskKind: 'resident',
           })
@@ -109,12 +109,12 @@ export async function GET(request: NextRequest) {
           if (existing?.id) {
             await supabaseAdmin
               .from('tasks')
-              .update({ ...localData, updated_at: now } as any)
+              .update({ ...localData, updated_at: now })
               .eq('id', existing.id)
           } else {
             await supabaseAdmin
               .from('tasks')
-              .insert({ ...localData, created_at: now, updated_at: now } as any)
+              .insert({ ...localData, created_at: now, updated_at: now })
           }
         })
       )
@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium resident requests`);
 
     return NextResponse.json(
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString()
       await supabaseAdmin
         .from('tasks')
-        .insert({ ...localData, created_at: now, updated_at: now } as any)
+        .insert({ ...localData, created_at: now, updated_at: now })
     } catch (persistErr) {
       logger.warn({ err: String(persistErr) }, 'Failed to persist created Resident request to tasks')
     }
@@ -211,6 +212,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium resident request`);
 
     return NextResponse.json(

@@ -1,6 +1,7 @@
 # Buildium Lease Transactions — Usage Guide
 
-This guide shows how to work with Buildium Lease Transactions using the new Supabase Edge Function and the client helpers added in this repo.
+This guide shows how to work with Buildium Lease Transactions using the new Supabase Edge Function and the client
+helpers added in this repo.
 
 ## Overview
 
@@ -17,7 +18,7 @@ This guide shows how to work with Buildium Lease Transactions using the new Supa
 
 Do this later when ready to deploy:
 
-```
+```bash
 npm run secrets:set:buildium
 npm run deploy:edge:lease-transactions
 ```
@@ -28,7 +29,7 @@ Ensure `BUILDIUM_BASE_URL`, `BUILDIUM_CLIENT_ID`, `BUILDIUM_CLIENT_SECRET` are e
 
 Example: list transactions for a lease and create a new Charge.
 
-```
+```tsx
 "use client"
 import { useEffect } from 'react'
 import { useLeaseTransactions } from '@/lib/hooks/useLeaseTransactions'
@@ -68,7 +69,7 @@ export default function LeaseTransactionsPanel({ leaseId }: { leaseId: number })
 
 If you prefer not to use the hook, call the Edge function directly:
 
-```
+```typescript
 import { supabase } from '@/lib/db'
 
 // List

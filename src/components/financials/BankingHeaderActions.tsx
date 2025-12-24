@@ -6,7 +6,6 @@ import { Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import CreateBankAccountModal from '@/components/CreateBankAccountModal';
-import type { BankGlAccountSummary } from '@/components/forms/types';
 
 export default function BankingHeaderActions() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -16,7 +15,7 @@ export default function BankingHeaderActions() {
     setIsCreateOpen(false);
   };
 
-  const handleCreateSuccess = (newAccount: BankGlAccountSummary) => {
+  const handleCreateSuccess = () => {
     // Refresh the page so the new account appears in the list
     router.refresh();
     setIsCreateOpen(false);

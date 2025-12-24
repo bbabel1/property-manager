@@ -27,11 +27,13 @@ type Props = {
   onSuccess: () => void;
 };
 
+const DEFAULT_BASE_URL = 'https://api.nyc.gov/geoclient/v2/';
+
 export function NYCGeoserviceForm({ isOpen, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<GeoserviceConfig | null>(null);
-  const [baseUrl, setBaseUrl] = useState('https://api.nyc.gov/geoclient/v2/');
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
   const [apiKey, setApiKey] = useState('');
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function NYCGeoserviceForm({ isOpen, onClose, onSuccess }: Props) {
         if (!res.ok) throw new Error('Failed to load NYC Geoservice config');
         const data = await res.json();
         setConfig(data);
-        setBaseUrl(data.geoservice_base_url || baseUrl);
+        setBaseUrl(data.geoservice_base_url || DEFAULT_BASE_URL);
         setApiKey('');
       } catch (err) {
         console.error(err);
@@ -53,7 +55,6 @@ export function NYCGeoserviceForm({ isOpen, onClose, onSuccess }: Props) {
       }
     };
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleSave = async () => {

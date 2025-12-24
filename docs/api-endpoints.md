@@ -493,7 +493,8 @@ This document lists all internal API endpoints available in the codebase, organi
 
 ---
 
-**Note:** Dynamic route parameters are shown as `{id}`, `{logId}`, `{propertyId}`, etc. Replace these with actual IDs when making requests.
+**Note:** Dynamic route parameters are shown as `{id}`, `{logId}`, `{propertyId}`, etc. Replace
+these with actual IDs when making requests.
 
 **HTTP Methods:**
 

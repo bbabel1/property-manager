@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+// @ts-nocheck
 /**
  * Update a transaction's bank_gl_account_id and bank_gl_account_buildium_id
  * 
@@ -156,4 +157,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-

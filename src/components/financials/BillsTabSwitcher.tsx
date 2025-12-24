@@ -8,7 +8,6 @@ import { cn } from '@/components/ui/utils';
 
 type BillsTabSwitcherProps = {
   initialTab: 'unpaid' | 'paid';
-  unpaidDefaults: string[];
   paidDefaults: string[];
   unpaidContent: ReactNode;
   paidContent: ReactNode;
@@ -17,7 +16,6 @@ type BillsTabSwitcherProps = {
 
 export default function BillsTabSwitcher({
   initialTab,
-  unpaidDefaults,
   paidDefaults,
   unpaidContent,
   paidContent,

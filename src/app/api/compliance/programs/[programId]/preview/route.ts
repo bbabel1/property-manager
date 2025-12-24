@@ -9,19 +9,48 @@ import {
   sanitizeProgramCriteria,
 } from '@/lib/compliance-programs';
 import type { ComplianceProgram } from '@/types/compliance';
+import type { Database as DatabaseSchema } from '@/types/database';
 
-const parseUnits = (value: unknown): number | null => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-};
+type PropertyRow = Pick<
+  DatabaseSchema['public']['Tables']['properties']['Row'],
+  'id' | 'borough' | 'borough_code' | 'bin' | 'building_id' | 'total_units'
+>;
+type BuildingRow = Pick<
+  DatabaseSchema['public']['Tables']['buildings']['Row'],
+  | 'id'
+  | 'borough_code'
+  | 'occupancy_group'
+  | 'occupancy_description'
+  | 'is_one_two_family'
+  | 'is_private_residence_building'
+  | 'residential_units'
+>;
+type AssetRow = Pick<
+  DatabaseSchema['public']['Tables']['compliance_assets']['Row'],
+  | 'id'
+  | 'property_id'
+  | 'asset_type'
+  | 'external_source'
+  | 'active'
+  | 'metadata'
+  | 'device_category'
+  | 'device_technology'
+  | 'device_subtype'
+  | 'is_private_residence'
+>;
+type CriteriaOverride = ComplianceProgram['criteria'] | null | undefined;
 
-const dwellingUnitsFromBuilding = (building: any): number | null => {
+const dwellingUnitsFromBuilding = (building: BuildingRow | null | undefined): number | null => {
   if (!building) return null;
   if (typeof building.residential_units === 'number') return building.residential_units;
   return null;
 };
 
-async function runPreview(request: NextRequest, programId: string, criteriaOverride?: any) {
+async function runPreview(
+  request: NextRequest,
+  programId: string,
+  criteriaOverride?: CriteriaOverride,
+) {
   try {
     const rate = await checkRateLimit(request);
     if (!rate.success) {
@@ -46,11 +75,9 @@ async function runPreview(request: NextRequest, programId: string, criteriaOverr
 
     const orgId = membership.org_id;
 
-    const admin = supabaseAdmin as any;
-
-    const { data: program, error: programError } = await admin
+    const { data: program, error: programError } = await supabaseAdmin
       .from('compliance_programs')
-      .select('id, applies_to, criteria')
+      .select('id, applies_to, criteria, override_fields')
       .eq('id', programId)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -60,7 +87,7 @@ async function runPreview(request: NextRequest, programId: string, criteriaOverr
     }
 
     // Load properties with minimal fields for filtering
-    const { data: properties, error: propertiesError } = await admin
+    const { data: properties, error: propertiesError } = await supabaseAdmin
       .from('properties')
       .select('id, borough, borough_code, bin, building_id, total_units')
       .eq('org_id', orgId);
@@ -70,13 +97,17 @@ async function runPreview(request: NextRequest, programId: string, criteriaOverr
       return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 });
     }
 
-    const programWithCriteria = {
-      ...(program as ComplianceProgram),
-      criteria: criteriaOverride ?? (program as ComplianceProgram).criteria,
+    const programWithCriteria: Pick<
+      ComplianceProgram,
+      'applies_to' | 'criteria' | 'override_fields'
+    > = {
+      applies_to: program.applies_to as ComplianceProgram['applies_to'],
+      criteria: criteriaOverride ?? program.criteria,
+      override_fields: program.override_fields ?? {},
     };
 
     // Load assets so criteria rows can be evaluated regardless of scope
-    const { data: assetRows, error: assetsError } = await admin
+    const { data: assetRows, error: assetsError } = await supabaseAdmin
       .from('compliance_assets')
       .select(
         'id, property_id, asset_type, external_source, active, metadata, device_category, device_technology, device_subtype, is_private_residence',
@@ -87,32 +118,18 @@ async function runPreview(request: NextRequest, programId: string, criteriaOverr
       logger.error({ error: assetsError, orgId }, 'Failed to fetch assets for preview');
       return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 });
     }
-    const assets: Array<{
-      id: string;
-      property_id: string;
-      asset_type: string;
-      external_source: string | null;
-      active: boolean;
-      metadata: Record<string, unknown>;
-    }> = assetRows || [];
+    const assets: AssetRow[] = assetRows || [];
 
     // Enrich properties with building metadata
+    const propertyRows: PropertyRow[] = properties || [];
     const buildingIds = Array.from(
       new Set<string>(
-        (properties || [])
-          .map((p: any) => p.building_id as string | null)
+        propertyRows
+          .map((p) => p.building_id as string | null)
           .filter((id: string | null): id is string => Boolean(id)),
       ),
     );
-    let buildings: Array<{
-      id: string;
-      borough_code: number | null;
-      occupancy_group: string | null;
-      occupancy_description: string | null;
-      is_one_two_family: boolean | null;
-      is_private_residence_building: boolean | null;
-      residential_units: number | null;
-    }> = [];
+    let buildings: BuildingRow[] = [];
     if (buildingIds.length > 0) {
       const { data: buildingRows, error: buildingError } = await supabaseAdmin
         .from('buildings')
@@ -147,7 +164,7 @@ async function runPreview(request: NextRequest, programId: string, criteriaOverr
         },
       ]),
     );
-    const hydratedProperties = (properties || []).map((p: any) => {
+    const hydratedProperties = propertyRows.map((p) => {
       const building = p.building_id ? buildingMap.get(p.building_id) : null;
       const rawBorough = p.borough_code;
       const boroughCode =
@@ -175,21 +192,19 @@ async function runPreview(request: NextRequest, programId: string, criteriaOverr
     });
 
     const propertyMap = new Map(
-      hydratedProperties.map((p: (typeof hydratedProperties)[number]) => [p.id, p]),
+      hydratedProperties.map((p) => [p.id, p]),
     );
 
     let matchedProperties = 0;
     let matchedAssets = 0;
 
     for (const property of hydratedProperties || []) {
-      if (programTargetsProperty(programWithCriteria as ComplianceProgram, property))
-        matchedProperties++;
+      if (programTargetsProperty(programWithCriteria, property)) matchedProperties++;
     }
 
     for (const asset of assets) {
       const prop = propertyMap.get(asset.property_id) || null;
-      if (programTargetsAsset(programWithCriteria as ComplianceProgram, asset as any, prop as any))
-        matchedAssets++;
+      if (programTargetsAsset(programWithCriteria, asset, prop)) matchedAssets++;
     }
 
     return NextResponse.json({

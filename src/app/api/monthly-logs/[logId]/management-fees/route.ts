@@ -10,6 +10,9 @@ import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 
+type ServiceOfferingRow = { offering_id?: string | number | null; is_active?: boolean | null };
+type ServiceOfferingLookup = { id?: string | null; name?: string | null };
+
 export async function GET(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
     // Auth check
@@ -108,28 +111,36 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
           .eq('assignment_id', assignmentId)
           .order('created_at', { ascending: true });
         const offeringIds = (rows || [])
-          .filter((r: any) => r?.is_active !== false)
-          .map((r: any) => String(r.offering_id))
+          .filter((r: ServiceOfferingRow) => r?.is_active !== false)
+          .map((r: ServiceOfferingRow) =>
+            r?.offering_id != null ? String(r.offering_id) : '',
+          )
           .filter(Boolean);
         if (offeringIds.length) {
           const { data: offerings } = await supabaseAdmin
             .from('service_offerings')
             .select('id, name')
             .in('id', offeringIds);
-          activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+          activeServices = (offerings || [])
+            .map((o: ServiceOfferingLookup) => String(o?.name || ''))
+            .filter(Boolean);
         }
       } else {
         const { data: rows } = await supabaseAdmin
           .from('service_plan_services')
           .select('offering_id')
           .eq('plan_id', planId);
-        const offeringIds = (rows || []).map((r: any) => String(r.offering_id)).filter(Boolean);
+        const offeringIds = (rows || [])
+          .map((r: ServiceOfferingRow) => (r?.offering_id ? String(r.offering_id) : ''))
+          .filter(Boolean);
         if (offeringIds.length) {
           const { data: offerings } = await supabaseAdmin
             .from('service_offerings')
             .select('id, name')
             .in('id', offeringIds);
-          activeServices = (offerings || []).map((o: any) => String(o.name || '')).filter(Boolean);
+          activeServices = (offerings || [])
+            .map((o: ServiceOfferingLookup) => String(o?.name || ''))
+            .filter(Boolean);
         }
       }
     }

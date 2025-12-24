@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumOwnerCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import type { BuildiumOwner } from '@/types/buildium';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium owners fetch failed`);
 
       return NextResponse.json(
@@ -63,17 +64,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let owners = await response.json();
+    const ownersPayload: unknown = await response.json().catch(() => []);
+    const owners: BuildiumOwner[] = Array.isArray(ownersPayload) ? (ownersPayload as BuildiumOwner[]) : [];
 
     // Optional local search filter (client-side) across name/email when provided
     if (search) {
       const term = search.toLowerCase();
-      owners = (Array.isArray(owners) ? owners : []).filter((o: any) => {
+      const ownersFiltered = owners.filter((o) => {
         const first = (o?.FirstName || '').toLowerCase();
         const last = (o?.LastName || '').toLowerCase();
         const email = (o?.Email || '').toLowerCase();
         const company = (o?.CompanyName || '').toLowerCase();
         return first.includes(term) || last.includes(term) || email.includes(term) || company.includes(term);
+      });
+      logger.info(`Buildium owners fetched successfully`);
+
+      return NextResponse.json({
+        success: true,
+        data: ownersFiltered,
+        count: ownersFiltered.length,
       });
     }
 
@@ -86,6 +95,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium owners`);
 
     return NextResponse.json(
@@ -110,7 +120,7 @@ export async function POST(request: NextRequest) {
     await requireRole('platform_admin');
 
     // Parse and validate request body
-    const body = await request.json();
+    const body: unknown = await request.json().catch(() => ({}));
     
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumOwnerCreateSchema);
@@ -130,7 +140,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium owner creation failed`);
 
       return NextResponse.json(
@@ -142,7 +152,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const owner = await response.json();
+    const ownerJson: unknown = await response.json().catch(() => ({}));
+    const owner =
+      ownerJson && typeof ownerJson === 'object'
+        ? (ownerJson as Record<string, unknown>)
+        : {};
 
     logger.info(`Buildium owner created successfully`);
 
@@ -152,6 +166,7 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium owner`);
 
     return NextResponse.json(

@@ -29,8 +29,15 @@ export default function ServiceDashboardPage() {
       try {
         setLoading(true);
         const { data } = await supabase.auth.getUser();
-        const claims = (data?.user?.app_metadata as any)?.claims;
-        const firstOrg = (claims?.org_ids ?? [])[0] as string | undefined;
+        const appMetadata = data?.user?.app_metadata as Record<string, unknown> | undefined;
+        const claims =
+          appMetadata && typeof appMetadata.claims === 'object' && appMetadata.claims !== null
+            ? (appMetadata.claims as { org_ids?: unknown })
+            : null;
+        const orgIds = Array.isArray(claims?.org_ids)
+          ? claims.org_ids.filter((id): id is string => typeof id === 'string')
+          : [];
+        const firstOrg = orgIds[0];
         if (mounted) {
           setOrgId(firstOrg || null);
         }

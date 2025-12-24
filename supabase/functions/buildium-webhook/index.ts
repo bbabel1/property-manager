@@ -700,6 +700,14 @@ serve(async (req) => {
         ...event,
         Id: event.Id != null ? String(event.Id) : undefined,
         EventId: event.EventId != null ? String(event.EventId) : undefined,
+        EventDate: event.EventDate != null ? String(event.EventDate) : undefined,
+        EventDateTime: event.EventDateTime != null ? String(event.EventDateTime) : undefined,
+        EntityId:
+          typeof event.EntityId === 'number'
+            ? event.EntityId
+            : event.EntityId != null
+              ? Number(event.EntityId)
+              : undefined,
       };
 
       const validation = validateBuildiumEvent(eventForValidation);

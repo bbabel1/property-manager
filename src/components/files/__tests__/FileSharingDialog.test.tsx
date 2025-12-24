@@ -9,7 +9,7 @@ const mockFetch = vi.fn();
 
 describe('FileSharingDialog', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetch as any);
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
     mockFetch.mockReset();
   });
 

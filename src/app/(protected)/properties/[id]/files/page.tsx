@@ -6,15 +6,18 @@ import { PropertyService } from '@/lib/property-service'
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
 
 type Props = {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default async function FilesTab({ params }: Props) {
-  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(params.id)
+  const { id } = await params
+  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(id)
   const property = await PropertyService.getPropertyById(propertyId)
   const href = `/files?entityType=property&entityId=${propertyPublicId}`
   const buildiumPropertyId = property?.buildium_property_id ?? null
-  const orgId = (property as any)?.org_id ?? null
+  const orgId = (property && typeof property === 'object' && 'org_id' in property
+    ? (property as { org_id?: string | null }).org_id ?? null
+    : null)
 
   return (
     <div id="panel-files" role="tabpanel" aria-labelledby="files" className="space-y-4">

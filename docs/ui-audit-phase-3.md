@@ -1,5 +1,7 @@
 # UI Audit — Phase 3 Documentation, Tooling & Governance
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 Phase 3 closes the loop by writing down the rules, adding CI guardrails, and updating team processes so design consistency persists after the initial audit.
 
 ## 1. Design System Documentation

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/db';
+import { supabaseAdminMaybe } from '@/lib/db';
 
 type PropertyIdentifier = { internalId: string; publicId: string };
 
@@ -17,18 +17,22 @@ const asIdentifiers = (row: { id?: string; public_id?: string | number | null } 
  */
 export async function resolvePropertyIdentifier(slug: string): Promise<PropertyIdentifier> {
   const fallback = { internalId: slug, publicId: slug };
-  if (!supabaseAdmin) return fallback;
+  const db = supabaseAdminMaybe;
+  if (!db) return fallback;
 
   try {
-    const { data: byPublic } = await supabaseAdmin
-      .from('properties')
-      .select('id, public_id')
-      .eq('public_id', slug)
-      .maybeSingle();
-    const resolvedPublic = asIdentifiers(byPublic);
-    if (resolvedPublic) return resolvedPublic;
+    const numericSlug = Number(slug);
+    if (Number.isFinite(numericSlug)) {
+      const { data: byPublic } = await db
+        .from('properties')
+        .select('id, public_id')
+        .eq('public_id', numericSlug)
+        .maybeSingle();
+      const resolvedPublic = asIdentifiers(byPublic);
+      if (resolvedPublic) return resolvedPublic;
+    }
 
-    const { data: byId } = await supabaseAdmin
+    const { data: byId } = await db
       .from('properties')
       .select('id, public_id')
       .eq('id', slug)

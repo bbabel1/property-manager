@@ -34,6 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium general ledger transaction`);
 
     return NextResponse.json(

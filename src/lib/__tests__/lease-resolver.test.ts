@@ -2,18 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { resolveLeaseWithOrg } from '../../../supabase/functions/_shared/leaseResolver'
 
 type StubResponse<T> = { data: T | null; error: { code?: string } | null }
+type LeaseRowStub = { id: number; org_id: string | null; property_id: string | null }
+type PropertyRowStub = { org_id: string | null }
+type StubRow = LeaseRowStub | PropertyRowStub
 
-function createSupabaseStub(queue: StubResponse<any>[]) {
+function createSupabaseStub(queue: StubResponse<StubRow>[]) {
+  const calls: Array<{ table: string; column: string; value: number | string }> = []
   return {
-    calls: [] as Array<{ table: string; column: string; value: any }>,
+    calls,
     from(table: string) {
-      const ctx = this
       return {
         select() {
           return this
         },
-        eq(column: string, value: any) {
-          ctx.calls.push({ table, column, value })
+        eq(column: string, value: number | string) {
+          calls.push({ table, column, value })
           const response = queue.shift() ?? { data: null, error: { code: 'PGRST116' } }
           return {
             async single() {

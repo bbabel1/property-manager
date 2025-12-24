@@ -77,6 +77,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium tasks`);
 
     return NextResponse.json(

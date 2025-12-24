@@ -173,12 +173,12 @@ export default class UnitService {
         throw new Error(`No local property and failed to fetch Buildium property ${buildiumUnit.PropertyId}: ${pres.status}`)
       }
       const buildiumProperty = await pres.json()
-      const mappedProperty = (await mapPropertyFromBuildiumWithBankAccount(
+      const mappedProperty = await mapPropertyFromBuildiumWithBankAccount(
         buildiumProperty,
         supabase,
-      )) as any
+      )
 
-      const mappedOperatingBankGlId = (mappedProperty as any).operating_bank_gl_account_id ?? null
+      const mappedOperatingBankGlId = mappedProperty.operating_bank_gl_account_id ?? null
       if (mappedOperatingBankGlId) {
         const { data: bankGl } = await supabase
           .from('gl_accounts')
@@ -198,28 +198,30 @@ export default class UnitService {
       }
 
       const now = new Date().toISOString()
-	      const propertyPayload: any = {
-	        name: mappedProperty.name,
-	        structure_description: mappedProperty.structure_description ?? null,
+      const propertyPayload: Database['public']['Tables']['properties']['Insert'] = {
+        name: mappedProperty.name,
+        structure_description: mappedProperty.structure_description ?? null,
         address_line1: mappedProperty.address_line1,
         address_line2: mappedProperty.address_line2 ?? null,
         address_line3: mappedProperty.address_line3 ?? null,
         city: mappedProperty.city ?? null,
         state: mappedProperty.state ?? null,
         postal_code: mappedProperty.postal_code,
-	        country: (mappedProperty.country as Database['public']['Enums']['countries']) || 'United States',
-	        property_type: (mappedProperty.property_type as Database['public']['Enums']['property_type_enum']) ?? null,
-	        rental_type: mappedProperty.rental_type ?? null,
-	        operating_bank_gl_account_id: (mappedProperty as any).operating_bank_gl_account_id ?? null,
-	        buildium_property_id: mappedProperty.buildium_property_id,
-	        reserve: mappedProperty.reserve ?? null,
-	        year_built: mappedProperty.year_built ?? null,
+        country: (mappedProperty.country as Database['public']['Enums']['countries']) || 'United States',
+        property_type: (mappedProperty.property_type as Database['public']['Enums']['property_type_enum']) ?? null,
+        rental_type: mappedProperty.rental_type ?? null,
+        operating_bank_gl_account_id: mappedProperty.operating_bank_gl_account_id ?? null,
+        buildium_property_id: mappedProperty.buildium_property_id,
+        reserve: mappedProperty.reserve ?? null,
+        year_built: mappedProperty.year_built ?? null,
         total_units: mappedProperty.total_units ?? undefined,
         is_active: mappedProperty.is_active ?? true,
+        service_assignment: (mappedProperty as { service_assignment?: Database['public']['Enums']['assignment_level'] }).service_assignment ?? 'Property Level',
+        status: 'Active',
         org_id: orgId,
         created_at: now,
-	        updated_at: now
-	      }
+        updated_at: now
+      }
 
       const { data: newProp, error: propErr } = await supabase
         .from('properties')
@@ -250,7 +252,6 @@ export default class UnitService {
       await supabase.from('units').update(mapped).eq('id', existing.id)
       return existing.id
     } else {
-      // Cast to any because mapped payload comes from Buildium mapping and may omit optional fields not required at runtime.
       const { data, error } = await supabase.from('units').insert(mapped as any).select('id').single()
       if (error) throw error
       return data.id
@@ -261,6 +262,18 @@ export default class UnitService {
     const base = mapUnitFromBuildium(buildiumUnit) as UnitInsert
     return {
       ...base,
+      buildium_property_id: base.buildium_property_id ?? buildiumUnit.PropertyId,
+      unit_number:
+        (typeof (buildiumUnit as { Number?: unknown }).Number === 'string'
+          ? (buildiumUnit as { Number?: string }).Number
+          : undefined) ??
+        base.unit_number ??
+        buildiumUnit.UnitNumber ??
+        '',
+      address_line1: base.address_line1 || buildiumUnit.Address?.AddressLine1 || '',
+      city: base.city ?? buildiumUnit.Address?.City ?? '',
+      state: base.state ?? buildiumUnit.Address?.State ?? '',
+      postal_code: base.postal_code || buildiumUnit.Address?.PostalCode || '',
       country: (base.country as UnitInsert['country']) || 'United States'
     }
   }

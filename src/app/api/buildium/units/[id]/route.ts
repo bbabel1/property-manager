@@ -34,7 +34,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       let orgId: string | null = null
       try {
         orgId = await resolveOrgIdFromRequest(request, user.id, supabase)
-      } catch (e) {
+      } catch (error) {
+        logger.error({ error });
         return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 })
       }
 
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium unit`);
 
     return NextResponse.json(
@@ -92,6 +94,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium unit`);
 
     return NextResponse.json(

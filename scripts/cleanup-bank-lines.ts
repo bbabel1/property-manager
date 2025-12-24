@@ -55,7 +55,7 @@ async function main() {
   // Fetch transactions for the property
   const { data: txs, error: txErr } = await supabase
     .from('transactions')
-    .select('id, transaction_type, total_amount, date, lease_id, buildium_transaction_id')
+    .select('id, transaction_type, total_amount, date, lease_id, property_id, buildium_transaction_id')
     .limit(5000)
   if (txErr) throw txErr
 

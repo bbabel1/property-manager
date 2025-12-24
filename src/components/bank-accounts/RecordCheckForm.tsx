@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { UploadCloud, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Paperclip, Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Table,
@@ -27,7 +28,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/components/ui/utils';
+import TransactionFileUploadDialog, {
+  type TransactionAttachmentDraft,
+} from '@/components/files/TransactionFileUploadDialog';
 
 export type BankAccountOption = {
   id: string;
@@ -59,12 +62,10 @@ export type BuildiumAccountOption = {
   id: string;
   label: string;
   buildiumGlAccountId: number | null;
+  type: string | null;
 };
 
-type AttachmentPreview = {
-  id: string;
-  file: File;
-};
+type AttachmentDraft = TransactionAttachmentDraft & { id: string };
 
 type DraftAllocationLine = {
   id: string;
@@ -166,10 +167,9 @@ export default function RecordCheckForm(props: {
     lines: [buildInitialLine()],
   }));
 
-  const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   const selectedBankAccount = useMemo(
     () => props.bankAccounts.find((a) => a.id === form.bankAccountId) ?? null,
@@ -247,62 +247,66 @@ export default function RecordCheckForm(props: {
     setSubmitIntent('save');
   }, [todayIso]);
 
-  const validateAttachments = useCallback(
-    (files: File[]) => {
-      if (!files.length) return { ok: true as const, files: [] as File[] };
-      const nextCount = attachments.length + files.length;
-      if (nextCount > MAX_ATTACHMENT_COUNT) {
-        return {
-          ok: false as const,
-          error: `Attachments limited to ${MAX_ATTACHMENT_COUNT} files.`,
-        };
+  const handleAddAttachment = useCallback(
+    (draft: TransactionAttachmentDraft) => {
+      if (attachments.length >= MAX_ATTACHMENT_COUNT) {
+        setAttachmentError(`Attachments limited to ${MAX_ATTACHMENT_COUNT} files.`);
+        return;
       }
-      const tooLarge = files.find((f) => f.size > MAX_ATTACHMENT_SIZE_BYTES);
-      if (tooLarge) {
-        return {
-          ok: false as const,
-          error: `${tooLarge.name} exceeds ${MAX_ATTACHMENT_SIZE_MB}MB.`,
-        };
+      if (draft.file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        setAttachmentError(`${draft.file.name} exceeds ${MAX_ATTACHMENT_SIZE_MB}MB.`);
+        return;
       }
-      return { ok: true as const, files };
+      setAttachmentError(null);
+      setAttachments((prev) => [...prev, { ...draft, id: makeId() }]);
     },
     [attachments.length],
   );
 
-  const appendAttachments = useCallback(
-    (files: File[]) => {
-      const result = validateAttachments(files);
-      if (!result.ok) {
-        setAttachmentError(result.error);
-        return;
-      }
-      setAttachmentError(null);
-      setAttachments((previous) => [
-        ...previous,
-        ...result.files.map((file) => ({ id: makeId(), file })),
-      ]);
-    },
-    [validateAttachments],
-  );
-
-  const onDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setIsDragActive(false);
-      const files = Array.from(event.dataTransfer.files ?? []).filter(Boolean);
-      appendAttachments(files);
-    },
-    [appendAttachments],
-  );
-
-  const onBrowseFiles = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
   const removeAttachment = useCallback((id: string) => {
     setAttachments((previous) => previous.filter((a) => a.id !== id));
   }, []);
+
+  const uploadAttachments = useCallback(
+    async (transactionId: string | null) => {
+      if (attachments.length === 0) return true;
+      if (!transactionId) {
+        const message = 'Check saved but no transaction id was returned to attach files.';
+        setFormError(message);
+        toast.error(message);
+        return false;
+      }
+      try {
+        for (const attachment of attachments) {
+          const formData = new FormData();
+          formData.append('file', attachment.file);
+          formData.append('fileName', attachment.file.name);
+          formData.append('title', attachment.title);
+          formData.append('description', attachment.description);
+          formData.append('category', attachment.category);
+          formData.append('mimeType', attachment.file.type);
+          const res = await fetch(`/api/transactions/${transactionId}/files`, {
+            method: 'POST',
+            body: formData,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const message =
+              (json && typeof json.error === 'string' && json.error) || 'Failed to upload attachment';
+            throw new Error(message);
+          }
+        }
+        setAttachments([]);
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload attachment';
+        setFormError(`Check saved but attachments failed: ${message}`);
+        toast.error(`Attachments failed: ${message}`);
+        return false;
+      }
+    },
+    [attachments],
+  );
 
   const buildBuildiumPayload = useCallback(() => {
     const bankAccount = selectedBankAccount;
@@ -404,6 +408,19 @@ export default function RecordCheckForm(props: {
           throw new Error(message);
         }
 
+        const transactionId =
+          typeof body?.transactionId === 'string'
+            ? body.transactionId
+            : typeof body?.data?.transactionId === 'string'
+              ? body.data.transactionId
+              : null;
+
+        const uploaded = await uploadAttachments(transactionId);
+        if (!uploaded) {
+          setIsSaving(false);
+          return;
+        }
+
         toast.success('Check recorded');
 
         if (intent === 'save-and-new') {
@@ -419,7 +436,7 @@ export default function RecordCheckForm(props: {
         setIsSaving(false);
       }
     },
-    [buildBuildiumPayload, form, props.bankAccountId, resetFormForNew, router],
+    [buildBuildiumPayload, form, props.bankAccountId, resetFormForNew, router, uploadAttachments],
   );
 
   const payeeOptions = form.payeeType === 'Vendor' ? props.vendors : props.rentalOwners;
@@ -639,11 +656,7 @@ export default function RecordCheckForm(props: {
                           <SelectValue placeholder="Type or select an account..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {props.glAccounts.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                              {a.label}
-                            </SelectItem>
-                          ))}
+                          <GlAccountSelectItems accounts={props.glAccounts} />
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -706,64 +719,24 @@ export default function RecordCheckForm(props: {
         </Button>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between gap-4">
-          <div className="text-sm font-semibold">Attachments</div>
-          <div className="text-xs text-muted-foreground">
-            Limited to {MAX_ATTACHMENT_COUNT} files. Max file size is {MAX_ATTACHMENT_SIZE_MB}MB.
-          </div>
-        </div>
-
-        {attachmentError && <p className="text-xs text-destructive">{attachmentError}</p>}
-
-        <label
-          htmlFor="record-check-attachments"
-          className={cn(
-            'border-muted-foreground/30 rounded-md border border-dashed p-6 transition-colors',
-            isDragActive && 'border-primary/60 bg-primary/5',
-          )}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(false);
-          }}
-          onDrop={onDrop}
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <UploadCloud className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <div className="text-sm text-muted-foreground">
-              Drag &amp; drop files here or{' '}
-              <span className="text-primary underline">browse</span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Attachments</div>
+            <div className="text-xs text-muted-foreground">
+              Limited to {MAX_ATTACHMENT_COUNT} files. Max file size is {MAX_ATTACHMENT_SIZE_MB}MB.
             </div>
           </div>
-
-          <input
-            id="record-check-attachments"
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            aria-label="Upload attachments"
-            title="Upload attachments"
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []).filter(Boolean);
-              appendAttachments(files);
-              e.target.value = '';
-            }}
-          />
-        </label>
-
-        {attachments.length > 0 && (
+          <Button type="button" size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
+            Add files
+          </Button>
+        </div>
+        {attachmentError && <p className="text-xs text-destructive">{attachmentError}</p>}
+        {attachments.length === 0 ? (
+          <div className="text-muted-foreground rounded-md border border-dashed bg-muted/20 px-4 py-6 text-center text-sm">
+            No attachments yet. Use “Add files” to upload.
+          </div>
+        ) : (
           <div className="space-y-2">
             {attachments.map((a) => (
               <div
@@ -772,8 +745,10 @@ export default function RecordCheckForm(props: {
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
-                  <div className="truncate text-sm">{a.file.name}</div>
-                  <div className="text-xs text-muted-foreground">{Math.round(a.file.size / 1024)} KB</div>
+                  <div className="truncate text-sm">{a.title || a.file.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {a.category || 'Uncategorized'} · {Math.round(a.file.size / 1024)} KB
+                  </div>
                 </div>
                 <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(a.id)}>
                   Remove
@@ -783,6 +758,13 @@ export default function RecordCheckForm(props: {
           </div>
         )}
       </div>
+
+      <TransactionFileUploadDialog
+        open={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
+        onSaved={handleAddAttachment}
+        maxBytes={MAX_ATTACHMENT_SIZE_BYTES}
+      />
 
       <div className="flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
@@ -810,5 +792,3 @@ export default function RecordCheckForm(props: {
     </div>
   );
 }
-
-

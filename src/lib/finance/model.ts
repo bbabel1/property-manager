@@ -178,10 +178,10 @@ export const signedAmountFromTransaction = (tx: BasicTransaction): number => {
   const extractLines = (): BasicLine[] => {
     const lines = Array.isArray(tx?.transaction_lines)
       ? tx.transaction_lines
-      : Array.isArray((tx as any)?.Lines)
-        ? ((tx as any)?.Lines as BasicLine[])
-        : Array.isArray((tx as any)?.Journal?.Lines)
-          ? ((tx as any)?.Journal?.Lines as BasicLine[])
+      : Array.isArray(tx?.Lines)
+        ? tx.Lines
+        : Array.isArray(tx?.Journal?.Lines)
+          ? tx.Journal?.Lines
           : [];
     return lines.filter(Boolean);
   };
@@ -194,14 +194,14 @@ export const signedAmountFromTransaction = (tx: BasicTransaction): number => {
     let creditTotal = 0;
     for (const line of lines) {
       const amt = Math.abs(
-        normalizeNumber((line as any)?.amount ?? (line as any)?.Amount ?? 0),
+        normalizeNumber(line?.amount ?? (line as { Amount?: MaybeNumber })?.Amount ?? 0),
       );
       if (!amt) continue;
       const postingRaw =
-        (line as any)?.posting_type ??
-        (line as any)?.PostingType ??
-        (line as any)?.LineType ??
-        (line as any)?.postingType ??
+        line?.posting_type ??
+        (line as { PostingType?: string | null })?.PostingType ??
+        (line as { LineType?: string | null })?.LineType ??
+        (line as { postingType?: string | null })?.postingType ??
         '';
       const posting = String(postingRaw || '').toLowerCase();
       if (posting === 'credit' || posting === 'cr') {
@@ -328,9 +328,9 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
   const transactions = Array.isArray(params.transactions) ? params.transactions : [];
   const propertyReserve = normalizeNumber(params.propertyReserve ?? 0);
 
-  let baseBalance = normalizeNumber(params.unitBalances?.balance ?? 0);
-  let baseDeposits = normalizeNumber(params.unitBalances?.deposits_held_balance ?? 0);
-  let basePrepayments = normalizeNumber(params.unitBalances?.prepayments_balance ?? 0);
+  const baseBalance = normalizeNumber(params.unitBalances?.balance ?? 0);
+  const baseDeposits = normalizeNumber(params.unitBalances?.deposits_held_balance ?? 0);
+  const basePrepayments = normalizeNumber(params.unitBalances?.prepayments_balance ?? 0);
 
   let bankTotal = 0;
   let depositTotal = 0;
@@ -408,7 +408,13 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
   let paymentsTotal = 0;
   let depositsFromPayments = 0;
   let prepaymentsFromPayments = 0;
-  const paymentTxDetails: any[] = [];
+  type PaymentTxDetail = {
+    txId: string;
+    amount: number;
+    transaction_type?: unknown;
+    total_amount?: unknown;
+  };
+  const paymentTxDetails: PaymentTxDetail[] = [];
   for (const tx of transactions) {
     if (!isPaymentLikeTx(tx)) continue;
     const txId = tx?.id != null ? String(tx.id) : '';

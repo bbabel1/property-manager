@@ -11,31 +11,38 @@ async function run(){
     .eq('transaction_id', depositId);
   if (splitErr) throw splitErr;
   const total = (splits || []).reduce((s, r) => s + Number(r?.amount ?? 0), 0);
-  const buildiumIds = (splits || []).map((s:any)=>s.buildium_payment_transaction_id).filter(Boolean);
+  const buildiumIds = (splits || []).map((s)=>s.buildium_payment_transaction_id).filter(Boolean);
   let paidByLabel: string | null = null;
   if (buildiumIds.length > 0) {
-    const { data: payments } = await supabaseAdmin
+  const { data: payments } = await supabaseAdmin
       .from('transactions')
-      .select('id, tenant_id, paid_to_tenant_id, memo, transaction_lines(gl_account_id, property_id, unit_id)')
+      .select('id, tenant_id, payee_tenant_id, memo, transaction_lines(property_id, unit_id)')
       .in('buildium_transaction_id', buildiumIds);
+    type PaymentRow = {
+      id?: string
+      tenant_id?: string | null
+      payee_tenant_id?: number | null
+      memo?: string | null
+      transaction_lines?: { property_id?: string | null; unit_id?: string | null }[]
+    }
     const tenantIds = new Set<string>();
-    (payments||[]).forEach((p:any)=>{ if(p.tenant_id) tenantIds.add(String(p.tenant_id)); if(p.paid_to_tenant_id) tenantIds.add(String(p.paid_to_tenant_id)); });
+    (payments as PaymentRow[] | null | undefined)?.forEach((p)=>{ if(p?.tenant_id) tenantIds.add(String(p.tenant_id)); if(p?.payee_tenant_id != null) tenantIds.add(String(p.payee_tenant_id)); });
     const tenantNameById = new Map<string,string>();
     if(tenantIds.size>0){
       const { data: tenants } = await supabaseAdmin
         .from('tenants')
         .select('id, contacts:contacts!tenants_contact_id_fkey(display_name, first_name, last_name, company_name)')
         .in('id', Array.from(tenantIds));
-      (tenants||[]).forEach((t:any)=>{
+      (tenants||[]).forEach((t)=>{
         const c = t?.contacts || {};
         const name = c.display_name || [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || c.company_name || null;
         if(name && t?.id) tenantNameById.set(String(t.id), name);
       });
     }
     const labels = new Set<string>();
-    for(const p of payments||[]){
-      const name = (p.tenant_id && tenantNameById.get(String(p.tenant_id))) || (p.paid_to_tenant_id && tenantNameById.get(String(p.paid_to_tenant_id))) || null;
-      const propId = (p.transaction_lines||[]).find((l:any)=>l.property_id)?.property_id ?? null;
+    for(const p of (payments as PaymentRow[] | null | undefined) || []){
+      const name = (p.tenant_id && tenantNameById.get(String(p.tenant_id))) || (p.payee_tenant_id != null && tenantNameById.get(String(p.payee_tenant_id))) || null;
+      const propId = (p.transaction_lines||[]).find((l)=>l?.property_id)?.property_id ?? null;
       if(name) labels.add(name);
       if(propId){
         const { data: prop } = await supabaseAdmin.from('properties').select('id,name,address_line1').eq('id', propId).maybeSingle();

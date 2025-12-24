@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/db'
+import { supabaseAdmin } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function GET(

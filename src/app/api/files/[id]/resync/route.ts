@@ -1,108 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
-import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client';
+import {
+  createBuildiumClient,
+  defaultBuildiumConfig,
+  type BuildiumUploadTicket,
+} from '@/lib/buildium-client';
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils';
 import { logger } from '@/lib/logger';
-import {
-  FILE_ENTITY_TYPES,
-  mapFileEntityTypeToBuildium,
-  normalizeEntityType,
-  type EntityTypeEnum,
-} from '@/lib/files';
+import { FILE_ENTITY_TYPES, mapFileEntityTypeToBuildium, normalizeEntityType } from '@/lib/files';
 import type { BuildiumFileEntityType, BuildiumFileCategory } from '@/types/buildium';
-
-// Resolve Buildium entity ID from local entity
-async function resolveBuildiumEntityId(
-  admin: any,
-  entityType: EntityTypeEnum,
-  entityId: number,
-): Promise<{ buildiumEntityType: BuildiumFileEntityType; buildiumEntityId: number } | null> {
-  if (entityId === -1) {
-    return null; // Local entity without Buildium ID
-  }
-
-  const buildiumTypes = mapFileEntityTypeToBuildium(entityType);
-
-  switch (entityType) {
-    case FILE_ENTITY_TYPES.PROPERTIES: {
-      const { data } = await admin
-        .from('properties')
-        .select('buildium_property_id')
-        .eq('id', entityId)
-        .maybeSingle();
-      if (data?.buildium_property_id) {
-        return {
-          buildiumEntityType: buildiumTypes[0] || 'Rental',
-          buildiumEntityId: Number(data.buildium_property_id),
-        };
-      }
-      return null;
-    }
-    case FILE_ENTITY_TYPES.UNITS: {
-      const { data } = await admin
-        .from('units')
-        .select('buildium_unit_id')
-        .eq('id', entityId)
-        .maybeSingle();
-      if (data?.buildium_unit_id) {
-        return {
-          buildiumEntityType: 'RentalUnit',
-          buildiumEntityId: Number(data.buildium_unit_id),
-        };
-      }
-      return null;
-    }
-    case FILE_ENTITY_TYPES.LEASES: {
-      const { data } = await admin
-        .from('lease')
-        .select('buildium_lease_id')
-        .eq('id', entityId)
-        .maybeSingle();
-      if (data?.buildium_lease_id) {
-        return {
-          buildiumEntityType: 'Lease',
-          buildiumEntityId: Number(data.buildium_lease_id),
-        };
-      }
-      return null;
-    }
-    case FILE_ENTITY_TYPES.TENANTS: {
-      const { data } = await admin
-        .from('tenants')
-        .select('buildium_tenant_id')
-        .eq('id', entityId)
-        .maybeSingle();
-      if (data?.buildium_tenant_id) {
-        return {
-          buildiumEntityType: 'Tenant',
-          buildiumEntityId: Number(data.buildium_tenant_id),
-        };
-      }
-      return null;
-    }
-    case FILE_ENTITY_TYPES.RENTAL_OWNERS: {
-      const { data } = await admin
-        .from('owners')
-        .select('buildium_owner_id')
-        .eq('id', entityId)
-        .maybeSingle();
-      if (data?.buildium_owner_id) {
-        return {
-          buildiumEntityType: 'RentalOwner',
-          buildiumEntityId: Number(data.buildium_owner_id),
-        };
-      }
-      return null;
-    }
-    default:
-      return null;
-  }
-}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(request);
+    await requireUser(request);
     const admin = await requireSupabaseAdmin();
 
     const { id } = await params;
@@ -612,13 +523,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Create upload request using Buildium client
     // The method will add EntityType and EntityId to the payload
-    let uploadTicket: any | null = null;
+    let uploadTicket: BuildiumUploadTicket | null = null;
     try {
-      uploadTicket = await buildiumClient.createFileUploadRequest(
+      const result = await buildiumClient.createFileUploadRequest(
         buildiumEntityInfo.buildiumEntityType,
         buildiumEntityInfo.buildiumEntityId,
         uploadPayload,
       );
+      uploadTicket = result;
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       const categoryError =
@@ -641,11 +553,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         delete fallbackPayload.CategoryId;
         fallbackPayload.Category = resolvedCategoryLabel ?? 'Uncategorized';
 
-        uploadTicket = await buildiumClient.createFileUploadRequest(
+        const fallbackResult = await buildiumClient.createFileUploadRequest(
           buildiumEntityInfo.buildiumEntityType,
           buildiumEntityInfo.buildiumEntityId,
           fallbackPayload,
         );
+        uploadTicket = fallbackResult;
       } else {
         throw error;
       }
@@ -666,9 +579,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Upload file to Buildium bucket
     const formData = new FormData();
-    for (const [key, value] of Object.entries(uploadTicket.FormData)) {
-      if (value != null) {
-        formData.append(key, String(value));
+    if (uploadTicket.FormData) {
+      for (const [key, value] of Object.entries(uploadTicket.FormData)) {
+        if (value != null) {
+          formData.append(key, String(value));
+        }
       }
     }
 

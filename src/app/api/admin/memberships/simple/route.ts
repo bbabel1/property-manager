@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
     const callerOrgRole = (callerRolesRows || [])
-      .map((r: any) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
-      .filter(Boolean)?.[0] as any
+      .map((r) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
+      .filter(Boolean)?.[0] as string | null
     const validation = validateMembershipChange({
       callerOrgRole,
       callerGlobalRoles: callerRoles,
@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    const msg = e?.message || 'Internal Server Error'
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }
@@ -151,8 +151,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
     const callerOrgRole = (callerRolesRows || [])
-      .map((r: any) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
-      .filter(Boolean)?.[0] as any
+      .map((r) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
+      .filter(Boolean)?.[0] as string | null
     const validation = validateMembershipChange({
       callerOrgRole,
       callerGlobalRoles: callerRoles,
@@ -179,8 +179,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    const msg = e?.message || 'Internal Server Error'
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }

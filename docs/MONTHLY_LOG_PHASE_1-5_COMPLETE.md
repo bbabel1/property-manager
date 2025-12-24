@@ -339,7 +339,7 @@ Net to Owner = Charges + Payments - Bills - Management Fees
 
 ### **1. Complete Monthly Log Workflow**
 
-```
+```text
 1. Navigate to Monthly Logs (/monthly-logs)
 2. Create new log or open existing
 3. Complete each stage in order:
@@ -387,7 +387,7 @@ Net to Owner = Charges + Payments - Bills - Management Fees
 
 ### **2. Send Monthly Statement**
 
-```
+```text
 Prerequisites:
 - Monthly log created with all transactions assigned
 - PDF generated (or generate on-demand)
@@ -405,7 +405,7 @@ Steps:
 
 ### **3. Configure Statement Recipients**
 
-```
+```text
 Option A - From Monthly Log:
 1. Navigate to monthly log detail page
 2. Go to "Owner Statements" tab
@@ -697,8 +697,8 @@ Once deployed, track these KPIs:
 
 1. **Adoption Rate**
    - % of properties with configured recipients
-   - # of statements generated per month
-   - # of statements sent per month
+   - Number of statements generated per month
+   - Number of statements sent per month
 
 2. **Quality Metrics**
    - Email delivery rate (target: >95%)
@@ -748,16 +748,17 @@ Once deployed, track these KPIs:
 
 ### **External Resources**
 
-- Resend Documentation: https://resend.com/docs/introduction
-- Playwright Documentation: https://playwright.dev/docs/intro
-- Supabase Storage: https://supabase.com/docs/guides/storage
+- Resend Documentation: <https://resend.com/docs/introduction>
+- Playwright Documentation: <https://playwright.dev/docs/intro>
+- Supabase Storage: <https://supabase.com/docs/guides/storage>
 
 ---
 
 ## 🏆 **Achievement Summary**
 
 **What We Built:**
-A complete, production-ready monthly log and statement delivery system that transforms property accounting from a manual, error-prone process into an automated, auditable workflow.
+A complete, production-ready monthly log and statement delivery system that transforms property accounting from
+a manual, error-prone process into an automated, auditable workflow.
 
 **Key Accomplishments:**
 

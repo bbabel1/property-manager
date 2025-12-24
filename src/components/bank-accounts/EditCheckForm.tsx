@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { AlertTriangle, Plus, Trash2, UploadCloud, Paperclip } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Paperclip } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Table,
@@ -27,6 +28,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import TransactionFileUploadDialog, {
+  type TransactionAttachmentDraft,
+} from '@/components/files/TransactionFileUploadDialog';
 import { cn } from '@/components/ui/utils';
 
 export type BankAccountOption = {
@@ -59,6 +63,7 @@ export type GlAccountOption = {
   id: string;
   label: string;
   buildiumGlAccountId: number | null;
+  type: string | null;
 };
 
 export type BillsPaidRow = {
@@ -92,9 +97,49 @@ type CheckData = {
   allocations: CheckAllocationLine[];
 };
 
-type AttachmentPreview = {
-  id: string;
-  file: File;
+type AttachmentDraft = TransactionAttachmentDraft & { id: string };
+
+type ExistingAttachment = {
+  linkId: string;
+  fileId: string;
+  title: string;
+  uploadedAt: string | null;
+  uploadedBy: string | null;
+  category: string;
+  sizeBytes?: number | null;
+  buildiumFileId?: number | null;
+};
+
+const mapExistingAttachments = (payload: unknown): ExistingAttachment[] => {
+  if (!payload || typeof payload !== 'object') return [];
+  const data = (payload as { data?: unknown }).data;
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((row) => {
+      if (!row || typeof row !== 'object') return null;
+      const entry = row as Record<string, unknown>;
+      const fileIdRaw = entry.id ?? entry.fileId ?? entry.linkId;
+      if (typeof fileIdRaw !== 'string' && typeof fileIdRaw !== 'number') return null;
+      const titleRaw = entry.title ?? entry.fileName;
+      const mapped: ExistingAttachment = {
+        linkId: String(entry.linkId ?? entry.id ?? ''),
+        fileId: String(fileIdRaw),
+        title: typeof titleRaw === 'string' ? titleRaw : 'File',
+        uploadedAt: typeof entry.uploadedAt === 'string' ? entry.uploadedAt : null,
+        uploadedBy: typeof entry.uploadedBy === 'string' ? entry.uploadedBy : null,
+        category: typeof entry.category === 'string' ? entry.category : 'Uncategorized',
+      };
+
+      const sizeBytes = typeof entry.sizeBytes === 'number' ? entry.sizeBytes : undefined;
+      if (sizeBytes !== undefined) mapped.sizeBytes = sizeBytes;
+
+      const buildiumFileId =
+        typeof entry.buildiumFileId === 'number' ? entry.buildiumFileId : undefined;
+      if (buildiumFileId !== undefined) mapped.buildiumFileId = buildiumFileId;
+
+      return mapped;
+    })
+    .filter((row): row is ExistingAttachment => Boolean(row?.fileId));
 };
 
 const MAX_ATTACHMENT_COUNT = 10;
@@ -185,8 +230,6 @@ export default function EditCheckForm(props: {
   const [isSaving, setIsSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const initialPayee = useMemo(() => coerceInitialPayee(props.check), [props.check]);
   const [form, setForm] = useState<FormState>(() => ({
@@ -229,25 +272,28 @@ export default function EditCheckForm(props: {
 
   const payeeOptions = form.payeeType === 'Vendor' ? props.vendors : props.rentalOwners;
 
-  const setFormValue = useCallback(
-    <K extends keyof FormState>(key: K, value: FormState[K]) => {
-      setForm((previous) => ({ ...previous, [key]: value }));
-      setFieldErrors((previous) => {
-        if (!previous[key as string]) return previous;
-        const next = { ...previous };
-        delete next[key as string];
-        return next;
-      });
-      setFormError(null);
-    },
-    [],
-  );
+  const setFormValue = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((previous) => ({ ...previous, [key]: value }));
+    setFieldErrors((previous) => {
+      if (!previous[key as string]) return previous;
+      const next = { ...previous };
+      delete next[key as string];
+      return next;
+    });
+    setFormError(null);
+  }, []);
 
   const setLineValue = useCallback(
-    <K extends keyof CheckAllocationLine>(lineId: string, key: K, value: CheckAllocationLine[K]) => {
+    <K extends keyof CheckAllocationLine>(
+      lineId: string,
+      key: K,
+      value: CheckAllocationLine[K],
+    ) => {
       setForm((previous) => ({
         ...previous,
-        lines: previous.lines.map((line) => (line.id === lineId ? { ...line, [key]: value } : line)),
+        lines: previous.lines.map((line) =>
+          line.id === lineId ? { ...line, [key]: value } : line,
+        ),
       }));
       setFormError(null);
     },
@@ -265,59 +311,102 @@ export default function EditCheckForm(props: {
     });
   }, []);
 
-  const [attachments, setAttachments] = useState<AttachmentPreview[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<ExistingAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
-  const validateAttachments = useCallback(
-    (files: File[]) => {
-      if (!files.length) return { ok: true as const, files: [] as File[] };
-      const nextCount = attachments.length + files.length;
-      if (nextCount > MAX_ATTACHMENT_COUNT) {
-        return { ok: false as const, error: `Attachments limited to ${MAX_ATTACHMENT_COUNT} files.` };
+  const handleAddAttachment = useCallback(
+    (draft: TransactionAttachmentDraft) => {
+      if (attachments.length >= MAX_ATTACHMENT_COUNT) {
+        setAttachmentError(`Attachments limited to ${MAX_ATTACHMENT_COUNT} files.`);
+        return;
       }
-      const tooLarge = files.find((f) => f.size > MAX_ATTACHMENT_SIZE_BYTES);
-      if (tooLarge) {
-        return { ok: false as const, error: `${tooLarge.name} exceeds ${MAX_ATTACHMENT_SIZE_MB}MB.` };
+      if (draft.file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        setAttachmentError(`${draft.file.name} exceeds ${MAX_ATTACHMENT_SIZE_MB}MB.`);
+        return;
       }
-      return { ok: true as const, files };
+      setAttachmentError(null);
+      setAttachments((prev) => [...prev, { ...draft, id: makeId() }]);
     },
     [attachments.length],
   );
 
-  const appendAttachments = useCallback(
-    (files: File[]) => {
-      const result = validateAttachments(files);
-      if (!result.ok) {
-        setAttachmentError(result.error);
-        return;
-      }
-      setAttachmentError(null);
-      setAttachments((previous) => [
-        ...previous,
-        ...result.files.map((file) => ({ id: makeId(), file })),
-      ]);
-    },
-    [validateAttachments],
-  );
+  const loadExistingAttachments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/transactions/${props.check.id}/files`, { cache: 'no-store' });
+      const json: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      setExistingAttachments(mapExistingAttachments(json));
+    } catch {
+      // ignore
+    }
+  }, [props.check.id]);
 
-  const onDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setIsDragActive(false);
-      const files = Array.from(event.dataTransfer.files ?? []).filter(Boolean);
-      appendAttachments(files);
-    },
-    [appendAttachments],
-  );
-
-  const onBrowseFiles = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
+  useEffect(() => {
+    void loadExistingAttachments();
+  }, [loadExistingAttachments]);
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((previous) => previous.filter((a) => a.id !== id));
   }, []);
+
+  const removeExistingAttachment = useCallback(
+    async (fileId: string) => {
+      try {
+        const res = await fetch(`/api/transactions/${props.check.id}/files?fileId=${fileId}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) return;
+        setExistingAttachments((prev) => prev.filter((f) => f.fileId !== fileId));
+      } catch {
+        // ignore for now
+      }
+    },
+    [props.check.id],
+  );
+
+  const uploadAttachments = useCallback(
+    async (transactionId: string | null) => {
+      if (attachments.length === 0) return true;
+      if (!transactionId) {
+        const message = 'Check updated but no transaction id was returned to attach files.';
+        setFormError(message);
+        toast.error(message);
+        return false;
+      }
+      try {
+        for (const attachment of attachments) {
+          const formData = new FormData();
+          formData.append('file', attachment.file);
+          formData.append('fileName', attachment.file.name);
+          formData.append('title', attachment.title);
+          formData.append('description', attachment.description);
+          formData.append('category', attachment.category);
+          formData.append('mimeType', attachment.file.type);
+          const res = await fetch(`/api/transactions/${transactionId}/files`, {
+            method: 'POST',
+            body: formData,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const message =
+              (json && typeof json.error === 'string' && json.error) ||
+              'Failed to upload attachment';
+            throw new Error(message);
+          }
+        }
+        setAttachments([]);
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to upload attachment';
+        setFormError(`Check updated but attachments failed: ${message}`);
+        toast.error(`Attachments failed: ${message}`);
+        return false;
+      }
+    },
+    [attachments],
+  );
 
   const submit = useCallback(
     async (intent: 'save' | 'void') => {
@@ -368,6 +457,12 @@ export default function EditCheckForm(props: {
           throw new Error(message);
         }
 
+        const uploaded = intent === 'save' ? await uploadAttachments(props.check.id) : true;
+        if (!uploaded) {
+          setIsSaving(false);
+          return;
+        }
+
         toast.success(intent === 'void' ? 'Check voided' : 'Check updated');
         router.replace(props.returnHref);
         router.refresh();
@@ -377,7 +472,15 @@ export default function EditCheckForm(props: {
         setIsSaving(false);
       }
     },
-    [form, isLockedByBill, props.patchUrl, props.returnHref, router],
+    [
+      form,
+      isLockedByBill,
+      props.check.id,
+      props.patchUrl,
+      props.returnHref,
+      router,
+      uploadAttachments,
+    ],
   );
 
   const handleDelete = useCallback(async () => {
@@ -430,8 +533,8 @@ export default function EditCheckForm(props: {
       )}
 
       {formError && (
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-4">
-          <p className="text-sm text-destructive">{formError}</p>
+        <div className="border-destructive/20 bg-destructive/10 rounded-md border p-4">
+          <p className="text-destructive text-sm">{formError}</p>
         </div>
       )}
 
@@ -447,7 +550,7 @@ export default function EditCheckForm(props: {
             onChange={(e) => setFormValue('date', e.target.value)}
             aria-invalid={Boolean(fieldErrors.date)}
           />
-          {fieldErrors.date && <p className="mt-1 text-xs text-destructive">{fieldErrors.date}</p>}
+          {fieldErrors.date && <p className="text-destructive mt-1 text-xs">{fieldErrors.date}</p>}
         </div>
 
         <div>
@@ -459,7 +562,10 @@ export default function EditCheckForm(props: {
             onValueChange={(value) => setFormValue('bankAccountId', value)}
             disabled={isLockedByBill}
           >
-            <SelectTrigger id="edit-check-bank-account" aria-invalid={Boolean(fieldErrors.bankAccountId)}>
+            <SelectTrigger
+              id="edit-check-bank-account"
+              aria-invalid={Boolean(fieldErrors.bankAccountId)}
+            >
               <SelectValue placeholder="Select bank account" />
             </SelectTrigger>
             <SelectContent>
@@ -472,11 +578,11 @@ export default function EditCheckForm(props: {
             </SelectContent>
           </Select>
           {fieldErrors.bankAccountId && (
-            <p className="mt-1 text-xs text-destructive">{fieldErrors.bankAccountId}</p>
+            <p className="text-destructive mt-1 text-xs">{fieldErrors.bankAccountId}</p>
           )}
         </div>
 
-        <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-[1fr_auto] sm:items-end">
           <div>
             <Label htmlFor="edit-check-number" className="text-xs font-semibold tracking-wide">
               CHECK NUMBER
@@ -498,7 +604,9 @@ export default function EditCheckForm(props: {
           </label>
         </div>
 
-        <div className={cn('sm:col-span-2 space-y-2', isLockedByBill && 'rounded-md bg-muted/40 p-3')}>
+        <div
+          className={cn('space-y-2 sm:col-span-2', isLockedByBill && 'bg-muted/40 rounded-md p-3')}
+        >
           <Label className="text-xs font-semibold tracking-wide">
             PAY TO <span className="text-destructive">*</span>
           </Label>
@@ -517,13 +625,21 @@ export default function EditCheckForm(props: {
             className="grid gap-3"
           >
             <div className="flex items-center gap-3">
-              <RadioGroupItem value="Vendor" id="edit-check-payee-vendor" disabled={isLockedByBill} />
+              <RadioGroupItem
+                value="Vendor"
+                id="edit-check-payee-vendor"
+                disabled={isLockedByBill}
+              />
               <Label htmlFor="edit-check-payee-vendor" className="font-normal">
                 Vendor
               </Label>
             </div>
             <div className="flex items-center gap-3">
-              <RadioGroupItem value="RentalOwner" id="edit-check-payee-owner" disabled={isLockedByBill} />
+              <RadioGroupItem
+                value="RentalOwner"
+                id="edit-check-payee-owner"
+                disabled={isLockedByBill}
+              />
               <Label htmlFor="edit-check-payee-owner" className="font-normal">
                 Rental owner
               </Label>
@@ -556,7 +672,10 @@ export default function EditCheckForm(props: {
             {form.payeeType === 'Vendor' && (
               <div className="text-xs">
                 <Link
-                  className={cn('text-primary underline', isLockedByBill && 'pointer-events-none text-muted-foreground')}
+                  className={cn(
+                    'text-primary underline',
+                    isLockedByBill && 'text-muted-foreground pointer-events-none',
+                  )}
                   href="/vendors"
                   target="_blank"
                   aria-disabled={isLockedByBill}
@@ -565,7 +684,9 @@ export default function EditCheckForm(props: {
                 </Link>
               </div>
             )}
-            {fieldErrors.payeeId && <p className="mt-1 text-xs text-destructive">{fieldErrors.payeeId}</p>}
+            {fieldErrors.payeeId && (
+              <p className="text-destructive mt-1 text-xs">{fieldErrors.payeeId}</p>
+            )}
           </div>
         </div>
 
@@ -586,7 +707,13 @@ export default function EditCheckForm(props: {
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-semibold">Allocations</div>
-          <Button type="button" variant="ghost" className="w-fit px-2" onClick={addLine} disabled={isLockedByBill}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-fit px-2"
+            onClick={addLine}
+            disabled={isLockedByBill}
+          >
             <Plus className="mr-2 h-4 w-4" aria-hidden />
             Add row
           </Button>
@@ -596,22 +723,22 @@ export default function EditCheckForm(props: {
           <Table className="min-w-[1080px]">
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                   Property or company
                 </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                   Unit
                 </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                   Account
                 </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                   Description
                 </TableHead>
-                <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                   Ref No.
                 </TableHead>
-                <TableHead className="text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-muted-foreground text-right text-xs font-semibold tracking-widest uppercase">
                   Amount
                 </TableHead>
                 <TableHead className="w-[3rem]" />
@@ -673,11 +800,7 @@ export default function EditCheckForm(props: {
                           <SelectValue placeholder="Type or select an account..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {props.glAccounts.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                              {a.label}
-                            </SelectItem>
-                          ))}
+                          <GlAccountSelectItems accounts={props.glAccounts} />
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -700,7 +823,7 @@ export default function EditCheckForm(props: {
                       />
                     </TableCell>
 
-                    <TableCell className="align-top text-right">
+                    <TableCell className="text-right align-top">
                       <Input
                         value={line.amount}
                         onChange={(e) => setLineValue(line.id, 'amount', e.target.value)}
@@ -732,7 +855,9 @@ export default function EditCheckForm(props: {
                 <TableCell colSpan={5} className="text-sm font-medium">
                   Total
                 </TableCell>
-                <TableCell className="text-right text-sm font-semibold">{fmtUsd(totalAmount)}</TableCell>
+                <TableCell className="text-right text-sm font-semibold">
+                  {fmtUsd(totalAmount)}
+                </TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -747,33 +872,40 @@ export default function EditCheckForm(props: {
             <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow className="bg-muted/40">
-                  <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                     Due date
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                     Vendor
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                     Memo
                   </TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
                     Reference no.
                   </TableHead>
-                  <TableHead className="text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <TableHead className="text-muted-foreground text-right text-xs font-semibold tracking-widest uppercase">
                     Amount
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {billsPaid.map((row, idx) => (
-                  <TableRow key={`${row.referenceNumber ?? 'bill'}-${idx}`} className="border-b last:border-0">
+                  <TableRow
+                    key={`${row.referenceNumber ?? 'bill'}-${idx}`}
+                    className="border-b last:border-0"
+                  >
                     <TableCell className="text-sm">
-                      {row.dueDate ? dateFormatter.format(new Date(`${row.dueDate}T00:00:00Z`)) : '—'}
+                      {row.dueDate
+                        ? dateFormatter.format(new Date(`${row.dueDate}T00:00:00Z`))
+                        : '—'}
                     </TableCell>
                     <TableCell className="text-sm">{row.vendorName || '—'}</TableCell>
                     <TableCell className="text-sm">{row.memo || '—'}</TableCell>
                     <TableCell className="text-sm">{row.referenceNumber || '—'}</TableCell>
-                    <TableCell className="text-right text-sm">{fmtUsd(Number(row.amount || 0))}</TableCell>
+                    <TableCell className="text-right text-sm">
+                      {fmtUsd(Number(row.amount || 0))}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -785,91 +917,92 @@ export default function EditCheckForm(props: {
       <div className="space-y-2">
         <div className="flex items-baseline justify-between gap-4">
           <div className="text-sm font-semibold">Attachments</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-muted-foreground text-xs">
             Limited to {MAX_ATTACHMENT_COUNT} files. Max file size is {MAX_ATTACHMENT_SIZE_MB}MB.
           </div>
         </div>
 
-        {attachmentError && <p className="text-xs text-destructive">{attachmentError}</p>}
+        {attachmentError && <p className="text-destructive text-xs">{attachmentError}</p>}
 
-        <div
-          className={cn(
-            'border-muted-foreground/30 rounded-md border border-dashed p-6 transition-colors',
-            isDragActive && 'border-primary/60 bg-primary/5',
-          )}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(true);
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragActive(false);
-          }}
-          onDrop={onDrop}
-          role="button"
-          tabIndex={0}
-          onClick={onBrowseFiles}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') onBrowseFiles();
-          }}
-        >
-          <div className="flex flex-col items-center gap-2 text-center">
-            <UploadCloud className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <div className="text-sm text-muted-foreground">
-              Drag &amp; drop files here or{' '}
-              <button
-                type="button"
-                className="text-primary underline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onBrowseFiles();
-                }}
-              >
-                browse
-              </button>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-muted-foreground text-sm">
+            Existing and newly added files will be attached when you save.
           </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []).filter(Boolean);
-              appendAttachments(files);
-              e.target.value = '';
-            }}
-          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setIsUploadDialogOpen(true)}
+          >
+            Add files
+          </Button>
         </div>
 
-        {attachments.length > 0 && (
+        {existingAttachments.length === 0 && attachments.length === 0 ? (
+          <div className="text-muted-foreground bg-muted/20 rounded-md border border-dashed px-4 py-6 text-center text-sm">
+            No attachments yet. Use “Add files” to upload.
+          </div>
+        ) : (
           <div className="space-y-2">
+            {existingAttachments.map((a) => (
+              <div
+                key={a.fileId}
+                className="bg-muted/10 flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+              >
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="text-muted-foreground h-4 w-4" aria-hidden />
+                    <div className="truncate text-sm font-medium">{a.title}</div>
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    {a.category || 'Uncategorized'}
+                    {a.sizeBytes ? ` · ${Math.round(a.sizeBytes / 1024)} KB` : ''}
+                    {a.uploadedAt
+                      ? ` · Uploaded ${new Date(a.uploadedAt).toLocaleDateString()}`
+                      : ''}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeExistingAttachment(a.fileId)}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
             {attachments.map((a) => (
               <div
                 key={a.id}
-                className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
+                className="bg-muted/20 flex items-center justify-between gap-3 rounded-md border px-3 py-2"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <Paperclip className="h-4 w-4 text-muted-foreground" aria-hidden />
-                  <div className="truncate text-sm">{a.file.name}</div>
-                  <div className="text-xs text-muted-foreground">{Math.round(a.file.size / 1024)} KB</div>
+                  <Paperclip className="text-muted-foreground h-4 w-4" aria-hidden />
+                  <div className="truncate text-sm">{a.title || a.file.name}</div>
+                  <div className="text-muted-foreground text-xs">
+                    {a.category || 'Uncategorized'} · {Math.round(a.file.size / 1024)} KB
+                  </div>
                 </div>
-                <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(a.id)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeAttachment(a.id)}
+                >
                   Remove
                 </Button>
               </div>
             ))}
           </div>
         )}
+
+        <TransactionFileUploadDialog
+          open={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
+          onSaved={handleAddAttachment}
+          maxBytes={MAX_ATTACHMENT_SIZE_BYTES}
+        />
       </div>
 
       <div className="flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -896,11 +1029,16 @@ export default function EditCheckForm(props: {
             Cancel
           </Button>
         </div>
-        <Button type="button" variant="outline" onClick={handleDelete} disabled={isSaving} className="text-destructive">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleDelete}
+          disabled={isSaving}
+          className="text-destructive"
+        >
           Delete
         </Button>
       </div>
     </div>
   );
 }
-

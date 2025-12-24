@@ -75,11 +75,20 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     );
 
     // Prepare email data
-    const emailData: any = {
-      from: `${from.name} <${from.email}>`,
-      to: toAddresses,
-      subject: options.subject,
-      html: options.html,
+  const emailData: {
+    from: string;
+    to: string[];
+    subject: string;
+    html: string;
+    text?: string;
+    replyTo?: string;
+    tags?: Array<{ name: string; value: string }>;
+    attachments?: Array<{ filename: string; content: Buffer | string; contentType?: string }>;
+  } = {
+    from: `${from.name} <${from.email}>`,
+    to: toAddresses,
+    subject: options.subject,
+    html: options.html,
       text: options.text,
       replyTo: options.replyTo,
       tags: options.tags,

@@ -50,9 +50,19 @@ export default function StaffWizardModal({
             .catch(() => []),
         ]);
         setOrgs(o.organizations || []);
-        setProperties(
-          Array.isArray(p) ? p.map((x: any) => ({ id: x.id, name: x.name })) : p?.items || [],
-        );
+        const rawProperties =
+          (Array.isArray(p)
+            ? p
+            : p && typeof p === 'object' && Array.isArray((p as { items?: unknown }).items)
+              ? (p as { items?: unknown }).items
+              : []) ?? [];
+        const normalized = rawProperties.flatMap((item) => {
+          if (!item || typeof item !== 'object') return [];
+          const { id, name } = item as { id?: string | number; name?: string | null };
+          if (id == null) return [];
+          return [{ id: String(id), name: typeof name === 'string' ? name : String(id) }];
+        });
+        setProperties(normalized);
       } catch {}
     };
     load();
@@ -61,7 +71,11 @@ export default function StaffWizardModal({
   const toggleProperty = (id: string) => {
     setSelectedProperties((prev) => {
       const n = new Set(prev);
-      n.has(id) ? n.delete(id) : n.add(id);
+      if (n.has(id)) {
+        n.delete(id);
+      } else {
+        n.add(id);
+      }
       return n;
     });
   };
@@ -114,8 +128,9 @@ export default function StaffWizardModal({
       }
       onSaved();
       onOpenChange(false);
-    } catch (e: any) {
-      setErr(e.message || 'Failed to create staff');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to create staff';
+      setErr(message);
     } finally {
       setBusy(false);
     }

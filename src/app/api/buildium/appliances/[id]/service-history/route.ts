@@ -69,6 +69,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium appliance service history`);
 
     return NextResponse.json(
@@ -137,6 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium appliance service history`);
 
     return NextResponse.json(

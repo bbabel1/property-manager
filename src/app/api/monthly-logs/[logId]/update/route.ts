@@ -22,11 +22,10 @@ type PatchPayload = {
 
 export async function PATCH(
   request: Request,
-  context: { params: { logId: string } } | { params: Promise<{ logId: string }> },
+  { params }: { params: Promise<{ logId: string }> },
 ) {
   try {
-    const params = 'params' in context ? context.params : { logId: '' };
-    const { logId: id } = params instanceof Promise ? await params : params;
+    const { logId: id } = await params;
 
     // In development, use admin client for testing
     const supabase =

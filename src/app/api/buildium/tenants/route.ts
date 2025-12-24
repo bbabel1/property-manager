@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
       count: tenants.length,
     });
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium tenants`);
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium tenant`);
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

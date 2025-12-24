@@ -34,13 +34,14 @@ import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FileRow } from '@/lib/files';
 import { resolveLeaseBalances } from '@/lib/lease-balance';
+import type { Database } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type LeaseDetailsPageParams = { id: string };
 // Use a loose row type because this page stitches together multiple Supabase queries with partial selects.
-type UnknownRow = Record<string, any>;
+type UnknownRow = Record<string, unknown>;
 type LeaseFileCategory = {
   id: string;
   category_name: string;
@@ -64,6 +65,30 @@ const fmtUsd = (n?: number | null) =>
     normalizeCurrency(n),
   );
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toNumber = (value: unknown): number | null => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const toStringSafe = (value: unknown): string | null => {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return null;
+  try {
+    return String(value);
+  } catch {
+    return null;
+  }
+};
+
+const readAmountFromLine = (line: unknown): number => {
+  if (!isRecord(line)) return 0;
+  const val = line.amount ?? (isRecord(line) ? line.Amount : null);
+  return toNumber(val) ?? 0;
+};
+
 export default async function LeaseDetailsPage({
   params,
   searchParams,
@@ -75,13 +100,13 @@ export default async function LeaseDetailsPage({
   const sp = searchParams ? await searchParams : undefined;
   const initialTab = sp?.tab === 'financials' ? 'financials' : 'summary';
   // Use admin when available to avoid RLS mismatches between source pages and details page
-  const supabase = (supabaseAdmin || supaClient) as unknown as SupabaseClient<any>;
+  const supabase = (supabaseAdmin || supaClient) as SupabaseClient<Database>;
 
   // Step 1: Load the base lease row first (avoid nested join issues)
   const numericId = Number(id);
   let lease: UnknownRow | null = null;
   try {
-    const { data, error: e } = await supabase
+    const { data } = await supabase
       .from('lease')
       .select(
         'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
@@ -382,7 +407,7 @@ export default async function LeaseDetailsPage({
   try {
     const tenantIds = new Set<string>();
     transactions.forEach((tx) => {
-      const tid = (tx as any)?.tenant_id;
+      const tid = isRecord(tx) ? tx.tenant_id : undefined;
       if (tid) tenantIds.add(String(tid));
     });
     if (tenantIds.size > 0) {
@@ -401,19 +426,20 @@ export default async function LeaseDetailsPage({
         )
         .in('id', Array.from(tenantIds));
       if (tenantErr) throw tenantErr;
-      (tenantRows || []).forEach((t: any) => {
-        const contact = (t?.contacts || {}) as {
-          display_name?: string | null;
-          first_name?: string | null;
-          last_name?: string | null;
-          company_name?: string | null;
-        };
+      (tenantRows || []).forEach((t) => {
+        if (!isRecord(t)) return;
+        const contactRaw = t.contacts;
+        const contact = isRecord(contactRaw) ? contactRaw : {};
+        const displayName = toStringSafe(contact.display_name);
+        const first = toStringSafe(contact.first_name);
+        const last = toStringSafe(contact.last_name);
+        const company = toStringSafe(contact.company_name);
         const name =
-          contact.display_name ||
-          [contact.first_name, contact.last_name].filter(Boolean).join(' ').trim() ||
-          contact.company_name ||
+          displayName ||
+          [first, last].filter(Boolean).join(' ').trim() ||
+          company ||
           null;
-        if (name && t?.id) tenantNameById[String(t.id)] = name;
+        if (name && t.id != null) tenantNameById[String(t.id)] = name;
       });
     }
   } catch (err) {
@@ -527,7 +553,7 @@ export default async function LeaseDetailsPage({
           if (list.length) {
             const po3 =
               list.find(
-                (o: any) =>
+                (o) =>
                   typeof o === 'object' &&
                   o !== null &&
                   (o as { primary?: boolean }).primary === true,
@@ -1020,61 +1046,67 @@ export default async function LeaseDetailsPage({
     return Number.isFinite(timestamp) ? timestamp : null;
   };
 
-  const extractTransactionLines = (tx: any) => {
-    if (!tx) return [];
-    const lines =
-      Array.isArray(tx?.transaction_lines) && tx.transaction_lines.length
-        ? tx.transaction_lines
-        : Array.isArray(tx?.Lines) && tx.Lines.length
-          ? tx.Lines
-          : Array.isArray(tx?.Journal?.Lines)
-            ? tx.Journal.Lines
-            : [];
+  const extractTransactionLines = (tx: unknown) => {
+    if (!isRecord(tx)) return [];
+    const journalLines = isRecord(tx.Journal) ? tx.Journal.Lines : null;
+    const candidates = [
+      tx.transaction_lines,
+      tx.Lines,
+      journalLines,
+    ];
+    const lines = candidates.find((c) => Array.isArray(c) && c.length) as unknown[] | undefined;
     return Array.isArray(lines) ? lines.filter(Boolean) : [];
   };
 
-  const normalizePostingType = (line: any) => {
+  const normalizePostingType = (line: unknown) => {
+    if (!isRecord(line)) return '';
     const raw =
-      line?.posting_type ??
-      line?.PostingType ??
-      line?.LineType ??
-      line?.postingType ??
-      line?.posting_type_enum ??
+      line.posting_type ??
+      line.PostingType ??
+      line.LineType ??
+      line.postingType ??
+      line.posting_type_enum ??
       '';
     return typeof raw === 'string' ? raw.toLowerCase() : '';
   };
 
-  const extractAccountFromLine = (line: any) => {
-    const account =
-      (line?.gl_accounts && typeof line.gl_accounts === 'object' ? line.gl_accounts : null) ||
-      (line?.GLAccount && typeof line.GLAccount === 'object' ? line.GLAccount : null) ||
-      (line?.Account && typeof line.Account === 'object' ? line.Account : null);
-    const rawName =
-      typeof (account as any)?.name === 'string'
-        ? (account as any).name
-        : typeof (account as any)?.Name === 'string'
-          ? (account as any).Name
-          : '';
-    const rawType =
-      typeof (account as any)?.type === 'string'
-        ? (account as any).type
-        : typeof (account as any)?.Type === 'string'
-          ? (account as any).Type
-          : '';
-    const rawSubType =
-      typeof (account as any)?.sub_type === 'string'
-        ? (account as any).sub_type
-        : typeof (account as any)?.SubType === 'string'
-          ? (account as any).SubType
-          : '';
+  const pickString = (obj: UnknownRow | null | undefined, keys: string[]) => {
+    if (!obj) return '';
+    for (const key of keys) {
+      const val = obj[key];
+      if (typeof val === 'string') return val;
+    }
+    return '';
+  };
+
+  const extractAccountFromLine = (line: unknown) => {
+    if (!isRecord(line)) {
+      return {
+        account: null,
+        displayName: '',
+        name: '',
+        type: '',
+        subType: '',
+        isDeposit: false,
+      };
+    }
+    const accountRaw =
+      (line.gl_accounts && isRecord(line.gl_accounts) ? line.gl_accounts : null) ||
+      (line.GLAccount && isRecord(line.GLAccount) ? line.GLAccount : null) ||
+      (line.Account && isRecord(line.Account) ? line.Account : null);
+    const rawName = pickString(accountRaw, ['name', 'Name']);
+    const rawType = pickString(accountRaw, ['type', 'Type']);
+    const rawSubType = pickString(accountRaw, ['sub_type', 'SubType']);
 
     return {
-      account,
+      account: accountRaw,
       displayName: rawName || '',
       name: rawName.toLowerCase(),
       type: rawType.toLowerCase(),
       subType: rawSubType.toLowerCase(),
-      isDeposit: Boolean((account as any)?.is_security_deposit_liability),
+      isDeposit: Boolean(
+        accountRaw && isRecord(accountRaw) && accountRaw.is_security_deposit_liability,
+      ),
     };
   };
 
@@ -1093,12 +1125,18 @@ export default async function LeaseDetailsPage({
       let depositBalance = 0;
       let prepaymentBalance = 0;
 
+      const readAmount = (line: unknown) => {
+        if (!isRecord(line)) return 0;
+        const val = line.amount ?? (isRecord(line) ? line.Amount : null);
+        return toNumber(val) ?? 0;
+      };
+
       for (const tx of transactions) {
         const lines = extractTransactionLines(tx);
         if (!lines.length) continue;
 
         for (const line of lines) {
-          const amountRaw = Number((line as any)?.amount ?? (line as any)?.Amount ?? 0);
+          const amountRaw = readAmount(line);
           const amount = Math.abs(amountRaw);
           if (!amount) continue;
 
@@ -1138,35 +1176,44 @@ export default async function LeaseDetailsPage({
         const primaryAccount = primaryLine ? extractAccountFromLine(primaryLine) : null;
         const accountName =
           primaryAccount?.displayName ||
-          (primaryLine as { GLAccountName?: string | null } | null)?.GLAccountName ||
+          (isRecord(primaryLine) && typeof primaryLine.GLAccountName === 'string'
+            ? primaryLine.GLAccountName
+            : null) ||
           '—';
         const memo =
-          primaryLine?.memo || primaryLine?.Memo || tx?.memo || tx?.Memo || tx?.Description || null;
-        const buildiumIdRaw = tx?.Id ?? tx?.buildium_transaction_id;
-        const buildiumId =
-          buildiumIdRaw != null && !Number.isNaN(Number(buildiumIdRaw))
-            ? Number(buildiumIdRaw)
-            : null;
-        const localId = tx?.id ?? tx?.Id ?? randomUUID();
+          (isRecord(primaryLine) && typeof primaryLine.memo === 'string' ? primaryLine.memo : null) ||
+          (isRecord(primaryLine) && typeof primaryLine.Memo === 'string' ? primaryLine.Memo : null) ||
+          (isRecord(tx) && typeof tx.memo === 'string' ? tx.memo : null) ||
+          (isRecord(tx) && typeof tx.Memo === 'string' ? tx.Memo : null) ||
+          (isRecord(tx) && typeof tx.Description === 'string' ? tx.Description : null) ||
+          null;
+        const buildiumIdRaw = isRecord(tx) ? tx.Id ?? tx.buildium_transaction_id : null;
+        const buildiumId = toNumber(buildiumIdRaw);
+        const localId = isRecord(tx) && (tx.id || tx.Id) ? tx.id ?? tx.Id : randomUUID();
         const baseType =
-          tx?.TransactionTypeEnum || tx?.TransactionType || tx?.transaction_type || 'Transaction';
-        const tenantId = (tx as any)?.tenant_id ? String((tx as any)?.tenant_id) : null;
+          (isRecord(tx) && typeof tx.TransactionTypeEnum === 'string'
+            ? tx.TransactionTypeEnum
+            : null) ||
+          (isRecord(tx) && typeof tx.TransactionType === 'string' ? tx.TransactionType : null) ||
+          (isRecord(tx) && typeof tx.transaction_type === 'string' ? tx.transaction_type : null) ||
+          'Transaction';
+        const tenantId = isRecord(tx) && tx.tenant_id ? String(tx.tenant_id) : null;
         const tenantName = tenantId ? tenantNameById[tenantId] : null;
         const typeLabel =
           typeof baseType === 'string' && baseType.toLowerCase().includes('payment') && tenantName
             ? `${baseType} (made by ${tenantName})`
             : baseType;
         const rawDate =
-          (tx as any)?.Date ??
-          (tx as any)?.date ??
-          (tx as any)?.TransactionDate ??
-          (tx as any)?.TransactionDateTime ??
-          (tx as any)?.entry_date ??
+          (isRecord(tx) && tx.Date) ??
+          (isRecord(tx) && tx.date) ??
+          (isRecord(tx) && tx.TransactionDate) ??
+          (isRecord(tx) && tx.TransactionDateTime) ??
+          (isRecord(tx) && tx.entry_date) ??
           null;
         const sequence = Number.isFinite(Number(buildiumIdRaw))
           ? Number(buildiumIdRaw)
-          : Number.isFinite(Number(tx?.id))
-            ? Number(tx?.id)
+          : Number.isFinite(Number(isRecord(tx) ? tx.id : null))
+            ? Number((isRecord(tx) ? tx.id : null) as unknown)
             : null;
         return {
           id: String(localId),
@@ -1174,7 +1221,10 @@ export default async function LeaseDetailsPage({
           account: accountName,
           type: typeLabel,
           memo,
-          amount: Number(tx?.TotalAmount ?? tx?.total_amount ?? 0) || 0,
+          amount:
+            (isRecord(tx) && toNumber(tx.TotalAmount)) ??
+              (isRecord(tx) && toNumber(tx.total_amount)) ??
+              0 || 0,
           signedAmount: signedAmountFromTransaction(tx),
           transactionId: buildiumId,
           sortKey: parseDateValue(rawDate) ?? 0,
@@ -1257,17 +1307,22 @@ export default async function LeaseDetailsPage({
         const lines = extractTransactionLines(tx);
         if (!lines.length) continue;
         const rawDate =
-          (tx as any)?.Date ??
-          (tx as any)?.date ??
-          (tx as any)?.TransactionDate ??
-          (tx as any)?.TransactionDateTime ??
-          (tx as any)?.entry_date;
+          (isRecord(tx) && tx.Date) ??
+          (isRecord(tx) && tx.date) ??
+          (isRecord(tx) && tx.TransactionDate) ??
+          (isRecord(tx) && tx.TransactionDateTime) ??
+          (isRecord(tx) && tx.entry_date);
         const dateLabel = formatLedgerDate(rawDate);
         const typeLabel =
-          tx?.TransactionTypeEnum || tx?.TransactionType || tx?.transaction_type || 'Transaction';
+          (isRecord(tx) && typeof tx.TransactionTypeEnum === 'string'
+            ? tx.TransactionTypeEnum
+            : null) ||
+          (isRecord(tx) && typeof tx.TransactionType === 'string' ? tx.TransactionType : null) ||
+          (isRecord(tx) && typeof tx.transaction_type === 'string' ? tx.transaction_type : null) ||
+          'Transaction';
 
         for (const line of lines) {
-          const amountRaw = Number((line as any)?.amount ?? (line as any)?.Amount ?? 0);
+          const amountRaw = readAmountFromLine(line);
           const amount = Math.abs(amountRaw);
           if (!amount) continue;
           const postingType = normalizePostingType(line);
@@ -1297,19 +1352,24 @@ export default async function LeaseDetailsPage({
               ? `${baseType} made by ${tenantNames.join(', ')}`
               : baseType;
           const amountForDisplay = isCredit ? amount : amount * -1;
+          const lineMemo =
+            (isRecord(line) && typeof line.memo === 'string' ? line.memo : null) ||
+            (isRecord(line) && typeof line.Memo === 'string' ? line.Memo : null) ||
+            (isRecord(tx) && typeof tx.memo === 'string' ? tx.memo : null) ||
+            (isRecord(tx) && typeof tx.Memo === 'string' ? tx.Memo : null) ||
+            (isRecord(tx) && typeof tx.Description === 'string' ? tx.Description : null) ||
+            '';
+          const txIdForRow =
+            (isRecord(tx) && (tx.Id ?? tx.id)) != null
+              ? String((isRecord(tx) ? tx.Id ?? tx.id : '') as unknown)
+              : randomUUID();
 
           depositsTableRows.push({
-            id: `${tx?.Id ?? tx?.id ?? randomUUID()}-${depositsTableRows.length}`,
+            id: `${txIdForRow}-${depositsTableRows.length}`,
             account: accountLabel,
             date: dateLabel,
             type: payerLabel,
-            memo:
-              (line as any)?.memo ||
-              (line as any)?.Memo ||
-              tx?.memo ||
-              tx?.Memo ||
-              tx?.Description ||
-              '',
+            memo: lineMemo,
             amount: amountForDisplay,
             balance: running,
           });
@@ -1326,11 +1386,11 @@ export default async function LeaseDetailsPage({
         account: 'Security Deposit Liability',
         date: formatLedgerDate(
           Array.isArray(transactions) && transactions[0]
-            ? ((transactions[0] as any)?.Date ??
-                (transactions[0] as any)?.date ??
-                (transactions[0] as any)?.TransactionDate ??
-                (transactions[0] as any)?.TransactionDateTime ??
-                (transactions[0] as any)?.entry_date)
+            ? ((isRecord(transactions[0]) && transactions[0].Date) ??
+                (isRecord(transactions[0]) && transactions[0].date) ??
+                (isRecord(transactions[0]) && transactions[0].TransactionDate) ??
+                (isRecord(transactions[0]) && transactions[0].TransactionDateTime) ??
+                (isRecord(transactions[0]) && transactions[0].entry_date))
             : null,
         ),
         type: 'Payment',

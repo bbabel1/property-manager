@@ -3,6 +3,15 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
+type BalanceResponse = {
+  EndingBalance?: number | null
+  endingBalance?: number | null
+  TotalChecksAndWithdrawals?: number | null
+  totalChecksAndWithdrawals?: number | null
+  TotalDepositsAndAdditions?: number | null
+  totalDepositsAndAdditions?: number | null
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Authentication
@@ -31,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const balance = await response.json();
+    const balance = (await response.json()) as BalanceResponse;
 
     return NextResponse.json({
       success: true,
@@ -56,7 +65,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info({ reconciliationId, action: 'update_buildium_reconciliation_balance' }, 'Updating Buildium reconciliation balance');
 
     // Parse request body
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
 
     // Buildium API call
     const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/reconciliations/${reconciliationId}/balance`, {
@@ -80,14 +89,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const updatedBalance = await response.json();
+    const updatedBalance = (await response.json()) as BalanceResponse;
 
     // Upsert balance fields into reconciliation_log
     try {
       const admin = supabaseAdmin
       if (admin) {
         const recId = Number(reconciliationId)
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           buildium_reconciliation_id: recId,
           ending_balance: updatedBalance?.EndingBalance ?? updatedBalance?.endingBalance ?? null,
           total_checks_withdrawals: updatedBalance?.TotalChecksAndWithdrawals ?? updatedBalance?.totalChecksAndWithdrawals ?? null,
@@ -95,8 +104,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         }
         await admin.from('reconciliation_log').upsert(payload, { onConflict: 'buildium_reconciliation_id' })
       }
-    } catch (e) {
-      logger.warn({ e, reconciliationId }, 'Reconciliation log upsert (balance) failed; continuing')
+    } catch {
+      logger.warn({ reconciliationId }, 'Reconciliation log upsert (balance) failed; continuing')
     }
 
     return NextResponse.json({

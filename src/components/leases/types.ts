@@ -32,60 +32,86 @@ export type LeaseFormSuccessPayload = {
   transaction?: LeaseTransactionRecord | null;
 };
 
+type UnknownRecord = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const firstValue = <T>(...candidates: unknown[]): T | undefined => {
+  const hit = candidates.find((value) => value !== undefined && value !== null);
+  return hit as T | undefined;
+};
+
 export const extractLeaseTransactionFromResponse = (
   payload: unknown,
 ): LeaseTransactionRecord | null => {
-  if (!payload || typeof payload !== 'object' || payload === null) {
+  if (!isRecord(payload)) {
     return null;
   }
 
-  const candidate =
-    (payload as any)?.data?.transaction ?? (payload as any)?.transaction ?? null;
-  if (!candidate || typeof candidate !== 'object') {
+  const nestedData = isRecord(payload.data) ? payload.data : undefined;
+  const candidate = nestedData?.transaction ?? payload.transaction ?? null;
+  if (!isRecord(candidate)) {
     return null;
   }
 
-  const id = (candidate as any).id ?? (candidate as any).transaction_id ?? null;
-  const leaseId =
-    (candidate as any).lease_id ??
-    (candidate as any).leaseId ??
-    (candidate as any).LeaseId ??
-    null;
-  const date = (candidate as any).date ?? (candidate as any).Date ?? null;
-  const transactionType =
-    (candidate as any).transaction_type ??
-    (candidate as any).transactionType ??
-    (candidate as any).TransactionType ??
-    null;
-
-  if (id == null || leaseId == null || !date || !transactionType) {
+  const idRaw = firstValue<string | number>(
+    candidate.id,
+    candidate.transaction_id,
+  );
+  if (typeof idRaw !== 'string' && typeof idRaw !== 'number') {
     return null;
   }
 
-  const totalAmountRaw =
-    (candidate as any).total_amount ??
-    (candidate as any).TotalAmount ??
-    (candidate as any).amount ??
-    (candidate as any).Amount ??
-    0;
+  const leaseIdRaw = firstValue<string | number>(
+    candidate.lease_id,
+    candidate.leaseId,
+    (candidate as { LeaseId?: unknown }).LeaseId,
+  );
+  if (typeof leaseIdRaw !== 'string' && typeof leaseIdRaw !== 'number') {
+    return null;
+  }
+
+  const dateRaw = firstValue<string | Date>(candidate.date, (candidate as { Date?: unknown }).Date);
+  if (!dateRaw) {
+    return null;
+  }
+
+  const transactionTypeRaw = firstValue<string>(
+    candidate.transaction_type,
+    (candidate as { transactionType?: unknown }).transactionType,
+    (candidate as { TransactionType?: unknown }).TransactionType,
+  );
+  if (!transactionTypeRaw) {
+    return null;
+  }
+
+  const totalAmountRaw = firstValue<number | string>(
+    candidate.total_amount,
+    (candidate as { TotalAmount?: unknown }).TotalAmount,
+    candidate.amount,
+    (candidate as { Amount?: unknown }).Amount,
+  );
   const parsedTotal = Number(totalAmountRaw);
   const totalAmount = Number.isFinite(parsedTotal) ? parsedTotal : 0;
 
-  const memo =
-    (candidate as any).memo ?? (candidate as any).Memo ?? null;
-  const referenceNumber =
-    (candidate as any).reference_number ??
-    (candidate as any).referenceNumber ??
-    (candidate as any).ReferenceNumber ??
-    null;
+  const memoRaw = firstValue<string>(
+    candidate.memo,
+    (candidate as { Memo?: unknown }).Memo,
+  );
+  const referenceNumberRaw = firstValue<string | number>(
+    candidate.reference_number,
+    (candidate as { referenceNumber?: unknown }).referenceNumber,
+    (candidate as { ReferenceNumber?: unknown }).ReferenceNumber,
+  );
 
   return {
-    id,
-    transaction_type: String(transactionType),
+    id: idRaw,
+    transaction_type: String(transactionTypeRaw),
     total_amount: totalAmount,
-    date: String(date),
-    memo: memo != null ? String(memo) : null,
-    lease_id: leaseId,
-    reference_number: referenceNumber != null ? String(referenceNumber) : null,
+    date: String(dateRaw),
+    memo: memoRaw != null ? String(memoRaw) : null,
+    lease_id: leaseIdRaw,
+    reference_number: referenceNumberRaw != null ? String(referenceNumberRaw) : null,
   };
 };

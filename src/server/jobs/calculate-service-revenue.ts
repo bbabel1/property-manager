@@ -16,8 +16,7 @@ export async function refreshServiceMetricsViews(): Promise<void> {
   ];
 
   for (const view of views) {
-    // Cast rpc to any because the helper is defined in the database but not yet in generated types.
-    const { error } = await (supabaseAdmin as any).rpc('refresh_mat_view_concurrently', {
+    const { error } = await supabaseAdmin.rpc('refresh_mat_view_concurrently', {
       view_name: view,
     });
     if (error) {

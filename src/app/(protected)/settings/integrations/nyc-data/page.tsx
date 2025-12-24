@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+'use client'
 
-"use client"
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -349,7 +347,7 @@ export default function NYCDataSourcesPage() {
   const displayToken =
     config.appToken || config.appTokenFull || (config.hasAppToken ? config.appTokenMasked || '' : '')
 
-  const syncDatasetsFromSources = (sources: DataSourceRow[]) => {
+  const syncDatasetsFromSources = useCallback((sources: DataSourceRow[]) => {
     setConfig((prev) => {
       const updates: Partial<Record<DatasetKey, string>> = {}
       sources.forEach((source) => {
@@ -360,18 +358,18 @@ export default function NYCDataSourcesPage() {
       if (!Object.keys(updates).length) return prev
       return { ...prev, datasets: { ...prev.datasets, ...updates } }
     })
-  }
+  }, [])
 
-  const upsertSourceInState = (source: DataSourceRow) => {
+  const upsertSourceInState = useCallback((source: DataSourceRow) => {
     setDataSources((prev) => {
       const filtered = prev.filter((item) => item.id !== source.id)
       const updated = [...filtered, source].sort((a, b) => a.title?.localeCompare(b.title || '') || 0)
       syncDatasetsFromSources(updated)
       return updated
     })
-  }
+  }, [syncDatasetsFromSources])
 
-  const loadDataSources = async () => {
+  const loadDataSources = useCallback(async () => {
     try {
       setSourcesLoading(true)
       const res = await fetch('/api/nyc-data/sources')
@@ -388,37 +386,38 @@ export default function NYCDataSourcesPage() {
     } finally {
       setSourcesLoading(false)
     }
-  }
+  }, [syncDatasetsFromSources])
 
   useEffect(() => {
-    loadDataSources()
-  }, [])
+    void loadDataSources()
+  }, [loadDataSources])
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch('/api/nyc-data/integration')
-        if (!res.ok) throw new Error('Failed to load NYC Open Data integration')
-        const data = await res.json()
-        setConfig((prev) => ({
-          ...prev,
-          baseUrl: data.base_url || prev.baseUrl,
-          appToken: '',
-          appTokenFull: data.app_token_full || '',
-          appTokenMasked: data.app_token_masked || null,
-          hasAppToken: data.has_app_token || false,
-          isEnabled: data.is_enabled ?? true,
-          datasets: { ...prev.datasets, ...(data.datasets || {}) },
-        }))
-      } catch (error) {
-        console.error(error)
-        toast.error('Failed to load NYC Open Data integration')
-      } finally {
-        setLoading(false)
-      }
+  const loadIntegration = useCallback(async () => {
+    try {
+      const res = await fetch('/api/nyc-data/integration')
+      if (!res.ok) throw new Error('Failed to load NYC Open Data integration')
+      const data = await res.json()
+      setConfig((prev) => ({
+        ...prev,
+        baseUrl: data.base_url || prev.baseUrl,
+        appToken: '',
+        appTokenFull: data.app_token_full || '',
+        appTokenMasked: data.app_token_masked || null,
+        hasAppToken: data.has_app_token || false,
+        isEnabled: data.is_enabled ?? true,
+        datasets: { ...prev.datasets, ...(data.datasets || {}) },
+      }))
+    } catch (error) {
+      console.error(error)
+      toast.error('Failed to load NYC Open Data integration')
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => {
+    void loadIntegration()
+  }, [loadIntegration])
 
   const saveConfig = async () => {
     try {

@@ -23,12 +23,11 @@ const ALLOWED_FIELDS: AllowedTenantFields[] = [
 
 export async function PATCH(
   request: Request,
-  context: { params: { id: string } } | { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAuth()
-    const params = 'params' in context ? context.params : { id: '' }
-    const { id } = params instanceof Promise ? await params : params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json({ success: false, error: 'Missing tenant id' }, { status: 400 })

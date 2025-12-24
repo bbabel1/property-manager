@@ -1,16 +1,14 @@
 "use client"
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import AddLink from '@/components/ui/AddLink'
 import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog'
 
 export default function TenantRecentFilesSummary({ uploaderName }: { uploaderName?: string | null }) {
   const [open, setOpen] = useState(false)
-  const [count, setCount] = useState(0)
 
   const handleSaved = (_row: TenantFileRow) => {
-    setCount((c) => c + 1)
+    setOpen(false)
   }
 
   return (
@@ -35,4 +33,3 @@ export default function TenantRecentFilesSummary({ uploaderName }: { uploaderNam
     </div>
   )
 }
-

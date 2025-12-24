@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { syncBuildingPermitsFromOpenData, type PermitSource } from '@/lib/building-permit-sync'
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
+import type { Tables } from '@/types/database'
 
 const ALLOWED_SOURCES: PermitSource[] = [
   'dob_now_build_approved_permits',
@@ -53,7 +54,7 @@ export async function POST(
     const { data: membership } = await supabaseAdmin
       .from('org_memberships')
       .select('org_id')
-      .eq('org_id', (property as any).org_id)
+      .eq('org_id', property.org_id)
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -61,11 +62,12 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const propertyRecord = property as Pick<Tables<'properties'>, 'org_id' | 'bin' | 'bbl'>
     const { results } = await syncBuildingPermitsFromOpenData({
-      orgId: (property as any).org_id,
+      orgId: propertyRecord.org_id,
       propertyId,
-      bin: (property as any).bin || null,
-      bbl: (property as any).bbl || null,
+      bin: propertyRecord.bin || null,
+      bbl: propertyRecord.bbl || null,
       includeSources,
     })
 

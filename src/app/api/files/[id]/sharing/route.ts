@@ -17,7 +17,9 @@ const BodySchema = z
     'At least one sharing toggle must be provided',
   );
 
-const deriveShareFlags = (data: any): { tenants: boolean; owners: boolean } => {
+const deriveShareFlags = (
+  data: BuildiumFileShareSettingsUpdate | null | undefined,
+): { tenants: boolean; owners: boolean } => {
   const scope = data ?? {};
   const tenants = Boolean(
     scope?.Lease?.Tenants ??
@@ -98,8 +100,11 @@ export async function PUT(
       field: string,
       value: boolean,
     ) => {
-      const current = (payload[scope] ?? {}) as Record<string, unknown>;
-      payload[scope] = { ...current, [field]: value } as any;
+      const current = (payload[scope] ?? {}) as Record<string, boolean | undefined>;
+      payload[scope] = {
+        ...current,
+        [field]: value,
+      } as BuildiumFileShareSettingsUpdate[typeof scope];
     };
 
     const applyTenantSetting = (value: boolean) => {
@@ -154,7 +159,7 @@ export async function PUT(
     let latest = null;
     try {
       latest = await buildiumClient.getFileSharingSettings(Number(buildiumFileId));
-    } catch (err) {
+    } catch (_err) {
       // Non-fatal: Buildium sometimes delays propagating sharing updates
       latest = null;
     }

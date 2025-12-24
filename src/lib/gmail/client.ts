@@ -5,7 +5,7 @@
  */
 
 import { google } from 'googleapis';
-import { getStaffGmailIntegration, getAccessToken, type GmailIntegration } from './token-manager';
+import { getStaffGmailIntegration, getAccessToken } from './token-manager';
 import { resolveRedirectUri } from '@/lib/google/oauth';
 
 /**

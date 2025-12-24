@@ -1,5 +1,7 @@
 # Buildium Integration Quick Reference
 
+<!-- markdownlint-configure-file {"MD060": false} -->
+
 > Generated on: 2025-01-15
 >
 > Quick reference for the current Buildium integration state and immediate action items.
@@ -32,8 +34,7 @@
 
 ## Current File Structure
 
-```
-
+```text
 src/
 ├── app/api/buildium/          # ✅ Well organized API routes
 
@@ -142,7 +143,6 @@ docs/
 ### Local → Buildium (PascalCase)
 
 ```typescript
-
 // Local format (camelCase)
 {
   name: "Sample Property",
@@ -168,7 +168,6 @@ docs/
 ### Buildium → Local (camelCase)
 
 ```typescript
-
 // Buildium format (PascalCase)
 {
   Id: 12345,
@@ -223,18 +222,14 @@ docs/
 1. **Reorganize Scripts**
 
    ```bash
-
    # Create organized structure
-
    mkdir -p scripts/{buildium/{sync,create,verify,cleanup},database,api,utils}
    ```
 
 2. **Create Script Index**
 
    ```bash
-
    # Add README.md to scripts/ with usage guide
-
    ```
 
 3. **Add Health Check Endpoint**
@@ -275,7 +270,6 @@ docs/
 ### Required for Buildium Integration
 
 ```bash
-
 # Buildium API Configuration
 
 BUILDIUM_CLIENT_ID=your_client_id
@@ -324,7 +318,6 @@ NEXT_PUBLIC_SITE_URL=https://yourdomain.com
 ### Sync Operations
 
 ```bash
-
 # Sync bank accounts
 
 npx tsx scripts/sync-buildium-bank-accounts.ts
@@ -338,7 +331,6 @@ npx tsx scripts/buildium/sync/sync-all.ts
 ### Verification
 
 ```bash
-
 # Verify relationships
 
 npx tsx scripts/verify-relationships.ts
@@ -352,7 +344,6 @@ npx tsx scripts/verify-buildium-transaction-lines.ts
 ### Cleanup
 
 ```bash
-
 # Clean duplicate entries
 
 npx tsx scripts/cleanup-duplicate-journal-entries.ts

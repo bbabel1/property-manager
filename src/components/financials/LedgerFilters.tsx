@@ -32,7 +32,7 @@ export default function LedgerFilters({
   showPropertyFilter = true,
   autoSelectAllProperties = true,
 }: Props) {
-  const propertyList = propertyOptions ?? []
+  const propertyList = useMemo(() => propertyOptions ?? [], [propertyOptions])
   const showPropertySelector = showPropertyFilter && propertyList.length > 0
 
   const allPropertyIds = useMemo(() => propertyList.map((property) => property.id), [propertyList])

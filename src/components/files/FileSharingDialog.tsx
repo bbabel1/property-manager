@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -40,14 +40,7 @@ export default function FileSharingDialog({
   const [entities, setEntities] = useState(sharedEntities);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (open && fileId) {
-      fetchSharedEntities();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, fileId]);
-
-  const fetchSharedEntities = async () => {
+  const fetchSharedEntities = useCallback(async () => {
     if (!fileId) return;
     setIsLoading(true);
     try {
@@ -63,7 +56,13 @@ export default function FileSharingDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fileId, orgId, sharedEntities]);
+
+  useEffect(() => {
+    if (open && fileId) {
+      void fetchSharedEntities();
+    }
+  }, [open, fileId, fetchSharedEntities]);
 
   const handleRemoveShare = async (entityId: string, entityType: string) => {
     if (!fileId) return;

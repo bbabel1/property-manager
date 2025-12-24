@@ -1,7 +1,13 @@
 "use client"
 import { useCallback, useMemo, useState } from 'react'
 import { BuildiumEdgeClient } from '@/lib/buildium-edge-client'
-import type { BuildiumLeaseTransaction, BuildiumLeaseTransactionCreate, BuildiumLeaseTransactionUpdate } from '@/types/buildium'
+import type { 
+  BuildiumLeaseTransaction, 
+  BuildiumLeaseTransactionCreate, 
+  BuildiumLeaseTransactionUpdate,
+  BuildiumRecurringTransactionCreate,
+  BuildiumRecurringTransactionUpdate
+} from '@/types/buildium'
 
 export interface UseLeaseTransactionsOptions {
   leaseId: number
@@ -26,7 +32,7 @@ export function useLeaseTransactions(options: UseLeaseTransactionsOptions) {
     try {
       const { success, data, error } = await client.listLeaseTransactions(leaseId, { limit, offset, orderby, dateFrom, dateTo })
       if (!success) throw new Error(error || 'Failed to list lease transactions')
-      setItems((data || []) as BuildiumLeaseTransaction[])
+      setItems(data || [])
     } catch (e) { setError((e as Error).message) }
     finally { setLoading(false) }
   }, [client, leaseId, limit, offset, orderby, dateFrom, dateTo])
@@ -34,7 +40,7 @@ export function useLeaseTransactions(options: UseLeaseTransactionsOptions) {
   const getOne = useCallback(async (transactionId: number, persist = false) => {
     const { success, data, error } = await client.getLeaseTransaction(leaseId, transactionId, persist)
     if (!success) throw new Error(error || 'Failed to fetch lease transaction')
-    return (data || null) as BuildiumLeaseTransaction | null
+    return data || null
   }, [client, leaseId])
 
   const createOne = useCallback(async (payload: BuildiumLeaseTransactionCreate, persist = true) => {
@@ -42,33 +48,33 @@ export function useLeaseTransactions(options: UseLeaseTransactionsOptions) {
     if (!success) throw new Error(error || 'Failed to create lease transaction')
     // optimistic refresh
     await list()
-    return (data || null) as BuildiumLeaseTransaction | null
+    return data || null
   }, [client, leaseId, list])
 
   const updateOne = useCallback(async (transactionId: number, payload: BuildiumLeaseTransactionUpdate, persist = true) => {
     const { success, data, error } = await client.updateLeaseTransaction(leaseId, transactionId, payload, persist)
     if (!success) throw new Error(error || 'Failed to update lease transaction')
     await list()
-    return (data || null) as BuildiumLeaseTransaction | null
+    return data || null
   }, [client, leaseId, list])
 
   // Recurring helpers
   const listRecurring = useCallback(async () => {
     const { success, data, error } = await client.listRecurringLeaseTransactions(leaseId)
     if (!success) throw new Error(error || 'Failed to list recurring transactions')
-    return (data || []) as BuildiumLeaseTransaction[]
+    return data || []
   }, [client, leaseId])
 
-  const createRecurring = useCallback(async (payload: BuildiumLeaseTransactionCreate) => {
+  const createRecurring = useCallback(async (payload: BuildiumRecurringTransactionCreate) => {
     const { success, data, error } = await client.createRecurringLeaseTransaction(leaseId, payload)
     if (!success) throw new Error(error || 'Failed to create recurring transaction')
-    return (data || null) as BuildiumLeaseTransaction | null
+    return data || null
   }, [client, leaseId])
 
-  const updateRecurring = useCallback(async (recurringId: number, payload: BuildiumLeaseTransactionUpdate) => {
+  const updateRecurring = useCallback(async (recurringId: number, payload: BuildiumRecurringTransactionUpdate) => {
     const { success, data, error } = await client.updateRecurringLeaseTransaction(leaseId, recurringId, payload)
     if (!success) throw new Error(error || 'Failed to update recurring transaction')
-    return (data || null) as BuildiumLeaseTransaction | null
+    return data || null
   }, [client, leaseId])
 
   const deleteRecurring = useCallback(async (recurringId: number) => {

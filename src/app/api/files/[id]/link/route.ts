@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { requireSupabaseAdmin, hasSupabaseAdmin } from '@/lib/supabase-client';
 import { FILE_ENTITY_TYPES, normalizeEntityType } from '@/lib/files';
 
@@ -17,7 +16,6 @@ export async function DELETE(
   if (!hasSupabaseAdmin()) {
     return NextResponse.json({ error: 'Server missing admin key' }, { status: 500 });
   }
-  const supabase = await getSupabaseServerClient();
   const admin = requireSupabaseAdmin('files unlink');
 
   const body = await request.json().catch(() => null);

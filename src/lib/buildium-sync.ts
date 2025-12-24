@@ -10,7 +10,6 @@ import {
   mapOwnerFromBuildium,
   mapVendorFromBuildiumWithCategory,
   mapTaskFromBuildiumWithRelations,
-  mapBankAccountFromBuildiumWithGLAccount,
   mapLeaseToBuildium,
   mapLeaseFromBuildium,
   mapWorkOrderFromBuildiumWithRelations,
@@ -28,16 +27,27 @@ import type {
   BuildiumTask,
   BuildiumBill,
   BuildiumBankAccount,
+  BuildiumBankAccountCreate,
   BuildiumLease,
   BuildiumWorkOrder,
   BuildiumLeaseCreate,
   BuildiumLeaseAddress,
-  BuildiumLeasePhoneEntry,
   BuildiumLeasePersonCreate,
   BuildiumSyncStatus,
   BuildiumEntityType,
 } from '@/types/buildium';
+import type { BuildiumBankAccountCreateEnhancedInput } from '@/schemas/buildium';
 import type { Database } from '@/types/database';
+
+type BuildiumBankAccountWithGL = BuildiumBankAccount & {
+  GLAccountId?: number | null;
+  GLAccount?: { Id?: number | null } | null;
+  AccountNumberUnmasked?: string | null;
+  Balance?: number | null;
+  CheckPrintingInfo?: Database['public']['Tables']['gl_accounts']['Row']['bank_check_printing_info'];
+  ElectronicPayments?: Database['public']['Tables']['gl_accounts']['Row']['bank_electronic_payments'];
+  Country?: string | null;
+};
 
 type PrimitiveId = string | number;
 
@@ -64,6 +74,13 @@ type LocalBankAccountRecord = LocalEntityBase & {
   bank_account_number?: string | null;
   bank_routing_number?: string | null;
   is_active?: boolean | null;
+  Name?: string | null;
+  Description?: string | null;
+  BankAccountType?: string | null;
+  Country?: string | null;
+  AccountNumber?: string | null;
+  RoutingNumber?: string | null;
+  IsActive?: boolean | null;
 };
 type LocalWorkOrderRecord = LocalEntityBase & { buildium_work_order_id?: number | null };
 
@@ -218,8 +235,6 @@ type TaskCreateInput = Parameters<BuildiumClientInstance['createTask']>[0];
 type TaskUpdateInput = Parameters<BuildiumClientInstance['updateTask']>[1];
 type BillCreateInput = Parameters<BuildiumClientInstance['createBill']>[0];
 type BillUpdateInput = Parameters<BuildiumClientInstance['updateBill']>[1];
-type BankAccountCreateInput = Parameters<BuildiumClientInstance['createBankAccount']>[0];
-type BankAccountUpdateInput = Parameters<BuildiumClientInstance['updateBankAccount']>[1];
 type LeaseCreateInput = Parameters<BuildiumClientInstance['createLease']>[0];
 type LeaseUpdateInput = Parameters<BuildiumClientInstance['updateLease']>[1];
 type WorkOrderCreateInput = Parameters<BuildiumClientInstance['createWorkOrder']>[0];
@@ -756,7 +771,7 @@ export class BuildiumSyncService {
   }
 
   async syncBankAccountFromBuildium(
-    buildiumBankAccount: BuildiumBankAccount,
+    buildiumBankAccount: BuildiumBankAccountWithGL,
     orgId?: string,
   ): Promise<{ success: boolean; localId?: string; error?: string }> {
     if (!(await this.isEnabled(orgId))) {
@@ -766,15 +781,15 @@ export class BuildiumSyncService {
 
     try {
       // Phase 4+: Source of truth is gl_accounts bank fields on the bank GL row.
-      const bankBuildiumId = (buildiumBankAccount as any)?.Id ?? null;
+      const bankBuildiumId = buildiumBankAccount.Id ?? null;
       const glBuildiumId =
-        (buildiumBankAccount as any)?.GLAccountId ??
-        (buildiumBankAccount as any)?.GLAccount?.Id ??
+        buildiumBankAccount.GLAccountId ??
+        buildiumBankAccount.GLAccount?.Id ??
         null;
       if (bankBuildiumId == null) throw new Error('Buildium bank account is missing Id');
 
-      let glRow;
-      let glFindErr;
+      let glRow: { id: string } | null = null;
+      let glFindErr: unknown;
       try {
         const res = await supabase
           .from('gl_accounts')
@@ -784,9 +799,9 @@ export class BuildiumSyncService {
         glRow = res.data;
         glFindErr = res.error;
       } catch (err) {
-        glFindErr = err as any;
+        glFindErr = err;
       }
-      if ((!glRow || !(glRow as any).id) && glBuildiumId != null) {
+      if ((!glRow || !glRow.id) && glBuildiumId != null) {
         const { data: fallbackRow, error: fbErr } = await supabase
           .from('gl_accounts')
           .select('id')
@@ -811,30 +826,32 @@ export class BuildiumSyncService {
         return null;
       };
 
+      const updatePayload: Database['public']['Tables']['gl_accounts']['Update'] = {
+        is_bank_account: true,
+        name: buildiumBankAccount.Name ?? null,
+        description: buildiumBankAccount.Description ?? null,
+        buildium_gl_account_id: bankBuildiumId ?? glBuildiumId ?? null,
+        bank_account_type: toLocalType(
+          buildiumBankAccount.BankAccountType,
+        ) as Database['public']['Tables']['gl_accounts']['Row']['bank_account_type'],
+        bank_account_number:
+          buildiumBankAccount.AccountNumberUnmasked ??
+          buildiumBankAccount.AccountNumber ??
+          null,
+        bank_routing_number: buildiumBankAccount.RoutingNumber ?? null,
+        bank_country: (buildiumBankAccount.Country ?? null) as Database['public']['Tables']['gl_accounts']['Row']['bank_country'],
+        bank_buildium_balance:
+          typeof buildiumBankAccount.Balance === 'number' ? buildiumBankAccount.Balance : null,
+        bank_check_printing_info: buildiumBankAccount.CheckPrintingInfo ?? null,
+        bank_electronic_payments: buildiumBankAccount.ElectronicPayments ?? null,
+        bank_last_source: 'buildium',
+        bank_last_source_ts: now,
+        updated_at: now,
+      };
+
       const { error: updErr } = await supabase
         .from('gl_accounts')
-        .update({
-          is_bank_account: true,
-          name: (buildiumBankAccount as any)?.Name ?? null,
-          description: (buildiumBankAccount as any)?.Description ?? null,
-          buildium_gl_account_id: bankBuildiumId ?? glBuildiumId ?? null,
-          bank_account_type: toLocalType((buildiumBankAccount as any)?.BankAccountType),
-          bank_account_number:
-            (buildiumBankAccount as any)?.AccountNumberUnmasked ??
-            (buildiumBankAccount as any)?.AccountNumber ??
-            null,
-          bank_routing_number: (buildiumBankAccount as any)?.RoutingNumber ?? null,
-          bank_country: (buildiumBankAccount as any)?.Country ?? null,
-          bank_buildium_balance:
-            typeof (buildiumBankAccount as any)?.Balance === 'number'
-              ? (buildiumBankAccount as any).Balance
-              : null,
-          bank_check_printing_info: (buildiumBankAccount as any)?.CheckPrintingInfo ?? null,
-          bank_electronic_payments: (buildiumBankAccount as any)?.ElectronicPayments ?? null,
-          bank_last_source: 'buildium',
-          bank_last_source_ts: now,
-          updated_at: now,
-        } as any)
+        .update(updatePayload)
         .eq('id', glRow.id);
 
       if (updErr) throw updErr;
@@ -1312,33 +1329,32 @@ export class BuildiumSyncService {
         return 'Checking';
       };
 
-      const buildiumPayload = sanitizeForBuildium({
-        Name: localBankAccount.name ?? (localBankAccount as any).Name,
-        Description: localBankAccount.description ?? (localBankAccount as any).Description,
-        BankAccountType: mapType(
-          localBankAccount.bank_account_type ?? (localBankAccount as any).BankAccountType,
-        ),
+      const buildiumPayload: BuildiumBankAccountCreateEnhancedInput = {
+        Name: localBankAccount.name ?? localBankAccount.Name ?? 'Bank Account',
+        Description: localBankAccount.description ?? localBankAccount.Description ?? undefined,
+        BankAccountType: mapType(localBankAccount.bank_account_type ?? localBankAccount.BankAccountType),
         Country:
           localBankAccount.bank_country ??
-          (localBankAccount as any).Country ??
+          localBankAccount.Country ??
           process.env.BUILDIUM_DEFAULT_BANK_COUNTRY ??
           'United States',
-        AccountNumber:
-          localBankAccount.bank_account_number ?? (localBankAccount as any).AccountNumber ?? null,
-        RoutingNumber:
-          localBankAccount.bank_routing_number ?? (localBankAccount as any).RoutingNumber ?? null,
+        AccountNumber: localBankAccount.bank_account_number ?? localBankAccount.AccountNumber ?? '',
+        RoutingNumber: localBankAccount.bank_routing_number ?? localBankAccount.RoutingNumber ?? '',
         IsActive:
-          typeof (localBankAccount as any).IsActive === 'boolean'
-            ? (localBankAccount as any).IsActive
+          typeof localBankAccount.IsActive === 'boolean'
+            ? localBankAccount.IsActive
             : (localBankAccount.is_active ?? true),
-        GLAccountId: glBuildiumId,
-      } as any);
+        GLAccountId: glBuildiumId ?? undefined,
+      };
+      const sanitizedBuildiumPayload = sanitizeForBuildium(
+        buildiumPayload,
+      ) as BuildiumBankAccountCreateEnhancedInput;
 
       if (existingBuildiumId) {
         // Update existing bank account
         const buildiumBankAccount = await client.updateBankAccount(
           existingBuildiumId,
-          buildiumPayload as any,
+          sanitizedBuildiumPayload,
         );
         buildiumId = buildiumBankAccount.Id;
         logger.info(
@@ -1347,7 +1363,7 @@ export class BuildiumSyncService {
         );
       } else {
         // Create new bank account
-        const buildiumBankAccount = await client.createBankAccount(buildiumPayload as any);
+        const buildiumBankAccount = await client.createBankAccount(sanitizedBuildiumPayload);
         buildiumId = buildiumBankAccount.Id;
         logger.info(
           { bankAccountId: localBankAccount.id, buildiumId },
@@ -1360,10 +1376,10 @@ export class BuildiumSyncService {
         .from('gl_accounts')
         .update({
           buildium_gl_account_id: buildiumId,
-          bank_last_source: 'buildium' as any,
+          bank_last_source: 'buildium',
           bank_last_source_ts: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', toStringId(localBankAccount.id));
 
       await this.updateSyncStatus('bank_account', localBankAccount.id, buildiumId, 'synced', orgId);
@@ -1796,28 +1812,32 @@ export class BuildiumSyncService {
         depositGlAccountId = await resolveBuildiumGlId(String(depositTemplateRow.gl_account_id));
       }
       if (leaseOrgId && (!rentGlAccountId || !depositGlAccountId)) {
-        const { data: glSettings } = await db
+        const { data: glSettings } = await (db as any)
           .from('settings_gl_accounts')
           .select('rent_income, tenant_deposit_liability')
           .eq('org_id', leaseOrgId)
           .maybeSingle();
 
-        if (glSettings) {
-          if (!rentGlAccountId) rentGlAccountId = await resolveBuildiumGlId(glSettings.rent_income);
-          if (!depositGlAccountId)
-            depositGlAccountId = await resolveBuildiumGlId(glSettings.tenant_deposit_liability);
+        const settings = glSettings as
+          | { rent_income?: string | null; tenant_deposit_liability?: string | null }
+          | null;
 
-          if (!rentGlAccountId && glSettings.rent_income) {
+        if (settings) {
+          if (!rentGlAccountId) rentGlAccountId = await resolveBuildiumGlId(settings.rent_income);
+          if (!depositGlAccountId)
+            depositGlAccountId = await resolveBuildiumGlId(settings.tenant_deposit_liability);
+
+          if (!rentGlAccountId && settings.rent_income) {
             rentGlAccountId = await discoverBuildiumGlAccountId({
-              localGlId: glSettings.rent_income,
+              localGlId: settings.rent_income,
               type: 'Revenue',
               nameHint: 'rent',
             });
           }
 
-          if (!depositGlAccountId && glSettings.tenant_deposit_liability) {
+          if (!depositGlAccountId && settings.tenant_deposit_liability) {
             depositGlAccountId = await discoverBuildiumGlAccountId({
-              localGlId: glSettings.tenant_deposit_liability,
+              localGlId: settings.tenant_deposit_liability,
               type: 'Liability',
               nameHint: 'deposit',
             });
@@ -2206,7 +2226,7 @@ export class BuildiumSyncService {
       const alt = formatPhoneForBuildium(contact.alt_phone);
       const phoneNumbersForEdge: PhoneNumbersObject = {};
       // Buildium lease API expects PhoneNumbers as an object {Mobile, Work, Home}, not an array
-      const phoneNumbersObject: { Mobile?: string; Work?: string; Home?: string } = {};
+      const phoneNumbersObject: BuildiumLeaseTenantPayload['PhoneNumbers'] = {};
       if (primary) {
         phoneNumbersForEdge.Mobile = primary;
         phoneNumbersObject.Mobile = primary;
@@ -2278,7 +2298,7 @@ export class BuildiumSyncService {
       if (email) tenantPayload.Email = email;
       // Buildium lease API expects PhoneNumbers as an object {Mobile, Work, Home}, not an array
       if (Object.keys(phoneNumbersObject).length > 0) {
-        tenantPayload.PhoneNumbers = phoneNumbersObject as any;
+        tenantPayload.PhoneNumbers = phoneNumbersObject;
       }
       if (moveInDate) tenantPayload.MoveInDate = moveInDate;
       if (isCompany) tenantPayload.IsCompany = true;
@@ -2326,8 +2346,12 @@ export class BuildiumSyncService {
         try {
           // Use /rentals/tenants for creating standalone tenants (before lease exists)
           // /leases/tenants requires LeaseId and is for adding tenants to existing leases
-          const created = await client.makeRequest<any>('POST', '/rentals/tenants', sanitized);
-          const createdId = (created as { Id?: number | string | null })?.Id ?? null;
+          const created = await client.makeRequest<{ Id?: number | string | null }>(
+            'POST',
+            '/rentals/tenants',
+            sanitized,
+          );
+          const createdId = created?.Id ?? null;
           buildiumTenantId = createdId != null ? Number(createdId) : null;
         } catch (apiError) {
           logger.debug(
@@ -2341,7 +2365,9 @@ export class BuildiumSyncService {
       }
 
       if (!buildiumTenantId) {
-        const result = await buildiumEdgeClient.createTenantInBuildium(sanitized);
+        const result = await buildiumEdgeClient.createTenantInBuildium(
+          sanitized as unknown as Record<string, unknown>,
+        );
         if (result.success && result.data?.Id) {
           buildiumTenantId = Number(result.data.Id);
         } else {
@@ -2484,7 +2510,7 @@ export class BuildiumSyncService {
         const tableName = entityTableMap[entityType];
 
         // Get the entity data
-        const { data: entity } = await supabase
+        const { data: entity } = await (supabase as any)
           .from(tableName)
           .select('*')
           .eq('id', sync.entityId)

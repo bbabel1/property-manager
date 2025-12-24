@@ -95,9 +95,12 @@ export default function DeveloperConsolePage() {
       setError(null)
       try {
         const res = await fetch('/api/webhooks/settings')
-        const data = await res.json().catch(() => ({}))
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          events?: Array<{ event_type?: string; enabled?: boolean }>;
+        }
         if (!res.ok) throw new Error(data?.error || 'Failed to load webhook settings')
-        const incoming = (data.events || []) as { event_type?: string; enabled?: boolean }[]
+        const incoming = data.events || []
         const merged = WEBHOOK_EVENTS.reduce((acc, item) => {
           const row = incoming.find((r) => r.event_type === item.name)
           acc[item.name] = row?.enabled ?? item.initialActive ?? true
@@ -105,9 +108,10 @@ export default function DeveloperConsolePage() {
         }, {} as Record<string, boolean>)
         setStates(merged)
         setTableError(null)
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load settings')
-        setTableError(e?.message || 'Failed to load settings')
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to load settings'
+        setError(message)
+        setTableError(message)
       } finally {
         setLoading(false)
       }

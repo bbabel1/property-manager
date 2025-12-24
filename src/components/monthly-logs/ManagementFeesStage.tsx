@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Briefcase, AlertCircle, DollarSign, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -61,12 +61,11 @@ export default function ManagementFeesStage({ monthlyLogId }: ManagementFeesStag
     } finally {
       setLoading(false);
     }
-  };
+  }, [monthlyLogId]);
 
   useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [monthlyLogId]);
+    void fetchData();
+  }, [fetchData]);
 
   const handleGenerateFee = async () => {
     try {

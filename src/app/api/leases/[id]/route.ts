@@ -40,7 +40,7 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
         const { data: u } = await db.from('units').select('buildium_unit_id').eq('id', updated.unit_id).single()
         UnitId = u?.buildium_unit_id ?? null
       }
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         PropertyId,
         UnitId,
         LeaseFromDate: updated.lease_from_date,
@@ -93,7 +93,7 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
       },
       { status: buildiumSyncError ? 422 : 200 }
     )
-  } catch (e) {
+  } catch (e: unknown) {
     logger.error({ error: e }, 'Error updating lease')
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }

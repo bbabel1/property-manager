@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       }) || [];
 
     return NextResponse.json({ people });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error searching People API:', error);
 
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
@@ -87,7 +87,16 @@ export async function GET(request: Request) {
     }
 
     // Insufficient scopes (needs contacts.readonly). Instruct user to reconnect Calendar.
-    if (error?.code === 403 || error?.response?.status === 403) {
+    const statusCode =
+      typeof error === 'object' && error !== null && 'response' in error
+        ? (error as { response?: { status?: number } }).response?.status
+        : undefined;
+    const errorCode =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: number | string }).code
+        : undefined;
+
+    if (errorCode === 403 || statusCode === 403) {
       return NextResponse.json(
         {
           error: {
@@ -101,8 +110,18 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(
-      { error: { code: 'PEOPLE_API_ERROR', message: error?.message || 'Failed to search contacts' } },
-      { status: error?.response?.status || 500 }
+      {
+        error: {
+          code: 'PEOPLE_API_ERROR',
+          message:
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string'
+                ? error
+                : 'Failed to search contacts',
+        },
+      },
+      { status: statusCode || 500 }
     );
   }
 }

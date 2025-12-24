@@ -24,10 +24,33 @@ import { formatCurrency } from '@/lib/format-currency';
 import { Download, FileText } from 'lucide-react';
 import supabase from '@/lib/db';
 
+type ProfitabilityRow = {
+  offering_id: string;
+  offering_name: string;
+  category: string;
+  revenue_amount: number;
+  cost_amount: number;
+  margin_amount: number;
+  margin_percentage: number;
+};
+
+type UtilizationRow = {
+  offering_id: string;
+  offering_name: string;
+  category: string;
+  active_properties: number;
+  total_properties: number;
+  utilization_rate: number;
+};
+
+type ReportData = {
+  profitability: ProfitabilityRow[];
+  utilization: UtilizationRow[];
+};
+
 export default function ServiceReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'quarter' | 'year'>('month');
-  const [selectedProperty, setSelectedProperty] = useState<string>('all');
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState<string | null>(null);
 
@@ -37,10 +60,11 @@ export default function ServiceReportsPage() {
       try {
         setLoading(true);
         const { data } = await supabase.auth.getUser();
-        const claims = (data?.user?.app_metadata as any)?.claims;
-        const firstOrg = (claims?.org_ids ?? [])[0] as string | undefined;
+        const claims = (data?.user?.app_metadata as { claims?: { org_ids?: (string | number)[] } } | null | undefined)
+          ?.claims;
+        const firstOrg = (claims?.org_ids ?? [])[0];
         if (mounted) {
-          setOrgId(firstOrg || null);
+          setOrgId(firstOrg != null ? String(firstOrg) : null);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -57,13 +81,68 @@ export default function ServiceReportsPage() {
       try {
         setLoading(true);
         const params = new URLSearchParams({ orgId, period: selectedPeriod, type: 'all' });
-        if (selectedProperty !== 'all') params.append('propertyId', selectedProperty);
 
         const response = await fetch(`/api/dashboard/${orgId}/service-metrics?${params}`);
-        const result = await response.json();
+        const result = (await response.json()) as { data?: unknown };
 
-        if (response.ok) {
-          setReportData(result.data);
+        if (response.ok && result?.data && typeof result.data === 'object') {
+          const profitability = Array.isArray((result.data as { profitability?: unknown }).profitability)
+            ? (
+                (result.data as { profitability: unknown[] }).profitability
+              ).flatMap((item) => {
+                if (!item || typeof item !== 'object') return [];
+                const {
+                  offering_id,
+                  offering_name,
+                  category,
+                  revenue_amount,
+                  cost_amount,
+                  margin_amount,
+                  margin_percentage,
+                } = item as Record<string, unknown>;
+                if (offering_id == null) return [];
+                return [
+                  {
+                    offering_id: String(offering_id),
+                    offering_name: typeof offering_name === 'string' ? offering_name : String(offering_id),
+                    category: typeof category === 'string' ? category : '',
+                    revenue_amount: Number(revenue_amount) || 0,
+                    cost_amount: Number(cost_amount) || 0,
+                    margin_amount: Number(margin_amount) || 0,
+                    margin_percentage: Number(margin_percentage) || 0,
+                  },
+                ];
+              })
+            : [];
+
+          const utilization = Array.isArray((result.data as { utilization?: unknown }).utilization)
+            ? (
+                (result.data as { utilization: unknown[] }).utilization
+              ).flatMap((item) => {
+                if (!item || typeof item !== 'object') return [];
+                const {
+                  offering_id,
+                  offering_name,
+                  category,
+                  active_properties,
+                  total_properties,
+                  utilization_rate,
+                } = item as Record<string, unknown>;
+                if (offering_id == null) return [];
+                return [
+                  {
+                    offering_id: String(offering_id),
+                    offering_name: typeof offering_name === 'string' ? offering_name : String(offering_id),
+                    category: typeof category === 'string' ? category : '',
+                    active_properties: Number(active_properties) || 0,
+                    total_properties: Number(total_properties) || 0,
+                    utilization_rate: Number(utilization_rate) || 0,
+                  },
+                ];
+              })
+            : [];
+
+          setReportData({ profitability, utilization });
         }
       } catch (err) {
         console.error('Error loading report:', err);
@@ -73,7 +152,7 @@ export default function ServiceReportsPage() {
     };
 
     loadReport();
-  }, [orgId, selectedPeriod, selectedProperty]);
+  }, [orgId, selectedPeriod]);
 
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!orgId) return;
@@ -84,8 +163,6 @@ export default function ServiceReportsPage() {
         format,
         export: 'true',
       });
-      if (selectedProperty !== 'all') params.append('propertyId', selectedProperty);
-
       const response = await fetch(`/api/reports/services?${params}`);
       if (!response.ok) {
         if (response.status === 501) {
@@ -133,7 +210,10 @@ export default function ServiceReportsPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Select value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as any)}>
+              <Select
+                value={selectedPeriod}
+                onValueChange={(v) => setSelectedPeriod(v as 'month' | 'quarter' | 'year')}
+              >
                 <SelectTrigger className="w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -175,7 +255,7 @@ export default function ServiceReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reportData.profitability.map((item: any) => (
+                      {reportData.profitability.map((item) => (
                         <TableRow key={item.offering_id}>
                           <TableCell className="font-medium">{item.offering_name}</TableCell>
                           <TableCell>
@@ -230,7 +310,7 @@ export default function ServiceReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reportData.utilization.map((item: any) => (
+                      {reportData.utilization.map((item) => (
                         <TableRow key={item.offering_id}>
                           <TableCell className="font-medium">{item.offering_name}</TableCell>
                           <TableCell>

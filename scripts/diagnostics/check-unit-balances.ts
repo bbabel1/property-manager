@@ -1,12 +1,28 @@
-// @ts-nocheck
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '../../src/types/database'
 
 config({ path: '.env' })
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
+
+const supabase = createClient<Database>(supabaseUrl, supabaseKey)
+
+type PropertyWithUnits = Database['public']['Tables']['properties']['Row'] & {
+  units: Pick<Database['public']['Tables']['units']['Row'], 'id' | 'unit_number' | 'unit_name' | 'property_id'>[] | null
+}
+
+type TransactionLineWithAccount = Database['public']['Tables']['transaction_lines']['Row'] & {
+  gl_accounts: Pick<
+    Database['public']['Tables']['gl_accounts']['Row'],
+    'id' | 'name' | 'is_bank_account' | 'exclude_from_cash_balances'
+  > | null
+}
 
 async function checkUnitBalances() {
   console.log('🔍 Checking unit balances and property relationships...\n')
@@ -25,17 +41,23 @@ async function checkUnitBalances() {
       )
     `)
     .limit(1)
-    .single()
+    .single<PropertyWithUnits>()
   
   if (propError) {
     console.error('   ❌ Error:', propError.message)
     return
   }
 
+  if (!property) {
+    console.error('   ❌ No property returned from Supabase')
+    return
+  }
+
   console.log(`   Property: ${property.name} (${property.id})`)
   console.log(`   Units: ${property.units?.length || 0}`)
   property.units?.forEach(unit => {
-    console.log(`   - ${unit.name} (${unit.id})`)
+    const unitLabel = unit.unit_name ?? unit.unit_number ?? 'Unit'
+    console.log(`   - ${unitLabel} (${unit.id})`)
   })
 
   // 2. Check transaction lines for units
@@ -57,14 +79,18 @@ async function checkUnitBalances() {
         `)
         .eq('unit_id', unit.id)
         .limit(10)
+        .returns<TransactionLineWithAccount[]>()
       
       if (txError) {
-        console.error(`   ❌ Error for unit ${unit.name}:`, txError.message)
+        const unitLabel = unit.unit_name ?? unit.unit_number ?? 'Unit'
+        console.error(`   ❌ Error for unit ${unitLabel}:`, txError.message)
       } else {
-        console.log(`   Unit ${unit.name}: ${txLines?.length || 0} transactions`)
+        const unitLabel = unit.unit_name ?? unit.unit_number ?? 'Unit'
+        console.log(`   Unit ${unitLabel}: ${txLines?.length || 0} transactions`)
         txLines?.forEach(tx => {
-          const isBank = (tx.gl_accounts as any).is_bank_account
-          console.log(`     - $${tx.amount} ${tx.posting_type} to ${(tx.gl_accounts as any).name} (bank: ${isBank})`)
+          const account = tx.gl_accounts
+          const isBank = account?.is_bank_account ?? false
+          console.log(`     - $${tx.amount} ${tx.posting_type} to ${account?.name ?? 'Unknown'} (bank: ${isBank})`)
         })
       }
     }
@@ -88,15 +114,17 @@ async function checkUnitBalances() {
     `)
     .eq('property_id', property.id)
     .limit(10)
+    .returns<TransactionLineWithAccount[]>()
   
   if (propTxError) {
     console.error('   ❌ Error:', propTxError.message)
   } else {
     console.log(`   Property direct: ${propTxLines?.length || 0} transactions`)
     propTxLines?.forEach(tx => {
-      const isBank = (tx.gl_accounts as any).is_bank_account
+      const account = tx.gl_accounts
+      const isBank = account?.is_bank_account ?? false
       const unitInfo = tx.unit_id ? ` (unit: ${tx.unit_id})` : ''
-      console.log(`     - $${tx.amount} ${tx.posting_type} to ${(tx.gl_accounts as any).name} (bank: ${isBank})${unitInfo}`)
+      console.log(`     - $${tx.amount} ${tx.posting_type} to ${account?.name ?? 'Unknown'} (bank: ${isBank})${unitInfo}`)
     })
   }
 
@@ -122,6 +150,7 @@ async function checkUnitBalances() {
     .or(`property_id.eq.${property.id},unit_id.in.(${property.units?.map(u => u.id).join(',') || 'null'})`)
     .eq('gl_accounts.is_bank_account', true)
     .eq('gl_accounts.exclude_from_cash_balances', false)
+    .returns<TransactionLineWithAccount[]>()
   
   if (bankTxError) {
     console.error('   ❌ Error:', bankTxError.message)
@@ -130,9 +159,11 @@ async function checkUnitBalances() {
     
     let totalCash = 0
     allBankTx?.forEach(tx => {
-      const amount = tx.posting_type === 'Debit' ? tx.amount : -tx.amount
-      totalCash += amount
-      console.log(`     - $${tx.amount} ${tx.posting_type} = $${amount} (${(tx.gl_accounts as any).name})`)
+      const amount = Number(tx.amount) || 0
+      const signedAmount = tx.posting_type === 'Debit' ? amount : -amount
+      totalCash += signedAmount
+      const accountName = tx.gl_accounts?.name ?? 'Unknown'
+      console.log(`     - $${tx.amount} ${tx.posting_type} = $${signedAmount} (${accountName})`)
     })
     
     console.log(`   Expected cash balance: $${totalCash}`)
@@ -143,4 +174,3 @@ async function checkUnitBalances() {
 }
 
 checkUnitBalances().catch(console.error)
-

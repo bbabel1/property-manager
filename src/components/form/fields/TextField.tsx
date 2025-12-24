@@ -10,7 +10,11 @@ export default function TextField({ name, label, placeholder, type = 'text', dis
   disabled?: boolean
 }) {
   const { register, formState } = useFormContext()
-  const err = (formState.errors as any)?.[name]?.message as string | undefined
+  const fieldError = formState.errors?.[name as keyof typeof formState.errors]
+  const err =
+    fieldError && typeof fieldError === 'object' && 'message' in fieldError
+      ? (fieldError as { message?: string }).message
+      : undefined
   return (
     <div>
       <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
@@ -21,4 +25,3 @@ export default function TextField({ name, label, placeholder, type = 'text', dis
     </div>
   )
 }
-

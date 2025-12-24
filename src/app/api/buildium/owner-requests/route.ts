@@ -68,8 +68,8 @@ export async function GET(request: NextRequest) {
       .filter(Boolean)
 
     const filtered = Array.isArray(ownerRequests) && requestedTypes.length > 0
-      ? ownerRequests.filter((item: any) => {
-          const t = item?.RequestedByUserEntity?.Type
+      ? ownerRequests.filter((item) => {
+          const t = (item as { RequestedByUserEntity?: { Type?: unknown } })?.RequestedByUserEntity?.Type
           if (!t) return includeUnspecified
           return requestedTypes.includes(String(t).toLowerCase())
         })
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     // Persist to local tasks with task_kind='owner'
     try {
       await Promise.all(
-        (Array.isArray(ownerRequests) ? ownerRequests : []).map(async (item: any) => {
+        (Array.isArray(ownerRequests) ? ownerRequests : []).map(async (item) => {
           const localData = await mapTaskFromBuildiumWithRelations(item, supabaseAdmin, { taskKind: 'owner' })
           const buildiumId = item?.Id
           if (!buildiumId) return
@@ -89,9 +89,9 @@ export async function GET(request: NextRequest) {
             .maybeSingle()
           const now = new Date().toISOString()
           if (existing?.id) {
-            await supabaseAdmin.from('tasks').update({ ...localData, updated_at: now } as any).eq('id', existing.id)
+            await supabaseAdmin.from('tasks').update({ ...localData, updated_at: now }).eq('id', existing.id)
           } else {
-            await supabaseAdmin.from('tasks').insert({ ...localData, created_at: now, updated_at: now } as any)
+            await supabaseAdmin.from('tasks').insert({ ...localData, created_at: now, updated_at: now })
           }
         })
       )
@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
     logger.info('Buildium owner requests fetched successfully')
     return NextResponse.json({ success: true, data: filtered, count: Array.isArray(filtered) ? filtered.length : 0 })
   } catch (error) {
+    logger.error({ error });
     logger.error('Error fetching Buildium owner requests')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -144,13 +145,14 @@ export async function POST(request: NextRequest) {
     try {
       const localData = await mapTaskFromBuildiumWithRelations(ownerRequest, supabaseAdmin, { taskKind: 'owner' })
       const now = new Date().toISOString()
-      await supabaseAdmin.from('tasks').insert({ ...localData, created_at: now, updated_at: now } as any)
+      await supabaseAdmin.from('tasks').insert({ ...localData, created_at: now, updated_at: now })
     } catch (persistErr) {
       logger.warn({ err: String(persistErr) }, 'Failed to persist created Owner request to tasks')
     }
 
     return NextResponse.json({ success: true, data: ownerRequest }, { status: 201 })
   } catch (error) {
+    logger.error({ error });
     logger.error('Error creating Buildium owner request')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

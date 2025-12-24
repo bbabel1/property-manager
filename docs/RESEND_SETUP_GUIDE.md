@@ -15,8 +15,8 @@ Resend is a modern email API service designed for developers. It provides:
 - Comprehensive delivery tracking
 - Generous free tier (100 emails/day, 3,000/month)
 
-**Official Website:** https://resend.com  
-**Documentation:** https://resend.com/docs/introduction
+**Official Website:** <https://resend.com>  
+**Documentation:** <https://resend.com/docs/introduction>
 
 ---
 
@@ -24,7 +24,7 @@ Resend is a modern email API service designed for developers. It provides:
 
 ### **Step 1: Create Resend Account**
 
-1. Go to https://resend.com
+1. Go to <https://resend.com>
 2. Sign up for a free account
 3. Verify your email address
 
@@ -273,7 +273,7 @@ ORDER BY sent_at DESC;
 
 ## 🔄 **Email Flow Diagram**
 
-```
+```plaintext
 1. User clicks "Send via Email" in Statements tab
    ↓
 2. System checks if PDF exists (generate if needed)
@@ -320,4 +320,5 @@ Before going live with email sending:
 
 ---
 
-**Need Help?** Contact Resend support at support@resend.com or check their documentation at https://resend.com/docs/introduction
+**Need Help?** Contact Resend support at [support@resend.com](mailto:support@resend.com) or check their
+documentation at [https://resend.com/docs/introduction](https://resend.com/docs/introduction)

@@ -1,89 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { 
-  Users, 
-  Mail, 
-  MapPin, 
-  Building, 
-  Home, 
-  Calendar, 
-  ArrowLeft,
-  DollarSign,
-  User,
-  Building2,
-  CreditCard,
-  BarChart3,
-  FileText,
-  Phone,
-  ExternalLink,
-  Copy,
-  Download,
-  Share2,
+import {
   AlertCircle,
-  CheckCircle,
-  Clock,
-  TrendingUp,
-  Wallet,
-  FileSpreadsheet,
-  Settings,
-  Plus,
-  MessageSquare,
-  Activity,
-  Star,
-  FileCheck,
-  Send,
-  Eye,
-  CalendarDays,
-  Tag,
   AlertTriangle,
-  XCircle,
-  ChevronRight,
-  ChevronDown,
-  Filter,
-  Search,
-  RefreshCw,
-  Bell,
-  Settings2,
-  Shield,
-  CreditCard as CreditCardIcon,
-  FileText as FileTextIcon,
-  PieChart,
-  LineChart,
-  BarChart,
-  DollarSign as DollarSignIcon,
-  Receipt,
-  Calculator,
-  Archive,
-  Trash2,
-  Edit3,
-  Save,
-  X,
-  Info,
-  HelpCircle,
-  Zap,
-  Target,
-  Award,
-  Heart,
-  ThumbsUp,
-  MessageCircle,
-  Video,
-  Camera,
-  Mic,
-  Paperclip,
-  Smile,
-  Frown,
-  Meh,
-  TrendingDown
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Copy,
+  DollarSign,
+  FileText,
+  Mail,
+  MessageSquare,
+  Phone,
+  User,
+  Users
 } from 'lucide-react'
 import EditLink from '@/components/ui/EditLink'
 import EditOwnerModal, { type OwnerModalData } from '@/components/EditOwnerModal'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Database } from '@/types/database'
-import { toast } from 'sonner'
 
 type Country = Database['public']['Enums']['countries']
 
@@ -152,53 +90,6 @@ interface Property {
   primary: boolean
 }
 
-interface Transaction {
-  id: string
-  date: string
-  description: string
-  amount: number
-  type: 'credit' | 'debit'
-  category: string
-  reference: string
-}
-
-interface Document {
-  id: string
-  name: string
-  type: string
-  uploaded_at: string
-  size: string
-  url: string
-}
-
-interface Communication {
-  id: string
-  date: string
-  type: 'email' | 'text' | 'call'
-  subject: string
-  content: string
-  status: 'sent' | 'delivered' | 'read'
-}
-
-interface Task {
-  id: string
-  title: string
-  description: string
-  priority: 'low' | 'medium' | 'high'
-  status: 'pending' | 'in_progress' | 'completed'
-  due_date: string
-  assigned_to: string
-}
-
-interface FinancialSummary {
-  total_balance: number
-  ytd_disbursements: number
-  pending_amount: number
-  last_1099_issued?: string
-  total_properties: number
-  total_units: number
-}
-
 const maskLastFour = (value?: string | number | null) => {
   if (value === null || value === undefined) return null
   const digits = String(value).replace(/\D+/g, '')
@@ -230,11 +121,6 @@ export default function OwnerDetailsPage() {
 
   const [owner, setOwner] = useState<Owner | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [documents, setDocuments] = useState<Document[]>([])
-  const [communications, setCommunications] = useState<Communication[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("overview")
@@ -242,19 +128,20 @@ export default function OwnerDetailsPage() {
   // Edit state
   const [showEditModal, setShowEditModal] = useState(false)
   const [isUpdatingOwner, setIsUpdatingOwner] = useState(false)
-  const [updateOwnerError, setUpdateOwnerError] = useState<string | null>(null)
-  
-  // Communication state
-  const [showEmailModal, setShowEmailModal] = useState(false)
-  const [showTextModal, setShowTextModal] = useState(false)
-  const [showTaskModal, setShowTaskModal] = useState(false)
-  
-  // Quick actions state
-  const [isSendingEmail, setIsSendingEmail] = useState(false)
-  const [isSendingText, setIsSendingText] = useState(false)
-  const [isGeneratingStatement, setIsGeneratingStatement] = useState(false)
+  const fetchOwnerProperties = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/owners/${ownerId}/properties`)
+      if (response.ok) {
+        const data = (await response.json()) as Property[]
+        setProperties(data)
+      }
+    } catch (fetchError) {
+      console.error('Error fetching owner properties:', fetchError)
+      // Don't set error here as it's not critical for the main page
+    }
+  }, [ownerId])
 
-  const fetchOwnerDetails = async () => {
+  const fetchOwnerDetails = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -264,103 +151,21 @@ export default function OwnerDetailsPage() {
         throw new Error('Failed to fetch owner details')
       }
       
-      const data = await response.json()
+      const data = (await response.json()) as Owner
       setOwner(data)
       
-      // Fetch all related data in parallel
-      await Promise.all([
-        fetchOwnerProperties(),
-        fetchTransactions(),
-        fetchDocuments(),
-        fetchCommunications(),
-        fetchTasks(),
-        fetchFinancialSummary()
-      ])
-    } catch (error) {
-      console.error('Error fetching owner details:', error)
-      setError(error instanceof Error ? error.message : 'Failed to fetch owner details')
+      await fetchOwnerProperties()
+    } catch (fetchError) {
+      console.error('Error fetching owner details:', fetchError)
+      setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch owner details')
     } finally {
       setLoading(false)
     }
-  }
+  }, [fetchOwnerProperties, ownerId])
 
-  const fetchOwnerProperties = async () => {
-    try {
-      const response = await fetch(`/api/owners/${ownerId}/properties`)
-      if (response.ok) {
-        const data = await response.json()
-        setProperties(data)
-      }
-    } catch (error) {
-      console.error('Error fetching owner properties:', error)
-      // Don't set error here as it's not critical for the main page
-    }
-  }
-
-  const fetchTransactions = async () => {
-    try {
-      const response = await fetch(`/api/owners/${ownerId}/transactions`)
-      if (response.ok) {
-        const data = await response.json()
-        setTransactions(data)
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error)
-    }
-  }
-
-  const fetchDocuments = async () => {
-    try {
-      const response = await fetch(`/api/owners/${ownerId}/documents`)
-      if (response.ok) {
-        const data = await response.json()
-        setDocuments(data)
-      }
-    } catch (error) {
-      console.error('Error fetching documents:', error)
-    }
-  }
-
-  const fetchCommunications = async () => {
-    try {
-      const response = await fetch(`/api/owners/${ownerId}/communications`)
-      if (response.ok) {
-        const data = await response.json()
-        setCommunications(data)
-      }
-    } catch (error) {
-      console.error('Error fetching communications:', error)
-    }
-  }
-
-  const fetchTasks = async () => {
-    try {
-      const response = await fetch(`/api/owners/${ownerId}/tasks`)
-      if (response.ok) {
-        const data = await response.json()
-        setTasks(data)
-      }
-    } catch (error) {
-      console.error('Error fetching tasks:', error)
-    }
-  }
-
-  const fetchFinancialSummary = async () => {
-    try {
-      const response = await fetch(`/api/owners/${ownerId}/financial-summary`)
-      if (response.ok) {
-        const data = await response.json()
-        setFinancialSummary(data)
-      }
-    } catch (error) {
-      console.error('Error fetching financial summary:', error)
-    }
-  }
-
-  const handleEditOwner = async (ownerData: any) => {
+  const handleEditOwner = async (ownerData: OwnerModalData) => {
     try {
       setIsUpdatingOwner(true)
-      setUpdateOwnerError(null)
       
       const response = await fetch(`/api/owners/${ownerId}`, {
         method: 'PUT',
@@ -374,12 +179,11 @@ export default function OwnerDetailsPage() {
         throw new Error('Failed to update owner')
       }
       
-      const updatedOwner = await response.json()
+      const updatedOwner = (await response.json()) as Owner
       setOwner(updatedOwner)
       setShowEditModal(false)
     } catch (error) {
       console.error('Error updating owner:', error)
-      setUpdateOwnerError(error instanceof Error ? error.message : 'Failed to update owner')
     } finally {
       setIsUpdatingOwner(false)
     }
@@ -402,87 +206,11 @@ export default function OwnerDetailsPage() {
     })
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-success/10 text-success border-success/20'
-      case 'inactive': return 'bg-muted text-muted-foreground'
-      case 'pending': return 'bg-warning/10 text-warning border-warning/20'
-      case 'completed': return 'bg-success/10 text-success border-success/20'
-      case 'overdue': return 'bg-destructive/10 text-destructive border-destructive/20'
-      default: return 'bg-muted text-muted-foreground'
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-destructive/10 text-destructive border-destructive/20'
-      case 'medium': return 'bg-warning/10 text-warning border-warning/20'
-      case 'low': return 'bg-success/10 text-success border-success/20'
-      default: return 'bg-muted text-muted-foreground'
-    }
-  }
-
-  const getLoyaltyTierColor = (tier: string) => {
-    switch (tier) {
-      case 'platinum': return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'gold': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'silver': return 'bg-muted text-foreground border-border'
-      case 'bronze': return 'bg-orange-100 text-orange-800 border-orange-200'
-      default: return 'bg-muted text-muted-foreground'
-    }
-  }
-
-  const handleQuickEmail = async () => {
-    setIsSendingEmail(true)
-    try {
-      toast.info('Owner email send is not wired yet', {
-        description: 'We will hook this action to the messaging service soon.',
-      })
-    } catch (error) {
-      console.error('Error sending email:', error)
-    } finally {
-      setIsSendingEmail(false)
-    }
-  }
-
-  const handleQuickText = async () => {
-    setIsSendingText(true)
-    try {
-      toast.info('Owner text send is not available yet', {
-        description: 'SMS support will be added after messaging backend is ready.',
-      })
-    } catch (error) {
-      console.error('Error sending text:', error)
-    } finally {
-      setIsSendingText(false)
-    }
-  }
-
-  const handleGenerateStatement = async () => {
-    setIsGeneratingStatement(true)
-    try {
-      toast.info('Owner statement generation is coming soon', {
-        description: 'Statements will be generated once the finance service is connected.',
-      })
-    } catch (error) {
-      console.error('Error generating statement:', error)
-    } finally {
-      setIsGeneratingStatement(false)
-    }
-  }
-
   useEffect(() => {
     if (ownerId) {
       fetchOwnerDetails()
     }
-  }, [ownerId])
+  }, [fetchOwnerDetails, ownerId])
 
   if (loading) {
     return (

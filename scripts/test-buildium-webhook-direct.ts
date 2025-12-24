@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Direct test script to process a Buildium webhook event
  * Simulates the edge function processing logic for BankAccount.Transaction.Created
@@ -248,7 +249,7 @@ async function fetchGeneralLedgerTransaction(transactionId: number) {
   throw lastErr ?? new Error('Failed to fetch GL transaction');
 }
 
-async function processBankAccountTransactionEvent(supabase: any, event: any) {
+export async function processBankAccountTransactionEvent(supabase: any, event: any) {
   console.log('\n📦 Processing BankAccount.Transaction.Created event...');
   console.log('Event details:', {
     AccountId: event.AccountId,

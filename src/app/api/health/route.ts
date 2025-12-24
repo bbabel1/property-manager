@@ -4,7 +4,7 @@ import { supabase } from '@/lib/db'
 export async function GET() {
   try {
     // Simple database connectivity check
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('properties')
       .select('count')
       .limit(1)

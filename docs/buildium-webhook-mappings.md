@@ -1,5 +1,7 @@
 # Buildium Webhook Event Mapping Guide
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 Authoritative mapping of Buildium webhook EventNames to expected payload shape, transformations, and target tables/columns. Use this as the single source of truth when adding new EventNames or handlers.
 
 ## Conventions and Required Envelope Fields

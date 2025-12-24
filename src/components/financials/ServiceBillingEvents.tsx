@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { formatCurrency } from '@/lib/format-currency';
 import Link from 'next/link';
-import { Receipt, ExternalLink, X, CheckCircle } from 'lucide-react';
+import { ExternalLink, X, CheckCircle } from 'lucide-react';
 
 interface BillingEvent {
   id: string;
@@ -42,11 +42,7 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
   const [filterStatus, setFilterStatus] = useState<'all' | 'invoiced' | 'pending'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    loadEvents();
-  }, [propertyId, unitId, filterOffering, filterStatus]);
-
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -70,7 +66,11 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterOffering, filterStatus, propertyId, unitId]);
+
+  useEffect(() => {
+    void loadEvents();
+  }, [filterOffering, filterStatus, loadEvents, propertyId, unitId]);
 
   const handleVoidEvent = async (eventId: string) => {
     if (!confirm('Are you sure you want to void this billing event?')) return;
@@ -206,7 +206,10 @@ export default function ServiceBillingEvents({ propertyId, unitId }: ServiceBill
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+            <Select
+              value={filterStatus}
+              onValueChange={(v) => setFilterStatus(v as 'all' | 'invoiced' | 'pending')}
+            >
               <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>

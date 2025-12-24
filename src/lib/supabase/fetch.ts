@@ -50,7 +50,7 @@ export async function fetchWithSupabaseAuth(input: RequestInfo, init: RequestIni
           session = refreshData.session;
         }
       }
-    } catch (parseErr) {
+    } catch {
       // If parsing fails, try refresh anyway
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) {

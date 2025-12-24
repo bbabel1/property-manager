@@ -1,5 +1,7 @@
 # Database Reset Prevention Guide
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## 🚨 CRITICAL: Database Reset Prevention
 
 This document outlines the safeguards implemented to prevent accidental database resets.

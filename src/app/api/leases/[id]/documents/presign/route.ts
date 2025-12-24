@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
@@ -30,7 +28,12 @@ export async function POST(
     const leaseIdNum = Number(id)
     if (!leaseIdNum) return NextResponse.json({ error: 'Invalid leaseId' }, { status: 400 })
 
-    const body = await request.json().catch(() => ({}))
+    const body = (await request.json().catch(() => ({}))) as Partial<{
+      fileName: string
+      mimeType: string
+      sizeBytes: number
+      sha256: string
+    }>
     const { fileName, mimeType, sizeBytes, sha256 } = body || {}
     if (!mimeType || !ALLOWED_TYPES.has(mimeType)) {
       return NextResponse.json({ error: 'Unsupported content-type' }, { status: 400 })
@@ -63,8 +66,9 @@ export async function POST(
     try { logger.info({ correlation_id: corr, lease_id: leaseIdNum, storage_path, mimeType, sizeBytes, sha256 }, 'Presign lease document issued') } catch {}
 
     return NextResponse.json(payload, { status: 200 })
-  } catch (e: any) {
-    try { logger.error({ correlation_id: corr, error: e?.message || e }, 'Presign lease document failed') } catch {}
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    try { logger.error({ correlation_id: corr, error: message }, 'Presign lease document failed') } catch {}
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

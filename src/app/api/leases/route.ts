@@ -790,7 +790,7 @@ export async function POST(request: NextRequest) {
           const { data: contacts } = await admin.from('lease_contacts').select('*').eq('lease_id', leaseIdNumber)
           const { data: schedules } = await admin.from('rent_schedules').select('*').eq('lease_id', leaseIdNumber)
           const { data: recurs } = await admin.from('recurring_transactions').select('*').eq('lease_id', leaseIdNumber)
-          const docs = [] as any[]
+          const docs: LeaseDocumentRow[] = []
           lease_id = leaseIdNumber
           const response = { lease, contacts, rent_schedules: schedules, recurring_transactions: recurs, documents: docs }
           await storeIdempotencyResponse(response)
@@ -821,11 +821,11 @@ export async function POST(request: NextRequest) {
     lease_id = toNumericId(
       ((fnRes as { lease_id?: number | string | null } | null)?.lease_id as number | string | null) ?? null,
     )
-    let lease: JsonLike | null = null
-    let contacts: JsonLike[] | null = null
-    let schedules: JsonLike[] | null = null
-    let recurs: JsonLike[] | null = null
-    let docs: JsonLike[] | null = null
+    let lease: LeaseRow | null = null
+    let contacts: LeaseContactRow[] | null = null
+    let schedules: RentScheduleRow[] | null = null
+    let recurs: RecurringTransactionRow[] | null = null
+    let docs: LeaseDocumentRow[] | null = null
 
     if (fnErr) {
       const errorMessage = fnErr.message ?? ''
@@ -839,11 +839,11 @@ export async function POST(request: NextRequest) {
             : 'fn_create_lease_aggregate schema mismatch, attempting legacy fallback'
         )
         const legacyResult = await createLeaseLegacyTransactional(payload)
-        lease = legacyResult.lease
-        contacts = legacyResult.contacts
-        schedules = legacyResult.rent_schedules
-        recurs = legacyResult.recurring_transactions
-        docs = legacyResult.documents
+        lease = legacyResult.lease as LeaseRow | null
+        contacts = legacyResult.contacts as LeaseContactRow[] | null
+        schedules = legacyResult.rent_schedules as RentScheduleRow[] | null
+        recurs = legacyResult.recurring_transactions as RecurringTransactionRow[] | null
+        docs = legacyResult.documents as LeaseDocumentRow[] | null
         lease_id = toNumericId(legacyResult.lease?.id ?? null)
       } else {
         return NextResponse.json({ error: 'Failed creating lease', details: fnErr.message }, { status: 500 })
@@ -853,7 +853,7 @@ export async function POST(request: NextRequest) {
       if (!leaseIdNumber) {
         return NextResponse.json({ error: 'Failed creating lease' }, { status: 500 })
       }
-      const { data: leaseRow } = await admin.from('lease').select('*').eq('id', leaseIdNumber).single()
+      const { data: leaseRow } = await admin.from('lease').select('*').eq('id', leaseIdNumber).single<LeaseRow>()
       const { data: contactRows } = await admin
         .from('lease_contacts')
         .select('*')
@@ -866,11 +866,11 @@ export async function POST(request: NextRequest) {
         .from('recurring_transactions')
         .select('*')
         .eq('lease_id', leaseIdNumber)
-      const documentRows: any[] = []
-      lease = leaseRow
-      contacts = contactRows
-      schedules = scheduleRows
-      recurs = recurringRows
+      const documentRows: LeaseDocumentRow[] = []
+      lease = leaseRow as LeaseRow
+      contacts = (contactRows || []) as LeaseContactRow[]
+      schedules = (scheduleRows || []) as RentScheduleRow[]
+      recurs = (recurringRows || []) as RecurringTransactionRow[]
       docs = documentRows
     }
 
@@ -883,12 +883,12 @@ export async function POST(request: NextRequest) {
 
     // Seed accounting: recurring rent template + one-time deposit/proration charges
     try {
-      const orgId = (lease as any)?.org_id as string | null
+      const orgId: string | null = lease?.org_id ?? resolvedOrgId ?? null
       if (orgId) {
         const gl = await getOrgGlSettingsOrThrow(orgId)
 
         // 1) Ensure a recurring rent template exists when rent_amount is present
-        const rentAmount = Number((lease as any)?.rent_amount ?? body.rent_amount ?? 0) || 0
+        const rentAmount = Number(lease?.rent_amount ?? body.rent_amount ?? 0) || 0
         if (rentAmount > 0) {
           const { data: existingRecurs } = await (admin || supabase)
             .from('recurring_transactions')
@@ -898,11 +898,12 @@ export async function POST(request: NextRequest) {
           if (!existingRecurs || existingRecurs.length === 0) {
             // Compute a reasonable start_date: prefer provided schedule, else anchor to payment_due_day relative to lease_from_date
             let start_date: string | null = null
-            const providedStart = Array.isArray(payload.rent_schedules) && (payload.rent_schedules as any[])[0]?.start_date
+            const providedStart =
+              Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.start_date
             if (providedStart) start_date = String(providedStart)
             else {
-              const leaseStart: string | null = (lease as any)?.lease_from_date ?? null
-              const dueDay: number | null = (lease as any)?.payment_due_day ?? null
+              const leaseStart: string | null = lease?.lease_from_date ?? null
+              const dueDay: number | null = lease?.payment_due_day ?? null
               if (leaseStart && dueDay) {
                 const d = new Date(String(leaseStart) + 'T00:00:00Z')
                 const maxDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
@@ -936,14 +937,16 @@ export async function POST(request: NextRequest) {
             .limit(1)
           if (!existingSchedules || existingSchedules.length === 0) {
             let scheduleStart: string | null = null
-            const providedScheduleStart = Array.isArray(payload.rent_schedules) && (payload.rent_schedules as any[])[0]?.start_date
+            const providedScheduleStart =
+              Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.start_date
             if (providedScheduleStart) scheduleStart = String(providedScheduleStart)
             else {
-              const leaseStart: string | null = (lease as any)?.lease_from_date ?? null
+              const leaseStart: string | null = lease?.lease_from_date ?? null
               scheduleStart = leaseStart ? String(leaseStart) : null
             }
-            const scheduleEnd: string | null = (lease as any)?.lease_to_date ?? null
-            const scheduleCycleRaw: unknown = (Array.isArray(payload.rent_schedules) && (payload.rent_schedules as any[])[0]?.rent_cycle) || 'Monthly'
+            const scheduleEnd: string | null = lease?.lease_to_date ?? null
+            const scheduleCycleRaw: unknown =
+              (Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.rent_cycle) || 'Monthly'
             const scheduleCycle = mapRentCycleToDbEnum(scheduleCycleRaw)
             const { error: scheduleInsertError } = await (admin || supabase)
               .from('rent_schedules')
@@ -954,7 +957,7 @@ export async function POST(request: NextRequest) {
                 total_amount: rentAmount,
                 rent_cycle: scheduleCycle,
                 backdate_charges: false,
-              } as any)
+              })
             if (scheduleInsertError) {
               logger.warn({ leaseId: lease_id, error: scheduleInsertError.message }, 'Failed to insert rent schedule (enum mismatch?)')
             }
@@ -962,13 +965,13 @@ export async function POST(request: NextRequest) {
         }
 
         // 2) One-time security deposit charge (A/R vs Deposit Liability)
-        const securityDeposit = Number((lease as any)?.security_deposit ?? body.security_deposit ?? 0) || 0
+        const securityDeposit = Number(lease?.security_deposit ?? body.security_deposit ?? 0) || 0
         if (securityDeposit > 0) {
           const depIdem = `lease:init:deposit:${safeLeaseId}`
           const { data: depExists } = await (admin || supabase)
             .from('transactions').select('id').eq('idempotency_key', depIdem).maybeSingle()
           if (!depExists?.id) {
-            const chargeDate: string = ((lease as any)?.lease_from_date || new Date().toISOString().slice(0, 10))
+            const chargeDate: string = lease?.lease_from_date || new Date().toISOString().slice(0, 10)
             await createCharge({
               lease_id: safeLeaseId,
               date: chargeDate,
@@ -983,13 +986,13 @@ export async function POST(request: NextRequest) {
         }
 
         // 3) Optional prorated first month rent (one-time)
-        const prorated = Number((lease as any)?.prorated_first_month_rent ?? body.prorated_first_month_rent ?? 0) || 0
+        const prorated = Number(lease?.prorated_first_month_rent ?? body.prorated_first_month_rent ?? 0) || 0
         if (prorated > 0) {
           const proIdem = `lease:init:prorate:${safeLeaseId}`
           const { data: proExists } = await (admin || supabase)
             .from('transactions').select('id').eq('idempotency_key', proIdem).maybeSingle()
           if (!proExists?.id) {
-            const chargeDate: string = ((lease as any)?.lease_from_date || new Date().toISOString().slice(0, 10))
+            const chargeDate: string = lease?.lease_from_date || new Date().toISOString().slice(0, 10)
             await createCharge({
               lease_id: safeLeaseId,
               date: chargeDate,
@@ -1021,26 +1024,26 @@ export async function POST(request: NextRequest) {
         ? payload.recurring_transactions
         : []
       const rentTemplateCtx = recurringList.find(
-        (row: any) => typeof row?.frequency === 'string' && row.frequency.toLowerCase() !== 'onetime'
+        (row) => typeof (row as { frequency?: string | null }).frequency === 'string' && row.frequency!.toLowerCase() !== 'onetime'
       )
       const depositTemplateCtx = recurringList.find(
-        (row: any) => typeof row?.frequency === 'string' && row.frequency.toLowerCase() === 'onetime'
+        (row) => typeof (row as { frequency?: string | null }).frequency === 'string' && row.frequency!.toLowerCase() === 'onetime'
       )
-      const orgIdForSync = ((lease as any)?.org_id ?? resolvedOrgId) as string | null
+      const orgIdForSync: string | null = lease?.org_id ?? resolvedOrgId ?? null
 
       const syncResult = await buildiumSync.syncLeaseToBuildium(
         {
-          ...(lease as any),
+          ...lease,
           // Default true when syncing if not explicitly provided
           send_welcome_email:
             typeof body?.send_welcome_email === 'boolean' ? body.send_welcome_email : true,
-        } as any,
+        },
         orgIdForSync ?? undefined,
         {
           rentTemplate: rentTemplateCtx,
           depositTemplate: depositTemplateCtx,
           rentSchedule: rentScheduleCtx,
-        } as any,
+        },
       )
       if (syncResult.success) {
         if (syncResult.buildiumId) {
@@ -1054,9 +1057,9 @@ export async function POST(request: NextRequest) {
         buildiumWarning = { warning: warningMessage }
         await admin
           .from('lease')
-          .update({ sync_status: 'error', last_sync_error: warningMessage, last_sync_attempt_at: new Date().toISOString() } as any)
+          .update({ sync_status: 'error', last_sync_error: warningMessage, last_sync_attempt_at: new Date().toISOString() })
           .eq('id', safeLeaseId)
-        await admin.from('lease_sync_queue' as any).insert({ lease_id: safeLeaseId, idempotency_key: idemKey, last_error: warningMessage })
+        await admin.from('lease_sync_queue').insert({ lease_id: safeLeaseId, idempotency_key: idemKey, last_error: warningMessage })
         if (strict) return NextResponse.json({ error: 'Buildium sync failed', details: warningMessage }, { status: 502 })
       }
     }

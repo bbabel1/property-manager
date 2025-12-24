@@ -1,5 +1,6 @@
 "use client"
 
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import InlineEditCard from '@/components/form/InlineEditCard'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +8,50 @@ import { Input } from '@/components/ui/input'
 import { Dropdown } from '@/components/ui/Dropdown'
 import { BEDROOM_OPTIONS, BATHROOM_OPTIONS } from '@/types/units'
 
-export default function UnitDetailsCard({ property, unit }: { property: any; unit: any }) {
+type UnitCardProperty = {
+  id?: string | null
+  name?: string | null
+  address_line1?: string | null
+  city?: string | null
+  state?: string | null
+  postal_code?: string | null
+}
+
+type UnitCardUnit = {
+  id?: string | number | null
+  status?: string | null
+  unit_bedrooms?: string | null
+  unit_bathrooms?: string | null
+  unit_size?: number | null
+  unit_number?: string | null
+  description?: string | null
+  address_line1?: string | null
+  address_line2?: string | null
+  city?: string | null
+  postal_code?: string | null
+  buildium_unit_id?: string | number | null
+}
+
+type UnitImageResponse = {
+  data?: Array<{ href?: string | null; Href?: string | null; Url?: string | null; id?: string | number | null }> | null
+}
+
+type UpdateUnitResponse = {
+  unit?: Partial<UnitCardUnit> | null
+  buildium_unit_id?: number | null
+  buildium_sync_error?: string | null
+  error?: string | null
+}
+
+const parseJson = async <T,>(res: Response, fallback: T): Promise<T> => {
+  try {
+    return (await res.json()) as T
+  } catch {
+    return fallback
+  }
+}
+
+export default function UnitDetailsCard({ property, unit }: { property: UnitCardProperty; unit: UnitCardUnit }) {
   const status = String(unit?.status || '').toLowerCase()
   const statusCls = status === 'occupied' ? 'bg-[var(--color-action-50)] text-[var(--color-action-600)]' : status ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-800'
   const bedrooms = unit?.unit_bedrooms ?? '—'
@@ -18,8 +62,8 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
   const [error, setError] = useState<string | null>(null)
   // Edit fields
   const [unitNumber, setUnitNumber] = useState<string>(unit?.unit_number || '')
-  const [unitBedrooms, setUnitBedrooms] = useState<string>(unit?.unit_bedrooms || '')
-  const [unitBathrooms, setUnitBathrooms] = useState<string>(unit?.unit_bathrooms || '')
+  const [unitBedrooms, setUnitBedrooms] = useState<string | ''>(unit?.unit_bedrooms || '')
+  const [unitBathrooms, setUnitBathrooms] = useState<string | ''>(unit?.unit_bathrooms || '')
   const [unitSize, setUnitSize] = useState<string>(unit?.unit_size ? String(unit.unit_size) : '')
   const [notes, setNotes] = useState<string>(unit?.description || '')
   const [unitStatus, setUnitStatus] = useState<string>(unit?.status || 'Vacant')
@@ -38,7 +82,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         if (!unit?.id) return
         const res = await fetch(`/api/units/${unit.id}/images`, { credentials: 'include' })
         if (!res.ok) return
-        const j = await res.json().catch(() => null as any)
+        const j = await parseJson<UnitImageResponse | null>(res, null)
         const first = Array.isArray(j?.data) && j.data.length ? j.data[0] : null
         const url = first?.href || first?.Href || first?.Url || null
         const imageRowId = first?.id ? String(first.id) : null
@@ -56,8 +100,14 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         <div className="w-full bg-muted rounded-lg overflow-hidden">
           <div className="relative w-full pb-[75%]">
             {previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="Unit" className="absolute inset-0 w-full h-full object-cover" />
+              <Image
+                src={previewUrl}
+                alt="Unit"
+                fill
+                unoptimized
+                sizes="(min-width: 768px) 50vw, 100vw"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
@@ -99,12 +149,12 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
                   body: JSON.stringify({ FileName: file.name, FileData: base64, FileType: file.type })
                 })
                 if (!res.ok) {
-                  const j = await res.json().catch(() => ({} as any))
+                  const j = await parseJson<{ error?: string | null }>(res, {})
                   throw new Error(j?.error || 'Upload failed')
                 }
                 // refresh canonical
                 const check = await fetch(`/api/units/${unit.id}/images?cb=${Date.now()}`, { credentials: 'include', cache: 'no-store' })
-                const jj = await check.json().catch(() => null as any)
+                const jj = await parseJson<UnitImageResponse | null>(check, null)
                 const first = Array.isArray(jj?.data) && jj.data.length ? jj.data[0] : null
                 const url = first?.href || first?.Href || first?.Url || null
                 setPreviewUrl(url || obj)
@@ -180,8 +230,14 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         <div className="w-full bg-muted rounded-lg overflow-hidden">
           <div className="relative w-full pb-[75%]">
             {previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="Unit" className="absolute inset-0 w-full h-full object-cover" />
+              <Image
+                src={previewUrl}
+                alt="Unit"
+                fill
+                unoptimized
+                sizes="(min-width: 768px) 50vw, 100vw"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center">
                 <svg className="h-14 w-14 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7v13h16V7H4z"/><path d="M22 7V5H2v2"/><circle cx="12" cy="13" r="3"/></svg>
@@ -207,9 +263,9 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
                   credentials: 'include',
                   body: JSON.stringify({ FileName: file.name, FileData: base64, FileType: file.type })
                 })
-                if (!res.ok) { const j = await res.json().catch(()=>({} as any)); throw new Error(j?.error || 'Upload failed') }
+                if (!res.ok) { const j = await parseJson<{ error?: string | null }>(res, {}); throw new Error(j?.error || 'Upload failed') }
                 const check = await fetch(`/api/units/${unit.id}/images?cb=${Date.now()}`, { credentials:'include', cache:'no-store' })
-                const jj = await check.json().catch(()=>null as any)
+                const jj = await parseJson<UnitImageResponse | null>(check, null)
                 const first = Array.isArray(jj?.data) && jj.data.length ? jj.data[0] : null
                 const url = first?.href || first?.Href || first?.Url || null
                 const imageRowId = first?.id ? String(first.id) : null
@@ -231,7 +287,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
                 try {
                   setUploading(true); setUploadError(null); setUploadSuccess(null)
                   const res = await fetch(`/api/units/${unit.id}/images/${previewImageId}`, { method: 'DELETE', credentials: 'include' })
-                  if (!res.ok) { const j = await res.json().catch(()=>({} as any)); throw new Error(j?.error || 'Failed to delete image') }
+                  if (!res.ok) { const j = await parseJson<{ error?: string | null }>(res, {}); throw new Error(j?.error || 'Failed to delete image') }
                   setPreviewUrl(null); setPreviewImageId(null); setUploadSuccess('Image removed')
                 } catch (e) { setUploadError(e instanceof Error ? e.message : 'Failed to delete') } finally { setUploading(false) }
               }}
@@ -246,8 +302,8 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         <div>
           <label className="block text-xs font-medium text-muted-foreground mb-1">Status</label>
           <Dropdown
-            value={(unitStatus as any) || 'Vacant'}
-            onChange={(v) => setUnitStatus(v as string)}
+            value={unitStatus || 'Vacant'}
+            onChange={(v) => setUnitStatus(v)}
             options={[ 'Vacant', 'Occupied', 'Inactive' ].map(v => ({ value: v, label: v }))}
             placeholder="Select status"
           />
@@ -264,11 +320,11 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs mb-1">Bedrooms</label>
-              <Dropdown value={unitBedrooms as any} onChange={v=>setUnitBedrooms(v as string)} options={BEDROOM_OPTIONS.map(v=>({ value: v, label: v }))} placeholder="Select" />
+              <Dropdown value={unitBedrooms} onChange={v=>setUnitBedrooms(v)} options={BEDROOM_OPTIONS.map(v=>({ value: v, label: v }))} placeholder="Select" />
             </div>
             <div>
               <label className="block text-xs mb-1">Bathrooms</label>
-              <Dropdown value={unitBathrooms as any} onChange={v=>setUnitBathrooms(v as string)} options={BATHROOM_OPTIONS.map(v=>({ value: v, label: v }))} placeholder="Select" />
+              <Dropdown value={unitBathrooms} onChange={v=>setUnitBathrooms(v)} options={BATHROOM_OPTIONS.map(v=>({ value: v, label: v }))} placeholder="Select" />
             </div>
             <div>
               <label className="block text-xs mb-1">Square Feet</label>
@@ -292,7 +348,7 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
     try {
       setSaving(true); setError(null)
       if (!unitNumber.trim()) throw new Error('Unit number is required')
-      const body: any = {
+      const body: Record<string, unknown> = {
         unit_number: unitNumber.trim(),
         description: notes || null,
       }
@@ -305,9 +361,14 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
-      const payload = await res.json().catch(() => ({} as any))
-      const updated = payload?.unit ?? payload
-      const syncError = payload?.buildium_sync_error
+      const payload = await parseJson<UpdateUnitResponse | Partial<UnitCardUnit>>(res, {})
+      const responseObject = (payload as UpdateUnitResponse) ?? {}
+      const updatedRaw = responseObject.unit ?? payload
+      const updated: Partial<UnitCardUnit> | null =
+        updatedRaw && typeof updatedRaw === 'object' && !('unit' in (updatedRaw as Record<string, unknown>))
+          ? (updatedRaw as Partial<UnitCardUnit>)
+          : responseObject.unit ?? null
+      const syncError = responseObject.buildium_sync_error ?? null
 
       // Always reflect latest local values, even if Buildium sync failed
       if (updated) {
@@ -321,13 +382,13 @@ export default function UnitDetailsCard({ property, unit }: { property: any; uni
             : unitSize
         )
         setNotes(updated.description ?? notes)
-        if (typeof payload?.buildium_unit_id === 'number') {
-          (unit as any).buildium_unit_id = payload.buildium_unit_id
+        if (unit && responseObject.buildium_unit_id != null) {
+          unit.buildium_unit_id = responseObject.buildium_unit_id
         }
       }
 
       if (!res.ok) {
-        throw new Error(syncError || payload?.error || 'Failed to update unit')
+        throw new Error(syncError || responseObject?.error || 'Failed to update unit')
       }
 
       if (syncError) {

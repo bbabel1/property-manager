@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ buildiumLeaseId: string }> },
 ) {
   try {
-    const supabaseAdmin = requireSupabaseAdmin('lease transactions sync')
+    const _supabaseAdmin = requireSupabaseAdmin('lease transactions sync')
     // Check rate limiting
     const rateLimitResult = await checkRateLimit(request);
     if (!rateLimitResult.success) {
@@ -81,6 +81,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium lease transactions`);
 
     return NextResponse.json(
@@ -136,6 +137,7 @@ export async function POST(
 
     return NextResponse.json({ success: true, data: created }, { status: 201 })
   } catch (error) {
+    logger.error({ error });
     logger.error('Error creating Buildium lease transaction')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

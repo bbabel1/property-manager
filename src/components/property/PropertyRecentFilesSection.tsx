@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import AddLink from '@/components/ui/AddLink';
 import PropertyFileUploadDialog, {
@@ -15,6 +15,19 @@ interface PropertyRecentFilesSectionProps {
 }
 
 type ListedFile = PropertyFileRow & { href: string | null };
+type FileApiRow = {
+  id?: string | number;
+  title?: string | null;
+  file_name?: string | null;
+  category_name?: string | null;
+  description?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
+  buildium_href?: string | null;
+  external_url?: string | null;
+  bucket?: string | null;
+  storage_key?: string | null;
+};
 
 export default function PropertyRecentFilesSection({
   propertyId,
@@ -26,7 +39,7 @@ export default function PropertyRecentFilesSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const resolveHref = (file: any): string | null => {
+  const resolveHref = useCallback((file: FileApiRow): string | null => {
     if (typeof file?.buildium_href === 'string' && file.buildium_href.trim()) {
       return file.buildium_href;
     }
@@ -38,9 +51,9 @@ export default function PropertyRecentFilesSection({
       return `${base}/storage/v1/object/${file.bucket}/${file.storage_key}`;
     }
     return null;
-  };
+  }, []);
 
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     if (!orgId) {
       setFiles([]);
       return;
@@ -60,8 +73,8 @@ export default function PropertyRecentFilesSection({
       if (!res.ok || json?.error) {
         throw new Error(json?.error || 'Failed to load files');
       }
-      const rows = Array.isArray(json?.data) ? json.data : [];
-      const mapped: ListedFile[] = rows.slice(0, 5).map((file: any) => ({
+      const rows: FileApiRow[] = Array.isArray(json?.data) ? json.data : [];
+      const mapped: ListedFile[] = rows.slice(0, 5).map((file) => ({
         id: String(file.id),
         title: file.title || file.file_name || 'File',
         category: file.category_name || 'Uncategorized',
@@ -71,18 +84,18 @@ export default function PropertyRecentFilesSection({
         href: resolveHref(file),
       }));
       setFiles(mapped);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load files');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load files';
+      setError(message);
       setFiles([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [buildiumPropertyId, orgId, resolveHref]);
 
   useEffect(() => {
     void loadFiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildiumPropertyId, orgId]);
+  }, [buildiumPropertyId, orgId, loadFiles]);
 
   const emptyCopy = useMemo(() => {
     if (!orgId) {

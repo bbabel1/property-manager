@@ -42,9 +42,9 @@ interface CategoryOption {
   buildiumCategoryId?: number | null;
 }
 
-export const MAX_RETRY_ATTEMPTS = 3;
-export const BASE_RETRY_DELAY_MS = 2000;
-export const MAX_RETRY_DELAY_MS = 10000;
+const MAX_RETRY_ATTEMPTS = 3;
+const BASE_RETRY_DELAY_MS = 2000;
+const MAX_RETRY_DELAY_MS = 10000;
 
 type FilesListResponse = {
   success: boolean;

@@ -37,6 +37,7 @@ import {
 } from '@/lib/tasks/utils';
 import type { Database } from '@/types/database';
 import TaskWorkOrdersPanel, { type WorkOrderListItem } from '@/components/tasks/TaskWorkOrdersPanel';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type TaskHistoryRow = Database['public']['Tables']['task_history']['Row'];
@@ -62,6 +63,7 @@ type WorkOrderListQueryRow = Pick<
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
 type UnitRow = Database['public']['Tables']['units']['Row'];
 type VendorRow = Database['public']['Tables']['vendors']['Row'];
+type TaskWithSubcategory = TaskRow & { subcat?: { name?: string | null } | null; subcategory?: string | null };
 
 type PageProps = {
   params: Promise<{ taskId: string }>;
@@ -76,7 +78,7 @@ async function resolveParams(params: PageProps['params']) {
 export default async function TaskDetailsPage({ params, searchParams }: PageProps) {
   const { taskId } = await resolveParams(params);
   const resolvedSearch = searchParams ? await searchParams : {};
-  const db = supabaseAdmin || supabase;
+  const db = (supabaseAdmin || supabase) as SupabaseClient<Database>;
   const initialTab = resolvedSearch.tab === 'work-orders' ? 'work-orders' : 'summary';
   const initialWorkOrderId = resolvedSearch.workOrderId || null;
 
@@ -85,16 +87,16 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
   const selectWithoutSubcategory =
     'id, subject, description, status, priority, scheduled_date, created_at, updated_at, category, task_kind, buildium_task_id, assigned_to, assigned_to_staff_id, buildium_assigned_to_user_id, property_id, unit_id, requested_by_type, requested_by_contact_id, requested_by_buildium_id';
 
-  let taskError: any = null;
-  let task: TaskRow | null = null;
+  let taskError: PostgrestError | null = null;
+  let task: TaskWithSubcategory | null = null;
 
   const primary = await db
     .from('tasks')
     .select(selectWithSubcategory)
     .eq('id', taskId)
-    .maybeSingle<TaskRow>();
+    .maybeSingle<TaskWithSubcategory>();
 
-  task = primary.data as (TaskRow & { subcat?: { name?: string | null } }) | null;
+  task = primary.data ?? null;
   taskError = primary.error;
 
   // Fallback if the subcategory column does not exist in this environment
@@ -104,19 +106,19 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
       .select(selectWithoutSubcategory)
       .eq('id', taskId)
       .maybeSingle<TaskRow>();
-    task = (fallback.data as TaskRow | null) ?? (task as TaskRow | null);
+    task = fallback.data ? { ...fallback.data, subcategory: fallback.data.subcategory ?? null } : task;
     taskError = fallback.error;
-    if (task && typeof (task as any).subcategory === 'undefined') {
-      // Ensure shape stays consistent for downstream usage
-      task = { ...task, subcategory: null } as TaskRow;
+    // Ensure shape stays consistent for downstream usage
+    if (task && typeof task.subcategory === 'undefined') {
+      task = { ...task, subcategory: null };
     }
   }
 
   const subcategoryName =
-    (task as any)?.subcat?.name ??
-    (typeof (task as any)?.subcategory === 'string' && (task as any).subcategory?.length === 36
+    task?.subcat?.name ??
+    (typeof task?.subcategory === 'string' && task.subcategory?.length === 36
       ? null
-      : (task as any)?.subcategory) ??
+      : task?.subcategory) ??
     null;
 
   if (taskError?.message) {
@@ -132,17 +134,16 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
     'id' | 'name' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'postal_code'
   > | null = null;
   if (task.property_id) {
-    const { data, error: propertyError } = (await db
+    const { data, error: propertyError } = await db
       .from('properties')
       .select('id, name, address_line1, address_line2, city, state, postal_code')
       .eq('id', task.property_id)
-      .maybeSingle()) as {
-      data: Pick<
-        PropertyRow,
-        'id' | 'name' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'postal_code'
-      > | null;
-      error: any;
-    };
+      .maybeSingle<
+        Pick<
+          PropertyRow,
+          'id' | 'name' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'postal_code'
+        >
+      >();
     if (propertyError?.message) {
       console.error(
         `Failed to load property ${task.property_id} for task ${task.id}`,
@@ -155,14 +156,11 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
 
   let unit: Pick<UnitRow, 'id' | 'unit_number'> | null = null;
   if (task.unit_id) {
-    const { data, error: unitError } = (await db
+    const { data, error: unitError } = await db
       .from('units')
       .select('id, unit_number')
       .eq('id', task.unit_id)
-      .maybeSingle()) as {
-      data: Pick<UnitRow, 'id' | 'unit_number'> | null;
-      error: any;
-    };
+      .maybeSingle<Pick<UnitRow, 'id' | 'unit_number'>>();
     if (unitError?.message) {
       console.error(`Failed to load unit ${task.unit_id} for task ${task.id}`, unitError);
     } else {
@@ -177,11 +175,11 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
 
   let requesterContact: ContactNameFields | null = null;
   if (task.requested_by_contact_id) {
-    const { data, error: contactError } = (await db
+    const { data, error: contactError } = await db
       .from('contacts')
       .select('id, display_name, first_name, last_name, company_name, is_company')
       .eq('id', task.requested_by_contact_id)
-      .maybeSingle()) as { data: ContactNameFields | null; error: any };
+      .maybeSingle<ContactNameFields>();
 
     if (contactError?.message) {
       console.error(
@@ -192,11 +190,11 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
       requesterContact = data;
     }
   } else if (task.requested_by_buildium_id) {
-    const { data, error: contactError } = (await db
+    const { data, error: contactError } = await db
       .from('contacts')
       .select('id, display_name, first_name, last_name, company_name, is_company')
       .eq('buildium_contact_id', task.requested_by_buildium_id)
-      .maybeSingle()) as { data: ContactNameFields | null; error: any };
+      .maybeSingle<ContactNameFields>();
 
     if (contactError?.message) {
       console.error(
@@ -219,11 +217,11 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
   const buildiumAssigneeId = task.buildium_assigned_to_user_id ?? numericAssignee;
 
   if (task.assigned_to_staff_id) {
-    const { data, error: staffError } = (await db
+    const { data, error: staffError } = await db
       .from('staff')
       .select('id, first_name, last_name, email, buildium_user_id')
       .eq('id', task.assigned_to_staff_id)
-      .maybeSingle()) as { data: StaffNameFields | null; error: any };
+      .maybeSingle<StaffNameFields>();
 
     if (staffError?.message) {
       console.error(
@@ -234,11 +232,11 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
       assignedStaff = data;
     }
   } else if (buildiumAssigneeId) {
-    const { data, error: staffError } = (await db
+    const { data, error: staffError } = await db
       .from('staff')
       .select('id, first_name, last_name, email, buildium_user_id')
       .eq('buildium_user_id', buildiumAssigneeId)
-      .maybeSingle()) as { data: StaffNameFields | null; error: any };
+      .maybeSingle<StaffNameFields>();
 
     if (staffError?.message) {
       console.error(
@@ -727,7 +725,7 @@ export default async function TaskDetailsPage({ params, searchParams }: PageProp
   );
 }
 
-type DBClient = typeof supabase | typeof supabaseAdmin;
+type DBClient = SupabaseClient<Database>;
 
 function normalizeWorkOrderStatus(value?: string | null): { key: TaskStatusKey; label: string } {
   const normalized = String(value ?? '').toLowerCase();
@@ -802,7 +800,7 @@ async function loadWorkOrdersForTask(
 
   const propertyMap = new Map<string, Pick<PropertyRow, 'name'>>();
   if (propertyIds.length > 0) {
-    const { data, error: propertyError } = await (db as any)
+    const { data, error: propertyError } = await db
       .from('properties')
       .select('id, name')
       .in('id', propertyIds);
@@ -817,7 +815,7 @@ async function loadWorkOrdersForTask(
 
   const unitMap = new Map<string, Pick<UnitRow, 'unit_number'>>();
   if (unitIds.length > 0) {
-    const { data, error: unitError } = await (db as any)
+    const { data, error: unitError } = await db
       .from('units')
       .select('id, unit_number')
       .in('id', unitIds);
@@ -830,25 +828,26 @@ async function loadWorkOrdersForTask(
 
   const vendorMap = new Map<string, string>();
   if (vendorIds.length > 0) {
-    const { data, error: vendorError } = (await (db as any)
+    type VendorWithContact = VendorRow & {
+      contact?: {
+        display_name?: string | null;
+        company_name?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+      } | null;
+    };
+    const { data, error: vendorError } = await db
       .from('vendors')
       .select(
         'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
       )
-      .in('id', vendorIds)) as { data: (VendorRow & { contact?: any })[] | null; error: any };
+      .in('id', vendorIds)
+      .returns<VendorWithContact[]>();
     if (vendorError?.message) {
       console.error('Failed to load vendors for work orders', vendorError);
     } else {
       data?.forEach((vendor) => {
-        const contact = vendor.contact as
-          | {
-              display_name?: string | null;
-              company_name?: string | null;
-              first_name?: string | null;
-              last_name?: string | null;
-            }
-          | null
-          | undefined;
+        const contact = vendor.contact;
         const name =
           contact?.display_name ||
           contact?.company_name ||
@@ -862,15 +861,22 @@ async function loadWorkOrdersForTask(
   // Load bills linked to these work orders via transactions.work_order_id
   const billsByWorkOrder = new Map<string, { id: string; reference: string }[]>();
   if (workOrderIds.length > 0) {
-    const { data: billRows, error: billsErr } = await (db as any)
+    type BillWorkOrderRow = {
+      id: string;
+      work_order_id: string;
+      reference_number: string | null;
+      buildium_bill_id: number | null;
+    };
+    const { data: billRows, error: billsErr } = await db
       .from('transactions')
       .select('id, work_order_id, reference_number, buildium_bill_id')
       .eq('transaction_type', 'Bill')
-      .in('work_order_id', workOrderIds);
+      .in('work_order_id', workOrderIds)
+      .returns<BillWorkOrderRow[]>();
     if (billsErr?.message) {
       console.error('Failed to load bills for work orders', billsErr);
     } else {
-      (billRows || []).forEach((b: any) => {
+      (billRows || []).forEach((b) => {
         const list = billsByWorkOrder.get(b.work_order_id) || [];
         const ref = b.buildium_bill_id ? `Bill #${b.buildium_bill_id}` : b.reference_number || `Bill ${b.id.slice(0, 6)}`;
         list.push({ id: b.id, reference: ref });

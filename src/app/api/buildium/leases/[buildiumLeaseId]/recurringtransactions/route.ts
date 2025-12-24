@@ -42,6 +42,7 @@ export async function GET(
     const data = await response.json()
     return NextResponse.json({ success: true, data, count: Array.isArray(data) ? data.length : 0 })
   } catch (error) {
+    logger.error({ error });
     logger.error('Error fetching Buildium recurring transactions')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -80,6 +81,7 @@ export async function POST(
     const created = await response.json()
     return NextResponse.json({ success: true, data: created }, { status: 201 })
   } catch (error) {
+    logger.error({ error });
     logger.error('Error creating Buildium recurring transaction')
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

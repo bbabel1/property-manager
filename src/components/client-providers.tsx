@@ -10,6 +10,12 @@ type ClientProvidersProps = {
   children: ReactNode;
 };
 
+type FetchError = Error & { status?: number; info?: unknown; originalError?: unknown };
+const withMeta = (err: Error, meta: Partial<FetchError>): FetchError => {
+  Object.assign(err, meta);
+  return err as FetchError;
+};
+
 const swrFetcher = async (resource: RequestInfo, init?: RequestInit) => {
   let response: Response | null = null;
   let rawText: string = '';
@@ -26,9 +32,12 @@ const swrFetcher = async (resource: RequestInfo, init?: RequestInit) => {
       rawText = await response.text();
     } catch (textError) {
       // If we can't read the response text, throw a descriptive error
-      const error = new Error(`Failed to read response body: ${textError instanceof Error ? textError.message : 'Unknown error'}`);
-      (error as any).status = response.status;
-      throw error;
+      const error = new Error(
+        `Failed to read response body: ${
+          textError instanceof Error ? textError.message : 'Unknown error'
+        }`,
+      );
+      throw withMeta(error, { status: response.status });
     }
     
     // Detect HTML by checking if text starts with '<' (fallback for misconfigured content-type)
@@ -39,21 +48,17 @@ const swrFetcher = async (resource: RequestInfo, init?: RequestInit) => {
       const error = new Error(
         `Request failed with ${response.status}: Received HTML instead of JSON`,
       );
-      (error as any).status = response.status;
-      (error as any).info = { rawText: rawText.substring(0, 200) };
-      throw error;
+      throw withMeta(error, { status: response.status, info: { rawText: rawText.substring(0, 200) } });
     }
 
     // If response is HTML with 200 status, something went wrong
     if ((isHtml || looksLikeHtml) && response.ok) {
       const error = new Error('Received HTML response instead of JSON');
-      (error as any).status = response.status;
-      (error as any).info = { rawText: rawText.substring(0, 200) };
-      throw error;
+      throw withMeta(error, { status: response.status, info: { rawText: rawText.substring(0, 200) } });
     }
 
     // Parse JSON safely
-    let data: any = null;
+    let data: unknown = null;
     if (rawText) {
       try {
         data = JSON.parse(rawText);
@@ -63,9 +68,7 @@ const swrFetcher = async (resource: RequestInfo, init?: RequestInit) => {
           const error = new Error(
             `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}. Response appears to be HTML or invalid JSON.`,
           );
-          (error as any).status = response.status;
-          (error as any).info = { rawText: rawText.substring(0, 200) };
-          throw error;
+          throw withMeta(error, { status: response.status, info: { rawText: rawText.substring(0, 200) } });
         }
         // If content-type doesn't indicate JSON and doesn't look like HTML, return null
         data = null;
@@ -73,13 +76,12 @@ const swrFetcher = async (resource: RequestInfo, init?: RequestInit) => {
     }
 
     if (!response.ok) {
-      const error = new Error(
-        (data as { error?: string } | null)?.error ??
-          `Request failed with ${response.status}`,
-      );
-      (error as any).info = data;
-      (error as any).status = response.status;
-      throw error;
+      const errorMessage =
+        (data && typeof data === 'object' && 'error' in data && typeof (data as { error?: unknown }).error === 'string'
+          ? (data as { error?: string }).error
+          : null) ?? `Request failed with ${response.status}`;
+      const error = new Error(errorMessage);
+      throw withMeta(error, { status: response.status, info: data });
     }
 
     if (response.status === 204) return null;
@@ -90,10 +92,11 @@ const swrFetcher = async (resource: RequestInfo, init?: RequestInit) => {
       const wrappedError = new Error(
         `Received invalid JSON response from server: ${error.message}. Response may be HTML or malformed JSON.`,
       );
-      (wrappedError as any).originalError = error;
-      (wrappedError as any).status = response?.status;
-      (wrappedError as any).info = { rawText: rawText.substring(0, 200) };
-      throw wrappedError;
+      throw withMeta(wrappedError, {
+        originalError: error,
+        status: response?.status,
+        info: { rawText: rawText.substring(0, 200) },
+      });
     }
     // Re-throw other errors as-is
     throw error;

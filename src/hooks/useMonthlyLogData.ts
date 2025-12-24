@@ -316,7 +316,10 @@ export function useMonthlyLogData(
   const [loadingMoreUnassigned, setLoadingMoreUnassigned] = useState(false);
   const [loadingMoreUnitUnassigned, setLoadingMoreUnitUnassigned] = useState(false);
 
-  const assignedTransactions = assignedData?.transactions ?? [];
+  const assignedTransactions = useMemo(
+    () => assignedData?.transactions ?? [],
+    [assignedData?.transactions],
+  );
   const financialSummary = assignedData?.summary
     ? normalizeFinancialSummary(assignedData.summary)
     : null;
@@ -449,7 +452,7 @@ export function useMonthlyLogData(
         { revalidate: false },
       );
     },
-    [mutateAssigned, mutateUnassigned],
+    [mutateAssigned, mutateUnassigned, mutateUnitUnassigned],
   );
 
   const moveTransactionToUnassigned = useCallback(

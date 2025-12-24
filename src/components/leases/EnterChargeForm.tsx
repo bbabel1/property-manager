@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { z } from 'zod';
-import { Info, Plus, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dropdown } from '@/components/ui/Dropdown';
@@ -52,10 +52,6 @@ type FormState = {
 
 export interface EnterChargeFormProps {
   leaseId: number | string;
-  leaseSummary: {
-    propertyUnit?: string | null;
-    tenants?: string | null;
-  };
   accounts: LeaseAccountOption[];
   onCancel?: () => void;
   onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
@@ -74,7 +70,6 @@ export interface EnterChargeFormProps {
 
 export default function EnterChargeForm({
   leaseId,
-  leaseSummary,
   accounts,
   onCancel,
   onSuccess,
@@ -229,7 +224,7 @@ export default function EnterChargeForm({
           if (key === 'allocations') fieldErrors.allocations = issue.message;
           else if (typeof key === 'string') fieldErrors[key] = issue.message;
         }
-        setErrors(fieldErrors as any);
+        setErrors(fieldErrors);
         setSubmitting(false);
         return;
       }
@@ -277,11 +272,11 @@ export default function EnterChargeForm({
           body: JSON.stringify(payload),
         });
 
-        const body = await res.json().catch(() => null);
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
         if (!res.ok) {
           throw new Error(
-            body && typeof (body as any)?.error === 'string'
-              ? ((body as any).error as string)
+            body && typeof body?.error === 'string'
+              ? body.error
               : 'Failed to record charge',
           );
         }

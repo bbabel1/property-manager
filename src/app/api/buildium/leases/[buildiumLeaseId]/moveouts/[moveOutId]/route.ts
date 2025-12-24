@@ -57,6 +57,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium lease move out`);
 
     return NextResponse.json(
@@ -118,6 +119,7 @@ export async function DELETE(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error deleting Buildium lease move out`);
 
     return NextResponse.json(

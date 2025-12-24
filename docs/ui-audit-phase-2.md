@@ -1,5 +1,7 @@
 # UI Audit — Phase 2 Component & Layout Consolidation
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 Phase 2 focused on collapsing duplicated layout patterns into canonical primitives, migrating high-traffic pages to the shared system, and deleting the legacy `.page-*` utility classes to prevent future divergence.
 
 ---

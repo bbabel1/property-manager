@@ -37,8 +37,6 @@ export async function GET(
     if (offset) queryParams.append('offset', offset);
     if (orderby) queryParams.append('orderby', orderby);
 
-    const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase())
-    const payload: any = { leaseId: Number(buildiumLeaseId), limit, offset, orderby }
     const res = await buildiumEdgeClient.listLeaseNotes(Number(buildiumLeaseId), { limit: Number(limit), offset: Number(offset), orderby: orderby || undefined })
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to fetch lease notes from Buildium' }, { status: 502 })
     const notes = res.data || []
@@ -52,6 +50,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium lease notes`);
 
     return NextResponse.json(
@@ -81,7 +80,7 @@ export async function POST(
     const { buildiumLeaseId } = await params;
 
     // Parse and validate request body
-    const body = await request.json();
+    const body: unknown = await request.json().catch(() => ({}));
     
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseNoteCreateSchema);
@@ -101,7 +100,7 @@ export async function POST(
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: unknown = await response.json().catch(() => ({}));
       logger.error(`Buildium lease note creation failed`);
 
       return NextResponse.json(
@@ -113,7 +112,11 @@ export async function POST(
       );
     }
 
-    const note = await response.json();
+    const noteJson: unknown = await response.json().catch(() => ({}));
+    const note =
+      noteJson && typeof noteJson === 'object'
+        ? (noteJson as Record<string, unknown>)
+        : {};
 
     logger.info(`Buildium lease note created successfully`);
 
@@ -123,6 +126,7 @@ export async function POST(
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium lease note`);
 
     return NextResponse.json(

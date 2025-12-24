@@ -1,5 +1,7 @@
 Rollback Runbook
 
+<!-- markdownlint-configure-file {"MD013": false, "MD029": false, "MD031": false} -->
+
 Principles
 
 - Prefer forward fixes for application code. Use DB rollbacks only when necessary.

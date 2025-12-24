@@ -7,18 +7,6 @@ import {
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { calculateFinancialSummary } from '@/lib/monthly-log-calculations';
 
-const monthFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'UTC',
-});
-
-const monthKeyFormatter = new Intl.DateTimeFormat('en-CA', {
-  year: 'numeric',
-  month: '2-digit',
-  timeZone: 'UTC',
-});
-
 type MonthlyLogQueryRow = {
   id: string;
   period_start: string;
@@ -173,20 +161,6 @@ function buildTenantName(row: MonthlyLogQueryRow['tenants']): string | null {
   if (combined) return combined;
   if (contact.company_name) return contact.company_name;
   return null;
-}
-
-function buildUnitTitle(propertyName: string | null, unit: MonthlyLogQueryRow['units']): string {
-  const unitNumber = unit?.unit_number?.trim();
-  const unitName = unit?.unit_name?.trim();
-  const property = propertyName?.trim();
-  if (property && unitNumber) {
-    return `${property} - ${unitNumber}`;
-  }
-  if (property && unitName) {
-    return `${property} - ${unitName}`;
-  }
-  if (property) return property;
-  return unitNumber || unitName || 'Unit';
 }
 
 function buildPrimaryOwnerName(property: MonthlyLogQueryRow['properties']): string | null {

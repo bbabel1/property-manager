@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Mail, Trash2, Download, Eye } from 'lucide-react';
+import { Mail, Trash2, Download, Eye } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import { CheckCircle2 } from 'lucide-react';
 

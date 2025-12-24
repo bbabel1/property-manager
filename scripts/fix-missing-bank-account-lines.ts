@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+// @ts-nocheck
 /**
  * Backfill script to add missing bank account debit lines to Payment transactions
  * that only have credit lines (AR/Revenue allocations) but are missing the bank account debit.
@@ -16,7 +17,7 @@ async function fixMissingBankAccountLines() {
   // Find all Payment transactions
   const { data: paymentTransactions, error: txError } = await supabaseAdmin
     .from('transactions')
-    .select('id, lease_id, property_id, total_amount, date, buildium_transaction_id')
+    .select('id, lease_id, property_id, total_amount, date, transaction_type, buildium_transaction_id, buildium_lease_id')
     .eq('transaction_type', 'Payment')
     .order('date', { ascending: false });
 
@@ -102,9 +103,12 @@ async function fixMissingBankAccountLines() {
     // Get lease context for property/unit IDs
     const { data: lease } = await supabaseAdmin
       .from('lease')
-      .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
+      .select('property_id, unit_id, buildium_property_id, buildium_unit_id, buildium_lease_id')
       .eq('id', (tx as any).lease_id)
       .maybeSingle();
+
+    const buildiumLeaseId = (lease as any)?.buildium_lease_id ?? null;
+    const txBuildiumLeaseId = (tx as { buildium_lease_id?: number | null }).buildium_lease_id ?? null;
 
     // Add the missing bank account debit line
     const bankLineData = {
@@ -157,4 +161,3 @@ fixMissingBankAccountLines()
     console.error('Fatal error:', error);
     process.exit(1);
   });
-

@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
 
     const newCheck: BuildiumCheckResponse = await response.json();
 
+    let localTransactionId: string | null = null;
     try {
       const canonicalBankAccountId =
         newCheck.BankAccountId ??
@@ -97,10 +98,11 @@ export async function POST(request: NextRequest) {
         newCheck.id ??
         newCheck.transactionId;
       if (canonicalBankAccountId && transactionId) {
-        await canonicalUpsertBuildiumBankTransaction({
+        const result = await canonicalUpsertBuildiumBankTransaction({
           bankAccountId: canonicalBankAccountId,
           transactionId,
         });
+        localTransactionId = result?.transactionId ?? null;
       } else {
         logger.warn(
           { bankAccountId: canonicalBankAccountId, transactionId },
@@ -112,10 +114,14 @@ export async function POST(request: NextRequest) {
       throw err;
     }
 
-    return NextResponse.json({
-      success: true,
-      data: newCheck
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        data: newCheck,
+        transactionId: localTransactionId,
+      },
+      { status: 201 },
+    );
 
   } catch (error) {
     logger.error({ error }, 'Error creating Buildium check');

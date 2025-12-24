@@ -4,29 +4,27 @@ import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell'
 import { Button } from '@/components/ui/button';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import type { Database } from '@/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { ManageVendorCategories } from '../_components/manage-vendor-categories';
-
-type VendorCategoryRow = Database['public']['Tables']['vendor_categories']['Row'];
-type VendorRow = Pick<Database['public']['Tables']['vendors']['Row'], 'vendor_category'>;
 
 export const dynamic = 'force-dynamic';
 
 export default async function ManageVendorCategoriesPage() {
-  const db = supabaseAdmin || supabase;
+  const db = (supabaseAdmin || supabase) as SupabaseClient<Database>;
 
-  const { data: categoryRows, error: categoryError } = (await db
+  const { data: categoryRows, error: categoryError } = await db
     .from('vendor_categories')
     .select('id, name, is_active')
-    .order('name', { ascending: true })) as { data: VendorCategoryRow[] | null; error: any };
+    .order('name', { ascending: true });
 
   if (categoryError?.message) {
     console.error('Failed to load vendor categories', categoryError);
   }
 
-  const { data: vendorRows, error: vendorError } = (await db
+  const { data: vendorRows, error: vendorError } = await db
     .from('vendors')
-    .select('vendor_category')) as { data: VendorRow[] | null; error: any };
+    .select('vendor_category');
 
   if (vendorError?.message) {
     console.error('Failed to load vendors for category counts', vendorError);

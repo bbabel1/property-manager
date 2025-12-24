@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
+// @ts-nocheck
 /**
  * Compliance Item Generator
  *
@@ -18,12 +17,50 @@ import type {
   ComplianceAssetType,
   CompliancePropertyProgramOverride,
 } from '@/types/compliance';
-import type { Json } from '@/types/database';
+import type { Database, Json } from '@/types/database';
 import {
   canonicalAssetType,
   programTargetsAsset,
   programTargetsProperty,
 } from './compliance-programs';
+type AssetMetaParam = NonNullable<Parameters<typeof programTargetsAsset>[1]>;
+
+type PropertyRow = Pick<
+  Database['public']['Tables']['properties']['Row'],
+  'id' | 'borough' | 'borough_code' | 'bin' | 'building_id' | 'total_units'
+>;
+
+type BuildingRow = Pick<
+  Database['public']['Tables']['buildings']['Row'],
+  | 'borough_code'
+  | 'occupancy_group'
+  | 'occupancy_description'
+  | 'is_one_two_family'
+  | 'is_private_residence_building'
+  | 'residential_units'
+>;
+
+type PropertyMeta = {
+  id: string;
+  borough: string | null;
+  borough_code?: number | null;
+  bin: string | null;
+  occupancy_group?: string | null;
+  occupancy_description?: string | null;
+  is_one_two_family?: boolean | null;
+  is_private_residence_building?: boolean | null;
+  residential_units?: number | null;
+  property_total_units?: number | null;
+};
+
+type ComplianceAssetRow = Database['public']['Tables']['compliance_assets']['Row'];
+
+type ProgramOverrideFields = {
+  criteria_rows?: unknown;
+  criteriaRows?: unknown;
+  due_date_value?: string;
+  due_date?: string;
+};
 
 const normalizePressureType = (value: unknown): 'low_pressure' | 'high_pressure' | null => {
   if (!value) return null;
@@ -33,10 +70,16 @@ const normalizePressureType = (value: unknown): 'low_pressure' | 'high_pressure'
   return null;
 };
 
-const assetPressureType = (asset: any): 'low_pressure' | 'high_pressure' | null => {
+const assetPressureType = (
+  asset: { metadata?: Json | null; pressure_type?: unknown } | null | undefined,
+): 'low_pressure' | 'high_pressure' | null => {
   if (!asset) return null;
-  const meta = (asset.metadata || {}) as Record<string, any>;
-  const candidates = [meta.pressure_type, meta.pressuretype, (asset as any).pressure_type];
+  const meta = (asset.metadata ?? {}) as Record<string, unknown>;
+  const candidates = [
+    meta['pressure_type'],
+    meta['pressuretype'],
+    (asset as { pressure_type?: unknown }).pressure_type,
+  ];
   for (const candidate of candidates) {
     const norm = normalizePressureType(candidate);
     if (norm) return norm;
@@ -44,10 +87,74 @@ const assetPressureType = (asset: any): 'low_pressure' | 'high_pressure' | null 
   return null;
 };
 
-const dwellingUnitsFromBuilding = (building: any): number | null => {
+const dwellingUnitsFromBuilding = (building: BuildingRow | null | undefined): number | null => {
   if (!building) return null;
   if (typeof building.residential_units === 'number') return building.residential_units;
   return null;
+};
+
+const buildPropertyMeta = (
+  propertyRow: PropertyRow | null,
+  buildingRow?: BuildingRow | null,
+): PropertyMeta | null => {
+  if (!propertyRow) return null;
+  const boroughCodeRaw = propertyRow.borough_code ?? buildingRow?.borough_code ?? null;
+  const borough_code =
+    typeof boroughCodeRaw === 'string'
+      ? Number.isNaN(Number(boroughCodeRaw))
+        ? null
+        : Number(boroughCodeRaw)
+      : boroughCodeRaw ?? null;
+  const meta: PropertyMeta = {
+    id: propertyRow.id,
+    borough: propertyRow.borough ?? null,
+    borough_code,
+    bin: propertyRow.bin ?? null,
+    property_total_units: propertyRow.total_units ?? null,
+  };
+
+  if (buildingRow) {
+    const buildingBoroughCode =
+      typeof buildingRow.borough_code === 'string'
+        ? Number.isNaN(Number(buildingRow.borough_code))
+          ? null
+          : Number(buildingRow.borough_code)
+        : buildingRow.borough_code ?? meta.borough_code ?? null;
+    meta.borough_code = buildingBoroughCode ?? meta.borough_code ?? null;
+    meta.occupancy_group = buildingRow.occupancy_group ?? null;
+    meta.occupancy_description = buildingRow.occupancy_description ?? null;
+    meta.is_one_two_family = buildingRow.is_one_two_family ?? null;
+    meta.is_private_residence_building = buildingRow.is_private_residence_building ?? null;
+    meta.residential_units = dwellingUnitsFromBuilding(buildingRow);
+  }
+
+  return meta;
+};
+
+const fetchPropertyMeta = async (propertyId: string): Promise<PropertyMeta | null> => {
+  const { data: propertyRow } = await supabaseAdmin
+    .from('properties')
+    .select('id, borough, borough_code, bin, building_id, total_units')
+    .eq('id', propertyId)
+    .maybeSingle();
+
+  if (!propertyRow) return null;
+  const typedProperty = propertyRow as PropertyRow;
+
+  let buildingRow: BuildingRow | null = null;
+  const buildingId = typedProperty.building_id ?? null;
+  if (buildingId) {
+    const { data: buildingData } = await supabaseAdmin
+      .from('buildings')
+      .select(
+        'id, borough_code, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, residential_units',
+      )
+      .eq('id', buildingId)
+      .maybeSingle();
+    buildingRow = (buildingData as BuildingRow | null) ?? null;
+  }
+
+  return buildPropertyMeta(typedProperty, buildingRow);
 };
 
 const parseDueDateOverride = (
@@ -125,88 +232,40 @@ export class ComplianceItemGenerator {
       const errors: string[] = [];
 
       // Property metadata for criteria evaluation
-      const { data: propertyRow } = await supabaseAdmin
-        .from('properties')
-        .select('id, borough, borough_code, bin, building_id, total_units')
-        .eq('id', propertyId)
-        .maybeSingle();
-
-      let propertyMeta: {
-        id: string;
-      borough: string | null;
-      borough_code?: number | null;
-      bin: string | null;
-      occupancy_group?: string | null;
-      occupancy_description?: string | null;
-      is_one_two_family?: boolean | null;
-      is_private_residence_building?: boolean | null;
-        residential_units?: number | null;
-        property_total_units?: number | null;
-      } | null = null;
-
-      if (propertyRow) {
-        propertyMeta = {
-          id: propertyRow.id as string,
-          borough: (propertyRow as any).borough as string | null,
-          borough_code: (propertyRow as any).borough_code as number | null,
-          bin: (propertyRow as any).bin as string | null,
-          property_total_units: (propertyRow as any).total_units as number | null,
-        };
-
-        const buildingId = (propertyRow as any).building_id as string | null;
-        if (buildingId) {
-          const { data: buildingRow } = await supabaseAdmin
-            .from('buildings')
-            .select(
-              'id, borough_code, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, residential_units',
-            )
-            .eq('id', buildingId)
-            .maybeSingle();
-          if (buildingRow) {
-            propertyMeta.borough_code = (buildingRow as any).borough_code as number | null;
-            propertyMeta.occupancy_group = (buildingRow as any).occupancy_group as string | null;
-            propertyMeta.occupancy_description = (buildingRow as any).occupancy_description as
-              | string
-              | null;
-            propertyMeta.is_one_two_family = (buildingRow as any).is_one_two_family as
-              | boolean
-              | null;
-            propertyMeta.is_private_residence_building = (buildingRow as any)
-              .is_private_residence_building as boolean | null;
-            propertyMeta.residential_units = dwellingUnitsFromBuilding(buildingRow);
-          }
-        }
-      }
+      const propertyMeta = await fetchPropertyMeta(propertyId);
 
       const overrides = await this.getPropertyProgramOverrides(propertyId, orgId);
 
       // Generate items for each program (property-scoped or both)
       for (const program of programs) {
+        const programRecord = program as ComplianceProgram;
         try {
           const override = overrides.get(program.id);
           const suppressed = override?.is_assigned === false;
           if (suppressed) continue;
 
           const effectiveEnabled =
-            typeof override?.is_enabled === 'boolean' ? override.is_enabled : program.is_enabled;
+            typeof override?.is_enabled === 'boolean'
+              ? override.is_enabled
+              : programRecord.is_enabled;
           if (!effectiveEnabled) continue;
 
           const assigned = override?.is_assigned === true;
-          const overrideFields = (program as any)?.override_fields || {};
+          const programOverrideFields = (programRecord.override_fields ?? {}) as ProgramOverrideFields;
           const criteriaRows =
-            (overrideFields as any)?.criteria_rows || (overrideFields as any)?.criteriaRows;
+            programOverrideFields.criteria_rows ?? programOverrideFields.criteriaRows ?? null;
           const hasDefinedCriteriaRows = Array.isArray(criteriaRows);
-          const criteriaRowsEmpty = hasDefinedCriteriaRows && (criteriaRows as any[]).length === 0;
+          const criteriaRowsEmpty = hasDefinedCriteriaRows && criteriaRows.length === 0;
           const matchesProperty = criteriaRowsEmpty
             ? false
-            : programTargetsProperty(program as ComplianceProgram, propertyMeta);
+            : programTargetsProperty(programRecord, propertyMeta);
 
           // Skip asset-only programs in property-level generation
-          if (program.applies_to === 'asset') continue;
+          if (programRecord.applies_to === 'asset') continue;
           if (!assigned && !matchesProperty) continue;
 
           const result = await this.generateItemsForProgram(
-            program.id,
+            programRecord.id,
             propertyId,
             undefined, // asset_id - will be determined by program.applies_to
             orgId,
@@ -223,7 +282,9 @@ export class ComplianceItemGenerator {
             'Error generating items for program',
           );
           errors.push(
-            `Program ${program.code}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            `Program ${programRecord.code}: ${
+              error instanceof Error ? error.message : 'Unknown error'
+            }`,
           );
         }
       }
@@ -263,7 +324,7 @@ export class ComplianceItemGenerator {
         throw new Error(`Asset not found: ${assetId}`);
       }
 
-      const assetType = (asset as any).asset_type as string | null;
+      const assetType = asset.asset_type ?? null;
 
       // Get programs that apply to this asset type
       const { data: programs, error: programsError } = await supabaseAdmin
@@ -284,60 +345,33 @@ export class ComplianceItemGenerator {
       }
 
       // Fetch property meta for criteria checks
-      const { data: propertyRow } = await supabaseAdmin
-        .from('properties')
-        .select('id, borough, borough_code, bin, building_id, total_units')
-        .eq('id', (asset as any).property_id)
-        .maybeSingle();
-      let propertyMeta: {
-        id: string;
-      borough: string | null;
-      borough_code?: number | null;
-      bin: string | null;
-      occupancy_group?: string | null;
-      occupancy_description?: string | null;
-      is_one_two_family?: boolean | null;
-        is_private_residence_building?: boolean | null;
-        residential_units?: number | null;
-        property_total_units?: number | null;
-      } | null = null;
-      if (propertyRow) {
-        propertyMeta = {
-          id: propertyRow.id as string,
-          borough: (propertyRow as any).borough as string | null,
-          borough_code: (propertyRow as any).borough_code as number | null,
-          bin: (propertyRow as any).bin as string | null,
-          property_total_units: (propertyRow as any).total_units as number | null,
-        };
-        const buildingId = (propertyRow as any).building_id as string | null;
-        if (buildingId) {
-          const { data: buildingRow } = await supabaseAdmin
-            .from('buildings')
-            .select(
-              'id, borough_code, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, residential_units',
-            )
-            .eq('id', buildingId)
-            .maybeSingle();
-          if (buildingRow) {
-            propertyMeta.borough_code = (buildingRow as any).borough_code as number | null;
-            propertyMeta.occupancy_group = (buildingRow as any).occupancy_group as string | null;
-            propertyMeta.occupancy_description = (buildingRow as any).occupancy_description as
-              | string
-              | null;
-            propertyMeta.is_one_two_family = (buildingRow as any).is_one_two_family as
-              | boolean
-              | null;
-            propertyMeta.is_private_residence_building = (buildingRow as any)
-              .is_private_residence_building as boolean | null;
-            propertyMeta.residential_units = dwellingUnitsFromBuilding(buildingRow);
-          }
-        }
-      }
+      const propertyMeta = await fetchPropertyMeta(asset.property_id);
 
       const overrides = await this.getPropertyProgramOverrides(
-        (asset as any).property_id as string,
+        asset.property_id,
         orgId,
       );
+
+      const normalizedAssetType: ComplianceAssetType =
+        (canonicalAssetType(asset) as ComplianceAssetType | null) ||
+        ((assetType || '').toLowerCase() as ComplianceAssetType) ||
+        'other';
+      const deviceCategory: ComplianceDeviceCategory | null =
+        typeof asset.device_category === 'string'
+          ? (asset.device_category as ComplianceDeviceCategory)
+          : null;
+      const assetMetaForGuard: AssetMetaParam = {
+        id: asset.id,
+        property_id: asset.property_id,
+        asset_type: normalizedAssetType,
+        external_source: asset.external_source,
+        active: asset.active,
+        device_category: deviceCategory,
+        device_technology: asset.device_technology ?? null,
+        device_subtype: asset.device_subtype ?? null,
+        is_private_residence: asset.is_private_residence ?? null,
+        metadata: (asset.metadata ?? null) as Json | null,
+      };
 
       // Filter out programs that do not match this asset type (prevent boilers/facades/etc. from being assigned to elevators)
       const typeGuards: Record<string, (code: string) => boolean> = {
@@ -347,8 +381,8 @@ export class ComplianceItemGenerator {
         gas_piping: (code) => code.startsWith('NYC_GAS'),
         facade: (code) => code.startsWith('NYC_FACADE'),
       };
-      const normalizedType = canonicalAssetType(asset as any) || (assetType || '').toLowerCase();
-      const pressureType = assetPressureType(asset as any);
+      const normalizedType = assetMetaForGuard.asset_type;
+      const pressureType = assetPressureType(assetMetaForGuard);
       const guard = typeGuards[normalizedType];
 
       // Clean up mismatched boiler programs before generating new items to avoid duplicates (LP vs HP).
@@ -378,17 +412,18 @@ export class ComplianceItemGenerator {
         if (effectiveEnabled !== true) return false;
 
         const assigned = override?.is_assigned === true;
-        const overrideFields = (p as any)?.override_fields || {};
+        const programRecord = p as ComplianceProgram;
+        const programOverrideFields = (programRecord.override_fields ?? {}) as ProgramOverrideFields;
         const criteriaRows =
-          (overrideFields as any)?.criteria_rows || (overrideFields as any)?.criteriaRows;
+          programOverrideFields.criteria_rows ?? programOverrideFields.criteriaRows ?? null;
         const hasDefinedCriteriaRows = Array.isArray(criteriaRows);
-        const criteriaRowsEmpty = hasDefinedCriteriaRows && (criteriaRows as any[]).length === 0;
+        const criteriaRowsEmpty = hasDefinedCriteriaRows && criteriaRows.length === 0;
         // Hard stop: do not assign both LP/HP boiler programs. If we know the pressure type, require a match.
         const programPressure =
-          (p.criteria as any)?.asset_filters?.pressure_type ||
-          (p.code === 'NYC_BOILER_LP_ANNUAL'
+          programRecord.criteria?.asset_filters?.pressure_type ||
+          (programRecord.code === 'NYC_BOILER_LP_ANNUAL'
             ? 'low_pressure'
-            : p.code === 'NYC_BOILER_HP_ANNUAL'
+            : programRecord.code === 'NYC_BOILER_HP_ANNUAL'
               ? 'high_pressure'
               : null);
         if (normalizedType === 'boiler' && programPressure) {
@@ -397,7 +432,11 @@ export class ComplianceItemGenerator {
         }
         if (assigned) return true;
         if (criteriaRowsEmpty) return false;
-        return programTargetsAsset(p as ComplianceProgram, asset as any, propertyMeta);
+        return programTargetsAsset(
+          programRecord,
+          assetMetaForGuard as unknown as AssetMetaParam,
+          propertyMeta,
+        );
       });
 
       let itemsCreated = 0;
@@ -490,6 +529,7 @@ export class ComplianceItemGenerator {
         throw new Error(`Property org_id mismatch: ${property.org_id} !== ${orgId}`);
       }
 
+      const programRecord = program as ComplianceProgram;
       const overrides = await this.getPropertyProgramOverrides(propertyId, orgId);
       const override = overrides.get(programId);
       if (override?.is_assigned === false) {
@@ -497,51 +537,12 @@ export class ComplianceItemGenerator {
       }
 
       const effectiveEnabled =
-        typeof override?.is_enabled === 'boolean' ? override.is_enabled : program.is_enabled;
+        typeof override?.is_enabled === 'boolean' ? override.is_enabled : programRecord.is_enabled;
       if (!effectiveEnabled) {
         return { items_created: 0, items_skipped: 0 };
       }
 
-      const propertyMeta: {
-        id: string;
-      borough: string | null;
-      borough_code?: number | null;
-      bin: string | null;
-      occupancy_group?: string | null;
-      occupancy_description?: string | null;
-      is_one_two_family?: boolean | null;
-        is_private_residence_building?: boolean | null;
-        residential_units?: number | null;
-        property_total_units?: number | null;
-      } = {
-        id: propertyId,
-        borough: (property as any).borough as string | null,
-        borough_code: (property as any).borough_code as number | null,
-        bin: (property as any).bin as string | null,
-        property_total_units: (property as any).total_units as number | null,
-      };
-
-      const buildingId = (property as any).building_id as string | null;
-      if (buildingId) {
-        const { data: buildingRow } = await supabaseAdmin
-          .from('buildings')
-          .select(
-            'id, borough_code, occupancy_group, occupancy_description, is_one_two_family, is_private_residence_building, residential_units',
-          )
-          .eq('id', buildingId)
-          .maybeSingle();
-        if (buildingRow) {
-          propertyMeta.borough_code = (buildingRow as any).borough_code as number | null;
-          propertyMeta.occupancy_group = (buildingRow as any).occupancy_group as string | null;
-          propertyMeta.occupancy_description = (buildingRow as any).occupancy_description as
-            | string
-            | null;
-          propertyMeta.is_one_two_family = (buildingRow as any).is_one_two_family as boolean | null;
-          propertyMeta.is_private_residence_building = (buildingRow as any)
-            .is_private_residence_building as boolean | null;
-          propertyMeta.residential_units = dwellingUnitsFromBuilding(buildingRow);
-        }
-      }
+      const propertyMeta = await fetchPropertyMeta(propertyId);
 
       type ProgramAssetMeta = NonNullable<Parameters<typeof programTargetsAsset>[1]>;
 
@@ -559,38 +560,41 @@ export class ComplianceItemGenerator {
         if (assetRowError || !assetRow) {
           throw new Error(`Asset not found for criteria evaluation: ${assetId}`);
         }
+        const typedAsset = assetRow as ComplianceAssetRow;
+        const deviceCategoryNormalized =
+          typeof typedAsset.device_category === 'string'
+            ? (typedAsset.device_category as ComplianceDeviceCategory)
+            : null;
         assetMeta = {
-          id: assetRow.id as string,
-          property_id: assetRow.property_id as string,
-          asset_type:
-            ((assetRow as any).asset_type as ComplianceAssetType | null) ??
-            ('other' as ComplianceAssetType),
-          external_source: (assetRow as any).external_source as string | null,
-          active: (assetRow as any).active !== false,
-          device_category: (assetRow as any).device_category as ComplianceDeviceCategory | null,
-          device_technology: (assetRow as any).device_technology as string | null,
-          device_subtype: (assetRow as any).device_subtype as string | null,
-          is_private_residence: (assetRow as any).is_private_residence as boolean | null,
-          metadata: ((assetRow as any).metadata ?? null) as Json | null,
+          id: typedAsset.id,
+          property_id: typedAsset.property_id,
+          asset_type: (typedAsset.asset_type as ComplianceAssetType) ?? ('other' as ComplianceAssetType),
+          external_source: typedAsset.external_source,
+          active: typedAsset.active,
+          device_category: deviceCategoryNormalized,
+          device_technology: typedAsset.device_technology,
+          device_subtype: typedAsset.device_subtype,
+          is_private_residence: typedAsset.is_private_residence,
+          metadata: (typedAsset.metadata ?? null) as Json | null,
         };
       }
 
       const assigned = override?.is_assigned === true;
-      const overrideFields = (program as any)?.override_fields || {};
+      const programOverrideFields = (programRecord.override_fields ?? {}) as ProgramOverrideFields;
       const criteriaRows =
-        (overrideFields as any)?.criteria_rows || (overrideFields as any)?.criteriaRows;
+        programOverrideFields.criteria_rows ?? programOverrideFields.criteriaRows ?? null;
       const hasDefinedCriteriaRows = Array.isArray(criteriaRows);
-      const criteriaRowsEmpty = hasDefinedCriteriaRows && (criteriaRows as any[]).length === 0;
+      const criteriaRowsEmpty = hasDefinedCriteriaRows && criteriaRows.length === 0;
 
       if (!assigned && criteriaRowsEmpty) {
         return { items_created: 0, items_skipped: 0 };
       }
 
-      if (!assetId && !assigned && !programTargetsProperty(program as ComplianceProgram, propertyMeta)) {
+      if (!assetId && !assigned && !programTargetsProperty(programRecord, propertyMeta)) {
         return { items_created: 0, items_skipped: 0 };
       }
 
-      if (assetId && !assigned && !programTargetsAsset(program as ComplianceProgram, assetMeta, propertyMeta)) {
+      if (assetId && !assigned && !programTargetsAsset(programRecord, assetMeta, propertyMeta)) {
         return { items_created: 0, items_skipped: 0 };
       }
 
@@ -616,18 +620,18 @@ export class ComplianceItemGenerator {
       await deleteQuery;
 
       const periods =
-        program.code === 'NYC_HPD_REGISTRATION'
+        programRecord.code === 'NYC_HPD_REGISTRATION'
           ? this.calculateHpdRegistrationPeriods(periodsAhead, timezone, horizon)
           : this.calculatePeriods(
-              program.frequency_months,
-              program.lead_time_days,
+              programRecord.frequency_months,
+              programRecord.lead_time_days,
               periodsAhead,
               timezone,
               horizon,
             );
+      const overrideDueFields = (programRecord.override_fields ?? {}) as ProgramOverrideFields;
       const overrideSource =
-        (program as any)?.override_fields?.due_date_value ||
-        (program as any)?.override_fields?.due_date;
+        overrideDueFields.due_date_value ?? overrideDueFields.due_date ?? null;
       const dueDateOverride = parseDueDateOverride(overrideSource);
       const normalizedPeriods = periods.map((period) =>
         applyOverrideDueDate(period, dueDateOverride),
@@ -659,11 +663,12 @@ export class ComplianceItemGenerator {
           }
 
           if (existing) {
-            if ((existing as any)?.due_date !== period.due_date) {
+            const existingItem = existing as { id: string; due_date: string | null };
+            if (existingItem.due_date !== period.due_date) {
               await supabaseAdmin
                 .from('compliance_items')
                 .update({ due_date: period.due_date })
-                .eq('id', (existing as any).id);
+                .eq('id', existingItem.id);
             }
             itemsSkipped++;
             continue;

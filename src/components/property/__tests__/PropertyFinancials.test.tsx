@@ -9,7 +9,7 @@ describe('PropertyFinancials', () => {
   const mockFetch = vi.fn();
 
   beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetch as any);
+    vi.stubGlobal('fetch', mockFetch as unknown as typeof fetch);
     mockFetch.mockReset();
   });
 

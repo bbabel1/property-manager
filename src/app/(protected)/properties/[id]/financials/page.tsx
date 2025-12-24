@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { Fragment } from 'react';
 import Link from 'next/link';
 import { endOfMonth, startOfMonth } from 'date-fns';
@@ -23,9 +21,81 @@ import { supabase, supabaseAdmin } from '@/lib/db';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/components/ui/utils';
 import RecordGeneralJournalEntryButton from '@/components/financials/RecordGeneralJournalEntryButton';
-import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
+import {
+  buildLedgerGroups,
+  mapTransactionLine,
+  type LedgerLine,
+} from '@/server/financials/ledger-utils';
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
+
+type TransactionLineResult = {
+  transaction_id: string;
+  property_id: string | null;
+  unit_id: string | null;
+  date: string;
+  amount: number;
+  posting_type: string | null;
+  memo: string | null;
+  gl_account_id: string | null;
+  created_at: string;
+  gl_accounts?: {
+    name?: string | null;
+    account_number?: string | null;
+    type?: string | null;
+    is_bank_account?: boolean | null;
+    exclude_from_cash_balances?: boolean | null;
+  } | null;
+  units?: { unit_number?: string | null; unit_name?: string | null } | null;
+  transactions?: {
+    id?: string;
+    transaction_type?: string;
+    memo?: string | null;
+    reference_number?: string | null;
+  } | null;
+  properties?: { id?: string; name?: string | null } | null;
+};
+
+type TransactionLineForBills = {
+  transaction_id: string | null;
+  unit_id: string | null;
+  memo?: string | null;
+  amount?: number | null;
+  posting_type?: string | null;
+};
+
+type VendorRecord = {
+  id: string;
+  contact?: {
+    display_name?: string;
+    company_name?: string;
+    first_name?: string;
+    last_name?: string;
+  };
+};
+
+type TransactionBillRow = {
+  id: string;
+  date?: string | null;
+  due_date?: string | null;
+  paid_date?: string | null;
+  total_amount?: number | null;
+  status?: string | null;
+  memo?: string | null;
+  reference_number?: string | null;
+  vendor_id?: string | null;
+  transaction_type?: string | null;
+};
+
+type VendorContactRow = {
+  id?: string | null;
+  contacts?: {
+    display_name?: string | null;
+    company_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  } | null;
+};
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
@@ -42,7 +112,7 @@ const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.
 const normalizeBasis = (basis: unknown): 'cash' | 'accrual' =>
   String(basis ?? '').toLowerCase() === 'cash' ? 'cash' : 'accrual';
 
-function normalizeBillStatus(value: any): BillStatusLabel {
+function normalizeBillStatus(value: unknown): BillStatusLabel {
   switch (String(value ?? '').toLowerCase()) {
     case 'overdue':
       return 'Overdue';
@@ -147,8 +217,9 @@ export default async function FinancialsTab({
   }>;
 }) {
   const { id: slug } = await params;
-  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(slug);
-  const sp = (await (searchParams || Promise.resolve({}))) as any;
+  const { internalId: propertyId, publicId: propertyPublicId } =
+    await resolvePropertyIdentifier(slug);
+  const sp = (await (searchParams || Promise.resolve({}))) || {};
 
   const today = new Date();
   const hasRangeParam = typeof sp?.range === 'string';
@@ -168,13 +239,13 @@ export default async function FinancialsTab({
   const accountsExplicitNone = glParamRaw === 'none';
   const glParam = accountsExplicitNone ? '' : glParamRaw;
 
-  const propertyPromise = (db as any)
+  const propertyPromise = db
     .from('properties')
     .select('org_id, name, public_id')
     .eq('id', propertyId)
     .maybeSingle();
 
-  const unitsPromise = (db as any)
+  const unitsPromise = db
     .from('units')
     .select('id, unit_number, unit_name')
     .eq('property_id', propertyId);
@@ -186,7 +257,7 @@ export default async function FinancialsTab({
 
   let defaultBasis: 'cash' | 'accrual' = 'accrual';
   if (orgId) {
-    const { data: orgRow } = await (db as any)
+    const { data: orgRow } = await db
       .from('organizations')
       .select('default_accounting_basis')
       .eq('id', orgId)
@@ -200,7 +271,7 @@ export default async function FinancialsTab({
   const dateHeading = basisParam === 'cash' ? 'Date (cash basis)' : 'Date (accrual basis)';
 
   const accountsPromise = (async () => {
-    let query = (db as any)
+    let query = db
       .from('gl_accounts')
       .select('id, name, account_number, type')
       .order('type', { ascending: true })
@@ -215,7 +286,7 @@ export default async function FinancialsTab({
   const toStr = to.toISOString().slice(0, 10);
 
   const qBase = () =>
-    (db as any)
+    db
       .from('transaction_lines')
       .select(
         `transaction_id,
@@ -232,10 +303,12 @@ export default async function FinancialsTab({
          transactions(id, transaction_type, memo, reference_number),
          properties(id, name)`,
       )
-      .eq('property_id', propertyId);
+      .eq('property_id', propertyId)
+      .returns<TransactionLineResult[]>();
 
-  const mapLine = (row: any): LedgerLine => {
+  const mapLine = (row: TransactionLineResult): LedgerLine | null => {
     const mapped = mapTransactionLine(row);
+    if (!mapped) return null; // Filter out lines with invalid posting_type
     return {
       ...mapped,
       propertyId: mapped.propertyId ?? propertyId,
@@ -342,9 +415,12 @@ export default async function FinancialsTab({
     const [{ data: periodData, error: periodError }, { data: priorData, error: priorError }] =
       await Promise.all([periodPromise, priorPromise]);
 
-    periodLines = periodError ? [] : (periodData || []).map(mapLine);
-    priorLines = priorError ? [] : (priorData || []).map(mapLine);
-
+    periodLines = periodError
+      ? []
+      : (periodData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
+    priorLines = priorError
+      ? []
+      : (priorData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
   }
 
   const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
@@ -409,9 +485,7 @@ export default async function FinancialsTab({
             <Table className="text-sm">
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="text-muted-foreground w-[12rem]">
-                    {dateHeading}
-                  </TableHead>
+                  <TableHead className="text-muted-foreground w-[12rem]">{dateHeading}</TableHead>
                   <TableHead className="text-muted-foreground w-[8rem]">Unit</TableHead>
                   <TableHead className="text-muted-foreground">Transaction</TableHead>
                   <TableHead className="text-muted-foreground">Memo</TableHead>
@@ -521,14 +595,18 @@ export default async function FinancialsTab({
                                 <TableRowLink
                                   key={`${group.id}-${line.date}-${idx}`}
                                   href={detailHref}
-                                  className="cursor-pointer hover:bg-muted/60"
+                                  className="hover:bg-muted/60 cursor-pointer"
                                 >
                                   {rowContent}
                                 </TableRowLink>
                               );
                             }
 
-                            return <TableRow key={`${group.id}-${line.date}-${idx}`}>{rowContent}</TableRow>;
+                            return (
+                              <TableRow key={`${group.id}-${line.date}-${idx}`}>
+                                {rowContent}
+                              </TableRow>
+                            );
                           })
                         )}
                         <TableRow className="bg-muted/30">
@@ -566,30 +644,22 @@ export default async function FinancialsTab({
             const unitIdsAll = unitOptions.map((u) => u.id);
 
             // Vendors options
-            let vendorsQuery = (db as any)
+            let vendorsQuery = db
               .from('vendors')
               .select(
                 'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
               )
               .order('updated_at', { ascending: false })
-              .limit(200);
+              .limit(200)
+              .returns<VendorRecord[]>();
             if (orgId) vendorsQuery = vendorsQuery.eq('org_id', orgId);
             const { data: vendorsData } = await vendorsQuery;
-            interface VendorRecord {
-              id: string;
-              contact?: {
-                display_name?: string;
-                company_name?: string;
-                first_name?: string;
-                last_name?: string;
-              };
-            }
             const nameOfVendor = (v: VendorRecord) =>
               v?.contact?.display_name ||
               v?.contact?.company_name ||
               [v?.contact?.first_name, v?.contact?.last_name].filter(Boolean).join(' ') ||
               'Vendor';
-            const vendorOptions = ((vendorsData || []) as VendorRecord[])
+            const vendorOptions = (vendorsData || [])
               .map((v) => ({ id: String(v.id), label: nameOfVendor(v) }))
               .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -652,13 +722,14 @@ export default async function FinancialsTab({
 
             const memoByTransactionId = new Map<string, string>();
             const amountByTransaction = new Map<string, number>();
-            let billRows: any[] = [];
+            let billRows: TransactionBillRow[] = [];
             if (selectedPropertyIds.includes(propertyId)) {
               // Fetch matching transaction ids for this property (via lines)
-              let qLine = (db as any)
+              let qLine = db
                 .from('transaction_lines')
                 .select('transaction_id, unit_id, memo, amount, posting_type')
-                .eq('property_id', propertyId);
+                .eq('property_id', propertyId)
+                .returns<TransactionLineForBills[]>();
               if (
                 selectedUnitIdsBills.length &&
                 selectedUnitIdsBills.length !== unitIdsAll.length
@@ -669,7 +740,7 @@ export default async function FinancialsTab({
               const txIds = Array.from(
                 new Set(
                   (linesData || [])
-                    .map((r: any) => {
+                    .map((r) => {
                       const txId = r?.transaction_id ? String(r.transaction_id) : null;
                       if (!txId) return null;
                       const memo = typeof r?.memo === 'string' ? r.memo.trim() : '';
@@ -681,7 +752,10 @@ export default async function FinancialsTab({
                         const rawAmount = Number(r?.amount ?? 0);
                         if (Number.isFinite(rawAmount)) {
                           const amount = Math.abs(rawAmount);
-                          amountByTransaction.set(txId, (amountByTransaction.get(txId) ?? 0) + amount);
+                          amountByTransaction.set(
+                            txId,
+                            (amountByTransaction.get(txId) ?? 0) + amount,
+                          );
                         }
                       }
                       return txId;
@@ -691,7 +765,7 @@ export default async function FinancialsTab({
               );
 
               if (txIds.length) {
-                let qTx = (db as any)
+                let qTx = db
                   .from('transactions')
                   .select(
                     'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, transaction_type',
@@ -706,11 +780,11 @@ export default async function FinancialsTab({
 
                 const { data: txData } = await qTx;
                 const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
-                const enrichedRows = (txData || []).map((row: any) => {
+                const enrichedRows = (txData || []).map((row: TransactionBillRow) => {
                   const current = normalizeBillStatus(row.status);
                   const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
                   if (derived !== current) {
-                    statusUpdates.push({ id: row.id, status: derived });
+                    statusUpdates.push({ id: String(row.id), status: derived });
                   }
                   const txId = String(row.id);
                   const storedAmount = Number(row.total_amount);
@@ -729,7 +803,7 @@ export default async function FinancialsTab({
                   try {
                     await Promise.all(
                       statusUpdates.map((update) =>
-                        (db as any)
+                        db
                           .from('transactions')
                           .update({ status: update.status })
                           .eq('id', update.id),
@@ -740,7 +814,7 @@ export default async function FinancialsTab({
                   }
                 }
 
-                billRows = enrichedRows.filter((row: any) => {
+                billRows = enrichedRows.filter((row) => {
                   if (!statusFilterActive) return true;
                   return statusFilterSet.has(row.status as BillStatusLabel);
                 });
@@ -761,22 +835,15 @@ export default async function FinancialsTab({
               (vendorId) => !vendorMap.has(vendorId),
             );
             if (vendorIdsMissing.length) {
-              const { data: extraVendors } = await (db as any)
+              const { data: extraVendors } = await db
                 .from('vendors')
                 .select('id, contacts(display_name, company_name, first_name, last_name)')
-                .in('id', vendorIdsMissing);
+                .in('id', vendorIdsMissing)
+                .returns<VendorContactRow[]>();
               for (const vendor of extraVendors || []) {
                 const vendorId = vendor?.id ? String(vendor.id) : null;
                 if (!vendorId) continue;
-                const contact =
-                  typeof vendor?.contacts === 'object' && vendor.contacts
-                    ? (vendor.contacts as {
-                        display_name?: string | null;
-                        company_name?: string | null;
-                        first_name?: string | null;
-                        last_name?: string | null;
-                      })
-                    : null;
+                const contact = vendor?.contacts || null;
                 const fallbackLabel =
                   contact?.display_name ||
                   contact?.company_name ||
@@ -859,7 +926,7 @@ export default async function FinancialsTab({
                             <TableCell className="text-right">
                               {formatBillCurrency(row.total_amount)}
                             </TableCell>
-                              <TableCell className="text-right" data-row-link-ignore="true">
+                            <TableCell className="text-right" data-row-link-ignore="true">
                               <BillRowActions billId={String(row.id)} />
                             </TableCell>
                           </TableRowLink>

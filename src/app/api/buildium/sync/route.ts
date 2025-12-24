@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger'
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const { user } = await requireRole('platform_admin');
+    const { user: _user } = await requireRole('platform_admin');
     
     const url = new URL(request.url);
     const { searchParams } = url;
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const { user } = await requireRole('platform_admin');
+    const { user: _user } = await requireRole('platform_admin');
     
     const body = await request.json();
     const { entityType } = body;

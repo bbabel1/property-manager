@@ -57,6 +57,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium lease outstanding balances`);
 
     return NextResponse.json(

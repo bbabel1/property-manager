@@ -67,6 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       try {
         orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
       } catch (error) {
+        logger.error({ error });
         return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
       }
       try { await UnitService.persistNotes(Number(id), notes, orgId) } catch {}
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium unit notes`);
 
     return NextResponse.json(
@@ -144,6 +146,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
     } catch (error) {
+      logger.error({ error });
       return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
     }
     try { await UnitService.persistNotes(Number(id), [note], orgId) } catch {}
@@ -156,6 +159,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium unit note`);
 
     return NextResponse.json(

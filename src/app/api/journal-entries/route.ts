@@ -3,7 +3,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supabase-client';
-import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client';
 import { resolveUserOrgId } from '@/lib/auth/org-access';
 import {
   COMPANY_SENTINEL,
@@ -11,17 +10,12 @@ import {
   journalEntrySchemaBase,
   normalizeJournalLines,
   cleanJournalMemo,
-  roundJournalCurrency,
 } from '@/lib/journal-entries';
-import type { NormalizedJournalLine } from '@/lib/journal-entries';
 import {
   BUILDUM_MISSING_CREDS_ERROR,
-  ensureBuildiumConfigured,
-  parseBuildiumNumericId,
   resolveBuildiumAccountingEntityType,
   syncJournalEntryToBuildium,
 } from './buildium-sync';
-import type { BuildiumAccountingEntityType } from '@/types/buildium';
 
 type AccountRow = {
   id: string;

@@ -5,19 +5,19 @@ import { useTheme } from "next-themes";
 import { Toaster as Sonner, ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  const { theme } = useTheme();
+  const style = {
+    "--normal-bg": "var(--popover)",
+    "--normal-text": "var(--popover-foreground)",
+    "--normal-border": "var(--border)",
+  } as React.CSSProperties;
+  const themeValue = (theme ?? "system") as ToasterProps["theme"];
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={themeValue}
       className="toaster group"
-      style={
-        {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-        } as any
-      }
+      style={style}
       {...props}
     />
   );

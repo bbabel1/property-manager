@@ -13,7 +13,11 @@ async function main() {
     .eq('id', bankId)
     .maybeSingle();
   console.log('bank', bank, bankErr);
-  const orgId = (bank as any)?.org_id ?? null;
+  const orgId = bank?.org_id ?? null;
+  if (!orgId) {
+    console.log('Bank missing org_id; aborting');
+    return;
+  }
   const { data: udf, error: udfErr } = await supabaseAdmin
     .from('gl_accounts')
     .select('id,name')
@@ -24,23 +28,22 @@ async function main() {
   if (!udf) return;
   const { data: txs, error } = await supabaseAdmin
     .from('transactions')
-    .select(`id,date,total_amount,memo,transaction_type,bank_gl_account_id,buildium_transaction_id,payee_name,paid_by_label,paid_to_name,units:units(unit_number,unit_name,properties:properties(name)),transaction_lines(id,gl_account_id,amount,posting_type)`)
-    .eq('bank_gl_account_id', (udf as any).id)
+    .select(`id,date,total_amount,memo,transaction_type,bank_gl_account_id,buildium_transaction_id,payee_name,units:units(unit_number,unit_name,properties:properties(name)),transaction_lines(id,gl_account_id,amount,posting_type)`)
+    .eq('bank_gl_account_id', udf.id)
     .in('transaction_type', ['Payment','ElectronicFundsTransfer','ApplyDeposit'])
     .order('date',{ascending:false})
     .limit(5);
   console.log('tx count', txs?.length, error);
   for (const tx of txs || []) {
     console.log({
-      id: (tx as any).id,
-      date: (tx as any).date,
-      total_amount: (tx as any).total_amount,
-      memo: (tx as any).memo,
-      paid_by_label: (tx as any).paid_by_label,
-      payee_name: (tx as any).payee_name,
-      unit: (tx as any).units?.unit_number ?? (tx as any).units?.unit_name,
-      property: (tx as any).units?.properties?.name,
-      lines: (tx as any).transaction_lines?.map((l:any)=>({amount:l.amount,posting_type:l.posting_type,gl:l.gl_account_id})),
+      id: tx.id,
+      date: tx.date,
+      total_amount: tx.total_amount,
+      memo: tx.memo,
+      payee_name: tx.payee_name,
+      unit: tx.units?.unit_number ?? tx.units?.unit_name,
+      property: tx.units?.properties?.name,
+      lines: tx.transaction_lines?.map((l)=>({amount:l.amount,posting_type:l.posting_type,gl:l.gl_account_id})),
     });
   }
 }

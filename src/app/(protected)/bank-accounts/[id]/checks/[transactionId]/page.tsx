@@ -1,5 +1,3 @@
-import { notFound } from 'next/navigation';
-
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import InfoCard from '@/components/layout/InfoCard';
@@ -31,6 +29,34 @@ type GlAccountOption = {
   id: string;
   label: string;
   buildiumGlAccountId: number | null;
+  type: string | null;
+};
+
+type TransactionRow = {
+  id: string;
+  date: string;
+  memo: string | null;
+  check_number: string | null;
+  reference_number: string | null;
+  transaction_type: string | null;
+  payment_method: string | null;
+  bank_gl_account_id: string | null;
+  org_id: string | null;
+  vendor_id: string | null;
+  payee_buildium_id: number | null;
+  payee_buildium_type: string | null;
+  buildium_bill_id: number | null;
+  bill_transaction_id: string | null;
+};
+
+type BillTransactionRow = {
+  id: string;
+  due_date: string | null;
+  memo: string | null;
+  reference_number: string | null;
+  total_amount: number | null;
+  vendor_id: string | null;
+  transaction_type: string | null;
 };
 
 type CheckAllocationLine = {
@@ -67,7 +93,7 @@ type BillsPaidRow = {
 function nameOfVendor(v: {
   id: string;
   buildium_vendor_id?: number | null;
-  contact?: { display_name?: string; company_name?: string; first_name?: string; last_name?: string } | null;
+  contact?: { display_name?: string | null; company_name?: string | null; first_name?: string | null; last_name?: string | null } | null;
 }) {
   const c = v?.contact ?? null;
   return (
@@ -118,15 +144,15 @@ function labelOfUnit(row: { unit_number: string | null; unit_name: string | null
 export default async function BankAccountCheckEditPage({
   params,
 }: {
-  params: Promise<{ id: string; transactionId: string }>;
+  params: { id: string; transactionId: string };
 }) {
-  const { id: bankAccountId, transactionId } = await params;
+  const { id: bankAccountId, transactionId } = params;
   const db = supabaseAdmin || supabase;
   if (!db) {
     throw new Error('Database client is unavailable');
   }
 
-  const { data: tx, error: txError } = await db
+  const { data: txData, error: txError } = await db
     .from('transactions')
     .select(
       // NOTE: internal references should use local IDs. bill_transaction_id is introduced via migration.
@@ -134,6 +160,8 @@ export default async function BankAccountCheckEditPage({
     )
     .eq('id', transactionId)
     .maybeSingle();
+
+  const tx = txData as TransactionRow | null;
 
   if (txError || !tx) {
     return (
@@ -149,10 +177,7 @@ export default async function BankAccountCheckEditPage({
   }
 
   const txType = String(tx.transaction_type ?? '').toLowerCase();
-  const paymentMethod =
-    typeof (tx as any).payment_method === 'string'
-      ? (tx as any).payment_method.toLowerCase()
-      : '';
+  const paymentMethod = (tx.payment_method ?? '').toLowerCase();
   const hasCheckNumber = Boolean(tx.check_number) || Boolean(tx.reference_number);
   const isCheckTx =
     txType === 'check' ||
@@ -249,13 +274,13 @@ export default async function BankAccountCheckEditPage({
     account_number: a.account_number,
   }));
 
-  const vendorOptions: PayeeOption[] = ((vendorsData.data || []) as any[]).map((v) => ({
+  const vendorOptions: PayeeOption[] = (vendorsData.data || []).map((v) => ({
     id: String(v.id),
     label: nameOfVendor(v),
     buildiumId: typeof v.buildium_vendor_id === 'number' ? v.buildium_vendor_id : null,
   }));
 
-  const ownerOptions: PayeeOption[] = ((ownersData.data || []) as any[]).map((o) => ({
+  const ownerOptions: PayeeOption[] = (ownersData.data || []).map((o) => ({
     id: String(o.id),
     label: nameOfOwner(o),
     buildiumId: typeof o.buildium_owner_id === 'number' ? o.buildium_owner_id : null,
@@ -264,31 +289,32 @@ export default async function BankAccountCheckEditPage({
   const vendorLabelById = new Map<string, string>();
   vendorOptions.forEach((v) => vendorLabelById.set(v.id, v.label));
 
-  const propertyOptions: PropertyOption[] = ((propertiesData.data || []) as any[]).map((p) => ({
+  const propertyOptions: PropertyOption[] = (propertiesData.data || []).map((p) => ({
     id: String(p.id),
     label: labelOfProperty(p),
     buildiumPropertyId: typeof p.buildium_property_id === 'number' ? p.buildium_property_id : null,
     rentalType: typeof p.rental_type === 'string' ? p.rental_type : null,
   }));
 
-  const unitOptions: UnitOption[] = ((unitsData.data || []) as any[]).map((u) => ({
+  const unitOptions: UnitOption[] = (unitsData.data || []).map((u) => ({
     id: String(u.id),
     label: labelOfUnit(u),
     propertyId: u.property_id ? String(u.property_id) : null,
     buildiumUnitId: typeof u.buildium_unit_id === 'number' ? u.buildium_unit_id : null,
   }));
 
-  const glAccountOptions: GlAccountOption[] = ((glAccountsData.data || []) as any[]).map((a) => ({
+  const glAccountOptions: GlAccountOption[] = (glAccountsData.data || []).map((a) => ({
     id: String(a.id),
     label: a?.name || a?.account_number || 'Account',
     buildiumGlAccountId: typeof a.buildium_gl_account_id === 'number' ? a.buildium_gl_account_id : null,
+    type: typeof a?.type === 'string' ? a.type : null,
   }));
 
   const glMetaById = new Map<
     string,
     { name: string | null; default_account_name: string | null; type: string | null; sub_type: string | null }
   >();
-  ((glAccountsData.data || []) as any[]).forEach((a) => {
+  (glAccountsData.data || []).forEach((a) => {
     glMetaById.set(String(a.id), {
       name: typeof a?.name === 'string' ? a.name : null,
       default_account_name: typeof a?.default_account_name === 'string' ? a.default_account_name : null,
@@ -297,7 +323,7 @@ export default async function BankAccountCheckEditPage({
     });
   });
 
-  const nonBankLinesAll = ((linesData.data || []) as any[]).filter((l) => {
+  const nonBankLinesAll = (linesData.data || []).filter((l) => {
     const glId = l?.gl_account_id ? String(l.gl_account_id) : '';
     if (!glId) return false;
     if (glId === bankAccountId) return false;
@@ -320,12 +346,7 @@ export default async function BankAccountCheckEditPage({
     glAccountId: l.gl_account_id ? String(l.gl_account_id) : '',
     description: typeof l.memo === 'string' ? l.memo : '',
     referenceNumber: typeof l.reference_number === 'string' ? l.reference_number : '',
-    amount:
-      typeof l.amount === 'number'
-        ? String(l.amount)
-        : typeof l.amount === 'string'
-          ? String(l.amount)
-          : '',
+    amount: typeof l.amount === 'number' ? String(l.amount) : typeof l.amount === 'string' ? l.amount : '',
   }));
 
   // If this payment is linked to a bill, load the bill by local ID and use it for:
@@ -333,33 +354,35 @@ export default async function BankAccountCheckEditPage({
   // - Vendor fallback (vendor_id should be present on payment, but bill is authoritative)
   // - Allocation display when the payment lines are missing (bill-locked edits).
   let billsPaid: BillsPaidRow[] = [];
-  const billTransactionId = (tx as any)?.bill_transaction_id ? String((tx as any).bill_transaction_id) : null;
+  let billTx: BillTransactionRow | null = null;
+  const billTransactionId = tx.bill_transaction_id ? String(tx.bill_transaction_id) : null;
   if (billTransactionId) {
-    const { data: billTx } = await db
-      .from('transactions')
-      .select('id, due_date, memo, reference_number, total_amount, vendor_id, transaction_type')
-      .eq('id', billTransactionId)
-      .maybeSingle();
+      const { data: billTxData } = await db
+        .from('transactions')
+        .select('id, due_date, memo, reference_number, total_amount, vendor_id, transaction_type')
+        .eq('id', billTransactionId)
+        .maybeSingle();
 
-    if (billTx?.id) {
+    if (billTxData?.id) {
+      billTx = billTxData;
       billsPaid = [
         {
-          dueDate: (billTx as any).due_date ?? null,
-          vendorName: (billTx as any).vendor_id ? vendorLabelById.get(String((billTx as any).vendor_id)) ?? '—' : '—',
-          memo: (billTx as any).memo ?? null,
-          referenceNumber: (billTx as any).reference_number ?? null,
-          amount: Number((billTx as any).total_amount ?? 0),
+          dueDate: billTxData.due_date ?? null,
+          vendorName: billTxData.vendor_id ? vendorLabelById.get(String(billTxData.vendor_id)) ?? '—' : '—',
+          memo: billTxData.memo ?? null,
+          referenceNumber: billTxData.reference_number ?? null,
+          amount: Number(billTxData.total_amount ?? 0),
         },
       ];
 
       const { data: billLines } = await db
         .from('transaction_lines')
         .select('id, gl_account_id, amount, memo, property_id, unit_id, reference_number')
-        .eq('transaction_id', billTx.id)
+        .eq('transaction_id', billTxData.id)
         .order('created_at', { ascending: true })
         .limit(5000);
 
-      const mappedAll = (billLines || []).map((l: any) => ({
+      const mappedAll = (billLines || []).map((l) => ({
         id: String(l.id),
         propertyId: l.property_id ? String(l.property_id) : '',
         unitId: l.unit_id ? String(l.unit_id) : '',
@@ -392,16 +415,7 @@ export default async function BankAccountCheckEditPage({
     memo: tx.memo ?? null,
     check_number: tx.check_number ?? null,
     bank_gl_account_id: tx.bank_gl_account_id ?? null,
-    vendor_id:
-      typeof tx.vendor_id === 'string' && tx.vendor_id
-        ? tx.vendor_id
-        : billTransactionId
-          ? ((await db
-              .from('transactions')
-              .select('vendor_id')
-              .eq('id', billTransactionId)
-              .maybeSingle()) as any)?.data?.vendor_id ?? null
-          : null,
+    vendor_id: tx.vendor_id ?? billTx?.vendor_id ?? null,
     payee_buildium_id: tx.payee_buildium_id ?? null,
     payee_buildium_type: tx.payee_buildium_type ?? null,
     buildium_bill_id: tx.buildium_bill_id ?? null,
@@ -430,4 +444,3 @@ export default async function BankAccountCheckEditPage({
     </PageShell>
   );
 }
-

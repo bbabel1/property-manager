@@ -45,8 +45,11 @@ function StatusPill({ value }: { value?: string | null }) {
 }
 
 function DeviceInfo({ asset }: { asset: ComplianceAssetWithRelations }) {
-  const meta = (asset as any)?.metadata as Record<string, any> | undefined
-  const status = meta?.device_status || meta?.status || (asset as any)?.status
+  const meta = (asset.metadata as Record<string, unknown> | undefined) || undefined
+  const status =
+    (meta?.device_status as string | undefined) ||
+    (meta?.status as string | undefined) ||
+    (asset as { status?: string | null })?.status
   const deviceId = asset.external_source_id || meta?.device_id || meta?.device_number
   const deviceType = asset.asset_type || meta?.device_type || 'Device'
   const filedAt = meta?.physical_address || meta?.address || meta?.filed_at || '—'
@@ -88,7 +91,7 @@ function FilingsTable({ events }: { events: ComplianceEvent[] }) {
   const rows = useMemo(
     () =>
       events.map((e) => {
-        const raw = (e as any)?.raw_source as Record<string, any> | undefined
+        const raw = (e.raw_source as Record<string, unknown> | undefined) || undefined
         return {
           id: e.id,
           tracking: e.external_tracking_number || raw?.control_number || e.id,
@@ -188,11 +191,17 @@ export default function ComplianceDevicePage() {
         if (!res.ok) throw new Error('Failed to load device')
         const data = (await res.json()) as ComplianceAssetWithRelations
         setAsset(data)
+        const complianceMeta = data as {
+          device_category?: string | null
+          device_technology?: string | null
+          device_subtype?: string | null
+          is_private_residence?: boolean | null
+        }
         setDraft({
-          device_category: (data as any).device_category || '',
-          device_technology: (data as any).device_technology || '',
-          device_subtype: (data as any).device_subtype || '',
-          is_private_residence: Boolean((data as any).is_private_residence),
+          device_category: complianceMeta.device_category || '',
+          device_technology: complianceMeta.device_technology || '',
+          device_subtype: complianceMeta.device_subtype || '',
+          is_private_residence: Boolean(complianceMeta.is_private_residence),
         })
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')

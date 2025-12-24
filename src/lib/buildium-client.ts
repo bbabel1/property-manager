@@ -1,33 +1,14 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 // Buildium API Client
 // This file contains a comprehensive client for interacting with the Buildium API
-
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import type {
   BuildiumProperty,
-  BuildiumPropertyCreate,
-  BuildiumPropertyUpdate,
   BuildiumUnit,
-  BuildiumUnitCreate,
-  BuildiumUnitUpdate,
   BuildiumOwner,
-  BuildiumOwnerCreate,
-  BuildiumOwnerUpdate,
   BuildiumVendor,
-  BuildiumVendorCreate,
-  BuildiumVendorUpdate,
   BuildiumTask,
-  BuildiumTaskCreate,
-  BuildiumTaskUpdate,
   BuildiumBill,
-  BuildiumBillCreate,
-  BuildiumBillUpdate,
   BuildiumBankAccount,
-  BuildiumBankAccountCreate,
-  BuildiumBankAccountUpdate,
   BuildiumLease,
-  BuildiumLeaseCreate,
-  BuildiumLeaseUpdate,
   BuildiumAppliance,
   BuildiumApplianceCreate,
   BuildiumApplianceUpdate,
@@ -46,14 +27,12 @@ import type {
   BuildiumFile,
   BuildiumFileCategory,
   BuildiumApiResponse,
-  BuildiumApiError,
   BuildiumApiConfig,
   BuildiumWebhookEvent,
   BuildiumWebhookPayload,
 } from '@/types/buildium';
 
 import {
-  BuildiumSchemas,
   type BuildiumPropertyCreateEnhancedInput,
   type BuildiumUnitCreateEnhancedInput,
   type BuildiumOwnerCreateEnhancedInput,
@@ -65,26 +44,19 @@ import {
 } from '@/schemas/buildium';
 
 import {
-  mapPropertyToBuildium,
-  mapUnitToBuildium,
-  mapUnitFromBuildium,
-  mapOwnerToBuildium,
-  mapOwnerFromBuildium,
-  mapVendorToBuildium,
-  mapVendorFromBuildium,
-  mapTaskToBuildium,
-  mapTaskFromBuildium,
-  mapBillToBuildium,
-  mapBillFromBuildium,
-  mapBankAccountToBuildium,
-  mapLeaseToBuildium,
-  mapLeaseFromBuildium,
   mapGLAccountToBuildium,
   sanitizeForBuildium,
   validateBuildiumResponse,
-  extractBuildiumId,
 } from './buildium-mappers';
-/* eslint-enable @typescript-eslint/no-unused-vars */
+type LocalGLAccountInput = Parameters<typeof mapGLAccountToBuildium>[0];
+
+export type BuildiumUploadTicket = {
+  BucketUrl?: string;
+  FormData?: Record<string, string | number | boolean | null | undefined>;
+  PhysicalFileName?: string | number | null;
+  Href?: string | null;
+  Id?: string | number | null;
+};
 
 export class BuildiumClient {
   private baseUrl: string;
@@ -381,13 +353,13 @@ export class BuildiumClient {
     return this.makeRequest<BuildiumGLAccount>(`GET`, `/glaccounts/${id}`);
   }
 
-  async createGLAccount(local: Record<string, unknown>): Promise<BuildiumGLAccount> {
-    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local as any));
+  async createGLAccount(local: LocalGLAccountInput): Promise<BuildiumGLAccount> {
+    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local));
     return this.makeRequest<BuildiumGLAccount>(`POST`, `/glaccounts`, payload);
   }
 
-  async updateGLAccount(id: number, local: Record<string, unknown>): Promise<BuildiumGLAccount> {
-    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local as any));
+  async updateGLAccount(id: number, local: LocalGLAccountInput): Promise<BuildiumGLAccount> {
+    const payload = sanitizeForBuildium(mapGLAccountToBuildium(local));
     return this.makeRequest<BuildiumGLAccount>(`PUT`, `/glaccounts/${id}`, payload);
   }
 
@@ -548,7 +520,7 @@ export class BuildiumClient {
       Category?: string | null;
       ContentType?: string | null;
     },
-  ): Promise<BuildiumFileCategory[]> {
+  ): Promise<BuildiumUploadTicket> {
     const payload = {
       ...data,
       EntityType: entityType,
@@ -556,14 +528,14 @@ export class BuildiumClient {
     };
     const sanitizedData = sanitizeForBuildium(payload);
     try {
-      return await this.makeRequest<BuildiumFileCategory[]>(
+      return await this.makeRequest<BuildiumUploadTicket>(
         `POST`,
         `/files/uploadRequests`,
         sanitizedData,
       );
     } catch (error) {
       if (error instanceof Error && error.message.includes('404')) {
-        return this.makeRequest<BuildiumFileCategory[]>(
+        return this.makeRequest<BuildiumUploadTicket>(
           `POST`,
           `/files/uploadrequests`,
           sanitizedData,
@@ -1127,11 +1099,11 @@ export class BuildiumClient {
 
       if (buildiumId) {
         // Update existing property
-        await this.updateProperty(buildiumId, localProperty as any);
+        await this.updateProperty(buildiumId, localProperty as Record<string, unknown>);
         return buildiumId;
       } else {
         // Create new property
-        const buildiumProperty = await this.createProperty(localProperty as any);
+        const buildiumProperty = await this.createProperty(localProperty as BuildiumPropertyCreateEnhancedInput);
         return buildiumProperty.Id;
       }
     } catch (error) {
@@ -1154,11 +1126,11 @@ export class BuildiumClient {
 
       if (buildiumUnitId) {
         // Update existing unit
-        await this.updateUnit(propertyId, buildiumUnitId, localUnit as any);
+        await this.updateUnit(propertyId, buildiumUnitId, localUnit as Record<string, unknown>);
         return buildiumUnitId;
       } else {
         // Create new unit
-        const buildiumUnit = await this.createUnit(propertyId, localUnit as any);
+        const buildiumUnit = await this.createUnit(propertyId, localUnit as BuildiumUnitCreateEnhancedInput);
         return buildiumUnit.Id;
       }
     } catch (error) {

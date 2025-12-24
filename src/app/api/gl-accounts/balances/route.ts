@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveUserOrgIds } from '@/lib/auth/org-access'
 import { getSupabaseServiceRoleClient } from '@/lib/db'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
 const normalizeOrgId = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim().length > 0) return value.trim()
@@ -72,6 +74,38 @@ type BalanceRow = {
   glAccount: GlAccountMeta
 }
 
+type DbClient = SupabaseClient<any>
+type GlAccountRow = Database['public']['Tables']['gl_accounts']['Row']
+type GlAccountBalanceRow = {
+  org_id: string
+  gl_account_id: string
+  property_id: string | null
+  as_of_date: string
+  balance: number | null
+  computed_at?: string | null
+  payload?: unknown
+  gl_accounts: GlAccountRow | null
+}
+type BalanceFunctionRow = {
+  org_id: string
+  gl_account_id: string
+  property_id: string | null
+  as_of_date: string
+  balance: number
+  lines_count?: number | null
+  name?: string | null
+  type?: string | null
+  sub_type?: string | null
+  account_number?: string | null
+  is_active?: boolean | null
+  is_bank_account?: boolean | null
+  is_contra_account?: boolean | null
+  is_credit_card_account?: boolean | null
+  exclude_from_cash_balances?: boolean | null
+  buildium_gl_account_id?: number | null
+  buildium_parent_gl_account_id?: number | null
+}
+
 function toNumber(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? n : 0
@@ -104,10 +138,10 @@ export async function GET(request: NextRequest) {
     const { asOfDate, propertyId, glAccountId, type, page, limit, useCache } = parsed.data
 
     const auth = await requireAuth()
-    const db = auth.supabase
+    const db = auth.supabase as DbClient
     const userOrgIds = await resolveUserOrgIds({ supabase: db, user: auth.user })
 
-    let orgId =
+    const orgId =
       normalizeOrgId(parsed.data.orgId) ??
       (userOrgIds[0] ?? null)
 
@@ -123,7 +157,7 @@ export async function GET(request: NextRequest) {
 
     // 1) Cache path: snapshots table (preferred for list + pagination)
     if (useCache) {
-      let cacheQuery = (db as any)
+      let cacheQuery = db
         .from('gl_account_balances')
         .select(
           [
@@ -154,31 +188,31 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: cacheErr.message }, { status: 500 })
       }
 
-      const records = Array.isArray(cacheRows) ? cacheRows : []
+      const records: GlAccountBalanceRow[] = Array.isArray(cacheRows) ? cacheRows : []
       if (records.length > 0) {
         const hasMore = records.length > limit
         const trimmed = hasMore ? records.slice(0, limit) : records
-        const data: BalanceRow[] = trimmed.map((r: any) => ({
-          orgId: r?.org_id,
-          glAccountId: r?.gl_account_id,
-          propertyId: r?.property_id ?? null,
-          asOfDate: r?.as_of_date,
-          balance: toNumber(r?.balance),
-          computedAt: r?.computed_at ?? null,
-          payload: r?.payload ?? null,
+        const data: BalanceRow[] = trimmed.map((r) => ({
+          orgId: r.org_id,
+          glAccountId: r.gl_account_id,
+          propertyId: r.property_id ?? null,
+          asOfDate: r.as_of_date,
+          balance: toNumber(r.balance),
+          computedAt: r.computed_at ?? null,
+          payload: r.payload ?? null,
           glAccount: {
-            id: r?.gl_accounts?.id,
-            name: r?.gl_accounts?.name,
-            type: r?.gl_accounts?.type,
-            sub_type: r?.gl_accounts?.sub_type ?? null,
-            account_number: r?.gl_accounts?.account_number ?? null,
-            is_active: r?.gl_accounts?.is_active ?? null,
-            is_bank_account: r?.gl_accounts?.is_bank_account ?? null,
-            is_contra_account: r?.gl_accounts?.is_contra_account ?? null,
-            is_credit_card_account: r?.gl_accounts?.is_credit_card_account ?? null,
-            exclude_from_cash_balances: r?.gl_accounts?.exclude_from_cash_balances ?? null,
-            buildium_gl_account_id: r?.gl_accounts?.buildium_gl_account_id,
-            buildium_parent_gl_account_id: r?.gl_accounts?.buildium_parent_gl_account_id ?? null,
+            id: r.gl_accounts?.id ?? r.gl_account_id,
+            name: r.gl_accounts?.name ?? '',
+            type: r.gl_accounts?.type ?? '',
+            sub_type: r.gl_accounts?.sub_type ?? null,
+            account_number: r.gl_accounts?.account_number ?? null,
+            is_active: r.gl_accounts?.is_active ?? null,
+            is_bank_account: r.gl_accounts?.is_bank_account ?? null,
+            is_contra_account: r.gl_accounts?.is_contra_account ?? null,
+            is_credit_card_account: r.gl_accounts?.is_credit_card_account ?? null,
+            exclude_from_cash_balances: r.gl_accounts?.exclude_from_cash_balances ?? null,
+            buildium_gl_account_id: r.gl_accounts?.buildium_gl_account_id ?? 0,
+            buildium_parent_gl_account_id: r.gl_accounts?.buildium_parent_gl_account_id ?? null,
           },
         }))
 
@@ -234,7 +268,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      const { data: balanceRaw, error: rpcErr } = await (db as any).rpc(
+      const { data: balanceRaw, error: rpcErr } = await db.rpc(
         'gl_account_balance_as_of',
         {
           p_org_id: orgId,
@@ -256,7 +290,7 @@ export async function GET(request: NextRequest) {
             debug: { linesCount: null },
             computedAt: startedAt,
           }
-          await (adminDb as any)
+          await adminDb
             .from('gl_account_balances')
             .upsert(
               {
@@ -297,32 +331,30 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const { data: rows, error: listErr } = await (db as any).rpc(
-      'v_gl_account_balances_as_of',
-      { p_org_id: orgId, p_as_of: asOfDate },
-    )
+    const { data: rows, error: listErr } = await db.rpc('v_gl_account_balances_as_of', {
+      p_org_id: orgId,
+      p_as_of: asOfDate,
+    })
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 })
 
-    const allRows = Array.isArray(rows) ? rows : []
-    const scopedRows = allRows.filter((r: any) => {
-      const rowPropertyId = r?.property_id ?? null
+    const allRows = Array.isArray(rows) ? (rows as BalanceFunctionRow[]) : []
+    const scopedRows = allRows.filter((r) => {
+      const rowPropertyId = r.property_id ?? null
       if (propertyId) return rowPropertyId === propertyId
       return rowPropertyId == null
     })
-    const typeFiltered = type
-      ? scopedRows.filter((r: any) => String(r?.type ?? '') === type)
-      : scopedRows
+    const typeFiltered = type ? scopedRows.filter((r) => String(r.type ?? '') === type) : scopedRows
 
     // Deterministic ordering for UI: type, then account_number, then name
-    typeFiltered.sort((a: any, b: any) => {
-      const at = String(a?.type ?? '')
-      const bt = String(b?.type ?? '')
+    typeFiltered.sort((a, b) => {
+      const at = String(a.type ?? '')
+      const bt = String(b.type ?? '')
       if (at !== bt) return at.localeCompare(bt)
-      const aan = String(a?.account_number ?? '')
-      const ban = String(b?.account_number ?? '')
+      const aan = String(a.account_number ?? '')
+      const ban = String(b.account_number ?? '')
       if (aan !== ban) return aan.localeCompare(ban)
-      const an = String(a?.name ?? '')
-      const bn = String(b?.name ?? '')
+      const an = String(a.name ?? '')
+      const bn = String(b.name ?? '')
       return an.localeCompare(bn)
     })
 
@@ -330,27 +362,27 @@ export async function GET(request: NextRequest) {
     const hasMore = slice.length > limit
     const trimmed = hasMore ? slice.slice(0, limit) : slice
 
-    const data: BalanceRow[] = trimmed.map((r: any) => ({
-      orgId: r?.org_id,
-      glAccountId: r?.gl_account_id,
-      propertyId: r?.property_id ?? null,
-      asOfDate: r?.as_of_date,
-      balance: toNumber(r?.balance),
+    const data: BalanceRow[] = trimmed.map((r) => ({
+      orgId: r.org_id,
+      glAccountId: r.gl_account_id,
+      propertyId: r.property_id ?? null,
+      asOfDate: r.as_of_date,
+      balance: toNumber(r.balance),
       computedAt: startedAt,
-      payload: { linesCount: r?.lines_count ?? null },
+      payload: { linesCount: r.lines_count ?? null },
       glAccount: {
-        id: r?.gl_account_id,
-        name: r?.name,
-        type: r?.type,
-        sub_type: r?.sub_type ?? null,
-        account_number: r?.account_number ?? null,
-        is_active: r?.is_active ?? null,
-        is_bank_account: r?.is_bank_account ?? null,
-        is_contra_account: r?.is_contra_account ?? null,
-        is_credit_card_account: r?.is_credit_card_account ?? null,
-        exclude_from_cash_balances: r?.exclude_from_cash_balances ?? null,
-        buildium_gl_account_id: r?.buildium_gl_account_id,
-        buildium_parent_gl_account_id: r?.buildium_parent_gl_account_id ?? null,
+        id: r.gl_account_id,
+        name: r.name ?? '',
+        type: r.type ?? '',
+        sub_type: r.sub_type ?? null,
+        account_number: r.account_number ?? null,
+        is_active: r.is_active ?? null,
+        is_bank_account: r.is_bank_account ?? null,
+        is_contra_account: r.is_contra_account ?? null,
+        is_credit_card_account: r.is_credit_card_account ?? null,
+        exclude_from_cash_balances: r.exclude_from_cash_balances ?? null,
+        buildium_gl_account_id: r.buildium_gl_account_id ?? 0,
+        buildium_parent_gl_account_id: r.buildium_parent_gl_account_id ?? null,
       },
     }))
 
@@ -368,5 +400,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
-

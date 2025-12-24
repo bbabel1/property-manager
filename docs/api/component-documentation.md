@@ -1,5 +1,7 @@
 # Component Documentation
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 > Generated on: 2025-08-22T17:33:38.770Z
 >
 > This documentation is automatically generated from your React components.

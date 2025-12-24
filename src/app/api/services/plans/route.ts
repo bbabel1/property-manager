@@ -12,8 +12,10 @@ function isALaCartePlanName(name: string) {
 }
 
 function isMissingColumnError(error: unknown) {
-  const code = (error as any)?.code ? String((error as any).code) : '';
-  const message = (error as any)?.message ? String((error as any).message) : '';
+  const code = (error as { code?: unknown })?.code ? String((error as { code?: unknown }).code) : '';
+  const message = (error as { message?: unknown })?.message
+    ? String((error as { message?: unknown }).message)
+    : '';
   return code === '42703' || /column .* does not exist/i.test(message);
 }
 
@@ -131,7 +133,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         data: plan,
-        offering_ids: (services || []).map((r: any) => String(r.offering_id)),
+        offering_ids: (services || []).map((r) => String(r.offering_id)),
       });
     }
 
@@ -152,7 +154,7 @@ export async function GET(request: NextRequest) {
     }
 
     const planRows = data || [];
-    const planIds = planRows.map((plan: any) => String(plan.id)).filter(Boolean);
+    const planIds = planRows.map((plan) => String(plan.id)).filter(Boolean);
 
     if (!planIds.length) {
       return NextResponse.json({ data: planRows });
@@ -183,7 +185,7 @@ export async function GET(request: NextRequest) {
       offeringIdsByPlanId.set(planId, next);
     }
 
-    const enriched = planRows.map((plan: any) => {
+    const enriched = planRows.map((plan) => {
       const id = String(plan.id);
       const offeringIds = offeringIdsByPlanId.get(id) || [];
       return { ...plan, offering_ids: offeringIds };
@@ -323,9 +325,9 @@ export async function POST(request: NextRequest) {
       : [];
 
     if (offeringIds.length) {
-      let offerings: any[] = [];
+      let offerings: Awaited<ReturnType<typeof loadOfferingsForPlanAssignment>> = [];
       try {
-        offerings = (await loadOfferingsForPlanAssignment(offeringIds)) as any[];
+        offerings = await loadOfferingsForPlanAssignment(offeringIds);
       } catch (offeringsError) {
         logger.error(
           { error: offeringsError, orgId, userId: user.id, planId: data.id },
@@ -337,7 +339,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const foundIds = new Set((offerings || []).map((o: any) => String(o.id)));
+      const foundIds = new Set((offerings || []).map((o) => String(o.id)));
       const missingIds = offeringIds.filter((id) => !foundIds.has(id));
       if (missingIds.length) {
         return NextResponse.json(
@@ -351,7 +353,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const rows = (offerings || []).map((o: any) => ({
+      const rows = (offerings || []).map((o) => ({
         plan_id: data.id,
         offering_id: o.id,
         default_amount: 0,
@@ -517,7 +519,7 @@ export async function PATCH(request: NextRequest) {
     const nextName = body.name !== undefined ? String(body.name || '').trim() : existingName;
     const isALaCarte = isALaCartePlanName(nextName);
 
-    const update: Record<string, any> = { updated_at: new Date().toISOString() };
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (body.name !== undefined) {
       if (!nextName) {
         return NextResponse.json(
@@ -654,7 +656,7 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      const existingIds = new Set((existing || []).map((r: any) => String(r.offering_id)));
+      const existingIds = new Set((existing || []).map((r) => String(r.offering_id)));
       const desiredIds = new Set(offeringIds);
       const toDelete = Array.from(existingIds).filter((id) => !desiredIds.has(id));
       const toAdd = Array.from(desiredIds).filter((id) => !existingIds.has(id));
@@ -679,9 +681,9 @@ export async function PATCH(request: NextRequest) {
       }
 
       if (toAdd.length) {
-        let offerings: any[] = [];
+        let offerings: Awaited<ReturnType<typeof loadOfferingsForPlanAssignment>> = [];
         try {
-          offerings = (await loadOfferingsForPlanAssignment(toAdd)) as any[];
+          offerings = await loadOfferingsForPlanAssignment(toAdd);
         } catch (offeringsError) {
           logger.error(
             { error: offeringsError, orgId, userId: user.id, planId },
@@ -693,7 +695,7 @@ export async function PATCH(request: NextRequest) {
           );
         }
 
-        const foundIds = new Set((offerings || []).map((o: any) => String(o.id)));
+        const foundIds = new Set((offerings || []).map((o) => String(o.id)));
         const missingIds = toAdd.filter((id) => !foundIds.has(id));
         if (missingIds.length) {
           return NextResponse.json(
@@ -707,7 +709,7 @@ export async function PATCH(request: NextRequest) {
           );
         }
 
-        const rows = (offerings || []).map((o: any) => ({
+        const rows = (offerings || []).map((o) => ({
           plan_id: planId,
           offering_id: o.id,
           default_amount: 0,

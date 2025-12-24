@@ -31,6 +31,8 @@ type PropertyRow = DatabaseSchema['public']['Tables']['properties']['Row'];
 type OwnershipRow = DatabaseSchema['public']['Tables']['ownerships']['Row'];
 type OwnerRow = DatabaseSchema['public']['Tables']['owners']['Row'];
 type ContactRow = DatabaseSchema['public']['Tables']['contacts']['Row'];
+type GlAccountRow = DatabaseSchema['public']['Tables']['gl_accounts']['Row'];
+type BuildiumIdResponse = { Id?: number | string | null; id?: number | string | null };
 
 type PropertyWithOwners = PropertyRow & {
   ownerships?: Array<
@@ -38,6 +40,11 @@ type PropertyWithOwners = PropertyRow & {
       owners: (OwnerRow & { contacts: ContactRow | null }) | null;
     }
   > | null;
+};
+type PropertyListRow = PropertyWithOwners & {
+  property_manager_id?: string | number | null;
+  operating_bank_gl_account_id?: string | null;
+  deposit_trust_gl_account_id?: string | null;
 };
 
 const NYC_BOROUGHS = new Set(['manhattan', 'bronx', 'brooklyn', 'queens', 'staten island']);
@@ -188,8 +195,8 @@ export async function POST(request: NextRequest) {
         .in('id', selectedBankGlIds);
       if (glErr) throw glErr;
       const invalid = (glRows ?? [])
-        .filter((row: any) => !row?.is_bank_account)
-        .map((row: any) => row?.id);
+        .filter((row): row is GlAccountRow => row?.is_bank_account !== true)
+        .map((row) => row.id);
       if (invalid.length) {
         return NextResponse.json(
           { error: 'Selected GL account is not a bank account', invalid },
@@ -245,8 +252,8 @@ export async function POST(request: NextRequest) {
       is_active: propertyStatus === 'Active',
       rental_owner_ids: null,
       normalized_address_key: normalizedAddress?.normalizedAddressKey || null,
-      management_scope: normalizedManagementScope as any,
-      service_assignment: normalizedServiceAssignment as any,
+      management_scope: normalizedManagementScope,
+      service_assignment: normalizedServiceAssignment,
       bill_pay_list: extractOptionalText(body?.bill_pay_list ?? body?.billPayList),
       bill_pay_notes: extractOptionalText(body?.bill_pay_notes ?? body?.billPayNotes),
       borough: typeof body?.borough === 'string' && body.borough.trim() ? body.borough : null,
@@ -267,8 +274,8 @@ export async function POST(request: NextRequest) {
       updated_at: now,
     };
 
-    (propertyData as any).operating_bank_gl_account_id = operatingGlId;
-    (propertyData as any).deposit_trust_gl_account_id = depositGlId;
+    propertyData.operating_bank_gl_account_id = operatingGlId;
+    propertyData.deposit_trust_gl_account_id = depositGlId;
 
     let enrichmentResult: Awaited<ReturnType<typeof enrichBuildingForProperty>> | null = null;
     try {
@@ -308,17 +315,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (enrichmentResult?.propertyPatch) {
-      for (const [key, value] of Object.entries(enrichmentResult.propertyPatch)) {
-        if (value !== undefined) {
-          (propertyData as any)[key] = value as any;
-        }
-      }
+      const propertyPatch = enrichmentResult.propertyPatch as Partial<PropertiesInsert>;
+      Object.assign(
+        propertyData,
+        Object.fromEntries(
+          Object.entries(propertyPatch).filter(([, value]) => value !== undefined),
+        ),
+      );
     }
 
-    const boroughName = (propertyData as any).borough as string | null;
+    const boroughName = propertyData.borough;
     const boroughLc = boroughName ? boroughName.toLowerCase() : null;
     const isNYC = boroughLc ? NYC_BOROUGHS.has(boroughLc) : false;
-    if (isNYC && !(propertyData as any).bin) {
+    if (isNYC && !propertyData.bin) {
       return NextResponse.json(
         {
           error: 'BIN required for NYC properties to sync elevators',
@@ -338,13 +347,12 @@ export async function POST(request: NextRequest) {
 
     let attempt = 0;
     let property: PropertyRow | null = null;
-    let propertyError: any = null;
+    let propertyError: { code?: string; message?: string } | null = null;
     do {
       attempt += 1;
       ({ data: property, error: propertyError } = await performInsert());
-      if (propertyError?.code === 'PGRST204') {
-        const message = propertyError.message ?? '';
-        const columnMatch = message.match(/'([^']+)' column/i);
+      if (propertyError?.code === 'PGRST204' && propertyError.message) {
+        const columnMatch = propertyError.message.match(/'([^']+)' column/i);
         const column = columnMatch?.[1];
         if (column && column in insertPayload) {
           logger.warn(
@@ -478,13 +486,14 @@ export async function POST(request: NextRequest) {
             service_start: u.serviceStart ?? null,
             service_end: u.serviceEnd ?? null,
             is_active: typeof u.isActive === 'boolean' ? u.isActive : null,
-          } as UnitsInsert;
+          };
         });
       if (unitRows.length) {
-        const unitInsertPayloads = unitRows.map((row) => ({ ...row }) as Record<string, unknown>);
+        const unitInsertPayloads = unitRows.map((row) => ({ ...row }));
         let unitInsertAttempt = 0;
         let insertedUnits: UnitsInsert[] | null = null;
-        let unitsErr: any = null;
+        let unitsErr: { code?: string; message?: string; details?: string; hint?: string } | null =
+          null;
         do {
           unitInsertAttempt += 1;
           const { data, error } = await db
@@ -624,12 +633,9 @@ export async function POST(request: NextRequest) {
               .eq('id', operatingGlId)
               .maybeSingle();
 
-            if (gl) {
-              const glBuildiumId = (gl as any)?.buildium_gl_account_id;
-              if (typeof glBuildiumId === 'number' && glBuildiumId > 0) {
-                // Use the GL account ID directly as the bank account ID
-                buildiumOperatingBankAccountId = glBuildiumId;
-              }
+            if (gl?.buildium_gl_account_id && gl.buildium_gl_account_id > 0) {
+              // Use the GL account ID directly as the bank account ID
+              buildiumOperatingBankAccountId = gl.buildium_gl_account_id;
             }
           } catch (e) {
             logger.warn(
@@ -638,7 +644,7 @@ export async function POST(request: NextRequest) {
             );
           }
         }
-        const propertyPayload = mapPropertyToBuildium({
+        const propertyPayload: BuildiumPropertyCreate & Record<string, unknown> = mapPropertyToBuildium({
           name,
           structure_description: structureDescription || undefined,
           is_active: status !== 'Inactive',
@@ -653,7 +659,7 @@ export async function POST(request: NextRequest) {
           year_built: toNumberOrNull(yearBuilt),
           rental_type: 'Rental',
           property_type: propertyType || null,
-        } as any);
+        });
         // Attach PropertyManagerId from staff.buildium_user_id when available
         if (propertyManagerId) {
           try {
@@ -664,13 +670,11 @@ export async function POST(request: NextRequest) {
               .not('buildium_user_id', 'is', null)
               .single();
             const pmId = pm?.buildium_user_id ? Number(pm.buildium_user_id) : null;
-            if (pmId)
-              (propertyPayload as unknown as Record<string, unknown>).PropertyManagerId = pmId;
+            if (pmId) propertyPayload.PropertyManagerId = pmId;
           } catch {}
         }
         if (prelinkedOwnerIds.length)
-          (propertyPayload as unknown as Record<string, unknown>).RentalOwnerIds =
-            prelinkedOwnerIds;
+          propertyPayload.RentalOwnerIds = prelinkedOwnerIds;
 
         // If request included units, include them in the Buildium property create payload (per Buildium docs)
         let includedUnitsInCreate = false;
@@ -784,7 +788,7 @@ export async function POST(request: NextRequest) {
             await recordSyncStatus(db, createdProperty.id, null, 'syncing');
           } catch {}
           const propRes = await buildiumFetch('POST', '/rentals', undefined, propertyPayload, orgId);
-          const propResJson = propRes.json as any;
+          const propResJson = propRes.json as BuildiumIdResponse;
           // propAttempted = true
           if (propRes.ok && propResJson?.Id) {
             const buildiumId = Number(propResJson.Id);
@@ -802,18 +806,13 @@ export async function POST(request: NextRequest) {
               errorText: propRes.errorText,
               responseJson: propRes.json,
               requestPreview: {
-                Name: (propertyPayload as unknown as Record<string, unknown>)?.Name,
-                RentalType: (propertyPayload as unknown as Record<string, unknown>)?.RentalType,
-                RentalSubType: (propertyPayload as unknown as Record<string, unknown>)
-                  ?.RentalSubType,
-                OperatingBankAccountId: (propertyPayload as unknown as Record<string, unknown>)
-                  ?.OperatingBankAccountId,
-                Address: (propertyPayload as unknown as Record<string, unknown>)?.Address,
-                UnitsCount: Array.isArray(
-                  (propertyPayload as unknown as Record<string, unknown>)?.Units,
-                )
-                  ? ((propertyPayload as unknown as Record<string, unknown>).Units as unknown[])
-                      .length
+                Name: propertyPayload.Name,
+                RentalType: propertyPayload.RentalType,
+                RentalSubType: propertyPayload.RentalSubType,
+                OperatingBankAccountId: propertyPayload.OperatingBankAccountId,
+                Address: propertyPayload.Address,
+                UnitsCount: Array.isArray(propertyPayload.Units)
+                  ? (propertyPayload.Units as unknown[]).length
                   : undefined,
               },
             };
@@ -848,7 +847,7 @@ export async function POST(request: NextRequest) {
             id: string;
             unit_number?: string;
             buildium_unit_id?: number;
-          }> = (typedBody.__insertedUnits || []).map((u: any) => ({
+          }> = (typedBody.__insertedUnits || []).map((u) => ({
             id: u.id,
             unit_number: u.unit_number,
             buildium_unit_id: u.buildium_unit_id == null ? undefined : Number(u.buildium_unit_id),
@@ -971,7 +970,7 @@ export async function POST(request: NextRequest) {
                   ownerPayload,
                   orgId,
                 );
-                const ownerSyncJson = ownerSync.json as any;
+                const ownerSyncJson = ownerSync.json as BuildiumIdResponse;
                 if (ownerSync.ok && ownerSyncJson?.Id) {
                   buildiumOwnerId = Number(ownerSyncJson.Id);
                   await db
@@ -1067,20 +1066,18 @@ async function _searchBuildiumOwnerId(params: {
   orgId?: string;
 }): Promise<number | null> {
   const emailLc = (params.email || '').toLowerCase();
-  const ownername =
-    [(await params).firstName, (await params).lastName].filter(Boolean).join(' ').trim() ||
-    undefined;
+  const ownername = [params.firstName, params.lastName].filter(Boolean).join(' ').trim() || undefined;
   const limit = 200;
   let offset = 0;
   const maxPages = 60; // up to 12,000 owners
 
   for (let page = 0; page < maxPages; page++) {
     const q: Record<string, unknown> = { limit, offset };
-    if (params.buildiumPropertyId) q.propertyids = (await params).buildiumPropertyId;
+    if (params.buildiumPropertyId) q.propertyids = params.buildiumPropertyId;
     if (ownername) q.ownername = ownername;
 
     // Use /v1/rentals/owners with filters
-    const res = await buildiumFetch('GET', '/rentals/owners', q as any, undefined, params.orgId);
+    const res = await buildiumFetch('GET', '/rentals/owners', q, undefined, params.orgId);
     if (!res.ok || !Array.isArray(res.json)) break;
     const arr: Array<Record<string, unknown>> = res.json;
 
@@ -1123,7 +1120,7 @@ async function recordSyncStatus(
       p_buildium_id: buildiumId,
       p_status: status,
       p_error_message: errorMessage || null,
-    } as any);
+    });
   } catch (e) {
     console.warn('recordSyncStatus failed', (e as Error).message);
   }
@@ -1186,11 +1183,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 });
     }
 
+    const properties = (data as PropertyListRow[]) || [];
     const managerIds = Array.from(
       new Set(
-        (data || [])
-          .map((p) => (p as any)?.property_manager_id)
-          .filter((v): v is string | number => Boolean(v)),
+        properties
+          .map((p) => p.property_manager_id)
+          .filter((v): v is string | number => v !== null && v !== undefined),
       ),
     );
 
@@ -1203,22 +1201,19 @@ export async function GET() {
         const { data: managers } = await db
           .from('staff')
           .select('id, display_name, first_name, last_name, email, phone, role')
-          .in('id', managerIds as any);
+          .in('id', managerIds);
         for (const mgr of managers || []) {
-          const normalized = normalizeStaffRole((mgr as any)?.role);
+          const normalized = normalizeStaffRole(mgr?.role);
           if (normalized === 'Property Manager') {
             const name =
-              (mgr as any)?.display_name ||
-              [(mgr as any)?.first_name, (mgr as any)?.last_name]
-                .filter(Boolean)
-                .join(' ')
-                .trim() ||
+              mgr?.display_name ||
+              [mgr?.first_name, mgr?.last_name].filter(Boolean).join(' ').trim() ||
               'Property Manager';
-            managerMap.set(String((mgr as any).id), {
+            managerMap.set(String(mgr.id), {
               name,
-              email: (mgr as any)?.email ?? null,
-              phone: (mgr as any)?.phone ?? null,
-              role: (mgr as any)?.role ?? null,
+              email: mgr?.email ?? null,
+              phone: mgr?.phone ?? null,
+              role: mgr?.role ?? null,
             });
           }
         }
@@ -1227,8 +1222,8 @@ export async function GET() {
       }
     }
 
-    const mapped = (data || []).map((p) => {
-      const ownerships = Array.isArray(p?.ownerships) ? p.ownerships : [];
+    const mapped = properties.map((p) => {
+      const ownerships = Array.isArray(p.ownerships) ? p.ownerships : [];
       const ownersCount = ownerships.length;
       let primaryOwnerName: string | undefined;
       if (canJoinOwners && ownerships.length) {
@@ -1262,10 +1257,10 @@ export async function GET() {
         ownersCount,
         primaryOwnerName,
         propertyManagerName:
-          managerMap.get(String((p as any)?.property_manager_id ?? ''))?.name ?? null,
+          managerMap.get(String(p.property_manager_id ?? ''))?.name ?? null,
         // Preserve legacy response key names; values now reference gl_accounts(id)
-        operatingBankAccountId: (p as any).operating_bank_gl_account_id ?? null,
-        depositTrustAccountId: (p as any).deposit_trust_gl_account_id ?? null,
+        operatingBankAccountId: p.operating_bank_gl_account_id ?? null,
+        depositTrustAccountId: p.deposit_trust_gl_account_id ?? null,
       };
     });
 

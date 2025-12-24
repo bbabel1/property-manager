@@ -68,7 +68,7 @@ export default function PropertyRecentNotesSection({
       const rows: PropertyNote[] = Array.isArray(json?.data) ? json.data : [];
       setNotes(rows);
       setExpandedNotes({});
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load property notes', err);
       setNotes([]);
       setExpandedNotes({});

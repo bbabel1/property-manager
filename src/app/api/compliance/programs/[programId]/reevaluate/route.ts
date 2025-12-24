@@ -2,16 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/db';
+import type { TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { programTargetsAsset, programTargetsProperty } from '@/lib/compliance-programs';
 import type { ComplianceProgram } from '@/types/compliance';
+import type { Tables } from '@/types/database';
+
+type BuildingRow = Pick<Tables<'buildings'>, 'id' | 'residential_units'>;
+type PropertyRow = Pick<Tables<'properties'>, 'id' | 'borough' | 'bin' | 'building_id' | 'total_units'>;
+type AssetRow = Tables<'compliance_assets'>;
+type ComplianceItemRow = Tables<'compliance_items'>;
 
 const parseUnits = (value: unknown): number | null => {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
 
-const dwellingUnitsFromBuilding = (building: any): number | null => {
+const dwellingUnitsFromBuilding = (building: Pick<BuildingRow, 'residential_units'> | null): number | null => {
   if (!building) return null;
   if (typeof building.residential_units === 'number') return building.residential_units;
   return null;
@@ -68,7 +75,7 @@ export async function POST(
     const body = (await request.json().catch(() => ({}))) as { apply?: boolean };
     const applyChanges = Boolean(body.apply);
 
-    const admin = supabaseAdmin as any;
+    const admin: TypedSupabaseClient = supabaseAdmin;
 
     const { data: membership, error: membershipError } = await admin
       .from('org_memberships')
@@ -95,8 +102,13 @@ export async function POST(
     }
 
     const overrideDueDate =
-      parseDueDateOverride((program as any)?.override_fields?.due_date_value) ||
-      parseDueDateOverride((program as any)?.override_fields?.due_date);
+      parseDueDateOverride(
+        (program as { override_fields?: { due_date_value?: string } })?.override_fields
+          ?.due_date_value,
+      ) ||
+      parseDueDateOverride(
+        (program as { override_fields?: { due_date?: string } })?.override_fields?.due_date,
+      );
 
     // Fetch items for this program
     const { data: items, error: itemsError } = await admin
@@ -134,18 +146,18 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to fetch assets' }, { status: 500 });
     }
 
-    const propertyRows = Array.isArray(propertiesRes.data) ? (propertiesRes.data as any[]) : [];
-    const assetRows = Array.isArray(assetsRes.data) ? (assetsRes.data as any[]) : [];
+    const propertyRows = Array.isArray(propertiesRes.data)
+      ? (propertiesRes.data as PropertyRow[])
+      : [];
+    const assetRows = Array.isArray(assetsRes.data) ? (assetsRes.data as AssetRow[]) : [];
 
     const buildingIds = Array.from(
       new Set(
-        propertyRows
-          .map((p: any) => (p as any).building_id as string | null)
-          .filter((id): id is string => Boolean(id)),
+        propertyRows.map((p) => p.building_id as string | null).filter((id): id is string => Boolean(id)),
       ),
     );
 
-    let buildingMap = new Map<string, any>();
+    let buildingMap = new Map<string, BuildingRow & { residential_units: number | null }>();
     if (buildingIds.length > 0) {
       const { data: buildingRows, error: buildingError } = await admin
         .from('buildings')
@@ -158,7 +170,7 @@ export async function POST(
         );
       } else {
         buildingMap = new Map(
-          (buildingRows || []).map((b: { id: string; residential_units: number | null }) => [
+          (buildingRows || []).map((b) => [
             b.id as string,
             {
               ...b,
@@ -170,21 +182,20 @@ export async function POST(
     }
 
     const propertyMap = new Map(
-      propertyRows.map((p: any) => {
-        const building = (p as any).building_id ? buildingMap.get((p as any).building_id) : null;
-        const dwellingUnits =
-          dwellingUnitsFromBuilding(building) ?? parseUnits((p as any).total_units) ?? null;
+      propertyRows.map((p) => {
+        const building = p.building_id ? buildingMap.get(p.building_id) : null;
+        const dwellingUnits = dwellingUnitsFromBuilding(building) ?? parseUnits(p.total_units) ?? null;
         return [
           p.id,
           {
             ...p,
             residential_units: dwellingUnits,
-            property_total_units: (p as any).total_units as number | null,
+            property_total_units: p.total_units ?? null,
           },
         ];
       }),
     );
-    const assetMap = new Map(assetRows.map((a: any) => [a.id, a]));
+    const assetMap = new Map(assetRows.map((a) => [a.id, a]));
 
     let nonMatching = 0;
     let closed = 0;
@@ -192,13 +203,13 @@ export async function POST(
     const nonMatchingIds: string[] = [];
     const dueDateUpdatesPayload: Array<{ id: string; due_date: string }> = [];
 
-    const itemList = Array.isArray(items) ? items : [];
-    for (const item of itemList as any[]) {
+    const itemList = Array.isArray(items) ? (items as ComplianceItemRow[]) : [];
+    for (const item of itemList) {
       const property = propertyMap.get(item.property_id) || null;
       const asset = item.asset_id ? assetMap.get(item.asset_id) || null : null;
       const matches = item.asset_id
-        ? programTargetsAsset(program as ComplianceProgram, asset as any, property as any)
-        : programTargetsProperty(program as ComplianceProgram, property as any);
+        ? programTargetsAsset(program as ComplianceProgram, asset, property)
+        : programTargetsProperty(program as ComplianceProgram, property);
 
       if (!matches) {
         nonMatching++;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Loader2, StickyNote, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
   const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -37,16 +37,16 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
       if (!res.ok) throw new Error(json?.error || 'Failed to load notes');
       const rows: Note[] = Array.isArray(json?.data) ? json.data : [];
       setNotes(rows);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load notes');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load notes');
     } finally {
       setLoading(false);
     }
-  }
+  }, [propertyId]);
 
   useEffect(() => {
-    load();
-  }, [propertyId]);
+    void load();
+  }, [load]);
 
   async function createNote() {
     if (!subject.trim() || !body.trim()) return;
@@ -66,8 +66,8 @@ export function PropertyNotes({ propertyId }: { propertyId: string }) {
       setSubject('');
       setBody('');
       setIsPrivate(false);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create note');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create note');
     } finally {
       setSubmitting(false);
     }

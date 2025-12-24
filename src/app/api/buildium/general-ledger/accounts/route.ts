@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: accounts, count: Array.isArray(accounts) ? accounts.length : undefined })
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium general ledger accounts`);
 
     return NextResponse.json(
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: account }, { status: 201 })
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error creating Buildium general ledger account`);
 
     return NextResponse.json(

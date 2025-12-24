@@ -1,71 +1,38 @@
 # Supabase API Documentation
 
 > **Last Updated**: 2025-10-08T02:51:22.239Z (Auto-generated)
-
 > **Last Updated**: 2025-10-08T02:50:45.442Z (Auto-generated)
-
 > **Last Updated**: 2025-10-08T02:46:30.328Z (Auto-generated)
-
 > **Last Updated**: 2025-10-08T02:43:19.394Z (Auto-generated)
-
 > **Last Updated**: 2025-10-08T02:36:22.008Z (Auto-generated)
-
 > **Last Updated**: 2025-09-13T04:22:14.358Z (Auto-generated)
-
 > **Last Updated**: 2025-09-07T02:46:22.785Z (Auto-generated)
-
 > **Last Updated**: 2025-09-07T02:45:29.018Z (Auto-generated)
-
 > **Last Updated**: 2025-09-07T01:50:49.023Z (Auto-generated)
-
 > **Last Updated**: 2025-09-06T23:17:54.597Z (Auto-generated)
-
 > **Last Updated**: 2025-09-06T03:12:46.021Z (Auto-generated)
-
 > **Last Updated**: 2025-09-06T02:31:57.374Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T22:24:48.418Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T17:33:06.231Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T17:32:42.944Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T17:14:14.545Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T17:13:20.479Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T06:09:12.911Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T06:00:33.664Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T05:34:42.950Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T05:25:50.455Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T05:25:29.979Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T05:14:50.057Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T04:46:19.623Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T04:45:58.135Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T04:18:24.943Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T04:06:53.966Z (Auto-generated)
-
 > **Last Updated**: 2025-08-28T04:06:39.317Z (Auto-generated)
-
 > **Last Updated**: 2025-08-27T19:57:20.652Z (Auto-generated)
-
 > **Last Updated**: 2025-08-27T19:37:08.494Z (Auto-generated)
-
 > **Last Updated**: 2025-08-27T19:30:23.981Z (Auto-generated)
-
 > **Last Updated**: 2025-08-27T19:18:27.916Z (Auto-generated)
-
 > **Last Updated**: 2025-08-27T19:17:10.435Z (Auto-generated)
-
 > **Last Updated**: 2025-08-22T19:00:28.555Z (Auto-generated)
 
 ## Overview

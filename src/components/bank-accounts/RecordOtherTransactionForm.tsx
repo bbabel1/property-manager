@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Info } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,12 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import GlAccountSelectItems from '@/components/gl-accounts/GlAccountSelectItems';
 import { Textarea } from '@/components/ui/textarea';
 
 export type BankAccountOption = { id: string; label: string; balance?: number | null };
 export type PropertyOption = { id: string; label: string };
 export type UnitOption = { id: string; label: string; propertyId: string | null };
-export type GlAccountOption = { id: string; label: string };
+export type GlAccountOption = { id: string; label: string; type: string | null };
 
 const COMPANY_SENTINEL = '__company__';
 
@@ -122,6 +123,11 @@ export default function RecordOtherTransactionForm(props: {
     [toBankAccountId, props.bankAccounts],
   );
 
+  const selectedBankBalance = useMemo(
+    () => props.bankAccounts.find((b) => b.id === bankAccountId)?.balance ?? null,
+    [bankAccountId, props.bankAccounts],
+  );
+
   const propertyItems = useMemo(
     () => [{ id: COMPANY_SENTINEL, label: 'Company (no property)' }, ...props.properties],
     [props.properties],
@@ -165,7 +171,9 @@ export default function RecordOtherTransactionForm(props: {
 
         const parsed = PayloadSchema.safeParse(payload);
         if (!parsed.success) {
-          setFormError(parsed.error.issues?.[0]?.message ?? 'Fix the highlighted fields and try again.');
+          setFormError(
+            parsed.error.issues?.[0]?.message ?? 'Fix the highlighted fields and try again.',
+          );
           return;
         }
 
@@ -176,16 +184,22 @@ export default function RecordOtherTransactionForm(props: {
           setFormError('Enter an amount greater than $0.00.');
           return;
         }
-        if (parsed.data.mode === 'transfer' && parsed.data.fromBankAccountId === parsed.data.toBankAccountId) {
+        if (
+          parsed.data.mode === 'transfer' &&
+          parsed.data.fromBankAccountId === parsed.data.toBankAccountId
+        ) {
           setFormError('Transfer from and transfer to must be different bank accounts.');
           return;
         }
 
-        const res = await fetch(`/api/bank-accounts/${props.bankAccountId}/record-other-transaction`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed.data),
-        });
+        const res = await fetch(
+          `/api/bank-accounts/${props.bankAccountId}/record-other-transaction`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed.data),
+          },
+        );
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
           const message =
@@ -237,8 +251,8 @@ export default function RecordOtherTransactionForm(props: {
   return (
     <div className="w-full space-y-8 pb-10">
       {formError && (
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-4">
-          <p className="text-sm text-destructive">{formError}</p>
+        <div className="border-destructive/20 bg-destructive/10 rounded-md border p-4">
+          <p className="text-destructive text-sm">{formError}</p>
         </div>
       )}
 
@@ -282,7 +296,12 @@ export default function RecordOtherTransactionForm(props: {
             <Label htmlFor="rot-date" className="text-xs font-semibold tracking-wide">
               DATE <span className="text-destructive">*</span>
             </Label>
-            <Input id="rot-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input
+              id="rot-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
 
           <div>
@@ -350,14 +369,17 @@ export default function RecordOtherTransactionForm(props: {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-muted-foreground text-sm">
                 Balance:{' '}
-                <span className="font-semibold text-foreground">
+                <span className="text-foreground font-semibold">
                   {formatCurrency(Number(fromBalance ?? 0))}
                 </span>
               </div>
               <div>
-                <Label htmlFor="rot-transfer-amount" className="text-xs font-semibold tracking-wide">
+                <Label
+                  htmlFor="rot-transfer-amount"
+                  className="text-xs font-semibold tracking-wide"
+                >
                   TRANSFER AMOUNT <span className="text-destructive">*</span>
                 </Label>
                 <Input
@@ -370,7 +392,7 @@ export default function RecordOtherTransactionForm(props: {
             </div>
 
             <div className="hidden justify-center pt-10 lg:flex">
-              <ArrowRight className="h-5 w-5 text-muted-foreground" aria-hidden />
+              <ArrowRight className="text-muted-foreground h-5 w-5" aria-hidden />
             </div>
 
             <div className="space-y-3">
@@ -393,9 +415,9 @@ export default function RecordOtherTransactionForm(props: {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-muted-foreground text-sm">
                 Balance:{' '}
-                <span className="font-semibold text-foreground">
+                <span className="text-foreground font-semibold">
                   {formatCurrency(Number(toBalance ?? 0))}
                 </span>
               </div>
@@ -403,12 +425,20 @@ export default function RecordOtherTransactionForm(props: {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="rot-bank" className="text-xs font-semibold tracking-wide">
-                BANK ACCOUNT <span className="text-destructive">*</span>
+            <div className="sm:col-span-2">
+              <Label htmlFor="rot-deposit-to" className="text-xs font-semibold tracking-wide">
+                {mode === 'deposit' ? (
+                  <>
+                    DEPOSIT TO <span className="text-destructive">*</span>
+                  </>
+                ) : (
+                  <>
+                    WITHDRAW FROM <span className="text-destructive">*</span>
+                  </>
+                )}
               </Label>
               <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                <SelectTrigger id="rot-bank">
+                <SelectTrigger id="rot-deposit-to">
                   <SelectValue placeholder="Select a bank account" />
                 </SelectTrigger>
                 <SelectContent>
@@ -419,32 +449,45 @@ export default function RecordOtherTransactionForm(props: {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="text-muted-foreground mt-2 text-sm">
+                Balance:{' '}
+                <span className="text-foreground font-semibold">
+                  {formatCurrency(Number(selectedBankBalance ?? 0))}
+                </span>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="rot-account" className="text-xs font-semibold tracking-wide">
-                ACCOUNT <span className="text-destructive">*</span>
-              </Label>
+            <div className="sm:col-span-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="rot-offset-account" className="text-xs font-semibold tracking-wide">
+                  OFFSETTING GL ACCOUNT <span className="text-destructive">*</span>
+                </Label>
+                <Info className="text-muted-foreground h-4 w-4" aria-hidden />
+              </div>
               <Select value={glAccountId} onValueChange={setGlAccountId}>
-                <SelectTrigger id="rot-account">
-                  <SelectValue placeholder="Select an account" />
+                <SelectTrigger id="rot-offset-account">
+                  <SelectValue placeholder="Select an account or type to search..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {props.glAccounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
+                  <GlAccountSelectItems accounts={props.glAccounts} />
                 </SelectContent>
               </Select>
             </div>
 
             <div className="sm:col-span-2">
-              <Label htmlFor="rot-amount" className="text-xs font-semibold tracking-wide">
-                AMOUNT <span className="text-destructive">*</span>
+              <Label htmlFor="rot-other-amount" className="text-xs font-semibold tracking-wide">
+                {mode === 'deposit' ? (
+                  <>
+                    DEPOSIT AMOUNT <span className="text-destructive">*</span>
+                  </>
+                ) : (
+                  <>
+                    WITHDRAWAL AMOUNT <span className="text-destructive">*</span>
+                  </>
+                )}
               </Label>
               <Input
-                id="rot-amount"
+                id="rot-other-amount"
                 value={otherAmount}
                 onChange={(e) => setOtherAmount(e.target.value)}
                 inputMode="decimal"
@@ -457,7 +500,12 @@ export default function RecordOtherTransactionForm(props: {
           <Label htmlFor="rot-memo" className="text-xs font-semibold tracking-wide">
             MEMO
           </Label>
-          <Textarea id="rot-memo" value={memo} onChange={(e) => setMemo(e.target.value)} className="min-h-20" />
+          <Textarea
+            id="rot-memo"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            className="min-h-20"
+          />
         </div>
       </div>
 
@@ -472,7 +520,12 @@ export default function RecordOtherTransactionForm(props: {
           >
             Cancel
           </Button>
-          <Button type="button" variant="secondary" onClick={() => submit('save-and-new')} disabled={isSaving}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => submit('save-and-new')}
+            disabled={isSaving}
+          >
             Save &amp; add another
           </Button>
           <Button type="button" onClick={() => submit('save')} disabled={isSaving}>
@@ -483,5 +536,3 @@ export default function RecordOtherTransactionForm(props: {
     </div>
   );
 }
-
-

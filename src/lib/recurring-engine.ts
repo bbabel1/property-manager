@@ -134,8 +134,8 @@ export async function postLateFees() {
   if (lErr || !leases) return { created: 0 }
 
   let created = 0
-  for (const lease of leases as any[]) {
-    const org = lease.org_id as string
+  for (const lease of leases) {
+    const org = typeof lease.org_id === 'string' ? lease.org_id : ''
     const gl = await getOrgGlSettingsOrThrow(org)
     if (!gl.late_fee_income) continue // cannot post without target income account
 

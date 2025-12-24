@@ -41,8 +41,8 @@ export default function BankingDetailsModal({ isOpen, onClose, onSuccess, proper
     if (isOpen && property) {
       setFormData({
         reserve: property.reserve || 0,
-        operating_bank_gl_account_id: (property as any).operating_bank_gl_account_id || '',
-        deposit_trust_gl_account_id: (property as any).deposit_trust_gl_account_id || ''
+        operating_bank_gl_account_id: property.operating_bank_gl_account_id || '',
+        deposit_trust_gl_account_id: property.deposit_trust_gl_account_id || ''
       })
       setError(null)
     }

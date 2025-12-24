@@ -1,16 +1,14 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumDepositUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: depositId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
-    const depositId = (await params).id;
     
     logger.info({ userId: user.id, depositId, action: 'get_buildium_deposit' }, 'Fetching Buildium deposit details');
 
@@ -42,7 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error({ error, depositId: (await params).id }, 'Error fetching Buildium deposit details');
+    logger.error({ error, depositId }, 'Error fetching Buildium deposit details');
     return NextResponse.json(
       { error: 'Failed to fetch Buildium deposit details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -51,10 +49,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: depositId } = await params
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
-    const depositId = (await params).id;
     
     logger.info({ userId: user.id, depositId, action: 'update_buildium_deposit' }, 'Updating Buildium deposit');
 
@@ -92,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
-    logger.error({ error, depositId: (await params).id }, 'Error updating Buildium deposit');
+    logger.error({ error, depositId }, 'Error updating Buildium deposit');
     return NextResponse.json(
       { error: 'Failed to update Buildium deposit', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

@@ -71,6 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium vendor transactions`);
 
     return NextResponse.json(

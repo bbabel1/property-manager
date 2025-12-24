@@ -1,5 +1,7 @@
 # Buildium “Record Bill” Form Reference
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 _Last reviewed: 2025-11-09_
 
 This reference captures the structure, behaviors, and validation rules observed in

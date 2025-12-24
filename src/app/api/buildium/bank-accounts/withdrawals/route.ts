@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { ComplianceSyncService, type ViolationSource } from '@/lib/compliance-sync-service'
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils'
+import type { Tables } from '@/types/database'
 
 const ALLOWED_SOURCES: ViolationSource[] = [
   'dob_safety_violations',
@@ -18,6 +19,13 @@ const ALLOWED_SOURCES: ViolationSource[] = [
   'sidewalk_violations',
   'backflow_prevention_violations',
 ]
+
+type PropertyLookup = Pick<
+  Tables<'properties'>,
+  'id' | 'org_id' | 'bin' | 'bbl' | 'block' | 'lot' | 'building_id'
+>
+type BuildingTaxInfo = Pick<Tables<'buildings'>, 'tax_block' | 'tax_lot'>
+type ComplianceSyncResult = Awaited<ReturnType<ComplianceSyncService['syncViolationsBySource']>>
 
 export async function POST(
   request: NextRequest,
@@ -51,10 +59,12 @@ export async function POST(
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
 
+    const propertyRecord = property as PropertyLookup
+
     const { data: membership } = await supabaseAdmin
       .from('org_memberships')
       .select('org_id')
-      .eq('org_id', (property as any).org_id)
+      .eq('org_id', propertyRecord.org_id)
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -62,28 +72,29 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    let block = (property as any).block as string | null
-    let lot = (property as any).lot as string | null
+    let block =
+      propertyRecord.block !== null && propertyRecord.block !== undefined ? String(propertyRecord.block) : null
+    let lot = propertyRecord.lot !== null && propertyRecord.lot !== undefined ? String(propertyRecord.lot) : null
 
-    if ((!block || !lot) && (property as any).building_id) {
+    if ((!block || !lot) && propertyRecord.building_id) {
       const { data: building } = await supabaseAdmin
         .from('buildings')
         .select('tax_block, tax_lot')
-        .eq('id', (property as any).building_id)
+        .eq('id', propertyRecord.building_id)
         .maybeSingle()
-      block = block || ((building as any)?.tax_block as string | null) || null
-      lot = lot || ((building as any)?.tax_lot as string | null) || null
+      block = block ?? (building as BuildingTaxInfo | null)?.tax_block ?? null
+      lot = lot ?? (building as BuildingTaxInfo | null)?.tax_lot ?? null
     }
 
     const service = new ComplianceSyncService()
-    const results = []
+    const results: ComplianceSyncResult[] = []
     for (const source of includeSources) {
       const res = await service.syncViolationsBySource({
         source,
         propertyId,
-        orgId: (property as any).org_id,
-        bin: (property as any).bin || null,
-        bbl: (property as any).bbl || null,
+        orgId: propertyRecord.org_id,
+        bin: propertyRecord.bin || null,
+        bbl: propertyRecord.bbl || null,
         block,
         lot,
       })

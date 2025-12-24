@@ -1,5 +1,7 @@
 # Monthly Logs API Reference
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 This note points to the primary Monthly Logs HTTP handlers and where to find their implementations.
 
 - Entrypoints live under `src/app/api/monthly-logs/` (and nested subroutes for statements, transactions, and reports).

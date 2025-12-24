@@ -73,6 +73,7 @@ export async function GET(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium unit images`);
 
     return NextResponse.json(
@@ -151,6 +152,7 @@ export async function POST(
     }, { status: 201 });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error uploading Buildium unit image`);
 
     return NextResponse.json(
@@ -230,6 +232,7 @@ export async function PUT(
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium unit image order`);
 
     return NextResponse.json(

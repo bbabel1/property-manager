@@ -68,13 +68,27 @@ export type LedgerGroup = {
   lines: Array<{ line: LedgerLine; signed: number }>;
 };
 
-export function mapTransactionLine(row: TransactionLineRow): LedgerLine {
-  const posting = String(row.posting_type || '').toLowerCase() === 'debit' ? 'Debit' : 'Credit';
+export function mapTransactionLine(row: TransactionLineRow): LedgerLine | null {
+  const postingTypeRaw = String(row.posting_type || '')
+    .trim()
+    .toLowerCase();
+  let posting: 'Debit' | 'Credit';
+
+  // Only accept explicit 'Debit' or 'Credit' values; reject invalid/null/unknown values
+  if (postingTypeRaw === 'debit' || postingTypeRaw === 'dr') {
+    posting = 'Debit';
+  } else if (postingTypeRaw === 'credit' || postingTypeRaw === 'cr') {
+    posting = 'Credit';
+  } else {
+    // Invalid posting_type: return null to exclude from ledger instead of silently converting to Credit
+    // This prevents malformed or migrated data from being incorrectly signed
+    return null;
+  }
+
   const propertyId = row.properties?.id ?? row.property_id ?? null;
   const propertyLabel = row.properties?.name ?? null;
   const unitLabel = row.units?.unit_number || row.units?.unit_name || null;
-  const transactionId =
-    row.transactions?.id ?? row.transaction_id ?? null;
+  const transactionId = row.transactions?.id ?? row.transaction_id ?? null;
 
   return {
     id: row.id != null ? String(row.id) : null,
@@ -128,8 +142,10 @@ const shouldExcludePaymentToIncome = (line: LedgerLine, basis: 'cash' | 'accrual
   return glType === 'income' || glName.includes('income');
 };
 
-const filterOutInvalidPaymentLines = (lines: LedgerLine[], basis: 'cash' | 'accrual'): LedgerLine[] =>
-  lines.filter((line) => !shouldExcludePaymentToIncome(line, basis));
+const filterOutInvalidPaymentLines = (
+  lines: LedgerLine[],
+  basis: 'cash' | 'accrual',
+): LedgerLine[] => lines.filter((line) => !shouldExcludePaymentToIncome(line, basis));
 
 const isArOrAp = (line: LedgerLine): boolean => {
   const name = (line.glAccountName || '').toLowerCase();
@@ -241,5 +257,4 @@ export function buildLedgerGroups(
   });
 }
 
-export type SupabaseTransactionLine =
-  Database['public']['Tables']['transaction_lines']['Row'];
+export type SupabaseTransactionLine = Database['public']['Tables']['transaction_lines']['Row'];

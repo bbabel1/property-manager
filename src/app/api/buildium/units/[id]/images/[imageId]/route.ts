@@ -69,6 +69,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium unit image`);
 
     return NextResponse.json(
@@ -148,6 +149,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium unit image`);
 
     return NextResponse.json(
@@ -207,6 +209,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error deleting Buildium unit image`);
 
     return NextResponse.json(
@@ -267,6 +270,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error downloading Buildium unit image`);
 
     return NextResponse.json(

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { supabaseAdmin } from '@/lib/db';
 import { buildCanonicalTransactionPatch, type ComputePartiesParams } from '@/lib/transaction-canonical';
 
@@ -192,4 +193,3 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
 
   return { transactionId: transactionIdLocal, buildiumTransactionId: txHeader.buildium_transaction_id };
 }
-

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,16 @@ export default function UnitsTable({
   initialUnits,
 }: {
   propertyId: string;
-  property?: any;
+  property?: {
+    name?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    address_line3?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+  };
   initialUnits: Unit[];
 }) {
   const [units, setUnits] = useState<Unit[]>(initialUnits || []);
@@ -154,8 +163,9 @@ export default function UnitsTable({
       if (!res.ok) throw new Error(j?.error || 'Failed to create unit');
       setOpen(false);
       await reload();
-    } catch (e: any) {
-      setErr(e.message || 'Failed to create unit');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to create unit';
+      setErr(message);
     } finally {
       setSaving(false);
     }
@@ -264,7 +274,7 @@ export default function UnitsTable({
               <label className="mb-1 block text-xs">Bedrooms</label>
               <Dropdown
                 value={bedrooms}
-                onChange={setBedrooms as any}
+                onChange={(value) => setBedrooms(value as BedroomEnum | '')}
                 options={BEDROOM_OPTIONS.map((v) => ({ value: v, label: v }))}
                 placeholder="Select"
               />
@@ -273,7 +283,7 @@ export default function UnitsTable({
               <label className="mb-1 block text-xs">Bathrooms</label>
               <Dropdown
                 value={bathrooms}
-                onChange={setBathrooms as any}
+                onChange={(value) => setBathrooms(value as BathroomEnum | '')}
                 options={BATHROOM_OPTIONS.map((v) => ({ value: v, label: v }))}
                 placeholder="Select"
               />

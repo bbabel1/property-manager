@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { getAllEmailTemplates, createEmailTemplate } from '@/lib/email-template-service';
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
       .eq('org_id', orgId)
       .single();
 
-    if (!membership || !['org_admin', 'org_manager', 'platform_admin'].includes(membership.role)) {
+    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
+    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
       return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
     }
 
@@ -121,28 +123,29 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(template, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating email template:', error);
 
-    if (error.name === 'ZodError') {
+    if (error instanceof ZodError) {
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Validation failed',
-            details: error.errors,
+            details: error.issues,
+            formatted: error.format(),
           },
         },
         { status: 400 },
       );
     }
 
-    if (error.message?.includes('Invalid variables')) {
+    if (error instanceof Error && error.message?.includes('Invalid variables')) {
       return NextResponse.json(
         {
           error: {
             code: 'INVALID_VARIABLES',
-            message: error.message,
+            message: error.message ?? 'Invalid variables provided',
           },
         },
         { status: 400 },

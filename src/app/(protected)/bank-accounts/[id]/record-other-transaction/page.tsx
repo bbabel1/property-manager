@@ -7,6 +7,8 @@ import RecordOtherTransactionForm, {
   type PropertyOption,
   type UnitOption,
 } from '@/components/bank-accounts/RecordOtherTransactionForm';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
 
 type BankAccountDetail = { id: string; name: string | null };
 
@@ -34,54 +36,51 @@ type GLAccountRow = {
   id: string;
   name: string | null;
   account_number: string | null;
+  type: string | null;
   is_bank_account?: boolean | null;
 };
 
 export default async function RecordOtherTransactionPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
-  const db = supabaseAdmin || supabase;
+  const { id } = params;
+  const db = (supabaseAdmin || supabase) as SupabaseClient<Database>;
 
-  const [
-    { data: accountRaw, error: accountError },
-    { data: bankAccountsData },
-    { data: propertiesData },
-    { data: unitsData },
-    { data: glAccountsData },
-  ] = await Promise.all([
-    db
-      .from('gl_accounts')
-      .select('id, name')
-      .eq('id', id)
-      .eq('is_bank_account', true)
-      .maybeSingle(),
-    db
-      .from('gl_accounts')
-      .select('id, name, bank_balance')
-      .eq('is_bank_account', true)
-      .order('name', { ascending: true })
-      .limit(500),
-    db
-      .from('properties')
-      .select('id, name, address_line1, is_active')
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-      .limit(1000),
-    db
-      .from('units')
-      .select('id, property_id, unit_number, unit_name')
-      .order('unit_number', { ascending: true })
-      .limit(5000),
-    db
-      .from('gl_accounts')
-      .select('id, name, account_number, is_bank_account')
-      .eq('is_bank_account', false)
-      .order('name', { ascending: true })
-      .limit(5000),
-  ]);
+  const { data: accountRaw, error: accountError } = await db
+    .from('gl_accounts')
+    .select('id, name')
+    .eq('id', id)
+    .eq('is_bank_account', true)
+    .maybeSingle();
+
+  const { data: bankAccountsData } = await db
+    .from('gl_accounts')
+    .select('id, name, bank_balance')
+    .eq('is_bank_account', true)
+    .order('name', { ascending: true })
+    .limit(500);
+
+  const { data: propertiesData } = await db
+    .from('properties')
+    .select('id, name, address_line1, is_active')
+    .eq('is_active', true)
+    .order('name', { ascending: true })
+    .limit(1000);
+
+  const { data: unitsData } = await db
+    .from('units')
+    .select('id, property_id, unit_number, unit_name')
+    .order('unit_number', { ascending: true })
+    .limit(5000);
+
+  const { data: glAccountsData } = await db
+    .from('gl_accounts')
+    .select('id, name, account_number, type, is_bank_account')
+    .eq('is_bank_account', false)
+    .order('name', { ascending: true })
+    .limit(5000);
 
   const account = (accountRaw || null) as BankAccountDetail | null;
 
@@ -101,7 +100,7 @@ export default async function RecordOtherTransactionPage({
 
   const properties: PropertyOption[] = ((propertiesData || []) as PropertyRow[]).map((p) => ({
     id: String(p.id),
-    label: `${p.name || 'Property'}${p.address_line1 ? ` • ${p.address_line1}` : ''}`,
+    label: p.name || p.address_line1 || 'Property',
   }));
 
   const units: UnitOption[] = ((unitsData || []) as UnitRow[]).map((u) => ({
@@ -113,6 +112,7 @@ export default async function RecordOtherTransactionPage({
   const glAccounts: GlAccountOption[] = ((glAccountsData || []) as GLAccountRow[]).map((a) => ({
     id: String(a.id),
     label: a?.name || a?.account_number || 'Account',
+    type: a?.type ?? null,
   }));
 
   return (

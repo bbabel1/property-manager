@@ -5,8 +5,9 @@
  * Includes recipient management, email generation, and audit logging.
  */
 
-import { supabaseAdmin } from '@/lib/db';
 import { format } from 'date-fns';
+import { supabaseAdmin } from '@/lib/db';
+import type { Database } from '@/types/database';
 import { getOwnerDrawSummary } from '@/lib/monthly-log-calculations';
 import { calculateNetToOwnerValue } from '@/types/monthly-log';
 import {
@@ -25,6 +26,32 @@ interface StatementRecipient {
   role?: string;
 }
 
+type StatementProperty = Pick<
+  Database['public']['Tables']['properties']['Row'],
+  'id' | 'name' | 'org_id' | 'statement_recipients'
+>;
+
+type StatementUnit = Pick<Database['public']['Tables']['units']['Row'], 'unit_number' | 'unit_name'>;
+
+type MonthlyLogWithRelations = Pick<
+  Database['public']['Tables']['monthly_logs']['Row'],
+  'id' | 'period_start' | 'pdf_url' | 'property_id' | 'unit_id' | 'org_id'
+> & {
+  properties: StatementProperty | null;
+  units: StatementUnit | null;
+};
+
+type StatementEmailRecipientLog = {
+  email: string;
+  status: 'sent' | 'failed';
+  error?: string | null;
+};
+
+type StatementEmailRow = Pick<
+  Database['public']['Tables']['statement_emails']['Row'],
+  'id' | 'sent_at' | 'sent_by_user_id' | 'recipients' | 'pdf_url' | 'status' | 'error_message'
+>;
+
 const coerceRecipients = (raw: unknown): StatementRecipient[] => {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -40,6 +67,26 @@ const coerceRecipients = (raw: unknown): StatementRecipient[] => {
       };
     })
     .filter(Boolean) as StatementRecipient[];
+};
+
+const parseRecipientLog = (raw: unknown): StatementEmailRecipientLog | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const candidate = raw as { email?: unknown; status?: unknown; error?: unknown };
+  if (candidate.status !== 'sent' && candidate.status !== 'failed') return null;
+  if (typeof candidate.email !== 'string') return null;
+
+  return {
+    email: candidate.email,
+    status: candidate.status,
+    error: typeof candidate.error === 'string' ? candidate.error : null,
+  };
+};
+
+const normalizeRecipientLogs = (raw: unknown): StatementEmailRecipientLog[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => parseRecipientLog(entry))
+    .filter((entry): entry is StatementEmailRecipientLog => Boolean(entry));
 };
 
 interface SendStatementResult {
@@ -134,12 +181,14 @@ export async function sendMonthlyStatement(
       .eq('id', monthlyLogId)
       .single();
 
-    if (logError || !monthlyLog) {
+    const monthlyLogWithRelations = (monthlyLog ?? null) as MonthlyLogWithRelations | null;
+
+    if (logError || !monthlyLogWithRelations) {
       return { success: false, error: 'Monthly log not found' };
     }
 
     // Get org_id from monthly log or property
-    const orgId = monthlyLog.org_id || (monthlyLog.properties as any)?.org_id;
+    const orgId = monthlyLogWithRelations.org_id || monthlyLogWithRelations.properties?.org_id;
     if (!orgId) {
       return { success: false, error: 'Organization ID not found for this monthly log' };
     }
@@ -170,10 +219,12 @@ export async function sendMonthlyStatement(
       console.warn('Failed to store statement snapshot', snapshotUpload.error);
     }
     const pdfUrlForEmail =
-      (snapshotUpload.success && snapshotUpload.url) || latestUpload.url || monthlyLog.pdf_url;
+      (snapshotUpload.success && snapshotUpload.url) ||
+      latestUpload.url ||
+      monthlyLogWithRelations.pdf_url;
 
     // Get recipients from property
-    const recipients = coerceRecipients((monthlyLog.properties as any)?.statement_recipients);
+    const recipients = coerceRecipients(monthlyLogWithRelations.properties?.statement_recipients);
 
     if (recipients.length === 0) {
       return {
@@ -191,7 +242,7 @@ export async function sendMonthlyStatement(
       .eq('id', monthlyLogId)
       .single();
 
-    const totalCharges = financialData?.charges_amount || 0;
+    const _totalCharges = financialData?.charges_amount || 0;
     const totalPayments = financialData?.payments_amount || 0;
     const totalBills = financialData?.bills_amount || 0;
     const escrowAmount = financialData?.escrow_amount || 0;
@@ -200,7 +251,7 @@ export async function sendMonthlyStatement(
 
     const ownerDrawSummary = await getOwnerDrawSummary(monthlyLogId);
     const ownerDraw = ownerDrawSummary.total;
-    const netToOwner = calculateNetToOwnerValue({
+    const _netToOwner = calculateNetToOwnerValue({
       previousBalance,
       totalPayments,
       totalBills,
@@ -216,13 +267,13 @@ export async function sendMonthlyStatement(
 
     try {
       template = await getEmailTemplate(orgId, 'monthly_rental_statement');
-      
+
       if (template && template.status === 'active') {
         // Build comprehensive variable map (without recipient name - will be set per recipient)
         baseVariables = await buildTemplateVariables(monthlyLogId, orgId);
         console.info('[monthly-statement] Loaded active email template', {
           orgId,
-          templateId: (template as any)?.id,
+          templateId: template?.id,
           templateKey: template.template_key,
           status: template.status,
           monthlyLogId,
@@ -245,10 +296,12 @@ export async function sendMonthlyStatement(
     }
 
     // Prepare fallback data
-    const periodMonth = format(new Date(monthlyLog.period_start), 'MMMM yyyy');
-    const propertyName = (monthlyLog.properties as any)?.name || 'Unknown Property';
-    const unitNumber =
-      (monthlyLog.units as any)?.unit_number || (monthlyLog.units as any)?.unit_name || 'N/A';
+    const periodMonth = format(new Date(monthlyLogWithRelations.period_start), 'MMMM yyyy');
+    const propertyName = monthlyLogWithRelations.properties?.name || 'Unknown Property';
+    const _unitNumber =
+      monthlyLogWithRelations.units?.unit_number ||
+      monthlyLogWithRelations.units?.unit_name ||
+      'N/A';
     const companyName = process.env.COMPANY_NAME || 'Property Management Company';
 
     // 4. Send emails to each recipient
@@ -294,7 +347,7 @@ export async function sendMonthlyStatement(
         const rendered = await renderEmailTemplate(template, variables);
         console.info('[monthly-statement] Rendered email template for recipient', {
           orgId,
-          templateId: (template as any)?.id,
+          templateId: template?.id,
           monthlyLogId,
           recipientEmail: recipient.email,
           subjectPreview: rendered.subject?.slice?.(0, 120) ?? rendered.subject,
@@ -450,7 +503,7 @@ export async function getStatementEmailHistory(monthlyLogId: string): Promise<{
     id: string;
     sentAt: string;
     sentBy: string | null;
-    recipients: any;
+    recipients: StatementEmailRecipientLog[];
     pdfUrl: string | null;
     status: string;
     errorMessage: string | null;
@@ -468,11 +521,13 @@ export async function getStatementEmailHistory(monthlyLogId: string): Promise<{
       return { success: false, error: error.message };
     }
 
-    const history = (data || []).map((record) => ({
+    const castedData = (data ?? []) as StatementEmailRow[];
+
+    const history = castedData.map((record) => ({
       id: record.id,
       sentAt: record.sent_at,
       sentBy: record.sent_by_user_id,
-      recipients: record.recipients,
+      recipients: normalizeRecipientLogs(record.recipients),
       pdfUrl: record.pdf_url ?? null,
       status: record.status,
       errorMessage: record.error_message,

@@ -8,10 +8,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { ZodError } from 'zod';
 import { requireUser } from '@/lib/auth';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import {
-  getEmailTemplate,
   updateEmailTemplate,
   archiveEmailTemplate,
 } from '@/lib/email-template-service';
@@ -91,7 +91,8 @@ export async function PUT(
       .eq('org_id', orgId)
       .single();
 
-    if (!membership || !['org_admin', 'org_manager', 'platform_admin'].includes(membership.role)) {
+    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
+    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
       return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
     }
 
@@ -127,23 +128,24 @@ export async function PUT(
     }
 
     return NextResponse.json(template);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating email template:', error);
 
-    if (error.name === 'ZodError') {
+    if (error instanceof ZodError) {
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Validation failed',
-            details: error.errors,
+            details: error.issues,
+            formatted: error.format(),
           },
         },
         { status: 400 },
       );
     }
 
-    if (error.message === 'TEMPLATE_CONFLICT') {
+    if (error instanceof Error && error.message === 'TEMPLATE_CONFLICT') {
       return NextResponse.json(
         {
           error: {
@@ -155,12 +157,12 @@ export async function PUT(
       );
     }
 
-    if (error.message?.includes('Invalid variables')) {
+    if (error instanceof Error && error.message?.includes('Invalid variables')) {
       return NextResponse.json(
         {
           error: {
             code: 'INVALID_VARIABLES',
-            message: error.message,
+            message: error.message ?? 'Invalid variables provided',
           },
         },
         { status: 400 },
@@ -211,7 +213,8 @@ export async function DELETE(
       .eq('org_id', orgId)
       .single();
 
-    if (!membership || !['org_admin', 'org_manager', 'platform_admin'].includes(membership.role)) {
+    const role = membership && 'role' in membership ? (membership as { role?: string }).role : undefined;
+    if (!role || !['org_admin', 'org_manager', 'platform_admin'].includes(role)) {
       return NextResponse.json({ error: 'Forbidden: Admin or Manager role required' }, { status: 403 });
     }
 

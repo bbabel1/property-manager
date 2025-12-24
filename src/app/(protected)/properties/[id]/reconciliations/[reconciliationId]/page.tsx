@@ -12,7 +12,7 @@ export default async function ReconciliationPage({ params }: { params: Promise<{
   const supabase = await getSupabaseServerClient()
 
   // Load reconciliation record from our log
-  const { data: rl } = await (supabase as any)
+  const { data: rl } = await supabase
     .from('reconciliation_log')
     .select('property_id, bank_gl_account_id, gl_account_id, statement_ending_date, is_finished, ending_balance, total_checks_withdrawals, total_deposits_additions')
     .eq('buildium_reconciliation_id', Number(reconciliationId))
@@ -27,14 +27,14 @@ export default async function ReconciliationPage({ params }: { params: Promise<{
   // Bank details
   let bankName = 'Bank Account', acctMasked = '••••'
   try {
-    const { data: ba } = await (supabase as any)
+    const { data: ba } = await supabase
       .from('gl_accounts')
       .select('name, bank_account_number')
       .eq('id', rl.bank_gl_account_id)
       .maybeSingle()
     if (ba) {
       bankName = ba.name || bankName
-      const acct = (ba as any).bank_account_number || ''
+      const acct = ba.bank_account_number || ''
       const last4 = acct ? acct.slice(-4) : ''
       acctMasked = last4 ? `•••• ${last4}` : '••••'
     }
@@ -43,7 +43,7 @@ export default async function ReconciliationPage({ params }: { params: Promise<{
   const asOf = rl.statement_ending_date
 
   // Variance for guardrails
-  const { data: varianceRow } = await (supabase as any)
+  const { data: varianceRow } = await supabase
     .from('v_reconciliation_variances')
     .select('variance, ledger_balance, buildium_ending_balance')
     .eq('property_id', rl.property_id)

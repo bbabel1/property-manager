@@ -9,7 +9,6 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import { getStaffGmailIntegration, deleteGmailIntegration } from '@/lib/gmail/token-manager';
-import { google } from 'googleapis';
 
 export async function POST() {
   try {
@@ -78,5 +77,4 @@ export async function POST() {
     );
   }
 }
-
 

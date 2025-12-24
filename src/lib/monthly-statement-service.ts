@@ -8,6 +8,7 @@ import 'server-only';
 import React from 'react';
 import fs from 'fs';
 import path from 'path';
+import type { Database } from '@/types/database';
 import { supabaseAdmin } from '@/lib/db';
 import { generatePDFFromHTML } from '@/lib/pdf-generator';
 import MonthlyStatementTemplate, {
@@ -15,7 +16,7 @@ import MonthlyStatementTemplate, {
 } from '@/components/monthly-logs/MonthlyStatementTemplate';
 import { loadAssignedTransactionsBundle } from '@/server/monthly-logs/transactions';
 import { assertStatementTotalsWithSummary } from '@/lib/statement-summary';
-import { calculateNetToOwnerValue } from '@/types/monthly-log';
+import { calculateNetToOwnerValue, type MonthlyLogFinancialSummary } from '@/types/monthly-log';
 
 const STATEMENT_BUCKET = process.env.STATEMENT_PDF_BUCKET || 'documents';
 
@@ -74,18 +75,75 @@ type EscrowRow = {
   } | null;
 };
 
-type PropertyRecord = {
-  name?: string | null;
-  address_line1?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postal_code?: string | null;
-} | null;
+type PropertyRecord = Pick<
+  Database['public']['Tables']['properties']['Row'],
+  'name' | 'address_line1' | 'city' | 'state' | 'postal_code'
+> | null;
 
-type UnitRecord = {
-  unit_number?: string | null;
-  unit_name?: string | null;
-} | null;
+type UnitRecord = Pick<Database['public']['Tables']['units']['Row'], 'unit_number' | 'unit_name'> | null;
+
+type MonthlyLogRecord = Pick<
+  Database['public']['Tables']['monthly_logs']['Row'],
+  | 'id'
+  | 'period_start'
+  | 'lease_id'
+  | 'property_id'
+  | 'unit_id'
+  | 'tenant_id'
+  | 'charges_amount'
+  | 'payments_amount'
+  | 'bills_amount'
+  | 'escrow_amount'
+  | 'management_fees_amount'
+  | 'previous_lease_balance'
+> & {
+  properties: PropertyRecord;
+  units: UnitRecord;
+};
+
+type OwnershipContact = {
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  company_name?: string | null;
+};
+
+type OwnershipRow = {
+  owners?: {
+    company_name?: string | null;
+    contacts?: OwnershipContact | OwnershipContact[] | null;
+  } | null;
+};
+
+type StatementTransactionLine = {
+  id?: string;
+  date?: string | null;
+  memo?: string | null;
+  amount?: number | string | null;
+  posting_type?: string | null;
+  unit_id?: string | null;
+  property_id?: string | null;
+  gl_accounts?: {
+    id?: string;
+    name?: string | null;
+    default_account_name?: string | null;
+    type?: string | null;
+    gl_account_category?: {
+      category?: string | null;
+    } | null;
+  } | null;
+  transactions?: {
+    id?: string;
+    date?: string | null;
+    memo?: string | null;
+    transaction_type?: string | null;
+    lease_id?: number | null;
+  } | null;
+};
+
+type SummaryWithLegacyPreviousBalance = MonthlyLogFinancialSummary & {
+  previousLeaseBalance?: number | null;
+};
 
 async function fetchTenantName(tenantId?: string | null) {
   if (!tenantId) return null;
@@ -119,19 +177,23 @@ async function fetchTenantName(tenantId?: string | null) {
 async function fetchOwnerNames(propertyId?: string | number | null) {
   if (!propertyId) return [];
 
-  const normalizeOwners = (ownerships: any[] | null | undefined) => {
+  const normalizeOwners = (ownerships: OwnershipRow[] | null | undefined) => {
     if (!ownerships) return [];
 
     return ownerships
-      .map((row: any) => {
-        const owner = row.owners || {};
-        const contact = Array.isArray(owner.contacts) ? owner.contacts[0] : owner.contacts;
+      .map((row) => {
+        const owner = row.owners;
+        if (!owner) return null;
+
+        const contactData = owner.contacts;
+        const contact = Array.isArray(contactData) ? contactData[0] : contactData;
         const contactName =
-          (contact?.company_name as string | undefined) ||
+          contact?.company_name ||
           [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
-          (contact?.display_name as string | undefined);
-        const directName = owner.company_name as string | undefined;
-        const finalName = (directName || contactName || '').trim();
+          contact?.display_name ||
+          null;
+        const directName = owner.company_name ?? null;
+        const finalName = (directName || contactName || '')?.trim?.() ?? '';
         return finalName || null;
       })
       .filter(Boolean) as string[];
@@ -156,7 +218,8 @@ async function fetchOwnerNames(propertyId?: string | number | null) {
       .eq('property_id', String(id));
 
     if (ownershipError || !ownerships) return [];
-    return normalizeOwners(ownerships);
+    const ownershipRows = ownerships as OwnershipRow[];
+    return normalizeOwners(ownershipRows);
   };
 
   const ownerNames = await fetchForId(propertyId);
@@ -232,68 +295,6 @@ const computeDepositAccountTotals = (
     label,
     balance: totals[label] ?? 0,
   }));
-};
-
-const deriveEscrowAmountFromLines = (
-  transactionLines: Array<{
-    amount?: number | string | null;
-    posting_type?: string | null;
-    gl_accounts?: {
-      name?: string | null;
-      gl_account_category?: { category?: string | null } | null;
-    } | null;
-    id?: string;
-    transactions?: { id?: string; memo?: string | null; lease_id?: number | null } | null;
-  }> | null,
-  leaseId?: string | null,
-): number => {
-  let total = 0;
-  const matches: Array<{
-    lineId?: string;
-    transactionId?: string;
-    postingType?: string | null;
-    amount: number;
-    name?: string | null;
-    memo?: string | null;
-  }> = [];
-
-  (transactionLines ?? []).forEach((line) => {
-    const accountName = normalizeString(line.gl_accounts?.name);
-    const isTaxEscrow = accountName === 'property tax escrow';
-    if (!isTaxEscrow) return;
-
-    const transactionLeaseId =
-      line.transactions?.lease_id != null ? String(line.transactions?.lease_id) : null;
-    if (leaseId && transactionLeaseId && transactionLeaseId !== leaseId) {
-      return;
-    }
-
-    const amount = Math.abs(Number(line.amount) || 0);
-    if (!amount) return;
-
-    const postingType = normalizeString(line.posting_type);
-    matches.push({
-      lineId: line.id,
-      transactionId: line.transactions?.id,
-      postingType: line.posting_type,
-      amount,
-      name: line.gl_accounts?.name ?? null,
-      memo: line.transactions?.memo ?? null,
-    });
-    if (postingType.includes('credit')) {
-      total -= amount;
-    } else if (postingType.includes('debit')) {
-      total += amount;
-    }
-  });
-
-  if (matches.length > 0) {
-    console.warn('[statement] Property Tax Escrow lines used in statement', { matches, total });
-  } else {
-    console.warn('[statement] No Property Tax Escrow lines matched for statement escrow');
-  }
-
-  return total;
 };
 
 /**
@@ -372,23 +373,15 @@ export async function fetchMonthlyStatementData(
       .eq('transactions.monthly_log_id', monthlyLogId)
       .order('date', { ascending: true });
 
-    const [{ data: monthlyLog, error: logError }, { data: transactionLines }] = await Promise.all([
-      monthlyLogPromise,
-      transactionLinesPromise,
-    ]);
+    const [{ data: monthlyLogRaw, error: logError }, { data: transactionLinesRaw }] =
+      await Promise.all([monthlyLogPromise, transactionLinesPromise]);
+
+    const monthlyLog = (monthlyLogRaw ?? null) as MonthlyLogRecord | null;
+    const transactionLines = (transactionLinesRaw ?? null) as StatementTransactionLine[] | null;
 
     if (logError || !monthlyLog) {
       return { success: false, error: 'Monthly log not found' };
     }
-
-    const financialData = monthlyLog as {
-      charges_amount?: number;
-      payments_amount?: number;
-      bills_amount?: number;
-      escrow_amount?: number;
-      management_fees_amount?: number;
-      previous_lease_balance?: number;
-    };
 
     const statementGeneratedAt = new Date();
     const statementDateISO = statementGeneratedAt.toISOString();
@@ -417,27 +410,28 @@ export async function fetchMonthlyStatementData(
 
     const activeLeaseId = monthlyLog.lease_id ? String(monthlyLog.lease_id) : null;
 
-    (transactionLines || []).forEach((line: any) => {
+    (transactionLines ?? []).forEach((line) => {
       const glAccount = line.gl_accounts;
-      const category = glAccount?.gl_account_category?.category || '';
-      const glType = glAccount?.type || '';
-      const accountNameRaw = glAccount?.name || '';
-      const defaultAccountNameRaw = glAccount?.default_account_name || '';
+      const category = glAccount?.gl_account_category?.category ?? '';
+      const glType = glAccount?.type ?? '';
+      const accountNameRaw = glAccount?.name ?? '';
+      const defaultAccountNameRaw = glAccount?.default_account_name ?? '';
       const accountName = normalizeString(accountNameRaw);
-      const postingType = line.posting_type || '';
-      const amount = Math.abs(Number(line.amount) || 0);
-      const transaction = line.transactions || {};
+      const postingType = line.posting_type ?? '';
+      const amount = Math.abs(Number(line.amount ?? 0));
+      const transaction = line.transactions;
       const transactionLeaseId =
-        transaction.lease_id != null ? String(transaction.lease_id) : null;
-      const memo = (line.memo || transaction.memo || '').trim();
-      const transactionType = normalizeString(transaction.transaction_type);
-      const accountLabel = (accountNameRaw || '').trim();
-      const defaultAccountLabel = (defaultAccountNameRaw || '').trim();
+        transaction?.lease_id != null ? String(transaction.lease_id) : null;
+      const memo = (line.memo ?? transaction?.memo ?? '').trim();
+      const transactionType = normalizeString(transaction?.transaction_type);
+      const accountLabel = (accountNameRaw ?? '').trim();
+      const defaultAccountLabel = (defaultAccountNameRaw ?? '').trim();
+      const transactionDate = line.date || transaction?.date || '';
       const label =
         (accountLabel && accountLabel !== '-' ? accountLabel : '') ||
         (defaultAccountLabel && defaultAccountLabel !== '-' ? defaultAccountLabel : '') ||
         memo ||
-        (transaction.memo || '').trim() ||
+        (transaction?.memo ?? '').trim() ||
         'Transaction';
       const isCharge = transactionType === 'charge';
 
@@ -453,7 +447,7 @@ export async function fetchMonthlyStatementData(
         escrowItems.push({
           label,
           amount: displayAmount,
-          date: line.date || transaction.date || '',
+          date: transactionDate,
         });
         return;
       }
@@ -464,7 +458,7 @@ export async function fetchMonthlyStatementData(
         incomeItems.push({
           label,
           amount: Math.abs(signedAmount),
-          date: line.date || transaction.date || '',
+          date: transactionDate,
         });
         return;
       }
@@ -473,7 +467,7 @@ export async function fetchMonthlyStatementData(
         expenseItems.push({
           label,
           amount: -Math.abs(signedAmount),
-          date: line.date || transaction.date || '',
+          date: transactionDate,
         });
         return;
       }
@@ -483,7 +477,7 @@ export async function fetchMonthlyStatementData(
         incomeItems.push({
           label,
           amount: Math.abs(signedAmount),
-          date: line.date || transaction.date || '',
+          date: transactionDate,
         });
         return;
       }
@@ -493,7 +487,7 @@ export async function fetchMonthlyStatementData(
         expenseItems.push({
           label,
           amount: -Math.abs(signedAmount),
-          date: line.date || transaction.date || '',
+          date: transactionDate,
         });
         return;
       }
@@ -502,14 +496,14 @@ export async function fetchMonthlyStatementData(
     if (incomeItems.length === 0) {
       incomeItems.push({
         label: 'Rent Income',
-        amount: Math.abs(Number(financialData?.payments_amount ?? 0)),
+        amount: Math.abs(Number(monthlyLog.payments_amount ?? 0)),
         date: '',
       });
     }
 
     if (expenseItems.length === 0) {
-      const billsAmount = Math.abs(Number(financialData?.bills_amount ?? 0));
-      const managementFeesAmount = Math.abs(Number(financialData?.management_fees_amount ?? 0));
+      const billsAmount = Math.abs(Number(monthlyLog.bills_amount ?? 0));
+      const managementFeesAmount = Math.abs(Number(monthlyLog.management_fees_amount ?? 0));
 
       if (billsAmount > 0) {
         expenseItems.push({ label: 'Bills Paid', amount: -billsAmount, date: '' });
@@ -521,11 +515,14 @@ export async function fetchMonthlyStatementData(
     }
 
     // Pull the assigned bundle summary so escrow/net match the UI card logic
-    const summaryRaw = assignedBundle?.summary;
+    const summaryRaw = (assignedBundle?.summary ?? null) as SummaryWithLegacyPreviousBalance | null;
     if (!summaryRaw) {
       return { success: false, error: 'Financial summary unavailable for statement' };
     }
-    const previousBalanceValue = (summaryRaw as any).previousLeaseBalance ?? summaryRaw.previousBalance ?? 0;
+    const previousBalanceValue =
+      typeof summaryRaw.previousLeaseBalance === 'number'
+        ? summaryRaw.previousLeaseBalance
+        : summaryRaw.previousBalance ?? 0;
     const summary = {
       ...summaryRaw,
       previousLeaseBalance: previousBalanceValue,
@@ -571,31 +568,37 @@ export async function fetchMonthlyStatementData(
       amount: number;
     }> = [];
 
-    const depositAccountLines = (transactionLines || [])
-      .filter((line: any) => {
-        const glAccount = line.gl_accounts || {};
+    const depositAccountLines: EscrowRow[] = (transactionLines ?? [])
+      .map((line): EscrowRow | null => {
+        const glAccount = line.gl_accounts;
+        if (!glAccount) return null;
+
         const accountName = glAccount.name || glAccount.default_account_name || '';
         const category = glAccount.gl_account_category?.category;
         const normalizedName = normalizeString(accountName);
-        return (
+        const matchesEscrow =
           isEscrowAccount(category, accountName) ||
-          DEPOSIT_ACCOUNT_MATCHERS.some(({ predicate }) => predicate(normalizedName))
-        );
-      })
-      .map((line: any) => {
-        const glAccount = line.gl_accounts || {};
-        const accountName = glAccount.name || glAccount.default_account_name || '';
+          DEPOSIT_ACCOUNT_MATCHERS.some(({ predicate }) => predicate(normalizedName));
+
+        if (!matchesEscrow) return null;
+
         return {
-          ...line,
+          date: line.date ?? line.transactions?.date ?? '',
+          memo: line.memo ?? line.transactions?.memo ?? null,
+          amount: Number(line.amount ?? 0),
+          posting_type: (line.posting_type ?? '') as EscrowRow['posting_type'],
           gl_accounts: {
-            ...glAccount,
             name: accountName,
+            type: glAccount.type ?? null,
+            gl_account_category: {
+              category: glAccount.gl_account_category?.category ?? null,
+            },
           },
         };
-      });
-    const accountTotals = computeDepositAccountTotals(
-      depositAccountLines as EscrowRow[] | null | undefined,
-    );
+      })
+      .filter((line): line is EscrowRow => Boolean(line));
+
+    const accountTotals = computeDepositAccountTotals(depositAccountLines);
 
     // Compile complete statement data
     const statementData: StatementData = {
@@ -603,15 +606,15 @@ export async function fetchMonthlyStatementData(
       periodStart: monthlyLog.period_start,
       generatedAt: statementDateISO,
       property: {
-        name: ((monthlyLog.properties as PropertyRecord)?.name) || 'Unknown Property',
-        address: ((monthlyLog.properties as PropertyRecord)?.address_line1) || '',
-        city: ((monthlyLog.properties as PropertyRecord)?.city) || '',
-        state: ((monthlyLog.properties as PropertyRecord)?.state) || '',
-        zipCode: ((monthlyLog.properties as PropertyRecord)?.postal_code) || '',
+        name: monthlyLog.properties?.name || 'Unknown Property',
+        address: monthlyLog.properties?.address_line1 || '',
+        city: monthlyLog.properties?.city || '',
+        state: monthlyLog.properties?.state || '',
+        zipCode: monthlyLog.properties?.postal_code || '',
       },
       unit: {
-        unitNumber: ((monthlyLog.units as UnitRecord)?.unit_number) || '',
-        unitName: ((monthlyLog.units as UnitRecord)?.unit_name) || null,
+        unitNumber: monthlyLog.units?.unit_number || '',
+        unitName: monthlyLog.units?.unit_name || null,
       },
       tenant: tenantName ? { name: tenantName } : null,
       propertyOwners: ownerNames,

@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error fetching Buildium partial payment settings`);
 
     return NextResponse.json(
@@ -120,6 +121,7 @@ export async function PATCH(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error({ error });
     logger.error(`Error updating Buildium partial payment settings`);
 
     return NextResponse.json(

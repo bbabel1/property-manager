@@ -136,7 +136,7 @@ export function EntityPicker({
         window.clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm]);
+  }, [effectiveDebounce, searchTerm]);
 
   useEffect(() => {
     setPage(1);

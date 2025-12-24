@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertTriangle, CheckCircle, Clock, TrendingUp } from 'lucide-react'
+import { AlertTriangle, Clock, TrendingUp } from 'lucide-react'
 
 interface ComplianceSummaryCardsProps {
   openViolations: number
@@ -68,4 +68,3 @@ export function ComplianceSummaryCards({
     </div>
   )
 }
-

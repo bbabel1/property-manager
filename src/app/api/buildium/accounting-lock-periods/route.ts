@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error(`Error fetching Buildium accounting lock periods`);
+    logger.error({ error }, `Error fetching Buildium accounting lock periods`);
 
     return NextResponse.json(
       { error: 'Internal server error' },

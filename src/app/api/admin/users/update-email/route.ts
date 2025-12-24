@@ -31,8 +31,9 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data })
-  } catch (e: any) {
-    const msg = typeof e?.message === 'string' ? e.message : 'Internal Server Error'
+  } catch (e: unknown) {
+    const error = e as { message?: string }
+    const msg = typeof error?.message === 'string' ? error.message : 'Internal Server Error'
     const status = msg === 'FORBIDDEN' ? 403 : msg === 'UNAUTHENTICATED' ? 401 : 500
     return NextResponse.json({ error: msg }, { status })
   }

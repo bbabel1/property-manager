@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import PayBillModal from '@/components/bills/PayBillModal';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import type { Database } from '@/types/database';
+import type { BillPageParams } from '../page';
 
 type TransactionRow = Database['public']['Tables']['transactions']['Row'];
 
@@ -34,7 +35,7 @@ type VendorWithContact = {
   } | null;
 };
 
-export default async function PayBillPage({ params }: { params: Promise<{ billId: string }> }) {
+export default async function PayBillPage({ params }: { params: Promise<BillPageParams> }) {
   const { billId } = await params;
   const BillDetailsPage = (await import('../page')).default;
 
@@ -189,8 +190,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
       : [];
   }
 
-  const buildiumBillId =
-    typeof bill.buildium_bill_id === 'number' ? bill.buildium_bill_id : null;
+  const buildiumBillId = typeof bill.buildium_bill_id === 'number' ? bill.buildium_bill_id : null;
   const paymentsRes =
     buildiumBillId !== null
       ? await db
@@ -259,7 +259,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
     const lastFour =
       accountNumber && accountNumber.length > 4 ? accountNumber.slice(-4) : accountNumber;
     const masked = lastFour ? `••••${lastFour}` : null;
-    const rawBuildiumId = (row as any).buildium_gl_account_id ?? null;
+    const rawBuildiumId = row.buildium_gl_account_id ?? null;
     return {
       id: String(row.id),
       name: String(row.name ?? 'Bank account'),
@@ -293,9 +293,7 @@ export default async function PayBillPage({ params }: { params: Promise<{ billId
       <PayBillModal
         bill={payBillFormBill}
         bankAccounts={bankAccounts}
-        defaultBankAccountId={
-          operatingBankAccountId ? String(operatingBankAccountId) : null
-        }
+        defaultBankAccountId={operatingBankAccountId ? String(operatingBankAccountId) : null}
       />
     </>
   );

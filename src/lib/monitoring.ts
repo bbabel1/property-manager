@@ -26,14 +26,9 @@ export function reportMessage(
   level: "info" | "warning" | "error" = "info",
   context?: Record<string, unknown>
 ) {
+  const logLevel: "info" | "warn" | "error" = level === "warning" ? "warn" : level
   if (sentry) {
-    sentry.captureMessage(message, { level: level as any, extra: context as Record<string, unknown> | undefined })
+    sentry.captureMessage(message, { level, extra: context as Record<string, unknown> | undefined })
   }
-  const logFn = (logger as any)[level] || (logger as any).info
-  if (typeof logFn === 'function') {
-    logFn({ msg: message, ...context })
-  } else {
-    // Fallback to info if the resolved level is not a function
-    logger.info({ msg: message, ...context })
-  }
+  logger[logLevel]({ msg: message, ...context })
 }

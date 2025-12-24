@@ -13,7 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { MoreHorizontal } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import DynamicOverlay from '@/components/ui/DynamicOverlay';
 import RentScheduleForm, {

@@ -7,12 +7,19 @@ import { Stack } from '@/components/layout/page-shell';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import PropertyCompliancePage from '@/app/(protected)/properties/[id]/compliance/page';
+import PropertyComplianceView from '@/app/(protected)/properties/[id]/compliance/ComplianceView';
 
 type BuildingProperty = {
   id: string;
   name: string;
   addressLine1: string | null;
+};
+
+type BuildingApiProperty = {
+  id?: string;
+  name?: string | null;
+  addressLine1?: string | null;
+  address_line1?: string | null;
 };
 
 type BuildingComplianceShell = {
@@ -37,16 +44,16 @@ export default function BuildingCompliancePage() {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error || 'Failed to load building');
         }
-        const data = await res.json();
-        const properties: BuildingProperty[] = (data.properties || []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          addressLine1: p.addressLine1 || p.address_line1 || '',
-        }));
+        const data = (await res.json()) as { properties?: BuildingApiProperty[] };
+        const properties: BuildingProperty[] = (data.properties || [])
+          .filter((p): p is BuildingApiProperty & { id: string } => Boolean(p?.id))
+          .map((p) => ({
+            id: String(p.id),
+            name: p.name ?? '',
+            addressLine1: p.addressLine1 ?? p.address_line1 ?? '',
+          }));
         setShell({ properties });
-        if (properties.length && !selectedPropertyId) {
-          setSelectedPropertyId(properties[0].id);
-        }
+        setSelectedPropertyId((current) => current ?? (properties[0]?.id ?? null));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load building');
       } finally {
@@ -54,7 +61,6 @@ export default function BuildingCompliancePage() {
       }
     };
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId]);
 
   const propertyOptions = useMemo(
@@ -116,7 +122,7 @@ export default function BuildingCompliancePage() {
       ) : null}
 
       {selectedPropertyId ? (
-        <PropertyCompliancePage propertyIdOverride={selectedPropertyId} />
+        <PropertyComplianceView propertyIdOverride={selectedPropertyId} />
       ) : (
         <Card>
           <CardContent className="py-6 text-muted-foreground">Select a property to view compliance.</CardContent>

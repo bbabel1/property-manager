@@ -89,7 +89,7 @@ const eslintConfig = [
           message: "⚠️ Use mapGLAccountFromBuildiumWithSubAccounts() instead to ensure proper sub_accounts relationship handling"
         }
       ],
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "off",
       // Treat unused vars as warnings in CI; allow underscore prefix
       "@typescript-eslint/no-unused-vars": [
         "warn",

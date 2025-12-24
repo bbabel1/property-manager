@@ -1,6 +1,48 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+type AddressComponent = {
+  long_name: string;
+  short_name: string;
+  types: string[];
+};
+
+type GooglePlaceResult = {
+  address_components?: AddressComponent[];
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+};
+
+type GoogleAutocomplete = {
+  addListener: (eventName: 'place_changed', handler: () => void) => void;
+  getPlace: () => GooglePlaceResult;
+};
+
+type GoogleMapsPlaces = {
+  Autocomplete: new (
+    input: HTMLInputElement,
+    options: { types: string[]; fields: string[] },
+  ) => GoogleAutocomplete;
+};
+
+type GoogleMapsEvent = {
+  clearInstanceListeners: (instance: unknown) => void;
+};
+
+type GoogleMaps = {
+  places?: GoogleMapsPlaces;
+  event?: GoogleMapsEvent;
+};
+
+type GoogleGlobal = {
+  maps?: GoogleMaps;
+  [key: string]: unknown;
+};
 
 interface GooglePlacesAutocompleteProps {
   value: string;
@@ -39,51 +81,20 @@ export default function GooglePlacesAutocomplete({
   autoComplete,
 }: GooglePlacesAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<any>(null);
+  const autocompleteRef = useRef<GoogleAutocomplete | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollListenersRef = useRef<Array<() => void>>([]);
-
-  useEffect(() => {
-    if (window.google && window.google.maps && window.google.maps.places) {
-      initializeAutocomplete();
-      setIsInitialized(true);
-      setIsLoading(false);
-    } else {
-      setIsLoading(true);
-      // Optionally, you could poll for a short time if you expect the script to load after mount
-      const interval = setInterval(() => {
-        if (window.google && window.google.maps && window.google.maps.places) {
-          clearInterval(interval);
-          initializeAutocomplete();
-          setIsInitialized(true);
-          setIsLoading(false);
-        }
-      }, 100);
-      setTimeout(() => clearInterval(interval), 3000); // Stop polling after 3s
-    }
-    return () => {
-      if (autocompleteRef.current && window.google) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-      // Remove global capture handlers
-      document.removeEventListener('mousedown', handlePacClicks, true);
-      document.removeEventListener('touchstart', handlePacClicks, true);
-      document.removeEventListener('click', handlePacClicks, true);
-      // Remove scroll listeners
-      scrollListenersRef.current.forEach((remove) => remove());
-      scrollListenersRef.current = [];
-    };
-  }, []);
+  const getGoogle = useCallback(() => window.google as GoogleGlobal | undefined, []);
 
   // Add scroll listener to reposition dropdown
   useEffect(() => {
     if (!isInitialized || !inputRef.current) return;
 
     const repositionDropdown = () => {
-      const pacContainer = document.querySelector('.pac-container') as HTMLElement;
+      const pacContainer = document.querySelector<HTMLElement>('.pac-container');
       if (!pacContainer || !inputRef.current) {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
@@ -288,16 +299,17 @@ export default function GooglePlacesAutocomplete({
   }, [isInitialized]);
 
   // Capture handler that prevents modal (Radix) outside-click from closing
-  const handlePacClicks = (e: Event) => {
+  const handlePacClicks = useCallback((e: Event) => {
     const tgt = e.target as HTMLElement | null;
     if (!tgt) return;
     if (tgt.closest('.pac-container')) {
       // Stop the outside click from propagating to the overlay
       e.stopPropagation();
     }
-  };
+  }, []);
 
-  const initializeAutocomplete = () => {
+  const initializeAutocomplete = useCallback(() => {
+    const google = getGoogle();
     if (!inputRef.current) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
@@ -316,7 +328,7 @@ export default function GooglePlacesAutocomplete({
       // #endregion
       return;
     }
-    if (!window.google || !window.google.maps || !window.google.maps.places) {
+    if (!google?.maps?.places) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
         method: 'POST',
@@ -351,7 +363,7 @@ export default function GooglePlacesAutocomplete({
         }),
       }).catch(() => {});
       // #endregion
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
+      autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
         types: ['address'],
         fields: ['address_components', 'formatted_address', 'geometry'],
       });
@@ -364,7 +376,7 @@ export default function GooglePlacesAutocomplete({
         document.addEventListener('click', handlePacClicks, true);
 
         // #region agent log
-        const pacContainer = document.querySelector('.pac-container') as HTMLElement;
+        const pacContainer = document.querySelector<HTMLElement>('.pac-container');
         if (pacContainer) {
           const inputRect = inputRef.current?.getBoundingClientRect();
           const pacRect = pacContainer.getBoundingClientRect();
@@ -406,7 +418,9 @@ export default function GooglePlacesAutocomplete({
         // #endregion
       }, 0);
       autocompleteRef.current.addListener('place_changed', () => {
-        const place = autocompleteRef.current.getPlace();
+        const autocomplete = autocompleteRef.current;
+        if (!autocomplete) return;
+        const place = autocomplete.getPlace();
         if (place.address_components) {
           let address = '';
           let streetNumber = '';
@@ -478,7 +492,7 @@ export default function GooglePlacesAutocomplete({
           // heuristics for borough and neighborhood
           const borough = sublocality1 || adminLevel2 || '';
           const neighborhood =
-            place.address_components.find((c: any) => c.types.includes('neighborhood'))
+            place.address_components.find((component) => component.types.includes('neighborhood'))
               ?.long_name ||
             sublocality ||
             sublocality1 ||
@@ -504,7 +518,57 @@ export default function GooglePlacesAutocomplete({
     } catch (error) {
       setError('Failed to initialize autocomplete');
     }
-  };
+  }, [getGoogle, handlePacClicks, onChange, onPlaceSelect]);
+
+  useEffect(() => {
+    const hasPlacesApi = () => {
+      const google = getGoogle();
+      return Boolean(google?.maps?.places);
+    };
+
+    let pollInterval: number | undefined;
+    let stopPolling: number | undefined;
+
+    if (hasPlacesApi()) {
+      initializeAutocomplete();
+      setIsInitialized(true);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+      // Optionally, you could poll for a short time if you expect the script to load after mount
+      pollInterval = window.setInterval(() => {
+        if (hasPlacesApi()) {
+          if (pollInterval !== undefined) {
+            clearInterval(pollInterval);
+          }
+          initializeAutocomplete();
+          setIsInitialized(true);
+          setIsLoading(false);
+        }
+      }, 100);
+      stopPolling = window.setTimeout(() => {
+        if (pollInterval !== undefined) {
+          clearInterval(pollInterval);
+        }
+      }, 3000); // Stop polling after 3s
+    }
+
+    return () => {
+      if (pollInterval !== undefined) clearInterval(pollInterval);
+      if (stopPolling !== undefined) clearTimeout(stopPolling);
+      if (autocompleteRef.current) {
+        const google = getGoogle();
+        google?.maps?.event?.clearInstanceListeners?.(autocompleteRef.current);
+      }
+      // Remove global capture handlers
+      document.removeEventListener('mousedown', handlePacClicks, true);
+      document.removeEventListener('touchstart', handlePacClicks, true);
+      document.removeEventListener('click', handlePacClicks, true);
+      // Remove scroll listeners
+      scrollListenersRef.current.forEach((remove) => remove());
+      scrollListenersRef.current = [];
+    };
+  }, [getGoogle, handlePacClicks, initializeAutocomplete]);
 
   return (
     <div className="relative" ref={containerRef}>

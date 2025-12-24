@@ -1,4 +1,4 @@
-import { PageBody, PageShell, Stack } from '@/components/layout/page-shell';
+import { PageBody, Stack } from '@/components/layout/page-shell';
 import { PropertyService } from '@/lib/property-service';
 import ServiceBillingEvents from '@/components/financials/ServiceBillingEvents';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';

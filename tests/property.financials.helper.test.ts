@@ -1,16 +1,18 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+
 let fetchPropertyFinancials!: typeof import('@/server/financials/property-finance').fetchPropertyFinancials;
 
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
+type DataResponse<T> = { data: T; error: null };
 
 class MockQuery {
   private rows: Row[];
   private filterField?: string;
-  private filterValue: any;
+  private filterValue?: unknown;
   private inField?: string;
-  private inValues?: any[];
+  private inValues?: unknown[];
   private lteField?: string;
-  private lteValue?: any;
+  private lteValue?: unknown;
 
   constructor(rows: Row[]) {
     this.rows = rows;
@@ -18,102 +20,103 @@ class MockQuery {
   select() {
     return this;
   }
-  eq(field: string, value: any) {
+  eq(field: string, value: unknown) {
     this.filterField = field;
     this.filterValue = value;
     return this;
   }
-  in(field: string, values: any[]) {
+  in(field: string, values: unknown[]) {
     this.inField = field;
     this.inValues = values;
     return this;
   }
-  lte(field: string, value: any) {
+  lte(field: string, value: unknown) {
     this.lteField = field;
     this.lteValue = value;
     return this;
   }
-  async single() {
+  async single(): Promise<DataResponse<Row | null>> {
     const filtered = await this.getData();
     return { data: filtered[0] ?? null, error: null };
   }
-  async maybeSingle() {
+  async maybeSingle(): Promise<DataResponse<Row | null>> {
     return this.single();
   }
-  async thenResolve() {
+  async thenResolve(): Promise<Row[]> {
     return this.getData();
   }
-  async getData() {
+  async getData(): Promise<Row[]> {
     return this.applyFilters(this.rows);
   }
-  async returns() {
+  async returns(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsObject() {
+  async returnsObject(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsArray() {
+  async returnsArray(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsUndefined() {
+  async returnsUndefined(): Promise<{ data: undefined; error: null }> {
     return { data: undefined, error: null };
   }
-  async returnsNull() {
+  async returnsNull(): Promise<DataResponse<null>> {
     return { data: null, error: null };
   }
-  async returnsAny() {
+  async returnsAny(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async get() {
+  async get(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsList() {
+  async returnsList(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsMaybeSingle() {
+  async returnsMaybeSingle(): Promise<DataResponse<Row | null>> {
     const data = await this.getData();
     return { data: data[0] ?? null, error: null };
   }
-  async returnsWithError(error: any) {
+  async returnsWithError(error: unknown): Promise<{ data: null; error: unknown }> {
     return { data: null, error };
   }
-  async returnsData() {
+  async returnsData(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async run() {
+  async run(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsSelect() {
+  async returnsSelect(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsInfo() {
+  async returnsInfo(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsMaybe() {
+  async returnsMaybe(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsDefault() {
+  async returnsDefault(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsFull() {
+  async returnsFull(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  async returnsAnyArray() {
+  async returnsAnyArray(): Promise<DataResponse<Row[]>> {
     return { data: await this.getData(), error: null };
   }
-  then(resolve: any, reject?: any) {
-    return (async () => ({ data: await this.getData(), error: null }))().then(resolve, reject);
+  then(resolve: (value: DataResponse<Row[]>) => unknown, reject?: (reason: unknown) => unknown) {
+    return (async () => ({ data: await this.getData(), error: null as null }))().then(resolve, reject);
   }
-  private applyFilters(rows: Row[]) {
+  private applyFilters(rows: Row[]): Row[] {
     return rows.filter((r) => {
       if (this.filterField && this.filterValue !== undefined) {
-        if (r[this.filterField] != this.filterValue) return false;
+        if ((r as Record<string, unknown>)[this.filterField] != this.filterValue) return false;
       }
       if (this.inField && Array.isArray(this.inValues)) {
-        if (!this.inValues.map(String).includes(String(r[this.inField]))) return false;
+        const value = (r as Record<string, unknown>)[this.inField];
+        if (!this.inValues.map(String).includes(String(value))) return false;
       }
-      if (this.lteField && this.lteValue !== undefined && r[this.lteField] !== undefined) {
-        if (new Date(r[this.lteField]) > new Date(this.lteValue)) return false;
+      if (this.lteField && this.lteValue !== undefined && (r as Record<string, unknown>)[this.lteField] !== undefined) {
+        if (new Date((r as Record<string, string>)[this.lteField]) > new Date(this.lteValue as string)) return false;
       }
       return true;
     });
@@ -122,8 +125,8 @@ class MockQuery {
 
 class MockClient {
   private tables: Record<string, Row[]>;
-  private rpcData: any = null;
-  constructor(tables: Record<string, Row[]>, rpcData: any = null) {
+  private rpcData: unknown = null;
+  constructor(tables: Record<string, Row[]>, rpcData: unknown = null) {
     this.tables = tables;
     this.rpcData = rpcData;
   }
@@ -191,7 +194,7 @@ describe('fetchPropertyFinancials helper', () => {
     { id: 'tx-rent', lease_id: leaseId, total_amount: 5050, transaction_type: 'Payment', date: '2025-12-18' },
   ];
 
-  const linesOnlyTransactions: any[] = []; // simulate missing transactions table
+  const linesOnlyTransactions: Row[] = []; // simulate missing transactions table
 
   it('derives finances when RPC is empty (payment fallback + deposit matching)', async () => {
     const mock = new MockClient(
@@ -203,7 +206,7 @@ describe('fetchPropertyFinancials helper', () => {
         transactions,
       },
       null, // rpc data -> force fallback
-    ) as any;
+    ) as unknown as Parameters<typeof fetchPropertyFinancials>[2];
 
     const { fin } = await fetchPropertyFinancials(propertyId, '2025-12-19', mock);
     expect(fin.cash_balance).toBe(10050);
@@ -221,7 +224,7 @@ describe('fetchPropertyFinancials helper', () => {
         transactions: linesOnlyTransactions,
       },
       null,
-    ) as any;
+    ) as unknown as Parameters<typeof fetchPropertyFinancials>[2];
 
     const { fin } = await fetchPropertyFinancials(propertyId, '2025-12-19', mock);
     expect(fin.cash_balance).toBe(10050);

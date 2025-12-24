@@ -36,7 +36,8 @@ Buildium credentials are managed per-organization through the UI:
   - `Accept`: `application/json`
   - `Content-Type`: `application/json` (for POST/PUT requests)
 
-**Note**: Credentials are automatically retrieved from the database (or env fallback) by the Buildium client. You should never hardcode credentials in code.
+**Note**: Credentials are automatically retrieved from the database (or env fallback) by the Buildium client. You should
+never hardcode credentials in code.
 
 ## Common Endpoints
 
@@ -163,8 +164,12 @@ Buildium uses a two-step file upload process:
 3. **Sync to Local Database**:
    - Use `/api/buildium/files/uploadrequests` endpoint
    - File will be automatically associated with entity via `entity_type` and `entity_id`
-   - The application-level `/api/files/upload` endpoint now orchestrates this automatically for any entity that has a Buildium ID (property, unit, lease, tenant, owner, vendor, bill). When the upload succeeds, the returned Buildium file identifiers are persisted back onto the local record.
-   - Portal sharing can be updated via `/api/files/{id}/sharing` (with the file’s `buildium_file_id`). Payloads must include both tenant and rental-owner flags; the handler maps to the appropriate Buildium sharing scopes based on the file’s entity type (lease, property, unit, etc.).
+   - The application-level `/api/files/upload` endpoint now orchestrates this automatically for any entity that has a
+     Buildium ID (property, unit, lease, tenant, owner, vendor, bill). When the upload succeeds, the returned Buildium
+     file identifiers are persisted back onto the local record.
+   - Portal sharing can be updated via `/api/files/{id}/sharing` (with the file’s `buildium_file_id`). Payloads must
+     include both tenant and rental-owner flags; the handler maps to the appropriate Buildium sharing scopes based on the
+     file’s entity type (lease, property, unit, etc.).
 
 ### File Operations
 
@@ -173,7 +178,8 @@ Buildium uses a two-step file upload process:
 - **PUT** `/files/{id}` - Update file metadata
 - **POST** `/files/{id}/download` - Get download URL (presigned)
 
-**Entity Types**: Account, Association, AssociationOwner, AssociationUnit, Lease, OwnershipAccount, PublicAsset, Rental, RentalOwner, RentalUnit, Tenant, Vendor
+**Entity Types**: Account, Association, AssociationOwner, AssociationUnit, Lease, OwnershipAccount, PublicAsset, Rental,
+RentalOwner, RentalUnit, Tenant, Vendor
 
 ## Common Patterns
 
@@ -181,7 +187,7 @@ Buildium uses a two-step file upload process:
 
 Most endpoints support pagination with `limit` and `offset` parameters:
 
-```
+```http
 GET /rentals?limit=50&offset=0
 ```
 
@@ -189,7 +195,7 @@ GET /rentals?limit=50&offset=0
 
 Many endpoints support filtering by various parameters:
 
-```
+```http
 GET /leases?propertyId=123&status=Active
 ```
 
@@ -207,9 +213,12 @@ if (!response.ok) {
 
 ## Important Notes
 
-1. **API Documentation Priority**: ALWAYS reference the official "Open API, powered by Buildium (v1)" documentation first when working with any Buildium-related functions. This documentation is the authoritative source for endpoints, request/response schemas, and API behavior.
+1. **API Documentation Priority**: ALWAYS reference the official "Open API, powered by Buildium (v1)" documentation first
+   when working with any Buildium-related functions. This documentation is the authoritative source for endpoints,
+   request/response schemas, and API behavior.
 
-2. **Schema Consolidation**: The project now uses enhanced schemas (`BuildiumPropertyCreateEnhancedSchema`, `BuildiumPropertyUpdateEnhancedSchema`) for all property operations. These schemas provide:
+2. **Schema Consolidation**: The project now uses enhanced schemas (`BuildiumPropertyCreateEnhancedSchema`,
+   `BuildiumPropertyUpdateEnhancedSchema`) for all property operations. These schemas provide:
    - Better validation with max length constraints
    - Simplified PropertyType enum (`'Rental'`, `'Association'`, `'Commercial'`)
    - Additional fields like `OperatingBankAccountId` and `Reserve`
@@ -221,7 +230,8 @@ if (!response.ok) {
 
 5. **Environment Variables**: Use `.env.local` for local development and ensure all Buildium credentials are properly configured.
 
-6. **Error Logging**: Log actionable context for debugging, but never log secrets, API keys, or personally identifiable information (PII).
+6. **Error Logging**: Log actionable context for debugging, but never log secrets, API keys, or personally identifiable
+   information (PII).
 
 ## Troubleshooting
 

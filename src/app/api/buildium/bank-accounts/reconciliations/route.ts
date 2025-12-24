@@ -3,7 +3,18 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 
-export async function GET(request: NextRequest) {
+type ReconciliationResponse = Record<string, unknown>
+
+const coerceNumericId = (value: unknown) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export async function GET(_request: NextRequest) {
   try {
     // Authentication
     await requireRole('platform_admin')
@@ -47,7 +58,7 @@ export async function POST(request: NextRequest) {
     logger.info({ action: 'create_buildium_reconciliation' }, 'Creating Buildium reconciliation');
 
     // Parse request body
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
 
     // Buildium API call
     const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/reconciliations', {
@@ -65,55 +76,64 @@ export async function POST(request: NextRequest) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newReconciliation = await response.json();
+    const newReconciliation = (await response.json()) as ReconciliationResponse;
 
     // Upsert reconciliation_log (pending)
     try {
       const admin = supabaseAdmin
       if (admin) {
-        const buildiumReconciliationId = newReconciliation?.Id ?? newReconciliation?.id
-        const buildiumBankAccountId = (body?.BankAccountId ?? body?.bankAccountId ?? newReconciliation?.BankAccountId ?? newReconciliation?.bankAccountId) as number | undefined
-        const statementEndingDate = (body?.StatementEndingDate ?? body?.statementEndingDate ?? newReconciliation?.StatementEndingDate ?? newReconciliation?.statementEndingDate) as string | undefined
+        const buildiumReconciliationId =
+          coerceNumericId(newReconciliation?.Id) ?? coerceNumericId(newReconciliation?.id)
+        const buildiumBankAccountId =
+          coerceNumericId(body?.BankAccountId) ??
+          coerceNumericId(body?.bankAccountId) ??
+          coerceNumericId(newReconciliation?.BankAccountId) ??
+          coerceNumericId(newReconciliation?.bankAccountId)
+        const statementEndingDate =
+          (body?.StatementEndingDate as string | undefined) ??
+          (body?.statementEndingDate as string | undefined) ??
+          (newReconciliation?.StatementEndingDate as string | undefined) ??
+          (newReconciliation?.statementEndingDate as string | undefined)
 
 	        // Resolve local bank/gl/property
         let bank_gl_account_id: string | null = null
         let gl_account_id: string | null = null
         let property_id: string | null = null
         if (buildiumBankAccountId != null) {
-          const { data: bankGl } = await admin
-            .from('gl_accounts')
-            .select('id')
-            .eq('buildium_gl_account_id', buildiumBankAccountId)
-            .maybeSingle()
+	          const { data: bankGl } = await admin
+	            .from('gl_accounts')
+	            .select('id')
+	            .eq('buildium_gl_account_id', buildiumBankAccountId)
+	            .maybeSingle<{ id: string }>()
 
           if (bankGl) {
             bank_gl_account_id = bankGl.id
             gl_account_id = bankGl.id
 	          }
 
-	          // Map to property via operating/deposit linkage (bank GL FK model)
+		          // Map to property via operating/deposit linkage (bank GL FK model)
 	          if (bank_gl_account_id) {
 	            const { data: prop } = await admin
-	              .from('properties')
-	              .select('id')
-	              .or(
-	                [
-	                  bank_gl_account_id ? `operating_bank_gl_account_id.eq.${bank_gl_account_id}` : null,
-	                  bank_gl_account_id ? `deposit_trust_gl_account_id.eq.${bank_gl_account_id}` : null,
-	                ].filter(Boolean).join(','),
-	              )
-	              .limit(1)
-	              .maybeSingle()
+		              .from('properties')
+		              .select('id')
+		              .or(
+		                [
+		                  bank_gl_account_id ? `operating_bank_gl_account_id.eq.${bank_gl_account_id}` : null,
+		                  bank_gl_account_id ? `deposit_trust_gl_account_id.eq.${bank_gl_account_id}` : null,
+		                ].filter(Boolean).join(','),
+		              )
+		              .limit(1)
+		              .maybeSingle<{ id: string }>()
 	            if (prop) property_id = prop.id
 	          }
 	        }
 
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           buildium_reconciliation_id: buildiumReconciliationId,
           buildium_bank_account_id: buildiumBankAccountId ?? null,
           statement_ending_date: statementEndingDate ?? null,
           is_finished: Boolean(newReconciliation?.IsFinished ?? newReconciliation?.isFinished ?? false),
-	          ending_balance: null,
+		          ending_balance: null,
 	          total_checks_withdrawals: null,
 	          total_deposits_additions: null,
 	          bank_gl_account_id,
@@ -124,8 +144,8 @@ export async function POST(request: NextRequest) {
         await admin.from('reconciliation_log')
           .upsert(payload, { onConflict: 'buildium_reconciliation_id' })
       }
-    } catch (e) {
-      logger.warn({ e }, 'Reconciliation log upsert (create) failed; continuing')
+    } catch {
+      logger.warn('Reconciliation log upsert (create) failed; continuing')
     }
 
     return NextResponse.json({

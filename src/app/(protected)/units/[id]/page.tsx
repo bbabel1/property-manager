@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 type Unit = {
@@ -26,13 +25,15 @@ type Unit = {
   is_active?: boolean | null
 }
 
+type UnitTab = 'overview' | 'financials' | 'monthly-log' | 'inspections' | 'appliances'
+
 export default function UnitDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [unit, setUnit] = useState<Unit | null>(null)
   const [propertyName, setPropertyName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'monthly-log' | 'inspections' | 'appliances'>('overview')
+  const [activeTab, setActiveTab] = useState<UnitTab>('overview')
 
   useEffect(() => {
     const load = async () => {
@@ -152,7 +153,7 @@ export default function UnitDetailsPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v)=>setActiveTab(v as any)}>
+      <Tabs value={activeTab} onValueChange={(v)=>setActiveTab(v as UnitTab)}>
         <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="overview" className="flex items-center gap-2"><Building2 className="h-4 w-4"/>Overview</TabsTrigger>
           <TabsTrigger value="financials" className="flex items-center gap-2"><DollarSign className="h-4 w-4"/>Financials</TabsTrigger>

@@ -202,19 +202,31 @@ All errors are logged with context and re-thrown with descriptive messages.
 
 ## Testing
 
-Run the test script to verify functionality:
+Run the test script to verify functionality (requires `--property`):
 
 ```bash
-npx tsx scripts/test-management-service.ts
+npx tsx scripts/test-management-service.ts --property <property-id> [--unit <unit-id>] [--plan "Plan"] [--services "A,B"] [--bill "Notes"]
 ```
 
-The test script will:
+The script fetches the current configuration for the property (and optional unit) and, when `--plan`
+is provided, applies the update with optional `--services` and `--bill` overrides.
 
-1. Test property-level configuration retrieval
-2. Test unit-level configuration retrieval
-3. Test units service configurations listing
-4. Test configuration updates for both levels
-5. Verify conditional logic behavior
+## UI
+
+- Property-level configuration: `Properties → Services` now uses the Management Service API (GET/PUT
+  `/api/management-service/config`) for plan, services, and billing notes.
+- Unit-level configuration: `Unit → Services` tab displays the unit’s Management Service config and
+  edits via the same API when the property is in Unit Level mode.
+- A-la-carte guidance: the UI now prompts to select at least one service when using the A-la-carte
+  plan, and displays a fee summary (amount/percent/frequency).
+
+## Legacy Data Hygiene
+
+- Run `npx tsx scripts/maintenance/check-legacy-management-services.ts` to detect whether legacy
+  `active_services` columns still exist.
+- If they do, backfill into `service_plan_assignments` and `service_offering_assignments` using the
+  pattern in migration `20270127122000_backfill_service_plan_assignments_from_legacy.sql`, then drop
+  the legacy columns to avoid confusion.
 
 ## Migration Notes
 

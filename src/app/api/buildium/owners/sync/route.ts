@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
 import { upsertOwnerFromBuildium } from '@/lib/buildium-mappers'
+import type { BuildiumOwner } from '@/types/buildium'
 
 // Bulk sync Buildium owners into the local database.
 // Body supports either { ids: number[] } or a filter window:
@@ -17,8 +16,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-  const auth = await requireRole('platform_admin')
-  const userId = auth.user.id
+    const auth = await requireRole('platform_admin')
+    const userId = auth.user.id
 
     const body = await request.json().catch(() => ({}))
     const ids: number[] | undefined = Array.isArray(body?.ids) ? body.ids : undefined
@@ -27,7 +26,7 @@ export async function POST(request: NextRequest) {
     const limit: number = Math.max(1, Math.min(1000, Number(body?.limit ?? 100)))
     const offset: number = Math.max(0, Number(body?.offset ?? 0))
 
-    let owners: any[] = []
+    let owners: BuildiumOwner[] = []
 
     if (ids && ids.length > 0) {
       // Fetch each owner by id from Buildium
@@ -41,7 +40,7 @@ export async function POST(request: NextRequest) {
           }
         })
         if (res.ok) {
-          const data = await res.json()
+          const data = (await res.json()) as BuildiumOwner
           owners.push(data)
         } else {
           logger.warn({ id, status: res.status }, 'Failed to fetch owner by id from Buildium')
@@ -66,8 +65,8 @@ export async function POST(request: NextRequest) {
         const txt = await res.text().catch(() => '')
         return NextResponse.json({ error: 'Failed to list Buildium owners', details: txt }, { status: res.status })
       }
-      owners = await res.json()
-      if (!Array.isArray(owners)) owners = []
+      const list = (await res.json()) as unknown
+      owners = Array.isArray(list) ? (list as BuildiumOwner[]) : []
     }
 
     // Upsert owners to local DB

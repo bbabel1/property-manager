@@ -30,7 +30,7 @@ function shouldUsePretty(): boolean {
   const nextWorker = process.env.NEXT_PRIVATE_WORKER === 'true' || process.env.NEXT_WORKER === 'true'
   if (isEdge || isVercel || isLambda || nextWorker) return false
   // TTY check helps local terminals only
-  try { return !!(process.stdout as any)?.isTTY } catch { return false }
+  try { return Boolean(process.stdout?.isTTY) } catch { return false }
 }
 
 export const logger = pino({

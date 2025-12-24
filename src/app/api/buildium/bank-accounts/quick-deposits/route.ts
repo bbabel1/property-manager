@@ -3,7 +3,18 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
 
-export async function GET(request: NextRequest) {
+type QuickDepositResponse = Record<string, unknown>
+
+const coerceNumericId = (value: unknown) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export async function GET(_request: NextRequest) {
   try {
     // Authentication
     const { user } = await requireRole('platform_admin')
@@ -65,19 +76,19 @@ export async function POST(request: NextRequest) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newQuickDeposit = await response.json();
+    const newQuickDeposit = (await response.json()) as QuickDepositResponse;
 
     try {
       const bankAccountId =
-        (newQuickDeposit as any)?.BankAccountId ??
-        (newQuickDeposit as any)?.bankAccountId ??
-        (body as any)?.BankAccountId ??
-        (body as any)?.bankAccountId;
+        coerceNumericId(newQuickDeposit?.BankAccountId) ??
+        coerceNumericId(newQuickDeposit?.bankAccountId) ??
+        coerceNumericId((body as QuickDepositResponse)?.BankAccountId) ??
+        coerceNumericId((body as QuickDepositResponse)?.bankAccountId);
       const transactionId =
-        (newQuickDeposit as any)?.Id ??
-        (newQuickDeposit as any)?.TransactionId ??
-        (newQuickDeposit as any)?.id ??
-        (newQuickDeposit as any)?.transactionId;
+        coerceNumericId(newQuickDeposit?.Id) ??
+        coerceNumericId(newQuickDeposit?.TransactionId) ??
+        coerceNumericId(newQuickDeposit?.id) ??
+        coerceNumericId(newQuickDeposit?.transactionId);
       if (bankAccountId && transactionId) {
         await canonicalUpsertBuildiumBankTransaction({
           bankAccountId,

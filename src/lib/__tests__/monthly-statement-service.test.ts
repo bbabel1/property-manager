@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { TypedSupabaseClient } from '@/lib/db';
 
 // Stub Next.js server-only module used in the service
 vi.mock('server-only', () => ({}));
@@ -22,9 +23,77 @@ vi.mock('@/lib/monthly-log-calculations', () => ({
 
 // Minimal Supabase client stub that respects eq filters on nested paths
 vi.mock('@/lib/db', () => {
-  type Row = Record<string, any>;
+  type StatementProperty = {
+    name: string;
+    address_line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+  };
 
-  const tableData: Record<string, Row[]> = {
+  type StatementUnit = {
+    unit_number: string;
+    unit_name: string | null;
+  };
+
+  type MonthlyLogRowStub = {
+    id: string;
+    period_start: string;
+    property_id: string;
+    unit_id: string;
+    tenant_id: string | null;
+    charges_amount: number;
+    payments_amount: number;
+    bills_amount: number;
+    escrow_amount: number;
+    management_fees_amount: number;
+    previous_lease_balance: number;
+    properties: StatementProperty;
+    units: StatementUnit;
+  };
+
+  type TransactionLineRowStub = {
+    id: string;
+    date: string;
+    memo: string;
+    amount: number;
+    posting_type: 'Credit' | 'Debit' | string;
+    transactions: {
+      id: string;
+      date: string;
+      transaction_type: string;
+      monthly_log_id: string;
+      memo: string;
+    };
+    gl_accounts: {
+      name: string;
+      default_account_name: string;
+      type: string;
+      gl_account_category: { category: string };
+    };
+  };
+
+  type OwnershipContactStub = {
+    display_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    company_name?: string | null;
+  };
+
+  type OwnershipRowStub = {
+    owners?: {
+      company_name?: string | null;
+      contacts?: OwnershipContactStub | OwnershipContactStub[] | null;
+    } | null;
+  };
+
+  type TableData = {
+    monthly_logs: MonthlyLogRowStub[];
+    transaction_lines: TransactionLineRowStub[];
+    ownerships: OwnershipRowStub[];
+  };
+
+  const tableData: TableData = {
     monthly_logs: [
       {
         id: 'log-1',
@@ -116,49 +185,59 @@ vi.mock('@/lib/db', () => {
     ownerships: [],
   };
 
-  const getValue = (row: Row, path: string) => {
-    return path.split('.').reduce((acc: any, key) => (acc ? acc[key] : undefined), row);
+  const getValue = <TName extends keyof TableData>(
+    row: TableData[TName][number],
+    path: string,
+  ) => {
+    return path.split('.').reduce<unknown>((acc, key) => {
+      if (acc && typeof acc === 'object' && key in acc) {
+        return (acc as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, row);
   };
 
-  class QueryBuilder {
-    private table: string;
-    private filters: Array<{ column: string; value: any; type: 'eq' | 'in' }> = [];
+  type Filter = { column: string; value: unknown; type: 'eq' | 'in' };
 
-    constructor(table: string) {
+  class QueryBuilder<TName extends keyof TableData> {
+    private table: TName;
+    private filters: Filter[] = [];
+
+    constructor(table: TName) {
       this.table = table;
     }
 
-    select() {
+    select(_columns?: string) {
       return this;
     }
 
-    eq(column: string, value: any) {
+    eq(column: string, value: unknown) {
       this.filters.push({ column, value, type: 'eq' });
       return this;
     }
 
-    in(column: string, value: any[]) {
+    in(column: string, value: unknown[]) {
       this.filters.push({ column, value, type: 'in' });
       return this;
     }
 
-    order() {
+    order(_column?: string, _options?: { ascending?: boolean }) {
       const data = this.applyFilters();
-      return Promise.resolve({ data, error: null });
+      return Promise.resolve({ data, error: null as null });
     }
 
     single() {
-      const data = this.applyFilters()[0] ?? null;
-      return Promise.resolve({ data, error: null });
+      const data = (this.applyFilters()[0] ?? null) as TableData[TName][number] | null;
+      return Promise.resolve({ data, error: null as null });
     }
 
     maybeSingle() {
-      const data = this.applyFilters()[0] ?? null;
-      return Promise.resolve({ data, error: null });
+      const data = (this.applyFilters()[0] ?? null) as TableData[TName][number] | null;
+      return Promise.resolve({ data, error: null as null });
     }
 
-    private applyFilters(): Row[] {
-      const rows = tableData[this.table] ?? [];
+    private applyFilters(): TableData[TName] {
+      const rows = (tableData[this.table] ?? []) as TableData[TName];
       return rows.filter((row) =>
         this.filters.every((filter) => {
           const value = getValue(row, filter.column);
@@ -170,13 +249,13 @@ vi.mock('@/lib/db', () => {
           }
           return true;
         }),
-      );
+      ) as unknown as TableData[TName];
     }
   }
 
   const supabaseAdmin = {
-    from: (table: string) => new QueryBuilder(table),
-  };
+    from: <TName extends keyof TableData>(table: TName) => new QueryBuilder<TName>(table),
+  } as unknown as TypedSupabaseClient;
 
   return { supabaseAdmin };
 });
