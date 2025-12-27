@@ -49,16 +49,29 @@ export default function StaffWizardModal({
             .then((r) => r.json())
             .catch(() => []),
         ]);
-        setOrgs(o.organizations || []);
-        const rawProperties =
-          (Array.isArray(p)
-            ? p
-            : p && typeof p === 'object' && Array.isArray((p as { items?: unknown }).items)
-              ? (p as { items?: unknown }).items
-              : []) ?? [];
-        const normalized = rawProperties.flatMap((item) => {
+        const orgPayload = (o as { organizations?: Array<{ id?: string | number; name?: string | null }> | null }) || {};
+        setOrgs(
+          Array.isArray(orgPayload.organizations)
+            ? orgPayload.organizations.map((org) => ({
+                id: String(org?.id ?? ''),
+                name: typeof org?.name === 'string' ? org.name : String(org?.id ?? ''),
+              }))
+            : [],
+        );
+        const propertiesPayload = p as
+          | Array<{ id?: string | number; name?: string | null }>
+          | { items?: Array<{ id?: string | number; name?: string | null }> | null }
+          | null;
+        const rawProperties: Array<{ id?: string | number; name?: string | null }> = Array.isArray(
+          propertiesPayload,
+        )
+          ? propertiesPayload
+          : propertiesPayload && typeof propertiesPayload === 'object' && Array.isArray(propertiesPayload.items)
+            ? propertiesPayload.items || []
+            : [];
+        const normalized = rawProperties.flatMap((item: { id?: string | number; name?: string | null }) => {
           if (!item || typeof item !== 'object') return [];
-          const { id, name } = item as { id?: string | number; name?: string | null };
+          const { id, name } = item;
           if (id == null) return [];
           return [{ id: String(id), name: typeof name === 'string' ? name : String(id) }];
         });

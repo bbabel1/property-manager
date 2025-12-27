@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitAmenitiesUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,19 +23,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/amenities`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/amenities`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit amenities fetch failed`);
 
       return NextResponse.json(
@@ -46,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const amenities = await response.json();
+    const amenities = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium unit amenities fetched successfully`);
 
@@ -90,21 +82,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumUnitAmenitiesUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/amenities`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PUT', `/rentals/units/${id}/amenities`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit amenities update failed`);
 
       return NextResponse.json(
@@ -116,7 +97,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const amenities = await response.json();
+    const amenities = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium unit amenities updated successfully`);
 

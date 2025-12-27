@@ -8,7 +8,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     await requireUser(request);
     const supabase = await getSupabaseServerClient();
-    const fileId = (await params).id;
+    const { id: fileId } = await params;
 
     if (!fileId) {
       return NextResponse.json({ error: 'Missing file id' }, { status: 400 });
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     const admin = requireSupabaseAdmin('files update');
 
-    const fileId = (await params).id;
+    const { id: fileId } = await params;
     if (!fileId) {
       return NextResponse.json({ error: 'Missing file id' }, { status: 400 });
     }

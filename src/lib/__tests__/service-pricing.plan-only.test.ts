@@ -1,13 +1,5 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { TypedSupabaseClient } from '@/lib/db';
-
-beforeAll(() => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost';
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-key';
-  process.env.SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role';
-});
 
 const supabaseStub = {} as unknown as TypedSupabaseClient;
 

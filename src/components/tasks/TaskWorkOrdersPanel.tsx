@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarDays, ClipboardList, MapPin, Phone, User, Users } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ClipboardList, MapPin, User, Users } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

@@ -1,5 +1,7 @@
 # Architecture Overview
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 This app is organized around clear layers and domain modules to keep UI, data access, and validation predictable.
 
 ## Layers

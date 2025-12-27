@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileUploadRequestSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 /**
  * POST /api/buildium/files/uploadrequests
@@ -29,21 +30,10 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumFileUploadRequestSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/uploadrequests`;
-
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', '/files/uploadrequests', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(
         {
           error: errorData,
@@ -62,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const uploadResponse = await response.json();
+    const uploadResponse = response.json ?? {};
 
     logger.info(
       {

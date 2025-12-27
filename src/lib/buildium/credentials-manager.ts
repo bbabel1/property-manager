@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Buildium Credentials Manager
  * 
@@ -16,6 +15,7 @@
 import { supabaseAdmin } from '@/lib/db';
 import { encryptToken, decryptToken } from '@/lib/gmail/token-encryption';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/types/database';
 
 // Type definitions
 export type BuildiumConfig = {
@@ -61,24 +61,24 @@ const RESERVED_ENV_CACHE_KEY = '__env__';
  * Validate Buildium base URL against allowlist
  * Extracts hostname via URL parsing (handles protocol, trailing slash, query strings)
  */
-export function validateBuildiumBaseUrl(url: string): boolean {
-  try {
-    // Handle URLs with or without protocol
-    let urlToParse = url.trim();
-    if (!urlToParse.startsWith('http://') && !urlToParse.startsWith('https://')) {
-      urlToParse = `https://${urlToParse}`;
-    }
-
-    const parsedUrl = new URL(urlToParse);
-    const hostname = parsedUrl.hostname.toLowerCase();
-
-    // Allowlist: apisandbox.buildium.com, api.buildium.com
-    const allowedHostnames = ['apisandbox.buildium.com', 'api.buildium.com'];
-    return allowedHostnames.includes(hostname);
-  } catch (error) {
-    return false;
-  }
-}
+	export function validateBuildiumBaseUrl(url: string): boolean {
+	  try {
+	    // Handle URLs with or without protocol
+	    let urlToParse = url.trim();
+	    if (!urlToParse.startsWith('http://') && !urlToParse.startsWith('https://')) {
+	      urlToParse = `https://${urlToParse}`;
+	    }
+	
+	    const parsedUrl = new URL(urlToParse);
+	    const hostname = parsedUrl.hostname.toLowerCase();
+	
+	    // Allowlist: apisandbox.buildium.com, api.buildium.com
+	    const allowedHostnames = ['apisandbox.buildium.com', 'api.buildium.com'];
+	    return allowedHostnames.includes(hostname);
+	  } catch {
+	    return false;
+	  }
+	}
 
 /**
  * Mask secret for display in logs and API responses
@@ -309,41 +309,36 @@ export async function storeBuildiumCredentials(
     throw new Error('webhookSecret is required for new integration');
   }
 
-  // Insert or update (avoid ON CONFLICT to work without a unique index in dev)
-  const action: 'INSERT' | 'UPDATE' = existing ? 'UPDATE' : 'INSERT';
-  let data;
-  if (existing) {
-    const { data: updated, error } = await supabaseAdmin
+	  // Insert or update (avoid ON CONFLICT to work without a unique index in dev)
+	  const action: 'INSERT' | 'UPDATE' = existing ? 'UPDATE' : 'INSERT';
+	  if (existing) {
+	    const updatePayload = updateData as Database['public']['Tables']['buildium_integrations']['Update'];
+	    const { data: updated, error } = await supabaseAdmin
       .from('buildium_integrations')
-      .update({
-        ...updateData,
-        deleted_at: null, // revive if previously soft deleted
-      })
+      .update(updatePayload)
       .eq('org_id', orgId)
       .is('deleted_at', null)
       .select()
       .maybeSingle();
-
-    if (error || !updated) {
-      throw new Error(`Failed to store Buildium credentials: ${error?.message || 'Unknown error'}`);
-    }
-    data = updated;
-  } else {
-    const { data: inserted, error } = await supabaseAdmin
+	
+	    if (error || !updated) {
+	      throw new Error(`Failed to store Buildium credentials: ${error?.message || 'Unknown error'}`);
+	    }
+	  } else {
+	    const insertPayload = updateData as Database['public']['Tables']['buildium_integrations']['Insert'];
+	    const { data: inserted, error } = await supabaseAdmin
       .from('buildium_integrations')
       .insert({
-        ...updateData,
-        deleted_at: null,
+        ...insertPayload,
         created_at: new Date().toISOString(),
       })
       .select()
       .single();
-
-    if (error || !inserted) {
-      throw new Error(`Failed to store Buildium credentials: ${error?.message || 'Unknown error'}`);
-    }
-    data = inserted;
-  }
+	
+	    if (error || !inserted) {
+	      throw new Error(`Failed to store Buildium credentials: ${error?.message || 'Unknown error'}`);
+	    }
+	  }
 
   // Write audit log with masked secrets
   const maskedChanges: Record<string, any> = {};

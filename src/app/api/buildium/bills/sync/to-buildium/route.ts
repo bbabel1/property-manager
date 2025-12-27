@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers'
 
@@ -40,28 +41,17 @@ export async function POST(request: NextRequest) {
 
     // Create or Update
     const isUpdate = typeof tx.buildium_bill_id === 'number' && tx.buildium_bill_id > 0
-    const buildiumUrl = isUpdate
-      ? `${process.env.BUILDIUM_BASE_URL}/bills/${tx.buildium_bill_id}`
-      : `${process.env.BUILDIUM_BASE_URL}/bills`
+    const path = isUpdate ? `/bills/${tx.buildium_bill_id}` : '/bills'
 
-    const response = await fetch(buildiumUrl, {
-      method: isUpdate ? 'PUT' : 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(payload)
-    })
+    const response = await buildiumFetch(isUpdate ? 'PUT' : 'POST', path, undefined, payload, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Push bill to Buildium failed')
       return NextResponse.json({ error: 'Failed to sync bill to Buildium', details: errorData }, { status: response.status })
     }
 
-    const buildiumBill = await response.json()
+    const buildiumBill = response.json ?? {}
     const newBuildiumId = buildiumBill?.Id as number | undefined
     if (newBuildiumId && !isUpdate) {
       // Update local transaction with newly assigned Buildium Bill Id

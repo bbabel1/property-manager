@@ -4,6 +4,7 @@ import {
   requireSupabaseAdmin,
   SupabaseAdminUnavailableError,
 } from '@/lib/supabase-client';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 /**
  * GET /api/bills/[id]/files/[fileId]/presign
@@ -158,21 +159,14 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: 'Missing Buildium file id' }, { status: 400 });
     }
-    const base = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
-    const headers = {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-    };
-    const res = await fetch(`${base}/files/${id}/download`, { method: 'POST', headers });
+    const res = await buildiumFetch('POST', `/files/${id}/download`, undefined, undefined, resolvedOrgId);
     if (!res.ok) {
       return NextResponse.json(
         { error: 'Buildium download URL failed', status: res.status },
         { status: 502 },
       );
     }
-    const json = await res.json().catch(() => ({}));
+    const json = (res.json ?? {}) as { DownloadUrl?: string; ExpirationDateTime?: string | null };
     return NextResponse.json({
       getUrl: json?.DownloadUrl,
       expiresAt: json?.ExpirationDateTime || null,

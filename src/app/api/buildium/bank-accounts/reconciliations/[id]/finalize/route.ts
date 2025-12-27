@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,16 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/reconciliations/${reconciliationId}/finalize`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(body)
-    });
+    const response = await buildiumFetch('POST', `/bankaccounts/reconciliations/${reconciliationId}/finalize`, undefined, body, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -36,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const result = response.json ?? {};
 
     // Mark finished in reconciliation_log (and sync date if present)
     try {

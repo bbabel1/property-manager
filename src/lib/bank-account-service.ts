@@ -124,11 +124,12 @@ export class BankAccountService {
     if (payload.balance !== undefined) toUpdate.bank_balance = payload.balance
     if (payload.buildiumBankAccountId !== undefined) {
       const glIdRaw = payload.buildiumBankAccountId
-      const glId =
-        glIdRaw === null
-          ? null
-          : Number(glIdRaw)
-      toUpdate.buildium_gl_account_id = Number.isFinite(glId) ? glId : null
+      if (glIdRaw === null) {
+        toUpdate.buildium_gl_account_id = undefined
+      } else {
+        const glIdNum = Number(glIdRaw)
+        toUpdate.buildium_gl_account_id = Number.isFinite(glIdNum) ? glIdNum : undefined
+      }
     }
 
     toUpdate.is_bank_account = true

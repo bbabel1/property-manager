@@ -190,7 +190,6 @@ export default function BillEditForm({
 
   const cellControlBaseClass =
     'block h-9 w-full rounded-md border border-border/60 bg-background px-3 text-sm leading-tight transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary';
-  const cellSelectClass = `${cellControlBaseClass} appearance-none pr-9`;
   const cellTextButtonClass =
     'flex h-9 w-full items-center rounded-md px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:bg-muted/30';
   const cellMutedTextButtonClass = `${cellTextButtonClass} text-muted-foreground`;

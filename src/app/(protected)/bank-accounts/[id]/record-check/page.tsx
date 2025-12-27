@@ -3,18 +3,6 @@ import InfoCard from '@/components/layout/InfoCard';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import RecordCheckForm from '@/components/bank-accounts/RecordCheckForm';
 
-type BankAccountDetail = {
-  id: string;
-  name: string | null;
-};
-
-type BankAccountRow = {
-  id: string;
-  name: string | null;
-  bank_balance: number | null;
-  buildium_gl_account_id: number | null;
-};
-
 type VendorRecord = {
   id: string;
   buildium_vendor_id?: number | null;
@@ -52,15 +40,6 @@ type UnitRow = {
   unit_number: string | null;
   unit_name: string | null;
   buildium_unit_id: number | null;
-};
-
-type GLAccountRow = {
-  id: string;
-  name: string | null;
-  account_number: string | null;
-  buildium_gl_account_id: number | null;
-  type: string | null;
-  is_bank_account?: boolean | null;
 };
 
 function nameOfVendor(v: VendorRecord) {

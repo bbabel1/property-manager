@@ -12,6 +12,12 @@ import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 import { isNewServiceCatalogEnabled, writeServiceFeeDual } from '@/lib/service-compatibility';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/types/database';
+
+type MonthlyLogRow = Pick<
+  Database['public']['Tables']['monthly_logs']['Row'],
+  'unit_id' | 'property_id' | 'period_start' | 'org_id'
+>;
 
 export async function POST(
   request: Request,
@@ -34,11 +40,19 @@ export async function POST(
     // Fetch monthly log to get unit and period
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')
-      .select('unit_id, property_id, period_start, period_end, org_id')
+      .select('unit_id, property_id, period_start, org_id')
       .eq('id', logId)
-      .single();
+      .maybeSingle<MonthlyLogRow>();
 
-    if (logError || !monthlyLog) {
+    if (logError) {
+      logger.error({ logError, logId }, 'Failed to load monthly log');
+      return NextResponse.json(
+        { error: { code: 'QUERY_ERROR', message: 'Failed to load monthly log' } },
+        { status: 500 },
+      );
+    }
+
+    if (!monthlyLog) {
       return NextResponse.json(
         { error: { code: 'NOT_FOUND', message: 'Monthly log not found' } },
         { status: 404 },

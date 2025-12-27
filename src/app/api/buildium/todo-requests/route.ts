@@ -6,6 +6,7 @@ import { BuildiumToDoRequestCreateSchema } from '@/schemas/buildium';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 import type { Database } from '@/types/database';
 
 type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
@@ -42,30 +43,21 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (status) queryParams.append('status', status);
-    if (priority) queryParams.append('priority', priority);
-    if (assignedTo) queryParams.append('assignedTo', assignedTo);
-    if (dateFrom) queryParams.append('dateFrom', dateFrom);
-    if (dateTo) queryParams.append('dateTo', dateTo);
+    const params: Record<string, string> = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (orderby) params.orderby = orderby;
+    if (status) params.status = status;
+    if (priority) params.priority = priority;
+    if (assignedTo) params.assignedTo = assignedTo;
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/todorequests?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/todorequests', params, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium to-do requests fetch failed`);
 
       return NextResponse.json(
@@ -77,7 +69,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const toDoRequests = (await response.json()) as unknown;
+    const toDoRequests = (response.json ?? []) as unknown;
 
     // Optional response filtering by RequestedByUserEntity.Type
     const requestedByTypeParam = searchParams.get('requestedByType');
@@ -101,13 +93,22 @@ export async function GET(request: NextRequest) {
     try {
       await Promise.all(
         toDoRequestArray.map(async (item) => {
-          const localData = await mapTaskFromBuildiumWithRelations(item, supabaseAdmin, {
+          const normalized: BuildiumToDoRequest = {
+            ...item,
+            Id: typeof item?.Id === 'string' ? Number(item.Id) : item?.Id,
+          };
+          const localData = await mapTaskFromBuildiumWithRelations(normalized as any, supabaseAdmin, {
             taskKind: 'todo',
             requireCategory: true,
             defaultCategoryName: 'To-Do',
           })
-          const buildiumId = item?.Id
-          if (!buildiumId) return
+          const buildiumIdRaw = normalized?.Id
+          const buildiumId = buildiumIdRaw != null ? Number(buildiumIdRaw) : null
+          if (!buildiumId || Number.isNaN(buildiumId)) return
+          const subject =
+            typeof (localData as { subject?: unknown }).subject === 'string'
+              ? (localData as { subject?: string }).subject
+              : ''
 
           const { data: existing } = await supabaseAdmin
             .from('tasks')
@@ -119,12 +120,12 @@ export async function GET(request: NextRequest) {
           if (existing?.id) {
             await supabaseAdmin
               .from('tasks')
-              .update({ ...localData, updated_at: now } as Partial<TaskInsert>)
+              .update({ ...localData, subject, updated_at: now } as any)
               .eq('id', existing.id)
           } else {
             await supabaseAdmin
               .from('tasks')
-              .insert({ ...localData, created_at: now, updated_at: now } as Partial<TaskInsert>)
+              .insert({ ...localData, subject, created_at: now, updated_at: now } as any)
           }
         })
       )
@@ -173,21 +174,10 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumToDoRequestCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/todorequests`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', '/todorequests', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium to-do request creation failed`);
 
       return NextResponse.json(
@@ -199,21 +189,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const toDoRequest = await response.json();
+    const toDoRequest = response.json ?? {};
+    const normalizedRequest = {
+      ...toDoRequest,
+      Id: typeof (toDoRequest as { Id?: unknown })?.Id === 'string' ? Number((toDoRequest as { Id?: string }).Id) : (toDoRequest as { Id?: number })?.Id,
+    };
 
     logger.info(`Buildium to-do request created successfully`);
 
     // Persist created To-Do request to tasks
     try {
-      const localData = await mapTaskFromBuildiumWithRelations(toDoRequest, supabaseAdmin, {
+      const localData = await mapTaskFromBuildiumWithRelations(normalizedRequest as any, supabaseAdmin, {
         taskKind: 'todo',
         requireCategory: true,
         defaultCategoryName: 'To-Do',
       })
       const now = new Date().toISOString()
+      const subject =
+        typeof (localData as { subject?: unknown }).subject === 'string'
+          ? (localData as { subject?: string }).subject
+          : ''
       await supabaseAdmin
         .from('tasks')
-        .insert({ ...localData, created_at: now, updated_at: now } as Partial<TaskInsert>)
+        .insert({ ...localData, subject, created_at: now, updated_at: now } as any)
     } catch (persistErr) {
       logger.warn({ err: String(persistErr) }, 'Failed to persist created To-Do request to tasks')
     }

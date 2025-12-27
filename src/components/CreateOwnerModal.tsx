@@ -1,7 +1,6 @@
-// @ts-nocheck
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { User, Building, Mail, MapPin, FileText, DollarSign, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -32,6 +31,18 @@ const MAILING_PREFERENCES = ['primary', 'alternate'] as const;
 
 const TAX_PAYER_TYPES = ['SSN', 'EIN'] as const;
 
+const coerceMailingPreference = (
+  value: string,
+): OwnerCreatePayload['mailingPreference'] =>
+  MAILING_PREFERENCES.includes(value as (typeof MAILING_PREFERENCES)[number])
+    ? (value as (typeof MAILING_PREFERENCES)[number])
+    : 'primary';
+
+const coerceTaxPayerType = (value: string): OwnerCreatePayload['taxPayerType'] =>
+  TAX_PAYER_TYPES.includes(value as (typeof TAX_PAYER_TYPES)[number])
+    ? (value as (typeof TAX_PAYER_TYPES)[number])
+    : 'SSN';
+
 // const ETF_ACCOUNT_TYPES = [
 //   'Checking',
 //   'Saving'
@@ -60,7 +71,7 @@ export type OwnerCreatePayload = {
   altPostalCode: string;
   altCountry: string;
   taxSameAsPrimary: boolean;
-  mailingPreference: (typeof MAILING_PREFERENCES)[number] | 'alternative';
+  mailingPreference: (typeof MAILING_PREFERENCES)[number];
   taxPayerId: string;
   taxPayerType: (typeof TAX_PAYER_TYPES)[number];
   taxPayerName: string;
@@ -83,7 +94,7 @@ export type OwnerCreatePayload = {
 interface CreateOwnerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateOwner: (ownerData: OwnerCreatePayload) => void;
+  onCreateOwner: (ownerData: OwnerCreatePayload) => void | Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -158,7 +169,7 @@ export default function CreateOwnerModal({
 
   const [formData, setFormData] = useState<OwnerCreatePayload>(initialFormState);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     // Basic validation
@@ -178,15 +189,10 @@ export default function CreateOwnerModal({
       return;
     }
 
-    // Clean up empty fields
-    const cleanedData = Object.fromEntries(
-      Object.entries(formData).filter(([_, value]) => value !== ''),
-    );
-
-    onCreateOwner(cleanedData);
+    onCreateOwner(formData as OwnerCreatePayload);
   };
 
-  const handleMailingPreferenceChange = (value: string) => {
+  const handleMailingPreferenceChange = (value: OwnerCreatePayload['mailingPreference']) => {
     setFormData((prev) => ({
       ...prev,
       mailingPreference: value,
@@ -593,7 +599,7 @@ export default function CreateOwnerModal({
                 <select
                   id="owner-mailing-preference"
                   value={formData.mailingPreference}
-                  onChange={(e) => handleMailingPreferenceChange(e.target.value)}
+                  onChange={(e) => handleMailingPreferenceChange(coerceMailingPreference(e.target.value))}
                   className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                 >
                   {MAILING_PREFERENCES.map((pref) => (
@@ -751,7 +757,10 @@ export default function CreateOwnerModal({
                     id="owner-taxpayer-type"
                     value={formData.taxPayerType}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, taxPayerType: e.target.value }))
+                      setFormData((prev) => ({
+                        ...prev,
+                        taxPayerType: coerceTaxPayerType(e.target.value),
+                      }))
                     }
                     className="border-input focus-visible:ring-primary focus-visible:border-primary bg-background text-foreground w-full rounded-md border px-3 py-2 focus-visible:ring-2 focus-visible:outline-none"
                   >

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumCheckUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: checkId } = await params
@@ -13,14 +14,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     logger.info({ userId: user.id, checkId, action: 'get_buildium_check' }, 'Fetching Buildium check details');
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/checks/${checkId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -32,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const check = await response.json();
+    const check = response.json ?? {};
 
     return NextResponse.json({
       success: true,
@@ -61,16 +55,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const data = sanitizeAndValidate(body, BuildiumCheckUpdateSchema);
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/checks/${checkId}`, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(data)
-    });
+    const response = await buildiumFetch('PUT', `/bankaccounts/checks/${checkId}`, undefined, data, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -82,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const updatedCheck = await response.json();
+    const updatedCheck = response.json ?? {};
 
     return NextResponse.json({
       success: true,

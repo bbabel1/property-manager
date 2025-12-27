@@ -6,6 +6,7 @@ import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumLeaseTransactionUpdateSchema } from '@/schemas/buildium';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(
   request: NextRequest,
@@ -30,19 +31,10 @@ export async function GET(
     const persist = (searchParams.get('persist') || '').toLowerCase() === 'true';
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/transactions/${transactionId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/transactions/${transactionId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease transaction fetch failed`);
 
       return NextResponse.json(
@@ -54,7 +46,7 @@ export async function GET(
       );
     }
 
-    const transaction = await response.json();
+    const transaction = response.json ?? {};
 
     logger.info(`Buildium lease transaction fetched successfully`);
 
@@ -105,25 +97,15 @@ export async function PUT(
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumLeaseTransactionUpdateSchema)
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/transactions/${transactionId}`
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validated)
-    })
+    const response = await buildiumFetch('PUT', `/leases/${buildiumLeaseId}/transactions/${transactionId}`, undefined, validated, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium lease transaction update failed')
       return NextResponse.json({ error: 'Failed to update lease transaction in Buildium', details: errorData }, { status: response.status })
     }
 
-    const updated = await response.json()
+    const updated = response.json ?? {}
 
     try {
       const { transactionId: dbTxId } = await upsertLeaseTransactionWithLines(updated, requireSupabaseAdmin('lease transaction sync'))

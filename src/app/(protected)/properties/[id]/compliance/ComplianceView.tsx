@@ -159,7 +159,7 @@ type AssetMetadata = {
 } & Record<string, unknown>;
 
 type DeviceSummary = {
-  id?: string;
+  id: string;
   name: string;
   external_source_id: string | null;
   asset_type: string | null;
@@ -520,7 +520,7 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
   const devices: DeviceSummary[] = (data?.assets || []).map((a) => {
     const meta = toAssetMetadata(a.metadata) || null;
     return {
-      id: a.id,
+      id: String(a.id ?? a.external_source_id ?? 'unknown-device'),
       name: a.name || a.external_source_id || 'Device',
       external_source_id: a.external_source_id || null,
       asset_type: a.asset_type || meta?.device_type || 'Device',
@@ -530,7 +530,7 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
       external_source: a.external_source || meta?.external_source || null,
       location_notes: a.location_notes || null,
       metadata: meta,
-      status: deriveDeviceStatus(meta),
+      status: deriveDeviceStatus(meta) ?? 'unknown',
       pressure_type: a.pressure_type || meta?.pressure_type || null,
       last_inspection: a.last_inspection_at || meta?.periodic_latest_inspection || null,
       next_due: a.next_due || meta?.next_due || null,
@@ -543,7 +543,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
 
   const deviceById: Record<string, DeviceSummary> = {};
   devices.forEach((d) => {
-    deviceById[d.id] = d;
+    if (d.id) {
+      deviceById[d.id] = d;
+    }
   });
 
   const programMatchesAssetType = (programCode?: string | null, assetType?: string | null) => {
@@ -599,9 +601,10 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
     if (!item.asset_id) return true;
     const asset = assetMap.get(item.asset_id);
     if (!asset) return false;
-    const assetType = asset.asset_type || deviceById[item.asset_id]?.asset_type || null;
+    const assetKey = String(item.asset_id);
+    const assetType = asset.asset_type || deviceById[assetKey]?.asset_type || null;
     if (!programMatchesAssetType(item.program?.code, assetType)) return false;
-    return Boolean(deviceById[item.asset_id]);
+    return Boolean(deviceById[assetKey]);
   });
 
   // Deduplicate so each program appears only once per asset/property (keep the soonest due)
@@ -626,7 +629,7 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
       }, new Map<string, (typeof filteredItems)[number]>())
       .values(),
   ).map((item) => {
-    const device = item.asset_id ? deviceById[item.asset_id] ?? null : null;
+    const device = item.asset_id ? deviceById[String(item.asset_id)] ?? null : null;
     const meta = device?.metadata || {};
     const lastRegistrationDate = hpdRegistration?.lastregistrationdate ?? null;
     const asset = item.asset || (item.asset_id ? assetMap.get(item.asset_id) || null : null);
@@ -705,10 +708,11 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
 
   // Map events to update device last_inspection for summary table
   data?.events.forEach((e) => {
-    if (e.asset_id && deviceById[e.asset_id] && e.inspection_date) {
-      const existing = deviceById[e.asset_id].last_inspection;
+    if (e.asset_id && deviceById[String(e.asset_id)] && e.inspection_date) {
+      const key = String(e.asset_id);
+      const existing = deviceById[key].last_inspection;
       if (!existing || new Date(e.inspection_date) > new Date(existing)) {
-        deviceById[e.asset_id].last_inspection = e.inspection_date;
+        deviceById[key].last_inspection = e.inspection_date;
       }
     }
   });
@@ -716,11 +720,11 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
   data?.violations.forEach((violation) => {
     if (
       violation.asset_id &&
-      deviceById[violation.asset_id] &&
+      deviceById[String(violation.asset_id)] &&
       (violation.status === 'open' || violation.status === 'in_progress')
     ) {
-      deviceById[violation.asset_id].open_violations =
-        (deviceById[violation.asset_id].open_violations || 0) + 1;
+      const key = String(violation.asset_id);
+      deviceById[key].open_violations = (deviceById[key].open_violations || 0) + 1;
     }
   });
 

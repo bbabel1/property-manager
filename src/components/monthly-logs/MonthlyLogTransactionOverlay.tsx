@@ -152,8 +152,8 @@ export default function MonthlyLogTransactionOverlay({
   refetchAssigned,
   refetchFinancial,
   financialSummary,
-  periodStart,
-  activeLease,
+  periodStart: _periodStart,
+  activeLease: _activeLease,
 }: MonthlyLogTransactionOverlayProps) {
   const [assigningTransactionId, setAssigningTransactionId] = useState<string | null>(null);
   const leaseResourceId = encodeURIComponent(String(leaseId));

@@ -45,6 +45,7 @@ export function validateEnvironment() {
     .map(([key]) => key);
 
   if (missingVars.length > 0) {
+    // Only log warnings in development, not in test mode
     if (process.env.NODE_ENV === 'development') {
       console.log('ℹ️ Missing required environment variables:', missingVars);
       console.log('💡 Ensure these are set in .env.local and restart the dev server');
@@ -52,7 +53,7 @@ export function validateEnvironment() {
     return false;
   }
 
-  // Debug info (only in development)
+  // Debug info (only in development, not in test mode)
   if (process.env.NODE_ENV === 'development') {
     console.log('🔧 Environment variables debug:');
     console.log('  - hasUrl:', !!requiredVars.NEXT_PUBLIC_SUPABASE_URL);
@@ -88,6 +89,7 @@ if (parseResult.success) {
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
   } as z.infer<typeof envSchema>;
 
+  // Only log warnings in development, not in test mode
   if (process.env.NODE_ENV === 'development') {
     console.log('ℹ️ Environment validation failed, using fallback values');
     console.debug('Validation details:', parseResult.error.flatten());

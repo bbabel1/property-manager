@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileShareSettingsUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,26 +23,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/${id}/sharing`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      },
-    });
+    const response = await buildiumFetch('GET', `/files/${id}/sharing`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const rawText = await response.text().catch(() => '');
-      let errorData: Record<string, unknown> = {};
-      try {
-        errorData = rawText ? JSON.parse(rawText) : {};
-      } catch (error) {
-        logger.error({ error });
-        errorData = { raw: rawText || 'Unauthorized' };
-      }
+      const errorData: Record<string, unknown> = typeof response.json === 'object' && response.json !== null ? response.json as Record<string, unknown> : { raw: response.errorText || 'Unauthorized' };
       logger.error({ status: response.status, errorData }, 'Buildium file share settings fetch failed');
 
       return NextResponse.json(
@@ -53,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const shareSettings = await response.json();
+    const shareSettings = response.json ?? {};
 
     logger.info(`Buildium file share settings fetched successfully`);
 
@@ -96,28 +81,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumFileShareSettingsUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files/${id}/sharing`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PUT', `/files/${id}/sharing`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const rawText = await response.text().catch(() => '');
-      let errorData: Record<string, unknown> = {};
-      try {
-        errorData = rawText ? JSON.parse(rawText) : {};
-      } catch (error) {
-        logger.error({ error });
-        errorData = { raw: rawText || 'Unauthorized' };
-      }
+      const errorData: Record<string, unknown> = typeof response.json === 'object' && response.json !== null ? response.json as Record<string, unknown> : { raw: response.errorText || 'Unauthorized' };
       logger.error({ status: response.status, errorData }, 'Buildium file share settings update failed');
 
       return NextResponse.json(
@@ -129,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const shareSettings = await response.json();
+    const shareSettings = response.json ?? {};
 
     logger.info(`Buildium file share settings updated successfully`);
 

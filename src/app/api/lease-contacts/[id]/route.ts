@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ success: true, contact: data })
-  } catch (_error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -40,7 +40,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Params
     const { error } = await admin.from('lease_contacts').delete().eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ success: true })
-  } catch (_error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

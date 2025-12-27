@@ -1,5 +1,7 @@
 # Quick Guide: Assign Role to [brandon@managedbyora.com](mailto:brandon@managedbyora.com)
 
+<!-- markdownlint-configure-file {"MD013": false, "MD034": false} -->
+
 **Date**: 2025-01-31
 
 ---
@@ -155,16 +157,16 @@ brandon@managedbyora.com | Ora Property Management | Developer | Full access to 
 
 ### Before Update
 
-❌ User saw hardcoded roles that might not match database  
-❌ "org_staff" role might not exist in database  
-❌ No way to know what each role does  
+❌ User saw hardcoded roles that might not match database
+❌ "org_staff" role might not exist in database
+❌ No way to know what each role does
 ❌ Had to update code to add new roles
 
 ### After Update
 
-✅ User sees actual roles from database  
-✅ Roles are guaranteed to exist  
-✅ Role descriptions help with selection  
+✅ User sees actual roles from database
+✅ Roles are guaranteed to exist
+✅ Role descriptions help with selection
 ✅ New roles appear automatically
 
 ---

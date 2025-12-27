@@ -13,7 +13,7 @@ type MinimalUser = {
 
 async function resolveOrgId(
   request: NextRequest,
-  supabase: TypedSupabaseClient,
+  supabase: TypedSupabaseClient | any,
   user: MinimalUser,
 ): Promise<string> {
   const normalizeOrgId = (value: unknown): string | null => {
@@ -130,11 +130,11 @@ async function resolveOrgId(
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request);
-    const cookieClient = await getSupabaseServerClient();
+    const cookieClient = (await getSupabaseServerClient()) as any;
     // Use admin client in non-production if available for better debugging
     const supabase =
       process.env.NODE_ENV !== 'production' && supabaseAdminMaybe
-        ? supabaseAdminMaybe
+        ? (supabaseAdminMaybe as any)
         : cookieClient;
     const orgId = await resolveOrgId(request, supabase, user);
 

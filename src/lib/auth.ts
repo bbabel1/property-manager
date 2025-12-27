@@ -131,7 +131,7 @@ export async function requireUser(request?: NextRequest): Promise<AuthenticatedU
       } else {
         console.warn('Missing Supabase URL or anon key for Bearer token validation');
       }
-    } catch (e) {
+	    } catch {
       // Bearer token validation error - fall through to cookie-based auth
       // This is expected when token is expired, don't log it
     }

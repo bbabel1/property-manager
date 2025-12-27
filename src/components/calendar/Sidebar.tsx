@@ -36,8 +36,8 @@ export function Sidebar({
   selectedDate,
   calendars,
   onCalendarToggle,
-  filters,
-  onFiltersChange,
+  filters: _filters,
+  onFiltersChange: _onFiltersChange,
   onCreateClick,
 }: SidebarProps) {
   const [myCalendarsOpen, setMyCalendarsOpen] = useState(true)

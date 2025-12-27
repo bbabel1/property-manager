@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Compliance Item Generator
  *
@@ -352,25 +351,29 @@ export class ComplianceItemGenerator {
         orgId,
       );
 
-      const normalizedAssetType: ComplianceAssetType =
-        (canonicalAssetType(asset) as ComplianceAssetType | null) ||
-        ((assetType || '').toLowerCase() as ComplianceAssetType) ||
-        'other';
       const deviceCategory: ComplianceDeviceCategory | null =
         typeof asset.device_category === 'string'
-          ? (asset.device_category as ComplianceDeviceCategory)
+          ? ((asset.device_category as ComplianceDeviceCategory) ?? null)
           : null;
-      const assetMetaForGuard: AssetMetaParam = {
+      const assetMetaBase: AssetMetaParam = {
         id: asset.id,
         property_id: asset.property_id,
-        asset_type: normalizedAssetType,
+        asset_type: (asset.asset_type as ComplianceAssetType) ?? 'other',
         external_source: asset.external_source,
         active: asset.active,
-        device_category: deviceCategory,
+        device_category: deviceCategory ?? undefined,
         device_technology: asset.device_technology ?? null,
         device_subtype: asset.device_subtype ?? null,
         is_private_residence: asset.is_private_residence ?? null,
         metadata: (asset.metadata ?? null) as Json | null,
+      };
+      const normalizedAssetType: ComplianceAssetType =
+        canonicalAssetType(assetMetaBase) ||
+        ((assetType || '').toLowerCase() as ComplianceAssetType) ||
+        assetMetaBase.asset_type;
+      const assetMetaForGuard: AssetMetaParam = {
+        ...assetMetaBase,
+        asset_type: normalizedAssetType,
       };
 
       // Filter out programs that do not match this asset type (prevent boilers/facades/etc. from being assigned to elevators)

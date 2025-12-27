@@ -126,12 +126,18 @@ export async function POST(request: NextRequest) {
     let targetOrgId: string | null = orgIdOverride
     if (!targetOrgId && hasSupabaseAdmin()) {
       const admin = requireSupabaseAdmin('staff POST org membership lookup')
-      const { data: mem } = await admin
+      const { data: mem, error: memError } = await admin
         .from('org_memberships')
         .select('org_id')
         .eq('user_id', reqUser.id)
         .limit(1)
         .maybeSingle()
+      if (memError) {
+        return NextResponse.json(
+          { error: 'Failed to resolve user organization', details: memError.message },
+          { status: 500 }
+        )
+      }
       targetOrgId = (mem as { org_id?: string })?.org_id ?? null
     }
 
@@ -149,11 +155,17 @@ export async function POST(request: NextRequest) {
       const admin = requireSupabaseAdmin('staff POST invite handler')
       // Try to locate existing auth user by email via users_with_auth view
       try {
-        const { data: existing } = await admin
+        const { data: existing, error: existingError } = await admin
           .from('users_with_auth')
           .select('user_id')
           .eq('email', email)
           .maybeSingle()
+        if (existingError) {
+          return NextResponse.json(
+            { error: 'Failed to look up existing user', details: existingError.message },
+            { status: 500 }
+          )
+        }
         staffUserId = (existing as { user_id?: string })?.user_id ?? null
       } catch {}
       // If not found, invite or create
@@ -169,11 +181,17 @@ export async function POST(request: NextRequest) {
         } catch (e) {
           // Re-check users_with_auth in case user now exists
           try {
-            const { data: existing2 } = await admin
+            const { data: existing2, error: existing2Error } = await admin
               .from('users_with_auth')
               .select('user_id')
               .eq('email', email)
               .maybeSingle()
+            if (existing2Error) {
+              return NextResponse.json(
+                { error: 'Failed to check user invite status', details: existing2Error.message },
+                { status: 500 }
+              )
+            }
             staffUserId = (existing2 as { user_id?: string })?.user_id ?? null
           } catch {}
           if (!staffUserId) return NextResponse.json({ error: 'Failed to create or invite user', details: (e as Error)?.message || String(e) }, { status: 500 })
@@ -224,13 +242,16 @@ export async function POST(request: NextRequest) {
 
       // Attach a default role for staff via membership_roles
       try {
-        const { data: roleRows } = await serverClient
+        const { data: roleRows, error: rolesError } = await serverClient
           .from('roles')
           .select('id, name, org_id')
           .eq('name', orgRole)
           .or(`org_id.eq.${targetOrgId},org_id.is.null`)
           .order('org_id', { ascending: false })
           .limit(1)
+        if (rolesError) {
+          console.warn('Failed to load roles for staff default assignment', rolesError)
+        }
         const roleId = roleRows?.[0]?.id
         await serverClient.from('membership_roles').delete().eq('user_id', staffUserId).eq('org_id', targetOrgId)
         if (roleId) {

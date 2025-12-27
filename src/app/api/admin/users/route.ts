@@ -147,7 +147,13 @@ export async function GET() {
         staffByUser = new Map(
           (staffRows || [])
             .filter((s): s is StaffRow & { user_id: string } => Boolean(s?.user_id))
-            .map((s) => [s.user_id, s])
+            .map((s) => [
+              s.user_id,
+              {
+                ...s,
+                id: String(s.id),
+              },
+            ])
         )
       }
     }

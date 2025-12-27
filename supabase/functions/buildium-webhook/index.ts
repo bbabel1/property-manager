@@ -20,6 +20,7 @@ import {
   type PaidToCandidate,
 } from '../_shared/transaction-canonical.ts';
 import type { BuildiumWebhookEventLike } from '../_shared/eventValidation.ts';
+type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
 
 async function resolvePaidByLabelContext(
   supabase: any,
@@ -62,10 +63,13 @@ class BuildiumClient {
   private clientId: string;
   private clientSecret: string;
 
-  constructor() {
-    this.baseUrl = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1';
-    this.clientId = Deno.env.get('BUILDIUM_CLIENT_ID') || '';
-    this.clientSecret = Deno.env.get('BUILDIUM_CLIENT_SECRET') || '';
+  constructor(creds?: BuildiumCredentials | null) {
+    const envBase = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1';
+    const envClientId = Deno.env.get('BUILDIUM_CLIENT_ID') || '';
+    const envClientSecret = Deno.env.get('BUILDIUM_CLIENT_SECRET') || '';
+    this.baseUrl = (creds?.baseUrl || envBase).replace(/\/$/, '');
+    this.clientId = creds?.clientId || envClientId;
+    this.clientSecret = creds?.clientSecret || envClientSecret;
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {
@@ -747,7 +751,16 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Initialize Buildium client
-    const buildiumClient = new BuildiumClient();
+    const rawCreds = (payload as any)?.credentials as Partial<BuildiumCredentials> | undefined;
+    const buildiumClient = new BuildiumClient(
+      rawCreds?.clientId && rawCreds?.clientSecret
+        ? {
+            baseUrl: (rawCreds.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, ''),
+            clientId: rawCreds.clientId,
+            clientSecret: rawCreds.clientSecret,
+          }
+        : null,
+    );
 
     // Log webhook event
     console.log('Received webhook with', payload.Events.length, 'events');

@@ -10,8 +10,7 @@ export async function GET(
 ) {
   try {
     await requireUser(request)
-    const resolved = await params
-    const id = resolved.id
+    const { id } = await params
     const db = supabaseAdmin || supabase
 
     // Fetch property status
@@ -51,4 +50,3 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch sync status' }, { status: 500 })
   }
 }
-

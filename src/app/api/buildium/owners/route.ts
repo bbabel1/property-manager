@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumOwnerCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 import type { BuildiumOwner } from '@/types/buildium';
 
 export async function GET(request: NextRequest) {
@@ -31,28 +32,19 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (isActive) queryParams.append('isActive', isActive);
-    if (lastupdatedfrom) queryParams.append('lastupdatedfrom', lastupdatedfrom);
-    if (lastupdatedto) queryParams.append('lastupdatedto', lastupdatedto);
+    const params: Record<string, string> = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (orderby) params.orderby = orderby;
+    if (isActive) params.isActive = isActive;
+    if (lastupdatedfrom) params.lastupdatedfrom = lastupdatedfrom;
+    if (lastupdatedto) params.lastupdatedto = lastupdatedto;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/owners?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/rentals/owners', params, undefined, undefined);
 
     if (!response.ok) {
-      const errorData: unknown = await response.json().catch(() => ({}));
+      const errorData: unknown = response.json ?? {};
       logger.error(`Buildium owners fetch failed`);
 
       return NextResponse.json(
@@ -64,7 +56,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const ownersPayload: unknown = await response.json().catch(() => []);
+    const ownersPayload: unknown = response.json ?? [];
     const owners: BuildiumOwner[] = Array.isArray(ownersPayload) ? (ownersPayload as BuildiumOwner[]) : [];
 
     // Optional local search filter (client-side) across name/email when provided
@@ -74,7 +66,7 @@ export async function GET(request: NextRequest) {
         const first = (o?.FirstName || '').toLowerCase();
         const last = (o?.LastName || '').toLowerCase();
         const email = (o?.Email || '').toLowerCase();
-        const company = (o?.CompanyName || '').toLowerCase();
+        const company = ((o as any)?.CompanyName || '').toLowerCase();
         return first.includes(term) || last.includes(term) || email.includes(term) || company.includes(term);
       });
       logger.info(`Buildium owners fetched successfully`);
@@ -126,21 +118,10 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumOwnerCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/owners`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', '/rentals/owners', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData: unknown = await response.json().catch(() => ({}));
+      const errorData: unknown = response.json ?? {};
       logger.error(`Buildium owner creation failed`);
 
       return NextResponse.json(
@@ -152,7 +133,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const ownerJson: unknown = await response.json().catch(() => ({}));
+    const ownerJson: unknown = response.json ?? {};
     const owner =
       ownerJson && typeof ownerJson === 'object'
         ? (ownerJson as Record<string, unknown>)

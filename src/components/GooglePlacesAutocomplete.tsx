@@ -515,7 +515,7 @@ export default function GooglePlacesAutocomplete({
           }
         }
       });
-    } catch (error) {
+    } catch {
       setError('Failed to initialize autocomplete');
     }
   }, [getGoogle, handlePacClicks, onChange, onPlaceSelect]);

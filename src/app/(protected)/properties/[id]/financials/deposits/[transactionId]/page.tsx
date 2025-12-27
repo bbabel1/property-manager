@@ -20,6 +20,24 @@ type PaymentTransaction = {
   amount: number;
 };
 
+type DepositTransactionRow = {
+  id: string;
+  date: string;
+  memo: string | null;
+  total_amount: number | null;
+  transaction_type: string | null;
+  bank_gl_account_id: string | null;
+};
+
+type PaymentLinkRow = {
+  id: string;
+  amount: number | null;
+  accounting_entity_id?: string | number | null;
+  accounting_unit_id?: string | number | null;
+  accounting_entity_type?: string | null;
+  accounting_unit_href?: string | null;
+};
+
 export default async function DepositEditPage({
   params,
 }: {
@@ -30,11 +48,12 @@ export default async function DepositEditPage({
   const db = await getSupabaseServerClient();
 
   // Fetch transaction and verify it's a Deposit
-  const { data: transaction } = await db
+  const { data: transactionData } = await db
     .from('transactions')
     .select('id, date, memo, total_amount, transaction_type, bank_gl_account_id')
     .eq('id', transactionId)
     .maybeSingle();
+  const transaction = (transactionData as DepositTransactionRow | null) ?? null;
 
   if (!transaction || transaction.transaction_type !== 'Deposit') {
     notFound();
@@ -43,16 +62,17 @@ export default async function DepositEditPage({
   // Fetch bank GL account name
   let bankAccountName: string | null = null;
   if (transaction.bank_gl_account_id) {
-    const { data: bankAccount } = await db
+    const { data: bankAccountData } = await db
       .from('gl_accounts')
       .select('name')
       .eq('id', transaction.bank_gl_account_id)
       .maybeSingle();
+    const bankAccount = (bankAccountData as { name: string | null } | null) ?? null;
     bankAccountName = bankAccount?.name || null;
   }
 
   // Fetch payment transactions linked to this deposit
-  const { data: paymentTransactions } = await db
+  const { data: paymentTransactionsRaw } = await db
     .from('transaction_payment_transactions')
     .select(
       `
@@ -65,13 +85,15 @@ export default async function DepositEditPage({
     `
     )
     .eq('transaction_id', transactionId);
+  const paymentTransactions = (paymentTransactionsRaw ?? []) as PaymentLinkRow[] | null;
 
   // Fetch property and unit details for payments
-  const { data: property } = await db
+  const { data: propertyDataRaw } = await db
     .from('properties')
     .select('id, name, org_id')
     .eq('id', propertyId)
     .maybeSingle();
+  const property = (propertyDataRaw as { id: string; name: string | null; org_id: string | null } | null) ?? null;
 
   if (!property) {
     notFound();
@@ -89,7 +111,7 @@ export default async function DepositEditPage({
   }
 
   const { data: bankAccountsData } = await bankAccountsQuery;
-  const bankAccounts: BankAccount[] = (bankAccountsData || []).map((acc) => ({
+  const bankAccounts: BankAccount[] = (bankAccountsData || []).map((acc: { id: string; name: string; account_number?: string | null }) => ({
     id: acc.id,
     name: acc.name,
     account_number: acc.account_number,
@@ -105,11 +127,17 @@ export default async function DepositEditPage({
 
       // Try to resolve unit from accounting_unit_href or accounting_unit_id
       if (payment.accounting_unit_id) {
-        const { data: unit } = await db
+        const { data: unitData } = await db
           .from('units')
           .select('unit_number, unit_name, property_id, properties(name)')
           .eq('buildium_unit_id', payment.accounting_unit_id)
           .maybeSingle();
+        const unit = (unitData as {
+            unit_number: string | null;
+            unit_name: string | null;
+            property_id: string | null;
+            properties?: { name?: string | null } | null;
+          } | null) ?? null;
 
         if (unit) {
           unitNumber = unit.unit_number || null;
@@ -122,12 +150,13 @@ export default async function DepositEditPage({
       }
 
       // Get memo from transaction_lines if available
-      const { data: lineData } = await db
+      const { data: lineDataRaw } = await db
         .from('transaction_lines')
         .select('memo, reference_number')
         .eq('transaction_id', transactionId)
         .limit(1)
         .maybeSingle();
+      const lineData = (lineDataRaw as { memo: string | null; reference_number: string | null } | null) ?? null;
 
       paymentTransactionsWithDetails.push({
         id: payment.id,

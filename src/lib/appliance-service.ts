@@ -1,4 +1,4 @@
-import { createBuildiumClient, defaultBuildiumConfig } from './buildium-client'
+import { getOrgScopedBuildiumClient } from './buildium-client'
 import { supabase } from './db'
 import { logger } from './logger'
 import type { Database } from '@/types/database'
@@ -16,12 +16,8 @@ const toUpdatePayload = (local: AppliancePayload) =>
 const toInsertPayload = (local: AppliancePayload) =>
   local as unknown as ApplianceInsert
 
-function ensureClient() {
-  return createBuildiumClient({
-    ...defaultBuildiumConfig,
-    clientId: process.env.BUILDIUM_CLIENT_ID || '',
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || ''
-  })
+async function ensureClient(orgId?: string) {
+  return getOrgScopedBuildiumClient(orgId)
 }
 
 export class ApplianceService {
@@ -33,8 +29,9 @@ export class ApplianceService {
     limit?: number
     offset?: number
     persist?: boolean
+    orgId?: string
   }): Promise<BuildiumAppliance[]> {
-    const client = ensureClient()
+    const client = await ensureClient(params?.orgId)
     // No dedicated wrapper yet, call through generic client
     const items = await client.getAppliances({
       propertyId: params?.propertyId,
@@ -69,8 +66,8 @@ export class ApplianceService {
   }
 
   // Get one Appliance from Buildium (optionally persist to DB)
-  static async getFromBuildium(id: number, persist = false): Promise<BuildiumAppliance | null> {
-    const client = ensureClient()
+  static async getFromBuildium(id: number, persist = false, orgId?: string): Promise<BuildiumAppliance | null> {
+    const client = await ensureClient(orgId)
     const appliance = await client.getAppliance(id).catch(() => null)
     if (!appliance) return null
 
@@ -97,8 +94,8 @@ export class ApplianceService {
   }
 
   // Create in Buildium, then map and insert in DB
-  static async createInBuildiumAndDB(payload: BuildiumApplianceCreate | ApplianceInsert): Promise<{ buildium: BuildiumAppliance; localId?: string }> {
-    const client = ensureClient()
+  static async createInBuildiumAndDB(payload: BuildiumApplianceCreate | ApplianceInsert, orgId?: string): Promise<{ buildium: BuildiumAppliance; localId?: string }> {
+    const client = await ensureClient(orgId)
     const toBuildium = await mapApplianceToBuildium(
       payload as Parameters<typeof mapApplianceToBuildium>[0],
       supabase,
@@ -111,8 +108,8 @@ export class ApplianceService {
   }
 
   // Update in Buildium and update local DB row by buildium id
-  static async updateInBuildiumAndDB(id: number, payload: BuildiumApplianceUpdate | ApplianceUpdate): Promise<{ buildium: BuildiumAppliance; localId?: string | null }> {
-    const client = ensureClient()
+  static async updateInBuildiumAndDB(id: number, payload: BuildiumApplianceUpdate | ApplianceUpdate, orgId?: string): Promise<{ buildium: BuildiumAppliance; localId?: string | null }> {
+    const client = await ensureClient(orgId)
     const toBuildium = await mapApplianceToBuildium(
       payload as Parameters<typeof mapApplianceToBuildium>[0],
       supabase,

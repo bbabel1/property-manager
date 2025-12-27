@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileUploadSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,29 +31,20 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (categoryId) queryParams.append('categoryId', categoryId);
-    if (search) queryParams.append('search', search);
-    if (dateFrom) queryParams.append('dateFrom', dateFrom);
-    if (dateTo) queryParams.append('dateTo', dateTo);
+    const queryParams: Record<string, string> = {};
+    if (limit) queryParams.limit = limit;
+    if (offset) queryParams.offset = offset;
+    if (orderby) queryParams.orderby = orderby;
+    if (categoryId) queryParams.categoryId = categoryId;
+    if (search) queryParams.search = search;
+    if (dateFrom) queryParams.dateFrom = dateFrom;
+    if (dateTo) queryParams.dateTo = dateTo;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/files', queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium files fetch failed`);
 
       return NextResponse.json(
@@ -64,7 +56,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const files = await response.json();
+    const files = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium files fetched successfully`);
 
@@ -106,21 +98,10 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumFileUploadSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/files`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', '/files', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium file upload failed`);
 
       return NextResponse.json(
@@ -132,7 +113,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const file = await response.json();
+    const file = response.json ?? {};
 
     logger.info(`Buildium file uploaded successfully`);
 

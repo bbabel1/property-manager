@@ -14,7 +14,8 @@ import {
   mapPaymentMethodToBuildium,
   coerceTenantIdentifier,
   amountsRoughlyEqual,
-  fetchBankAccountBuildiumId
+  fetchBankAccountBuildiumId,
+  castLeaseTransactionLinesForPersistence
 } from '@/lib/lease-transaction-helpers'
 
 const ReceivePaymentSchema = z.object({
@@ -97,7 +98,8 @@ export async function POST(
     const glAccountMap = await fetchBuildiumGlAccountMap(
       parsed.data.allocations.map((line) => line.account_id)
     )
-    const lines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const buildiumLines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const lines = castLeaseTransactionLinesForPersistence(buildiumLines)
     const payeeTenantId = coerceTenantIdentifier(parsed.data.resident_id ?? null)
     const residentProvided =
       typeof parsed.data.resident_id === 'string' && parsed.data.resident_id.trim().length > 0
@@ -152,7 +154,7 @@ export async function POST(
         lease_id: leaseContext.leaseId,
         buildium_transaction_id: result.buildium?.Id ?? null,
       }
-      responseLines = lines as Record<string, unknown>[]
+      responseLines = lines
     }
 
     return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })

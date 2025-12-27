@@ -164,21 +164,21 @@ export default function OrganizationPage() {
         return
       }
       const options: BankAccountOption[] = []
-      ;(payload?.data || []).forEach((row) => {
-        const entry = row as { public_id?: unknown; id?: unknown; account_number?: unknown; name?: unknown }
+      const accountRows = Array.isArray(payload?.data) ? (payload.data as { public_id?: unknown; id?: unknown; account_number?: unknown; name?: unknown }[]) : []
+      for (const row of accountRows) {
         const value =
-          entry.public_id !== undefined && entry.public_id !== null
-            ? String(entry.public_id)
-            : entry.id
-              ? String(entry.id)
+          row.public_id !== undefined && row.public_id !== null
+            ? String(row.public_id)
+            : row.id
+              ? String(row.id)
               : null
-        if (!value) return
-        const num = typeof entry.account_number === 'string' ? ` (${entry.account_number})` : ''
+        if (!value) continue
+        const num = typeof row.account_number === 'string' ? ` (${row.account_number})` : ''
         options.push({
-          label: `${(entry.name as string | undefined) ?? 'Unnamed account'}${num}`,
+          label: `${(row.name as string | undefined) ?? 'Unnamed account'}${num}`,
           value,
         })
-      })
+      }
       setBankAccounts(options)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load bank accounts'

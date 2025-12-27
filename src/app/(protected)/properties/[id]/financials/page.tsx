@@ -29,6 +29,20 @@ import {
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
 
+type FinancialSearchParams = {
+  from?: string;
+  to?: string;
+  unit?: string;
+  units?: string;
+  gl?: string;
+  range?: string;
+  basis?: 'cash' | 'accrual';
+  properties?: string;
+  vendors?: string;
+  bstatus?: string;
+  tab?: string;
+};
+
 type TransactionLineResult = {
   transaction_id: string;
   property_id: string | null;
@@ -98,6 +112,7 @@ type VendorContactRow = {
 };
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
+type NormalizedBillRow = TransactionBillRow & { status: BillStatusLabel; id: string };
 
 const BILL_STATUS_OPTIONS: { slug: string; label: BillStatusLabel }[] = [
   { slug: 'overdue', label: 'Overdue' },
@@ -207,19 +222,11 @@ export default async function FinancialsTab({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{
-    from?: string;
-    to?: string;
-    unit?: string;
-    gl?: string;
-    range?: string;
-    basis?: 'cash' | 'accrual';
-  }>;
+  searchParams?: Promise<FinancialSearchParams>;
 }) {
   const { id: slug } = await params;
-  const { internalId: propertyId, publicId: propertyPublicId } =
-    await resolvePropertyIdentifier(slug);
-  const sp = (await (searchParams || Promise.resolve({}))) || {};
+  const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(slug);
+  const sp: FinancialSearchParams = (await searchParams) || {};
 
   const today = new Date();
   const hasRangeParam = typeof sp?.range === 'string';
@@ -303,8 +310,7 @@ export default async function FinancialsTab({
          transactions(id, transaction_type, memo, reference_number),
          properties(id, name)`,
       )
-      .eq('property_id', propertyId)
-      .returns<TransactionLineResult[]>();
+      .eq('property_id', propertyId);
 
   const mapLine = (row: TransactionLineResult): LedgerLine | null => {
     const mapped = mapTransactionLine(row);
@@ -399,14 +405,14 @@ export default async function FinancialsTab({
 
   if (shouldQueryLedger) {
     const periodPromise = (async () => {
-      let query = qBase().gte('date', fromStr).lte('date', toStr);
+      let query: any = (qBase() as any).gte('date', fromStr).lte('date', toStr);
       if (unitFilterIds) query = query.in('unit_id', unitFilterIds);
       if (accountFilterIds) query = query.in('gl_account_id', accountFilterIds);
       return await query;
     })();
 
     const priorPromise = (async () => {
-      let query = qBase().lt('date', fromStr);
+      let query: any = (qBase() as any).lt('date', fromStr);
       if (unitFilterIds) query = query.in('unit_id', unitFilterIds);
       if (accountFilterIds) query = query.in('gl_account_id', accountFilterIds);
       return await query;
@@ -415,12 +421,18 @@ export default async function FinancialsTab({
     const [{ data: periodData, error: periodError }, { data: priorData, error: priorError }] =
       await Promise.all([periodPromise, priorPromise]);
 
+    const periodRows = (periodData || []) as TransactionLineResult[];
+    const priorRows = (priorData || []) as TransactionLineResult[];
     periodLines = periodError
       ? []
-      : (periodData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
+      : periodRows
+          .map(mapLine)
+          .filter((line: LedgerLine | null): line is LedgerLine => line !== null);
     priorLines = priorError
       ? []
-      : (priorData || []).map(mapLine).filter((line): line is LedgerLine => line !== null);
+      : priorRows
+          .map(mapLine)
+          .filter((line: LedgerLine | null): line is LedgerLine => line !== null);
   }
 
   const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
@@ -513,10 +525,12 @@ export default async function FinancialsTab({
                     });
 
                     let running = group.prior;
-                    const detailWithBalance = detailChrono.map(({ line, signed }) => {
-                      running += signed;
-                      return { line, signed, runningAfter: running };
-                    });
+                    const detailWithBalance = detailChrono.map(
+                      ({ line, signed }: { line: LedgerLine; signed: number }) => {
+                        running += signed;
+                        return { line, signed, runningAfter: running };
+                      },
+                    );
                     const detailDisplay = detailWithBalance.slice().reverse();
 
                     return (
@@ -558,7 +572,11 @@ export default async function FinancialsTab({
                             </TableCell>
                           </TableRow>
                         ) : (
-                          detailDisplay.map(({ line, signed, runningAfter }, idx) => {
+                          detailDisplay.map(
+                            (
+                              { line, signed, runningAfter }: { line: LedgerLine; signed: number; runningAfter: number },
+                              idx: number,
+                            ) => {
                             const txnLabel = [
                               line.transactionType || 'Transaction',
                               line.transactionReference ? `#${line.transactionReference}` : '',
@@ -607,7 +625,8 @@ export default async function FinancialsTab({
                                 {rowContent}
                               </TableRow>
                             );
-                          })
+                          },
+                          )
                         )}
                         <TableRow className="bg-muted/30">
                           <TableCell colSpan={4} className="font-semibold">
@@ -644,14 +663,13 @@ export default async function FinancialsTab({
             const unitIdsAll = unitOptions.map((u) => u.id);
 
             // Vendors options
-            let vendorsQuery = db
+            let vendorsQuery: any = db
               .from('vendors')
               .select(
                 'id, contact:contacts!vendors_contact_id_fkey(display_name, company_name, first_name, last_name)',
               )
               .order('updated_at', { ascending: false })
-              .limit(200)
-              .returns<VendorRecord[]>();
+              .limit(200);
             if (orgId) vendorsQuery = vendorsQuery.eq('org_id', orgId);
             const { data: vendorsData } = await vendorsQuery;
             const nameOfVendor = (v: VendorRecord) =>
@@ -659,9 +677,13 @@ export default async function FinancialsTab({
               v?.contact?.company_name ||
               [v?.contact?.first_name, v?.contact?.last_name].filter(Boolean).join(' ') ||
               'Vendor';
-            const vendorOptions = (vendorsData || [])
-              .map((v) => ({ id: String(v.id), label: nameOfVendor(v) }))
-              .sort((a, b) => a.label.localeCompare(b.label));
+            const vendorRecords = (vendorsData || []) as VendorRecord[];
+            const vendorOptions: { id: string; label: string }[] = vendorRecords
+              .map((v: VendorRecord) => ({ id: String(v.id), label: nameOfVendor(v) }))
+              .sort(
+                (a: { id: string; label: string }, b: { id: string; label: string }) =>
+                  a.label.localeCompare(b.label),
+              );
 
             const propertyIdsAll = propertyOptions.map((p) => p.id);
             const spProperties = typeof sp?.properties === 'string' ? sp.properties : '';
@@ -722,47 +744,48 @@ export default async function FinancialsTab({
 
             const memoByTransactionId = new Map<string, string>();
             const amountByTransaction = new Map<string, number>();
-            let billRows: TransactionBillRow[] = [];
+            let billRows: NormalizedBillRow[] = [];
             if (selectedPropertyIds.includes(propertyId)) {
               // Fetch matching transaction ids for this property (via lines)
-              let qLine = db
+              let qLine: any = db
                 .from('transaction_lines')
                 .select('transaction_id, unit_id, memo, amount, posting_type')
-                .eq('property_id', propertyId)
-                .returns<TransactionLineForBills[]>();
+                .eq('property_id', propertyId);
               if (
                 selectedUnitIdsBills.length &&
                 selectedUnitIdsBills.length !== unitIdsAll.length
               ) {
                 qLine = qLine.in('unit_id', selectedUnitIdsBills);
               }
-              const { data: linesData } = await qLine;
-              const txIds = Array.from(
-                new Set(
-                  (linesData || [])
-                    .map((r) => {
-                      const txId = r?.transaction_id ? String(r.transaction_id) : null;
-                      if (!txId) return null;
-                      const memo = typeof r?.memo === 'string' ? r.memo.trim() : '';
-                      if (memo && !memoByTransactionId.has(txId)) {
-                        memoByTransactionId.set(txId, memo);
+              const { data: linesDataRaw } = await qLine;
+              const linesData = (linesDataRaw || []) as TransactionLineForBills[];
+              const txIdsSet = new Set<string>(
+                (linesData || [])
+                  .map((r: TransactionLineForBills) => {
+                    const txId = r?.transaction_id ? String(r.transaction_id) : null;
+                    if (!txId) return null;
+                    const memo = typeof r?.memo === 'string' ? r.memo.trim() : '';
+                    if (memo && !memoByTransactionId.has(txId)) {
+                      memoByTransactionId.set(txId, memo);
+                    }
+                    const postingType = String(r?.posting_type || '').toLowerCase();
+                    if (postingType !== 'credit') {
+                      const rawAmount = Number(r?.amount ?? 0);
+                      if (Number.isFinite(rawAmount)) {
+                        const amount = Math.abs(rawAmount);
+                        amountByTransaction.set(
+                          txId,
+                          (amountByTransaction.get(txId) ?? 0) + amount,
+                        );
                       }
-                      const postingType = String(r?.posting_type || '').toLowerCase();
-                      if (postingType !== 'credit') {
-                        const rawAmount = Number(r?.amount ?? 0);
-                        if (Number.isFinite(rawAmount)) {
-                          const amount = Math.abs(rawAmount);
-                          amountByTransaction.set(
-                            txId,
-                            (amountByTransaction.get(txId) ?? 0) + amount,
-                          );
-                        }
-                      }
-                      return txId;
-                    })
-                    .filter(Boolean),
-                ),
+                    }
+                    return txId;
+                  })
+                  .filter(
+                    (value: unknown): value is string => typeof value === 'string' && Boolean(value),
+                  ),
               );
+              const txIds: string[] = Array.from(txIdsSet);
 
               if (txIds.length) {
                 let qTx = db
@@ -780,9 +803,13 @@ export default async function FinancialsTab({
 
                 const { data: txData } = await qTx;
                 const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
-                const enrichedRows = (txData || []).map((row: TransactionBillRow) => {
+                const enrichedRows: NormalizedBillRow[] = (txData || []).map((row: TransactionBillRow) => {
                   const current = normalizeBillStatus(row.status);
-                  const derived = deriveBillStatusFromDates(current, row.due_date, row.paid_date);
+                  const derived = deriveBillStatusFromDates(
+                    current,
+                    row.due_date ?? null,
+                    row.paid_date ?? null,
+                  );
                   if (derived !== current) {
                     statusUpdates.push({ id: String(row.id), status: derived });
                   }
@@ -796,7 +823,7 @@ export default async function FinancialsTab({
                       : Number.isFinite(computedAmount ?? NaN) && computedAmount !== undefined
                         ? computedAmount
                         : 0;
-                  return { ...row, status: derived, total_amount: finalAmount };
+                  return { ...row, status: derived, total_amount: finalAmount } as NormalizedBillRow;
                 });
 
                 if (statusUpdates.length) {
@@ -814,10 +841,9 @@ export default async function FinancialsTab({
                   }
                 }
 
-                billRows = enrichedRows.filter((row) => {
-                  if (!statusFilterActive) return true;
-                  return statusFilterSet.has(row.status as BillStatusLabel);
-                });
+                billRows = statusFilterActive
+                  ? enrichedRows.filter((row) => statusFilterSet.has(row.status))
+                  : enrichedRows;
               }
             }
 
@@ -901,7 +927,7 @@ export default async function FinancialsTab({
                             <TableCell className="text-foreground">
                               {row.status ? (
                                 <Badge
-                                  variant={statusVariant(row.status)}
+                                  variant={statusVariant(row.status as BillStatusLabel)}
                                   className={cn(
                                     'uppercase',
                                     row.status === 'Overdue' &&

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { mapGLAccountFromBuildiumWithSubAccounts } from '@/lib/buildium-mappers';
 import type { Database } from '@/types/database';
@@ -18,30 +19,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { type, subType, isActive, limit = 100, offset = 0 } = body || {};
 
-    const qp = new URLSearchParams();
-    if (type) qp.append('type', String(type));
-    if (subType) qp.append('subType', String(subType));
-    if (typeof isActive !== 'undefined') qp.append('isActive', String(isActive));
-    qp.append('limit', String(limit));
-    qp.append('offset', String(offset));
+    const queryParams: Record<string, string> = {};
+    if (type) queryParams.type = String(type);
+    if (subType) queryParams.subType = String(subType);
+    if (typeof isActive !== 'undefined') queryParams.isActive = String(isActive);
+    queryParams.limit = String(limit);
+    queryParams.offset = String(offset);
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/glaccounts?${qp.toString()}`;
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/glaccounts', queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error('Buildium GL accounts fetch (for sync) failed');
       return NextResponse.json({ error: 'Failed to fetch GL accounts', details: errorData }, { status: response.status });
     }
 
-    const accounts = await response.json();
+    const accounts = (response.json ?? []) as unknown[];
     let synced = 0; let updated = 0; let failed = 0;
 
     const supabase = getServerSupabaseClient('gl accounts sync');
@@ -49,6 +42,11 @@ export async function POST(request: NextRequest) {
     for (const acc of accounts || []) {
       try {
         const mapped = await mapGLAccountFromBuildiumWithSubAccounts(acc, supabase);
+        const normalized = {
+          ...mapped,
+          is_security_deposit_liability: mapped.is_security_deposit_liability ?? undefined,
+          type: mapped.type ?? '',
+        };
         const now = new Date().toISOString();
 
         // Upsert by buildium_gl_account_id
@@ -61,7 +59,7 @@ export async function POST(request: NextRequest) {
 
         if (existing) {
           const updatePayload: Database['public']['Tables']['gl_accounts']['Update'] = {
-            ...mapped,
+            ...normalized,
             updated_at: now,
           };
           const { error } = await supabase
@@ -72,7 +70,7 @@ export async function POST(request: NextRequest) {
           updated += 1;
         } else {
           const insertPayload: Database['public']['Tables']['gl_accounts']['Insert'] = {
-            ...mapped,
+            ...normalized,
             created_at: now,
             updated_at: now,
           };

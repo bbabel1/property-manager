@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,26 +26,17 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (isActive) queryParams.append('isActive', isActive);
+    const queryParams: Record<string, string> = {};
+    if (limit) queryParams.limit = limit;
+    if (offset) queryParams.offset = offset;
+    if (orderby) queryParams.orderby = orderby;
+    if (isActive) queryParams.isActive = isActive;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/userroles?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/userroles', queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium user roles fetch failed`);
 
       return NextResponse.json(
@@ -56,7 +48,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userRoles = await response.json();
+    const userRoles = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium user roles fetched successfully`);
 

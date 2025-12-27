@@ -11,6 +11,7 @@ import { requireAuth } from '@/lib/auth/guards';
 import type { AppRole } from '@/lib/auth/roles';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { assertTransactionBalanced, assertTransactionHasBankLine } from '@/lib/accounting-validation';
 import {
   calculateFinancialSummary,
@@ -401,22 +402,10 @@ export async function POST(
 
     BuildiumCheckCreateSchema.parse(buildiumPayload);
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bankaccounts/${buildiumBankAccountId}/checks`;
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      },
-      body: JSON.stringify(buildiumPayload),
-    });
+    const response = await buildiumFetch('POST', `/bankaccounts/${buildiumBankAccountId}/checks`, undefined, buildiumPayload, orgId ?? undefined);
 
     if (!response.ok) {
-      const details: BuildiumErrorDetail = await response
-        .json()
-        .catch(() => ({} as BuildiumErrorDetail));
+      const details = (response.json ?? {}) as BuildiumErrorDetail;
       const message =
         details?.UserMessage ||
         details?.error ||
@@ -441,7 +430,7 @@ export async function POST(
       );
     }
 
-    const buildiumCheck = await response.json().catch(() => ({}));
+    const buildiumCheck = (response.json ?? {}) as unknown;
     const nowIso = new Date().toISOString();
 
     const { data: transactionRow, error: transactionError } = await supabaseAdmin

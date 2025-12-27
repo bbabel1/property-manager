@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumFileCategoryCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { buildiumFetch } from '@/lib/buildium-http';
 import type { BuildiumFileCategory } from '@/types/buildium';
 import type { Database } from '@/types/database';
 
@@ -30,25 +31,16 @@ export async function GET(request: NextRequest) {
     const orderby = searchParams.get('orderby');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
+    const params: Record<string, string> = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (orderby) params.orderby = orderby;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/filecategories?${queryParams.toString()}`;
-
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/filecategories', params, undefined, undefined);
 
     if (!response.ok) {
-      const errorData: unknown = await response.json().catch(() => ({}));
+      const errorData: unknown = response.json ?? {};
       logger.error(`Buildium file categories fetch failed`);
 
       return NextResponse.json(
@@ -60,7 +52,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rawPayload: unknown = await response.json().catch(() => []);
+    const rawPayload: unknown = response.json ?? [];
     const payloadObject = isRecord(rawPayload) ? rawPayload : null;
 
     let categories: BuildiumFileCategory[] = [];
@@ -89,7 +81,7 @@ export async function GET(request: NextRequest) {
     const sync = searchParams.get('sync') === 'true';
     if (sync && Array.isArray(categories)) {
       try {
-        const supabase = await getSupabaseServerClient();
+        const supabase = (await getSupabaseServerClient()) as any;
         const metadata = isRecord(user?.user_metadata) ? user.user_metadata : null;
         const orgId =
           searchParams.get('orgId') ||
@@ -115,7 +107,7 @@ export async function GET(request: NextRequest) {
         }
 
         const existingMap = new Map<number, string>();
-        (existingRows || []).forEach((row) => {
+        (existingRows || []).forEach((row: FileCategoryRow) => {
           if (row.buildium_category_id != null) {
             existingMap.set(row.buildium_category_id, row.id);
           }
@@ -127,7 +119,7 @@ export async function GET(request: NextRequest) {
         const createdRecords: FileCategoryRow[] = [];
         const updatedRecords: FileCategoryRow[] = [];
 
-        for (const category of categories) {
+        for (const category of categories as Array<{ Id?: number; Name?: string; Description?: string | null; IsActive?: boolean | null }>) {
           if (!category || typeof category.Id !== 'number') continue;
 
           const categoryName = typeof category.Name === 'string' && category.Name.trim()
@@ -251,21 +243,10 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumFileCategoryCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/filecategories`;
-
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', '/filecategories', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData: unknown = await response.json().catch(() => ({}));
+      const errorData: unknown = response.json ?? {};
       logger.error(`Buildium file category creation failed`);
 
       return NextResponse.json(
@@ -277,7 +258,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const categoryJson: unknown = await response.json().catch(() => ({}));
+    const categoryJson: unknown = response.json ?? {};
     const category =
       categoryJson && typeof categoryJson === 'object'
         ? (categoryJson as Record<string, unknown>)

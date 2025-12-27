@@ -32,9 +32,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    
-    const propertyId = resolvedParams.id
+    const { id: propertyId } = await params
 
     // Check authentication
     const user = await requireUser(request);
@@ -73,12 +71,16 @@ export async function PUT(
 
     const ensureMembership = async (orgId: string | null) => {
       if (!orgId) return null
-      const { data: membership } = await adminClient
+      const { data: membership, error: membershipError } = await adminClient
         .from('org_memberships')
         .select('org_id, role')
         .eq('user_id', user.id)
         .eq('org_id', orgId)
         .maybeSingle()
+      if (membershipError) {
+        console.error('Error checking org membership', membershipError)
+        return null
+      }
       return membership ?? null
     }
 
@@ -286,44 +288,58 @@ export async function PUT(
 
         // 2) Try reloading the property
         if (!orgId) {
-          const { data: propRow } = await adminClient
+          const { data: propRow, error: propLoadError } = await adminClient
             .from('properties')
             .select('org_id')
             .eq('id', propertyId)
             .maybeSingle()
-          orgId = propRow?.org_id ?? null
+          if (propLoadError) {
+            console.error('Error reloading property org_id', propLoadError)
+          } else {
+            orgId = propRow?.org_id ?? null
+          }
         }
 
         // 3) Try user's org membership (first org)
         if (!orgId) {
-          const { data: mem } = await adminClient
+          const { data: mem, error: memLookupError } = await adminClient
             .from('org_memberships')
             .select('org_id')
             .eq('user_id', user.id)
             .limit(1)
             .maybeSingle()
-          orgId = mem?.org_id ?? null
+          if (memLookupError) {
+            console.error('Error loading first org membership', memLookupError)
+          } else {
+            orgId = mem?.org_id ?? null
+          }
         }
 
         // 4) Try deriving from first owner in payload
         if (!orgId) {
           const firstOwner = body.owners?.[0]
           if (firstOwner?.id) {
-            const { data: own } = await adminClient
+            const { data: own, error: ownerLookupError } = await adminClient
               .from('owners')
               .select('org_id')
               .eq('id', firstOwner.id)
               .maybeSingle()
-            orgId = own?.org_id ?? null
+            if (ownerLookupError) {
+              console.error('Error loading owner org_id', ownerLookupError)
+            } else {
+              orgId = own?.org_id ?? null
+            }
           }
         }
 
         // 5) Single-tenant convenience: if exactly one org exists, use it
         if (!orgId) {
-          const { data: orgs } = await adminClient
+          const { data: orgs, error: orgListError } = await adminClient
             .from('organizations')
             .select('id')
-          if (Array.isArray(orgs) && orgs.length === 1) orgId = orgs[0].id
+          if (orgListError) {
+            console.error('Error loading organizations to infer org_id', orgListError)
+          } else if (Array.isArray(orgs) && orgs.length === 1) orgId = orgs[0].id
         }
 
         // If we resolved orgId and property has none, persist it for consistency
@@ -356,22 +372,36 @@ export async function PUT(
           const numericId = Number(resolvedOwnerId);
           if (!Number.isNaN(numericId)) {
             // First, try as Buildium owner id
-            const { data: ownerRow } = await adminClient
+            const { data: ownerRow, error: ownerLookupError } = await adminClient
               .from('owners')
               .select('id')
               .eq('buildium_owner_id', numericId)
               .eq('org_id', orgId)
               .maybeSingle();
+            if (ownerLookupError) {
+              console.error('Error looking up owner by Buildium id', ownerLookupError);
+              return NextResponse.json(
+                { error: 'Failed to resolve owner by Buildium id' },
+                { status: 500 },
+              );
+            }
 
             // Fallback: try matching contact_id (form may send contact ids)
             let resolvedId = ownerRow?.id;
             if (!resolvedId) {
-              const { data: byContact } = await adminClient
+              const { data: byContact, error: ownerByContactError } = await adminClient
                 .from('owners')
                 .select('id')
                 .eq('contact_id', numericId)
                 .eq('org_id', orgId)
                 .maybeSingle();
+              if (ownerByContactError) {
+                console.error('Error looking up owner by contact id', ownerByContactError);
+                return NextResponse.json(
+                  { error: 'Failed to resolve owner by contact id' },
+                  { status: 500 },
+                );
+              }
               resolvedId = byContact?.id;
             }
 
@@ -521,12 +551,14 @@ export async function PUT(
       try {
         const sid = typeof staffId === 'string' ? Number(staffId) : staffId
         if (sid) {
-          const { data: st } = await adminClient
+          const { data: st, error: staffLookupError } = await adminClient
             .from('staff')
             .select('buildium_user_id')
             .eq('id', sid)
             .maybeSingle()
-        if (st?.buildium_user_id) {
+          if (staffLookupError) {
+            console.error('Failed to load staff for rental manager id', staffLookupError)
+          } else if (st?.buildium_user_id) {
             rentalManagerId = Number(st.buildium_user_id)
           }
         }

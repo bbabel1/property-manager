@@ -133,7 +133,7 @@ export async function requireOrg(orgId: string) {
           if (row?.org_id) orgs.add(String(row.org_id));
         });
       }
-    } catch (e) {
+	    } catch {
       // fall through; we still enforce membership below
     }
   }

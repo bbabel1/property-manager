@@ -2447,6 +2447,61 @@ export type Database = {
           },
         ]
       }
+      gl_account_balances: {
+        Row: {
+          org_id: string
+          gl_account_id: string
+          property_id: string | null
+          as_of_date: string
+          balance: number
+          source: string
+          computed_at: string
+          payload: Json | null
+        }
+        Insert: {
+          org_id: string
+          gl_account_id: string
+          property_id?: string | null
+          as_of_date: string
+          balance: number
+          source?: string
+          computed_at?: string
+          payload?: Json | null
+        }
+        Update: {
+          org_id?: string
+          gl_account_id?: string
+          property_id?: string | null
+          as_of_date?: string
+          balance?: number
+          source?: string
+          computed_at?: string
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gl_account_balances_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_account_balances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_account_balances_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gl_import_cursors: {
         Row: {
           key: string
@@ -6084,6 +6139,65 @@ export type Database = {
           },
         ]
       }
+      transaction_files: {
+        Row: {
+          id: string
+          org_id: string
+          transaction_id: string
+          file_id: string
+          added_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          org_id: string
+          transaction_id: string
+          file_id: string
+          added_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          transaction_id?: string
+          file_id?: string
+          added_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_files_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_payment_transactions: {
         Row: {
           accounting_entity_href: string | null
@@ -7284,6 +7398,39 @@ export type Database = {
           two_factor_enabled: boolean | null
           updated_at: string | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      users_with_auth: {
+        Row: {
+          user_id: string | null
+          full_name: string | null
+          email: string | null
+          phone: string | null
+          created_at: string | null
+          last_sign_in_at: string | null
+          providers: Json | null
+          memberships: Json | null
+        }
+        Insert: {
+          user_id?: string | null
+          full_name?: string | null
+          email?: string | null
+          phone?: string | null
+          created_at?: string | null
+          last_sign_in_at?: string | null
+          providers?: Json | null
+          memberships?: Json | null
+        }
+        Update: {
+          user_id?: string | null
+          full_name?: string | null
+          email?: string | null
+          phone?: string | null
+          created_at?: string | null
+          last_sign_in_at?: string | null
+          providers?: Json | null
+          memberships?: Json | null
         }
         Relationships: []
       }

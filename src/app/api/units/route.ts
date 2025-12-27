@@ -4,17 +4,23 @@ import { requireUser } from '@/lib/auth';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { buildiumSync } from '@/lib/buildium-sync';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { UnitCreateSchema, UnitQuerySchema } from '@/schemas/unit';
+import { UnitCreateSchema, UnitQuerySchema, type UnitCreateInput, type UnitQueryInput } from '@/schemas/unit';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
+import type { Database } from '@/types/database';
+
+type UnitStatus = Database['public']['Enums']['unit_status_enum'];
+type UnitBedrooms = Database['public']['Enums']['bedroom_enum'];
+type UnitBathrooms = Database['public']['Enums']['bathroom_enum'];
+type CountryEnum = Database['public']['Enums']['countries'];
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireUser(request);
+    await requireUser(request);
 
     const body = await request.json();
 
     // Validate request body with schema
-    const validatedData = sanitizeAndValidate(body, UnitCreateSchema);
+    const validatedData = sanitizeAndValidate<UnitCreateInput>(body, UnitCreateSchema);
     console.log('Units API: Validated data:', validatedData);
 
     const {
@@ -33,14 +39,46 @@ export async function POST(request: NextRequest) {
       description,
     } = validatedData;
 
+    const normalizedStatus = (validatedData.status ?? 'Vacant') as UnitStatus;
+    const normalizedBedrooms = (unitBedrooms ?? null) as UnitBedrooms | null;
+    const normalizedBathrooms = (unitBathrooms ?? null) as UnitBathrooms | null;
+    const normalizedCountry = mapGoogleCountryToEnum(country) as CountryEnum;
+
     // Create unit
     // Use admin client if available for writes to bypass RLS
     const db = supabaseAdmin || supabase;
-    const normalizedCountry = mapGoogleCountryToEnum(country);
+    const nowIso = new Date().toISOString();
+
+    const {
+      data: propertyRow,
+      error: propertyError,
+    } = await db
+      .from('properties')
+      .select('id, org_id, buildium_property_id')
+      .eq('id', propertyId)
+      .maybeSingle();
+
+    if (propertyError) {
+      console.error('Error loading property for unit creation:', propertyError);
+      return NextResponse.json(
+        { error: 'Failed to create unit', details: propertyError.message },
+        { status: 500 },
+      );
+    }
+
+    if (!propertyRow || !propertyRow.org_id) {
+      return NextResponse.json(
+        { error: 'Property not found or missing organization' },
+        { status: 404 },
+      );
+    }
+
     const { data: unit, error } = await db
       .from('units')
       .insert({
         property_id: propertyId,
+        org_id: propertyRow.org_id,
+        buildium_property_id: propertyRow.buildium_property_id ?? null,
         unit_number: unitNumber,
         unit_size: unitSize,
         market_rent: marketRent,
@@ -50,11 +88,12 @@ export async function POST(request: NextRequest) {
         state,
         postal_code: postalCode,
         country: normalizedCountry,
-        unit_bedrooms: unitBedrooms,
-        unit_bathrooms: unitBathrooms,
+        unit_bedrooms: normalizedBedrooms,
+        unit_bathrooms: normalizedBathrooms,
         description,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        status: normalizedStatus,
+        created_at: nowIso,
+        updated_at: nowIso,
       })
       .select()
       .single();
@@ -69,16 +108,10 @@ export async function POST(request: NextRequest) {
 
     // Attempt Buildium sync after DB write
     try {
-      // Resolve buildium_property_id for this local unit
-      const { data: prop } = await db
-        .from('properties')
-        .select('buildium_property_id')
-        .eq('id', unit.property_id)
-        .single();
-      if (prop?.buildium_property_id) {
+      if (propertyRow.buildium_property_id) {
         await buildiumSync.syncUnitToBuildium({
           ...unit,
-          buildium_property_id: prop.buildium_property_id,
+          buildium_property_id: propertyRow.buildium_property_id,
         });
       } else {
         console.warn('Skipping Buildium sync: property missing buildium_property_id');
@@ -100,11 +133,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser(request);
+    await requireUser(request);
 
     // Validate query parameters
     const { searchParams } = new URL(request.url);
-    const query = sanitizeAndValidate(Object.fromEntries(searchParams), UnitQuerySchema);
+    const query = sanitizeAndValidate<UnitQueryInput>(
+      Object.fromEntries(searchParams),
+      UnitQuerySchema,
+    );
     console.log('Units API: Validated query parameters:', query);
 
     const {

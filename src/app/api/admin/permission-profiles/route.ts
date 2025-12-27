@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
     const payload = parsed.data
     const now = new Date().toISOString()
-    const profileRow: Database['public']['Tables']['roles']['Update'] = {
+    const profileRow: Database['public']['Tables']['roles']['Insert'] = {
       id: payload.id,
       org_id: payload.org_id ?? null,
       name: payload.name.trim(),

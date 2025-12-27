@@ -1,8 +1,8 @@
-// @ts-nocheck
 // Data Integrity Validation System
 // Ensures consistency across all entity relationships and Buildium sync operations
 
 import type { TypedSupabaseClient } from './db'
+import type { Database } from '@/types/database'
 
 const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
@@ -36,6 +36,14 @@ type DuplicateBuildiumId = {
   buildium_id: number
   count: number
 }
+
+type PropertyRow = Database['public']['Tables']['properties']['Row']
+type UnitRow = Database['public']['Tables']['units']['Row']
+type LeaseRow = Database['public']['Tables']['lease']['Row']
+type TenantRow = Database['public']['Tables']['tenants']['Row']
+type ContactRow = Database['public']['Tables']['contacts']['Row']
+type OwnerRow = Database['public']['Tables']['owners']['Row']
+type OwnershipRow = Database['public']['Tables']['ownerships']['Row']
 
 export class DataIntegrityValidator {
   private supabase: TypedSupabaseClient
@@ -83,7 +91,10 @@ export class DataIntegrityValidator {
         .select('id, name, buildium_property_id')
         .not('id', 'in', `(SELECT property_id FROM units)`)
 
-      propertiesWithoutUnits?.forEach(property => {
+      const propertiesWithoutUnitsRows = (propertiesWithoutUnits ?? []) as Array<
+        Pick<PropertyRow, 'id' | 'name' | 'buildium_property_id'>
+      >;
+      propertiesWithoutUnitsRows.forEach((property) => {
         result.warnings.push(`Property "${property.name}" (ID: ${property.id}) has no units`)
       })
 
@@ -93,7 +104,10 @@ export class DataIntegrityValidator {
         .select('id, name, buildium_property_id, operating_bank_gl_account_id')
         .not('operating_bank_gl_account_id', 'is', null)
 
-      const bankGlIds = (propertiesWithBankGl ?? [])
+      const propertiesWithBankGlRows = (propertiesWithBankGl ?? []) as Array<
+        Pick<PropertyRow, 'id' | 'name' | 'buildium_property_id' | 'operating_bank_gl_account_id'>
+      >;
+      const bankGlIds = propertiesWithBankGlRows
         .map((p) => p?.operating_bank_gl_account_id)
         .filter((id): id is string => typeof id === 'string' && id.length > 0)
 
@@ -106,7 +120,7 @@ export class DataIntegrityValidator {
         validBankGlIds = new Set((bankRows ?? []).map((row) => String(row.id)))
       }
 
-      propertiesWithBankGl?.forEach(property => {
+      propertiesWithBankGlRows.forEach((property) => {
         const bankId = property?.operating_bank_gl_account_id
         if (!bankId || !validBankGlIds.has(String(bankId))) {
           result.errors.push(`Property "${property.name}" references non-existent bank GL account`)
@@ -135,7 +149,10 @@ export class DataIntegrityValidator {
         .select('id, unit_number, property_id, buildium_unit_id')
         .not('property_id', 'in', `(SELECT id FROM properties)`)
 
-      orphanedUnits?.forEach(unit => {
+      const orphanedUnitRows = (orphanedUnits ?? []) as Array<
+        Pick<UnitRow, 'id' | 'unit_number' | 'property_id' | 'buildium_unit_id'>
+      >;
+      orphanedUnitRows.forEach((unit) => {
         result.errors.push(`Unit "${unit.unit_number}" (ID: ${unit.id}) references non-existent property`)
         result.orphanedRecords.push({
           table: 'units',
@@ -173,7 +190,13 @@ export class DataIntegrityValidator {
         `)
         .or('property.id.is.null,unit.id.is.null')
 
-      invalidLeases?.forEach(lease => {
+      const invalidLeaseRows = (invalidLeases ?? []) as Array<
+        Pick<LeaseRow, 'id' | 'buildium_lease_id'> & {
+          property: { id: string | null; name: string | null } | null
+          unit: { id: string | null; unit_number: string | null } | null
+        }
+      >;
+      invalidLeaseRows.forEach((lease) => {
         const missingRefs = []
         if (!lease.property) missingRefs.push('property')
         if (!lease.unit) missingRefs.push('unit')
@@ -193,7 +216,10 @@ export class DataIntegrityValidator {
         .select('id, buildium_lease_id')
         .not('id', 'in', `(SELECT lease_id FROM lease_contacts)`)
 
-      leasesWithoutTenants?.forEach(lease => {
+      const leasesWithoutTenantsRows = (leasesWithoutTenants ?? []) as Array<
+        Pick<LeaseRow, 'id' | 'buildium_lease_id'>
+      >;
+      leasesWithoutTenantsRows.forEach((lease) => {
         result.warnings.push(`Lease (ID: ${lease.id}) has no associated tenants`)
       })
 
@@ -213,7 +239,10 @@ export class DataIntegrityValidator {
         .select('id, buildium_tenant_id, contact_id')
         .not('contact_id', 'in', `(SELECT id FROM contacts)`)
 
-      orphanedTenants?.forEach(tenant => {
+      const orphanedTenantRows = (orphanedTenants ?? []) as Array<
+        Pick<TenantRow, 'id' | 'buildium_tenant_id' | 'contact_id'>
+      >;
+      orphanedTenantRows.forEach((tenant) => {
         result.errors.push(`Tenant (ID: ${tenant.id}) references non-existent contact`)
         result.orphanedRecords.push({
           table: 'tenants',
@@ -233,7 +262,12 @@ export class DataIntegrityValidator {
         `)
         .or('lease.id.is.null,tenant.id.is.null')
 
-      invalidLeaseContacts?.forEach(lc => {
+      const invalidLeaseContactRows = (invalidLeaseContacts ?? []) as Array<{
+        id: string
+        lease: { id: string | null } | null
+        tenant: { id: string | null } | null
+      }>;
+      invalidLeaseContactRows.forEach((lc) => {
         const missingRefs = []
         if (!lc.lease) missingRefs.push('lease')
         if (!lc.tenant) missingRefs.push('tenant')
@@ -264,7 +298,10 @@ export class DataIntegrityValidator {
           'and(is_company.eq.false,first_name.is.null),and(is_company.eq.false,last_name.is.null),and(is_company.eq.true,company_name.is.null)'
         )
 
-      incompleteContacts?.forEach(contact => {
+      const incompleteContactRows = (incompleteContacts ?? []) as Array<
+        Pick<ContactRow, 'id' | 'first_name' | 'last_name' | 'company_name' | 'is_company'>
+      >;
+      incompleteContactRows.forEach((contact) => {
         if (contact.is_company && !contact.company_name) {
           result.warnings.push(`Company contact (ID: ${contact.id}) missing company name`)
         } else if (!contact.is_company && (!contact.first_name || !contact.last_name)) {
@@ -288,7 +325,10 @@ export class DataIntegrityValidator {
         .select('id, buildium_owner_id, contact_id')
         .not('contact_id', 'in', `(SELECT id FROM contacts)`)
 
-      orphanedOwners?.forEach(owner => {
+      const orphanedOwnerRows = (orphanedOwners ?? []) as Array<
+        Pick<OwnerRow, 'id' | 'buildium_owner_id' | 'contact_id'>
+      >;
+      orphanedOwnerRows.forEach((owner) => {
         result.errors.push(`Owner (ID: ${owner.id}) references non-existent contact`)
         result.orphanedRecords.push({
           table: 'owners',
@@ -307,7 +347,12 @@ export class DataIntegrityValidator {
         `)
         .is('ownerships.id', null)
 
-      ownersWithoutProperties?.forEach(owner => {
+      const ownersWithoutPropertiesRows = (ownersWithoutProperties ?? []) as Array<{
+        id: string
+        buildium_owner_id: number | null
+        contact: { display_name: string | null }[] | null
+      }>;
+      ownersWithoutPropertiesRows.forEach((owner) => {
         const displayName = owner.contact?.[0]?.display_name ?? 'Unknown'
         result.warnings.push(`Owner "${displayName}" (ID: ${owner.id}) has no property ownerships`)
       })
@@ -328,7 +373,10 @@ export class DataIntegrityValidator {
         .select('id, owner_id, property_id')
         .or('not.owner_id.in.(SELECT id FROM owners),not.property_id.in.(SELECT id FROM properties)')
 
-      invalidOwnerships?.forEach(ownership => {
+      const invalidOwnershipRows = (invalidOwnerships ?? []) as Array<
+        Pick<OwnershipRow, 'id' | 'owner_id' | 'property_id'>
+      >;
+      invalidOwnershipRows.forEach((ownership) => {
         result.errors.push(`Ownership (ID: ${ownership.id}) has invalid owner or property reference`)
         result.orphanedRecords.push({
           table: 'ownerships',
@@ -392,7 +440,10 @@ export class DataIntegrityValidator {
         .select('id, name, address_line1, postal_code, country')
         .or('name.is.null,address_line1.is.null,postal_code.is.null,country.is.null')
 
-      incompleteProperties?.forEach(property => {
+      const incompletePropertyRows = (incompleteProperties ?? []) as Array<
+        Pick<PropertyRow, 'id' | 'name' | 'address_line1' | 'postal_code' | 'country'>
+      >;
+      incompletePropertyRows.forEach((property) => {
         result.errors.push(`Property (ID: ${property.id}) missing required fields`)
       })
 
@@ -402,7 +453,10 @@ export class DataIntegrityValidator {
         .select('id, property_id, unit_number, address_line1, postal_code, country')
         .or('property_id.is.null,unit_number.is.null,address_line1.is.null,postal_code.is.null,country.is.null')
 
-      incompleteUnits?.forEach(unit => {
+      const incompleteUnitRows = (incompleteUnits ?? []) as Array<
+        Pick<UnitRow, 'id' | 'property_id' | 'unit_number' | 'address_line1' | 'postal_code' | 'country'>
+      >;
+      incompleteUnitRows.forEach((unit) => {
         result.errors.push(`Unit (ID: ${unit.id}) missing required fields`)
       })
 
@@ -412,7 +466,10 @@ export class DataIntegrityValidator {
         .select('id, property_id, unit_id, lease_from_date')
         .or('property_id.is.null,unit_id.is.null,lease_from_date.is.null')
 
-      incompleteLeases?.forEach(lease => {
+      const incompleteLeaseRows = (incompleteLeases ?? []) as Array<
+        Pick<LeaseRow, 'id' | 'property_id' | 'unit_id' | 'lease_from_date'>
+      >;
+      incompleteLeaseRows.forEach((lease) => {
         result.errors.push(`Lease (ID: ${lease.id}) missing required fields`)
       })
 

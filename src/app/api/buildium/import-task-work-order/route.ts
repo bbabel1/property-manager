@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client';
+import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import { mapTaskFromBuildiumWithRelations, mapWorkOrderFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import { requireRole } from '@/lib/auth/guards';
@@ -27,25 +27,7 @@ const BUILD_DEFAULTS = {
   workOrderId: 1965,
 };
 
-function ensureBuildiumCredentials() {
-  const clientId = process.env.BUILDIUM_CLIENT_ID;
-  const clientSecret = process.env.BUILDIUM_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error('Buildium credentials are not configured. Set BUILDIUM_CLIENT_ID and BUILDIUM_CLIENT_SECRET.');
-  }
-  return { clientId, clientSecret };
-}
-
-function getBuildiumClient() {
-  const { clientId, clientSecret } = ensureBuildiumCredentials();
-  return createBuildiumClient({
-    ...defaultBuildiumConfig,
-    clientId,
-    clientSecret,
-  });
-}
-
-async function upsertTaskFromBuildium(taskId: number, client: ReturnType<typeof createBuildiumClient>) {
+async function upsertTaskFromBuildium(taskId: number, client: Awaited<ReturnType<typeof getOrgScopedBuildiumClient>>) {
   const buildiumTask = await client.getTask(taskId);
   const localPayload = await mapTaskFromBuildiumWithRelations(buildiumTask, db);
 
@@ -59,9 +41,15 @@ async function upsertTaskFromBuildium(taskId: number, client: ReturnType<typeof 
     throw existingError;
   }
 
+  const subject =
+    typeof (localPayload as { subject?: unknown })?.subject === 'string'
+      ? (localPayload as { subject?: string }).subject
+      : '';
+
   if (existing?.id) {
     const updatePayload: TaskUpdate = {
-      ...localPayload,
+      ...(localPayload as any),
+      subject,
       updated_at: localPayload?.updated_at ?? new Date().toISOString(),
     };
     const { error } = await db.from('tasks').update(updatePayload).eq('id', existing.id);
@@ -70,7 +58,8 @@ async function upsertTaskFromBuildium(taskId: number, client: ReturnType<typeof 
   }
 
   const insertPayload: TaskInsert = {
-    ...localPayload,
+    ...(localPayload as any),
+    subject,
     created_at: localPayload?.created_at ?? new Date().toISOString(),
     updated_at: localPayload?.updated_at ?? new Date().toISOString(),
   };
@@ -85,7 +74,7 @@ async function upsertTaskFromBuildium(taskId: number, client: ReturnType<typeof 
 
 async function upsertWorkOrderFromBuildium(
   workOrderId: number,
-  client: ReturnType<typeof createBuildiumClient>,
+  client: Awaited<ReturnType<typeof getOrgScopedBuildiumClient>>,
 ) {
   const buildiumWorkOrder = await client.getWorkOrder(workOrderId);
   const localPayload = await mapWorkOrderFromBuildiumWithRelations(buildiumWorkOrder, db);
@@ -143,7 +132,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const buildiumClient = getBuildiumClient();
+    const buildiumClient = await getOrgScopedBuildiumClient(undefined);
 
     const [taskResult, workOrderResult] = await Promise.all([
       upsertTaskFromBuildium(taskIdInput, buildiumClient),

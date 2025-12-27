@@ -9,55 +9,6 @@ import EditTransferForm, {
   type TransferUnitOption,
 } from '@/components/bank-accounts/EditTransferForm';
 
-type BankAccountDetail = { id: string; name: string | null };
-
-type BankAccountRow = {
-  id: string;
-  name: string | null;
-  bank_balance: number | null;
-};
-
-type PropertyRow = {
-  id: string;
-  name: string | null;
-  address_line1: string | null;
-  is_active: boolean | null;
-};
-
-type UnitRow = {
-  id: string;
-  property_id: string | null;
-  unit_number: string | null;
-  unit_name: string | null;
-};
-
-type GLAccountRow = {
-  id: string;
-  name: string | null;
-  account_number: string | null;
-  type: string | null;
-  is_bank_account?: boolean | null;
-};
-
-type TransactionRow = {
-  id: string;
-  date: string;
-  memo: string | null;
-  total_amount: number | null;
-  transaction_type: string | null;
-  bank_gl_account_id: string | null;
-  buildium_transaction_id: string | null;
-};
-
-type TransactionLineRow = {
-  id: string;
-  gl_account_id: string | null;
-  posting_type: string | null;
-  amount: number | null;
-  property_id: string | null;
-  unit_id: string | null;
-};
-
 function renderError(message: string) {
   return (
     <PageShell>

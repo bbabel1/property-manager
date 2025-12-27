@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
 
 type QuickDepositResponse = Record<string, unknown>
@@ -21,20 +22,13 @@ export async function GET(_request: NextRequest) {
     logger.info({ userId: user.id, action: 'get_buildium_quick_deposits' }, 'Fetching Buildium quick deposits');
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/quickdeposits', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', '/bankaccounts/quickdeposits', undefined, undefined, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const quickDeposits = await response.json();
+    const quickDeposits = (response.json ?? []) as unknown[];
 
     return NextResponse.json({
       success: true,
@@ -61,22 +55,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/quickdeposits', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(body)
-    });
+    const response = await buildiumFetch('POST', '/bankaccounts/quickdeposits', undefined, body, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newQuickDeposit = (await response.json()) as QuickDepositResponse;
+    const newQuickDeposit = (response.json ?? {}) as QuickDepositResponse;
 
     try {
       const bankAccountId =

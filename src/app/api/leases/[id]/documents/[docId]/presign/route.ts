@@ -1,7 +1,6 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { logger } from '@/lib/logger';
 
 /**
@@ -117,17 +116,7 @@ export async function GET(
         return NextResponse.json({ error: 'Missing Buildium file id' }, { status: 400 });
       }
 
-      const base = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
-      const headers = {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      };
-      const res = await fetch(`${base}/files/${buildiumFileId}/download`, {
-        method: 'POST',
-        headers,
-      });
+      const res = await buildiumFetch('POST', `/files/${buildiumFileId}/download`, undefined, undefined, orgId);
       if (!res.ok) {
         return NextResponse.json(
           { error: 'Buildium download URL failed', status: res.status },

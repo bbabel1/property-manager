@@ -96,9 +96,10 @@ export async function POST(request: NextRequest) {
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
-    const callerOrgRole = (callerRolesRows || [])
+    type CallerRoleRow = { roles?: { name?: string | null } | null }
+    const callerOrgRole = ((callerRolesRows as CallerRoleRow[] | null) || [])
       .map((r) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
-      .filter(Boolean)?.[0] as AppRole | null
+      .filter((role): role is AppRole => role !== null)?.[0] ?? null
     const validation = validateMembershipChange({
       callerOrgRole,
       callerGlobalRoles: callerRoles,

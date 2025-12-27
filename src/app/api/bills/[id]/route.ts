@@ -2,6 +2,7 @@ import { createHmac } from 'crypto';
 import { NextResponse } from 'next/server';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { logger } from '@/lib/logger';
 import { assertTransactionBalanced, DOUBLE_ENTRY_TOLERANCE } from '@/lib/accounting-validation';
 import type { Database as DatabaseSchema } from '@/types/database';
@@ -126,7 +127,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     // Use SQL function for atomic replace with locking and validation
-    const { error: replaceError } = await admin.rpc('replace_transaction_lines', {
+    const { error: replaceError } = await (admin as any).rpc('replace_transaction_lines', {
       p_transaction_id: id,
       p_lines: allLines.map((line) => ({
         gl_account_id: line.gl_account_id,
@@ -206,15 +207,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: 'Bill not found after update' }, { status: 404 });
   }
 
-  const missingEnv = ['BUILDIUM_BASE_URL', 'BUILDIUM_CLIENT_ID', 'BUILDIUM_CLIENT_SECRET'].filter(
-    (key) => !process.env[key],
-  );
-  if (missingEnv.length) {
-    logger.error({ missingEnv, transactionId: id }, 'Buildium environment variables missing');
-    return NextResponse.json(
-      { error: 'Buildium integration is not configured', data: billSnapshot },
-      { status: 500 },
-    );
+  // Resolve orgId from billSnapshot
+  let orgId = billSnapshot.org_id ?? undefined;
+
+  // If no orgId on transaction, try to resolve from property via transaction_lines
+  if (!orgId) {
+    const { data: txnLine } = await admin
+      .from('transaction_lines')
+      .select('property_id')
+      .eq('transaction_id', id)
+      .not('property_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (txnLine?.property_id) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('id', txnLine.property_id)
+        .maybeSingle();
+      if (property?.org_id) {
+        orgId = property.org_id;
+      }
+    }
   }
 
   let buildiumPayload: Awaited<ReturnType<typeof mapTransactionBillToBuildium>>;
@@ -237,31 +252,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const isUpdate =
     typeof billSnapshot.buildium_bill_id === 'number' && billSnapshot.buildium_bill_id > 0;
-  const buildiumBaseUrl = (
-    process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'
-  ).replace(/\/$/, '');
-  const buildiumUrl = isUpdate
-    ? `${buildiumBaseUrl}/bills/${billSnapshot.buildium_bill_id}`
-    : `${buildiumBaseUrl}/bills`;
-
-  const buildiumHeaders = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-    'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-  };
+  const path = isUpdate ? `/bills/${billSnapshot.buildium_bill_id}` : '/bills';
 
   let buildiumResponseBody: unknown = null;
   let buildiumStatus = 0;
   try {
-    const buildiumResponse = await fetch(buildiumUrl, {
-      // Buildium's UpdateBill endpoint expects a full document via PUT (PATCH uses JSON Patch format).
-      method: isUpdate ? 'PUT' : 'POST',
-      headers: buildiumHeaders,
-      body: JSON.stringify(buildiumPayload),
-    });
+    const buildiumResponse = await buildiumFetch(isUpdate ? 'PUT' : 'POST', path, undefined, buildiumPayload, orgId);
     buildiumStatus = buildiumResponse.status;
-    buildiumResponseBody = await readBuildiumBody(buildiumResponse);
+    buildiumResponseBody = buildiumResponse.json ?? null;
 
     if (!buildiumResponse.ok) {
       logger.error(
@@ -319,19 +317,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   return NextResponse.json({ data: billSnapshot, buildium: buildiumResult });
 }
 
-async function readBuildiumBody(response: Response): Promise<unknown> {
-  try {
-    const text = await response.text();
-    if (!text) return null;
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  } catch {
-    return null;
-  }
-}
 
 function describeBuildiumError(payload: unknown): string | null {
   if (!payload) return null;
@@ -411,16 +396,37 @@ async function zeroBillInBuildium(
   buildiumBillId: number,
   admin: ReturnType<typeof requireSupabaseAdmin>,
 ): Promise<BuildiumSyncResult> {
-  let env;
-  try {
-    env = ensureBuildiumEnv();
-  } catch (error) {
-    throw new BuildiumSyncError(
-      error instanceof Error ? error.message : 'Buildium configuration missing',
-      500,
-      null,
-    );
+  // Resolve orgId from transaction
+  const { data: tx } = await admin
+    .from('transactions')
+    .select('org_id')
+    .eq('id', transactionId)
+    .maybeSingle();
+
+  let orgId = tx?.org_id ?? undefined;
+
+  // If no orgId on transaction, try to resolve from property via transaction_lines
+  if (!orgId) {
+    const { data: txnLine } = await admin
+      .from('transaction_lines')
+      .select('property_id')
+      .eq('transaction_id', transactionId)
+      .not('property_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (txnLine?.property_id) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('id', txnLine.property_id)
+        .maybeSingle();
+      if (property?.org_id) {
+        orgId = property.org_id;
+      }
+    }
   }
+
   let payload;
   try {
     payload = await mapTransactionBillToBuildium(transactionId, admin);
@@ -432,17 +438,8 @@ async function zeroBillInBuildium(
     );
   }
   const zeroPayload = buildZeroOutPayload(payload);
-  const response = await fetch(`${env.baseUrl}/bills/${buildiumBillId}`, {
-    method: 'PUT',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-buildium-client-id': env.clientId ?? '',
-      'x-buildium-client-secret': env.clientSecret ?? '',
-    },
-    body: JSON.stringify(zeroPayload),
-  });
-  const body = await readBuildiumBody(response);
+  const response = await buildiumFetch('PUT', `/bills/${buildiumBillId}`, undefined, zeroPayload, orgId);
+  const body = response.json ?? null;
   if (!response.ok) {
     const message = describeBuildiumError(body) ?? 'Failed to update bill in Buildium';
     throw new BuildiumSyncError(message, response.status, body);
@@ -452,20 +449,6 @@ async function zeroBillInBuildium(
     status: response.status,
     payload: body,
   };
-}
-
-function ensureBuildiumEnv() {
-  const baseUrl = process.env.BUILDIUM_BASE_URL;
-  const clientId = process.env.BUILDIUM_CLIENT_ID;
-  const clientSecret = process.env.BUILDIUM_CLIENT_SECRET;
-  const missing = [];
-  if (!baseUrl) missing.push('BUILDIUM_BASE_URL');
-  if (!clientId) missing.push('BUILDIUM_CLIENT_ID');
-  if (!clientSecret) missing.push('BUILDIUM_CLIENT_SECRET');
-  if (missing.length) {
-    throw new Error(`Buildium environment variables missing: ${missing.join(', ')}`);
-  }
-  return { baseUrl, clientId, clientSecret };
 }
 
 type BuildiumDeletionConfirmation = {
@@ -499,10 +482,13 @@ function signBuildiumDeletionConfirmation(billId: string, issuedAt: string): str
 }
 
 function getBuildiumConfirmationSecret(): string {
-  const secret = process.env.BILL_DELETE_CONFIRM_SECRET || process.env.BUILDIUM_CLIENT_SECRET;
+  // Note: BILL_DELETE_CONFIRM_SECRET is a separate secret for deletion confirmation
+  // If not set, we can't use BUILDIUM_CLIENT_SECRET from env (violates org-scoped pattern)
+  // For now, require BILL_DELETE_CONFIRM_SECRET to be set explicitly
+  const secret = process.env.BILL_DELETE_CONFIRM_SECRET;
   if (!secret) {
     throw new Error(
-      'Missing BILL_DELETE_CONFIRM_SECRET or BUILDIUM_CLIENT_SECRET for bill deletion confirmation',
+      'Missing BILL_DELETE_CONFIRM_SECRET for bill deletion confirmation',
     );
   }
   return secret;

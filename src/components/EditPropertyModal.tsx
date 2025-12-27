@@ -1,14 +1,13 @@
-// @ts-nocheck
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useAuth } from '@/components/providers';
 import { Save, MapPin, Home, Users } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { type PropertyWithDetails } from '@/lib/property-service';
 import { type StatusEnum } from '@/types/properties';
-import CreateOwnerModal from './CreateOwnerModal';
+import CreateOwnerModal, { type OwnerCreatePayload } from './CreateOwnerModal';
 // import CreateStaffModal from './CreateStaffModal'
 import AddressAutocomplete from './HybridAddressAutocomplete';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
@@ -68,6 +67,34 @@ const PROPERTY_TYPES: string[] = ['Condo', 'Co-op', 'Condop', 'Mult-Family', 'To
 
 const STATUS_OPTIONS: StatusEnum[] = ['Active', 'Inactive'];
 
+const parseOwnerList = (value: unknown): Owner[] => {
+  if (!Array.isArray(value)) return [];
+  const result: Owner[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const candidate = item as Record<string, unknown>;
+    const id = candidate.id;
+    const displayName = candidate.displayName;
+    if ((typeof id !== 'string' && typeof id !== 'number') || typeof displayName !== 'string') {
+      continue;
+    }
+    result.push({
+      id: String(id),
+      displayName,
+      first_name: typeof candidate.first_name === 'string' ? candidate.first_name : undefined,
+      last_name: typeof candidate.last_name === 'string' ? candidate.last_name : undefined,
+      is_company: typeof candidate.is_company === 'boolean' ? candidate.is_company : undefined,
+      company_name:
+        typeof candidate.company_name === 'string' ? candidate.company_name : undefined,
+      primary_email:
+        typeof candidate.primary_email === 'string' ? candidate.primary_email : undefined,
+      primary_phone:
+        typeof candidate.primary_phone === 'string' ? candidate.primary_phone : undefined,
+    });
+  }
+  return result;
+};
+
 // Remove the local COUNTRY_ENUMS, COUNTRY_LABELS, and mapGoogleCountryToEnum definitions.
 // Only import mapGoogleCountryToEnum from '@/lib/utils' at the top.
 
@@ -118,6 +145,28 @@ export default function EditPropertyModal({
   const [isCreatingOwner, setIsCreatingOwner] = useState(false);
   const [createOwnerError, setCreateOwnerError] = useState<string | null>(null);
 
+  const fetchOwners = useCallback(async () => {
+    try {
+      setIsLoadingOwners(true);
+      const response = await fetch('/api/owners');
+      if (response.ok) {
+        const data = await response.json().catch(() => null);
+        const list = parseOwnerList(data);
+        console.log('Fetched owners:', list);
+        setOwners(list);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fetch owners:', response.status, errorData);
+        setError(`Failed to fetch owners: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error fetching owners:', error);
+      setError('Failed to fetch owners: Network error');
+    } finally {
+      setIsLoadingOwners(false);
+    }
+  }, []);
+
   // Fetch owners when modal opens and user is authenticated
   useEffect(() => {
     console.log('EditPropertyModal: isOpen =', isOpen);
@@ -165,27 +214,6 @@ export default function EditPropertyModal({
     }
   }, [isOpen, property]);
 
-  const fetchOwners = useCallback(async () => {
-    try {
-      setIsLoadingOwners(true);
-      const response = await fetch('/api/owners');
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched owners:', data);
-        setOwners(data);
-      } else {
-        const errorData = await response.json();
-        console.error('Failed to fetch owners:', response.status, errorData);
-        setError(`Failed to fetch owners: ${errorData.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error('Error fetching owners:', error);
-      setError('Failed to fetch owners: Network error');
-    } finally {
-      setIsLoadingOwners(false);
-    }
-  }, []);
-
   const addOwner = (ownerId: string) => {
     if (ownerId === 'create-new-owner') {
       setShowCreateOwnerModal(true);
@@ -229,7 +257,7 @@ export default function EditPropertyModal({
     }
   };
 
-  const createNewOwner = async (ownerData: any) => {
+  const createNewOwner = async (ownerData: OwnerCreatePayload) => {
     try {
       setIsCreatingOwner(true);
       setCreateOwnerError(null);
@@ -247,15 +275,19 @@ export default function EditPropertyModal({
         throw new Error(errorData.error || 'Failed to create owner');
       }
 
-      const newOwner = await response.json();
+      const newOwnerData = await response.json().catch(() => null);
+      const parsedNewOwner = parseOwnerList([newOwnerData])[0];
+      if (!parsedNewOwner) {
+        throw new Error('Failed to parse created owner');
+      }
 
       // Add the new owner to the owners list
-      setOwners((prev) => [...prev, newOwner]);
+      setOwners((prev) => [...prev, parsedNewOwner]);
 
       // Add the new owner to the form data
       const isFirstOwner = formData.owners.length === 0;
       setFormData((prev) => {
-        const newPrimaryOwnerName = isFirstOwner ? newOwner.displayName : '';
+        const newPrimaryOwnerName = isFirstOwner ? parsedNewOwner.displayName : '';
 
         // Auto-set property name when first owner is created
         let newPropertyName = prev.name;
@@ -274,8 +306,8 @@ export default function EditPropertyModal({
           owners: [
             ...prev.owners,
             {
-              id: newOwner.id,
-              name: newOwner.displayName,
+              id: parsedNewOwner.id,
+              name: parsedNewOwner.displayName,
               ownershipPercentage: 100,
               disbursementPercentage: 100,
               primary: isFirstOwner, // First owner is primary
@@ -300,18 +332,9 @@ export default function EditPropertyModal({
 
       // If we removed the primary owner and there are still owners left, make the first remaining owner primary
       const removedOwner = prev.owners.find((o) => o.id === ownerId);
-      let newPrimaryOwner = '';
 
       if (removedOwner?.primary && updatedOwners.length > 0) {
         updatedOwners[0].primary = true;
-        newPrimaryOwner = updatedOwners[0].name;
-      } else if (updatedOwners.length === 0) {
-        // No owners left
-        newPrimaryOwner = '';
-      } else {
-        // Find the current primary owner
-        const currentPrimary = updatedOwners.find((o) => o.primary);
-        newPrimaryOwner = currentPrimary ? currentPrimary.name : '';
       }
 
       return {
@@ -365,7 +388,7 @@ export default function EditPropertyModal({
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -460,7 +483,7 @@ export default function EditPropertyModal({
         )}
 
         {/* Form Content */}
-        <form onSubmit={handleSubmit} className="space-y-6 p-6">
+        <form id="edit-property-form" onSubmit={handleSubmit} className="space-y-6 p-6">
           {/* Basic Information */}
           <div className="space-y-4">
             <h4 className="text-foreground flex items-center gap-2 font-medium">
@@ -824,7 +847,7 @@ export default function EditPropertyModal({
             Cancel
           </Button>
 
-          <Button onClick={handleSubmit} disabled={isLoading}>
+          <Button type="submit" form="edit-property-form" disabled={isLoading}>
             {isLoading ? (
               <>
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
@@ -844,7 +867,9 @@ export default function EditPropertyModal({
       <CreateOwnerModal
         isOpen={showCreateOwnerModal}
         onClose={() => setShowCreateOwnerModal(false)}
-        onCreateOwner={createNewOwner}
+        onCreateOwner={(ownerData) => {
+          void createNewOwner(ownerData);
+        }}
         isLoading={isCreatingOwner}
         error={createOwnerError}
       />

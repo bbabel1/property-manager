@@ -1,6 +1,6 @@
 # Resend Email Service Setup Guide
 
-**Purpose:** Configure Resend for automated monthly statement delivery  
+**Purpose:** Configure Resend for automated monthly statement delivery
 **Last Updated:** January 15, 2025
 
 ---
@@ -15,7 +15,7 @@ Resend is a modern email API service designed for developers. It provides:
 - Comprehensive delivery tracking
 - Generous free tier (100 emails/day, 3,000/month)
 
-**Official Website:** <https://resend.com>  
+**Official Website:** <https://resend.com>
 **Documentation:** <https://resend.com/docs/introduction>
 
 ---

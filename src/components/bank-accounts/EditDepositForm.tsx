@@ -1,7 +1,6 @@
-// @ts-nocheck
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -55,6 +54,14 @@ type DepositData = {
   payment_transactions: PaymentTransaction[];
 };
 
+type EditDepositFormProps = {
+  deposit: DepositData;
+  bankAccounts: BankAccountOption[];
+  patchUrl: string;
+  deleteUrl: string;
+  returnHref: string;
+};
+
 type AttachmentDraft = TransactionAttachmentDraft & { id: string };
 type ExistingAttachment = {
   linkId: string;
@@ -71,25 +78,25 @@ const mapExistingAttachments = (payload: unknown): ExistingAttachment[] => {
   if (!payload || typeof payload !== 'object') return [];
   const data = (payload as { data?: unknown }).data;
   if (!Array.isArray(data)) return [];
-  return data
-    .map((row) => {
-      if (!row || typeof row !== 'object') return null;
-      const entry = row as Record<string, unknown>;
-      const fileIdRaw = entry.id ?? entry.fileId ?? entry.linkId;
-      if (typeof fileIdRaw !== 'string' && typeof fileIdRaw !== 'number') return null;
-      const titleRaw = entry.title ?? entry.fileName;
-      return {
-        linkId: String(entry.linkId ?? entry.id ?? ''),
-        fileId: String(fileIdRaw),
-        title: typeof titleRaw === 'string' ? titleRaw : 'File',
-        uploadedAt: typeof entry.uploadedAt === 'string' ? entry.uploadedAt : null,
-        uploadedBy: typeof entry.uploadedBy === 'string' ? entry.uploadedBy : null,
-        category: typeof entry.category === 'string' ? entry.category : 'Uncategorized',
-        sizeBytes: typeof entry.sizeBytes === 'number' ? entry.sizeBytes : null,
-        buildiumFileId: typeof entry.buildiumFileId === 'number' ? entry.buildiumFileId : null,
-      };
-    })
-    .filter((row): row is ExistingAttachment => Boolean(row?.fileId));
+  const result: ExistingAttachment[] = [];
+  for (const row of data) {
+    if (!row || typeof row !== 'object') continue;
+    const entry = row as Record<string, unknown>;
+    const fileIdRaw = entry.id ?? entry.fileId ?? entry.linkId;
+    if (typeof fileIdRaw !== 'string' && typeof fileIdRaw !== 'number') continue;
+    const titleRaw = entry.title ?? entry.fileName;
+    result.push({
+      linkId: String(entry.linkId ?? entry.id ?? ''),
+      fileId: String(fileIdRaw),
+      title: typeof titleRaw === 'string' ? titleRaw : 'File',
+      uploadedAt: typeof entry.uploadedAt === 'string' ? entry.uploadedAt : null,
+      uploadedBy: typeof entry.uploadedBy === 'string' ? entry.uploadedBy : null,
+      category: typeof entry.category === 'string' ? entry.category : 'Uncategorized',
+      sizeBytes: typeof entry.sizeBytes === 'number' ? entry.sizeBytes : null,
+      buildiumFileId: typeof entry.buildiumFileId === 'number' ? entry.buildiumFileId : null,
+    });
+  }
+  return result;
 };
 
 const fmtUsd = (value: number) =>
@@ -112,13 +119,7 @@ const makeId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
-export default function EditDepositForm(props: {
-  deposit: DepositData;
-  bankAccounts: BankAccountOption[];
-  patchUrl: string;
-  deleteUrl: string;
-  returnHref: string;
-}) {
+export default function EditDepositForm(props: EditDepositFormProps): JSX.Element {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -237,7 +238,7 @@ export default function EditDepositForm(props: {
   }, []);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       setIsSaving(true);
       setError(null);

@@ -1,6 +1,6 @@
 # User Access Report for [brandon@managedbyora.com][contact-email]
 
-**Date**: 2025-01-31  
+**Date**: 2025-01-31
 **User ID**: `e4800813-a9ee-494a-a6a3-7f2d3cae6257`
 
 ---
@@ -153,14 +153,14 @@ USING: EXISTS (
 
 ### Tier 1: Organization Membership (Currently Active)
 
-**Table**: `org_memberships`  
-**Purpose**: "Can this user access this organization at all?"  
+**Table**: `org_memberships`
+**Purpose**: "Can this user access this organization at all?"
 **Status**: ✅ Working - User has membership
 
 ### Tier 2: Role-Based Permissions (Not Active for This User)
 
-**Tables**: `membership_roles` → `roles` → `role_permissions` → `permissions`  
-**Purpose**: "What specific actions can this user perform?"  
+**Tables**: `membership_roles` → `roles` → `role_permissions` → `permissions`
+**Purpose**: "What specific actions can this user perform?"
 **Status**: ❌ Not assigned - User has no roles
 
 ---

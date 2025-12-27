@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { mapStaffToBuildium } from '@/lib/buildium-mappers'
 import type { Database } from '@/types/database'
@@ -25,38 +26,20 @@ export async function POST(request: NextRequest) {
 
     const payload = mapStaffToBuildium(st)
 
-    // Ensure Buildium credentials are present
-    const base = process.env.BUILDIUM_BASE_URL
-    const clientId = process.env.BUILDIUM_CLIENT_ID
-    const clientSecret = process.env.BUILDIUM_CLIENT_SECRET
-    if (!base || !clientId || !clientSecret) {
-      return NextResponse.json({ error: 'Buildium not configured' }, { status: 501 })
-    }
-
     // Use Buildium Users endpoint: POST /v1/users (create) or PUT /v1/users/{id} (update)
     const localBuildiumId = typeof st.buildium_user_id === 'number' ? st.buildium_user_id : null
     const isUpdate = typeof localBuildiumId === 'number' && Number.isFinite(localBuildiumId)
-    const url = isUpdate ? `${base.replace(/\/$/, '')}/users/${localBuildiumId}` : `${base.replace(/\/$/, '')}/users`
+    const path = isUpdate ? `/users/${localBuildiumId}` : '/users'
     const method = isUpdate ? 'PUT' : 'POST'
 
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': clientId,
-        'x-buildium-client-secret': clientSecret,
-      },
-      body: JSON.stringify(payload)
-    })
+    const res = await buildiumFetch(method, path, undefined, payload, undefined)
 
     if (!res.ok) {
-      let details: unknown = null
-      try { details = await res.json() } catch {}
-      return NextResponse.json({ error: 'Buildium staff sync failed', status: res.status, endpoint: url, method, details }, { status: 502 })
+      const details: unknown = res.json ?? null
+      return NextResponse.json({ error: 'Buildium staff sync failed', status: res.status, endpoint: path, method, details }, { status: 502 })
     }
 
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    const data = (res.json ?? {}) as Record<string, unknown>
     const buildiumId: number | null = typeof (data as { Id?: unknown })?.Id === 'number' ? (data as { Id: number }).Id : null
     if (buildiumId) {
       const updatePayload: StaffUpdate = { buildium_user_id: buildiumId }

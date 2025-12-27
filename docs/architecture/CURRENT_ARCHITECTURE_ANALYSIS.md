@@ -1,5 +1,7 @@
 # Current Architecture Analysis
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## Executive Summary
 
 The property management system now runs a Supabase-only architecture. Authentication is handled entirely by Supabase Auth with SSR helpers and middleware; NextAuth has been removed.

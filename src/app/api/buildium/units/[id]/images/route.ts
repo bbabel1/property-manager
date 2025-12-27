@@ -4,8 +4,10 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitImageUploadSchema, BuildiumUnitImageOrderUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 import UnitService from '@/lib/unit-service';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import type { BuildiumUnitImage } from '@/types/buildium';
 
 export async function GET(
   request: NextRequest,
@@ -27,19 +29,10 @@ export async function GET(
     const { id } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/images`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit images fetch failed`);
 
       return NextResponse.json(
@@ -51,7 +44,9 @@ export async function GET(
       );
     }
 
-    const images = await response.json();
+    const rawImages = (response.json ?? null) as any;
+    const imagesPayload = Array.isArray(rawImages?.data) ? rawImages.data : rawImages;
+    const images: BuildiumUnitImage[] = Array.isArray(imagesPayload) ? imagesPayload : [];
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
@@ -106,25 +101,14 @@ export async function POST(
     const body = await request.json();
     
     // Validate request body against schema
-    const validatedData = sanitizeAndValidate(body, BuildiumUnitImageUploadSchema);
+    const validatedData = sanitizeAndValidate(body, BuildiumUnitImageUploadSchema) as any;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', `/rentals/units/${id}/images`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      logger.error({ status: response.status, errorData, buildiumUrl }, 'Buildium unit image upload failed');
+      const errorData = response.json ?? {};
+      logger.error({ status: response.status, errorData }, 'Buildium unit image upload failed');
 
       return NextResponse.json(
         { 
@@ -135,14 +119,18 @@ export async function POST(
       );
     }
 
-    const image = await response.json();
+    const rawImage = (response.json ?? null) as any;
+    const imagePayload = rawImage && typeof rawImage === 'object' && 'data' in rawImage ? (rawImage as any).data : rawImage;
+    const image = (imagePayload as BuildiumUnitImage | null | undefined) ?? null;
     let orgId: string | null = null;
     try {
       orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
     } catch {
       return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
     }
-    try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
+    if (image) {
+      try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
+    }
 
     logger.info(`Buildium unit image uploaded successfully`);
 
@@ -188,21 +176,10 @@ export async function PUT(
     const validatedData = sanitizeAndValidate(body, BuildiumUnitImageOrderUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/order`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PUT', `/rentals/units/${id}/images/order`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit image order update failed`);
 
       return NextResponse.json(
@@ -214,7 +191,9 @@ export async function PUT(
       );
     }
 
-    const images = await response.json();
+    const rawImages = (response.json ?? null) as any;
+    const imagesPayload = Array.isArray(rawImages?.data) ? rawImages.data : rawImages;
+    const images: BuildiumUnitImage[] = Array.isArray(imagesPayload) ? imagesPayload : [];
     let orgId: string | null = null;
     try {
       orgId = await resolveOrgIdFromRequest(request, user.id, supabase);

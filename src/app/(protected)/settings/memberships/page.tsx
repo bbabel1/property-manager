@@ -27,6 +27,30 @@ type Role = {
   org_id?: string | null;
 };
 
+type RawMembership = { org_id?: string | number | null; org_name?: string | null; roles?: unknown[] };
+type RawUser = { id?: string | number | null; email?: string | null; memberships?: RawMembership[] | null };
+
+const normalizeUsers = (raw?: RawUser[] | null): UserRow[] =>
+  (raw || []).flatMap((x: RawUser) => {
+    if (!x?.id || !x?.email) return [];
+    const memberships: Membership[] = Array.isArray(x.memberships)
+      ? x.memberships.map((m: RawMembership) => ({
+          org_id: String(m?.org_id ?? ''),
+          org_name: m?.org_name || undefined,
+          roles: Array.isArray(m?.roles)
+            ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
+            : [],
+        }))
+      : [];
+    return [
+      {
+        id: String(x.id),
+        email: String(x.email),
+        memberships,
+      },
+    ];
+  });
+
 export default function MembershipsPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -61,30 +85,20 @@ export default function MembershipsPage() {
         if (u?.error) throw new Error(u.error);
         if (o?.error) throw new Error(o.error);
         if (r?.error) throw new Error(r.error);
-        setUsers(
-          (u.users || []).flatMap((x) => {
-            if (!x?.id || !x?.email) return [];
-            const memberships: Membership[] = Array.isArray(x.memberships)
-              ? x.memberships.map((m) => ({
-                  org_id: String(m?.org_id ?? ''),
-                  org_name: m?.org_name,
-                  roles: Array.isArray(m?.roles)
-                    ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
-                    : [],
-                }))
-              : [];
-            return [
-              {
-                id: String(x.id),
-                email: String(x.email),
-                memberships,
-              },
-            ];
-          }),
-        );
-        setOrgs(o.organizations || []);
+        setUsers(normalizeUsers(u.users));
+        const orgRows: Org[] = Array.isArray(o?.organizations)
+          ? o.organizations
+              .map((org: { id?: string | number | null; name?: string | null }) => ({
+                id: String(org?.id ?? ''),
+                name: org?.name ?? 'Organization',
+              }))
+              .filter((org: { id?: string; name?: string | null }): org is Org => Boolean(org.id))
+          : [];
+        setOrgs(orgRows);
+
+        const profiles: Role[] = Array.isArray(r?.profiles) ? (r.profiles as Role[]) : [];
         setRoles(
-          (r.profiles || []).flatMap((p) => {
+          profiles.flatMap((p) => {
             if (!p?.id || !p?.name) return [];
             return [
               {
@@ -122,27 +136,7 @@ export default function MembershipsPage() {
       // Refresh users list to reflect change
       const u = await fetch('/api/admin/users').then((r) => r.json());
       if (u?.error) throw new Error(u.error);
-      setUsers(
-        (u.users || []).flatMap((x) => {
-          if (!x?.id || !x?.email) return [];
-          const memberships: Membership[] = Array.isArray(x.memberships)
-            ? x.memberships.map((m) => ({
-                org_id: String(m?.org_id ?? ''),
-                org_name: m?.org_name,
-                roles: Array.isArray(m?.roles)
-                  ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
-                  : [],
-              }))
-            : [];
-          return [
-            {
-              id: String(x.id),
-              email: String(x.email),
-              memberships,
-            },
-          ];
-        }),
-      );
+      setUsers(normalizeUsers(u.users));
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to assign membership';
       setError(message);
@@ -166,27 +160,7 @@ export default function MembershipsPage() {
       // Refresh users list
       const u = await fetch('/api/admin/users').then((r) => r.json());
       if (u?.error) throw new Error(u.error);
-      setUsers(
-        (u.users || []).flatMap((x) => {
-          if (!x?.id || !x?.email) return [];
-          const memberships: Membership[] = Array.isArray(x.memberships)
-            ? x.memberships.map((m) => ({
-                org_id: String(m?.org_id ?? ''),
-                org_name: m?.org_name,
-                roles: Array.isArray(m?.roles)
-                  ? m.roles.map((role: unknown) => String(role)).filter(Boolean)
-                  : [],
-              }))
-            : [];
-          return [
-            {
-              id: String(x.id),
-              email: String(x.email),
-              memberships,
-            },
-          ];
-        }),
-      );
+      setUsers(normalizeUsers(u.users));
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to remove membership';
       setError(message);
@@ -217,7 +191,7 @@ export default function MembershipsPage() {
                       <SelectValue placeholder="Select user" />
                     </SelectTrigger>
                     <SelectContent>
-                      {users.map((u) => (
+                      {users.map((u: UserRow) => (
                         <SelectItem key={u.id} value={u.id}>
                           {u.email}
                         </SelectItem>
@@ -232,7 +206,7 @@ export default function MembershipsPage() {
                       <SelectValue placeholder="Select organization" />
                     </SelectTrigger>
                     <SelectContent>
-                      {orgs.map((o) => (
+                      {orgs.map((o: Org) => (
                         <SelectItem key={o.id} value={o.id}>
                           {o.name}
                         </SelectItem>
@@ -252,7 +226,7 @@ export default function MembershipsPage() {
                           Loading roles...
                         </SelectItem>
                       ) : (
-                        roles.map((r) => (
+                        roles.map((r: Role) => (
                           <SelectItem key={r.id} value={r.name}>
                             {r.name}
                             {r.description && (
@@ -305,7 +279,7 @@ export default function MembershipsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.flatMap((u) => (u.memberships || []).map((m) => ({ u, m }))).length ===
+                  {users.flatMap((u: UserRow) => (u.memberships || []).map((m: Membership) => ({ u, m }))).length ===
                   0 ? (
                     <tr>
                       <td colSpan={4} className="text-muted-foreground py-4">
@@ -314,8 +288,8 @@ export default function MembershipsPage() {
                     </tr>
                   ) : (
                     users
-                      .flatMap((u) => (u.memberships || []).map((m) => ({ u, m })))
-                      .map(({ u, m }, idx) => (
+                      .flatMap((u: UserRow) => (u.memberships || []).map((m: Membership) => ({ u, m })))
+                      .map(({ u, m }: { u: UserRow; m: Membership }, idx: number) => (
                         <tr key={`${u.id}-${m.org_id}-${idx}`} className="border-t">
                           <td className="py-2 pr-4">{u.email}</td>
                           <td className="py-2 pr-4">{m.org_name || m.org_id}</td>

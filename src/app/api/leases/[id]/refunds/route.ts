@@ -12,7 +12,8 @@ import {
   fetchTransactionWithLines,
   mapRefundMethodToBuildium,
   coerceTenantIdentifier,
-  amountsRoughlyEqual
+  amountsRoughlyEqual,
+  castLeaseTransactionLinesForPersistence
 } from '@/lib/lease-transaction-helpers'
 
 const IssueRefundSchema = z
@@ -67,7 +68,8 @@ export async function POST(
     const glAccountMap = await fetchBuildiumGlAccountMap(
       parsed.data.allocations.map((line) => line.account_id)
     )
-    const lines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const buildiumLines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const lines = castLeaseTransactionLinesForPersistence(buildiumLines)
     const payeeTenantId = coerceTenantIdentifier(parsed.data.party_id ?? null)
     const partyProvided =
       typeof parsed.data.party_id === 'string' && parsed.data.party_id.trim().length > 0
@@ -128,7 +130,7 @@ export async function POST(
         lease_id: leaseContext.leaseId,
         buildium_transaction_id: result.buildium?.Id ?? null,
       }
-      responseLines = lines as Record<string, unknown>[]
+      responseLines = lines
     }
 
     return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })

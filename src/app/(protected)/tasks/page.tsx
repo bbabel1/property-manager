@@ -11,7 +11,7 @@ import {
   type TaskStatusKey,
 } from '@/lib/tasks/utils';
 import type { Database } from '@/types/database';
-import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type TaskRow = Database['public']['Tables']['tasks']['Row'];
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
@@ -69,19 +69,19 @@ function buildUnitLabel(
 export default async function TasksPage() {
   const db = (supabaseAdmin || supabase) as SupabaseClient<Database>;
 
-  const { data: taskRows, error: taskError } = (await db
+  const { data: taskRows, error: taskError } = await db
     .from('tasks')
     .select(
       'id, subject, status, scheduled_date, updated_at, created_at, priority, category, property_id, unit_id, assigned_to',
     )
     .order('created_at', { ascending: false })
-    .limit(50)) satisfies { data: TaskRow[] | null; error: PostgrestError | null };
+    .limit(50);
 
   if (taskError) {
     console.error('Failed to load tasks', taskError);
   }
 
-  const tasks: TaskRow[] = taskRows ?? [];
+  const tasks: TaskRow[] = (taskRows ?? []) as TaskRow[];
 
   const propertyIds = Array.from(
     new Set(

@@ -1,4 +1,4 @@
-import { createBuildiumClient, defaultBuildiumConfig } from './buildium-client';
+import { getOrgScopedBuildiumClient } from './buildium-client';
 import { supabaseAdmin } from './db';
 import { logger } from './logger';
 import type { Database } from '@/types/database';
@@ -17,25 +17,8 @@ import {
 
 export type TransactionRow = Database['public']['Tables']['transactions']['Row'];
 
-const normalizeBuildiumBaseUrl = (raw: string): string => {
-  if (!raw) return raw;
-  const trimmed = raw.replace(/\/+$/, '');
-  if (trimmed.toLowerCase().endsWith('/v1')) {
-    return trimmed;
-  }
-  return `${trimmed}/v1`;
-};
-
-function ensureClient(): LeaseRequestClient {
-  const baseUrl = normalizeBuildiumBaseUrl(
-    process.env.BUILDIUM_BASE_URL || defaultBuildiumConfig.baseUrl || '',
-  );
-  return createBuildiumClient({
-    ...defaultBuildiumConfig,
-    baseUrl,
-    clientId: process.env.BUILDIUM_CLIENT_ID || '',
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || '',
-  }) as unknown as LeaseRequestClient;
+async function ensureClient(orgId?: string): Promise<LeaseRequestClient> {
+  return getOrgScopedBuildiumClient(orgId) as unknown as LeaseRequestClient;
 }
 
 type LeaseRequestClient = {
@@ -110,9 +93,10 @@ export class LeaseTransactionService {
       offset?: number;
       limit?: number;
       persist?: boolean;
+      orgId?: string;
     },
   ): Promise<BuildiumLeaseTransaction[]> {
-    const client = ensureClient();
+    const client = await ensureClient(params?.orgId);
     const qp = new URLSearchParams();
     if (params?.orderby) qp.set('orderby', params.orderby);
     if (typeof params?.offset === 'number') qp.set('offset', String(params.offset));
@@ -175,8 +159,9 @@ export class LeaseTransactionService {
     leaseId: number,
     transactionId: number,
     persist = false,
+    orgId?: string,
   ): Promise<BuildiumLeaseTransaction | null> {
-    const client = ensureClient();
+    const client = await ensureClient(orgId);
     const tx = await requestLeaseEndpoint<BuildiumLeaseTransaction>(
       client,
       'GET',
@@ -203,8 +188,9 @@ export class LeaseTransactionService {
   static async createInBuildiumAndDB(
     leaseId: number,
     payload: BuildiumLeaseTransactionCreate,
+    orgId?: string,
   ): Promise<{ buildium: BuildiumLeaseTransaction; localId?: string }> {
-    const client = ensureClient();
+    const client = await ensureClient(orgId);
     const suffix = resolveTransactionCreateSuffix(payload);
     const normalizedPayload = ensureDateField(payload);
     const created = await requestLeaseEndpoint<BuildiumLeaseTransaction>(
@@ -223,8 +209,9 @@ export class LeaseTransactionService {
     leaseId: number,
     transactionId: number,
     payload: BuildiumLeaseTransactionUpdate,
+    orgId?: string,
   ): Promise<{ buildium: BuildiumLeaseTransaction; localId?: string }> {
-    const client = ensureClient();
+    const client = await ensureClient(orgId);
     const updated = await requestLeaseEndpoint<BuildiumLeaseTransaction>(
       client,
       'PUT',
@@ -237,8 +224,8 @@ export class LeaseTransactionService {
   }
 
   // Recurring transactions
-  static async listRecurring(leaseId: number): Promise<BuildiumRecurringTransaction[]> {
-    const client = ensureClient();
+  static async listRecurring(leaseId: number, orgId?: string): Promise<BuildiumRecurringTransaction[]> {
+    const client = await ensureClient(orgId);
     return requestLeaseEndpoint<BuildiumRecurringTransaction[]>(
       client,
       'GET',
@@ -247,8 +234,8 @@ export class LeaseTransactionService {
     );
   }
 
-  static async getRecurring(leaseId: number, id: number): Promise<BuildiumRecurringTransaction> {
-    const client = ensureClient();
+  static async getRecurring(leaseId: number, id: number, orgId?: string): Promise<BuildiumRecurringTransaction> {
+    const client = await ensureClient(orgId);
     return requestLeaseEndpoint<BuildiumRecurringTransaction>(
       client,
       'GET',
@@ -260,8 +247,9 @@ export class LeaseTransactionService {
   static async createRecurring(
     leaseId: number,
     payload: BuildiumRecurringTransactionCreate,
+    orgId?: string,
   ): Promise<BuildiumRecurringTransaction> {
-    const client = ensureClient();
+    const client = await ensureClient(orgId);
     return requestLeaseEndpoint<BuildiumRecurringTransaction>(
       client,
       'POST',
@@ -275,8 +263,9 @@ export class LeaseTransactionService {
     leaseId: number,
     id: number,
     payload: BuildiumRecurringTransactionUpdate,
+    orgId?: string,
   ): Promise<BuildiumRecurringTransaction> {
-    const client = ensureClient();
+    const client = await ensureClient(orgId);
     return requestLeaseEndpoint<BuildiumRecurringTransaction>(
       client,
       'PUT',
@@ -286,8 +275,8 @@ export class LeaseTransactionService {
     );
   }
 
-  static async deleteRecurring(leaseId: number, id: number): Promise<void> {
-    const client = ensureClient();
+  static async deleteRecurring(leaseId: number, id: number, orgId?: string): Promise<void> {
+    const client = await ensureClient(orgId);
     await requestLeaseEndpoint<void>(client, 'DELETE', leaseId, `/recurringtransactions/${id}`);
   }
 }

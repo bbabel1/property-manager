@@ -17,6 +17,7 @@
     "test:a11y": "echo \"Playwright a11y tests removed.\"",
     "test:visual": "echo \"Playwright visual tests removed.\"",
     "test:unit": "vitest run",
+    "test:files": "vitest run src/lib/__tests__/files.test.ts src/app/api/files",
     "test:watch": "vitest",
     "test:e2e": "echo \"Playwright e2e tests removed.\"",
     "docs:check": "npx tsx scripts/doc-monitoring-system.ts check",

@@ -9,15 +9,26 @@ type RunSummary = {
   errors: string[]
 }
 
+type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string }
+
+function resolveBuildiumCreds(input?: Partial<BuildiumCredentials> | null): BuildiumCredentials {
+  const baseUrl = (input?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || '').replace(/\/$/, '')
+  const clientId = (input?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '').trim()
+  const clientSecret = (input?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '').trim()
+  return { baseUrl, clientId, clientSecret }
+}
+
 serve(async (req) => {
   const url = new URL(req.url)
   const mode = url.searchParams.get('mode') || 'scheduled'
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const BUILDIUM_BASE = Deno.env.get('BUILDIUM_BASE_URL') || ''
-  const BUILDIUM_CLIENT_ID = Deno.env.get('BUILDIUM_CLIENT_ID') || ''
-  const BUILDIUM_CLIENT_SECRET = Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
+  const body = await req.json().catch(() => ({} as Record<string, unknown>))
+  const creds = resolveBuildiumCreds(body?.credentials as Partial<BuildiumCredentials> | undefined)
+  const BUILDIUM_BASE = creds.baseUrl
+  const BUILDIUM_CLIENT_ID = creds.clientId
+  const BUILDIUM_CLIENT_SECRET = creds.clientSecret
 
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE)
 

@@ -45,25 +45,30 @@ function StatusPill({ value }: { value?: string | null }) {
 }
 
 function DeviceInfo({ asset }: { asset: ComplianceAssetWithRelations }) {
-  const meta = (asset.metadata as Record<string, unknown> | undefined) || undefined
+  const meta = (asset.metadata as Record<string, any> | undefined) || undefined
   const status =
-    (meta?.device_status as string | undefined) ||
-    (meta?.status as string | undefined) ||
+    (typeof meta?.device_status === 'string' ? meta.device_status : undefined) ||
+    (typeof meta?.status === 'string' ? meta.status : undefined) ||
     (asset as { status?: string | null })?.status
-  const deviceId = asset.external_source_id || meta?.device_id || meta?.device_number
-  const deviceType = asset.asset_type || meta?.device_type || 'Device'
-  const filedAt = meta?.physical_address || meta?.address || meta?.filed_at || '—'
-  const approvedDate = meta?.approved_date || meta?.status_date || null
-  const floorFrom = meta?.travel_from_floor || meta?.floor_from || meta?.from_floor || null
-  const floorTo = meta?.travel_to_floor || meta?.floor_to || meta?.to_floor || null
+  const deviceId = (meta?.device_id ?? meta?.device_number ?? asset.external_source_id) || null
+  const deviceType = (meta?.device_type as string | undefined) || asset.asset_type || 'Device'
+  const filedAt =
+    (typeof meta?.physical_address === 'string' && meta.physical_address) ||
+    (typeof meta?.address === 'string' && meta.address) ||
+    (typeof meta?.filed_at === 'string' && meta.filed_at) ||
+    '—'
+  const approvedDateRaw = meta?.approved_date ?? meta?.status_date ?? null
+  const approvedDate = typeof approvedDateRaw === 'string' ? approvedDateRaw : null
+  const floorFrom = (meta?.travel_from_floor ?? meta?.floor_from ?? meta?.from_floor) ?? null
+  const floorTo = (meta?.travel_to_floor ?? meta?.floor_to ?? meta?.to_floor) ?? null
 
   const fields = [
-    { label: 'Device ID', value: deviceId || '—' },
+    { label: 'Device ID', value: deviceId ? String(deviceId) : '—' },
     { label: 'Device Status', value: status || '—' },
     { label: 'Device Type', value: deviceType },
     { label: 'Approved Date', value: approvedDate ? formatDate(approvedDate) : '—' },
-    { label: 'Floor To', value: floorTo || '—' },
-    { label: 'Floor From', value: floorFrom || '—' },
+    { label: 'Floor To', value: floorTo ? String(floorTo) : '—' },
+    { label: 'Floor From', value: floorFrom ? String(floorFrom) : '—' },
     { label: 'Filed At', value: filedAt },
   ]
 
@@ -88,23 +93,33 @@ function DeviceInfo({ asset }: { asset: ComplianceAssetWithRelations }) {
 }
 
 function FilingsTable({ events }: { events: ComplianceEvent[] }) {
-  const rows = useMemo(
-    () =>
-      events.map((e) => {
-        const raw = (e.raw_source as Record<string, unknown> | undefined) || undefined
-        return {
-          id: e.id,
-          tracking: e.external_tracking_number || raw?.control_number || e.id,
-          type: e.inspection_type || raw?.inspection_type || e.event_type,
-          inspectionDate: e.inspection_date || raw?.inspection_date || null,
-          defects: e.defects || raw?.defects_flag || raw?.defects || false,
-          status: e.compliance_status || raw?.compliance_status,
-          filedDate: e.filed_date || raw?.filed_date || null,
-          externalUrl: raw?.external_url || null,
-        }
-      }),
-    [events]
-  )
+  type FilingRow = {
+    id: string
+    tracking: string
+    type: string
+    inspectionDate: string | null
+    defects: boolean
+    status: string
+    filedDate: string | null
+    externalUrl: string | null
+  }
+
+  const rows: FilingRow[] = useMemo(() => {
+    return events.map((e) => {
+      const raw = (e.raw_source as Record<string, unknown> | undefined) || undefined
+      const strOrNull = (val: unknown) => (typeof val === 'string' ? val : null)
+      return {
+        id: String(e.id),
+        tracking: strOrNull(e.external_tracking_number) || strOrNull(raw?.control_number) || String(e.id),
+        type: strOrNull(e.inspection_type) || strOrNull(raw?.inspection_type) || e.event_type || 'Inspection',
+        inspectionDate: strOrNull(e.inspection_date) || strOrNull(raw?.inspection_date) || null,
+        defects: Boolean(e.defects ?? raw?.defects_flag ?? raw?.defects ?? false),
+        status: strOrNull(e.compliance_status) || strOrNull(raw?.compliance_status) || '—',
+        filedDate: strOrNull(e.filed_date) || strOrNull(raw?.filed_date) || null,
+        externalUrl: strOrNull(raw?.external_url),
+      }
+    })
+  }, [events])
 
   return (
     <Card>

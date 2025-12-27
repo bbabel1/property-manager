@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseMoveOutCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(
   request: NextRequest,
@@ -31,25 +32,16 @@ export async function GET(
     const orderby = searchParams.get('orderby');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
+    const queryParams: Record<string, string> = {};
+    if (limit) queryParams.limit = limit;
+    if (offset) queryParams.offset = offset;
+    if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/moveouts`, queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease move outs fetch failed`);
 
       return NextResponse.json(
@@ -61,7 +53,7 @@ export async function GET(
       );
     }
 
-    const moveOuts = await response.json();
+    const moveOuts = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium lease move outs fetched successfully`);
 
@@ -108,21 +100,10 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseMoveOutCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/moveouts`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease move out creation failed`);
 
       return NextResponse.json(
@@ -134,7 +115,7 @@ export async function POST(
       );
     }
 
-    const moveOut = await response.json();
+    const moveOut = response.json ?? {};
 
     logger.info(`Buildium lease move out created successfully`);
 

@@ -5,7 +5,7 @@
  */
 
 import { google } from 'googleapis';
-import { getStaffCalendarIntegration, getAccessToken, type GoogleCalendarIntegration } from './token-manager';
+import { getStaffCalendarIntegration, getAccessToken } from './token-manager';
 import { resolveRedirectUri } from '@/lib/google/oauth';
 
 /**

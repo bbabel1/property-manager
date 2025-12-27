@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumWithdrawalCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -11,20 +12,13 @@ export async function GET(_request: NextRequest) {
     logger.info({ userId: user.id, action: 'get_buildium_withdrawals' }, 'Fetching Buildium withdrawals');
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/withdrawals', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', '/bankaccounts/withdrawals', undefined, undefined, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const withdrawals = await response.json();
+    const withdrawals = (response.json ?? []) as unknown[];
 
     return NextResponse.json({
       success: true,
@@ -52,22 +46,13 @@ export async function POST(request: NextRequest) {
     const data = sanitizeAndValidate(body, BuildiumWithdrawalCreateSchema);
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/withdrawals', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(data)
-    });
+    const response = await buildiumFetch('POST', '/bankaccounts/withdrawals', undefined, data, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newWithdrawal = await response.json();
+    const newWithdrawal = response.json ?? {};
 
     return NextResponse.json({
       success: true,

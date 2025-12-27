@@ -6,6 +6,7 @@ import { BuildiumResidentRequestCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,31 +36,22 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (status) queryParams.append('status', status);
-    if (tenantId) queryParams.append('tenantId', tenantId);
-    if (propertyId) queryParams.append('propertyId', propertyId);
-    if (unitId) queryParams.append('unitId', unitId);
-    if (dateFrom) queryParams.append('dateFrom', dateFrom);
-    if (dateTo) queryParams.append('dateTo', dateTo);
+    const params: Record<string, string> = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (orderby) params.orderby = orderby;
+    if (status) params.status = status;
+    if (tenantId) params.tenantId = tenantId;
+    if (propertyId) params.propertyId = propertyId;
+    if (unitId) params.unitId = unitId;
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/residentrequests?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/rentals/residentrequests', params, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium resident requests fetch failed`);
 
       return NextResponse.json(
@@ -71,7 +63,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const residentRequests = await response.json();
+    const residentRequests = response.json ?? [];
 
     // Optional response filtering by RequestedByUserEntity.Type
     const requestedByTypeParam = searchParams.get('requestedByType');
@@ -98,6 +90,10 @@ export async function GET(request: NextRequest) {
           })
           const buildiumId = item?.Id
           if (!buildiumId) return
+          const subject =
+            typeof (localData as { subject?: unknown }).subject === 'string'
+              ? (localData as { subject?: string }).subject
+              : ''
 
           const { data: existing } = await supabaseAdmin
             .from('tasks')
@@ -109,12 +105,12 @@ export async function GET(request: NextRequest) {
           if (existing?.id) {
             await supabaseAdmin
               .from('tasks')
-              .update({ ...localData, updated_at: now })
+              .update({ ...localData, subject, updated_at: now } as any)
               .eq('id', existing.id)
           } else {
             await supabaseAdmin
               .from('tasks')
-              .insert({ ...localData, created_at: now, updated_at: now })
+              .insert({ ...localData, subject, created_at: now, updated_at: now } as any)
           }
         })
       )
@@ -163,21 +159,10 @@ export async function POST(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumResidentRequestCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/residentrequests`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', '/rentals/residentrequests', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium resident request creation failed`);
 
       return NextResponse.json(
@@ -189,7 +174,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const residentRequest = await response.json();
+    const residentRequest = response.json ?? {};
 
     logger.info(`Buildium resident request created successfully`);
 
@@ -199,9 +184,13 @@ export async function POST(request: NextRequest) {
         taskKind: 'resident',
       })
       const now = new Date().toISOString()
+      const subject =
+        typeof (localData as { subject?: unknown }).subject === 'string'
+          ? (localData as { subject?: string }).subject
+          : ''
       await supabaseAdmin
         .from('tasks')
-        .insert({ ...localData, created_at: now, updated_at: now })
+        .insert({ ...localData, subject, created_at: now, updated_at: now } as any)
     } catch (persistErr) {
       logger.warn({ err: String(persistErr) }, 'Failed to persist created Resident request to tasks')
     }

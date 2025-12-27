@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { randomUUID } from 'crypto';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,7 @@ export const revalidate = 0;
 
 type LeaseDetailsPageParams = { id: string };
 // Use a loose row type because this page stitches together multiple Supabase queries with partial selects.
-type UnknownRow = Record<string, unknown>;
+type UnknownRow = Record<string, any>;
 type LeaseFileCategory = {
   id: string;
   category_name: string;
@@ -50,6 +51,16 @@ type LeaseFileCategory = {
   is_active?: boolean | null;
   org_id?: string | null;
 };
+
+type ContactRecord = {
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  company_name?: string | null;
+};
+
+const toContact = (value: unknown): ContactRecord =>
+  isRecord(value) ? (value as ContactRecord) : {};
 
 const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
 const normalizeCurrency = (value?: number | null) => {
@@ -83,6 +94,14 @@ const toStringSafe = (value: unknown): string | null => {
   }
 };
 
+const pickDateString = (...values: unknown[]): string | null => {
+  for (const v of values) {
+    if (typeof v === 'string') return v;
+    if (v instanceof Date) return v.toISOString();
+  }
+  return null;
+};
+
 const readAmountFromLine = (line: unknown): number => {
   if (!isRecord(line)) return 0;
   const val = line.amount ?? (isRecord(line) ? line.Amount : null);
@@ -97,13 +116,16 @@ export default async function LeaseDetailsPage({
   searchParams?: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  const leaseId = Number(id);
+  if (!Number.isFinite(leaseId)) {
+    notFound();
+  }
   const sp = searchParams ? await searchParams : undefined;
   const initialTab = sp?.tab === 'financials' ? 'financials' : 'summary';
   // Use admin when available to avoid RLS mismatches between source pages and details page
   const supabase = (supabaseAdmin || supaClient) as SupabaseClient<Database>;
 
   // Step 1: Load the base lease row first (avoid nested join issues)
-  const numericId = Number(id);
   let lease: UnknownRow | null = null;
   try {
     const { data } = await supabase
@@ -111,20 +133,9 @@ export default async function LeaseDetailsPage({
       .select(
         'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
       )
-      .eq('id', Number.isFinite(numericId) ? numericId : id)
+      .eq('id', leaseId)
       .maybeSingle();
     lease = data;
-    if (!lease && Number.isFinite(numericId)) {
-      // Fallback: try string equality just in case of type coercion quirks
-      const { data: data2 } = await supabase
-        .from('lease')
-        .select(
-          'id, status, lease_from_date, lease_to_date, lease_type, term_type, payment_due_day, rent_amount, lease_charges, security_deposit, buildium_lease_id, buildium_property_id, buildium_unit_id, property_id, unit_id',
-        )
-        .eq('id', id)
-        .maybeSingle();
-      lease = data2;
-    }
   } catch {}
 
   if (!lease) {
@@ -407,7 +418,7 @@ export default async function LeaseDetailsPage({
   try {
     const tenantIds = new Set<string>();
     transactions.forEach((tx) => {
-      const tid = isRecord(tx) ? tx.tenant_id : undefined;
+      const tid = isRecord(tx) ? (tx.tenant_id as string | number | null | undefined) : undefined;
       if (tid) tenantIds.add(String(tid));
     });
     if (tenantIds.size > 0) {
@@ -428,8 +439,7 @@ export default async function LeaseDetailsPage({
       if (tenantErr) throw tenantErr;
       (tenantRows || []).forEach((t) => {
         if (!isRecord(t)) return;
-        const contactRaw = t.contacts;
-        const contact = isRecord(contactRaw) ? contactRaw : {};
+        const contact = toContact(t.contacts);
         const displayName = toStringSafe(contact.display_name);
         const first = toStringSafe(contact.first_name);
         const last = toStringSafe(contact.last_name);
@@ -886,7 +896,10 @@ export default async function LeaseDetailsPage({
         start_date: schedule?.start_date ?? null,
         end_date: schedule?.end_date ?? null,
         rent_cycle: schedule?.rent_cycle ?? null,
-        total_amount: Number(schedule?.total_amount ?? 0) || 0,
+        total_amount: (() => {
+          const amt = Number(schedule?.total_amount ?? 0);
+          return Number.isFinite(amt) ? amt : 0;
+        })(),
         backdate_charges: Boolean(schedule?.backdate_charges),
         statusLabel: status.toUpperCase(),
         statusVariant: variant,
@@ -1203,13 +1216,13 @@ export default async function LeaseDetailsPage({
           typeof baseType === 'string' && baseType.toLowerCase().includes('payment') && tenantName
             ? `${baseType} (made by ${tenantName})`
             : baseType;
-        const rawDate =
-          (isRecord(tx) && tx.Date) ??
-          (isRecord(tx) && tx.date) ??
-          (isRecord(tx) && tx.TransactionDate) ??
-          (isRecord(tx) && tx.TransactionDateTime) ??
-          (isRecord(tx) && tx.entry_date) ??
-          null;
+        const rawDate = pickDateString(
+          isRecord(tx) ? tx.Date : null,
+          isRecord(tx) ? tx.date : null,
+          isRecord(tx) ? tx.TransactionDate : null,
+          isRecord(tx) ? tx.TransactionDateTime : null,
+          isRecord(tx) ? tx.entry_date : null,
+        );
         const sequence = Number.isFinite(Number(buildiumIdRaw))
           ? Number(buildiumIdRaw)
           : Number.isFinite(Number(isRecord(tx) ? tx.id : null))
@@ -1217,17 +1230,17 @@ export default async function LeaseDetailsPage({
             : null;
         return {
           id: String(localId),
-          date: formatLedgerDate(rawDate),
+          date: formatLedgerDate(rawDate as any),
           account: accountName,
           type: typeLabel,
           memo,
           amount:
-            (isRecord(tx) && toNumber(tx.TotalAmount)) ??
-              (isRecord(tx) && toNumber(tx.total_amount)) ??
-              0 || 0,
+            (isRecord(tx) ? toNumber(tx.TotalAmount) : null) ??
+            (isRecord(tx) ? toNumber(tx.total_amount) : null) ??
+            0,
           signedAmount: signedAmountFromTransaction(tx),
           transactionId: buildiumId,
-          sortKey: parseDateValue(rawDate) ?? 0,
+          sortKey: parseDateValue(rawDate as any) ?? 0,
           originalIndex: idx,
           sequence,
           tenantId,
@@ -1287,8 +1300,14 @@ export default async function LeaseDetailsPage({
       signedAmount: row.signedAmount,
     }));
 
-  const depositsHeldTotal = Number(balances.depositsHeld ?? 0) || 0;
-  const prepaymentsTotal = Number(balances.prepayments ?? 0) || 0;
+  const depositsHeldTotal = (() => {
+    const val = Number(balances.depositsHeld ?? 0);
+    return Number.isFinite(val) ? val : 0;
+  })();
+  const prepaymentsTotal = (() => {
+    const val = Number(balances.prepayments ?? 0);
+    return Number.isFinite(val) ? val : 0;
+  })();
   const depositsTableRows: Array<{
     id: string;
     account: string;
@@ -1306,13 +1325,14 @@ export default async function LeaseDetailsPage({
       for (const tx of transactions) {
         const lines = extractTransactionLines(tx);
         if (!lines.length) continue;
-        const rawDate =
-          (isRecord(tx) && tx.Date) ??
-          (isRecord(tx) && tx.date) ??
-          (isRecord(tx) && tx.TransactionDate) ??
-          (isRecord(tx) && tx.TransactionDateTime) ??
-          (isRecord(tx) && tx.entry_date);
-        const dateLabel = formatLedgerDate(rawDate);
+        const rawDate = pickDateString(
+          isRecord(tx) ? tx.Date : null,
+          isRecord(tx) ? tx.date : null,
+          isRecord(tx) ? tx.TransactionDate : null,
+          isRecord(tx) ? tx.TransactionDateTime : null,
+          isRecord(tx) ? tx.entry_date : null,
+        );
+        const dateLabel = formatLedgerDate(rawDate as any);
         const typeLabel =
           (isRecord(tx) && typeof tx.TransactionTypeEnum === 'string'
             ? tx.TransactionTypeEnum
@@ -1381,18 +1401,24 @@ export default async function LeaseDetailsPage({
   // Fallback to summary rows if no detailed lines were found
   if (depositsTableRows.length === 0) {
     if (depositsHeldTotal > 0) {
+      const fallbackRawDate =
+        Array.isArray(transactions) && transactions[0]
+          ? ((isRecord(transactions[0]) && transactions[0].Date) ??
+              (isRecord(transactions[0]) && transactions[0].date) ??
+              (isRecord(transactions[0]) && transactions[0].TransactionDate) ??
+              (isRecord(transactions[0]) && transactions[0].TransactionDateTime) ??
+              (isRecord(transactions[0]) && transactions[0].entry_date))
+          : null;
+      const fallbackDateString =
+        typeof fallbackRawDate === 'string'
+          ? fallbackRawDate
+          : fallbackRawDate
+            ? String(fallbackRawDate)
+            : null;
       depositsTableRows.push({
         id: 'deposit-summary',
         account: 'Security Deposit Liability',
-        date: formatLedgerDate(
-          Array.isArray(transactions) && transactions[0]
-            ? ((isRecord(transactions[0]) && transactions[0].Date) ??
-                (isRecord(transactions[0]) && transactions[0].date) ??
-                (isRecord(transactions[0]) && transactions[0].TransactionDate) ??
-                (isRecord(transactions[0]) && transactions[0].TransactionDateTime) ??
-                (isRecord(transactions[0]) && transactions[0].entry_date))
-            : null,
-        ),
+        date: formatLedgerDate(fallbackDateString),
         type: 'Payment',
         memo: 'Security deposit balance',
         amount: depositsHeldTotal,
@@ -1428,13 +1454,6 @@ export default async function LeaseDetailsPage({
           termType={lease.term_type}
           startDate={lease.lease_from_date}
           endDate={lease.lease_to_date}
-          unitDisplay={
-            property?.name
-              ? `${property.name} - ${unit?.unit_number ?? ''}`
-              : unit?.unit_number
-                ? `Unit ${unit.unit_number}`
-                : ''
-          }
           titleText={`${property?.name || 'Property'}${unit?.unit_number ? ` - ${unit.unit_number}` : ''}${tenantNames.length ? ` • ${tenantNames.join(', ')}` : ''}`}
           backHref={`/properties/${property?.id ?? ''}/units/${unit?.id ?? ''}`}
         />

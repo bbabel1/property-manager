@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,31 +31,22 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (status) queryParams.append('status', status);
-    if (priority) queryParams.append('priority', priority);
-    if (categoryId) queryParams.append('categoryId', categoryId);
-    if (assignedTo) queryParams.append('assignedTo', assignedTo);
-    if (dateFrom) queryParams.append('dateFrom', dateFrom);
-    if (dateTo) queryParams.append('dateTo', dateTo);
+    const queryParams: Record<string, string> = {};
+    if (limit) queryParams.limit = limit;
+    if (offset) queryParams.offset = offset;
+    if (orderby) queryParams.orderby = orderby;
+    if (status) queryParams.status = status;
+    if (priority) queryParams.priority = priority;
+    if (categoryId) queryParams.categoryId = categoryId;
+    if (assignedTo) queryParams.assignedTo = assignedTo;
+    if (dateFrom) queryParams.dateFrom = dateFrom;
+    if (dateTo) queryParams.dateTo = dateTo;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/tasks?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/tasks', queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium tasks fetch failed`);
 
       return NextResponse.json(
@@ -66,7 +58,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const tasks = await response.json();
+    const tasks = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium tasks fetched successfully`);
 

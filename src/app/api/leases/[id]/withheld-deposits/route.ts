@@ -8,7 +8,8 @@ import {
   buildDepositLines,
   fetchBuildiumGlAccountMap,
   fetchLeaseContextById,
-  fetchTransactionWithLines
+  fetchTransactionWithLines,
+  castLeaseTransactionLinesForPersistence
 } from '@/lib/lease-transaction-helpers'
 
 const WithholdDepositSchema = z.object({
@@ -45,12 +46,13 @@ export async function POST(
       parsed.data.deposit_account_id,
       ...parsed.data.allocations.map((line) => line.account_id),
     ])
-    const { lines, debitTotal, depositBuildiumAccountId } = buildDepositLines({
+    const { lines: buildiumLines, debitTotal, depositBuildiumAccountId } = buildDepositLines({
       allocations: parsed.data.allocations,
       depositAccountId: parsed.data.deposit_account_id,
       glAccountMap,
       memo: parsed.data.memo ?? null,
     })
+    const lines = castLeaseTransactionLinesForPersistence(buildiumLines)
 
     const payload: BuildiumLeaseTransactionCreate = {
       TransactionType: 'ApplyDeposit',
@@ -86,7 +88,7 @@ export async function POST(
         lease_id: leaseContext.leaseId,
         buildium_transaction_id: result.buildium?.Id ?? null,
       }
-      responseLines = lines as Record<string, unknown>[]
+      responseLines = lines
     }
 
     return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })

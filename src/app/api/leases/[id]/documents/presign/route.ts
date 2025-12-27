@@ -3,10 +3,14 @@ import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { logger } from '@/lib/logger'
 import { randomUUID } from 'crypto'
+import type { Database } from '@/types/database'
 
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg'])
 const MAX_SIZE = 25 * 1024 * 1024 // 25 MB
 const BUCKET = 'lease-documents'
+
+type LeaseRow = Database['public']['Tables']['lease']['Row']
+type PropertyRow = Database['public']['Tables']['properties']['Row']
 
 function extFromMime(mime: string) {
   if (mime === 'application/pdf') return 'pdf'
@@ -38,20 +42,46 @@ export async function POST(
     if (!mimeType || !ALLOWED_TYPES.has(mimeType)) {
       return NextResponse.json({ error: 'Unsupported content-type' }, { status: 400 })
     }
-    if (!Number.isFinite(sizeBytes) || sizeBytes > MAX_SIZE) {
+    const normalizedSize = typeof sizeBytes === 'number' ? sizeBytes : Number(sizeBytes)
+    if (!Number.isFinite(normalizedSize) || normalizedSize <= 0) {
+      return NextResponse.json({ error: 'Invalid file size' }, { status: 400 })
+    }
+    if (normalizedSize > MAX_SIZE) {
       return NextResponse.json({ error: 'File too large (max 25MB)' }, { status: 400 })
     }
 
     // Check existence with admin, then membership with user client for 403/404 fidelity
-    const { data: leaseAdmin } = await supabaseAdmin.from('lease').select('id, org_id').eq('id', leaseIdNum).maybeSingle()
-    const { data: lease } = await supabase.from('lease').select('id, org_id').eq('id', leaseIdNum).maybeSingle()
+    const { data: leaseAdmin } = await supabaseAdmin
+      .from('lease')
+      .select('id, org_id, property_id')
+      .eq('id', leaseIdNum)
+      .maybeSingle<Pick<LeaseRow, 'id' | 'org_id' | 'property_id'>>()
+    const { data: lease } = await supabase
+      .from('lease')
+      .select('id, org_id, property_id')
+      .eq('id', leaseIdNum)
+      .maybeSingle<Pick<LeaseRow, 'id' | 'org_id' | 'property_id'>>()
     if (!lease && leaseAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!leaseAdmin) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+    if (!leaseAdmin.org_id) return NextResponse.json({ error: 'Lease missing organization' }, { status: 400 })
+    if (!leaseAdmin.property_id) return NextResponse.json({ error: 'Lease missing property' }, { status: 400 })
+
+    const { data: propertyRow, error: propertyError } = await supabaseAdmin
+      .from('properties')
+      .select('id, org_id')
+      .eq('id', leaseAdmin.property_id)
+      .maybeSingle<Pick<PropertyRow, 'id' | 'org_id'>>()
+    if (propertyError) {
+      return NextResponse.json({ error: 'Failed to load property' }, { status: 500 })
+    }
+    if (!propertyRow) return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    if (!propertyRow.org_id) return NextResponse.json({ error: 'Property missing organization' }, { status: 400 })
 
     const ext = extFromMime(mimeType)
     const rand = randomUUID()
     const safeName = typeof fileName === 'string' && fileName.length > 0 ? fileName.replace(/[^A-Za-z0-9._-]+/g, '_') : `${rand}.${ext}`
-    const storage_path = `org/${lease?.org_id}/leases/${lease?.id}/${rand}-${safeName}`
+    const orgId = lease?.org_id ?? propertyRow.org_id
+    const storage_path = `org/${orgId}/leases/${lease?.id}/${rand}-${safeName}`
 
     const expiresIn = 15 * 60 // 15 min
     const { data: signData, error: signErr } = await supabaseAdmin.storage
@@ -63,7 +93,12 @@ export async function POST(
     const payload = { putUrl: signData.signedUrl, storage_path, expiresAt }
 
     // Log with correlation id for observability
-    try { logger.info({ correlation_id: corr, lease_id: leaseIdNum, storage_path, mimeType, sizeBytes, sha256 }, 'Presign lease document issued') } catch {}
+    try {
+      logger.info(
+        { correlation_id: corr, lease_id: leaseIdNum, storage_path, mimeType, sizeBytes: normalizedSize, sha256 },
+        'Presign lease document issued'
+      )
+    } catch {}
 
     return NextResponse.json(payload, { status: 200 })
   } catch (error: unknown) {

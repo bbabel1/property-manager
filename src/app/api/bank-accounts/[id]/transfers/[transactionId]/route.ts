@@ -276,7 +276,7 @@ export async function PATCH(
             ];
 
     // Use SQL function for atomic replace with locking and validation
-    const { error: replaceErr } = await supabaseAdmin.rpc('replace_transaction_lines', {
+    const { error: replaceErr } = await (supabaseAdmin as any).rpc('replace_transaction_lines', {
       p_transaction_id: transactionId,
       p_lines: lines.map((line) => ({
         gl_account_id: line.gl_account_id,
@@ -320,17 +320,26 @@ export async function PATCH(
         .eq('id', transactionId)
         .maybeSingle();
 
+      type TxRowWithGl = TransactionRow & {
+        gl_accounts?: { buildium_gl_account_id?: number | null } | null;
+      };
+      const txRowTyped = (txRow || null) as TxRowWithGl | null;
+      if (!txRowTyped) {
+        return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+      }
+
       const buildiumTxnId =
-        txRow && typeof (txRow as TransactionRow).buildium_transaction_id === 'number'
-          ? (txRow as TransactionRow).buildium_transaction_id
+        typeof txRowTyped.buildium_transaction_id === 'number'
+          ? txRowTyped.buildium_transaction_id
           : null;
       const buildiumBankId =
-        txRow?.gl_accounts && typeof txRow.gl_accounts.buildium_gl_account_id === 'number'
-          ? txRow.gl_accounts.buildium_gl_account_id
+        txRowTyped.gl_accounts &&
+        typeof txRowTyped.gl_accounts.buildium_gl_account_id === 'number'
+          ? txRowTyped.gl_accounts.buildium_gl_account_id
           : null;
 
       if (buildiumTxnId && buildiumBankId) {
-        const orgId = txRow.org_id ?? undefined;
+        const orgId = txRowTyped.org_id ?? undefined;
         const buildiumClient = await getOrgScopedBuildiumClient(orgId);
 
         // Resolve Buildium property/unit IDs

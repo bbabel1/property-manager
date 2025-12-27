@@ -1,21 +1,85 @@
 import { Buffer } from 'buffer';
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { requireUser } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/db';
 import { createFile, FILE_ENTITY_TYPES, mapBuildiumEntityTypeToFile } from '@/lib/files';
 import { logger } from '@/lib/logger';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
+import type { Database } from '@/types/database';
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'files';
 
-type TransactionRow = {
+type TransactionFilesRow = {
   id: string;
   org_id: string;
-  buildium_transaction_id: number | null;
-  transaction_type: string | null;
-  bank_gl_account_id: string | null;
-  bank_gl_account_buildium_id: number | null;
+  transaction_id: string;
+  file_id: string;
+  added_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type TransactionFilesTable = {
+  Row: TransactionFilesRow;
+  Insert: {
+    id?: string;
+    org_id: string;
+    transaction_id: string;
+    file_id: string;
+    added_by?: string | null;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: Partial<TransactionFilesRow>;
+  Relationships: [
+    {
+      foreignKeyName: 'transaction_files_org_id_fkey';
+      columns: ['org_id'];
+      isOneToOne: false;
+      referencedRelation: 'organizations';
+      referencedColumns: ['id'];
+    },
+    {
+      foreignKeyName: 'transaction_files_transaction_id_fkey';
+      columns: ['transaction_id'];
+      isOneToOne: false;
+      referencedRelation: 'transactions';
+      referencedColumns: ['id'];
+    },
+    {
+      foreignKeyName: 'transaction_files_file_id_fkey';
+      columns: ['file_id'];
+      isOneToOne: false;
+      referencedRelation: 'files';
+      referencedColumns: ['id'];
+    },
+  ];
+};
+
+type DatabaseWithTransactionFiles = Database & {
+  public: Database['public'] & {
+    Tables: Database['public']['Tables'] & {
+      transaction_files: TransactionFilesTable;
+    };
+  };
+};
+
+const supabaseTxFiles = supabaseAdmin as SupabaseClient<DatabaseWithTransactionFiles>;
+
+type TransactionRow = Pick<
+  Database['public']['Tables']['transactions']['Row'],
+  | 'id'
+  | 'org_id'
+  | 'buildium_transaction_id'
+  | 'transaction_type'
+  | 'bank_gl_account_id'
+  | 'bank_gl_account_buildium_id'
+>;
+
+type TransactionFileWithDetails = TransactionFilesRow & {
+  files: Database['public']['Tables']['files']['Row'] | null;
 };
 
 async function fetchTransaction(transactionId: string): Promise<TransactionRow | null> {
@@ -154,7 +218,7 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabaseTxFiles
     .from('transaction_files')
     .select(
       `
@@ -190,11 +254,12 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to load files' }, { status: 500 });
   }
 
+  const filesData = (data ?? []) as TransactionFileWithDetails[];
   const categoryIds = Array.from(
     new Set(
-      (data ?? [])
-        .map((row: any) => row?.files?.buildium_category_id)
-        .filter((id: any): id is number => typeof id === 'number'),
+      filesData
+        .map((row) => row.files?.buildium_category_id)
+        .filter((id): id is number => typeof id === 'number'),
     ),
   );
   const categoryNameById = new Map<number, string>();
@@ -211,18 +276,18 @@ export async function GET(
     });
   }
 
-  const files = (data ?? []).map((row: any) => {
-    const file = row?.files ?? {};
+  const files = filesData.map((row) => {
+    const file = row.files;
     const categoryId = typeof file?.buildium_category_id === 'number' ? file.buildium_category_id : null;
     const categoryName = categoryId ? categoryNameById.get(categoryId) ?? null : null;
     return {
-      linkId: row?.id,
+      linkId: row.id,
       id: file?.id,
       title: file?.title || file?.file_name || 'File',
       fileName: file?.file_name ?? null,
       mimeType: file?.mime_type ?? null,
       sizeBytes: file?.size_bytes ?? null,
-      uploadedAt: file?.created_at ?? row?.created_at ?? null,
+      uploadedAt: file?.created_at ?? row.created_at ?? null,
       uploadedBy: file?.created_by ?? null,
       buildiumFileId: file?.buildium_file_id ?? null,
       buildiumHref: file?.buildium_href ?? null,
@@ -318,7 +383,7 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to save file record' }, { status: 500 });
   }
 
-  const { error: linkError } = await supabaseAdmin
+  const { error: linkError } = await supabaseTxFiles
     .from('transaction_files')
     .insert({
       org_id: tx.org_id,
@@ -393,7 +458,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { data: linkRow, error: linkErr } = await supabaseAdmin
+  const { data: linkRow, error: linkErr } = await supabaseTxFiles
     .from('transaction_files')
     .select('id')
     .eq('transaction_id', transactionId)
@@ -410,7 +475,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'File not attached to this transaction' }, { status: 404 });
   }
 
-  const { error: deleteErr } = await supabaseAdmin
+  const { error: deleteErr } = await supabaseTxFiles
     .from('transaction_files')
     .delete()
     .eq('transaction_id', transactionId)

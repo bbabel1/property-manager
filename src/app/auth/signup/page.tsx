@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, User, Mail, Lock } from 'lucide-react'
+import { Eye, EyeOff, User, Mail } from 'lucide-react'
 import { useAuth } from '@/components/providers'
 import { auth } from '@/lib/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,7 +51,7 @@ export default function SignUpPage() {
     }
 
     try {
-      const { data, error } = await auth.signUp(formData.email, formData.password)
+      const { error } = await auth.signUp(formData.email, formData.password)
 
       if (error) {
         setMessage(error.message || 'Failed to create account. Please try again.')
@@ -69,7 +69,7 @@ export default function SignUpPage() {
           router.push('/auth/signin')
         }, 3000)
       }
-    } catch (error) {
+    } catch {
       setMessage('An error occurred. Please try again.')
     } finally {
       setIsLoading(false)

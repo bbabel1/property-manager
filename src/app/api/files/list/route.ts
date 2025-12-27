@@ -1,12 +1,11 @@
- 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth';
 import { supabaseAdminMaybe, type TypedSupabaseClient } from '@/lib/db';
 import {
   FILE_ENTITY_TYPES,
-  mapBuildiumEntityTypeToFile,
   normalizeEntityType,
+  resolveFileEntityFromRow,
   type EntityTypeEnum,
 } from '@/lib/files';
 import type { Database } from '@/types/database';
@@ -21,7 +20,13 @@ type MinimalUser = {
 type FileRow = Database['public']['Tables']['files']['Row'];
 type ContactRow = Pick<
   Database['public']['Tables']['contacts']['Row'],
-  'id' | 'display_name' | 'first_name' | 'last_name' | 'company_name' | 'primary_email' | 'primary_phone'
+  | 'id'
+  | 'display_name'
+  | 'first_name'
+  | 'last_name'
+  | 'company_name'
+  | 'primary_email'
+  | 'primary_phone'
 >;
 type FileCategoryRow = Pick<
   Database['public']['Tables']['file_categories']['Row'],
@@ -29,7 +34,14 @@ type FileCategoryRow = Pick<
 >;
 type PropertyRow = Pick<
   Database['public']['Tables']['properties']['Row'],
-  'id' | 'name' | 'address_line1' | 'address_line2' | 'city' | 'state' | 'property_type' | 'buildium_property_id'
+  | 'id'
+  | 'name'
+  | 'address_line1'
+  | 'address_line2'
+  | 'city'
+  | 'state'
+  | 'property_type'
+  | 'buildium_property_id'
 > & { address_line_1?: string | null };
 type UnitRow = Pick<
   Database['public']['Tables']['units']['Row'],
@@ -37,7 +49,13 @@ type UnitRow = Pick<
 >;
 type LeaseRow = Pick<
   Database['public']['Tables']['lease']['Row'],
-  'id' | 'buildium_lease_id' | 'property_id' | 'unit_id' | 'buildium_property_id' | 'buildium_unit_id' | 'status'
+  | 'id'
+  | 'buildium_lease_id'
+  | 'property_id'
+  | 'unit_id'
+  | 'buildium_property_id'
+  | 'buildium_unit_id'
+  | 'status'
 >;
 type TenantRow = {
   id: string;
@@ -59,6 +77,8 @@ type FileWithResolvedEntity = Omit<FileRow, 'entity_type' | 'entity_id'> & {
   entity_id: number | string;
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const ENTITY_FILTER_MAP: Record<string, EntityTypeEnum[]> = {
   property: [FILE_ENTITY_TYPES.PROPERTIES],
   unit: [FILE_ENTITY_TYPES.UNITS],
@@ -78,10 +98,7 @@ async function resolveOrgId(
   supabase: TypedSupabaseClient,
   user: MinimalUser,
 ): Promise<string> {
-  const isValidUUID = (str: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(str);
-  };
+  const isValidUUID = (str: string): boolean => UUID_REGEX.test(str);
 
   const membershipCandidateUserIds = new Set<string>();
   const addCandidateUserId = (value: unknown) => {
@@ -214,20 +231,26 @@ async function resolveOrgId(
     // Try to find the real user by email using users_with_auth view
     // This view joins auth.users with profiles and org_memberships
     try {
-      // users_with_auth is a view that may not be in generated types, use type assertion
-      const { data: userRow } = await (supabaseAdminMaybe as unknown as TypedSupabaseClient)
-        .from('users_with_auth' as never)
+      const { data: userRow, error: userLookupError } = await supabaseAdminMaybe
+        .from('users_with_auth')
         .select('user_id, memberships')
         .eq('email', user.email)
-        .maybeSingle<{ user_id?: string; memberships?: Array<{ org_id?: string; role?: string }> }>();
+        .maybeSingle<{
+          user_id?: string;
+          memberships?: Array<{ org_id?: string; role?: string }>;
+        }>();
+      if (userLookupError) {
+        console.warn('Failed to resolve user via users_with_auth', userLookupError);
+      }
       if (userRow?.user_id) {
         addCandidateUserId(userRow.user_id);
       }
 
       // Extract org_ids from memberships array
-      const orgIdsFromMemberships = userRow?.memberships
-        ?.map((m) => m.org_id)
-        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0) ?? [];
+      const orgIdsFromMemberships =
+        userRow?.memberships
+          ?.map((m) => m.org_id)
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0) ?? [];
 
       if (orgIdsFromMemberships.length > 0) {
         // Use the first org_id from the user's memberships
@@ -246,21 +269,6 @@ async function resolveOrgId(
     } catch (emailLookupError) {
       // Silently fail and fall through to first org fallback
       console.warn('Failed to look up user by email:', emailLookupError);
-    }
-  }
-
-  // Last resort: fall back to first org (only in non-production)
-  // This should rarely happen if authentication is properly configured
-  if (!orgId && process.env.NODE_ENV !== 'production') {
-    const { data: orgRow } = await adminClient
-      .from('organizations')
-      .select('id')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    const fallbackOrgId = normalizeOrgId(orgRow?.id);
-    if (fallbackOrgId) {
-      orgId = fallbackOrgId;
     }
   }
 
@@ -506,117 +514,54 @@ export async function GET(request: NextRequest) {
     // Track local entity UUIDs for files with entity_id = -1 (local entities without Buildium IDs)
     const localUnitIds = new Set<string>();
     const localPropertyIds = new Set<string>();
-    const localLeaseIds = new Set<number>();
 
     for (const file of filesList) {
       if (typeof file.buildium_category_id === 'number') {
         categoryIds.add(file.buildium_category_id);
       }
 
-      // Get entity info from files table (entity_type and entity_id are now direct columns)
-      let entityType: EntityTypeEnum | null = null;
-      let entityIdNum: number | string | null = null;
-
-      // Primary source: entity_type and entity_id columns
-      if (file.entity_type) {
-        const normalized = normalizeEntityType(file.entity_type);
-        if (normalized) {
-          entityType = normalized;
-          entityIdNum = file.entity_id ?? null;
-        }
-      }
-
-      // If still not found, try to extract from storage_key
-      if (!entityType && file.storage_key) {
-        const storageKeyParts = file.storage_key.split('/');
-        if (storageKeyParts.length >= 2) {
-          const localEntityType = storageKeyParts[0];
-          const localEntityId = storageKeyParts[1];
-
-          // Map storage key entity types to file entity types
-          const storageKeyToEntityType: Record<string, EntityTypeEnum> = {
-            property: FILE_ENTITY_TYPES.PROPERTIES,
-            unit: FILE_ENTITY_TYPES.UNITS,
-            lease: FILE_ENTITY_TYPES.LEASES,
-            tenant: FILE_ENTITY_TYPES.TENANTS,
-            owner: FILE_ENTITY_TYPES.RENTAL_OWNERS,
-            vendor: FILE_ENTITY_TYPES.VENDORS,
-          };
-
-          entityType = storageKeyToEntityType[localEntityType] || null;
-
-          // Validate UUID or integer format
-          if (
-            localEntityId &&
-            (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-              localEntityId,
-            ) ||
-              Number.isFinite(Number(localEntityId)))
-          ) {
-            if (localEntityType === 'unit' || localEntityType === 'property') {
-              // UUID format
-              entityIdNum = localEntityId;
-            } else {
-              // Integer format (lease, etc.)
-              entityIdNum = Number.isFinite(Number(localEntityId))
-                ? Number(localEntityId)
-                : localEntityId;
-            }
-          }
-        }
-      }
+      const { entityType, entityId } = resolveFileEntityFromRow(file);
 
       // Handle local entities (UUIDs)
-      if (
-        entityType &&
-        typeof entityIdNum === 'string' &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityIdNum)
-      ) {
+      if (entityType && typeof entityId === 'string' && UUID_REGEX.test(entityId)) {
         switch (entityType) {
           case FILE_ENTITY_TYPES.UNITS:
           case FILE_ENTITY_TYPES.ASSOCIATION_UNITS:
-            localUnitIds.add(entityIdNum);
+            localUnitIds.add(entityId);
             break;
           case FILE_ENTITY_TYPES.PROPERTIES:
           case FILE_ENTITY_TYPES.ASSOCIATIONS:
-            localPropertyIds.add(entityIdNum);
+            localPropertyIds.add(entityId);
             break;
-          case FILE_ENTITY_TYPES.LEASES: {
-            const leaseIdNum = Number.isFinite(Number(entityIdNum)) ? Number(entityIdNum) : null;
-            if (leaseIdNum !== null) {
-              localLeaseIds.add(leaseIdNum);
-            }
-            break;
-          }
         }
         continue; // Skip buildium ID processing for local entities
       }
 
       // Handle Buildium entities (numeric IDs)
-      if (!entityType || !entityIdNum || typeof entityIdNum !== 'number') continue;
+      if (!entityType || !entityId || typeof entityId !== 'number') continue;
 
       switch (entityType) {
         case FILE_ENTITY_TYPES.PROPERTIES:
         case FILE_ENTITY_TYPES.ASSOCIATIONS:
-          propertyIds.add(entityIdNum);
+          propertyIds.add(entityId);
           break;
         case FILE_ENTITY_TYPES.UNITS:
         case FILE_ENTITY_TYPES.ASSOCIATION_UNITS:
-          unitIds.add(entityIdNum);
+          unitIds.add(entityId);
           break;
         case FILE_ENTITY_TYPES.LEASES:
-          leaseIds.add(entityIdNum);
+          leaseIds.add(entityId);
           break;
         case FILE_ENTITY_TYPES.TENANTS:
-          tenantIds.add(entityIdNum);
+          tenantIds.add(entityId);
           break;
         case FILE_ENTITY_TYPES.RENTAL_OWNERS:
         case FILE_ENTITY_TYPES.OWNERSHIP_ACCOUNTS:
         case FILE_ENTITY_TYPES.ASSOCIATION_OWNERS:
-          ownerIds.add(entityIdNum);
+          ownerIds.add(entityId);
           break;
         case FILE_ENTITY_TYPES.VENDORS:
-          vendorIds.add(entityIdNum);
+          vendorIds.add(entityId);
           break;
         default:
           break;
@@ -800,12 +745,16 @@ export async function GET(request: NextRequest) {
     if (contactIds.size) {
       const { data: contactsData, error: contactsError } = await supabase
         .from('contacts')
-        .select('id, display_name, first_name, last_name, company_name, primary_email, primary_phone')
+        .select(
+          'id, display_name, first_name, last_name, company_name, primary_email, primary_phone',
+        )
         .in('id', Array.from(contactIds));
       if (contactsError) {
         console.error('Failed to load contacts for owner display:', contactsError);
       } else {
-        contactsById = new Map((contactsData || []).map((contact) => [contact.id as number, contact]));
+        contactsById = new Map(
+          (contactsData || []).map((contact) => [contact.id as number, contact]),
+        );
       }
     }
 
@@ -905,58 +854,7 @@ export async function GET(request: NextRequest) {
     };
 
     const enrichedFiles = filesList.map((file) => {
-      // Get entity info from files table (entity_type and entity_id are now direct columns)
-      let entityType: EntityTypeEnum | null = null;
-      let entityId: number | string | null = null;
-
-      // Primary source: entity_type and entity_id columns
-      if (file.entity_type) {
-        const normalized = normalizeEntityType(file.entity_type);
-        if (normalized) {
-          entityType = normalized;
-          entityId = file.entity_id ?? null;
-        }
-      }
-
-      // If still not found, try to extract from storage_key
-      if (!entityType && file.storage_key) {
-        const storageKeyParts = file.storage_key.split('/');
-        if (storageKeyParts.length >= 2) {
-          const localEntityType = storageKeyParts[0];
-          const localEntityId = storageKeyParts[1];
-
-          // Map storage key entity types to file entity types
-          const storageKeyToEntityType: Record<string, EntityTypeEnum> = {
-            property: FILE_ENTITY_TYPES.PROPERTIES,
-            unit: FILE_ENTITY_TYPES.UNITS,
-            lease: FILE_ENTITY_TYPES.LEASES,
-            tenant: FILE_ENTITY_TYPES.TENANTS,
-            owner: FILE_ENTITY_TYPES.RENTAL_OWNERS,
-            vendor: FILE_ENTITY_TYPES.VENDORS,
-          };
-
-          entityType = storageKeyToEntityType[localEntityType] || null;
-
-          // Validate UUID or integer format
-          if (
-            localEntityId &&
-            (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-              localEntityId,
-            ) ||
-              Number.isFinite(Number(localEntityId)))
-          ) {
-            if (localEntityType === 'unit' || localEntityType === 'property') {
-              // UUID format
-              entityId = localEntityId;
-            } else {
-              // Integer format (lease, etc.)
-              entityId = Number.isFinite(Number(localEntityId))
-                ? Number(localEntityId)
-                : localEntityId;
-            }
-          }
-        }
-      }
+      const { entityType, entityId } = resolveFileEntityFromRow(file);
 
       const normalizedFileEntity =
         normalizeEntityType(file.entity_type) ?? FILE_ENTITY_TYPES.PROPERTIES;
@@ -1054,7 +952,10 @@ type EntityContext = {
   vendorsByBuildiumId: Map<number, VendorRow>;
 };
 
-function resolveEntityPresentation(file: FileWithResolvedEntity, context: EntityContext): {
+function resolveEntityPresentation(
+  file: FileWithResolvedEntity,
+  context: EntityContext,
+): {
   location: string;
   entityUrl?: string;
 } {
