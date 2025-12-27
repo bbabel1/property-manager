@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { requireRole } from '@/lib/auth/guards'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
+    
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      // If orgId resolution fails, allow undefined (will use env vars)
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
+    // Use org-scoped client
+    const client = await getOrgScopedBuildiumEdgeClient(orgId);
+    
     const { searchParams } = new URL(request.url)
     const params: {
       propertyids?: number[]
@@ -25,7 +39,7 @@ export async function GET(request: NextRequest) {
     if (searchParams.get('offset')) params.offset = Number(searchParams.get('offset'))
     if (searchParams.get('limit')) params.limit = Number(searchParams.get('limit'))
 
-    const res = await buildiumEdgeClient.listLeasesFromBuildium(params)
+    const res = await client.listLeasesFromBuildium(params)
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to list leases' }, { status: 500 })
     return NextResponse.json(res.data ?? [])
   } catch (e) {
@@ -36,9 +50,23 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
+    
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      // If orgId resolution fails, allow undefined (will use env vars)
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
+    // Use org-scoped client
+    const client = await getOrgScopedBuildiumEdgeClient(orgId);
+    
     const body: unknown = await request.json().catch(() => ({}))
-    const res = await buildiumEdgeClient.createLeaseInBuildium(body)
+    const payload = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
+    const res = await client.createLeaseInBuildium(payload)
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to create lease in Buildium' }, { status: 400 })
     return NextResponse.json(res.data, { status: 201 })
   } catch (e) {

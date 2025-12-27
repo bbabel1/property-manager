@@ -4,7 +4,8 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyCreateEnhancedSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      // If orgId resolution fails, allow undefined (will use env vars)
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
+    // Use org-scoped client
+    const client = await getOrgScopedBuildiumEdgeClient(orgId);
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -37,9 +50,9 @@ export async function GET(request: NextRequest) {
     if (isActive) queryParams.append('isActive', isActive);
 
     // Proxy via Edge function (keeps secrets at Edge)
-    const proxy = await buildiumEdgeClient.proxyRaw('GET', '/rentals', Object.fromEntries(queryParams.entries()))
-    if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch properties from Buildium' }, { status: 502 })
-    const properties = proxy.data
+    const proxy = await client.proxyRaw('GET', '/rentals', Object.fromEntries(queryParams.entries()));
+    if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch properties from Buildium' }, { status: 502 });
+    const properties = Array.isArray(proxy.data) ? proxy.data : [];
 
     logger.info(`Buildium properties fetched successfully`);
 
@@ -72,7 +85,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      // If orgId resolution fails, allow undefined (will use env vars)
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
+    // Use org-scoped client
+    const client = await getOrgScopedBuildiumEdgeClient(orgId);
 
     // Parse and validate request body
     const body = await request.json();
@@ -80,9 +105,9 @@ export async function POST(request: NextRequest) {
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyCreateEnhancedSchema);
 
-    const created = await buildiumEdgeClient.proxyRaw('POST', '/rentals', undefined, validatedData)
-    if (!created.success) return NextResponse.json({ error: created.error || 'Failed to create property in Buildium' }, { status: 502 })
-    const property = created.data
+    const created = await client.proxyRaw('POST', '/rentals', undefined, validatedData);
+    if (!created.success) return NextResponse.json({ error: created.error || 'Failed to create property in Buildium' }, { status: 502 });
+    const property = created.data;
 
     logger.info(`Buildium property created successfully`);
 

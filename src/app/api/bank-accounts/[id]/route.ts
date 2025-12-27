@@ -8,7 +8,7 @@ import {
 } from '@/lib/supabase-client'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { z } from 'zod'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { normalizeBankAccountType } from '@/lib/gl-bank-account-normalizers'
 
 type BankAccountRow = {
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     await requireUser(request)
     const client = getServerSupabaseClient()
+    const { id } = await params;
     const { data, error } = await client
       .from('gl_accounts')
       .select(
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           updated_at
         `,
       )
-      .eq('id', (await params).id)
+      .eq('id', id)
       .eq('is_bank_account', true)
       .single<BankAccountRow>()
     if (error) {
@@ -107,7 +108,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireUser(request)
-    const id = (await params).id
+    const { id } = await params
 
     // Support query param override for sync
     const url = new URL(request.url)
@@ -155,6 +156,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Optional two-way sync to Buildium
     if (syncToBuildium) {
+      // Get orgId from the updated gl_accounts record
+      const { data: glAccount } = await admin
+        .from('gl_accounts')
+        .select('org_id')
+        .eq('id', id)
+        .maybeSingle();
+      const orgId = glAccount?.org_id ?? undefined;
+
       const syncPayload = {
         id: updated.id,
         name: updated.name,
@@ -167,7 +176,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         buildium_gl_account_id: updated.buildium_gl_account_id,
       }
 
-      const result: BuildiumSyncResult = await buildiumEdgeClient.syncBankAccountToBuildium(syncPayload)
+      // Use org-scoped client for Buildium sync
+      const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+      const result: BuildiumSyncResult = await edgeClient.syncBankAccountToBuildium(syncPayload)
       if (!result.success) {
         const currentBuildiumId = updated.buildium_gl_account_id ?? undefined
         if (typeof currentBuildiumId === 'number') {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
 import { requireAuth } from '@/lib/auth/guards'
 import { resolveResourceOrg, requireOrgAdmin } from '@/lib/auth/org-guards'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 
 type AllowedTenantFields =
   | 'tax_id'
@@ -88,7 +88,9 @@ export async function PATCH(
       const payloadClean = clean(buildiumPayload)
 
       if (Object.keys(payloadClean).length) {
-        const res = await buildiumEdgeClient.updateTenantInBuildium(
+        // Use org-scoped client for Buildium sync
+        const edgeClient = await getOrgScopedBuildiumEdgeClient(resolvedOrg.orgId);
+        const res = await edgeClient.updateTenantInBuildium(
           Number(updatedTenant.buildium_tenant_id),
           payloadClean
         )

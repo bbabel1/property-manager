@@ -3,8 +3,7 @@ import { z } from 'zod';
 
 import { requireAuth } from '@/lib/auth/guards';
 import { requireOrgAdmin } from '@/lib/auth/org-guards';
-import { BuildiumEdgeClient } from '@/lib/buildium-edge-client';
-import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager';
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
 import { supabaseAdmin } from '@/lib/db';
 
 const UpdateSchema = z.object({
@@ -118,10 +117,11 @@ export async function PATCH(
       | { success: boolean; error?: string; skipped?: boolean }
       | null = null;
 
-    if (updated?.buildium_gl_account_id) {
-      const config = await getOrgScopedBuildiumConfig(updated.org_id ?? undefined);
-
-      if (config) {
+    if (updated?.buildium_gl_account_id && updated.org_id) {
+      try {
+        // Use org-scoped client helper
+        const client = await getOrgScopedBuildiumEdgeClient(updated.org_id);
+        
         const buildiumPayload = {
           Id: updated.buildium_gl_account_id,
           Name: updated.name,
@@ -139,13 +139,17 @@ export async function PATCH(
           ParentGLAccountId: updated.buildium_parent_gl_account_id ?? undefined,
         };
 
-        const client = new BuildiumEdgeClient();
         const syncRes = await client.syncGLAccountToBuildium(buildiumPayload);
         buildiumSync = syncRes.success
           ? { success: true }
           : { success: false, error: syncRes.error || 'Failed to sync to Buildium' };
-      } else {
-        buildiumSync = { success: false, skipped: true, error: 'Buildium integration disabled' };
+      } catch (error) {
+        // If credentials are not available, skip Buildium sync
+        buildiumSync = { 
+          success: false, 
+          skipped: true, 
+          error: error instanceof Error ? error.message : 'Buildium integration not available' 
+        };
       }
     }
 

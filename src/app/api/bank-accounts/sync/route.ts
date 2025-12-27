@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/auth'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
@@ -8,20 +9,38 @@ export async function POST(request: NextRequest) {
     // Authentication
     const user = await requireUser(request)
     
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+    
     const body = await request.json()
     const { forceSync = false } = body
 
     logger.info({ userId: user.id, forceSync }, 'Starting bank accounts sync from Buildium')
 
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+    
     // Sync bank accounts from Buildium
-    const result = await buildiumEdgeClient.syncBankAccountsFromBuildium({ forceSync })
+    const result = await edgeClient.syncBankAccountsFromBuildium({ forceSync })
 
     if (result.success) {
+      const summary = (result.data || {}) as {
+        synced?: number
+        updated?: number
+        errorCount?: number
+        syncedCount?: number
+        updatedCount?: number
+      }
       logger.info({ 
         userId: user.id, 
-        syncedCount: result.data?.syncedCount,
-        updatedCount: result.data?.updatedCount,
-        errorCount: result.data?.errorCount 
+        syncedCount: summary.syncedCount ?? summary.synced,
+        updatedCount: summary.updatedCount ?? summary.updated,
+        errorCount: summary.errorCount 
       }, 'Bank accounts sync completed successfully')
       
       return NextResponse.json({
@@ -66,16 +85,27 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    await requireUser(request)
+    const user = await requireUser(request)
+    
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
     
     const url = new URL(request.url)
     const { searchParams } = url
     
     const bankAccountId = searchParams.get('bankAccountId')
 
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+
     if (bankAccountId) {
       // Get sync status for specific bank account
-      const result = await buildiumEdgeClient.getBankAccountSyncStatus(bankAccountId)
+      const result = await edgeClient.getBankAccountSyncStatus(bankAccountId)
       
       if (result.success) {
         return NextResponse.json(result.data)
@@ -87,7 +117,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Get all bank account sync statuses
-      const result = await buildiumEdgeClient.getAllBankAccountSyncStatuses()
+      const result = await edgeClient.getAllBankAccountSyncStatuses()
       
       if (result.success) {
         return NextResponse.json(result.data)

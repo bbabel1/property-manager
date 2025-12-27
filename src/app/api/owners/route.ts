@@ -7,7 +7,8 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { validateCSRFToken } from '@/lib/csrf'
 import { mapOwnerFromDB, type Owner, type OwnerDB } from '@/types/owners'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import type { Database } from '@/types/database'
 import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType } from '@/lib/normalizers'
 
@@ -228,8 +229,17 @@ export async function POST(request: NextRequest) {
         IsActive: true
       };
 
-      // Sync to Buildium via Edge Function
-      buildiumSyncResult = await buildiumEdgeClient.syncOwnerToBuildium(buildiumOwnerData);
+      // Resolve orgId from request context for org-scoped credentials
+      let orgId: string | undefined;
+      try {
+        orgId = await resolveOrgIdFromRequest(request, user.id);
+      } catch (error) {
+        logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+      }
+      
+      // Use org-scoped client for Buildium sync
+      const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+      buildiumSyncResult = await edgeClient.syncOwnerToBuildium(buildiumOwnerData);
 
       if (buildiumSyncResult.success && buildiumSyncResult.buildiumId) {
         logger.info({ 

@@ -5,7 +5,8 @@ import { mapGoogleCountryToEnum } from '@/lib/utils';
 import { requireUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { buildiumFetch } from '@/lib/buildium-http';
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager';
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
 import type { Database as DatabaseSchema } from '@/types/database';
 import {
   normalizeAssignmentLevel,
@@ -142,11 +143,18 @@ export async function POST(request: NextRequest) {
     if (!orgId) {
       // Fallback: pick the user's first org membership (handle 0, 1, or many rows)
       try {
-        const { data: rows } = await db
+        const { data: rows, error: membershipsError } = await db
           .from('org_memberships')
           .select('org_id')
           .eq('user_id', user.id)
           .limit(1);
+        if (membershipsError) {
+          logger.error({ error: membershipsError, userId: user.id }, 'Failed to resolve org memberships');
+          return NextResponse.json(
+            { error: 'Failed to resolve organization context' },
+            { status: 500 },
+          );
+        }
         const first = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
         orgId = (first as OrgMembershipRow)?.org_id || null;
       } catch {}
@@ -578,24 +586,33 @@ export async function POST(request: NextRequest) {
     // ===================== Buildium Sync (Property → Units → Owners) =====================
     try {
       // Only attempt if explicitly requested and Buildium credentials are configured
-      if (syncToBuildium && process.env.BUILDIUM_CLIENT_ID && process.env.BUILDIUM_CLIENT_SECRET) {
+      const buildiumConfig = await getOrgScopedBuildiumConfig(orgId);
+      if (syncToBuildium && buildiumConfig) {
         // 1) Ensure Owners exist in Buildium and collect their Buildium IDs
         const prelinkedOwnerIds: number[] = [];
         if (owners && owners.length > 0) {
           for (const o of owners) {
             try {
-              const { data: localOwner } = await db
+              const { data: localOwner, error: localOwnerError } = await db
                 .from('owners')
                 .select('*')
                 .eq('id', o.id)
                 .single();
+              if (localOwnerError) {
+                logger.warn(
+                  { ownerId: o.id, error: localOwnerError },
+                  'Failed to load owner before Buildium sync',
+                );
+                continue;
+              }
               if (!localOwner) continue;
               if (localOwner.buildium_owner_id) {
                 prelinkedOwnerIds.push(Number(localOwner.buildium_owner_id));
                 continue;
               }
               // Create owner in Buildium when missing
-              const ownerSync = await buildiumEdgeClient.syncOwnerToBuildium(localOwner);
+              const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+              const ownerSync = await edgeClient.syncOwnerToBuildium(localOwner);
               if (ownerSync.success && ownerSync.buildiumId) {
                 prelinkedOwnerIds.push(ownerSync.buildiumId);
                 try {
@@ -627,13 +644,18 @@ export async function POST(request: NextRequest) {
         let buildiumOperatingBankAccountId: number | undefined;
         if (operatingGlId) {
           try {
-            const { data: gl } = await db
+            const { data: gl, error: glLookupError } = await db
               .from('gl_accounts')
               .select('id, buildium_gl_account_id, is_bank_account')
               .eq('id', operatingGlId)
               .maybeSingle();
 
-            if (gl?.buildium_gl_account_id && gl.buildium_gl_account_id > 0) {
+            if (glLookupError) {
+              logger.warn(
+                { error: glLookupError, glAccountId: operatingGlId },
+                'Unable to resolve operating bank account for Buildium',
+              );
+            } else if (gl?.buildium_gl_account_id && gl.buildium_gl_account_id > 0) {
               // Use the GL account ID directly as the bank account ID
               buildiumOperatingBankAccountId = gl.buildium_gl_account_id;
             }
@@ -663,14 +685,18 @@ export async function POST(request: NextRequest) {
         // Attach PropertyManagerId from staff.buildium_user_id when available
         if (propertyManagerId) {
           try {
-            const { data: pm } = await db
+            const { data: pm, error: pmError } = await db
               .from('staff')
               .select('buildium_user_id')
               .eq('id', propertyManagerId)
               .not('buildium_user_id', 'is', null)
               .single();
-            const pmId = pm?.buildium_user_id ? Number(pm.buildium_user_id) : null;
-            if (pmId) propertyPayload.PropertyManagerId = pmId;
+            if (pmError) {
+              logger.warn({ error: pmError, propertyManagerId }, 'Unable to load property manager Buildium user id');
+            } else {
+              const pmId = pm?.buildium_user_id ? Number(pm.buildium_user_id) : null;
+              if (pmId) propertyPayload.PropertyManagerId = pmId;
+            }
           } catch {}
         }
         if (prelinkedOwnerIds.length)
@@ -833,11 +859,18 @@ export async function POST(request: NextRequest) {
           }
         }
         const buildiumPropertyId = await (async () => {
-          const { data } = await db
+          const { data, error: buildiumIdError } = await db
             .from('properties')
             .select('buildium_property_id')
             .eq('id', createdProperty.id)
             .single();
+          if (buildiumIdError) {
+            logger.warn(
+              { error: buildiumIdError, propertyId: createdProperty.id },
+              'Failed to load Buildium property id after sync',
+            );
+            return null;
+          }
           return data?.buildium_property_id as number | null;
         })();
 
@@ -930,18 +963,34 @@ export async function POST(request: NextRequest) {
           const rentalOwnerIds: number[] = [...prelinkedOwnerIds];
           for (const o of owners) {
             let buildiumOwnerId: number | null = null;
-            const { data: localOwner } = await db
+            const { data: localOwner, error: localOwnerLookupError } = await db
               .from('owners')
               .select('id, buildium_owner_id, contact_id')
               .eq('id', o.id)
               .single();
-            buildiumOwnerId = localOwner?.buildium_owner_id || null;
+            if (localOwnerLookupError) {
+              logger.warn(
+                { ownerId: o.id, error: localOwnerLookupError },
+                'Failed to load owner during Buildium sync',
+              );
+              continue;
+            }
+            if (!localOwner) continue;
+            buildiumOwnerId = localOwner.buildium_owner_id || null;
             if (!buildiumOwnerId) {
-              const { data: contact } = await db
+              if (!localOwner.contact_id) continue;
+              const { data: contact, error: contactError } = await db
                 .from('contacts')
                 .select('*')
-                .eq('id', localOwner?.contact_id)
+                .eq('id', localOwner.contact_id)
                 .single();
+              if (contactError) {
+                logger.warn(
+                  { error: contactError, contactId: localOwner.contact_id },
+                  'Failed to load contact for owner sync',
+                );
+                continue;
+              }
               if (contact) {
                 const ownerPayload = {
                   FirstName: contact.first_name || '',
@@ -976,7 +1025,7 @@ export async function POST(request: NextRequest) {
                   await db
                     .from('owners')
                     .update({ buildium_owner_id: buildiumOwnerId })
-                    .eq('id', localOwner?.id);
+                    .eq('id', localOwner.id);
                 } else {
                   console.warn(
                     'Buildium owner create failed:',
@@ -1198,10 +1247,13 @@ export async function GET() {
     >();
     if (managerIds.length) {
       try {
-        const { data: managers } = await db
+        const { data: managers, error: managersError } = await db
           .from('staff')
           .select('id, display_name, first_name, last_name, email, phone, role')
           .in('id', managerIds);
+        if (managersError) {
+          logger.warn({ error: managersError }, 'Failed to load property managers');
+        }
         for (const mgr of managers || []) {
           const normalized = normalizeStaffRole(mgr?.role);
           if (normalized === 'Property Manager') {

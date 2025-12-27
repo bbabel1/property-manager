@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
 
 type LeaseRouteContext = { params: Promise<{ id: string }> }
@@ -56,9 +56,13 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
 
       // Only attempt create when explicitly requested; otherwise update existing Buildium lease
       const buildiumId = updated.buildium_lease_id
+      // Resolve orgId from lease record for org-scoped credentials
+      const orgId = updated.org_id ?? undefined
       try {
+        // Use org-scoped client for Buildium sync
+        const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
         if (buildiumId) {
-          const res = await buildiumEdgeClient.updateLeaseInBuildium(buildiumId, payload)
+          const res = await edgeClient.updateLeaseInBuildium(buildiumId, payload)
           if (res.success && res.data?.Id) {
             await db
               .from('lease')
@@ -69,7 +73,7 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
             buildiumSyncError = res.error || 'Failed to sync lease to Buildium'
           }
         } else if (syncBuildium) {
-          const res = await buildiumEdgeClient.createLeaseInBuildium(payload)
+          const res = await edgeClient.createLeaseInBuildium(payload)
           if (res.success && res.data?.Id) {
             await db
               .from('lease')

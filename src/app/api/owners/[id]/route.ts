@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { checkRateLimit } from '@/lib/rate-limit'
 import type { Database } from '@/types/database'
 import { normalizeCountry, normalizeCountryWithDefault, normalizeEtfAccountType } from '@/lib/normalizers'
@@ -585,7 +585,9 @@ export async function PUT(
         TaxId: updatedOwner.tax_payer_id || undefined,
         IsActive: true
       }
-      const syncRes = await buildiumEdgeClient.syncOwnerToBuildium(buildiumOwnerData)
+      // Use org-scoped client for Buildium sync
+      const edgeClient = await getOrgScopedBuildiumEdgeClient(updatedOwner.org_id ?? undefined);
+      const syncRes = await edgeClient.syncOwnerToBuildium(buildiumOwnerData)
       if (syncRes.success && syncRes.buildiumId && !updatedOwner.buildium_owner_id) {
         await supabaseAdmin
           .from('owners')
