@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    const { user: _user } = await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
     
     const url = new URL(request.url);
     const { searchParams } = url;
@@ -14,9 +15,20 @@ export async function GET(request: NextRequest) {
     const entityType = searchParams.get('entityType');
     const entityId = searchParams.get('entityId');
 
+    // Resolve orgId from request context (optional for platform admin routes)
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+
     if (entityId) {
       // Get sync status for specific entity
-      const result = await buildiumEdgeClient.getSyncStatus(entityType || '', entityId);
+      const result = await edgeClient.getSyncStatus(entityType || '', entityId);
       
       if (result.success) {
         return NextResponse.json(result.data);
@@ -28,7 +40,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Get all failed syncs
-      const result = await buildiumEdgeClient.getFailedSyncs(entityType || undefined);
+      const result = await edgeClient.getFailedSyncs(entityType || undefined);
       
       if (result.success) {
         return NextResponse.json(result.data);
@@ -59,13 +71,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authentication
-    const { user: _user } = await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
     
     const body = await request.json();
     const { entityType } = body;
 
+    // Resolve orgId from request context (optional for platform admin routes)
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+
     // Retry failed syncs
-    const result = await buildiumEdgeClient.retryFailedSyncs(entityType);
+    const result = await edgeClient.retryFailedSyncs(entityType);
 
     if (result.success) {
       return NextResponse.json(result.data);

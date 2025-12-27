@@ -3,7 +3,8 @@ import { requireRole } from '@/lib/auth/guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { supabaseAdmin } from '@/lib/db'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 import { upsertOwnerFromBuildium } from '@/lib/buildium-mappers'
 
 // Sync a single Buildium owner into the local database (contacts + owners)
@@ -15,15 +16,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     }
 
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
+    
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
     const { id } = await params
     const buildiumId = Number(id)
     if (!Number.isFinite(buildiumId) || buildiumId <= 0) {
       return NextResponse.json({ error: 'Invalid Buildium owner id' }, { status: 400 })
     }
 
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+    
     // Fetch Owner from Buildium via Edge Function (keeps secrets at the edge)
-    const fetchResult = await buildiumEdgeClient.getOwnerFromBuildium(buildiumId)
+    const fetchResult = await edgeClient.getOwnerFromBuildium(buildiumId)
     if (!fetchResult.success || !fetchResult.data) {
       return NextResponse.json(
         { error: fetchResult.error || 'Failed to fetch owner from Buildium' },

@@ -5,8 +5,9 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import UnitService from '@/lib/unit-service'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import type { BuildiumUnit } from '@/types/buildium';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,11 +23,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Require platform admin
     const { supabase, user } = await requireRole('platform_admin');
 
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
+
     const { id } = await params;
 
-    const proxy = await buildiumEdgeClient.proxyRaw('GET', `/rentals/units/${id}`)
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+    const proxy = await edgeClient.proxyRaw('GET', `/rentals/units/${id}`)
     if (!proxy.success) return NextResponse.json({ error: proxy.error || 'Failed to fetch unit from Buildium' }, { status: 502 })
-    const unit = proxy.data
+    const unit = proxy.data as BuildiumUnit
     // Optional persist to DB if ?persist=true|1
     const { searchParams } = new URL(request.url)
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase())
@@ -39,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 })
       }
 
-      try { await UnitService.persistBuildiumUnit(unit, orgId as string) } catch (e) { logger.error(`Persist updated unit failed: ${String(e)}`) }
+      try { await UnitService.persistBuildiumUnit(unit as any, orgId as string) } catch (e) { logger.error(`Persist updated unit failed: ${String(e)}`) }
     }
 
     logger.info(`Buildium unit fetched successfully`);
@@ -72,7 +82,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
 
     const { id } = await params;
 
@@ -82,7 +100,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumUnitUpdateSchema);
 
-    const prox = await buildiumEdgeClient.proxyRaw('PUT', `/rentals/units/${id}`, undefined, validatedData)
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+    const prox = await edgeClient.proxyRaw('PUT', `/rentals/units/${id}`, undefined, validatedData)
     if (!prox.success) return NextResponse.json({ error: prox.error || 'Failed to update unit in Buildium' }, { status: 502 })
     const unit = prox.data
 

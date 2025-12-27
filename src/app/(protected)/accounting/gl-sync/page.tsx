@@ -15,14 +15,22 @@ export default function GLSyncPage() {
     setError(null)
     setResult(null)
     try {
+      // Get orgId from cookie (set by middleware or client-side context)
+      const orgIdCookie = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('x-org-id='))
+        ?.split('=')[1];
+      const orgId = orgIdCookie || undefined;
+
+      const { getOrgScopedBuildiumEdgeClient } = await import('@/lib/buildium-edge-client')
+      const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+
       if (kind === 'accounts') {
-        const { buildiumEdgeClient } = await import('@/lib/buildium-edge-client')
-        const res = await buildiumEdgeClient.syncGLAccountsFromBuildium({})
+        const res = await edgeClient.syncGLAccountsFromBuildium({})
         if (!res.success) throw new Error(res.error || 'Failed')
         setResult(res.data)
       } else {
-        const { buildiumEdgeClient } = await import('@/lib/buildium-edge-client')
-        const res = await buildiumEdgeClient.syncGLEntriesFromBuildium({ overlapDays: 7 })
+        const res = await edgeClient.syncGLEntriesFromBuildium({ overlapDays: 7 })
         if (!res.success) throw new Error(res.error || 'Failed')
         setResult(res.data)
       }

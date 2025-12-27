@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/db'
 import { getServerSupabaseClient } from '@/lib/supabase-client'
 import { logger } from '@/lib/logger'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { buildiumSync } from '@/lib/buildium-sync'
 import { getOrgGlSettingsOrThrow } from '@/lib/gl-settings'
 import { createCharge } from '@/lib/posting-service'
@@ -17,6 +17,19 @@ import type { BuildiumLease } from '@/types/buildium'
 type ContactRow = Database['public']['Tables']['contacts']['Row']
 type LeaseContactRow = Database['public']['Tables']['lease_contacts']['Row']
 type LeaseRow = Database['public']['Tables']['lease']['Row']
+type RentScheduleRow = Database['public']['Tables']['rent_schedules']['Row']
+type RecurringTransactionRow = Database['public']['Tables']['recurring_transactions']['Row']
+type LeaseDocumentRow =
+  Database['public']['Tables'] extends Record<'lease_documents', { Row: infer R }>
+    ? R
+    : {
+        id?: number | string
+        lease_id?: number | null
+        org_id?: string | null
+        storage_path?: string | null
+        created_at?: string
+        name?: string | null
+      }
 
 type LeaseContactWithTenant = LeaseContactRow & {
   tenants?: {
@@ -366,26 +379,35 @@ async function createContactsForNewPeople(
     return { contacts: [] }
   }
 
-  const { data: propertyRow } = await client
+  const { data: propertyRow, error: propertyError } = await client
     .from('properties')
     .select('address_line1, address_line2, city, state, postal_code, country, org_id')
     .eq('id', propertyId)
     .maybeSingle()
+  if (propertyError) {
+    throw propertyError
+  }
 
-  const { data: unitRow } = await client
+  const { data: unitRow, error: unitError } = await client
     .from('units')
     .select('unit_number, property_id')
     .eq('id', unitId)
     .maybeSingle()
+  if (unitError) {
+    throw unitError
+  }
 
   let resolvedOrgId = propertyRow?.org_id ?? null
 
   if (!resolvedOrgId && unitRow?.property_id) {
-    const { data: parentProperty } = await client
+    const { data: parentProperty, error: parentPropertyError } = await client
       .from('properties')
       .select('org_id, address_line1, address_line2, city, state, postal_code, country')
       .eq('id', unitRow.property_id)
       .maybeSingle()
+    if (parentPropertyError) {
+      throw parentPropertyError
+    }
     if (parentProperty) {
       resolvedOrgId = parentProperty.org_id ?? resolvedOrgId
     }
@@ -405,11 +427,14 @@ async function createContactsForNewPeople(
     let contactId: number | null = null
 
     if (email) {
-      const { data: existingContact } = await client
+      const { data: existingContact, error: existingContactError } = await client
         .from('contacts')
         .select('id')
         .or(`primary_email.eq.${email},primary_email.eq.${email.toUpperCase()}`)
         .maybeSingle()
+      if (existingContactError) {
+        throw existingContactError
+      }
 
       if (existingContact?.id) {
         contactId = existingContact.id
@@ -454,11 +479,14 @@ async function createContactsForNewPeople(
 
       if (contactError || !newContact) {
         if (contactError?.code === '23505' && email) {
-          const { data: deduped } = await client
+          const { data: deduped, error: dedupedError } = await client
             .from('contacts')
             .select('id')
             .or(`primary_email.eq.${email},primary_email.eq.${email.toUpperCase()}`)
             .maybeSingle()
+          if (dedupedError) {
+            throw dedupedError
+          }
           if (!deduped?.id) {
             throw new Error(contactError.message || 'Failed to create contact for staged tenant')
           }
@@ -471,11 +499,14 @@ async function createContactsForNewPeople(
       }
     }
 
-    const { data: tenantRow, error: _tenantLookupError } = await client
+    const { data: tenantRow, error: tenantLookupError } = await client
       .from('tenants')
       .select('id')
       .eq('contact_id', contactId)
       .maybeSingle()
+    if (tenantLookupError) {
+      throw tenantLookupError
+    }
 
     let tenantId = tenantRow?.id ?? null
 
@@ -648,11 +679,31 @@ export async function POST(request: NextRequest) {
     // Resolve local property/unit UUIDs if Buildium IDs provided
     let { property_id, unit_id } = body
     if (!property_id && body.buildium_property_id) {
-      const { data } = await supabase.from('properties').select('id').eq('buildium_property_id', body.buildium_property_id).single()
+      const { data, error: propertyLookupError } = await supabase
+        .from('properties')
+        .select('id')
+        .eq('buildium_property_id', body.buildium_property_id)
+        .single()
+      if (propertyLookupError) {
+        return NextResponse.json(
+          { error: 'Failed to resolve property by Buildium id', details: propertyLookupError.message },
+          { status: 500 }
+        )
+      }
       property_id = data?.id
     }
     if (!unit_id && body.buildium_unit_id) {
-      const { data } = await supabase.from('units').select('id').eq('buildium_unit_id', body.buildium_unit_id).single()
+      const { data, error: unitLookupError } = await supabase
+        .from('units')
+        .select('id')
+        .eq('buildium_unit_id', body.buildium_unit_id)
+        .single()
+      if (unitLookupError) {
+        return NextResponse.json(
+          { error: 'Failed to resolve unit by Buildium id', details: unitLookupError.message },
+          { status: 500 }
+        )
+      }
       unit_id = data?.id
     }
 
@@ -663,17 +714,30 @@ export async function POST(request: NextRequest) {
     const admin = getServerSupabaseClient()
 
     // Resolve org_id early for both payload and idempotency scoping
-    const { data: propertyRowForOrg } = await (supabaseAdmin || supabase)
+    const { data: propertyRowForOrg, error: propertyOrgError } = await (supabaseAdmin || supabase)
       .from('properties')
       .select('org_id')
       .eq('id', property_id)
       .maybeSingle()
 
-    const { data: unitRowForOrg } = await (supabaseAdmin || supabase)
+    if (propertyOrgError) {
+      return NextResponse.json(
+        { error: 'Failed to load property organization', details: propertyOrgError.message },
+        { status: 500 }
+      )
+    }
+
+    const { data: unitRowForOrg, error: unitOrgError } = await (supabaseAdmin || supabase)
       .from('units')
       .select('org_id, property_id')
       .eq('id', unit_id)
       .maybeSingle()
+    if (unitOrgError) {
+      return NextResponse.json(
+        { error: 'Failed to load unit organization', details: unitOrgError.message },
+        { status: 500 }
+      )
+    }
 
     const resolvedOrgId = propertyRowForOrg?.org_id ?? unitRowForOrg?.org_id ?? null
     // Backfill property_id from the unit if caller only provided unit-level context
@@ -688,22 +752,34 @@ export async function POST(request: NextRequest) {
     if (idemKey && resolvedOrgId) {
       const nowIso = new Date().toISOString()
       try {
-        const { data: idem } = await admin
+        const { data: idem, error: idemError } = await admin
           .from('idempotency_keys')
           .select('response')
           .eq('key', idemKey)
           .eq('org_id', resolvedOrgId)
           .gte('expires_at', nowIso)
           .maybeSingle()
+        if (idemError) {
+          return NextResponse.json(
+            { error: 'Failed to check idempotency key', details: idemError.message },
+            { status: 500 }
+          )
+        }
         if (idem?.response) {
           // Ensure cached lease still exists; if missing, drop idempotency entry and continue with create
           const cachedLeaseId = extractLeaseIdFromResponse(idem.response)
           if (cachedLeaseId) {
-            const { data: leaseRow } = await admin
+            const { data: leaseRow, error: cachedLeaseError } = await admin
               .from('lease')
               .select('id, org_id')
               .eq('id', cachedLeaseId)
               .maybeSingle()
+            if (cachedLeaseError) {
+              return NextResponse.json(
+                { error: 'Failed to verify cached lease', details: cachedLeaseError.message },
+                { status: 500 }
+              )
+            }
             if (leaseRow && (!leaseRow.org_id || leaseRow.org_id === resolvedOrgId)) {
               try {
                 await admin
@@ -786,10 +862,17 @@ export async function POST(request: NextRequest) {
             | null) ?? null
         const leaseIdNumber = toNumericId(lease_id_full)
         if (leaseIdNumber != null) {
-          const { data: lease } = await admin.from('lease').select('*').eq('id', leaseIdNumber).single()
-          const { data: contacts } = await admin.from('lease_contacts').select('*').eq('lease_id', leaseIdNumber)
-          const { data: schedules } = await admin.from('rent_schedules').select('*').eq('lease_id', leaseIdNumber)
-          const { data: recurs } = await admin.from('recurring_transactions').select('*').eq('lease_id', leaseIdNumber)
+          const { data: lease, error: leaseLoadError } = await admin.from('lease').select('*').eq('id', leaseIdNumber).single()
+          const { data: contacts, error: contactsError } = await admin.from('lease_contacts').select('*').eq('lease_id', leaseIdNumber)
+          const { data: schedules, error: schedulesError } = await admin.from('rent_schedules').select('*').eq('lease_id', leaseIdNumber)
+          const { data: recurs, error: recursError } = await admin.from('recurring_transactions').select('*').eq('lease_id', leaseIdNumber)
+          const firstLoadError = leaseLoadError || contactsError || schedulesError || recursError
+          if (firstLoadError) {
+            return NextResponse.json(
+              { error: 'Failed to load created lease', details: firstLoadError.message },
+              { status: 500 }
+            )
+          }
           const docs: LeaseDocumentRow[] = []
           lease_id = leaseIdNumber
           const response = { lease, contacts, rent_schedules: schedules, recurring_transactions: recurs, documents: docs }
@@ -853,19 +936,26 @@ export async function POST(request: NextRequest) {
       if (!leaseIdNumber) {
         return NextResponse.json({ error: 'Failed creating lease' }, { status: 500 })
       }
-      const { data: leaseRow } = await admin.from('lease').select('*').eq('id', leaseIdNumber).single<LeaseRow>()
-      const { data: contactRows } = await admin
+      const { data: leaseRow, error: leaseRowError } = await admin.from('lease').select('*').eq('id', leaseIdNumber).single<LeaseRow>()
+      const { data: contactRows, error: contactRowsError } = await admin
         .from('lease_contacts')
         .select('*')
         .eq('lease_id', leaseIdNumber)
-      const { data: scheduleRows } = await admin
+      const { data: scheduleRows, error: scheduleRowsError } = await admin
         .from('rent_schedules')
         .select('*')
         .eq('lease_id', leaseIdNumber)
-      const { data: recurringRows } = await admin
+      const { data: recurringRows, error: recurringRowsError } = await admin
         .from('recurring_transactions')
         .select('*')
         .eq('lease_id', leaseIdNumber)
+      const leaseLoadError = leaseRowError || contactRowsError || scheduleRowsError || recurringRowsError
+      if (leaseLoadError) {
+        return NextResponse.json(
+          { error: 'Failed to load lease after creation', details: leaseLoadError.message },
+          { status: 500 }
+        )
+      }
       const documentRows: LeaseDocumentRow[] = []
       lease = leaseRow as LeaseRow
       contacts = (contactRows || []) as LeaseContactRow[]
@@ -890,11 +980,14 @@ export async function POST(request: NextRequest) {
         // 1) Ensure a recurring rent template exists when rent_amount is present
         const rentAmount = Number(lease?.rent_amount ?? body.rent_amount ?? 0) || 0
         if (rentAmount > 0) {
-          const { data: existingRecurs } = await (admin || supabase)
+          const { data: existingRecurs, error: existingRecursError } = await (admin || supabase)
             .from('recurring_transactions')
             .select('id')
             .eq('lease_id', safeLeaseId)
             .limit(1)
+          if (existingRecursError) {
+            throw existingRecursError
+          }
           if (!existingRecurs || existingRecurs.length === 0) {
             // Compute a reasonable start_date: prefer provided schedule, else anchor to payment_due_day relative to lease_from_date
             let start_date: string | null = null
@@ -930,11 +1023,14 @@ export async function POST(request: NextRequest) {
           }
 
           // Ensure a rent_schedules row exists for this lease
-          const { data: existingSchedules } = await (admin || supabase)
+          const { data: existingSchedules, error: existingSchedulesError } = await (admin || supabase)
             .from('rent_schedules')
             .select('id')
             .eq('lease_id', safeLeaseId)
             .limit(1)
+          if (existingSchedulesError) {
+            throw existingSchedulesError
+          }
           if (!existingSchedules || existingSchedules.length === 0) {
             let scheduleStart: string | null = null
             const providedScheduleStart =
@@ -944,20 +1040,22 @@ export async function POST(request: NextRequest) {
               const leaseStart: string | null = lease?.lease_from_date ?? null
               scheduleStart = leaseStart ? String(leaseStart) : null
             }
+            const resolvedScheduleStart =
+              scheduleStart || lease?.lease_from_date || new Date().toISOString().slice(0, 10)
             const scheduleEnd: string | null = lease?.lease_to_date ?? null
             const scheduleCycleRaw: unknown =
               (Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.rent_cycle) || 'Monthly'
-            const scheduleCycle = mapRentCycleToDbEnum(scheduleCycleRaw)
+            const scheduleCycle = mapRentCycleToDbEnum(scheduleCycleRaw) as Database['public']['Enums']['rent_cycle_enum']
             const { error: scheduleInsertError } = await (admin || supabase)
               .from('rent_schedules')
               .insert({
                 lease_id: safeLeaseId,
-                start_date: scheduleStart,
+                start_date: resolvedScheduleStart,
                 end_date: scheduleEnd,
                 total_amount: rentAmount,
                 rent_cycle: scheduleCycle,
                 backdate_charges: false,
-              })
+              } satisfies Database['public']['Tables']['rent_schedules']['Insert'])
             if (scheduleInsertError) {
               logger.warn({ leaseId: lease_id, error: scheduleInsertError.message }, 'Failed to insert rent schedule (enum mismatch?)')
             }
@@ -968,8 +1066,11 @@ export async function POST(request: NextRequest) {
         const securityDeposit = Number(lease?.security_deposit ?? body.security_deposit ?? 0) || 0
         if (securityDeposit > 0) {
           const depIdem = `lease:init:deposit:${safeLeaseId}`
-          const { data: depExists } = await (admin || supabase)
+          const { data: depExists, error: depositExistsError } = await (admin || supabase)
             .from('transactions').select('id').eq('idempotency_key', depIdem).maybeSingle()
+          if (depositExistsError) {
+            throw depositExistsError
+          }
           if (!depExists?.id) {
             const chargeDate: string = lease?.lease_from_date || new Date().toISOString().slice(0, 10)
             await createCharge({
@@ -989,8 +1090,11 @@ export async function POST(request: NextRequest) {
         const prorated = Number(lease?.prorated_first_month_rent ?? body.prorated_first_month_rent ?? 0) || 0
         if (prorated > 0) {
           const proIdem = `lease:init:prorate:${safeLeaseId}`
-          const { data: proExists } = await (admin || supabase)
+          const { data: proExists, error: prorateExistsError } = await (admin || supabase)
             .from('transactions').select('id').eq('idempotency_key', proIdem).maybeSingle()
+          if (prorateExistsError) {
+            throw prorateExistsError
+          }
           if (!proExists?.id) {
             const chargeDate: string = lease?.lease_from_date || new Date().toISOString().slice(0, 10)
             await createCharge({
@@ -1047,7 +1151,9 @@ export async function POST(request: NextRequest) {
       )
       if (syncResult.success) {
         if (syncResult.buildiumId) {
-          const leaseFetch = await buildiumEdgeClient.getLeaseFromBuildium(syncResult.buildiumId)
+          // Use org-scoped client for fetching lease
+          const edgeClient = await getOrgScopedBuildiumEdgeClient(orgIdForSync ?? undefined);
+          const leaseFetch = await edgeClient.getLeaseFromBuildium(syncResult.buildiumId)
           if (leaseFetch.success && leaseFetch.data) {
             buildium = leaseFetch.data as BuildiumLease
           }
@@ -1059,7 +1165,10 @@ export async function POST(request: NextRequest) {
           .from('lease')
           .update({ sync_status: 'error', last_sync_error: warningMessage, last_sync_attempt_at: new Date().toISOString() })
           .eq('id', safeLeaseId)
-        await admin.from('lease_sync_queue').insert({ lease_id: safeLeaseId, idempotency_key: idemKey, last_error: warningMessage })
+        const leaseSyncQueueTable = 'lease_sync_queue' as unknown as keyof Database['public']['Tables']
+        await admin
+          .from(leaseSyncQueueTable)
+          .insert({ lease_id: safeLeaseId, idempotency_key: idemKey, last_error: warningMessage } as any)
         if (strict) return NextResponse.json({ error: 'Buildium sync failed', details: warningMessage }, { status: 502 })
       }
     }

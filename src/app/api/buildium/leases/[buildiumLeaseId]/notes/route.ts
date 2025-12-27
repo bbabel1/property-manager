@@ -4,7 +4,9 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +23,15 @@ export async function GET(
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    // Resolve orgId from request context
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
 
     const { buildiumLeaseId } = await params;
 
@@ -37,7 +47,8 @@ export async function GET(
     if (offset) queryParams.append('offset', offset);
     if (orderby) queryParams.append('orderby', orderby);
 
-    const res = await buildiumEdgeClient.listLeaseNotes(Number(buildiumLeaseId), { limit: Number(limit), offset: Number(offset), orderby: orderby || undefined })
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+    const res = await edgeClient.listLeaseNotes(Number(buildiumLeaseId), { limit: Number(limit), offset: Number(offset), orderby: orderby || undefined })
     if (!res.success) return NextResponse.json({ error: res.error || 'Failed to fetch lease notes from Buildium' }, { status: 502 })
     const notes = res.data || []
 
@@ -86,21 +97,10 @@ export async function POST(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseNoteCreateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/notes`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/notes`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData: unknown = await response.json().catch(() => ({}));
+      const errorData: unknown = response.json ?? {};
       logger.error(`Buildium lease note creation failed`);
 
       return NextResponse.json(
@@ -112,7 +112,7 @@ export async function POST(
       );
     }
 
-    const noteJson: unknown = await response.json().catch(() => ({}));
+    const noteJson: unknown = response.json ?? {};
     const note =
       noteJson && typeof noteJson === 'object'
         ? (noteJson as Record<string, unknown>)

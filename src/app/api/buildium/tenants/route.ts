@@ -4,7 +4,8 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumTenantCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client';
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +16,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    // Resolve orgId from request context (optional for platform admin routes)
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -33,8 +42,11 @@ export async function GET(request: NextRequest) {
     if (lastupdatedfrom) queryParams.append('lastupdatedfrom', lastupdatedfrom);
     if (lastupdatedto) queryParams.append('lastupdatedto', lastupdatedto);
 
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+
     // Make request to Buildium API
-    const proxy = await buildiumEdgeClient.proxyRaw(
+    const proxy = await edgeClient.proxyRaw(
       'GET',
       '/rentals/tenants',
       Object.fromEntries(queryParams.entries()),
@@ -44,7 +56,7 @@ export async function GET(request: NextRequest) {
         { error: proxy.error || 'Failed to fetch tenants from Buildium' },
         { status: 502 },
       );
-    const tenants = proxy.data;
+    const tenants = Array.isArray(proxy.data) ? proxy.data : [];
 
     logger.info(`Buildium tenants fetched successfully`);
 
@@ -70,7 +82,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Require platform admin
-    await requireRole('platform_admin');
+    const { user } = await requireRole('platform_admin');
+
+    // Resolve orgId from request context (optional for platform admin routes)
+    let orgId: string | undefined;
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id);
+    } catch (error) {
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars');
+    }
 
     // Parse and validate request body
     const body = await request.json();
@@ -78,10 +98,13 @@ export async function POST(request: NextRequest) {
     // Validate request body against schema
     const validatedData = sanitizeAndValidate(body, BuildiumTenantCreateSchema);
 
+    // Use org-scoped client
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+
     // Make request to Buildium API
     // Use /rentals/tenants for creating standalone tenants (before lease exists)
     // /leases/tenants requires LeaseId and is for adding tenants to existing leases
-    const created = await buildiumEdgeClient.proxyRaw(
+    const created = await edgeClient.proxyRaw(
       'POST',
       '/rentals/tenants',
       undefined,

@@ -17,7 +17,7 @@ import {
   mapCountryToBuildium,
   sanitizeForBuildium,
 } from './buildium-mappers';
-import { buildiumEdgeClient } from './buildium-edge-client';
+import { getOrgScopedBuildiumEdgeClient } from './buildium-edge-client';
 
 import type {
   BuildiumProperty,
@@ -27,7 +27,6 @@ import type {
   BuildiumTask,
   BuildiumBill,
   BuildiumBankAccount,
-  BuildiumBankAccountCreate,
   BuildiumLease,
   BuildiumWorkOrder,
   BuildiumLeaseCreate,
@@ -1329,7 +1328,7 @@ export class BuildiumSyncService {
         return 'Checking';
       };
 
-      const buildiumPayload: BuildiumBankAccountCreateEnhancedInput = {
+      const buildiumPayload: any = {
         Name: localBankAccount.name ?? localBankAccount.Name ?? 'Bank Account',
         Description: localBankAccount.description ?? localBankAccount.Description ?? undefined,
         BankAccountType: mapType(localBankAccount.bank_account_type ?? localBankAccount.BankAccountType),
@@ -1363,7 +1362,9 @@ export class BuildiumSyncService {
         );
       } else {
         // Create new bank account
-        const buildiumBankAccount = await client.createBankAccount(sanitizedBuildiumPayload);
+        const buildiumBankAccount = await client.createBankAccount(
+          sanitizedBuildiumPayload as unknown as BuildiumBankAccountCreateEnhancedInput,
+        );
         buildiumId = buildiumBankAccount.Id;
         logger.info(
           { bankAccountId: localBankAccount.id, buildiumId },
@@ -1914,6 +1915,7 @@ export class BuildiumSyncService {
           db,
           propertyAddress,
           client,
+          orgId,
         );
         if (!tenantPayload.tenantIds.length && !tenantPayload.tenantDetails.length) {
           const message =
@@ -2091,6 +2093,7 @@ export class BuildiumSyncService {
     db: typeof supabase,
     propertyAddress?: PropertyAddress | null,
     client?: BuildiumClientInstance,
+    orgId?: string,
   ): Promise<{ tenantIds: number[]; tenantDetails: BuildiumLeaseTenantPayload[] }> {
     const tenantIds = new Set<number>();
     const tenantDetails: BuildiumLeaseTenantPayload[] = [];
@@ -2246,13 +2249,13 @@ export class BuildiumSyncService {
         mapCountryToBuildium(contact.primary_country || fallback.country || 'United States') ||
         'UnitedStates';
 
-      const primaryAddress: BuildiumLeaseAddress = {
+      const primaryAddress = {
         AddressLine1: String(addressLine1),
         City: String(city),
         State: String(state),
         PostalCode: String(postal),
         Country: country,
-      };
+      } as any as BuildiumLeaseAddress;
       if (addressLine2) primaryAddress.AddressLine2 = String(addressLine2);
 
       if (!buildiumTenantId) {
@@ -2269,6 +2272,7 @@ export class BuildiumSyncService {
           },
           db,
           client,
+          orgId,
         );
         if (buildiumTenantId) {
           tenantIds.add(buildiumTenantId);
@@ -2317,6 +2321,7 @@ export class BuildiumSyncService {
     contactData: TenantEdgeContactData,
     db: typeof supabase,
     client?: BuildiumClientInstance,
+    orgId?: string,
   ): Promise<number | null> {
     try {
       const payload: TenantEdgeCreatePayload = {
@@ -2365,7 +2370,9 @@ export class BuildiumSyncService {
       }
 
       if (!buildiumTenantId) {
-        const result = await buildiumEdgeClient.createTenantInBuildium(
+        // Use org-scoped client for tenant creation
+        const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+        const result = await edgeClient.createTenantInBuildium(
           sanitized as unknown as Record<string, unknown>,
         );
         if (result.success && result.data?.Id) {
