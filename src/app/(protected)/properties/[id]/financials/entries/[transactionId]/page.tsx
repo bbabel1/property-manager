@@ -48,22 +48,34 @@ export default async function JournalEntryDetailsPage({
       .from('properties')
       .select('id, name, org_id')
       .eq('id', propertyId)
-      .maybeSingle(),
+      .maybeSingle<{ id: string; name: string | null; org_id: string | null }>(),
     db
       .from('transactions')
       .select('id, date, memo, total_amount, transaction_type')
       .eq('id', transactionId)
-      .maybeSingle(),
+      .maybeSingle<{ id: string; date: string; memo: string | null; total_amount: number | null; transaction_type: string | null }>(),
     db
       .from('journal_entries')
       .select('id, buildium_gl_entry_id')
       .eq('transaction_id', transactionId)
-      .maybeSingle(),
+      .maybeSingle<{ id: string; buildium_gl_entry_id: string | number | null }>(),
   ]);
 
-  if (!property || !transaction || transaction.transaction_type !== 'GeneralJournalEntry') {
+  const propertyRecord = (property ?? null) as { id: string; name: string | null; org_id: string | null } | null;
+  const transactionRecord = (transaction ?? null) as {
+    id: string;
+    date: string;
+    memo: string | null;
+    total_amount: number | null;
+    transaction_type: string | null;
+  } | null;
+
+  if (!propertyRecord || !transactionRecord || transactionRecord.transaction_type !== 'GeneralJournalEntry') {
     notFound();
   }
+
+  const safeProperty = propertyRecord!;
+  const safeTransaction = transactionRecord!;
 
   const [{ data: lineRows }, { data: unitRows }, accountsResponse] = await Promise.all([
     db
@@ -91,8 +103,8 @@ export default async function JournalEntryDetailsPage({
       .order('unit_number', { ascending: true }),
     (async () => {
       let query = db.from('gl_accounts').select('id, name, account_number, type').order('type').order('name');
-      if (property?.org_id) {
-        query = query.eq('org_id', property.org_id);
+      if (propertyRecord?.org_id) {
+        query = query.eq('org_id', propertyRecord.org_id);
       }
       return await query;
     })(),
@@ -142,7 +154,7 @@ export default async function JournalEntryDetailsPage({
   const propertyOptions: PropertyOption[] = [
     {
       id: propertyId,
-      label: property.name ?? 'Property',
+      label: safeProperty.name ?? 'Property',
     },
   ];
 
@@ -151,10 +163,10 @@ export default async function JournalEntryDetailsPage({
     : '';
 
   const initialValues: JournalEntryFormValues = {
-    date: (transaction.date || '').slice(0, 10),
+    date: (safeTransaction.date || '').slice(0, 10),
     propertyId,
     unitId,
-    memo: transaction.memo || '',
+    memo: safeTransaction.memo || '',
     lines: lines.map((line) => {
       const posting = (line.posting_type || '').toLowerCase();
       return {

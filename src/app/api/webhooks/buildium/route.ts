@@ -7,15 +7,79 @@ import { markWebhookError, markWebhookTombstone } from '@/lib/buildium-webhook-s
 import { looksLikeDelete } from '@/lib/buildium-delete-map'
 import { validateBuildiumEvent } from '../../../../../supabase/functions/_shared/eventValidation'
 import { sendPagerDutyEvent } from '@/lib/pagerduty'
+import { getOrgScopedBuildiumConfig, type BuildiumConfig } from '@/lib/buildium/credentials-manager'
+import {
+  parseBuildiumGLAccountPayload,
+  parseBuildiumPropertyPayload,
+  parseBuildiumUnitPayload,
+  parseBuildiumVendorPayload,
+  parseBuildiumWorkOrderPayload,
+} from '@/lib/buildium-webhook-validators'
 import { upsertBillWithLines, resolveBankGlAccountId, mapGLAccountFromBuildiumWithSubAccounts, mapPropertyFromBuildiumWithBankAccount, mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers'
 import { mapUnitFromBuildium } from '@/lib/buildium-mappers'
 import { mapVendorFromBuildiumWithCategory, findOrCreateVendorContact, mapWorkOrderFromBuildiumWithRelations, upsertOwnerFromBuildium, resolvePropertyIdByBuildiumPropertyId } from '@/lib/buildium-mappers'
 import type { BuildiumLease, BuildiumLeasePerson } from '@/types/buildium'
+import type { Database, TablesInsert, TablesUpdate } from '@/types/database'
 
-type UnknownRecord = Record<string, unknown>
+type UnknownRecord = Record<string, any>
+type IncomingBuildiumEvent = Record<string, any>
+type BuildiumWebhookUpdate = Database['public']['Tables']['buildium_webhook_events']['Update']
 
 // Shared admin client for module-scope helpers (webhook toggles, etc.)
 const admin = supabaseAdmin || supabase
+let buildiumCreds: BuildiumConfig | null = null
+const getBuildiumBaseUrl = (creds?: BuildiumConfig | null) =>
+  (creds?.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/+$/, '')
+const orgCache = new Map<string, string | null>()
+
+const toIncomingRecord = (value: unknown): IncomingBuildiumEvent => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as IncomingBuildiumEvent
+  }
+  return {}
+}
+
+const normalizeIncomingEvent = (value: unknown): IncomingBuildiumEvent => {
+  const base = toIncomingRecord(value)
+  const data = toIncomingRecord(base?.Data)
+  return { ...base, Data: data }
+}
+
+const extractIncomingEvents = (payload: unknown): IncomingBuildiumEvent[] => {
+  const body = toIncomingRecord(payload)
+  if (Array.isArray(body?.Events)) return body.Events.map(normalizeIncomingEvent)
+  if (body?.Event) return [normalizeIncomingEvent(body.Event)]
+  if (body?.EventName || body?.Id || body?.eventId) return [normalizeIncomingEvent(body)]
+  return []
+}
+
+const firstString = (...values: unknown[]): string | null => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  }
+  return null
+}
+
+const firstNumber = (...values: unknown[]): number | null => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+const safeNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const safeString = (value: unknown): string | null => (typeof value === 'string' && value.trim().length ? value : null)
+
+const asRecord = (value: unknown): Record<string, any> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : {}
 
 const resolvePostingType = (line: UnknownRecord): 'Debit' | 'Credit' => {
   const raw =
@@ -39,13 +103,83 @@ const resolvePostingType = (line: UnknownRecord): 'Debit' | 'Credit' => {
 
 async function resolveOrgIdFromBuildiumAccount(accountId?: number | null) {
   if (!accountId) return null
+  const cacheKey = String(accountId)
+  if (orgCache.has(cacheKey)) return orgCache.get(cacheKey) ?? null
   const { data, error } = await admin
     .from('organizations')
     .select('id')
     .eq('buildium_org_id', accountId)
     .maybeSingle()
   if (error && error.code !== 'PGRST116') throw error
-  return data?.id ?? null
+  const orgId = data?.id ?? null
+  orgCache.set(cacheKey, orgId)
+  return orgId
+}
+
+async function resolveOrgContextFromEvents(events: IncomingBuildiumEvent[]) {
+  const accountId =
+    firstNumber(
+      ...events.map((ev) =>
+        firstNumber(
+          ev?.AccountId,
+          ev?.Data?.AccountId,
+          (ev?.Data as UnknownRecord | undefined)?.AccountId,
+          (ev?.Data as UnknownRecord | undefined)?.Account?.Id,
+          (ev?.Account as UnknownRecord | undefined)?.Id,
+        ),
+      ),
+    ) ?? null
+
+  if (accountId != null) {
+    const orgId = await resolveOrgIdFromBuildiumAccount(accountId)
+    if (orgId) return { orgId, accountId }
+  }
+
+  const propertyId =
+    firstNumber(
+      ...events.map((ev) =>
+        firstNumber(
+          ev?.PropertyId,
+          ev?.Data?.PropertyId,
+          (ev?.Data as UnknownRecord | undefined)?.Property?.Id,
+          (ev?.Property as UnknownRecord | undefined)?.Id,
+        ),
+      ),
+    ) ?? null
+
+  if (propertyId != null) {
+    const { data, error } = await admin
+      .from('properties')
+      .select('org_id')
+      .eq('buildium_property_id', propertyId)
+      .maybeSingle()
+    if (error && error.code !== 'PGRST116') throw error
+    if (data?.org_id) return { orgId: data.org_id, accountId }
+  }
+
+  const leaseId =
+    firstNumber(
+      ...events.map((ev) =>
+        firstNumber(
+          ev?.LeaseId,
+          ev?.Data?.LeaseId,
+          (ev?.Lease as UnknownRecord | undefined)?.Id,
+          (ev?.Data as UnknownRecord | undefined)?.Lease?.Id,
+        ),
+      ),
+    ) ?? null
+
+  if (leaseId != null) {
+    const { data, error } = await admin
+      .from('lease')
+      .select('org_id')
+      .eq('buildium_lease_id', leaseId)
+      .maybeSingle()
+    if (error && error.code !== 'PGRST116') throw error
+    if (data?.org_id) return { orgId: data.org_id, accountId }
+  }
+
+  return { orgId: null, accountId }
 }
 
 function computeHmac(raw: string, secret: string) {
@@ -56,16 +190,18 @@ function computeHmac(raw: string, secret: string) {
   }
 }
 
-type EdgeForwardResult = { ok: true } | { ok: false; status: number; body: string }
+type EdgeForwardResult =
+  | { ok: true; status?: number; body?: string }
+  | { ok: false; status: number; body: string }
 type EdgeForwardBody = {
   failed?: number
   results?: Array<{ success?: boolean } | null>
 }
 
-async function forwardBankTransactionToEdge(event: UnknownRecord): Promise<EdgeForwardResult> {
+async function forwardBankTransactionToEdge(event: UnknownRecord, webhookSecret: string): Promise<EdgeForwardResult> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  const secret = process.env.BUILDIUM_WEBHOOK_SECRET || ''
+  const secret = webhookSecret || process.env.BUILDIUM_WEBHOOK_SECRET || ''
 
   if (!supabaseUrl) return { ok: false, status: 500, body: 'missing NEXT_PUBLIC_SUPABASE_URL' }
   if (!serviceKey) return { ok: false, status: 500, body: 'missing SUPABASE_SERVICE_ROLE_KEY' }
@@ -120,7 +256,7 @@ async function forwardBankTransactionToEdge(event: UnknownRecord): Promise<EdgeF
   return { ok: true }
 }
 
-function verifySignature(req: NextRequest, raw: string): { ok: boolean; reason?: string } {
+function verifySignature(req: NextRequest, raw: string, secret: string): { ok: boolean; reason?: string } {
   // Try multiple possible header names for Buildium signature
   const sig = 
     req.headers.get('x-buildium-signature') || 
@@ -135,8 +271,6 @@ function verifySignature(req: NextRequest, raw: string): { ok: boolean; reason?:
     req.headers.get('x-buildium-webhook-timestamp') ||
     ''
   
-  const secret = process.env.BUILDIUM_WEBHOOK_SECRET || ''
-
   // In local/dev, allow processing without a secret to simplify testing.
   if (!secret) {
     console.warn('[buildium-webhook] BUILDIUM_WEBHOOK_SECRET is not set; skipping signature verification')
@@ -264,40 +398,18 @@ export async function POST(req: NextRequest) {
     })
   }
   
-  let body: UnknownRecord = {}
+  let parsedBody: unknown = {}
   try {
-    body = JSON.parse(raw || '{}')
+    parsedBody = JSON.parse(raw || '{}')
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
-
-  const sigCheck = verifySignature(req, raw)
-  if (!sigCheck.ok) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('[buildium-webhook] Signature check failed:', sigCheck.reason)
-    }
-    await sendPagerDutyEvent({
-      summary: 'Buildium webhook signature invalid',
-      severity: 'warning',
-      customDetails: { reason: sigCheck.reason }
-    })
-    return NextResponse.json({ error: 'Invalid signature', reason: sigCheck.reason }, { status: 401 })
-  }
-
+  const body = toIncomingRecord(parsedBody)
   // Buildium sends events in different formats:
   // 1. { Events: [...] } - array of events
   // 2. { EventName: "...", ... } - single event object (current format)
   // 3. { Event: {...} } - wrapped single event
-  let events: UnknownRecord[] = []
-  
-  if (Array.isArray(body?.Events)) {
-    events = body.Events
-  } else if (body?.Event) {
-    events = [body.Event]
-  } else if (body?.EventName || body?.Id || body?.eventId) {
-    // Single event object (Buildium's current format)
-    events = [body]
-  }
+  const events: IncomingBuildiumEvent[] = extractIncomingEvents(body)
 
   if (!events.length) {
     if (process.env.NODE_ENV === 'development') {
@@ -306,16 +418,42 @@ export async function POST(req: NextRequest) {
         hasEvent: !!body?.Event,
         hasEventName: !!body?.EventName,
         hasId: !!body?.Id,
-        bodyKeys: Object.keys(body || {}),
+        bodyKeys: Object.keys(body),
         bodyPreview: JSON.stringify(body).substring(0, 200),
       })
     }
     await sendPagerDutyEvent({
       summary: 'Buildium webhook payload missing events',
       severity: 'warning',
-      customDetails: { bodyPreview: JSON.stringify(body || {}).slice(0, 200) }
+      customDetails: { bodyPreview: JSON.stringify(body).slice(0, 200) }
     })
     return NextResponse.json({ error: 'No webhook events found in payload' }, { status: 400 })
+  }
+
+  const { orgId, accountId } = await resolveOrgContextFromEvents(events)
+  const config = await getOrgScopedBuildiumConfig(orgId ?? undefined)
+  if (!config) {
+    await sendPagerDutyEvent({
+      summary: 'Buildium webhook missing credentials',
+      severity: 'error',
+      customDetails: { orgId, accountId },
+    })
+    return NextResponse.json({ error: 'Buildium credentials not configured for this org' }, { status: 503 })
+  }
+
+  buildiumCreds = config
+  const webhookSecretToUse = config.webhookSecret || process.env.BUILDIUM_WEBHOOK_SECRET || ''
+  const sigCheck = verifySignature(req, raw, webhookSecretToUse)
+  if (!sigCheck.ok) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[buildium-webhook] Signature check failed:', sigCheck.reason)
+    }
+    await sendPagerDutyEvent({
+      summary: 'Buildium webhook signature invalid',
+      severity: 'warning',
+      customDetails: { reason: sigCheck.reason, orgId, accountId }
+    })
+    return NextResponse.json({ error: 'Invalid signature', reason: sigCheck.reason }, { status: 401 })
   }
 
   const signatureHeader = req.headers.get('x-buildium-signature') || ''
@@ -331,22 +469,18 @@ export async function POST(req: NextRequest) {
   }[] = []
   const storedEvents: NormalizedBuildiumWebhook[] = []
 
-  const buildiumCreds = {
-    baseUrl: process.env.BUILDIUM_BASE_URL,
-    clientId: process.env.BUILDIUM_CLIENT_ID,
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET,
-  }
   const supabaseUrlEnv = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleEnv = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   async function fetchLeaseTransaction(leaseId: number, transactionId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/${leaseId}/transactions/${transactionId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/leases/${leaseId}/transactions/${transactionId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -357,13 +491,14 @@ export async function POST(req: NextRequest) {
     return res.json()
   }
   async function fetchGLAccount(glAccountId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/glaccounts/${glAccountId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/glaccounts/${glAccountId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -375,13 +510,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchLease(leaseId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/${leaseId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/leases/${leaseId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -393,13 +529,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchLeaseTenant(tenantId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/tenants/${tenantId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/leases/tenants/${tenantId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -411,13 +548,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchLeaseMoveOut(leaseId: number, tenantId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/leases/${leaseId}/moveouts/${tenantId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/leases/${leaseId}/moveouts/${tenantId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -429,13 +567,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchBill(billId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/bills/${billId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/bills/${billId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -447,13 +586,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchBillPayment(billId: number, paymentId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/bills/${billId}/payments/${paymentId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/bills/${billId}/payments/${paymentId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -465,13 +605,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchGLAccountRemote(glAccountId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/glaccounts/${glAccountId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/glaccounts/${glAccountId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -483,7 +624,11 @@ export async function POST(req: NextRequest) {
   }
 
   async function upsertGLAccountWithOrg(gl: UnknownRecord, buildiumAccountId?: number | null) {
-    const mapped = await mapGLAccountFromBuildiumWithSubAccounts(gl, admin)
+    const parsed = parseBuildiumGLAccountPayload(gl)
+    if (!parsed.ok) {
+      throw new Error(`Invalid GL account payload: ${parsed.errors.join('; ')}`)
+    }
+    const mapped = await mapGLAccountFromBuildiumWithSubAccounts(parsed.data, admin)
     const now = new Date().toISOString()
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
     const mappedOrgId = (mapped as { org_id?: string | null }).org_id ?? null
@@ -506,13 +651,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchRentalProperty(propertyId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/${propertyId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/rentals/${propertyId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -524,13 +670,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchRentalUnit(unitId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/units/${unitId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/rentals/units/${unitId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -542,10 +689,19 @@ export async function POST(req: NextRequest) {
   }
 
   async function upsertPropertyFromBuildium(buildiumProperty: UnknownRecord, buildiumAccountId?: number | null) {
+    const parsed = parseBuildiumPropertyPayload(buildiumProperty)
+    if (!parsed.ok) {
+      throw new Error(`Invalid property payload: ${parsed.errors.join('; ')}`)
+    }
     const now = new Date().toISOString()
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
-    const mapped = await mapPropertyFromBuildiumWithBankAccount(buildiumProperty, admin)
-    const payload = { ...mapped, org_id: orgId ?? (mapped as { org_id?: string | null }).org_id ?? null, updated_at: now }
+    const mapped = await mapPropertyFromBuildiumWithBankAccount(parsed.data, admin)
+    const payload = {
+      ...mapped,
+      org_id: orgId ?? (mapped as { org_id?: string | null }).org_id ?? null,
+      updated_at: now,
+      service_assignment: (mapped as { service_assignment?: string | null }).service_assignment ?? 'Property Level',
+    }
     const { data: existing, error: findErr } = await admin
       .from('properties')
       .select('id')
@@ -563,22 +719,31 @@ export async function POST(req: NextRequest) {
   }
 
   async function upsertUnitFromBuildium(buildiumUnit: UnknownRecord, buildiumAccountId?: number | null) {
+    const parsed = parseBuildiumUnitPayload(buildiumUnit)
+    if (!parsed.ok) {
+      throw new Error(`Invalid unit payload: ${parsed.errors.join('; ')}`)
+    }
     const now = new Date().toISOString()
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId)
-    const mapped = mapUnitFromBuildium(buildiumUnit)
+    const mapped = mapUnitFromBuildium(parsed.data)
     const payload = { ...mapped, org_id: orgId ?? (mapped as { org_id?: string | null }).org_id ?? null, updated_at: now }
     // Resolve local property_id to link unit
     const propertyIdLocal = await (async () => {
-      if (!buildiumUnit?.PropertyId) return null
+      if (!parsed.data?.PropertyId) return null
       const { data, error } = await admin
         .from('properties')
         .select('id')
-        .eq('buildium_property_id', buildiumUnit.PropertyId)
+        .eq('buildium_property_id', parsed.data.PropertyId)
         .maybeSingle()
       if (error && error.code !== 'PGRST116') throw error
       return data?.id ?? null
     })()
-    if (propertyIdLocal) (payload as { property_id?: string | null }).property_id = propertyIdLocal
+    if (!propertyIdLocal) {
+      throw new Error(
+        `Missing local property for Buildium unit ${parsed.data.Id} (PropertyId ${parsed.data.PropertyId})`,
+      )
+    }
+    (payload as { property_id?: string | null }).property_id = propertyIdLocal
     const { data: existing, error: findErr } = await admin
       .from('units')
       .select('id')
@@ -596,13 +761,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchTaskCategory(categoryId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/tasks/categories/${categoryId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/tasks/categories/${categoryId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -653,9 +819,13 @@ export async function POST(req: NextRequest) {
   }
 
   async function upsertVendor(buildiumVendor: UnknownRecord) {
+    const parsed = parseBuildiumVendorPayload(buildiumVendor)
+    if (!parsed.ok) {
+      throw new Error(`Invalid vendor payload: ${parsed.errors.join('; ')}`)
+    }
     const now = new Date().toISOString()
-    const mapped = await mapVendorFromBuildiumWithCategory(buildiumVendor, admin)
-    const contactId = mapped.contact_id || (await findOrCreateVendorContact(buildiumVendor, admin))
+    const mapped = await mapVendorFromBuildiumWithCategory(parsed.data, admin)
+    const contactId = mapped.contact_id || (await findOrCreateVendorContact(parsed.data, admin))
     if (!contactId) throw new Error('Unable to resolve contact for vendor')
 
     const payload: Record<string, unknown> = {
@@ -687,9 +857,16 @@ export async function POST(req: NextRequest) {
   }
 
   async function upsertWorkOrder(buildiumWorkOrder: UnknownRecord) {
+    const parsed = parseBuildiumWorkOrderPayload(buildiumWorkOrder)
+    if (!parsed.ok) {
+      throw new Error(`Invalid work order payload: ${parsed.errors.join('; ')}`)
+    }
     const now = new Date().toISOString()
-    const mapped = await mapWorkOrderFromBuildiumWithRelations(buildiumWorkOrder, admin)
+    const mapped = await mapWorkOrderFromBuildiumWithRelations(parsed.data, admin)
     mapped.updated_at = now
+    if (!mapped.property_id) {
+      throw new Error(`Missing property_id for work order ${parsed.data.Id}`)
+    }
     const { data: existing, error: findErr } = await admin
       .from('work_orders')
       .select('id, created_at')
@@ -841,13 +1018,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchTask(taskId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/tasks/${taskId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/tasks/${taskId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -859,13 +1037,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchVendorCategory(vendorCategoryId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/vendors/categories/${vendorCategoryId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/vendors/categories/${vendorCategoryId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -877,13 +1056,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchVendor(vendorId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/vendors/${vendorId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/vendors/${vendorId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -895,13 +1075,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchWorkOrder(workOrderId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/workorders/${workOrderId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/workorders/${workOrderId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -913,13 +1094,14 @@ export async function POST(req: NextRequest) {
   }
 
   async function fetchRentalOwner(rentalOwnerId: number) {
-    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) return null
-    const res = await fetch(`${buildiumCreds.baseUrl || 'https://apisandbox.buildium.com/v1'}/rentals/owners/${rentalOwnerId}`, {
+    const creds = buildiumCreds
+    if (!creds?.clientId || !creds?.clientSecret) return null
+    const res = await fetch(`${getBuildiumBaseUrl(creds)}/rentals/owners/${rentalOwnerId}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'x-buildium-client-id': buildiumCreds.clientId,
-        'x-buildium-client-secret': buildiumCreds.clientSecret,
+        'x-buildium-client-id': creds.clientId,
+        'x-buildium-client-secret': creds.clientSecret,
       }
     })
     if (!res.ok) {
@@ -953,7 +1135,7 @@ export async function POST(req: NextRequest) {
       buildium_unit_id: buildiumTask?.UnitId ?? mapped.buildium_unit_id ?? null,
       buildium_owner_id: mapped.buildium_owner_id ?? null,
       buildium_tenant_id: mapped.buildium_tenant_id ?? null,
-      source: 'buildium',
+      source: 'buildium' as Database['public']['Enums']['task_source_enum'],
       updated_at: now,
       created_at: mapped.created_at || now,
     }
@@ -1091,6 +1273,10 @@ export async function POST(req: NextRequest) {
   // full fetch + upsert of transactions/lines.
   async function forwardLeaseTransactionEvents(eventsToForward: UnknownRecord[]) {
     if (!eventsToForward.length) return
+    if (!buildiumCreds) {
+      console.warn('[buildium-webhook] Missing Buildium credentials; cannot forward lease transactions')
+      return
+    }
     const supabaseUrl = supabaseUrlEnv
     const serviceRole = serviceRoleEnv
     if (!supabaseUrl || !serviceRole) {
@@ -1123,7 +1309,14 @@ export async function POST(req: NextRequest) {
           // Edge function expects bearer auth for service role
           Authorization: `Bearer ${serviceRole}`,
         },
-        body: JSON.stringify({ Events: enrichedEvents, credentials: buildiumCreds }),
+        body: JSON.stringify({
+          Events: enrichedEvents,
+          credentials: {
+            baseUrl: buildiumCreds.baseUrl,
+            clientId: buildiumCreds.clientId,
+            clientSecret: buildiumCreds.clientSecret,
+          },
+        }),
       })
       if (!res.ok) {
         const details = await res.json().catch(() => ({}))
@@ -1171,6 +1364,10 @@ export async function POST(req: NextRequest) {
       if (!country) return null
       return country.replace(/([a-z])([A-Z])/g, '$1 $2')
     }
+    const normalizeCountryEnum = (country?: string | null): Database['public']['Enums']['countries'] | null => {
+      const mapped = mapCountryFromBuildiumLocal(country)
+      return mapped ? (mapped as Database['public']['Enums']['countries']) : null
+    }
     const resolveLocalTenantId = async (buildiumTenantId?: number | null) => {
       if (!buildiumTenantId) return null
       const { data, error } = await admin.from('tenants').select('id').eq('buildium_tenant_id', buildiumTenantId).maybeSingle()
@@ -1204,24 +1401,30 @@ export async function POST(req: NextRequest) {
       if (!error && data?.id) return data.id
       if (error && error.code !== 'PGRST116') throw error
       const remote = await fetchGL(buildiumGLAccountId)
-      if (!remote) throw new Error(`Unable to resolve GL account ${buildiumGLAccountId}`)
+      const parsedGL = parseBuildiumGLAccountPayload(remote)
+      if (!remote || !parsedGL.ok) {
+        const reason = parsedGL.ok ? 'missing' : parsedGL.errors.join('; ')
+        throw new Error(`Unable to resolve GL account ${buildiumGLAccountId}: ${reason}`)
+      }
+      const normalizedGL = parsedGL.data
       const now = new Date().toISOString()
       const row = {
-        buildium_gl_account_id: remote.Id,
-        account_number: remote.AccountNumber ?? null,
-        name: remote.Name,
-        description: remote.Description ?? null,
-        type: remote.Type,
-        sub_type: remote.SubType ?? null,
-        is_default_gl_account: !!remote.IsDefaultGLAccount,
-        default_account_name: remote.DefaultAccountName ?? null,
-        is_contra_account: !!remote.IsContraAccount,
-        is_bank_account: !!remote.IsBankAccount,
-        cash_flow_classification: remote.CashFlowClassification ?? null,
-        exclude_from_cash_balances: !!remote.ExcludeFromCashBalances,
-        is_active: remote.IsActive ?? true,
-        buildium_parent_gl_account_id: remote.ParentGLAccountId ?? null,
-        is_credit_card_account: !!remote.IsCreditCardAccount,
+        buildium_gl_account_id: normalizedGL.Id,
+        account_number: normalizedGL.AccountNumber ?? null,
+        name: normalizedGL.Name,
+        description: normalizedGL.Description ?? null,
+        type: normalizedGL.Type,
+        sub_type: normalizedGL.SubType ?? null,
+        is_default_gl_account: normalizedGL.IsDefaultGLAccount ?? false,
+        default_account_name: normalizedGL.DefaultAccountName ?? null,
+        is_contra_account: normalizedGL.IsContraAccount ?? false,
+        is_bank_account: normalizedGL.IsBankAccount ?? false,
+        cash_flow_classification: normalizedGL.CashFlowClassification ?? null,
+        exclude_from_cash_balances: normalizedGL.ExcludeFromCashBalances ?? false,
+        is_active: normalizedGL.IsActive ?? true,
+        buildium_parent_gl_account_id: normalizedGL.ParentGLAccountId ?? null,
+        is_credit_card_account: normalizedGL.IsCreditCardAccount ?? false,
+        is_security_deposit_liability: normalizedGL.IsSecurityDepositLiability ?? false,
         sub_accounts: null,
         created_at: now,
         updated_at: now,
@@ -1290,6 +1493,7 @@ export async function POST(req: NextRequest) {
       buildiumAccountId?: number | null,
     ) => {
       const now = new Date().toISOString()
+      const leaseTxDate = normalizeDate(leaseTx.Date) ?? now.slice(0, 10)
       const paymentMethod = mapPaymentMethod(leaseTx.PaymentMethod)
       const orgFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId ?? leaseTx?.AccountId ?? null)
       const orgId = orgFromAccount ?? (await resolveLeaseOrgId(leaseTx.LeaseId ?? null, leaseTx?.PropertyId ?? null, buildiumAccountId ?? leaseTx?.AccountId ?? null))
@@ -1314,7 +1518,7 @@ export async function POST(req: NextRequest) {
         updated_at: string
       } = {
         buildium_transaction_id: leaseTx.Id,
-        date: normalizeDate(leaseTx.Date),
+        date: leaseTxDate,
         transaction_type: leaseTx.TransactionType || leaseTx.TransactionTypeEnum || 'Lease',
         total_amount: typeof leaseTx.TotalAmount === 'number' ? leaseTx.TotalAmount : Number(leaseTx.Amount ?? 0),
         check_number: leaseTx.CheckNumber ?? null,
@@ -1399,7 +1603,7 @@ export async function POST(req: NextRequest) {
       await admin.from('transaction_lines').delete().eq('transaction_id', transactionId)
       const lines = Array.isArray(leaseTx?.Journal?.Lines) ? leaseTx.Journal.Lines : Array.isArray(leaseTx?.Lines) ? leaseTx.Lines : []
       let debit = 0, credit = 0
-      const pendingLines: Record<string, unknown>[] = []
+      const pendingLines: TablesInsert<'transaction_lines'>[] = []
       const glAccountBankFlags = new Map<string, boolean>()
 
       const loadIsBankAccount = async (glAccountId: string) => {
@@ -1437,7 +1641,7 @@ export async function POST(req: NextRequest) {
           memo: line?.Memo ?? null,
           account_entity_type: 'Rental',
           account_entity_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
-          date: normalizeDate(leaseTx.Date),
+          date: leaseTxDate,
           created_at: now,
           updated_at: now,
           buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
@@ -1465,7 +1669,7 @@ export async function POST(req: NextRequest) {
           memo: leaseTx?.Memo ?? header.memo ?? null,
           account_entity_type: 'Rental',
           account_entity_id: defaultBuildiumPropertyId,
-          date: normalizeDate(leaseTx.Date),
+          date: leaseTxDate,
           created_at: now,
           updated_at: now,
           buildium_property_id: defaultBuildiumPropertyId,
@@ -1488,7 +1692,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const mapLeaseFromBuildiumLocal = async (lease: BuildiumLease, buildiumAccountId?: number | null) => {
+    const mapLeaseFromBuildiumLocal = async (lease: BuildiumLease, buildiumAccountId?: number | null): Promise<TablesInsert<'lease'>> => {
       const propertyUuid = await resolvePropertyUuidByBuildiumId(admin, lease.PropertyId)
       const unitUuid = await resolveUnitUuidByBuildiumId(admin, lease.UnitId)
       const orgIdFromAccount = await resolveOrgIdFromBuildiumAccount(buildiumAccountId ?? lease?.AccountId ?? null)
@@ -1499,15 +1703,18 @@ export async function POST(req: NextRequest) {
         }
         return null
       })())
+      const leaseFromDate = normalizeDate(lease.LeaseFromDate) ?? lease.LeaseFromDate ?? new Date().toISOString().slice(0, 10)
+      const leaseToDate = normalizeDate(lease.LeaseToDate) ?? lease.LeaseToDate ?? null
+      const status = mapLeaseStatusFromBuildium(lease.LeaseStatus) ?? 'Active'
       return {
         buildium_lease_id: lease.Id,
         buildium_property_id: lease.PropertyId ?? null,
         buildium_unit_id: lease.UnitId ?? null,
         unit_number: lease.UnitNumber ?? null,
-        lease_from_date: normalizeDate(lease.LeaseFromDate),
-        lease_to_date: normalizeDate(lease.LeaseToDate),
+        lease_from_date: leaseFromDate,
+        lease_to_date: leaseToDate,
         lease_type: lease.LeaseType ?? null,
-        status: mapLeaseStatusFromBuildium(lease.LeaseStatus),
+        status,
         is_eviction_pending: typeof lease.IsEvictionPending === 'boolean' ? lease.IsEvictionPending : null,
         term_type: lease.TermType ?? null,
         renewal_offer_status: lease.RenewalOfferStatus ?? null,
@@ -1518,8 +1725,8 @@ export async function POST(req: NextRequest) {
         buildium_created_at: lease.CreatedDateTime ?? null,
         buildium_updated_at: lease.LastUpdatedDateTime ?? null,
         payment_due_day: lease.PaymentDueDay ?? null,
-        property_id: propertyUuid,
-        unit_id: unitUuid,
+        property_id: propertyUuid ?? '',
+        unit_id: unitUuid ?? '',
         org_id: orgId,
         updated_at: new Date().toISOString(),
       }
@@ -1537,11 +1744,11 @@ export async function POST(req: NextRequest) {
         .single()
       if (findErr && findErr.code !== 'PGRST116') throw findErr
       if (existing?.id) {
-        const { data, error } = await admin.from('lease').update(mapped).eq('id', existing.id).select('id').single()
+        const { data, error } = await admin.from('lease').update(mapped as TablesUpdate<'lease'>).eq('id', existing.id).select('id').single()
         if (error) throw error
         return data.id
       } else {
-        const toInsert = { ...mapped, created_at: new Date().toISOString() }
+        const toInsert: TablesInsert<'lease'> = { ...mapped, created_at: new Date().toISOString() }
         const { data, error } = await admin.from('lease').insert(toInsert).select('id').single()
         if (error) throw error
         return data.id
@@ -1564,54 +1771,53 @@ export async function POST(req: NextRequest) {
       }
       const now = new Date().toISOString()
       const phoneArray = Array.isArray(person?.PhoneNumbers)
-        ? person.PhoneNumbers as Array<{ Type?: string; Number?: string | null }>
+        ? (person.PhoneNumbers as Array<{ Type?: string; Number?: string | null }>)
         : null
+      const phoneObject = phoneArray ? null : ((person?.PhoneNumbers as { Mobile?: string | null; Home?: string | null; Work?: string | null }) ?? null)
       const primaryPhone = phoneArray
         ? (phoneArray.find((p) => /cell|mobile/i.test(p?.Type || ''))?.Number ||
           phoneArray.find((p) => /home/i.test(p?.Type || ''))?.Number ||
           phoneArray.find((p) => /work/i.test(p?.Type || ''))?.Number ||
           null)
-        : (person?.PhoneNumbers?.Mobile || person?.PhoneNumbers?.Home || person?.PhoneNumbers?.Work || null)
+        : (phoneObject?.Mobile || phoneObject?.Home || phoneObject?.Work || null)
       const altPhone = phoneArray
         ? (phoneArray.find((p) => /work/i.test(p?.Type || ''))?.Number ||
           phoneArray.find((p) => /home/i.test(p?.Type || ''))?.Number ||
           null)
-        : (person?.PhoneNumbers?.Work || person?.PhoneNumbers?.Home || null)
-      const addr = person?.Address || person?.PrimaryAddress || {}
-      const altAddr = person?.AlternateAddress || {}
-      const { data, error } = await admin
-        .from('contacts')
-        .insert({
-          is_company: false,
-          first_name: person?.FirstName ?? null,
-          last_name: person?.LastName ?? null,
-          primary_email: person?.Email ?? null,
-          alt_email: person?.AlternateEmail ?? null,
-          primary_phone: primaryPhone,
-          alt_phone: altPhone,
-          date_of_birth: person?.DateOfBirth ?? null,
-          primary_address_line_1: addr?.AddressLine1 ?? null,
-          primary_address_line_2: addr?.AddressLine2 ?? null,
-          primary_address_line_3: addr?.AddressLine3 ?? null,
-          primary_city: addr?.City ?? null,
-          primary_state: addr?.State ?? null,
-          primary_postal_code: addr?.PostalCode ?? null,
-          primary_country: mapCountryFromBuildiumLocal(addr?.Country),
-          alt_address_line_1: altAddr?.AddressLine1 ?? null,
-          alt_address_line_2: altAddr?.AddressLine2 ?? null,
-          alt_address_line_3: altAddr?.AddressLine3 ?? null,
-          alt_city: altAddr?.City ?? null,
-          alt_state: altAddr?.State ?? null,
-          alt_postal_code: altAddr?.PostalCode ?? null,
-          alt_country: mapCountryFromBuildiumLocal(altAddr?.Country),
-          mailing_preference: person?.MailingPreference === 'PrimaryAddress' ? 'primary' : (person?.MailingPreference === 'AlternateAddress' ? 'alternate' : null),
-          display_name: [person?.FirstName, person?.LastName].filter(Boolean).join(' ') || person?.Email || 'Tenant',
-          created_at: now,
-          updated_at: now,
-          buildium_contact_id: person?.Id ?? null,
-        })
-        .select('id')
-        .single()
+        : (phoneObject?.Work || phoneObject?.Home || null)
+      const addr = asRecord((person as UnknownRecord)?.Address ?? person?.PrimaryAddress ?? {})
+      const altAddr = asRecord((person as UnknownRecord)?.AlternateAddress ?? person?.AlternateAddress ?? {})
+      const contactPayload: TablesInsert<'contacts'> = {
+        is_company: false,
+        first_name: person?.FirstName ?? null,
+        last_name: person?.LastName ?? null,
+        primary_email: person?.Email ?? null,
+        alt_email: person?.AlternateEmail ?? null,
+        primary_phone: primaryPhone,
+        alt_phone: altPhone,
+        date_of_birth: person?.DateOfBirth ?? null,
+        primary_address_line_1: (addr as { AddressLine1?: string })?.AddressLine1 ?? null,
+        primary_address_line_2: (addr as { AddressLine2?: string })?.AddressLine2 ?? null,
+        primary_address_line_3: (addr as { AddressLine3?: string })?.AddressLine3 ?? null,
+        primary_city: (addr as { City?: string })?.City ?? null,
+        primary_state: (addr as { State?: string })?.State ?? null,
+        primary_postal_code: (addr as { PostalCode?: string })?.PostalCode ?? null,
+        primary_country: normalizeCountryEnum((addr as { Country?: string | null })?.Country ?? null),
+        alt_address_line_1: (altAddr as { AddressLine1?: string })?.AddressLine1 ?? null,
+        alt_address_line_2: (altAddr as { AddressLine2?: string })?.AddressLine2 ?? null,
+        alt_address_line_3: (altAddr as { AddressLine3?: string })?.AddressLine3 ?? null,
+        alt_city: (altAddr as { City?: string })?.City ?? null,
+        alt_state: (altAddr as { State?: string })?.State ?? null,
+        alt_postal_code: (altAddr as { PostalCode?: string })?.PostalCode ?? null,
+        alt_country: normalizeCountryEnum((altAddr as { Country?: string | null })?.Country ?? null),
+        mailing_preference: person?.MailingPreference === 'PrimaryAddress' ? 'primary' : (person?.MailingPreference === 'AlternateAddress' ? 'alternate' : null),
+        display_name: [person?.FirstName, person?.LastName].filter(Boolean).join(' ') || person?.Email || 'Tenant',
+        created_at: now,
+        updated_at: now,
+        buildium_contact_id: person?.Id ?? null,
+        company_name: person?.CompanyName ?? null,
+      }
+      const { data, error } = await admin.from('contacts').insert(contactPayload).select('id').single()
       if (error) throw error
       return data.id
     }
@@ -1633,24 +1839,21 @@ export async function POST(req: NextRequest) {
         return existing.id
       }
       const now = new Date().toISOString()
-      const { data, error } = await admin
-        .from('tenants')
-        .insert({
-          contact_id: contactId,
-          comment: person?.Comment ?? null,
-          tax_id: person?.TaxId ?? null,
-          sms_opt_in_status: typeof person?.SMSOptInStatus === 'boolean' ? String(person.SMSOptInStatus) : null,
-          emergency_contact_name: person?.EmergencyContact?.Name ?? null,
-          emergency_contact_relationship: person?.EmergencyContact?.RelationshipDescription ?? null,
-          emergency_contact_phone: person?.EmergencyContact?.Phone ?? null,
-          emergency_contact_email: person?.EmergencyContact?.Email ?? null,
-          created_at: now,
-          updated_at: now,
-          buildium_tenant_id: Number(person?.Id) || null,
-          org_id: orgId,
-        })
-        .select('id')
-        .single()
+      const tenantPayload: TablesInsert<'tenants'> = {
+        contact_id: contactId,
+        comment: person?.Comment ?? null,
+        tax_id: person?.TaxId ?? null,
+        sms_opt_in_status: typeof person?.SMSOptInStatus === 'boolean' ? person.SMSOptInStatus : null,
+        emergency_contact_name: person?.EmergencyContact?.Name ?? null,
+        emergency_contact_relationship: person?.EmergencyContact?.RelationshipDescription ?? null,
+        emergency_contact_phone: person?.EmergencyContact?.Phone ?? null,
+        emergency_contact_email: person?.EmergencyContact?.Email ?? null,
+        created_at: now,
+        updated_at: now,
+        buildium_tenant_id: Number(person?.Id) || null,
+        org_id: orgId,
+      }
+      const { data, error } = await admin.from('tenants').insert(tenantPayload).select('id').single()
       if (error) throw error
       return data.id
     }
@@ -1658,7 +1861,7 @@ export async function POST(req: NextRequest) {
     const ensureLeaseContactLocal = async (
       leaseId: number,
       tenantId: string,
-      role: string,
+      role: Database['public']['Enums']['lease_contact_role_enum'],
       orgId?: string | null,
     ) => {
       const { data: existing } = await admin
@@ -1671,11 +1874,20 @@ export async function POST(req: NextRequest) {
       const now = new Date().toISOString()
       if (existing?.id) {
         if (existing.status !== 'Active') {
-          await admin.from('lease_contacts').update({ status: 'Active', updated_at: now }).eq('id', existing.id)
+          await admin.from('lease_contacts').update({ status: 'Active', updated_at: now } as TablesUpdate<'lease_contacts'>).eq('id', existing.id)
         }
         return
       }
-      await admin.from('lease_contacts').insert({ lease_id: leaseId, tenant_id: tenantId, role, status: 'Active', created_at: now, updated_at: now, org_id: orgId })
+      const leaseContactPayload: TablesInsert<'lease_contacts'> = {
+        lease_id: leaseId,
+        tenant_id: tenantId,
+        role,
+        status: 'Active',
+        created_at: now,
+        updated_at: now,
+        org_id: orgId ?? null,
+      }
+      await admin.from('lease_contacts').insert(leaseContactPayload)
     }
 
     const upsertLeaseWithPartiesLocal = async (
@@ -1747,11 +1959,11 @@ export async function POST(req: NextRequest) {
         if (buildiumId && currentBuildiumTenantIds.has(Number(buildiumId))) {
           if (r.status !== 'Active') toActivate.push(r.id)
         } else {
-          if (r.status !== 'Inactive') toDeactivate.push(r.id)
+          if (r.status !== 'Past') toDeactivate.push(r.id)
         }
       }
       if (toActivate.length) await admin.from('lease_contacts').update({ status: 'Active', updated_at: new Date().toISOString() }).in('id', toActivate)
-      if (toDeactivate.length) await admin.from('lease_contacts').update({ status: 'Inactive', updated_at: new Date().toISOString() }).in('id', toDeactivate)
+      if (toDeactivate.length) await admin.from('lease_contacts').update({ status: 'Past', updated_at: new Date().toISOString() }).in('id', toDeactivate)
     }
 
     const upsertBillPaymentWithLines = async (
@@ -1761,7 +1973,7 @@ export async function POST(req: NextRequest) {
       buildiumAccountId?: number | null,
     ) => {
       const now = new Date().toISOString()
-      const paymentId = payment?.Id ?? payment?.PaymentId ?? null
+      const paymentId = firstNumber(payment?.Id, payment?.PaymentId)
       const totalFromLines = Array.isArray(payment?.Lines)
         ? payment.Lines.reduce((sum: number, line: UnknownRecord) => sum + Number(line?.Amount ?? 0), 0)
         : 0
@@ -1769,15 +1981,11 @@ export async function POST(req: NextRequest) {
       const paymentMethod = mapPaymentMethod(payment?.PaymentMethod) || (payment?.CheckNumber ? 'Check' : null)
 
       // Resolve local bank account + GL (prefer the Buildium BankAccountId provided by the payment payload)
-      const bankAccountIdRaw =
-        payment?.BankAccountId ??
-        (payment as UnknownRecord)?.BankAccountID ??
-        ((payment?.BankAccount as UnknownRecord | undefined)?.Id ?? null) ??
-        null
-      const bankAccountId =
-        bankAccountIdRaw != null && Number.isFinite(Number(bankAccountIdRaw))
-          ? Number(bankAccountIdRaw)
-          : null
+      const bankAccountId = firstNumber(
+        payment?.BankAccountId,
+        (payment as UnknownRecord)?.BankAccountID,
+        (payment?.BankAccount as UnknownRecord | undefined)?.Id,
+      )
 
       let bankGlAccountId = await resolveBankGlAccountId(bankAccountId, admin)
       if (bankAccountId && bankGlAccountId) {
@@ -1914,24 +2122,26 @@ export async function POST(req: NextRequest) {
       }
       totalAmount = Math.abs(totalAmount)
 
-      const header = {
-        buildium_transaction_id: paymentId,
+      const transactionDate = lineDate || now.slice(0, 10)
+      const paymentMethodNormalized = paymentMethod as Database['public']['Enums']['payment_method_enum'] | null
+      const header: TablesInsert<'transactions'> = {
+        buildium_transaction_id: paymentId ?? null,
         buildium_bill_id: billId,
         bill_transaction_id: billTxMeta?.id ?? null,
-        date: lineDate,
+        date: transactionDate,
         paid_date: headerDate,
         total_amount: totalAmount,
-        check_number: payment?.CheckNumber ?? null,
-        reference_number: payment?.Memo ?? payment?.ReferenceNumber ?? null,
-        memo: payment?.Memo ?? null,
+        check_number: safeString(payment?.CheckNumber),
+        reference_number: safeString(payment?.Memo ?? payment?.ReferenceNumber),
+        memo: safeString(payment?.Memo),
         transaction_type: 'Payment',
         status: 'Paid',
-        bank_gl_account_id: bankGlAccountId,
-        bank_gl_account_buildium_id: bankAccountId,
+        bank_gl_account_id: bankGlAccountId ?? null,
+        bank_gl_account_buildium_id: bankAccountId ?? null,
         vendor_id: billTxMeta?.vendor_id ?? null,
         category_id: billTxMeta?.category_id ?? null,
         org_id: orgFromAccount ?? billTxMeta?.org_id ?? null,
-        payment_method: paymentMethod,
+        payment_method: paymentMethodNormalized,
         updated_at: now,
       }
 
@@ -1939,16 +2149,17 @@ export async function POST(req: NextRequest) {
       if (existing) {
         const { data, error } = await admin
           .from('transactions')
-          .update(header)
+          .update(header as TablesUpdate<'transactions'>)
           .eq('id', existing.id)
           .select('id')
           .single()
         if (error) throw error
         transactionId = data.id
       } else {
+        const insertPayload: TablesInsert<'transactions'> = { ...header, created_at: now }
         const { data, error } = await admin
           .from('transactions')
-          .insert({ ...header, created_at: now })
+          .insert(insertPayload)
           .select('id')
           .single()
         if (error) throw error
@@ -1958,7 +2169,7 @@ export async function POST(req: NextRequest) {
       if (totalAmount > 0) {
         creditSum += totalAmount
         // Use property/unit from first debit line for context if present
-        const sample = pendingLines[0] ?? {}
+        const sample = pendingLines[0]
         pendingLines.push({
           gl_account_id: bankGlAccountId,
           amount: totalAmount,
@@ -1966,7 +2177,7 @@ export async function POST(req: NextRequest) {
           memo: payment?.Memo ?? null,
           account_entity_type: sample?.account_entity_type ?? 'Company',
           account_entity_id: sample?.account_entity_id ?? null,
-          date: header.date,
+          date: transactionDate,
           created_at: now,
           updated_at: now,
           buildium_property_id: sample?.buildium_property_id ?? null,
@@ -1990,7 +2201,8 @@ export async function POST(req: NextRequest) {
     }
 
     for (const event of events) {
-      const type = event?.EventType ?? event?.EventName ?? body?.type ?? body?.eventType ?? body?.EventName ?? 'unknown'
+      const type =
+        firstString(event?.EventType, event?.EventName, body?.type, body?.eventType, body?.EventName) ?? 'unknown'
       const looksDelete = looksLikeDelete(event)
       const validation = validateBuildiumEvent(event)
       if (!validation.ok) {
@@ -2030,18 +2242,17 @@ export async function POST(req: NextRequest) {
         // duplicate for that event but the deposit transaction is missing, forward to the edge processor
         // as a repair path (edge handler is idempotent by buildium_transaction_id).
         if (normalized.eventName === 'BankAccount.Transaction.Created') {
-          const txIdRaw = event?.TransactionId ?? event?.Data?.TransactionId ?? null
-          const txIdNum = Number(txIdRaw)
-          if (Number.isFinite(txIdNum) && txIdNum > 0) {
+          const txIdNum = firstNumber(event?.TransactionId, event?.Data?.TransactionId)
+          if (Number.isFinite(txIdNum) && Number(txIdNum) > 0) {
             const { data: existingTx } = await admin
               .from('transactions')
               .select('id')
-              .eq('buildium_transaction_id', txIdNum)
+              .eq('buildium_transaction_id', txIdNum as number)
               .maybeSingle()
 
             if (!existingTx?.id) {
               try {
-                const forwardResult = await forwardBankTransactionToEdge(event)
+                const forwardResult = await forwardBankTransactionToEdge(event, webhookSecretToUse)
                 if (!forwardResult.ok) {
                   await markWebhookError(
                     admin,
@@ -2074,7 +2285,7 @@ export async function POST(req: NextRequest) {
         } else if (normalized.eventName === 'BankAccount.Transaction.Updated') {
           // Always forward duplicate updates to the edge function so the existing deposit is refreshed.
           try {
-            const forwardResult = await forwardBankTransactionToEdge(event)
+            const forwardResult = await forwardBankTransactionToEdge(event, webhookSecretToUse)
             if (!forwardResult.ok) {
               await markWebhookError(
                 admin,
@@ -2111,9 +2322,14 @@ export async function POST(req: NextRequest) {
 
       // Check toggle flag; if disabled, mark ignored and skip
       if (typeof type === 'string' && disabledEvents.has(type)) {
+        const ignoredUpdate: BuildiumWebhookUpdate = {
+          status: 'ignored',
+          processed_at: new Date().toISOString(),
+          processed: true,
+        }
         await admin
           .from('buildium_webhook_events')
-          .update({ status: 'ignored', processed_at: new Date().toISOString(), processed: true })
+          .update(ignoredUpdate)
           .eq('buildium_webhook_id', normalized.buildiumWebhookId)
           .eq('event_name', normalized.eventName)
           .eq('event_created_at', normalized.eventCreatedAt)
@@ -2168,7 +2384,7 @@ export async function POST(req: NextRequest) {
       // Buildium cannot call the edge endpoint directly because /functions/v1 requires JWT; Next.js forwards with service role.
       if (normalized.eventName === 'BankAccount.Transaction.Created' || normalized.eventName === 'BankAccount.Transaction.Updated') {
         try {
-          const forwardResult = await forwardBankTransactionToEdge(event)
+          const forwardResult = await forwardBankTransactionToEdge(event, webhookSecretToUse)
           if (!forwardResult.ok) {
             await markWebhookError(
               admin,
@@ -2196,7 +2412,11 @@ export async function POST(req: NextRequest) {
 
         await admin
           .from('buildium_webhook_events')
-          .update({ status: 'processed', processed_at: new Date().toISOString(), processed: true })
+          .update({
+            status: 'processed',
+            processed_at: new Date().toISOString(),
+            processed: true,
+          } satisfies BuildiumWebhookUpdate)
           .eq('buildium_webhook_id', normalized.buildiumWebhookId)
           .eq('event_name', normalized.eventName)
           .eq('event_created_at', normalized.eventCreatedAt)
@@ -2248,9 +2468,9 @@ export async function POST(req: NextRequest) {
               const addId = (v?: number | null) => {
                 if (v != null && Number.isFinite(Number(v))) currentIds.add(Number(v))
               }
-              if (Array.isArray(leaseRemote?.Tenants)) leaseRemote.Tenants.forEach((t) => addId(t?.Id))
-              if (Array.isArray(leaseRemote?.Cosigners)) leaseRemote.Cosigners.forEach((c) => addId(c?.Id))
-              if (Array.isArray(leaseRemote?.CurrentTenants)) leaseRemote.CurrentTenants.forEach((t) => addId(t?.Id))
+              if (Array.isArray(leaseRemote?.Tenants)) (leaseRemote.Tenants as Array<{ Id?: number | null }>).forEach((t) => addId(t?.Id))
+              if (Array.isArray(leaseRemote?.Cosigners)) (leaseRemote.Cosigners as Array<{ Id?: number | null }>).forEach((c) => addId(c?.Id))
+              if (Array.isArray(leaseRemote?.CurrentTenants)) (leaseRemote.CurrentTenants as Array<{ Id?: number | null }>).forEach((t) => addId(t?.Id))
 
               try {
                 await updateLeaseContactStatuses(Number(leaseId), currentIds)
@@ -2337,20 +2557,21 @@ export async function POST(req: NextRequest) {
               const phoneArrayFromTenant = Array.isArray(tenantData?.PhoneNumbers)
                 ? (tenantData.PhoneNumbers as Array<{ Type?: string; Number?: string | null }>)
                 : null
+              const phoneObjectFromTenant = phoneArrayFromTenant ? null : ((tenantData?.PhoneNumbers as { Mobile?: string | null; Home?: string | null; Work?: string | null }) ?? null)
               const primaryPhone = phoneArrayFromTenant
                 ? (phoneArrayFromTenant.find((p) => /cell|mobile/i.test(p?.Type || ''))?.Number ||
                   phoneArrayFromTenant.find((p) => /home/i.test(p?.Type || ''))?.Number ||
                   phoneArrayFromTenant.find((p) => /work/i.test(p?.Type || ''))?.Number ||
                   null)
-                : (tenantData?.PhoneNumbers?.Mobile || tenantData?.PhoneNumbers?.Home || tenantData?.PhoneNumbers?.Work || null)
+                : (phoneObjectFromTenant?.Mobile || phoneObjectFromTenant?.Home || phoneObjectFromTenant?.Work || null)
               const altPhone = phoneArrayFromTenant
                 ? (phoneArrayFromTenant.find((p) => /work/i.test(p?.Type || ''))?.Number ||
                   phoneArrayFromTenant.find((p) => /home/i.test(p?.Type || ''))?.Number ||
                   null)
-                : (tenantData?.PhoneNumbers?.Work || tenantData?.PhoneNumbers?.Home || null)
-              const addr = tenantData?.Address || tenantData?.PrimaryAddress || {}
-              const altAddr = tenantData?.AlternateAddress || {}
-              await admin.from('contacts').update({
+                : (phoneObjectFromTenant?.Work || phoneObjectFromTenant?.Home || null)
+              const addr = asRecord((tenantData as UnknownRecord)?.Address ?? tenantData?.PrimaryAddress ?? {})
+              const altAddr = asRecord((tenantData as UnknownRecord)?.AlternateAddress ?? tenantData?.AlternateAddress ?? {})
+              const contactUpdate: TablesUpdate<'contacts'> = {
                 first_name: tenantData?.FirstName ?? null,
                 last_name: tenantData?.LastName ?? null,
                 primary_email: tenantData?.Email ?? null,
@@ -2358,47 +2579,49 @@ export async function POST(req: NextRequest) {
                 primary_phone: primaryPhone,
                 alt_phone: altPhone,
                 date_of_birth: tenantData?.DateOfBirth ?? null,
-                primary_address_line_1: addr?.AddressLine1 ?? null,
-                primary_address_line_2: addr?.AddressLine2 ?? null,
-                primary_address_line_3: addr?.AddressLine3 ?? null,
-                primary_city: addr?.City ?? null,
-                primary_state: addr?.State ?? null,
-                primary_postal_code: addr?.PostalCode ?? null,
-                primary_country: mapCountryFromBuildiumLocal(addr?.Country),
-                alt_address_line_1: altAddr?.AddressLine1 ?? null,
-                alt_address_line_2: altAddr?.AddressLine2 ?? null,
-                alt_address_line_3: altAddr?.AddressLine3 ?? null,
-                alt_city: altAddr?.City ?? null,
-                alt_state: altAddr?.State ?? null,
-                alt_postal_code: altAddr?.PostalCode ?? null,
-                alt_country: mapCountryFromBuildiumLocal(altAddr?.Country),
+                primary_address_line_1: (addr as { AddressLine1?: string })?.AddressLine1 ?? null,
+                primary_address_line_2: (addr as { AddressLine2?: string })?.AddressLine2 ?? null,
+                primary_address_line_3: (addr as { AddressLine3?: string })?.AddressLine3 ?? null,
+                primary_city: (addr as { City?: string })?.City ?? null,
+                primary_state: (addr as { State?: string })?.State ?? null,
+                primary_postal_code: (addr as { PostalCode?: string })?.PostalCode ?? null,
+                primary_country: normalizeCountryEnum((addr as { Country?: string | null })?.Country ?? null),
+                alt_address_line_1: (altAddr as { AddressLine1?: string })?.AddressLine1 ?? null,
+                alt_address_line_2: (altAddr as { AddressLine2?: string })?.AddressLine2 ?? null,
+                alt_address_line_3: (altAddr as { AddressLine3?: string })?.AddressLine3 ?? null,
+                alt_city: (altAddr as { City?: string })?.City ?? null,
+                alt_state: (altAddr as { State?: string })?.State ?? null,
+                alt_postal_code: (altAddr as { PostalCode?: string })?.PostalCode ?? null,
+                alt_country: normalizeCountryEnum((altAddr as { Country?: string | null })?.Country ?? null),
                 mailing_preference: tenantData?.MailingPreference === 'PrimaryAddress' ? 'primary' : (tenantData?.MailingPreference === 'AlternateAddress' ? 'alternate' : null),
                 display_name: [tenantData?.FirstName, tenantData?.LastName].filter(Boolean).join(' ') || tenantData?.Email || 'Tenant',
                 updated_at: now
-              }).eq('id', contactId)
+              }
+              await admin.from('contacts').update(contactUpdate).eq('id', contactId)
 
               tenantIdLocal = tenantIdLocal || await findOrCreateTenantFromContact(contactId, tenantData, orgIdFromPayload)
               // Update tenant fields (SMSOptInStatus, emergency, tax_id)
-              await admin.from('tenants').update({
-                sms_opt_in_status: typeof tenantData?.SMSOptInStatus === 'boolean' ? String(tenantData.SMSOptInStatus) : (typeof tenantData?.SMSOptInStatus === 'string' ? tenantData.SMSOptInStatus : null),
+              const tenantUpdate: TablesUpdate<'tenants'> = {
+                sms_opt_in_status: typeof tenantData?.SMSOptInStatus === 'boolean' ? tenantData.SMSOptInStatus : null,
                 emergency_contact_name: tenantData?.EmergencyContact?.Name ?? null,
                 emergency_contact_relationship: tenantData?.EmergencyContact?.RelationshipDescription ?? null,
                 emergency_contact_phone: tenantData?.EmergencyContact?.Phone ?? null,
                 emergency_contact_email: tenantData?.EmergencyContact?.Email ?? null,
                 tax_id: tenantData?.TaxId ?? null,
                 updated_at: now
-              }).eq('id', tenantIdLocal)
+              }
+              await admin.from('tenants').update(tenantUpdate).eq('id', tenantIdLocal)
 
               const linkedLeaseIds = new Set<string>()
-              for (const lease of Array.isArray(tenantData?.Leases) ? tenantData.Leases : []) {
+              for (const lease of Array.isArray(tenantData?.Leases) ? (tenantData.Leases as Array<any>) : []) {
                 const leaseLocalId = await resolveLocalLeaseId(lease?.Id)
                 if (!leaseLocalId) continue
                 linkedLeaseIds.add(String(leaseLocalId))
-                const moveInEntry = (Array.isArray(lease?.Tenants) ? lease.Tenants : []).find(
-                  (t) => Number(t?.Id) === Number(tenantIdBuildium)
+                const moveInEntry = (Array.isArray(lease?.Tenants) ? (lease.Tenants as Array<any>) : []).find(
+                  (t: any) => Number(t?.Id) === Number(tenantIdBuildium)
                 )
-                const moveOutEntry = (Array.isArray(lease?.MoveOutData) ? lease.MoveOutData : []).find(
-                  (m) => Number(m?.TenantId) === Number(tenantIdBuildium)
+                const moveOutEntry = (Array.isArray(lease?.MoveOutData) ? (lease.MoveOutData as Array<any>) : []).find(
+                  (m: any) => Number(m?.TenantId) === Number(tenantIdBuildium)
                 )
                 const moveInDate = moveInEntry?.MoveInDate || null
                 const moveOutDate = moveOutEntry?.MoveOutDate || null
@@ -2418,10 +2641,10 @@ export async function POST(req: NextRequest) {
               const { data: existingLinks } = await admin.from('lease_contacts').select('id, lease_id, status').eq('tenant_id', tenantIdLocal)
               if (existingLinks && existingLinks.length) {
                 const toDeactivate = existingLinks
-                  .filter((l) => !linkedLeaseIds.has(String(l.lease_id)) && l.status !== 'Inactive')
+                  .filter((l) => !linkedLeaseIds.has(String(l.lease_id)) && l.status !== 'Past')
                   .map((l) => l.id)
                 if (toDeactivate.length) {
-                  await admin.from('lease_contacts').update({ status: 'Inactive', updated_at: new Date().toISOString() }).in('id', toDeactivate)
+                  await admin.from('lease_contacts').update({ status: 'Past', updated_at: new Date().toISOString() }).in('id', toDeactivate)
                 }
               }
             }
@@ -2935,7 +3158,11 @@ export async function POST(req: NextRequest) {
       // Placeholder for downstream processing; currently mark as processed
       await admin
         .from('buildium_webhook_events')
-        .update({ status: 'processed', processed_at: new Date().toISOString(), processed: true })
+        .update({
+          status: 'processed',
+          processed_at: new Date().toISOString(),
+          processed: true,
+        } satisfies BuildiumWebhookUpdate)
         .eq('buildium_webhook_id', normalized.buildiumWebhookId)
         .eq('event_name', normalized.eventName)
         .eq('event_created_at', normalized.eventCreatedAt)
@@ -2945,8 +3172,8 @@ export async function POST(req: NextRequest) {
 
     // Dispatch lease transaction events downstream
     const leaseTxEvents = events.filter((ev) => {
-      const type = ev?.EventType || ev?.EventName || ''
-      return typeof type === 'string' && type.includes('LeaseTransaction')
+      const type = firstString(ev?.EventType, ev?.EventName) ?? ''
+      return type.includes('LeaseTransaction')
     })
     await forwardLeaseTransactionEvents(leaseTxEvents)
 
@@ -2970,9 +3197,15 @@ export async function POST(req: NextRequest) {
     console.error('[buildium-webhook] Unhandled error', e)
     const idsForError = storedEvents.map((normalized) => normalized.buildiumWebhookId)
     if (idsForError.length > 0) {
+      const errorUpdate: BuildiumWebhookUpdate = {
+        status: 'error',
+        error: errorMessage,
+        processed_at: new Date().toISOString(),
+        processed: false,
+      }
       await admin
         .from('buildium_webhook_events')
-        .update({ status: 'error', error: errorMessage, processed_at: new Date().toISOString(), processed: false })
+        .update(errorUpdate)
         .in('buildium_webhook_id', idsForError)
     }
     return NextResponse.json({ error: 'Internal error', detail: errorMessage }, { status: 500 })

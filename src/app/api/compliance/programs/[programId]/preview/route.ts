@@ -97,13 +97,10 @@ async function runPreview(
       return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 });
     }
 
-    const programWithCriteria: Pick<
-      ComplianceProgram,
-      'applies_to' | 'criteria' | 'override_fields'
-    > = {
+    const programWithCriteria: Pick<ComplianceProgram, 'applies_to' | 'criteria' | 'override_fields'> = {
       applies_to: program.applies_to as ComplianceProgram['applies_to'],
-      criteria: criteriaOverride ?? program.criteria,
-      override_fields: program.override_fields ?? {},
+      criteria: (criteriaOverride ?? program.criteria ?? null) as ComplianceProgram['criteria'] | null,
+      override_fields: (program.override_fields ?? {}) as ComplianceProgram['override_fields'],
     };
 
     // Load assets so criteria rows can be evaluated regardless of scope
@@ -148,10 +145,8 @@ async function runPreview(
             ...b,
             borough_code:
               typeof b.borough_code === 'number'
-                ? b.borough_code
-                : b.borough_code
-                  ? Number(b.borough_code)
-                  : null,
+                ? String(b.borough_code)
+                : b.borough_code ?? null,
           })) || [];
       }
     }
@@ -204,7 +199,7 @@ async function runPreview(
 
     for (const asset of assets) {
       const prop = propertyMap.get(asset.property_id) || null;
-      if (programTargetsAsset(programWithCriteria, asset, prop)) matchedAssets++;
+      if (programTargetsAsset(programWithCriteria as any, asset as any, prop as any)) matchedAssets++;
     }
 
     return NextResponse.json({

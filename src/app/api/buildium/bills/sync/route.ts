@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { requireSupabaseAdmin, SupabaseAdminUnavailableError } from '@/lib/supabase-client'
 
 import { upsertBillWithLines } from '@/lib/buildium-mappers'
@@ -27,36 +28,27 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom') || undefined
     const dateTo = searchParams.get('dateTo') || undefined
 
-    const query = new URLSearchParams()
-    if (limit) query.append('limit', limit)
-    if (offset) query.append('offset', offset)
-    if (vendorId) query.append('vendorId', vendorId)
-    if (propertyId) query.append('propertyId', propertyId)
-    if (unitId) query.append('unitId', unitId)
-    if (status) query.append('status', status)
-    if (dateFrom) query.append('dateFrom', dateFrom)
-    if (dateTo) query.append('dateTo', dateTo)
+    const queryParams: Record<string, string> = {}
+    if (limit) queryParams.limit = limit
+    if (offset) queryParams.offset = offset
+    if (vendorId) queryParams.vendorId = vendorId
+    if (propertyId) queryParams.propertyId = propertyId
+    if (unitId) queryParams.unitId = unitId
+    if (status) queryParams.status = status
+    if (dateFrom) queryParams.dateFrom = dateFrom
+    if (dateTo) queryParams.dateTo = dateTo
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills?${query.toString()}`
-
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    })
+    const response = await buildiumFetch('GET', '/bills', queryParams, undefined, undefined)
 
     if (!response.ok) {
-      const details = await response.json().catch(() => ({}))
+      const details = response.json ?? {}
       logger.error('Buildium bills fetch failed for sync')
       return NextResponse.json({ error: 'Failed to fetch bills from Buildium', details }, { status: response.status })
     }
 
     const admin = requireSupabaseAdmin('buildium bills sync GET')
 
-    const bills = await response.json()
+    const bills = (response.json ?? []) as unknown[]
     if (!Array.isArray(bills)) {
       return NextResponse.json({ error: 'Unexpected bills response shape' }, { status: 502 })
     }

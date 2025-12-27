@@ -45,9 +45,9 @@ export async function PUT(
 ) {
   try {
     await requireUser(request);
-    const supabase = await getSupabaseServerClient();
+    const supabase = (await getSupabaseServerClient()) as any;
 
-    const fileId = (await params).id;
+    const { id: fileId } = await params;
     if (!fileId) {
       return NextResponse.json({ error: 'Missing file id' }, { status: 400 });
     }
@@ -159,7 +159,7 @@ export async function PUT(
     let latest = null;
     try {
       latest = await buildiumClient.getFileSharingSettings(Number(buildiumFileId));
-    } catch (_err) {
+    } catch {
       // Non-fatal: Buildium sometimes delays propagating sharing updates
       latest = null;
     }

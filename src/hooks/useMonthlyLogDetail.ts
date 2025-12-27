@@ -60,7 +60,7 @@ export interface MonthlyLogDetailState {
 
 export function useMonthlyLogDetail({
   monthlyLogId,
-  periodStart,
+  periodStart: _periodStart,
   leaseId,
   unitId,
   shouldLoadRelatedLogs,

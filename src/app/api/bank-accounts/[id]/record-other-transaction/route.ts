@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import { buildCanonicalTransactionPatch } from '@/lib/transaction-canonical';
+import type { TablesInsert } from '@/types/database';
 
 type BuildiumIdResponse = { Id?: number; id?: number };
 
@@ -271,7 +272,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .maybeSingle();
       if (txErr || !tx?.id) throw txErr ?? new Error('Failed to create transfer');
 
-      const lines = [
+      const lines: TablesInsert<'transaction_lines'>[] = [
         {
           transaction_id: tx.id,
           gl_account_id: data.fromBankAccountId,
@@ -425,7 +426,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const bankPostingType = data.mode === 'deposit' ? 'Debit' : 'Credit';
     const otherPostingType = data.mode === 'deposit' ? 'Credit' : 'Debit';
 
-    const lines = [
+    const lines: TablesInsert<'transaction_lines'>[] = [
       {
         transaction_id: tx.id,
         gl_account_id: bankId,

@@ -14,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { CalendarEvent } from '@/types/calendar';
 import { format } from 'date-fns';
 import { Loader2, Users, MapPin, AlignLeft } from 'lucide-react';
 

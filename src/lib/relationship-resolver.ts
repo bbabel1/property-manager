@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Relationship Resolution System
 import {
   mapCountryFromBuildium,
@@ -498,15 +497,22 @@ export class RelationshipResolver {
 
   /**
    * Ensure lease_contact relationship exists
-   */
+  */
   private async ensureLeaseContactRelationship(leaseId: string, tenantId: string): Promise<void> {
     try {
+      const leaseIdValue = Number(leaseId)
+      if (!Number.isFinite(leaseIdValue)) {
+        return
+      }
+      const leaseIdParam = leaseIdValue
+      const tenantIdParam = String(tenantId)
+
       // Check if relationship already exists
       const { data: existing } = await this.context.supabase
         .from('lease_contacts')
         .select('id')
-        .eq('lease_id', leaseId)
-        .eq('tenant_id', tenantId)
+        .eq('lease_id', leaseIdParam)
+        .eq('tenant_id', tenantIdParam)
         .single()
 
       if (!existing && !this.context.dryRun) {
@@ -514,8 +520,8 @@ export class RelationshipResolver {
         await this.context.supabase
           .from('lease_contacts')
           .insert({
-            lease_id: leaseId,
-            tenant_id: tenantId,
+            lease_id: leaseIdParam,
+            tenant_id: tenantIdParam,
             role: 'Tenant',
             status: 'Active',
             is_rent_responsible: true,
@@ -630,7 +636,7 @@ export class RelationshipResolver {
       country: base.country || 'United States',
       market_rent: base.market_rent ?? buildiumUnit.MarketRent ?? null,
       updated_at: now,
-      created_at: base.buildium_created_at ?? now
+      created_at: (base as { created_at?: string | null }).created_at ?? now
     }
   }
 
@@ -677,29 +683,29 @@ export class RelationshipResolver {
     const base = mapLeaseFromBuildiumMapper(buildiumLease)
     const now = new Date().toISOString()
 
-    return {
-      ...base,
-      property_id: propertyId,
-      unit_id: unitId,
-      org_id: orgId ?? undefined,
-      buildium_property_id: base.buildium_property_id ?? buildiumLease.PropertyId,
-      buildium_unit_id: base.buildium_unit_id ?? buildiumLease.UnitId,
-      unit_number: base.unit_number ?? buildiumLease.UnitNumber ?? null,
-      lease_from_date: base.lease_from_date || buildiumLease.LeaseFromDate,
-      lease_to_date: base.lease_to_date ?? buildiumLease.LeaseToDate ?? null,
-      status: base.status ?? buildiumLease.LeaseStatus ?? 'ACTIVE',
-      rent_amount: base.rent_amount ?? buildiumLease.AccountDetails?.Rent ?? null,
-      security_deposit: base.security_deposit ?? buildiumLease.AccountDetails?.SecurityDeposit ?? null,
-      automatically_move_out_tenants:
-        base.automatically_move_out_tenants ?? buildiumLease.AutomaticallyMoveOutTenants ?? null,
-      current_number_of_occupants:
-        base.current_number_of_occupants ?? buildiumLease.CurrentNumberOfOccupants ?? null,
-      renewal_offer_status: base.renewal_offer_status ?? buildiumLease.RenewalOfferStatus ?? null,
-      is_eviction_pending: base.is_eviction_pending ?? buildiumLease.IsEvictionPending ?? null,
-      payment_due_day: base.payment_due_day ?? buildiumLease.PaymentDueDay ?? null,
-      updated_at: now,
-      created_at: base.buildium_created_at ?? now
-    }
+      return {
+        ...base,
+        property_id: propertyId,
+        unit_id: unitId,
+        org_id: orgId ?? undefined,
+        buildium_property_id: base.buildium_property_id ?? buildiumLease.PropertyId,
+        buildium_unit_id: base.buildium_unit_id ?? buildiumLease.UnitId,
+        unit_number: base.unit_number ?? buildiumLease.UnitNumber ?? null,
+        lease_from_date: base.lease_from_date || buildiumLease.LeaseFromDate,
+        lease_to_date: base.lease_to_date ?? buildiumLease.LeaseToDate ?? null,
+        status: base.status ?? buildiumLease.LeaseStatus ?? 'ACTIVE',
+        rent_amount: base.rent_amount ?? buildiumLease.AccountDetails?.Rent ?? null,
+        security_deposit: base.security_deposit ?? buildiumLease.AccountDetails?.SecurityDeposit ?? null,
+        automatically_move_out_tenants:
+          base.automatically_move_out_tenants ?? buildiumLease.AutomaticallyMoveOutTenants ?? null,
+        current_number_of_occupants:
+          base.current_number_of_occupants ?? buildiumLease.CurrentNumberOfOccupants ?? null,
+        renewal_offer_status: base.renewal_offer_status ?? buildiumLease.RenewalOfferStatus ?? null,
+        is_eviction_pending: base.is_eviction_pending ?? buildiumLease.IsEvictionPending ?? null,
+        payment_due_day: base.payment_due_day ?? buildiumLease.PaymentDueDay ?? null,
+        updated_at: now,
+        created_at: (base as { buildium_created_at?: string | null }).buildium_created_at ?? now
+      }
   }
 
   private mapOwnerFromBuildium(buildiumOwner: BuildiumOwner, contactId: string) {

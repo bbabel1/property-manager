@@ -4,8 +4,10 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitImageUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 import UnitService from '@/lib/unit-service';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import type { BuildiumUnitImage } from '@/types/buildium';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
@@ -24,19 +26,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id, imageId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/images/${imageId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit image fetch failed`);
 
       return NextResponse.json(
@@ -48,7 +41,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const image = await response.json();
+    const rawImage = (response.json ?? null) as any;
+    const imagePayload = rawImage && typeof rawImage === 'object' && 'data' in rawImage ? (rawImage as any).data : rawImage;
+    const image = (imagePayload as BuildiumUnitImage | null | undefined) ?? null;
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
@@ -58,7 +53,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       } catch {
         return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
       }
-      try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
+      if (image) {
+        try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
+      }
     }
 
     logger.info(`Buildium unit image fetched successfully`);
@@ -102,21 +99,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumUnitImageUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PUT', `/rentals/units/${id}/images/${imageId}`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit image update failed`);
 
       return NextResponse.json(
@@ -128,7 +114,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const image = await response.json();
+    const rawImage = (response.json ?? null) as any;
+    const imagePayload = rawImage && typeof rawImage === 'object' && 'data' in rawImage ? (rawImage as any).data : rawImage;
+    const image = (imagePayload as BuildiumUnitImage | null | undefined) ?? null;
     const { searchParams } = new URL(request.url);
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
@@ -138,7 +126,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       } catch {
         return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
       }
-      try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
+      if (image) {
+        try { await UnitService.persistImages(Number(id), [image], orgId) } catch {}
+      }
     }
 
     logger.info(`Buildium unit image updated successfully`);
@@ -176,19 +166,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const { id, imageId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('DELETE', `/rentals/units/${id}/images/${imageId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit image deletion failed`);
 
       return NextResponse.json(
@@ -236,19 +217,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id, imageId } = await params;
 
     // Make request to Buildium API for image download
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/images/${imageId}/download`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('POST', `/rentals/units/${id}/images/${imageId}/download`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit image download failed`);
 
       return NextResponse.json(
@@ -260,7 +232,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const downloadData = await response.json();
+    const downloadData = response.json ?? {};
 
     logger.info(`Buildium unit image download initiated successfully`);
 

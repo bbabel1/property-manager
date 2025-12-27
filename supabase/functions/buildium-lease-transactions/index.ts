@@ -16,6 +16,8 @@ import { emitRoutingTelemetry } from '../_shared/telemetry.ts';
 import { sendPagerDutyEvent } from '../_shared/pagerDuty.ts';
 import { resolveLeaseWithOrg } from '../_shared/leaseResolver.ts';
 
+type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
+
 // Buildium API Client for lease transactions
 class BuildiumClient {
   private baseUrl: string;
@@ -23,10 +25,12 @@ class BuildiumClient {
   private clientSecret: string;
 
   constructor(opts?: { baseUrl?: string; clientId?: string; clientSecret?: string }) {
-    this.baseUrl =
-      opts?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1';
-    this.clientId = opts?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '';
-    this.clientSecret = opts?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '';
+    if (!opts?.clientId || !opts?.clientSecret) {
+      throw new Error('Missing Buildium credentials for lease transactions');
+    }
+    this.baseUrl = (opts.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '');
+    this.clientId = opts.clientId;
+    this.clientSecret = opts.clientSecret;
   }
 
   private async makeRequest<T>(method: string, endpoint: string): Promise<T> {
@@ -907,8 +911,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    if (!payload.credentials?.clientId || !payload.credentials?.clientSecret) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Buildium credentials' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        },
+      );
+    }
+
     // Initialize Buildium client (allow per-request override for testing/local)
-    const buildiumClient = new BuildiumClient(payload.credentials);
+    const buildiumClient = new BuildiumClient(payload.credentials as BuildiumCredentials);
 
     // Log webhook event
     console.log('Received lease transaction webhook with', payload.Events.length, 'events');

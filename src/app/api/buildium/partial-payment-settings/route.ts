@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPartialPaymentSettingsUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,19 +21,10 @@ export async function GET(request: NextRequest) {
     await requireRole('platform_admin');
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/partialpaymentsettings`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/partialpaymentsettings', undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium partial payment settings fetch failed`);
 
       return NextResponse.json(
@@ -44,7 +36,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const settings = await response.json();
+    const settings = response.json ?? {};
 
     logger.info(`Buildium partial payment settings fetched successfully`);
 
@@ -85,21 +77,10 @@ export async function PATCH(request: NextRequest) {
     const validatedData = sanitizeAndValidate(body, BuildiumPartialPaymentSettingsUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/partialpaymentsettings`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PATCH',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PATCH', '/partialpaymentsettings', undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium partial payment settings update failed`);
 
       return NextResponse.json(
@@ -111,7 +92,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const settings = await response.json();
+    const settings = response.json ?? {};
 
     logger.info(`Buildium partial payment settings updated successfully`);
 

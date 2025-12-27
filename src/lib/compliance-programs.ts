@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type {
   ComplianceAppliesTo,
   ComplianceAsset,
@@ -63,8 +62,7 @@ type AssetMeta = Pick<
   | 'device_technology'
   | 'device_subtype'
   | 'is_private_residence'
-  | 'pressure_type'
->;
+> & { pressure_type?: string | null };
 
 type LogicalConnector = 'AND' | 'OR';
 

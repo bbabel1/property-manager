@@ -6,7 +6,7 @@ import { Sidebar } from './Sidebar'
 import { MonthGrid } from './MonthGrid'
 import { WeekGrid } from './WeekGrid'
 import { DayGrid } from './DayGrid'
-import { CalendarEvent, CalendarEventFilter, DEFAULT_EVENT_FILTERS } from '@/types/calendar'
+import { CalendarEvent, CalendarEventFilter } from '@/types/calendar'
 import { addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfMonth, startOfWeek, startOfDay } from 'date-fns'
 import { EventDetailDrawer } from './EventDetailDrawer'
 import { AddEventModal } from './AddEventModal'
@@ -126,7 +126,7 @@ export function GoogleCalendarView({
     onEventClick?.(event)
   }
 
-  const handleDelete = (event: CalendarEvent) => {
+  const handleDelete = (_event: CalendarEvent) => {
     setDrawerOpen(false)
     toast.info('Event deletion is coming soon', {
       description: 'Delete will be enabled after connecting calendar write APIs.',

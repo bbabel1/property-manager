@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, AlertTriangle, CheckCircle2, Clock3 } from 'lucide-react'
+import { Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 type Activity = {
   type: 'event' | 'violation'
@@ -44,4 +44,3 @@ export function ComplianceActivityTimeline({ items }: { items: Activity[] }) {
     </Card>
   )
 }
-

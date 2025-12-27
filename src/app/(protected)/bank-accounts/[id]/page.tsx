@@ -572,13 +572,13 @@ export default async function BankAccountShow({
   async function computeClosingBalance(asOf: string): Promise<number | null> {
     if (!bankAccount.org_id) return null;
 
-    const args: Database['public']['Functions']['gl_account_balance_as_of']['Args'] = {
+    const rpcClient = (supabaseAdminMaybe || supabaseAuthed) as SupabaseClient<Database>;
+    const { data, error } = await rpcClient.rpc('gl_account_balance_as_of', {
       p_org_id: bankAccount.org_id,
       p_gl_account_id: bankAccount.id,
       p_as_of: asOf,
       p_property_id: null,
-    };
-    const { data, error } = await supabaseAuthed.rpc('gl_account_balance_as_of', args);
+    });
 
     if (!error && typeof data === 'number' && Number.isFinite(data)) return data;
 

@@ -239,7 +239,7 @@ export default async function BankingPage({
     const udfByOrg = new Map<string, string>();
     await Promise.all(
       orgIds.map(async (orgId) => {
-        const udfGlId = await resolveUndepositedFundsGlAccountId(supabase, orgId);
+        const udfGlId = await resolveUndepositedFundsGlAccountId(supabaseTyped, orgId);
         if (udfGlId) udfByOrg.set(orgId, udfGlId);
       }),
     );

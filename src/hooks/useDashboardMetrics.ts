@@ -106,7 +106,7 @@ export function useDashboardMetrics(orgId?: string) {
         }
 
         if (mounted) setResolvedOrgId(null);
-      } catch (e) {
+	      } catch {
         if (mounted) setResolvedOrgId(null);
       } finally {
         if (mounted) setIsLoading(false);

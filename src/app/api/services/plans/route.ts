@@ -4,8 +4,28 @@ import { hasPermission } from '@/lib/permissions';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { logger } from '@/lib/logger';
 import { supabaseAdmin } from '@/lib/db';
+import type { Database } from '@/types/database';
 
 const DEFAULT_PLAN_NAMES = ['Full', 'Basic', 'A-la-carte', 'Custom'];
+
+type BillingFrequency = Database['public']['Enums']['billing_frequency_enum'];
+type PlanAmountType = Database['public']['Enums']['plan_amount_type'];
+type PlanPercentBasis = Database['public']['Enums']['plan_percent_basis'];
+type BillingBasis = Database['public']['Enums']['billing_basis_enum'];
+type RentBasis = Database['public']['Enums']['rent_basis_enum'];
+type ServicePlanServiceInsert = Database['public']['Tables']['service_plan_services']['Insert'];
+
+const BILLING_FREQUENCIES: BillingFrequency[] = [
+  'Annual',
+  'Monthly',
+  'monthly',
+  'annually',
+  'one_time',
+  'per_event',
+  'per_job',
+  'quarterly',
+];
+const FALLBACK_FREQUENCY: BillingFrequency = 'monthly';
 
 function isALaCartePlanName(name: string) {
   return name.trim().toLowerCase() === 'a-la-carte';
@@ -19,12 +39,37 @@ function isMissingColumnError(error: unknown) {
   return code === '42703' || /column .* does not exist/i.test(message);
 }
 
+const OFFERING_SELECTS = [
+  'id, default_freq, markup_pct, markup_pct_cap, hourly_rate, hourly_min_hours' as const,
+  'id, default_freq' as const,
+  'id' as const,
+];
+
+function normalizeBillingFrequency(value: BillingFrequency | null | undefined): BillingFrequency {
+  if (!value) return FALLBACK_FREQUENCY;
+  const normalized = String(value).toLowerCase();
+  const match = BILLING_FREQUENCIES.find((freq) => freq.toLowerCase() === normalized);
+  return match ?? FALLBACK_FREQUENCY;
+}
+
+function isPlanAmountType(value: unknown): value is PlanAmountType {
+  return value === 'flat' || value === 'percent';
+}
+
+function isPlanPercentBasis(value: unknown): value is PlanPercentBasis {
+  return value === 'lease_rent_amount' || value === 'collected_rent';
+}
+
+type OfferingRow = Pick<
+  Database['public']['Tables']['service_offerings']['Row'],
+  'id' | 'default_freq' | 'markup_pct' | 'markup_pct_cap' | 'hourly_rate' | 'hourly_min_hours'
+> & {
+  billing_basis?: BillingBasis | null;
+  default_rent_basis?: RentBasis | null;
+};
+
 async function loadOfferingsForPlanAssignment(offeringIds: string[]) {
-  const tries = [
-    'id, billing_basis, default_freq, default_rate, default_rent_basis, markup_pct, markup_pct_cap, hourly_rate, hourly_min_hours',
-    'id, default_freq',
-    'id',
-  ];
+  const tries = OFFERING_SELECTS;
 
   for (const select of tries) {
     const { data, error } = await supabaseAdmin
@@ -32,7 +77,7 @@ async function loadOfferingsForPlanAssignment(offeringIds: string[]) {
       .select(select)
       .in('id', offeringIds);
 
-    if (!error) return data || [];
+    if (!error) return (data as OfferingRow[]) || [];
     if (!isMissingColumnError(error)) throw error;
   }
 
@@ -244,8 +289,19 @@ export async function POST(request: NextRequest) {
     }
 
     const isALaCarte = isALaCartePlanName(name);
-    const amountType = isALaCarte ? 'flat' : body.amount_type || 'flat';
-    const percentBasis = isALaCarte ? null : body.percent_basis || 'lease_rent_amount';
+    const rawAmountType = body.amount_type;
+    const amountType: PlanAmountType = isALaCarte
+      ? 'flat'
+      : isPlanAmountType(rawAmountType)
+        ? rawAmountType
+        : 'flat';
+    const rawPercentBasis = body.percent_basis;
+    const percentBasis: PlanPercentBasis | null =
+      amountType === 'percent'
+        ? isPlanPercentBasis(rawPercentBasis)
+          ? rawPercentBasis
+          : 'lease_rent_amount'
+        : null;
     if (amountType === 'percent' && !percentBasis) {
       return NextResponse.json(
         { error: { code: 'BAD_REQUEST', message: 'percent_basis is required for percent plans' } },
@@ -357,7 +413,7 @@ export async function POST(request: NextRequest) {
         plan_id: data.id,
         offering_id: o.id,
         default_amount: 0,
-        default_frequency: o.default_freq || 'monthly',
+        default_frequency: normalizeBillingFrequency(o.default_freq),
         default_included: true,
         billing_basis: o.billing_basis ?? null,
         rent_basis: o.default_rent_basis ?? null,
@@ -366,7 +422,7 @@ export async function POST(request: NextRequest) {
         hourly_rate: o.hourly_rate ?? null,
         hourly_min_hours: o.hourly_min_hours ?? null,
         is_required: false,
-      }));
+      })) as ServicePlanServiceInsert[];
 
       const { error: insertError } = await supabaseAdmin
         .from('service_plan_services')

@@ -78,7 +78,7 @@ export default function GooglePlacesAutocomplete({
 }: GooglePlacesAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<GoogleAutocomplete | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -186,7 +186,7 @@ export default function GooglePlacesAutocomplete({
           }
         }
       });
-    } catch (error) {
+    } catch {
       setError('Failed to initialize autocomplete');
     }
   }, [getGoogle, onChange, onPlaceSelect]);

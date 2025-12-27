@@ -8,9 +8,7 @@ export default function StartContinueReconciliation({
   propertyId,
   bankAccountId,
   buildiumBankAccountId,
-  glAccountId,
   lastFinishedDate,
-  size = "sm",
   className = "",
 }: {
   propertyId: string

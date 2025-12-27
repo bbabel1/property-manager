@@ -66,7 +66,7 @@ export async function PATCH(
 ) {
   try {
     await requireRole('platform_admin');
-    const { id: bankAccountId, transactionId } = await params;
+  const { id: bankAccountId, transactionId } = await params;
 
     const membership = await assertDepositInBankAccountContext({ bankAccountId, transactionId });
     if (!membership.ok) {

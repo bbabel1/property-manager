@@ -4,6 +4,7 @@ import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireRole } from '@/lib/auth/guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { validateMembershipChange } from '@/lib/auth/membership-authz'
+import type { AppRole } from '@/lib/auth/roles'
 
 const RoleEnum = z.enum([
   'platform_admin',
@@ -25,6 +26,8 @@ const DeleteSchema = z.object({
   user_id: z.string().min(1, 'user_id is required'),
   org_id: z.string().min(1, 'org_id is required'),
 })
+
+type CallerRoleRow = { roles?: { name?: AppRole | null } | null }
 
 // POST /api/admin/memberships/simple
 // Body: { user_id, org_id, role }
@@ -61,13 +64,13 @@ export async function POST(request: NextRequest) {
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
-    const callerOrgRole = (callerRolesRows || [])
-      .map((r) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
-      .filter(Boolean)?.[0] as string | null
+    const callerOrgRole = ((callerRolesRows as CallerRoleRow[] | null) || [])
+      .map((r) => (typeof r?.roles?.name === 'string' ? (r.roles.name as AppRole) : null))
+      .filter((role): role is AppRole => role !== null)?.[0] ?? null
     const validation = validateMembershipChange({
       callerOrgRole,
       callerGlobalRoles: callerRoles,
-      requestedRoles: [role],
+      requestedRoles: [role as AppRole],
     })
     if (!validation.ok) {
       const message =
@@ -150,9 +153,9 @@ export async function DELETE(request: NextRequest) {
     if (membershipError) {
       return NextResponse.json({ error: membershipError.message }, { status: 500 })
     }
-    const callerOrgRole = (callerRolesRows || [])
-      .map((r) => (typeof r?.roles?.name === 'string' ? r.roles.name : null))
-      .filter(Boolean)?.[0] as string | null
+    const callerOrgRole = ((callerRolesRows as CallerRoleRow[] | null) || [])
+      .map((r) => (typeof r?.roles?.name === 'string' ? (r.roles.name as AppRole) : null))
+      .filter((role): role is AppRole => role !== null)?.[0] ?? null
     const validation = validateMembershipChange({
       callerOrgRole,
       callerGlobalRoles: callerRoles,

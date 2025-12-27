@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; serviceHistoryId: string }> }) {
   try {
@@ -20,19 +21,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id, serviceHistoryId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium appliance service history fetch failed`);
 
       return NextResponse.json(
@@ -44,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const serviceHistory = await response.json();
+    const serviceHistory = response.json ?? {};
 
     logger.info(`Buildium appliance service history fetched successfully`);
 
@@ -81,21 +73,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { sanitizeAndValidate } = await import('@/lib/sanitize')
     const validated = sanitizeAndValidate(body, BuildiumApplianceServiceHistoryCreateSchema)
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`
-
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validated),
-    })
+    const response = await buildiumFetch('PUT', `/rentals/appliances/${id}/servicehistory/${serviceHistoryId}`, undefined, validated, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error(`Buildium appliance service history update failed`)
       return NextResponse.json(
         { error: 'Failed to update appliance service history in Buildium', details: errorData },
@@ -103,7 +84,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const updated = await response.json()
+    const updated = response.json ?? {}
     logger.info(`Buildium appliance service history updated successfully`)
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

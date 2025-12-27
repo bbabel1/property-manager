@@ -12,6 +12,13 @@ type BuildiumBankAccount = {
   Balance?: number | null
   CheckPrintingInfo?: unknown
   ElectronicPayments?: unknown
+  AccountNumber?: string | null
+  RoutingNumber?: string | null
+  BankAccountType?: string | null
+  IsActive?: boolean | null
+  BranchNumber?: string | null
+  CreatedDate?: string | null
+  ModifiedDate?: string | null
 };
 
 export async function POST(request: NextRequest) {
@@ -43,7 +50,7 @@ export async function POST(request: NextRequest) {
         try {
           const now = new Date().toISOString()
           // Map Buildium -> local, including GL account resolution (creates GL if missing)
-          const mapped = await mapBankAccountFromBuildiumWithGLAccount(acct, db)
+          const mapped = await mapBankAccountFromBuildiumWithGLAccount(acct as any, db)
           const glId = (mapped as { gl_account?: string | null })?.gl_account
           if (!glId) throw new Error('Missing GL account mapping for bank account')
 

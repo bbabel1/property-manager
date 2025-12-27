@@ -4,8 +4,11 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumUnitNoteCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 import UnitService from '@/lib/unit-service';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+
+type BuildiumUnitNote = Parameters<typeof UnitService.persistNotes>[1][number];
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -30,25 +33,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const orderby = searchParams.get('orderby');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
+    const queryParams: Record<string, string> = {};
+    if (limit) queryParams.limit = limit;
+    if (offset) queryParams.offset = offset;
+    if (orderby) queryParams.orderby = orderby;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/notes?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/units/${id}/notes`, queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit notes fetch failed`);
 
       return NextResponse.json(
@@ -60,7 +54,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const notes = await response.json();
+    const rawNotes = (response.json ?? null) as any;
+    const notesPayload = Array.isArray(rawNotes?.data) ? rawNotes.data : rawNotes;
+    const notes: BuildiumUnitNote[] = Array.isArray(notesPayload) ? notesPayload : [];
     const persist = ['1','true','yes'].includes((searchParams.get('persist')||'').toLowerCase());
     if (persist) {
       let orgId: string | null = null;
@@ -112,24 +108,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
     
     // Validate request body against schema
-    const validatedData = sanitizeAndValidate(body, BuildiumUnitNoteCreateSchema);
+    const validatedData = sanitizeAndValidate(body, BuildiumUnitNoteCreateSchema) as any;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/units/${id}/notes`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('POST', `/rentals/units/${id}/notes`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium unit note creation failed`);
 
       return NextResponse.json(
@@ -141,7 +126,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const note = await response.json();
+    const rawNote = (response.json ?? null) as any;
+    const notePayload = rawNote && typeof rawNote === 'object' && 'data' in rawNote ? (rawNote as any).data : rawNote;
+    const note = (notePayload as BuildiumUnitNote | null | undefined) ?? null;
     let orgId: string | null = null;
     try {
       orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
@@ -149,7 +136,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.error({ error });
       return NextResponse.json({ error: 'Organization context required for persist' }, { status: 400 });
     }
-    try { await UnitService.persistNotes(Number(id), [note], orgId) } catch {}
+    if (note) {
+      try { await UnitService.persistNotes(Number(id), [note], orgId) } catch {}
+    }
 
     logger.info(`Buildium unit note created successfully`);
 

@@ -10,7 +10,8 @@ import {
   fetchBuildiumGlAccountMap,
   fetchLeaseContextById,
   fetchTransactionWithLines,
-  amountsRoughlyEqual
+  amountsRoughlyEqual,
+  castLeaseTransactionLinesForPersistence
 } from '@/lib/lease-transaction-helpers'
 import { supabaseAdmin } from '@/lib/db'
 
@@ -163,7 +164,8 @@ export async function POST(
     const glAccountMap = await fetchBuildiumGlAccountMap(
       parsed.data.allocations.map((line) => line.account_id)
     )
-    const lines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const buildiumLines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+    const lines = castLeaseTransactionLinesForPersistence(buildiumLines)
 
     const payload: BuildiumLeaseTransactionCreate = {
       TransactionType: 'Charge',

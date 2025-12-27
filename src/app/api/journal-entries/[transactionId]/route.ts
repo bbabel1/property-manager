@@ -16,7 +16,7 @@ import {
   resolveBuildiumAccountingEntityType,
   syncJournalEntryToBuildium,
 } from '../buildium-sync';
-import type { TablesInsert } from '@/types/database';
+import type { Database, TablesInsert } from '@/types/database';
 
 type RouteParams = {
   transactionId: string;
@@ -43,6 +43,9 @@ const createLogIssue = (
 const coerceNumber = (value: unknown): number =>
   typeof value === 'number' ? value : Number(value ?? 0);
 
+type AuthContext = Awaited<ReturnType<typeof requireAuth>>;
+type AdminClient = ReturnType<typeof requireSupabaseAdmin>;
+
 export async function DELETE(request: Request, { params }: { params: Promise<RouteParams> }) {
   const { transactionId } = await params;
   const searchParams = new URL(request.url).searchParams;
@@ -54,7 +57,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
     logIssue('missing propertyId search param');
     return NextResponse.json({ error: 'propertyId is required' }, { status: 400 });
   }
-  let auth;
+  let auth: AuthContext;
   try {
     auth = await requireAuth();
   } catch (error) {
@@ -66,7 +69,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
     return NextResponse.json({ error: 'Unable to verify authentication' }, { status: 500 });
   }
 
-  let admin;
+  let admin: AdminClient;
   try {
     admin = requireSupabaseAdmin('delete journal entry');
   } catch (error) {
@@ -319,7 +322,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   const propertyId = data.propertyId.trim();
   const logIssue = createLogIssue('patch', { transactionId, propertyId });
 
-  let auth;
+  let auth: AuthContext;
   try {
     auth = await requireAuth();
   } catch (error) {
@@ -331,7 +334,7 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
     return NextResponse.json({ error: 'Unable to verify authentication' }, { status: 500 });
   }
 
-  let admin;
+  let admin: AdminClient;
   try {
     admin = requireSupabaseAdmin('update journal entry');
   } catch (error) {
@@ -780,26 +783,29 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
   }));
 
   // Use SQL function for atomic replace with locking and validation
-  const { error: replaceError } = await admin.rpc('replace_transaction_lines', {
-    p_transaction_id: transactionId,
-    p_lines: lineRows.map((line) => ({
-      gl_account_id: line.gl_account_id,
-      amount: line.amount,
-      posting_type: line.posting_type,
-      memo: line.memo,
-      account_entity_type: line.account_entity_type,
-      account_entity_id: line.account_entity_id,
-      property_id: line.property_id,
-      unit_id: line.unit_id,
-      buildium_property_id: line.buildium_property_id,
-      buildium_unit_id: line.buildium_unit_id,
-      buildium_lease_id: null,
-      date: line.date,
-      created_at: line.created_at,
-      updated_at: line.updated_at,
-    })),
-    p_validate_balance: true,
-  });
+  const { error: replaceError } = await admin.rpc(
+    'replace_transaction_lines' as unknown as keyof Database['public']['Functions'],
+    {
+      p_transaction_id: transactionId,
+      p_lines: lineRows.map((line) => ({
+        gl_account_id: line.gl_account_id,
+        amount: line.amount,
+        posting_type: line.posting_type,
+        memo: line.memo,
+        account_entity_type: line.account_entity_type,
+        account_entity_id: line.account_entity_id,
+        property_id: line.property_id,
+        unit_id: line.unit_id,
+        buildium_property_id: line.buildium_property_id,
+        buildium_unit_id: line.buildium_unit_id,
+        buildium_lease_id: null,
+        date: line.date,
+        created_at: line.created_at,
+        updated_at: line.updated_at,
+      })),
+      p_validate_balance: true,
+    } as never,
+  );
 
   if (replaceError) {
     logIssue(

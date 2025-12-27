@@ -1,16 +1,16 @@
-// @ts-nocheck
 "use server"
 
-import { createBuildiumClient, defaultBuildiumConfig } from '@/lib/buildium-client'
+import { getOrgScopedBuildiumClient } from '@/lib/buildium-client'
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils'
 import { FILE_ENTITY_TYPES, type FileRow } from '@/lib/files'
 import { logger } from '@/lib/logger'
 import type { TypedSupabaseClient } from '@/lib/db'
 
 type LocalFileCategoryRecord = Record<string, unknown>
+type SupabaseLike = TypedSupabaseClient | { from: (table: string) => any }
 type BuildiumUploadTicket = {
   BucketUrl?: string
-  FormData?: Record<string, string>
+  FormData?: Record<string, string | number | boolean | null | undefined>
   Href?: string
   Id?: number | string
 }
@@ -21,7 +21,7 @@ type UploadRequestPayload = {
   Description?: string | null
   CategoryId?: number | null
   Category?: string | null
-  ContentType?: string | null
+  ContentType?: string
   IsPrivate?: boolean | null
   PropertyId?: number | null
   UnitId?: number | null
@@ -196,7 +196,7 @@ const findMatchingRecord = (
   return null
 }
 
-const loadLocalFileCategories = async (admin: TypedSupabaseClient): Promise<LocalFileCategoryRecord[]> => {
+const loadLocalFileCategories = async (admin: SupabaseLike): Promise<LocalFileCategoryRecord[]> => {
   const now = Date.now()
   if (cachedFileCategories && cachedFileCategories.expires > now) {
     return cachedFileCategories.data
@@ -204,7 +204,8 @@ const loadLocalFileCategories = async (admin: TypedSupabaseClient): Promise<Loca
 
   for (const tableName of FILE_CATEGORY_TABLE_CANDIDATES) {
     try {
-      const { data, error } = await admin.from(tableName).select('*')
+      const client = admin as { from: (table: string) => { select: (arg: string) => Promise<any> } }
+      const { data, error } = await client.from(tableName as string).select('*')
       if (error) {
         const code = (error as { code?: string }).code
         const message = (error as { message?: string }).message || ''
@@ -257,16 +258,17 @@ export async function uploadLeaseDocumentToBuildium(options: {
     buildiumCategoryId
   } = options
 
-  if (!process.env.BUILDIUM_CLIENT_ID || !process.env.BUILDIUM_CLIENT_SECRET) {
-    logger.warn('Buildium credentials missing; skipping lease file sync')
-    return null
-  }
-
   try {
+    const leaseIdFilter = typeof leaseId === 'number' ? leaseId : Number(leaseId)
+    if (!Number.isFinite(leaseIdFilter)) {
+      logger.warn({ leaseId, fileId }, 'Invalid lease id; skipping Buildium file sync')
+      return null
+    }
+
     const { data: leaseRow, error: leaseErr } = await admin
       .from('lease')
-      .select('buildium_lease_id, buildium_unit_id, buildium_property_id')
-      .eq('id', leaseId)
+      .select('buildium_lease_id, buildium_unit_id, buildium_property_id, org_id')
+      .eq('id', leaseIdFilter)
       .maybeSingle()
 
     if (leaseErr) throw leaseErr
@@ -285,7 +287,20 @@ export async function uploadLeaseDocumentToBuildium(options: {
     const buildiumPropertyId =
       typeof buildiumPropertyIdRaw === 'number' ? buildiumPropertyIdRaw : Number(buildiumPropertyIdRaw)
 
-    const buildiumClient = createBuildiumClient(defaultBuildiumConfig)
+    // Resolve orgId from lease
+    let orgId = leaseRow?.org_id ?? undefined
+    if (!orgId && buildiumPropertyId) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('buildium_property_id', buildiumPropertyId)
+        .maybeSingle()
+      if (property?.org_id) {
+        orgId = property.org_id
+      }
+    }
+
+    const buildiumClient = await getOrgScopedBuildiumClient(orgId)
 
     const extractDocumentId = (entry: Record<string, unknown> | null | undefined): number | null => {
       if (!entry) return null
@@ -344,7 +359,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
     }
 
     if (mimeType) {
-      genericUploadPayload.ContentType = mimeType
+      genericUploadPayload.ContentType = mimeType || 'application/octet-stream'
     }
 
     const normalizedCategory = typeof category === 'string' ? category.trim().toLowerCase() : ''
@@ -462,11 +477,11 @@ export async function uploadLeaseDocumentToBuildium(options: {
 
     if (shouldUseGenericUpload) {
       try {
-        ticket = await buildiumClient.createFileUploadRequest(
+        ticket = (await buildiumClient.createFileUploadRequest(
           'Lease',
           buildiumLeaseId,
           genericUploadPayload,
-        )
+        )) as unknown as BuildiumUploadTicket
       } catch (primaryError) {
         logger.warn(
           {
@@ -488,7 +503,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
       const leaseScopedPayload: UploadRequestPayload = {
         FileName: fileName,
         FileTitle: uploadTitle,
-        ContentType: mimeType || 'application/octet-stream',
+        ContentType: mimeType ?? 'application/octet-stream',
         Description: descriptionValue ?? '',
         Category: resolvedCategoryLabel,
         IsPrivate: true
@@ -501,10 +516,11 @@ export async function uploadLeaseDocumentToBuildium(options: {
         leaseScopedPayload.UnitId = buildiumUnitId
       }
 
-      ticket = await buildiumClient.createLeaseDocumentUploadRequest(
+      ticket = (await buildiumClient.createLeaseDocumentUploadRequest(
         buildiumLeaseId,
-        leaseScopedPayload,
-      )
+        leaseScopedPayload as Required<Pick<UploadRequestPayload, 'FileName' | 'ContentType'>> &
+          UploadRequestPayload,
+      )) as unknown as BuildiumUploadTicket
     }
 
     if (!ticket) {
@@ -512,7 +528,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
     }
 
     const bucketUrl: string | undefined = ticket?.BucketUrl
-    const ticketForm: Record<string, string> | undefined = ticket?.FormData
+    const ticketForm = ticket?.FormData as Record<string, string | number | boolean | null | undefined> | undefined
     if (!bucketUrl || !ticketForm) {
       throw new Error('Buildium upload ticket for lease missing bucket information')
     }
@@ -526,7 +542,7 @@ export async function uploadLeaseDocumentToBuildium(options: {
     const binary = Buffer.from(base64, 'base64')
     const formData = new FormData()
     for (const [key, value] of Object.entries(ticketForm)) {
-      if (value != null) formData.append(key, value)
+      if (value != null) formData.append(key, String(value))
     }
     formData.append('file', new Blob([binary], { type: mimeType || 'application/octet-stream' }), fileName)
 
@@ -598,7 +614,9 @@ export async function uploadLeaseDocumentToBuildium(options: {
       Href: ticketHref ?? undefined
     }
 
-    return { buildiumFile: buildiumFilePayload, updatedFile }
+    const normalizedUpdated = (updatedFile as FileRow | null) ?? undefined
+
+    return { buildiumFile: buildiumFilePayload, updatedFile: normalizedUpdated }
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Unknown error'
     const normalized = /404/i.test(rawMessage)

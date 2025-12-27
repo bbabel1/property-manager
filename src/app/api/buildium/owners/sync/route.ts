@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
 import { upsertOwnerFromBuildium } from '@/lib/buildium-mappers'
 import type { BuildiumOwner } from '@/types/buildium'
@@ -32,15 +33,9 @@ export async function POST(request: NextRequest) {
       // Fetch each owner by id from Buildium
       const unique = [...new Set(ids.filter(n => Number.isFinite(n) && n > 0))]
       for (const id of unique) {
-        const res = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals/owners/${id}` , {
-          headers: {
-            'Accept': 'application/json',
-            'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-            'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-          }
-        })
+        const res = await buildiumFetch('GET', `/rentals/owners/${id}`, undefined, undefined, undefined)
         if (res.ok) {
-          const data = (await res.json()) as BuildiumOwner
+          const data = (res.json ?? {}) as BuildiumOwner
           owners.push(data)
         } else {
           logger.warn({ id, status: res.status }, 'Failed to fetch owner by id from Buildium')
@@ -48,24 +43,18 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // List owners from Buildium with optional lastupdated window
-      const qs = new URLSearchParams()
-      qs.set('limit', String(limit))
-      qs.set('offset', String(offset))
-      if (lastupdatedfrom) qs.set('lastupdatedfrom', lastupdatedfrom)
-      if (lastupdatedto) qs.set('lastupdatedto', lastupdatedto)
+      const queryParams: Record<string, string> = {}
+      queryParams.limit = String(limit)
+      queryParams.offset = String(offset)
+      if (lastupdatedfrom) queryParams.lastupdatedfrom = lastupdatedfrom
+      if (lastupdatedto) queryParams.lastupdatedto = lastupdatedto
 
-      const res = await fetch(`${process.env.BUILDIUM_BASE_URL}/rentals/owners?${qs.toString()}` , {
-        headers: {
-          'Accept': 'application/json',
-          'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-          'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-        }
-      })
+      const res = await buildiumFetch('GET', '/rentals/owners', queryParams, undefined, undefined)
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
+        const txt = typeof res.json === 'string' ? res.json : JSON.stringify(res.json ?? {})
         return NextResponse.json({ error: 'Failed to list Buildium owners', details: txt }, { status: res.status })
       }
-      const list = (await res.json()) as unknown
+      const list = (res.json ?? []) as unknown
       owners = Array.isArray(list) ? (list as BuildiumOwner[]) : []
     }
 

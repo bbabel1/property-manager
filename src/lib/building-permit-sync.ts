@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { supabaseAdmin } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { NYCOpenDataClient } from '@/lib/nyc-api-client'
@@ -39,10 +38,12 @@ type PropertyLookup = Pick<
   'id' | 'building_id' | 'bin' | 'bbl' | 'block' | 'lot' | 'borough_code'
 >
 type BuildingLookup = Pick<Tables<'buildings'>, 'id' | 'tax_block' | 'tax_lot' | 'borough_code' | 'bbl' | 'bin'>
-type BuildingPermitPayload = Omit<TablesInsert<'building_permits'>, 'metadata'> & {
+type BuildingPermitPayload = Omit<TablesInsert<'building_permits'>, 'metadata' | 'org_id'> & {
+  org_id: string
   metadata: Record<string, Json>
+  device_identifier?: string | null
 }
-type OpenDataRow = Record<string, Json>
+type OpenDataRow = Record<string, unknown>
 
 const DEFAULT_SOURCES: PermitSource[] = [
   'dob_now_build_approved_permits',
@@ -57,11 +58,12 @@ const DEFAULT_SOURCES: PermitSource[] = [
 
 const PAGE_SIZE = 5000
 
-function extractDeviceIdentifier(text?: string | null): string | null {
-  if (!text) return null
-  const deviceMatch = String(text).match(/(device\s*#?\s*|id\s*#?\s*)([A-Za-z0-9-]+)/i)
+function extractDeviceIdentifier(text?: unknown): string | null {
+  const normalized = normalizeText(text)
+  if (!normalized) return null
+  const deviceMatch = normalized.match(/(device\s*#?\s*|id\s*#?\s*)([A-Za-z0-9-]+)/i)
   if (deviceMatch?.[2]) return deviceMatch[2].trim()
-  const boilerMatch = String(text).match(/boiler\s*#?\s*([A-Za-z0-9-]+)/i)
+  const boilerMatch = normalized.match(/boiler\s*#?\s*([A-Za-z0-9-]+)/i)
   if (boilerMatch?.[1]) return boilerMatch[1].trim()
   return null
 }
@@ -224,13 +226,13 @@ async function resolveLocation(orgId: string, propertyId?: string | null, bin?: 
 async function upsertBuildingPermit(row: BuildingPermitPayload, stats: SyncResult) {
   const workPermit = row.work_permit ?? ''
   const sequenceNumber = row.sequence_number ?? ''
-  const jobFilingNumber = row.job_filing_number
+  const jobFilingNumber = row.job_filing_number ?? ''
 
   const { data: existing } = await supabaseAdmin
     .from('building_permits')
     .select('id')
-    .eq('org_id', row.org_id)
-    .eq('source', row.source)
+    .eq('org_id', row.org_id ?? '')
+    .eq('source', row.source || '')
     .eq('job_filing_number', jobFilingNumber)
     .eq('work_permit', workPermit)
     .eq('sequence_number', sequenceNumber)
@@ -276,7 +278,6 @@ function mapDobNowApprovedPermit(row: OpenDataRow, datasetId: string, ctx: Locat
     job_number: jobFilingNumber,
     work_permit: permitNumber,
     sequence_number: sequenceNumber,
-    device_identifier: deviceId || null,
     filing_reason: normalizeText(row.filing_reason),
     work_type: normalizeText(row.work_type),
     permit_status: normalizeText(row.permit_status),
@@ -314,7 +315,8 @@ function mapDobNowApprovedPermit(row: OpenDataRow, datasetId: string, ctx: Locat
     bbl,
     census_tract: normalizeNumber(row.census_tract),
     nta: normalizeText(row.nta),
-    metadata: row,
+    device_identifier: deviceId || null,
+    metadata: row as Record<string, Json>,
   }
 }
 
@@ -353,7 +355,6 @@ function mapDobPermitIssuanceOld(row: OpenDataRow, datasetId: string, ctx: Locat
     sequence_number: seq,
     permit_sequence_number: seq || '',
     job_doc_number: jobDoc,
-    device_identifier: deviceId || null,
     job_type: normalizeText(row.job_type),
     filing_status: normalizeText(row.filing_status),
     permit_type: normalizeText(row.permit_type),
@@ -385,7 +386,9 @@ function mapDobPermitIssuanceOld(row: OpenDataRow, datasetId: string, ctx: Locat
     owner_business_name: normalizeText(row.owner_s_business_name),
     owner_first_name: normalizeText(row.owner_s_first_name),
     owner_last_name: normalizeText(row.owner_s_last_name),
-    owner_name: combineName(row.owner_s_first_name, row.owner_s_last_name) || normalizeText(row.owner_s_business_name),
+    owner_name:
+      combineName(normalizeText(row.owner_s_first_name), normalizeText(row.owner_s_last_name)) ||
+      normalizeText(row.owner_s_business_name),
     owner_street_address: ownerHouseStreet ? `${ownerHouseNo || ''} ${ownerHouseStreet}`.trim() : null,
     owner_house_number: ownerHouseNo,
     owner_house_street_name: ownerHouseStreet,
@@ -411,13 +414,14 @@ function mapDobPermitIssuanceOld(row: OpenDataRow, datasetId: string, ctx: Locat
     permittee_other_title: normalizeText(row.permittee_s_other_title),
     act_as_superintendent: normalizeText(row.act_as_superintendent),
     hic_license: normalizeText(row.hic_license),
-    site_safety_mgr_first_name: normalizeText(row.site_safety_mgr_s_first_name),
-    site_safety_mgr_last_name: normalizeText(row.site_safety_mgr_s_last_name),
-    site_safety_mgr_business_name: normalizeText(row.site_safety_mgr_business_name),
-    superintendent_name: normalizeText(row.superintendent_first___last_na || row.superintendent_name),
-    superintendent_business_name: normalizeText(row.superintendent_business_name),
-    metadata: row,
-  }
+  site_safety_mgr_first_name: normalizeText(row.site_safety_mgr_s_first_name),
+  site_safety_mgr_last_name: normalizeText(row.site_safety_mgr_s_last_name),
+  site_safety_mgr_business_name: normalizeText(row.site_safety_mgr_business_name),
+  superintendent_name: normalizeText(row.superintendent_first___last_na || row.superintendent_name),
+  superintendent_business_name: normalizeText(row.superintendent_business_name),
+  device_identifier: deviceId || null,
+  metadata: row as Record<string, Json>,
+}
 }
 
 function mapDobJobApplication(row: OpenDataRow, datasetId: string, ctx: LocationContext): BuildingPermitPayload | null {
@@ -450,7 +454,6 @@ function mapDobJobApplication(row: OpenDataRow, datasetId: string, ctx: Location
     work_permit: '',
     sequence_number: docNumber,
     job_doc_number: docNumber,
-    device_identifier: deviceId || null,
     job_type: normalizeText(row.job_type),
     filing_status: normalizeText(row.job_status || row.filing_status),
     work_type: normalizeText(row.work_type),
@@ -466,17 +469,17 @@ function mapDobJobApplication(row: OpenDataRow, datasetId: string, ctx: Location
     approved_date: normalizeDate(row.latest_action_date || row.approved_date),
     job_description: normalizeText(row.job_description || row.proposed_work),
     applicant_license: normalizeText(row.applicant_license),
-    applicant_name: combineName(row.applicant_s_first_name, row.applicant_s_last_name),
     owner_name: normalizeText(row.owner_s_name || row.owner_name),
     owner_business_name: normalizeText(row.owner_business_name),
     latitude: normalizeNumber(row.latitude),
-    longitude: normalizeNumber(row.longitude),
-    community_board: normalizeNumber(row.community_board),
-    council_district: normalizeNumber(row.council_district),
-    census_tract: normalizeNumber(row.census_tract),
-    nta: normalizeText(row.nta),
-    metadata: row,
-  }
+  longitude: normalizeNumber(row.longitude),
+  community_board: normalizeNumber(row.community_board),
+  council_district: normalizeNumber(row.council_district),
+  census_tract: normalizeNumber(row.census_tract),
+  nta: normalizeText(row.nta),
+  device_identifier: deviceId || null,
+  metadata: row as Record<string, Json>,
+}
 }
 
 function mapDepWaterSewerPermit(row: OpenDataRow, datasetId: string, ctx: LocationContext): BuildingPermitPayload | null {
@@ -511,13 +514,13 @@ function mapDepWaterSewerPermit(row: OpenDataRow, datasetId: string, ctx: Locati
     borough,
     block,
     lot,
-    bin,
-    zip_code: normalizeText(row.propertyzip),
-    bbl,
-    approved_date: normalizeDate(row.issuancedate),
-    issued_date: normalizeDate(row.issuancedate),
-    metadata: row,
-  }
+  bin,
+  zip_code: normalizeText(row.propertyzip),
+  bbl,
+  approved_date: normalizeDate(row.issuancedate),
+  issued_date: normalizeDate(row.issuancedate),
+  metadata: row as Record<string, Json>,
+}
 }
 
 function mapDobElevatorPermitApplication(row: OpenDataRow, datasetId: string, ctx: LocationContext): BuildingPermitPayload | null {
@@ -545,7 +548,6 @@ function mapDobElevatorPermitApplication(row: OpenDataRow, datasetId: string, ct
     job_number: normalizeText(row.job_number) || jobFilingNumber,
     work_permit: filingNumber,
     sequence_number: '',
-    device_identifier: normalizeText(row.elevatordevicetype) || null,
     filing_status: normalizeText(row.filing_status),
     work_type: normalizeText(row.filing_type || row.elevatordevicetype),
     house_no: normalizeText(row.house_number),
@@ -560,23 +562,23 @@ function mapDobElevatorPermitApplication(row: OpenDataRow, datasetId: string, ct
     approved_date: normalizeDate(row.permit_entire_date || row.plan_examiner_assigned_date || row.filing_date),
     issued_date: normalizeDate(row.signedoff_date),
     job_description: normalizeText(row.descriptionofwork),
-    applicant_name: combineName(row.applicant_firstname, row.applicant_lastname),
-    applicant_business_name: normalizeText(row.applicant_businessname),
     applicant_license: normalizeText(row.applicant_license_number),
-    owner_name: combineName(row.owner_firstname, row.owner_lastname) || normalizeText(row.owner_businessname),
+    owner_name:
+      combineName(normalizeText(row.owner_firstname), normalizeText(row.owner_lastname)) ||
+      normalizeText(row.owner_businessname),
     owner_business_name: normalizeText(row.owner_businessname),
     owner_state: normalizeText(row.owner_state),
     owner_city: normalizeText(row.owner_city),
     owner_zip_code: normalizeText(row.owner_zip),
     tracking_number: normalizeText(row.electrical_permit_number),
-    latitude: normalizeNumber(row.latitude),
-    longitude: normalizeNumber(row.longitude),
-    community_board: normalizeNumber(row.community_district_number),
-    council_district: normalizeNumber(row.city_council_district),
-    census_tract: normalizeNumber(row.census_tract),
-    nta: normalizeText(row.nta_name),
-    metadata: row,
-  }
+  latitude: normalizeNumber(row.latitude),
+  longitude: normalizeNumber(row.longitude),
+  community_board: normalizeNumber(row.community_district_number),
+  council_district: normalizeNumber(row.city_council_district),
+  census_tract: normalizeNumber(row.census_tract),
+  nta: normalizeText(row.nta_name),
+  metadata: row as Record<string, Json>,
+}
 }
 
 function mapHpdRegistration(row: OpenDataRow, datasetId: string, ctx: LocationContext): BuildingPermitPayload | null {
@@ -608,13 +610,13 @@ function mapHpdRegistration(row: OpenDataRow, datasetId: string, ctx: LocationCo
     block,
     lot,
     bin,
-    zip_code: normalizeText(row.zip),
-    bbl,
-    approved_date: normalizeDate(row.lastregistrationdate),
-    issued_date: normalizeDate(row.registrationenddate),
-    job_description: 'Annual HPD registration',
-    metadata: row,
-  }
+  zip_code: normalizeText(row.zip),
+  bbl,
+  approved_date: normalizeDate(row.lastregistrationdate),
+  issued_date: normalizeDate(row.registrationenddate),
+  job_description: 'Annual HPD registration',
+  metadata: row as Record<string, Json>,
+}
 }
 
 function mapDobNowSafetyFacadePermit(row: OpenDataRow, datasetId: string, ctx: LocationContext): BuildingPermitPayload | null {
@@ -652,12 +654,12 @@ function mapDobNowSafetyFacadePermit(row: OpenDataRow, datasetId: string, ctx: L
     bin,
     zip_code: normalizeText(row.zip),
     bbl,
-    filing_date: normalizeDate(row.submitted_on || row.filing_date),
-    approved_date: normalizeDate(row.submitted_on || row.filing_date),
-    issued_date: null,
-    job_description: normalizeText(row.comments),
-    metadata: row,
-  }
+  filing_date: normalizeDate(row.submitted_on || row.filing_date),
+  approved_date: normalizeDate(row.submitted_on || row.filing_date),
+  issued_date: null,
+  job_description: normalizeText(row.comments),
+  metadata: row as Record<string, Json>,
+}
 }
 
 export async function syncBuildingPermitsFromOpenData(options: {

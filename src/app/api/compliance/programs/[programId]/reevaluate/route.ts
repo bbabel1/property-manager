@@ -183,8 +183,8 @@ export async function POST(
 
     const propertyMap = new Map(
       propertyRows.map((p) => {
-        const building = p.building_id ? buildingMap.get(p.building_id) : null;
-        const dwellingUnits = dwellingUnitsFromBuilding(building) ?? parseUnits(p.total_units) ?? null;
+        const building = (p.building_id ? buildingMap.get(p.building_id) : null) as any;
+        const dwellingUnits = dwellingUnitsFromBuilding(building as any) ?? parseUnits(p.total_units) ?? null;
         return [
           p.id,
           {
@@ -208,8 +208,8 @@ export async function POST(
       const property = propertyMap.get(item.property_id) || null;
       const asset = item.asset_id ? assetMap.get(item.asset_id) || null : null;
       const matches = item.asset_id
-        ? programTargetsAsset(program as ComplianceProgram, asset, property)
-        : programTargetsProperty(program as ComplianceProgram, property);
+        ? programTargetsAsset(program as any, asset as any, property as any)
+        : programTargetsProperty(program as any, property as any);
 
       if (!matches) {
         nonMatching++;

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     if (!data) return NextResponse.json({ status: 'not_found' }, { status: 404 })
     return NextResponse.json({ status: 'found', status_code: data.status_code ?? 201, response: data.response, created_at: data.created_at })
-  } catch (_error) {
+  } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

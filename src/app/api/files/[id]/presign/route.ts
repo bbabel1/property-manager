@@ -3,14 +3,15 @@ import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await getSupabaseServerClient()
-  const fileId = (await params).id
+  const supabase = (await getSupabaseServerClient()) as any
+  const { id } = await params
+  const fileId = id
   if (!fileId) return NextResponse.json({ error: 'Missing file id' }, { status: 400 })
 
   // Access check via RLS using regular client
   const { data: file, error: fileErr } = await supabase
     .from('files')
-    .select('id, storage_provider, bucket, storage_key, sha256, buildium_file_id')
+    .select('id, storage_provider, bucket, storage_key, sha256, buildium_file_id, org_id')
     .eq('id', fileId)
     .maybeSingle()
   if (fileErr) return NextResponse.json({ error: 'File lookup failed', details: fileErr.message }, { status: 500 })
@@ -32,16 +33,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (file.storage_provider === 'buildium') {
     const id = file.buildium_file_id
     if (!id) return NextResponse.json({ error: 'Missing Buildium file id' }, { status: 400 })
-    const base = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1'
-    const headers = {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-      'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || ''
-    }
-    const res = await fetch(`${base}/files/${id}/download`, { method: 'POST', headers })
+    const res = await buildiumFetch('POST', `/files/${id}/download`, undefined, undefined, file.org_id ?? undefined)
     if (!res.ok) return NextResponse.json({ error: 'Buildium download URL failed', status: res.status }, { status: 502 })
-    const json = await res.json()
+    const json = (res.json ?? {}) as { DownloadUrl?: string; ExpirationDateTime?: string | null }
     return NextResponse.json({ getUrl: json?.DownloadUrl, expiresAt: json?.ExpirationDateTime || null })
   }
 

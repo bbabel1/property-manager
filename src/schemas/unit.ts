@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 // Enums for unit properties (matching database enum names)
-const BedroomEnum = z.enum(['Studio', '1', '2', '3', '4', '5', '6', '7', '8', '9+']);
-const BathroomEnum = z.enum(['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5+']);
-const UnitStatusEnum = z.enum(['Available', 'Occupied', 'Maintenance', 'Reserved']);
+const BedroomEnum = z.enum(['Studio', '1', '2', '3', '4', '5+', '6', '7', '8', '9+']);
+const BathroomEnum = z.enum(['1', '1.5', '2', '2.5', '3', '3.5', '4+', '4.5', '5', '5+']);
+const UnitStatusEnum = z.enum(['Occupied', 'Vacant', 'Inactive']);
 
 export const UnitCreateSchema = z.object({
   // Basic unit information
@@ -35,7 +35,7 @@ export const UnitCreateSchema = z.object({
   serviceEnd: z.string().optional(),
   
   // Status
-  status: UnitStatusEnum.optional().default('Available')
+  status: UnitStatusEnum.optional().default('Vacant')
 });
 
 export const UnitUpdateSchema = UnitCreateSchema.partial();

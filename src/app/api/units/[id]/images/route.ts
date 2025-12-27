@@ -143,8 +143,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validated = sanitizeAndValidate(body, BuildiumUnitImageUploadSchema)
 
     const rawBase64 = String(validated.FileData || '')
-    const prepared = await UnitService.prepareImage(validated.FileName, rawBase64, validated.FileType)
-    const fileSizeBytes = prepared.buffer.length
+    const prepared = await UnitService.prepareImage(
+      validated.FileName,
+      rawBase64,
+      validated.FileType,
+    )
+    const _fileSizeBytes = prepared.buffer.length
 
     const { data: existingSort } = await db
       .from('unit_images')

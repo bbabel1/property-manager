@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { CalendarEvent, EVENT_COLORS } from '@/types/calendar';
+import { CalendarEvent } from '@/types/calendar';
 import {
   X,
   Pencil,
@@ -111,7 +111,6 @@ export function EventDetailDrawer({
   onDelete,
 }: EventDetailDrawerProps) {
   const [copied, setCopied] = useState(false);
-  const [geminiNotes, setGeminiNotes] = useState(false);
   const [rsvp, setRsvp] = useState<'yes' | 'no' | 'maybe' | null>(null);
 
   if (!event) return null;
@@ -120,14 +119,6 @@ export function EventDetailDrawer({
   const yesCount = guests.filter((g) => g.rsvp === 'yes').length;
   const awaitingCount = guests.filter((g) => g.rsvp === 'awaiting').length;
   const organizer = guests.find((g) => g.role === 'Organizer');
-
-  const formatDateTime = (dateStr: string, allDay: boolean) => {
-    const date = parseISO(dateStr);
-    if (allDay) {
-      return format(date, 'EEEE, MMMM d, yyyy');
-    }
-    return format(date, 'EEEE, MMMM d • h:mm a');
-  };
 
   const formatTimeRange = () => {
     const start = parseISO(event.start);

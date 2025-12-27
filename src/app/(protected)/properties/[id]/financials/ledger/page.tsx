@@ -15,9 +15,9 @@ type LedgerRow = {
 export default async function LedgerPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams?: Promise<LedgerSearchParams> }) {
   const { id: slug } = await params
   const { internalId: propertyId, publicId: propertyPublicId } = await resolvePropertyIdentifier(slug)
-  const sp = (await (searchParams || Promise.resolve({}))) || {}
-  const gl = typeof sp.gl === 'string' ? sp.gl : undefined
-  const asOf = typeof sp.as_of === 'string' ? sp.as_of : undefined
+  const spRaw = searchParams ? await searchParams : ({} as LedgerSearchParams)
+  const gl = typeof spRaw.gl === 'string' ? spRaw.gl : undefined
+  const asOf = typeof spRaw.as_of === 'string' ? spRaw.as_of : undefined
   const supabase = await getSupabaseServerClient()
 
   let rows: LedgerRow[] = []
@@ -27,12 +27,13 @@ export default async function LedgerPage({ params, searchParams }: { params: Pro
       .select('id, date, memo, posting_type, amount')
       .eq('property_id', propertyId)
       .eq('gl_account_id', gl)
+      .eq('account_entity_type', 'Rental')
       .lte('date', asOf)
       .order('date', { ascending: true })
     rows = (data as LedgerRow[] | null) || []
   }
 
-  const fmt = (n: number) => `$${Number(n || 0).toLocaleString()}`
+  const fmt = (n: number | null | undefined) => `$${Number(n || 0).toLocaleString()}`
 
   return (
     <div className="space-y-6">

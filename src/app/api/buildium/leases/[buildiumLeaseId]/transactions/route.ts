@@ -6,6 +6,7 @@ import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumLeaseTransactionCreateSchema } from '@/schemas/buildium'
 import { upsertLeaseTransactionWithLines } from '@/lib/buildium-mappers'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(
   request: NextRequest,
@@ -37,28 +38,19 @@ export async function GET(
     const dateTo = searchParams.get('dateTo');
 
     // Build query parameters for Buildium API
-    const queryParams = new URLSearchParams();
-    if (limit) queryParams.append('limit', limit);
-    if (offset) queryParams.append('offset', offset);
-    if (orderby) queryParams.append('orderby', orderby);
-    if (transactionType) queryParams.append('transactionType', transactionType);
-    if (dateFrom) queryParams.append('dateFrom', dateFrom);
-    if (dateTo) queryParams.append('dateTo', dateTo);
+    const queryParams: Record<string, string> = {};
+    if (limit) queryParams.limit = limit;
+    if (offset) queryParams.offset = offset;
+    if (orderby) queryParams.orderby = orderby;
+    if (transactionType) queryParams.transactionType = transactionType;
+    if (dateFrom) queryParams.dateFrom = dateFrom;
+    if (dateTo) queryParams.dateTo = dateTo;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/transactions?${queryParams.toString()}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/transactions`, queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease transactions fetch failed`);
 
       return NextResponse.json(
@@ -70,7 +62,7 @@ export async function GET(
       );
     }
 
-    const transactions = await response.json();
+    const transactions = (response.json ?? []) as unknown[];
 
     logger.info(`Buildium lease transactions fetched successfully`);
 
@@ -107,24 +99,15 @@ export async function POST(
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumLeaseTransactionCreateSchema)
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/transactions`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validated)
-    })
+    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/transactions`, undefined, validated, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium lease transaction create failed')
       return NextResponse.json({ error: 'Failed to create lease transaction in Buildium', details: errorData }, { status: response.status })
     }
 
-    const created = await response.json()
+    const created = response.json ?? {}
 
     // Persist to DB with lines
     try {

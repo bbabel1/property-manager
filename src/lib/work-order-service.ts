@@ -1,4 +1,4 @@
-import { createBuildiumClient, defaultBuildiumConfig } from './buildium-client'
+import { getOrgScopedBuildiumClient } from './buildium-client'
 import { supabase } from './db'
 import { logger } from './logger'
 import type { Database } from '@/types/database'
@@ -10,12 +10,8 @@ export type WorkOrderRow = Database['public']['Tables']['work_orders']['Row']
 export type WorkOrderInsert = Database['public']['Tables']['work_orders']['Insert']
 export type WorkOrderUpdate = Database['public']['Tables']['work_orders']['Update']
 
-function ensureClient() {
-  return createBuildiumClient({
-    ...defaultBuildiumConfig,
-    clientId: process.env.BUILDIUM_CLIENT_ID || '',
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || ''
-  })
+async function ensureClient(orgId?: string) {
+  return getOrgScopedBuildiumClient(orgId)
 }
 
 export class WorkOrderService {
@@ -28,8 +24,9 @@ export class WorkOrderService {
     limit?: number
     offset?: number
     persist?: boolean
+    orgId?: string
   }): Promise<BuildiumWorkOrder[]> {
-    const client = ensureClient()
+    const client = await ensureClient(params?.orgId)
     const items = await client.getWorkOrders(params)
 
     if (params?.persist) {
@@ -57,8 +54,8 @@ export class WorkOrderService {
   }
 
   // Get one Work Order from Buildium (optionally persist to DB)
-  static async getFromBuildium(id: number, persist = false): Promise<BuildiumWorkOrder | null> {
-    const client = ensureClient()
+  static async getFromBuildium(id: number, persist = false, orgId?: string): Promise<BuildiumWorkOrder | null> {
+    const client = await ensureClient(orgId)
     const wo = await client.getWorkOrder(id).catch(() => null)
     if (!wo) return null
 
@@ -85,8 +82,8 @@ export class WorkOrderService {
   }
 
   // Create in Buildium, then map and insert in DB
-  static async createInBuildiumAndDB(payload: BuildiumWorkOrderCreate): Promise<{ buildium: BuildiumWorkOrder; localId?: string }> {
-    const client = ensureClient()
+  static async createInBuildiumAndDB(payload: BuildiumWorkOrderCreate, orgId?: string): Promise<{ buildium: BuildiumWorkOrder; localId?: string }> {
+    const client = await ensureClient(orgId)
     const created = await client.createWorkOrder(payload)
     const local = await mapWorkOrderFromBuildiumWithRelations(created, supabase)
     const { data, error } = await supabase.from('work_orders').insert(local).select('id').single()
@@ -95,8 +92,8 @@ export class WorkOrderService {
   }
 
   // Update in Buildium and update local DB row by buildium id
-  static async updateInBuildiumAndDB(id: number, payload: BuildiumWorkOrderUpdate): Promise<{ buildium: BuildiumWorkOrder; localId?: string | null }> {
-    const client = ensureClient()
+  static async updateInBuildiumAndDB(id: number, payload: BuildiumWorkOrderUpdate, orgId?: string): Promise<{ buildium: BuildiumWorkOrder; localId?: string | null }> {
+    const client = await ensureClient(orgId)
     const updated = await client.updateWorkOrder(id, payload)
     const local = await mapWorkOrderFromBuildiumWithRelations(updated, supabase)
 

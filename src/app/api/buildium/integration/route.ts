@@ -10,10 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import {
-  _getOrgScopedBuildiumConfig,
   storeBuildiumCredentials,
   deleteBuildiumCredentials,
-  _maskSecret,
   validateBuildiumBaseUrl,
   type BuildiumCredentials,
 } from '@/lib/buildium/credentials-manager';

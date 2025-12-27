@@ -105,8 +105,64 @@ export function mapBuildiumEntityTypeToFile(
   return BUILDIUM_TO_FILE_ENTITY_TYPE[entityType] ?? FILE_ENTITY_TYPES.PROPERTIES;
 }
 
+const FILE_UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function resolveFileEntityFromRow<
+  T extends {
+    entity_type: string | null;
+    entity_id: number | string | null;
+    storage_key?: string | null;
+  },
+>(file: T): { entityType: EntityTypeEnum | null; entityId: number | string | null } {
+  let entityType: EntityTypeEnum | null = null;
+  let entityId: number | string | null = null;
+
+  if (file.entity_type) {
+    const normalized = normalizeEntityType(file.entity_type);
+    if (normalized) {
+      entityType = normalized;
+      entityId = file.entity_id ?? null;
+    }
+  }
+
+  if (!entityType && file.storage_key) {
+    const storageKeyParts = file.storage_key.split('/');
+    if (storageKeyParts.length >= 2) {
+      const localEntityType = storageKeyParts[0];
+      const localEntityId = storageKeyParts[1];
+
+      const storageKeyToEntityType: Record<string, EntityTypeEnum> = {
+        property: FILE_ENTITY_TYPES.PROPERTIES,
+        unit: FILE_ENTITY_TYPES.UNITS,
+        lease: FILE_ENTITY_TYPES.LEASES,
+        tenant: FILE_ENTITY_TYPES.TENANTS,
+        owner: FILE_ENTITY_TYPES.RENTAL_OWNERS,
+        vendor: FILE_ENTITY_TYPES.VENDORS,
+      };
+
+      entityType = storageKeyToEntityType[localEntityType] ?? null;
+
+      if (
+        localEntityId &&
+        (FILE_UUID_REGEX.test(localEntityId) ||
+          Number.isFinite(Number(localEntityId)))
+      ) {
+        if (localEntityType === 'unit' || localEntityType === 'property') {
+          entityId = localEntityId;
+        } else {
+          entityId = Number.isFinite(Number(localEntityId))
+            ? Number(localEntityId)
+            : localEntityId;
+        }
+      }
+    }
+  }
+
+  return { entityType, entityId };
+}
+
 type FileInsert = FilesTable['Insert'];
-type FileUpdate = FilesTable['Update'];
 type FileRowBase = FilesTable['Row'];
 
 export type FileRow = FileRowBase & {

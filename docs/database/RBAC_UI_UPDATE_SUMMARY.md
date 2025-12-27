@@ -1,6 +1,6 @@
 # RBAC UI Update Summary
 
-**Date**: 2025-01-31  
+**Date**: 2025-01-31
 **Changes**: Dynamic role fetching in memberships page
 
 ---

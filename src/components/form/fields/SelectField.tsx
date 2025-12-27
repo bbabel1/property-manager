@@ -11,7 +11,7 @@ export default function SelectField({ name, label, options, placeholder, disable
   placeholder?: string
   disabled?: boolean
 }) {
-  const { register, formState, setValue } = useFormContext()
+  const { register, formState } = useFormContext()
   const fieldError = formState.errors?.[name as keyof typeof formState.errors]
   const err =
     fieldError && typeof fieldError === 'object' && 'message' in fieldError

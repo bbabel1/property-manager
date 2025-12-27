@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumDepositCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
 
 type DepositResponse = Record<string, unknown>
@@ -23,20 +24,13 @@ export async function GET(_request: NextRequest) {
     logger.info({ userId: user.id, action: 'get_buildium_deposits' }, 'Fetching Buildium deposits');
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/deposits', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', '/bankaccounts/deposits', undefined, undefined, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const deposits = await response.json();
+    const deposits = (response.json ?? []) as unknown[];
 
     return NextResponse.json({
       success: true,
@@ -64,22 +58,13 @@ export async function POST(request: NextRequest) {
     const data = sanitizeAndValidate(body, BuildiumDepositCreateSchema);
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/deposits', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(data)
-    });
+    const response = await buildiumFetch('POST', '/bankaccounts/deposits', undefined, data, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newDeposit = (await response.json()) as DepositResponse;
+    const newDeposit = (response.json ?? {}) as DepositResponse;
 
     try {
       const bankAccountId =

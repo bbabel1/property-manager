@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client';
 import { requireUser } from '@/lib/auth';
 import {
-  createBuildiumClient,
-  defaultBuildiumConfig,
+  getOrgScopedBuildiumClient,
   type BuildiumUploadTicket,
 } from '@/lib/buildium-client';
+import { getOrgScopedBuildiumConfig } from '@/lib/buildium/credentials-manager';
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils';
 import {
   uploadLeaseDocumentToBuildium,
@@ -392,15 +392,11 @@ async function maybeUploadBillFileToBuildium(options: {
 }): Promise<BuildiumFileSyncResult | null> {
   const { admin, transactionId, fileId, fileName, mimeType, base64 } = options;
 
-  if (!process.env.BUILDIUM_CLIENT_ID || !process.env.BUILDIUM_CLIENT_SECRET) {
-    logger.warn('Buildium credentials missing; skipping bill file sync');
-    return null;
-  }
-
   try {
+    // Resolve orgId from transaction
     const { data: transactionRow, error: txnErr } = await admin
       .from('transactions')
-      .select('buildium_bill_id')
+      .select('buildium_bill_id, org_id')
       .eq('id', toStringId(transactionId))
       .maybeSingle();
 
@@ -435,7 +431,26 @@ async function maybeUploadBillFileToBuildium(options: {
         ? buildiumPropertyIdRaw
         : Number(buildiumPropertyIdRaw);
 
-    const buildiumClient = createBuildiumClient(defaultBuildiumConfig);
+    // Resolve orgId from transaction or property
+    let orgId = transactionRow?.org_id ?? undefined;
+    if (!orgId && buildiumPropertyId) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('buildium_property_id', buildiumPropertyId)
+        .maybeSingle();
+      if (property?.org_id) {
+        orgId = property.org_id;
+      }
+    }
+
+    const buildiumConfig = await getOrgScopedBuildiumConfig(orgId);
+    if (!buildiumConfig) {
+      logger.warn('Buildium credentials missing; skipping bill file sync');
+      return null;
+    }
+
+    const buildiumClient = await getOrgScopedBuildiumClient(orgId);
 
     const existingFiles: BuildiumBillFile[] = await buildiumClient
       .getBillFiles(buildiumBillId)
@@ -619,12 +634,50 @@ async function uploadFileToBuildiumEntity(options: {
     categoryName,
   } = options;
 
-  if (!process.env.BUILDIUM_CLIENT_ID || !process.env.BUILDIUM_CLIENT_SECRET) {
+  // Resolve orgId from file
+  let orgId = file.org_id ?? undefined;
+  if (!orgId) {
+    // Try to resolve from entity
+    if (file.entity_type && file.entity_id) {
+      const entityType = file.entity_type;
+      if (entityType === 'Properties') {
+        const { data: property } = await admin
+          .from('properties')
+          .select('org_id')
+          .eq('buildium_property_id', Number(file.entity_id))
+          .maybeSingle();
+        if (property?.org_id) {
+          orgId = property.org_id;
+        }
+      } else if (entityType === 'Units') {
+        const { data: unit } = await admin
+          .from('units')
+          .select('org_id')
+          .eq('buildium_unit_id', Number(file.entity_id))
+          .maybeSingle();
+        if (unit?.org_id) {
+          orgId = unit.org_id;
+        }
+      } else if (entityType === 'Leases') {
+        const { data: lease } = await admin
+          .from('lease')
+          .select('org_id')
+          .eq('buildium_lease_id', Number(file.entity_id))
+          .maybeSingle();
+        if (lease?.org_id) {
+          orgId = lease.org_id;
+        }
+      }
+    }
+  }
+
+  const buildiumConfig = await getOrgScopedBuildiumConfig(orgId);
+  if (!buildiumConfig) {
     logger.warn('Buildium credentials missing; skipping file sync');
     return null;
   }
 
-  const buildiumClient = createBuildiumClient(defaultBuildiumConfig);
+  const buildiumClient = await getOrgScopedBuildiumClient(orgId);
   type BuildiumUploadPayload = {
     FileName: string;
     Title?: string | null;
@@ -824,7 +877,7 @@ export async function POST(request: NextRequest) {
   let user: Awaited<ReturnType<typeof requireUser>>;
   try {
     user = await requireUser(request);
-  } catch (_authError) {
+  } catch {
     return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 });
   }
 

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumDepositUpdateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: depositId } = await params
@@ -13,14 +14,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     logger.info({ userId: user.id, depositId, action: 'get_buildium_deposit' }, 'Fetching Buildium deposit details');
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/deposits/${depositId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', `/bankaccounts/deposits/${depositId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -32,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const deposit = await response.json();
+    const deposit = response.json ?? {};
 
     return NextResponse.json({
       success: true,
@@ -61,16 +55,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const data = sanitizeAndValidate(body, BuildiumDepositUpdateSchema);
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/deposits/${depositId}`, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(data)
-    });
+    const response = await buildiumFetch('PUT', `/bankaccounts/deposits/${depositId}`, undefined, data, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -82,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const updatedDeposit = await response.json();
+    const updatedDeposit = response.json ?? {};
 
     return NextResponse.json({
       success: true,

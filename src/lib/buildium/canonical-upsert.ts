@@ -1,12 +1,7 @@
-// @ts-nocheck
 import { supabaseAdmin } from '@/lib/db';
+import { buildiumFetch } from '@/lib/buildium-http';
+import type { Database } from '@/types/database';
 import { buildCanonicalTransactionPatch, type ComputePartiesParams } from '@/lib/transaction-canonical';
-
-type BuildiumAuth = {
-  baseUrl: string;
-  clientId: string;
-  clientSecret: string;
-};
 
 type BankTxDetail = {
   Id?: number;
@@ -41,24 +36,15 @@ type BankTxDetail = {
 };
 
 async function fetchBuildiumBankTransactionDetail(
-  auth: BuildiumAuth,
   bankAccountId: number | string,
   transactionId: number | string,
+  orgId?: string,
 ): Promise<BankTxDetail> {
-  const url = `${auth.baseUrl}/bankaccounts/${bankAccountId}/transactions/${transactionId}`;
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-buildium-client-id': auth.clientId,
-      'x-buildium-client-secret': auth.clientSecret,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`Buildium detail fetch failed: ${res.status} ${res.statusText}`);
+  const response = await buildiumFetch('GET', `/bankaccounts/${bankAccountId}/transactions/${transactionId}`, undefined, undefined, orgId);
+  if (!response.ok) {
+    throw new Error(`Buildium detail fetch failed: ${response.status} ${response.statusText}`);
   }
-  return (await res.json()) as BankTxDetail;
+  return (response.json ?? {}) as BankTxDetail;
 }
 
 function mapPaymentTransactions(detail: BankTxDetail, transactionId: string, now: string) {
@@ -113,33 +99,54 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
   bankAccountId: number | string;
   transactionId: number | string;
   tenantId?: string | null;
+  orgId?: string;
 }) {
-  const auth: BuildiumAuth = {
-    baseUrl: process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1',
-    clientId: process.env.BUILDIUM_CLIENT_ID || '',
-    clientSecret: process.env.BUILDIUM_CLIENT_SECRET || '',
-  };
-
-  if (!auth.clientId || !auth.clientSecret) {
-    throw new Error('Buildium credentials are missing');
+  // Resolve orgId from bank account if not provided
+  let orgId = params.orgId;
+  if (!orgId) {
+    const bankGlAccountId = typeof params.bankAccountId === 'number' ? params.bankAccountId : Number(params.bankAccountId);
+    if (Number.isFinite(bankGlAccountId)) {
+      const { data: glAccount } = await supabaseAdmin
+        .from('gl_accounts')
+        .select('org_id')
+        .eq('buildium_gl_account_id', bankGlAccountId)
+        .maybeSingle();
+      if (glAccount?.org_id) {
+        orgId = glAccount.org_id;
+      }
+    }
   }
 
   const detail = await fetchBuildiumBankTransactionDetail(
-    auth,
     params.bankAccountId,
     params.transactionId,
+    orgId,
   );
 
   const db = supabaseAdmin;
   const now = new Date().toISOString();
-  const txHeader = {
-    buildium_transaction_id: detail?.Id ?? Number(params.transactionId) ?? null,
-    date: detail?.Date ?? null,
-    transaction_type: detail?.TransactionType ?? detail?.TransactionTypeEnum ?? null,
-    total_amount: detail?.TotalAmount ?? null,
-    memo: detail?.Memo ?? null,
-    check_number: detail?.CheckNumber ?? null,
-    bank_gl_account_buildium_id: detail?.DepositDetails?.BankGLAccountId ?? null,
+  type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
+  type TransactionType = TransactionInsert['transaction_type'];
+
+  const dateStr = detail?.Date ? String(detail.Date) : undefined;
+  const transactionTypeRaw = detail?.TransactionType ?? detail?.TransactionTypeEnum;
+  const buildiumTransactionId = Number(detail?.Id ?? params.transactionId);
+  if (!Number.isFinite(buildiumTransactionId)) {
+    throw new Error('Missing Buildium transaction id');
+  }
+  const bankGlAccountId = detail?.DepositDetails?.BankGLAccountId;
+
+  const txHeaderNormalized: TransactionInsert = {
+    buildium_transaction_id: buildiumTransactionId,
+    date: dateStr ?? now,
+    transaction_type:
+      typeof transactionTypeRaw === 'string'
+        ? (transactionTypeRaw as TransactionType)
+        : ('Other' as TransactionType),
+    total_amount: detail?.TotalAmount ?? undefined,
+    memo: detail?.Memo ?? undefined,
+    check_number: detail?.CheckNumber ?? undefined,
+    bank_gl_account_buildium_id: bankGlAccountId ?? undefined,
     updated_at: now,
   };
 
@@ -147,23 +154,24 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
   const { data: existing } = await db
     .from('transactions')
     .select('id')
-    .eq('buildium_transaction_id', txHeader.buildium_transaction_id)
+    .eq('buildium_transaction_id', buildiumTransactionId as number)
     .maybeSingle();
 
   let transactionIdLocal: string;
   if (existing?.id) {
     const { data: updated, error: updErr } = await db
       .from('transactions')
-      .update(txHeader)
+      .update(txHeaderNormalized)
       .eq('id', existing.id)
       .select('id')
       .maybeSingle();
     if (updErr) throw updErr;
     transactionIdLocal = updated?.id ?? existing.id;
   } else {
+    const insertPayload: TransactionInsert = { ...txHeaderNormalized };
     const { data: inserted, error: insErr } = await db
       .from('transactions')
-      .insert({ ...txHeader, created_at: now })
+      .insert(insertPayload)
       .select('id')
       .maybeSingle();
     if (insErr) throw insErr;
@@ -191,5 +199,5 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
 
   await db.from('transactions').update(canonicalPatch).eq('id', transactionIdLocal);
 
-  return { transactionId: transactionIdLocal, buildiumTransactionId: txHeader.buildium_transaction_id };
+  return { transactionId: transactionIdLocal, buildiumTransactionId: txHeaderNormalized.buildium_transaction_id };
 }

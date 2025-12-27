@@ -6,12 +6,37 @@ import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { logger } from '@/lib/logger';
 import { supabaseAdmin } from '@/lib/db';
 import { normalizeFeeType } from '@/lib/normalizers';
+import type { Database } from '@/types/database';
+
+type BillingFrequency = Database['public']['Enums']['billing_frequency_enum'];
+type FeeType = Database['public']['Enums']['fee_type_enum'];
+type ServiceOfferingInsert = Database['public']['Tables']['service_offerings']['Insert'];
+
+const BILLING_FREQUENCIES: BillingFrequency[] = [
+  'Annual',
+  'Monthly',
+  'monthly',
+  'annually',
+  'one_time',
+  'per_event',
+  'per_job',
+  'quarterly',
+];
 
 const parseNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+function normalizeBillingFrequency(value: unknown): BillingFrequency | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  const match = BILLING_FREQUENCIES.find(
+    (freq) => freq.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return match ?? null;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -110,15 +135,22 @@ export async function POST(request: NextRequest) {
     }
 
     const defaultRate = parseNumber(body.default_rate);
-    const feeType = normalizeFeeType(body.fee_type) ?? 'Flat Rate';
+    const defaultFreq = normalizeBillingFrequency(body.default_freq);
+    if (!defaultFreq) {
+      return NextResponse.json(
+        { error: { code: 'BAD_REQUEST', message: 'default_freq is invalid' } },
+        { status: 400 },
+      );
+    }
+    const feeType = (normalizeFeeType(body.fee_type) ?? 'Flat Rate') as FeeType;
 
-    const payload: Record<string, any> = {
+    const payload: ServiceOfferingInsert & Record<string, unknown> = {
       code: String(body.code).trim(),
       name: String(body.name).trim(),
       category: body.category,
       description: body.description ? String(body.description).trim() : null,
       default_rate: defaultRate,
-      default_freq: body.default_freq,
+      default_freq: defaultFreq,
       fee_type: feeType,
       markup_pct: parseNumber(body.markup_pct),
       markup_pct_cap: parseNumber(body.markup_pct_cap),
@@ -126,6 +158,8 @@ export async function POST(request: NextRequest) {
       hourly_min_hours: parseNumber(body.hourly_min_hours),
       is_active: body.is_active ?? true,
       updated_at: new Date().toISOString(),
+      applies_to: body.applies_to,
+      bill_on: body.bill_on,
     };
 
     const { data, error } = await supabaseAdmin

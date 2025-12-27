@@ -11,7 +11,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     const auth = await requireAuth();
     // Use the service-role client to resolve org without being blocked by RLS
     // (membership is enforced below via requireOrgMember)
-    const resolvedOrg = await resolveResourceOrg(supabaseAdmin, 'monthly_log', (await params).logId);
+    const { logId } = await params;
+    const resolvedOrg = await resolveResourceOrg(supabaseAdmin, 'monthly_log', logId);
     if (!resolvedOrg.ok) {
       return NextResponse.json(
         { error: { code: 'NOT_FOUND', message: resolvedOrg.error } },
@@ -27,8 +28,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ logI
     }
 
     // Parse parameters
-    const { logId } = await params;
-
     // Fetch monthly log with related data
     const { data: monthlyLog, error: logError } = await supabaseAdmin
       .from('monthly_logs')

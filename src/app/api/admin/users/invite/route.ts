@@ -82,21 +82,23 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = requireSupabaseAdmin('admin invite user')
 
     // Check if user already exists
-    const { data: existingUserRow, error: userError } = await supabaseAdmin
+    type UserWithAuthRow = { user_id: string }
+    const { data: existingUserRow, error: userError } = await (supabaseAdmin as any)
       .from('users_with_auth')
       .select('user_id')
       .eq('email', email)
-      .maybeSingle()
+      .maybeSingle();
 
     if (userError && userError.code !== 'PGRST116') {
       return NextResponse.json({ error: userError.message }, { status: 500 })
     }
 
+    const existingUser = (existingUserRow || null) as UserWithAuthRow | null
     let userId: string
 
-    if (existingUserRow?.user_id) {
+    if (existingUser?.user_id) {
       // User exists, use their ID
-      userId = existingUserRow.user_id
+      userId = existingUser.user_id
     } else {
       // Create new user
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -198,7 +200,7 @@ export async function POST(request: NextRequest) {
       data: {
         user_id: userId,
         email: email,
-        created: !existingUserRow?.user_id
+        created: !existingUser?.user_id
       }
     })
   } catch (e: unknown) {

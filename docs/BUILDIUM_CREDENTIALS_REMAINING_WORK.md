@@ -1,5 +1,7 @@
 # Buildium Credentials Management - Remaining Work
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## Summary
 
 The core infrastructure for Buildium credentials management is **complete and deployed**. The following items remain to fully complete the plan:

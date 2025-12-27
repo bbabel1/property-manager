@@ -4,6 +4,8 @@ import { z } from 'zod';
 
 import { requireAuth } from '@/lib/auth/guards';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
+import { mapGoogleCountryToEnum } from '@/lib/utils';
+import type { Database } from '@/types/database';
 
 const CreateVendorSchema = z.object({
   name: z
@@ -32,6 +34,12 @@ const normalize = (value?: string | null) => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length ? trimmed : null;
+};
+
+const normalizeCountry = (value?: string | null) => {
+  const normalized = normalize(value);
+  if (!normalized) return null;
+  return mapGoogleCountryToEnum(normalized) as Database['public']['Enums']['countries'];
 };
 
 export async function POST(request: Request) {
@@ -78,7 +86,7 @@ export async function POST(request: Request) {
     primary_city: normalize(data.city),
     primary_state: normalize(data.state),
     primary_postal_code: normalize(data.postalCode),
-    primary_country: normalize(data.country) ?? undefined,
+    primary_country: normalizeCountry(data.country) ?? undefined,
     mailing_preference: 'primary' as const,
     created_at: nowIso,
     updated_at: nowIso,

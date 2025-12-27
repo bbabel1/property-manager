@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: transactionId } = await params
@@ -12,14 +13,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     logger.info({ userId, transactionId, action: 'get_buildium_transaction' }, 'Fetching Buildium transaction details');
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/transactions/${transactionId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', `/bankaccounts/transactions/${transactionId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -31,7 +25,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const transaction = await response.json();
+    const transaction = response.json ?? {};
 
     return NextResponse.json({
       success: true,

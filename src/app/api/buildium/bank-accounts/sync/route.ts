@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
-import { buildiumEdgeClient } from '@/lib/buildium-edge-client'
+import { getOrgScopedBuildiumEdgeClient } from '@/lib/buildium-edge-client'
 import { logger } from '@/lib/logger'
+import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,19 +10,40 @@ export async function POST(request: NextRequest) {
     const { user } = await requireRole('platform_admin')
     
     const body = await request.json()
-    const { forceSync = false } = body
+    const { forceSync = false, orgId: bodyOrgId } = body
 
-    logger.info({ userId: user.id, forceSync }, 'Starting bank accounts sync from Buildium')
+    // Resolve orgId from request context or body
+    let orgId: string | undefined = bodyOrgId
+    if (!orgId) {
+      try {
+        orgId = await resolveOrgIdFromRequest(request, user.id)
+      } catch (error) {
+        // If orgId resolution fails, allow undefined (will use env vars)
+        logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars')
+      }
+    }
+
+    logger.info({ userId: user.id, forceSync, orgId }, 'Starting bank accounts sync from Buildium')
+
+    // Use org-scoped client helper
+    const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId)
 
     // Sync bank accounts from Buildium
-    const result = await buildiumEdgeClient.syncBankAccountsFromBuildium({ forceSync })
+    const result = await edgeClient.syncBankAccountsFromBuildium({ forceSync })
 
     if (result.success) {
+      const summary = (result.data || {}) as {
+        synced?: number
+        updated?: number
+        errorCount?: number
+        syncedCount?: number
+        updatedCount?: number
+      }
       logger.info({ 
         userId: user.id, 
-        syncedCount: result.data?.syncedCount,
-        updatedCount: result.data?.updatedCount,
-        errorCount: result.data?.errorCount 
+        syncedCount: summary.syncedCount ?? summary.synced,
+        updatedCount: summary.updatedCount ?? summary.updated,
+        errorCount: summary.errorCount 
       }, 'Bank accounts sync completed successfully')
       
       return NextResponse.json({
@@ -66,7 +88,19 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Authentication
-    await requireRole('platform_admin')
+    const { user } = await requireRole('platform_admin')
+    
+    // Resolve orgId from request context
+    let orgId: string | undefined
+    try {
+      orgId = await resolveOrgIdFromRequest(request, user.id)
+    } catch (error) {
+      // If orgId resolution fails, allow undefined (will use env vars)
+      logger.warn({ userId: user.id, error }, 'Could not resolve orgId, falling back to env vars')
+    }
+
+    // Use org-scoped client helper
+    const client = await getOrgScopedBuildiumEdgeClient(orgId)
     
     const url = new URL(request.url)
     const { searchParams } = url
@@ -75,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     if (bankAccountId) {
       // Get sync status for specific bank account
-      const result = await buildiumEdgeClient.getBankAccountSyncStatus(bankAccountId)
+      const result = await client.getBankAccountSyncStatus(bankAccountId)
       
       if (result.success) {
         return NextResponse.json(result.data)
@@ -87,7 +121,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // Get all bank account sync statuses
-      const result = await buildiumEdgeClient.getAllBankAccountSyncStatuses()
+      const result = await client.getAllBankAccountSyncStatuses()
       
       if (result.success) {
         return NextResponse.json(result.data)

@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumLeaseChargeUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(
   request: NextRequest,
@@ -25,19 +26,10 @@ export async function GET(
     const { buildiumLeaseId, chargeId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/leases/${buildiumLeaseId}/transactions/charges/${chargeId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/leases/${buildiumLeaseId}/transactions/charges/${chargeId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease charge fetch failed`);
 
       return NextResponse.json(
@@ -49,7 +41,7 @@ export async function GET(
       );
     }
 
-    const charge = await response.json();
+    const charge = response.json ?? {};
 
     logger.info(`Buildium lease charge fetched successfully`);
 
@@ -95,21 +87,10 @@ export async function PUT(
     const validatedData = sanitizeAndValidate(body, BuildiumLeaseChargeUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/leases/${buildiumLeaseId}/transactions/charges/${chargeId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PUT', `/rentals/leases/${buildiumLeaseId}/transactions/charges/${chargeId}`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease charge update failed`);
 
       return NextResponse.json(
@@ -121,7 +102,7 @@ export async function PUT(
       );
     }
 
-    const charge = await response.json();
+    const charge = response.json ?? {};
 
     logger.info(`Buildium lease charge updated successfully`);
 

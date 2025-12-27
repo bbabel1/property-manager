@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { resolvePropertyIdentifier } from '@/lib/public-id-utils';
+import type { Database } from '@/types/database';
+
+type TransactionRow = Pick<
+  Database['public']['Tables']['transactions']['Row'],
+  'id' | 'transaction_type' | 'property_id' | 'bank_gl_account_id'
+>;
+type TransactionLineRow = Pick<Database['public']['Tables']['transaction_lines']['Row'], 'property_id'>;
+type TransactionLineDebitRow = Pick<
+  Database['public']['Tables']['transaction_lines']['Row'],
+  'id' | 'gl_account_id' | 'posting_type'
+>;
+type BankAccountRow = Pick<Database['public']['Tables']['gl_accounts']['Row'], 'id' | 'is_bank_account'>;
 
 export async function PATCH(
   request: NextRequest,
@@ -14,9 +26,9 @@ export async function PATCH(
     // Verify transaction exists and is a Deposit
     const { data: transaction, error: txError } = await db
       .from('transactions')
-      .select('id, transaction_type, property_id')
+      .select('id, transaction_type, property_id, bank_gl_account_id')
       .eq('id', transactionId)
-      .maybeSingle();
+      .maybeSingle<TransactionRow>();
 
     if (txError) {
       return NextResponse.json({ error: 'Failed to fetch transaction' }, { status: 500 });
@@ -31,13 +43,17 @@ export async function PATCH(
     }
 
     // Verify property access (transaction should be linked to property via transaction_lines)
-    const { data: lineData } = await db
+    const { data: lineData, error: lineError } = await db
       .from('transaction_lines')
       .select('property_id')
       .eq('transaction_id', transactionId)
       .eq('property_id', propertyId)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle<TransactionLineRow>();
+
+    if (lineError) {
+      return NextResponse.json({ error: 'Failed to verify deposit ownership' }, { status: 500 });
+    }
 
     if (!lineData) {
       return NextResponse.json({ error: 'Deposit not found for this property' }, { status: 404 });
@@ -62,11 +78,15 @@ export async function PATCH(
     if (bank_gl_account_id !== undefined) {
       // Verify bank GL account exists and is a bank account
       if (bank_gl_account_id) {
-        const { data: glAccount } = await db
+        const { data: glAccount, error: glAccountError } = await db
           .from('gl_accounts')
           .select('id, is_bank_account')
           .eq('id', bank_gl_account_id)
-          .maybeSingle();
+          .maybeSingle<BankAccountRow>();
+
+        if (glAccountError) {
+          return NextResponse.json({ error: 'Failed to validate bank account' }, { status: 500 });
+        }
 
         if (!glAccount || !glAccount.is_bank_account) {
           return NextResponse.json({ error: 'Invalid bank account' }, { status: 400 });
@@ -78,18 +98,20 @@ export async function PATCH(
 
       // Update transaction_lines to use the new bank GL account
       // Find the bank debit line and update it
-      const { data: bankLines } = await db
+      const { data: bankLines, error: bankLinesError } = await db
         .from('transaction_lines')
         .select('id, gl_account_id, posting_type')
         .eq('transaction_id', transactionId)
         .eq('posting_type', 'Debit');
 
-      if (bankLines && bankLines.length > 0) {
-        // Find line that's currently a bank account
-        const bankLine = bankLines.find((line: any) => {
-          // We'll check if the GL account is a bank account
-          return true; // Update the first debit line (should be the bank line)
-        });
+      if (bankLinesError) {
+        return NextResponse.json({ error: 'Failed to load bank lines' }, { status: 500 });
+      }
+
+      const typedBankLines = (bankLines || []) as TransactionLineDebitRow[];
+      if (typedBankLines.length > 0) {
+        // Update the first debit line (should be the bank line)
+        const bankLine = typedBankLines[0];
 
         if (bankLine && bank_gl_account_id) {
           await db
@@ -131,9 +153,9 @@ export async function DELETE(
     // Verify transaction exists and is a Deposit
     const { data: transaction, error: txError } = await db
       .from('transactions')
-      .select('id, transaction_type')
+      .select('id, transaction_type, property_id, bank_gl_account_id')
       .eq('id', transactionId)
-      .maybeSingle();
+      .maybeSingle<TransactionRow>();
 
     if (txError) {
       return NextResponse.json({ error: 'Failed to fetch transaction' }, { status: 500 });
@@ -148,13 +170,17 @@ export async function DELETE(
     }
 
     // Verify property access
-    const { data: lineData } = await db
+    const { data: lineData, error: lineError } = await db
       .from('transaction_lines')
       .select('property_id')
       .eq('transaction_id', transactionId)
       .eq('property_id', propertyId)
       .limit(1)
-      .maybeSingle();
+      .maybeSingle<TransactionLineRow>();
+
+    if (lineError) {
+      return NextResponse.json({ error: 'Failed to verify deposit ownership' }, { status: 500 });
+    }
 
     if (!lineData) {
       return NextResponse.json({ error: 'Deposit not found for this property' }, { status: 404 });
@@ -179,4 +205,3 @@ export async function DELETE(
     );
   }
 }
-

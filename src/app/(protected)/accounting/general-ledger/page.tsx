@@ -334,14 +334,16 @@ export default async function GeneralLedgerPage({
   if (shouldQueryLedger) {
     const baseFilter = qBase();
     const commonFilter = propertyFilterIds
-      ? baseFilter.in('property_id', propertyFilterIds)
+      ? baseFilter.in('property_id', propertyFilterIds).eq('account_entity_type', 'Rental')
       : baseFilter;
 
     let periodQuery = commonFilter.gte('date', fromStr).lte('date', toStr);
     if (unitFilterIds) periodQuery = periodQuery.in('unit_id', unitFilterIds);
     if (accountFilterIds) periodQuery = periodQuery.in('gl_account_id', accountFilterIds);
 
-    let priorQuery = propertyFilterIds ? qBase().in('property_id', propertyFilterIds) : qBase();
+    let priorQuery = propertyFilterIds
+      ? qBase().in('property_id', propertyFilterIds).eq('account_entity_type', 'Rental')
+      : qBase();
     priorQuery = priorQuery.lt('date', fromStr);
     if (unitFilterIds) priorQuery = priorQuery.in('unit_id', unitFilterIds);
     if (accountFilterIds) priorQuery = priorQuery.in('gl_account_id', accountFilterIds);

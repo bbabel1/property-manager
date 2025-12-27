@@ -48,8 +48,28 @@ type CreateBankAccountResult =
       id?: string | number | null;
       name?: string | null;
       account_number?: string | null;
+      last4?: string | null;
       bankAccount?: BankAccount | null;
     };
+
+const normalizeAccount = (input: CreateBankAccountResult): BankAccount => {
+  if (input && typeof input === 'object' && 'bankAccount' in input && input.bankAccount) {
+    const acc = input.bankAccount;
+    return {
+      id: String(acc?.id ?? ''),
+      name: acc?.name ?? 'New Bank Account',
+      account_number: acc?.account_number ?? null,
+      last4: acc?.last4 ?? null,
+    };
+  }
+  const acc = input as BankAccount;
+  return {
+    id: String(acc?.id ?? ''),
+    name: acc?.name ?? 'New Bank Account',
+    account_number: acc?.account_number ?? null,
+    last4: acc?.last4 ?? null,
+  };
+};
 
 export default function PropertyBankingAndServicesCard({
   property,
@@ -523,15 +543,12 @@ export default function PropertyBankingAndServicesCard({
           setCreateTarget(null);
         }}
         onSuccess={(newAccount: CreateBankAccountResult) => {
-          const id = String(newAccount?.id ?? newAccount?.bankAccount?.id ?? '');
-          const name =
-            newAccount?.name ??
-            newAccount?.bankAccount?.name ??
-            (id ? 'New Bank Account' : 'New Bank Account');
-          const account_number =
-            newAccount?.account_number ?? newAccount?.bankAccount?.account_number ?? null;
+          const account = normalizeAccount(newAccount);
+          const id = account.id;
+          const name = account.name;
+          const account_number = account.account_number ?? null;
           setBankAccounts((prev) => [
-            { id, name, account_number },
+            { id, name, account_number, last4: account.last4 ?? null },
             ...prev.filter((a) => a.id !== id),
           ]);
           if (createTarget === 'operating') setOperatingId(id);

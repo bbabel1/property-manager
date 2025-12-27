@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { config } from '@/config';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,19 +19,10 @@ export async function GET(request: NextRequest) {
     await requireRole('platform_admin');
 
     // Make request to Buildium API
-    const buildiumUrl = `${config.BUILDIUM_BASE_URL}/accountinglockperiods`;
-
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': config.BUILDIUM_CLIENT_ID,
-        'x-buildium-client-secret': config.BUILDIUM_CLIENT_SECRET,
-      },
-    });
+    const response = await buildiumFetch('GET', '/accountinglockperiods', undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium accounting lock periods fetch failed`);
 
       return NextResponse.json(
@@ -43,7 +34,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const lockPeriods = await response.json();
+    const lockPeriods = response.json ?? {};
 
     logger.info(`Buildium accounting lock periods fetched successfully`);
 

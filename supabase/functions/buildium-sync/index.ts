@@ -360,6 +360,15 @@ interface BuildiumWorkOrder {
   LastUpdatedDateTime?: string;
 }
 
+type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string };
+
+function resolveBuildiumCredentials(input?: Partial<BuildiumCredentials> | null): BuildiumCredentials {
+  const baseUrl = (input?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '');
+  const clientId = (input?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '').trim();
+  const clientSecret = (input?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '').trim();
+  return { baseUrl, clientId, clientSecret };
+}
+
 // Buildium API Client - Direct API calls with client credentials
 class BuildiumClient {
   private baseUrl: string;
@@ -377,7 +386,7 @@ class BuildiumClient {
     retryAttempts?: number;
     retryDelay?: number;
   }) {
-    this.baseUrl = config.baseUrl || 'https://apisandbox.buildium.com/v1';
+    this.baseUrl = (config.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '');
     this.clientId = config.clientId || '';
     this.clientSecret = config.clientSecret || '';
     this.timeout = config.timeout || 30000;
@@ -2734,22 +2743,35 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const { method } = req;
+    const url = new URL(req.url);
+    const path = url.pathname.split('/').pop();
+    const body =
+      method === 'POST'
+        ? await req.json().catch(() => ({}))
+        : req.body
+          ? await req.json().catch(() => ({}))
+          : {};
+
+    const buildiumCreds = resolveBuildiumCredentials(body?.credentials as Partial<BuildiumCredentials> | undefined);
+    if (!buildiumCreds.clientId || !buildiumCreds.clientSecret) {
+      return new Response(JSON.stringify({ success: false, error: 'Buildium credentials missing' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
+
     // Initialize Buildium client
     const buildiumClient = new BuildiumClient({
-      baseUrl: Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1',
-      clientId: Deno.env.get('BUILDIUM_CLIENT_ID') || '',
-      clientSecret: Deno.env.get('BUILDIUM_CLIENT_SECRET') || '',
+      baseUrl: buildiumCreds.baseUrl,
+      clientId: buildiumCreds.clientId,
+      clientSecret: buildiumCreds.clientSecret,
       timeout: 30000,
       retryAttempts: 3,
       retryDelay: 1000,
     });
 
-    const { method } = req;
-    const url = new URL(req.url);
-    const path = url.pathname.split('/').pop();
-
     if (method === 'POST') {
-      const body = await req.json();
       const { entityType, entityData, operation } = body;
 
       // Support POST with body.method === 'GET' to match existing client usage

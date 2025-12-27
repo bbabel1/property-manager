@@ -146,7 +146,10 @@ export default function WithholdDepositForm({
         for (const issue of parsed.error.issues) {
           const key = issue.path?.[0];
           if (key === 'allocations') fieldErrors.allocations = issue.message;
-          else if (typeof key === 'string') fieldErrors[key] = issue.message;
+          else if (typeof key === 'string' && key in form) {
+            const typedKey = key as keyof FormState;
+            fieldErrors[typedKey] = issue.message;
+          }
         }
         setErrors(fieldErrors);
         setSubmitting(false);

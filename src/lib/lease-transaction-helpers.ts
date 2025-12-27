@@ -223,6 +223,15 @@ export function buildDepositLines(params: {
   };
 }
 
+export function castLeaseTransactionLinesForPersistence(
+  lines: BuildiumLeaseTransactionCreateLine[],
+): Array<BuildiumLeaseTransactionCreateLine & Record<string, unknown>> {
+  // Preserve validated Buildium line shape while widening to a generic record for Supabase JSON columns.
+  return lines.map((line) => ({ ...line })) as Array<
+    BuildiumLeaseTransactionCreateLine & Record<string, unknown>
+  >;
+}
+
 export async function fetchBankAccountBuildiumId(
   bankAccountId: string,
   db: TypedSupabaseClient = supabaseAdmin,

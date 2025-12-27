@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { BuildiumRecurringTransactionUpdateSchema } from '@/schemas/buildium'
 
 export async function GET(
@@ -15,22 +16,15 @@ export async function GET(
     await requireRole('platform_admin')
     const { buildiumLeaseId, recurringId } = await params
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    })
+    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, undefined, undefined, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium recurring transaction fetch failed')
       return NextResponse.json({ error: 'Failed to fetch Buildium recurring transaction', details: errorData }, { status: response.status })
     }
 
-    const data = await response.json()
+    const data = response.json ?? {}
     return NextResponse.json({ success: true, data })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -49,23 +43,14 @@ export async function PUT(
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionUpdateSchema)
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validated)
-    })
+    const response = await buildiumFetch('PUT', `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, undefined, validated, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium recurring transaction update failed')
       return NextResponse.json({ error: 'Failed to update Buildium recurring transaction', details: errorData }, { status: response.status })
     }
-    const updated = await response.json()
+    const updated = response.json ?? {}
     return NextResponse.json({ success: true, data: updated })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -82,17 +67,10 @@ export async function DELETE(
     await requireRole('platform_admin')
     const { buildiumLeaseId, recurringId } = await params
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    })
+    const response = await buildiumFetch('DELETE', `/leases/${buildiumLeaseId}/recurring-transactions/${recurringId}`, undefined, undefined, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium recurring transaction delete failed')
       return NextResponse.json({ error: 'Failed to delete Buildium recurring transaction', details: errorData }, { status: response.status })
     }

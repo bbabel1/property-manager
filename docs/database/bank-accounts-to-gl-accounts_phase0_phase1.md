@@ -1,5 +1,7 @@
 # Bank Accounts → `gl_accounts` Migration (Phase 0 + Phase 1)
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 This document captures the Phase 0 inventory and Phase 1 schema changes for migrating away from the `public.bank_accounts` table to using `public.gl_accounts` as the single source of truth for bank accounts (`gl_accounts.is_bank_account = true`).
 
 ## Decision (Chosen Strategy)

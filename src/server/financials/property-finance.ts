@@ -86,8 +86,8 @@ export async function fetchPropertyFinancials(
   const leaseIds =
     Array.isArray(leaseRows) && leaseRows.length
       ? leaseRows
-          .map((l) => (l?.id != null ? String(l.id) : null))
-          .filter((v): v is string => !!v)
+          .map((l) => (typeof l?.id === 'number' ? l.id : Number(l?.id)))
+          .filter((v): v is number => Number.isFinite(v))
       : [];
   const buildiumLeaseIds =
     Array.isArray(leaseRows) && leaseRows.length
@@ -152,7 +152,8 @@ export async function fetchPropertyFinancials(
     property?.deposit_trust_gl_account_id ?? null,
   ]
     .filter(Boolean)
-    .map((id) => String(id));
+    .map((id) => String(id))
+    .filter((id): id is string => !!id);
 
   if (propertyBankGlAccounts.length) {
     const { data: bankLines } = await db

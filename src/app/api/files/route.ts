@@ -12,7 +12,7 @@ import type { AuthenticatedUser } from '@/lib/auth';
 export async function GET(request: NextRequest) {
   try {
     const user = (await requireUser(request)) as AuthenticatedUser;
-    const supabase = await getSupabaseServerClient();
+    const supabase = (await getSupabaseServerClient()) as any;
     const url = new URL(request.url);
 
     const entityTypeParam = url.searchParams.get('entityType');

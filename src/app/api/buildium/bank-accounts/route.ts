@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
 import { BuildiumBankAccountCreateSchema } from '@/schemas/buildium'
 import { sanitizeAndValidate } from '@/lib/sanitize'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 type BuildiumBankAccount = { Name?: string | null; Description?: string | null }
 
@@ -14,27 +15,20 @@ export async function GET(request: NextRequest) {
 
     // Build query parameters (isActive, bankAccountType, limit, offset)
     const { searchParams } = new URL(request.url)
-    const qp = new URLSearchParams()
-    if (searchParams.get('isActive') !== null) qp.set('isActive', searchParams.get('isActive')!)
-    if (searchParams.get('bankAccountType')) qp.set('bankAccountType', searchParams.get('bankAccountType')!)
-    if (searchParams.get('limit')) qp.set('limit', searchParams.get('limit')!)
-    if (searchParams.get('offset')) qp.set('offset', searchParams.get('offset')!)
+    const queryParams: Record<string, string> = {}
+    if (searchParams.get('isActive') !== null) queryParams.isActive = searchParams.get('isActive')!
+    if (searchParams.get('bankAccountType')) queryParams.bankAccountType = searchParams.get('bankAccountType')!
+    if (searchParams.get('limit')) queryParams.limit = searchParams.get('limit')!
+    if (searchParams.get('offset')) queryParams.offset = searchParams.get('offset')!
 
     // Buildium API call
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/bankaccounts${qp.toString() ? `?${qp}` : ''}` as string, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', '/bankaccounts', queryParams, undefined, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    let bankAccounts = await response.json();
+    let bankAccounts = (response.json ?? []) as unknown[];
 
     // Optional search (client-side filter on Name/Description)
     const search = searchParams.get('search')?.toLowerCase();
@@ -72,22 +66,13 @@ export async function POST(request: NextRequest) {
     const data = sanitizeAndValidate(body, BuildiumBankAccountCreateSchema);
 
     // Buildium API call
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/bankaccounts`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(data)
-    });
+    const response = await buildiumFetch('POST', '/bankaccounts', undefined, data, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newBankAccount = await response.json();
+    const newBankAccount = response.json ?? {};
 
     return NextResponse.json({
       success: true,

@@ -176,6 +176,15 @@ async function buildRequestedByFields(entity: any, supabase: any): Promise<{
   return result
 }
 
+type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string }
+
+function resolveBuildiumCreds(input?: Partial<BuildiumCredentials> | null): BuildiumCredentials {
+  const baseUrl = (input?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '')
+  const clientId = (input?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '').trim()
+  const clientSecret = (input?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '').trim()
+  return { baseUrl, clientId, clientSecret }
+}
+
 function getBuildiumPropertyIdFromTask(task: any): number | null {
   if (typeof task?.PropertyId === 'number') return task.PropertyId
   if (typeof task?.Property?.Id === 'number') return task.Property.Id
@@ -246,9 +255,14 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const baseUrl = Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1'
-    const clientId = Deno.env.get('BUILDIUM_CLIENT_ID') || ''
-    const clientSecret = Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
+    const bodyMaybe = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
+    const creds = resolveBuildiumCreds(bodyMaybe?.credentials as Partial<BuildiumCredentials> | undefined)
+    if (!creds.clientId || !creds.clientSecret) {
+      return new Response(JSON.stringify({ error: 'Buildium credentials missing' }), { headers: { ...headers, 'Content-Type': 'application/json' }, status: 400 })
+    }
+    const baseUrl = creds.baseUrl || 'https://apisandbox.buildium.com/v1'
+    const clientId = creds.clientId
+    const clientSecret = creds.clientSecret
 
     const url = new URL(req.url)
     const { searchParams } = url
@@ -289,7 +303,7 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      const body = await req.json()
+      const body = bodyMaybe
       const resp = await fetch(`${baseUrl}/todorequests`, {
         method: 'POST',
         headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret },

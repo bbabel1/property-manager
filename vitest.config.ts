@@ -6,6 +6,7 @@ export default defineConfig({
     environment: 'node',
     environmentMatchGlobs: [['src/components/**', 'jsdom']],
     exclude: ['tests/playwright/**', 'node_modules/**'],
+    setupFiles: ['./src/test/setup.ts'],
     server: {
       deps: {
         inline: ['next'],

@@ -1,5 +1,7 @@
 # Data Integrity Quick Start Guide
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## 🚨 **IMMEDIATE ACTIONS** (2-4 weeks implementation)
 
 ### **Week 1: Critical Fixes**

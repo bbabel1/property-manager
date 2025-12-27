@@ -13,7 +13,7 @@ import { FILE_ENTITY_TYPES, normalizeEntityType, type EntityTypeEnum } from '@/l
 export async function POST(request: NextRequest) {
   try {
     const _user = await requireUser(request);
-    const supabase = await getSupabaseServerClient();
+    const supabase = (await getSupabaseServerClient()) as any;
 
     const body = await request.json().catch(() => null);
     if (!body) {

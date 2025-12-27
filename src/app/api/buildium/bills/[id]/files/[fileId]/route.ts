@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { BuildiumBillFileUpdateSchema } from '@/schemas/buildium';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
@@ -23,19 +24,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id, fileId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/files/${fileId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/bills/${id}/files/${fileId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium bill file fetch failed`);
 
       return NextResponse.json(
@@ -47,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const file = await response.json();
+    const file = response.json ?? {};
 
     logger.info(`Buildium bill file fetched successfully`);
 
@@ -84,19 +76,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const { id, fileId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills/${id}/files/${fileId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('DELETE', `/bills/${id}/files/${fileId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium bill file deletion failed`);
 
       return NextResponse.json(

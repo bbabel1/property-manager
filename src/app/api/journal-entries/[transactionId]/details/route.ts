@@ -23,7 +23,7 @@ export async function GET(
     await requireUser(request);
     const { transactionId } = await params;
     const db =
-      process.env.NODE_ENV === 'development' ? supabaseAdmin : await getSupabaseServerClient();
+      (process.env.NODE_ENV === 'development' ? supabaseAdmin : await getSupabaseServerClient()) as any;
 
     // Fetch transaction
     const { data: transaction } = await db

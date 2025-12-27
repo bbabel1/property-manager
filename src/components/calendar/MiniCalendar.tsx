@@ -3,7 +3,7 @@
 import React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { format, startOfMonth, addMonths, subMonths, getDaysInMonth, getDay, startOfWeek, endOfWeek, addDays, isSameDay } from 'date-fns'
+import { startOfMonth, addMonths, subMonths, getDaysInMonth, isSameDay } from 'date-fns'
 
 type MiniCalendarProps = {
   currentDate: Date
@@ -146,4 +146,3 @@ export function MiniCalendar({ currentDate, onDateChange, selectedDate }: MiniCa
     </div>
   )
 }
-

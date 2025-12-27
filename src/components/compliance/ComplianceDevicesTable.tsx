@@ -485,7 +485,7 @@ function DeviceInfoDialog({
     if (typeof val === 'object') {
       try {
         return JSON.stringify(val, null, 2);
-      } catch (e) {
+      } catch {
         return String(val);
       }
     }

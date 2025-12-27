@@ -264,7 +264,7 @@ export default function LeaseLedgerPanel({
     })();
   };
 
-  const deriveSignedAmount = (row: LedgerRow | null, detail?: BuildiumLeaseTransaction | null) => {
+  const deriveSignedAmount = (row: LedgerRow | null, detail?: LedgerDetail | null) => {
     if (row?.signedAmount != null) return row.signedAmount;
     const raw = Number(detail?.TotalAmount ?? detail?.Amount ?? row?.amountRaw ?? 0) || 0;
     const type = String(
@@ -318,7 +318,8 @@ export default function LeaseLedgerPanel({
       );
     }
 
-    const { row, detail } = detailState;
+    const { row } = detailState;
+    const detail: LedgerDetail = detailState.detail;
     const normalizedType = (value?: string | null) =>
       (value || '').replace(/^Lease\s*/i, '').trim() || 'Transaction';
     const typeLabel = getTransactionTypeLabel(
@@ -342,37 +343,23 @@ export default function LeaseLedgerPanel({
     const allocationList =
       allocations && allocations.length
         ? allocations
-            .map((line, idx) => {
+            .map((line) => {
               const amount = Number(line?.Amount ?? 0);
               if (!Number.isFinite(amount) || amount === 0) return null;
               const glName =
                 typeof line?.GLAccount === 'object' && line?.GLAccount
                   ? line.GLAccount?.Name
                   : row.account || 'Account';
-              return (
-                <div
-                  key={
-                    line && typeof line === 'object' && 'Id' in line && line?.Id != null
-                      ? (line as { Id: number }).Id
-                      : idx
-                  }
-                  className="flex items-center justify-between gap-2 text-xs text-slate-700"
-                >
-                  <span className="truncate">{glName || 'Account'}</span>
-                  <span className="font-mono">{formatCurrency(Math.abs(amount))}</span>
-                </div>
-              );
+              return `${glName || 'Account'}: ${formatCurrency(Math.abs(amount))}`;
             })
             .filter(Boolean)
+            .join(' • ')
         : null;
 
-    const payeeName = (detail as BuildiumLeaseTransaction)?.PaymentDetail?.Payee?.Name ?? null;
-    const unitNumber = (detail as BuildiumLeaseTransaction & { UnitNumber?: string | null })?.UnitNumber ?? null;
-    const isInternalTransfer =
-      (detail as BuildiumLeaseTransaction)?.PaymentDetail?.IsInternalTransaction ?? false;
-    const internalPending =
-      (detail as BuildiumLeaseTransaction)?.PaymentDetail?.InternalTransactionStatus?.IsPending ??
-      false;
+    const payeeName = detail?.PaymentDetail?.Payee?.Name ?? null;
+    const unitNumber = detail?.UnitNumber ?? null;
+    const isInternalTransfer = detail?.PaymentDetail?.IsInternalTransaction ?? false;
+    const internalPending = detail?.PaymentDetail?.InternalTransactionStatus?.IsPending ?? false;
 
     const detailItems = [
       { label: 'Date', value: row.date },
@@ -401,7 +388,7 @@ export default function LeaseLedgerPanel({
     if (allocationList && allocationList.length) {
       detailItems.push({
         label: 'Allocations',
-        value: <div className="space-y-1">{allocationList}</div>,
+        value: allocationList,
         mono: false,
       });
     }

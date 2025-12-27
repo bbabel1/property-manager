@@ -63,6 +63,7 @@ type GlAccountRow = {
   is_bank_account?: boolean | null;
 };
 type OwnershipRow = {
+  id?: string;
   property_id: string;
   owner_id: string;
   owners: { id: string; buildium_owner_id: number } | null;
@@ -136,7 +137,7 @@ class QueryBuilder<Table extends TableName>
 {
   private filters: Array<{ column: keyof RowByTable[Table]; value: unknown; op: 'eq' | 'ilike' }> = [];
   private inFilters: Array<{ column: keyof RowByTable[Table]; values: unknown[] }> = [];
-  private sort: { column: string; ascending: boolean } | null = null;
+  private sort: { column: keyof RowByTable[Table]; ascending: boolean } | null = null;
   private limitCount: number | null = null;
   private op: 'select' | 'insert' = 'select';
   private pendingInsert: RowByTable[Table][] | null = null;
@@ -162,7 +163,7 @@ class QueryBuilder<Table extends TableName>
     return this;
   }
 
-  order(column: string, options: { ascending?: boolean } = {}) {
+  order(column: keyof RowByTable[Table], options: { ascending?: boolean } = {}) {
     this.sort = { column, ascending: options.ascending ?? true };
     return this;
   }
@@ -191,23 +192,23 @@ class QueryBuilder<Table extends TableName>
   private applyOperation(): RowByTable[Table][] {
     if (this.op === 'insert') {
       const rows = this.pendingInsert ?? [];
-      const normalized = rows.map((row) => ({
-        id:
-          typeof row?.id === 'string'
-            ? row.id
-            : this.table === 'transactions'
-              ? 'tx-new'
-              : this.table === 'transaction_lines'
-                ? `tl-${supabaseData.transaction_lines.length + 1}`
-                : `row-${Math.random().toString(16).slice(2)}`,
-        ...row,
-      }));
+      const normalized = rows.map((row) => {
+        const fallbackId =
+          this.table === 'transactions'
+            ? 'tx-new'
+            : this.table === 'transaction_lines'
+              ? `tl-${supabaseData.transaction_lines.length + 1}`
+              : `row-${Math.random().toString(16).slice(2)}`;
+        const idValue =
+          typeof (row as { id?: unknown }).id === 'string' ? (row as { id: string }).id : fallbackId;
+        return { ...row, id: idValue } as RowByTable[Table];
+      });
       supabaseData[this.table].push(...normalized);
       this.pendingInsert = null;
       return normalized;
     }
 
-    const rows = [...(supabaseData[this.table] ?? [])];
+    const rows = [...(supabaseData[this.table] ?? [])] as RowByTable[Table][];
     const filtered = rows.filter((row) =>
       this.filters.every((filter) => {
         if (filter.op === 'eq') return row[filter.column] === filter.value;
@@ -233,10 +234,10 @@ class QueryBuilder<Table extends TableName>
     }
 
     if (typeof this.limitCount === 'number') {
-      return filtered.slice(0, this.limitCount);
+      return filtered.slice(0, this.limitCount) as RowByTable[Table][];
     }
 
-    return filtered;
+    return filtered as RowByTable[Table][];
   }
 
   then<TResult1 = { data: RowByTable[Table][]; error: null }, TResult2 = never>(
@@ -254,7 +255,7 @@ class QueryBuilder<Table extends TableName>
 
 vi.mock('@/lib/db', () => ({
   supabaseAdmin: {
-    from: (table: TableName) => new QueryBuilder(table),
+    from: <T extends TableName>(table: T) => new QueryBuilder(table),
   },
 }));
 

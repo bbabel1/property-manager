@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { CalendarEvent } from '@/types/calendar'
-import { format, startOfWeek, endOfWeek, addDays, isSameDay, parseISO, startOfDay, isWithinInterval } from 'date-fns'
+import { format, startOfWeek, addDays, isSameDay, parseISO, startOfDay, isWithinInterval } from 'date-fns'
 import { Button } from '@/components/ui/button'
 
 type WeekGridProps = {
@@ -21,7 +21,6 @@ export function WeekGrid({
   onDateSelect,
 }: WeekGridProps) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
   const daysOfWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const daysOfWeekNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
   const today = new Date()
@@ -184,4 +183,3 @@ export function WeekGrid({
     </div>
   )
 }
-

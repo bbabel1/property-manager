@@ -225,7 +225,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     }
 
     const allocationAccountIds = allocations.map((allocation) => allocation.account_id);
-    const { data: allocationAccounts, error: allocationAccountsError } = await supabaseAdmin
+    const { data: _allocationAccounts, error: allocationAccountsError } = await supabaseAdmin
       .from('gl_accounts')
       .select('id, name, type')
       .in('id', allocationAccountIds);

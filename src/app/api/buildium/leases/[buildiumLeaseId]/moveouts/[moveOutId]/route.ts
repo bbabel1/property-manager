@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(
   request: NextRequest,
@@ -23,19 +24,10 @@ export async function GET(
     const { buildiumLeaseId, moveOutId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts/${moveOutId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/moveouts/${moveOutId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease move out fetch failed`);
 
       return NextResponse.json(
@@ -47,7 +39,7 @@ export async function GET(
       );
     }
 
-    const moveOut = await response.json();
+    const moveOut = response.json ?? {};
 
     logger.info(`Buildium lease move out fetched successfully`);
 
@@ -87,19 +79,10 @@ export async function DELETE(
     const { buildiumLeaseId, moveOutId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/moveouts/${moveOutId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('DELETE', `/leases/${buildiumLeaseId}/moveouts/${moveOutId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium lease move out deletion failed`);
 
       return NextResponse.json(

@@ -3,6 +3,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 type Json = Record<string, any>
+type BuildiumCredentials = { baseUrl: string; clientId: string; clientSecret: string }
+
+let currentBuildiumCreds: BuildiumCredentials | null = null
 
 function cors() {
   return {
@@ -11,16 +14,19 @@ function cors() {
   }
 }
 
-const BUILDIUM_BASE = (Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com').replace(/\/$/, '')
-
 async function buildium<T>(method: string, path: string, body?: any): Promise<T> {
+  const creds = currentBuildiumCreds
+  const baseUrl = (creds?.baseUrl || 'https://apisandbox.buildium.com/v1').replace(/\/$/, '')
+  if (!creds?.clientId || !creds?.clientSecret) {
+    throw new Error('Buildium credentials not provided')
+  }
   const headers: HeadersInit = {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
-    'x-buildium-client-id': Deno.env.get('BUILDIUM_CLIENT_ID') || '',
-    'x-buildium-client-secret': Deno.env.get('BUILDIUM_CLIENT_SECRET') || ''
+    'x-buildium-client-id': creds.clientId,
+    'x-buildium-client-secret': creds.clientSecret
   }
-  const res = await fetch(`${BUILDIUM_BASE}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+  const res = await fetch(`${baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(`${res.status} ${res.statusText} - ${err?.Message || err?.message || 'Buildium error'}`)
@@ -263,6 +269,16 @@ serve(async (req) => {
     const recurringId = body.recurringId != null ? Number(body.recurringId) : undefined
     const payload = body.payload
     const persist = Boolean(body.persist)
+    const credsRaw = body.credentials as Partial<BuildiumCredentials> | undefined
+    currentBuildiumCreds = {
+      baseUrl: (credsRaw?.baseUrl || Deno.env.get('BUILDIUM_BASE_URL') || 'https://apisandbox.buildium.com/v1').replace(/\/$/, ''),
+      clientId: (credsRaw?.clientId || Deno.env.get('BUILDIUM_CLIENT_ID') || '').trim(),
+      clientSecret: (credsRaw?.clientSecret || Deno.env.get('BUILDIUM_CLIENT_SECRET') || '').trim(),
+    }
+
+    if (!currentBuildiumCreds.clientId || !currentBuildiumCreds.clientSecret) {
+      return new Response(JSON.stringify({ success: false, error: 'Missing Buildium credentials' }), { headers, status: 400 })
+    }
 
     let data: any
 

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { CalendarEvent } from '@/types/calendar'
-import { format, startOfMonth, endOfMonth, getDay, addDays, isSameDay, isSameMonth, parseISO, startOfDay } from 'date-fns'
+import { format, endOfMonth, getDay, isSameDay, parseISO, startOfDay } from 'date-fns'
 import { Button } from '@/components/ui/button'
 
 type MonthGridProps = {
@@ -16,7 +16,7 @@ export function MonthGrid({
   currentDate,
   events,
   onEventClick,
-  onDateSelect,
+  onDateSelect: _onDateSelect,
 }: MonthGridProps) {
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -247,4 +247,3 @@ export function MonthGrid({
     </div>
   )
 }
-

@@ -9,10 +9,12 @@ export default async function ReconciliationFallback({ params }: { params: Promi
     .from('reconciliation_log')
     .select('property_id')
     .eq('buildium_reconciliation_id', Number(id))
-    .maybeSingle()
+    .maybeSingle<{ property_id: string | null }>()
 
-  if (data?.property_id) {
-    redirect(`/properties/${data.property_id}/reconciliations/${id}`)
+  const propertyId = (data as { property_id: string | null } | null)?.property_id
+
+  if (propertyId) {
+    redirect(`/properties/${propertyId}/reconciliations/${id}`)
   }
 
   return (

@@ -14,8 +14,8 @@ This document maps the RBAC database tables to their UI management interfaces an
 
 ### 1. Settings Hub
 
-**URL**: `/settings`  
-**Purpose**: Main settings navigation  
+**URL**: `/settings`
+**Purpose**: Main settings navigation
 **Features**:
 
 - Links to all settings pages
@@ -27,8 +27,8 @@ This document maps the RBAC database tables to their UI management interfaces an
 
 ### 2. Organization Settings
 
-**URL**: `/settings/organization`  
-**Database Table**: `organizations`  
+**URL**: `/settings/organization`
+**Database Table**: `organizations`
 **Status**: ✅ Connected (manager API)
 
 **Mapped Fields (organizations table)**:
@@ -46,8 +46,8 @@ This document maps the RBAC database tables to their UI management interfaces an
 
 ### 3. Memberships Management
 
-**URL**: `/settings/memberships`  
-**Database Tables**: `org_memberships` + `membership_roles`  
+**URL**: `/settings/memberships`
+**Database Tables**: `org_memberships` + `membership_roles`
 **Status**: ✅ EXISTS (Partially Complete)
 
 **Current Features**:
@@ -94,8 +94,8 @@ const ROLE_OPTIONS = [
 
 ### 4. Users & Roles Management
 
-**URL**: `/settings/users`  
-**Database Tables**: `profiles`, `contacts`, `staff`, `org_memberships`  
+**URL**: `/settings/users`
+**Database Tables**: `profiles`, `contacts`, `staff`, `org_memberships`
 **Status**: ✅ EXISTS (Complex, Multi-Purpose)
 
 **Current Features**:
@@ -127,8 +127,8 @@ const ROLE_OPTIONS = [
 
 ### 5. Permission Profiles (Admin API Only)
 
-**URL**: No UI page exists  
-**Database Tables**: `roles`, `role_permissions`, `permissions`  
+**URL**: No UI page exists
+**Database Tables**: `roles`, `role_permissions`, `permissions`
 **Status**: ⚠️ API EXISTS, NO UI
 
 **API Endpoints**:
@@ -214,7 +214,7 @@ const ROLE_OPTIONS = [
 
 ### Priority 1: Role Management
 
-**Page**: `/settings/roles` (NEW)  
+**Page**: `/settings/roles` (NEW)
 **Purpose**: Manage role definitions
 
 **Features Needed**:
@@ -235,7 +235,7 @@ const ROLE_OPTIONS = [
 
 ### Priority 2: Permission Management
 
-**Page**: `/settings/roles/[roleId]/permissions` (NEW)  
+**Page**: `/settings/roles/[roleId]/permissions` (NEW)
 **Purpose**: Manage permissions for a specific role
 
 **Features Needed**:
@@ -378,8 +378,8 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 ### 1. Role Management Page (`/settings/roles`)
 
-**Component**: `src/app/(protected)/settings/roles/page.tsx`  
-**Purpose**: CRUD for roles  
+**Component**: `src/app/(protected)/settings/roles/page.tsx`
+**Purpose**: CRUD for roles
 **Fields to expose**:
 
 - `roles.name` - Role name
@@ -389,8 +389,8 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 ### 2. Permission Assignment Page (`/settings/roles/[id]/permissions`)
 
-**Component**: `src/app/(protected)/settings/roles/[id]/permissions/page.tsx`  
-**Purpose**: Assign permissions to a role  
+**Component**: `src/app/(protected)/settings/roles/[id]/permissions/page.tsx`
+**Purpose**: Assign permissions to a role
 **Fields to expose**:
 
 - Checkboxes for all permissions from `permissions` table
@@ -399,8 +399,8 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 ### 3. Permission Catalog Page (`/settings/permissions`)
 
-**Component**: `src/app/(protected)/settings/permissions/page.tsx`  
-**Purpose**: View/manage available permissions  
+**Component**: `src/app/(protected)/settings/permissions/page.tsx`
+**Purpose**: View/manage available permissions
 **Fields to expose**:
 
 - `permissions.key` - Permission key
@@ -410,8 +410,8 @@ ON CONFLICT (user_id, org_id, role_id) DO NOTHING;
 
 ### 4. Enhanced Organization Page
 
-**Component**: Update `src/app/(protected)/settings/organization/page.tsx`  
-**Purpose**: Connect to actual database  
+**Component**: Update `src/app/(protected)/settings/organization/page.tsx`
+**Purpose**: Connect to actual database
 **New API Endpoints Needed**:
 
 - `GET /api/organizations` - Fetch current org

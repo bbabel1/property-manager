@@ -1,5 +1,7 @@
 # Code Conventions
 
+<!-- markdownlint-configure-file {"MD013": false} -->
+
 ## Naming
 
 - **Domain folders**: Prefer pluralized names (for example, `monthly-logs`, `properties`, `transactions`) to match collection-oriented APIs and keep barrels predictable.

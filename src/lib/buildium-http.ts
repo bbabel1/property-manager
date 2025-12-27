@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Minimal Buildium HTTP helper used by API routes to standardize headers and URLs
 // CRITICAL: All Buildium credential access must flow through getOrgScopedBuildiumConfig
 import { getOrgScopedBuildiumConfig } from './buildium/credentials-manager';
@@ -6,6 +5,14 @@ import { logger } from '@/lib/logger';
 
 export type BuildiumMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type BuildiumParams = Record<string, string | number | boolean | null | undefined>
+
+export type BuildiumFetchResult = {
+  ok: boolean
+  status: number
+  statusText: string
+  json?: unknown
+  errorText?: string
+}
 
 /**
  * Buildium HTTP fetch helper
@@ -25,7 +32,7 @@ export async function buildiumFetch(
   params?: BuildiumParams,
   payload?: unknown,
   orgId?: string | undefined
-): Promise<{ ok: boolean; status: number; json?: unknown; errorText?: string }> {
+): Promise<BuildiumFetchResult> {
   // Get credentials from central manager
   const config = await getOrgScopedBuildiumConfig(orgId);
   
@@ -38,6 +45,7 @@ export async function buildiumFetch(
     return { 
       ok: false, 
       status: 0, 
+      statusText: errorMsg,
       errorText: errorMsg 
     };
   }
@@ -71,14 +79,19 @@ export async function buildiumFetch(
     let json: unknown
     try { json = text ? JSON.parse(text) : undefined } catch { json = undefined }
     if (res.ok) {
-      console.log(`[Buildium] ${method} ${path} -> ${res.status}`, json?.Id ? { Id: json.Id } : json)
+      const parsedId = (json as { Id?: unknown } | null | undefined)?.Id
+      console.log(
+        `[Buildium] ${method} ${path} -> ${res.status}`,
+        parsedId ? { Id: parsedId } : json,
+      )
     } else {
       console.warn(`[Buildium] ${method} ${path} -> ${res.status}`, json ?? text)
     }
-    return { ok: res.ok, status: res.status, json, errorText: res.ok ? undefined : text }
+    return { ok: res.ok, status: res.status, statusText: res.statusText, json, errorText: res.ok ? undefined : text }
   } catch (e) {
     console.warn(`[Buildium] ${method} ${path} failed`, (e as Error).message)
-    return { ok: false, status: 0, errorText: (e as Error).message }
+    const message = (e as Error).message
+    return { ok: false, status: 0, statusText: message, errorText: message }
   }
 }
 
@@ -91,7 +104,7 @@ export async function buildiumFetchLegacy(
   path: string,
   params?: BuildiumParams,
   payload?: unknown
-): Promise<{ ok: boolean; status: number; json?: unknown; errorText?: string }> {
+): Promise<BuildiumFetchResult> {
   logger.warn('buildiumFetchLegacy called - please migrate to buildiumFetch with orgId parameter');
   return buildiumFetch(method, path, params, payload, undefined);
 }

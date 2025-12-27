@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
@@ -12,14 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.info({ userId: user.id, checkId, fileId, action: 'get_buildium_check_file' }, 'Fetching Buildium check file');
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/checks/${checkId}/files/${fileId}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', `/bankaccounts/checks/${checkId}/files/${fileId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -31,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const file = await response.json();
+    const file = response.json ?? {};
 
     return NextResponse.json({
       success: true,
@@ -57,14 +51,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     logger.info({ userId: user.id, checkId, fileId, action: 'delete_buildium_check_file' }, 'Deleting Buildium check file');
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/checks/${checkId}/files/${fileId}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('DELETE', `/bankaccounts/checks/${checkId}/files/${fileId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -103,16 +90,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/checks/${checkId}/files/${fileId}/download`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(body)
-    });
+    const response = await buildiumFetch('POST', `/bankaccounts/checks/${checkId}/files/${fileId}/download`, undefined, body, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -124,7 +102,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const downloadResult = await response.json();
+    const downloadResult = response.json ?? {};
 
     return NextResponse.json({
       success: true,

@@ -457,10 +457,6 @@ export default function RecordBillForm({
   );
 
   const glAccountSections = useMemo(() => categorizeGLAccounts(glAccounts), [glAccounts]);
-  const payableAccountItems = useMemo(
-    () => payableAccounts.map((account) => ({ value: account.id, label: account.label })),
-    [payableAccounts],
-  );
 
   const vendorItems = useMemo(
     () =>
@@ -908,7 +904,7 @@ export default function RecordBillForm({
     syncDueDate(form.terms, sanitized);
   };
 
-  const onTermsChange = (value: TermsOption['id']) => {
+  const _onTermsChange = (value: TermsOption['id']) => {
     setFormValue('terms', value);
     syncDueDate(value);
   };

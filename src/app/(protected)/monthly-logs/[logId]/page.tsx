@@ -396,12 +396,14 @@ async function fetchMonthlyLogRecord(
     )
   `;
 
-  const runSelect = async (selectFields: string) =>
-    supabase
+  const runSelect = async (selectFields: string) => {
+    const res = await supabase
       .from('monthly_logs')
-      .select<MonthlyLogRecord>(selectFields)
+      .select(selectFields)
       .eq('id', logId)
       .maybeSingle();
+    return { data: (res.data as MonthlyLogRecord | null) ?? null, error: res.error };
+  };
 
   const primaryResult = await traceAsync('monthlyLog.fetch.record', () =>
     runSelect(selectWithLeaseId),

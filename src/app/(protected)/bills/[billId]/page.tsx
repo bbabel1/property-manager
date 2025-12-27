@@ -61,23 +61,6 @@ type PaymentRow = Pick<
   | 'buildium_bill_id'
 >;
 
-type BillRecord = Pick<
-  Database['public']['Tables']['transactions']['Row'],
-  | 'id'
-  | 'date'
-  | 'due_date'
-  | 'paid_date'
-  | 'total_amount'
-  | 'status'
-  | 'memo'
-  | 'reference_number'
-  | 'vendor_id'
-  | 'buildium_bill_id'
-  | 'transaction_type'
-  | 'org_id'
-  | 'work_order_id'
->;
-
 type TransactionLineWithRelations = Database['public']['Tables']['transaction_lines']['Row'] & {
   gl_accounts?:
     | Pick<
@@ -204,7 +187,6 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     .select(
       'id, date, due_date, paid_date, total_amount, status, memo, reference_number, vendor_id, buildium_bill_id, transaction_type, org_id, work_order_id',
     )
-    .returns<BillRecord[]>()
     .eq('id', billId)
     .maybeSingle();
 
@@ -218,57 +200,64 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     notFound();
   }
 
-  const linesPromise: Promise<ListQueryResult<TransactionLineWithRelations>> = db
-    .from('transaction_lines')
-    .select(
-      `id,
-         amount,
-         memo,
-         posting_type,
-         property_id,
-         unit_id,
-         date,
-         created_at,
-         gl_accounts(name, account_number, type),
-         units(unit_number, unit_name),
-         properties(name)`,
-    )
-    .returns<TransactionLineWithRelations[]>()
-    .eq('transaction_id', bill.id)
-    .order('created_at', { ascending: true })
-    .then(({ data, error }) => ({ data: data ?? [], error }));
+  const linesPromise: Promise<ListQueryResult<TransactionLineWithRelations>> = (async () => {
+    const { data, error } = await db
+      .from('transaction_lines')
+      .select(
+        `id,
+           amount,
+           memo,
+           posting_type,
+           property_id,
+           unit_id,
+           date,
+           created_at,
+           gl_accounts(name, account_number, type),
+           units(unit_number, unit_name),
+           properties(name)`,
+      )
+      .eq('transaction_id', bill.id)
+      .order('created_at', { ascending: true });
+    return { data: (data as TransactionLineWithRelations[] | null) ?? [], error };
+  })();
 
   const vendorPromise: Promise<SingleQueryResult<VendorWithContact>> = bill.vendor_id
-    ? db
-        .from('vendors')
-        .select('id, contacts(display_name, company_name)')
-        .returns<VendorWithContact[]>()
-        .eq('id', bill.vendor_id)
-        .maybeSingle()
-        .then(({ data, error }) => ({ data, error }))
+    ? (async () => {
+        const vendorId = String(bill.vendor_id);
+        const { data, error } = await db
+          .from('vendors')
+          .select('id, contacts(display_name, company_name)')
+          .eq('id', vendorId)
+          .maybeSingle();
+        return { data: (data as VendorWithContact | null) ?? null, error };
+      })()
     : Promise.resolve({ data: null, error: null });
 
   const paymentsPromise: Promise<ListQueryResult<PaymentRow>> = bill.buildium_bill_id
-    ? db
-        .from('transactions')
-        .select(
-          'id, date, paid_date, total_amount, bank_gl_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
-        )
-        .returns<PaymentRow[]>()
-        .eq('transaction_type', 'Payment')
-        .eq('buildium_bill_id', bill.buildium_bill_id)
-        .order('date', { ascending: false })
-        .then(({ data, error }) => ({ data: data ?? [], error }))
+    ? (async () => {
+        const buildiumBillId = Number(bill.buildium_bill_id);
+        const { data, error } = await db
+          .from('transactions')
+          .select(
+            'id, date, paid_date, total_amount, bank_gl_account_id, payment_method, reference_number, check_number, status, transaction_type, buildium_bill_id',
+          )
+          .eq('transaction_type', 'Payment')
+          .eq('buildium_bill_id', buildiumBillId)
+          .order('date', { ascending: false });
+        return { data: (data as PaymentRow[] | null) ?? [], error };
+      })()
     : Promise.resolve({ data: [], error: null });
 
   const workOrderPromise: Promise<SingleQueryResult<WorkOrderSummary>> = bill.work_order_id
-    ? db
-        .from('work_orders')
-        .select('id, subject')
-        .returns<WorkOrderSummary[]>()
-        .eq('id', bill.work_order_id)
-        .maybeSingle()
-        .then(({ data, error }) => ({ data, error }))
+    ? (async () => {
+        const workOrderId = String(bill.work_order_id);
+        const { data, error } = await db
+          .from('work_orders')
+          .select('id, subject')
+          .eq('id', workOrderId)
+          .maybeSingle();
+        return { data: (data as WorkOrderSummary | null) ?? null, error };
+      })()
     : Promise.resolve({ data: null, error: null });
 
   const [linesRes, vendorRes, paymentsRes, workOrderRes] = await Promise.all([

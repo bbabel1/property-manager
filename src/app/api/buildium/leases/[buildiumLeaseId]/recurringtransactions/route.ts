@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { sanitizeAndValidate } from '@/lib/sanitize'
 import { BuildiumRecurringTransactionCreateSchema } from '@/schemas/buildium'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(
   request: NextRequest,
@@ -19,27 +20,20 @@ export async function GET(
     const orderby = searchParams.get('orderby') || undefined
     const offset = searchParams.get('offset') || undefined
     const limit = searchParams.get('limit') || undefined
-    const qs = new URLSearchParams()
-    if (orderby) qs.append('orderby', orderby)
-    if (offset) qs.append('offset', offset)
-    if (limit) qs.append('limit', limit)
+    const queryParams: Record<string, string> = {}
+    if (orderby) queryParams.orderby = orderby
+    if (offset) queryParams.offset = offset
+    if (limit) queryParams.limit = limit
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions?${qs.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    })
+    const response = await buildiumFetch('GET', `/leases/${buildiumLeaseId}/recurring-transactions`, queryParams, undefined, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium recurring transactions fetch failed')
       return NextResponse.json({ error: 'Failed to fetch Buildium recurring transactions', details: errorData }, { status: response.status })
     }
 
-    const data = await response.json()
+    const data = response.json ?? []
     return NextResponse.json({ success: true, data, count: Array.isArray(data) ? data.length : 0 })
   } catch (error) {
     logger.error({ error });
@@ -61,24 +55,15 @@ export async function POST(
     const body = await request.json()
     const validated = sanitizeAndValidate(body, BuildiumRecurringTransactionCreateSchema)
 
-    const response = await fetch(`${process.env.BUILDIUM_BASE_URL}/leases/${buildiumLeaseId}/recurring-transactions`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validated)
-    })
+    const response = await buildiumFetch('POST', `/leases/${buildiumLeaseId}/recurring-transactions`, undefined, validated, undefined)
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = response.json ?? {}
       logger.error('Buildium recurring transaction create failed')
       return NextResponse.json({ error: 'Failed to create Buildium recurring transaction', details: errorData }, { status: response.status })
     }
 
-    const created = await response.json()
+    const created = response.json ?? {}
     return NextResponse.json({ success: true, data: created }, { status: 201 })
   } catch (error) {
     logger.error({ error });

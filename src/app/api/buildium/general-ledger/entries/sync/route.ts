@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { supabase } from '@/lib/db';
 import { upsertGLEntryWithLines } from '@/lib/buildium-mappers';
 import type { Database } from '@/types/database';
@@ -78,30 +79,22 @@ export async function POST(request: NextRequest) {
       dateTo = dateTo || endStr
     }
 
-    const qp = new URLSearchParams();
-    if (dateFrom) qp.append('dateFrom', String(dateFrom));
-    if (dateTo) qp.append('dateTo', String(dateTo));
-    if (glAccountId) qp.append('glAccountId', String(glAccountId));
-    qp.append('limit', String(limit));
-    qp.append('offset', String(offset));
+    const queryParams: Record<string, string> = {};
+    if (dateFrom) queryParams.dateFrom = String(dateFrom);
+    if (dateTo) queryParams.dateTo = String(dateTo);
+    if (glAccountId) queryParams.glAccountId = String(glAccountId);
+    queryParams.limit = String(limit);
+    queryParams.offset = String(offset);
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/generalledger/journalentries?${qp.toString()}`;
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', '/generalledger/journalentries', queryParams, undefined, undefined);
 
     if (!response.ok) {
-      const errorData: unknown = await response.json().catch(() => ({}));
+      const errorData: unknown = response.json ?? {};
       logger.error('Buildium GL entries fetch (for sync) failed');
       return NextResponse.json({ error: 'Failed to fetch GL entries', details: errorData }, { status: response.status });
     }
 
-    const entriesJson: unknown = await response.json().catch(() => []);
+    const entriesJson: unknown = response.json ?? [];
     const entries = Array.isArray(entriesJson)
       ? entriesJson.filter(isRecord)
       : [];

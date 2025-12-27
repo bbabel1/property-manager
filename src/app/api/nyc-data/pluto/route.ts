@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         const plutoRecord =
           building?.pluto && typeof building.pluto === 'object' ? building.pluto : null;
         bbl =
-          digitsOnly(building?.bbl) ||
+          digitsOnly(building?.bbl ?? null) ||
           digitsOnly(
             typeof plutoRecord?.['bbl'] === 'string' ? (plutoRecord['bbl'] as string) : null,
           ) ||

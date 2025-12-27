@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { BuildiumPropertyImageUpdateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string; imageId: string }> }) {
   try {
@@ -22,19 +23,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id, imageId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/images/${imageId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('GET', `/rentals/${id}/images/${imageId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium property image fetch failed`);
 
       return NextResponse.json(
@@ -46,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const image = await response.json();
+    const image = response.json ?? {};
 
     logger.info(`Buildium property image fetched successfully`);
 
@@ -89,21 +81,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const validatedData = sanitizeAndValidate(body, BuildiumPropertyImageUpdateSchema);
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/images/${imageId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(validatedData),
-    });
+    const response = await buildiumFetch('PUT', `/rentals/${id}/images/${imageId}`, undefined, validatedData, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium property image update failed`);
 
       return NextResponse.json(
@@ -115,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    const image = await response.json();
+    const image = response.json ?? {};
 
     logger.info(`Buildium property image updated successfully`);
 
@@ -152,19 +133,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const { id, imageId } = await params;
 
     // Make request to Buildium API
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/images/${imageId}`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('DELETE', `/rentals/${id}/images/${imageId}`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium property image deletion failed`);
 
       return NextResponse.json(
@@ -211,19 +183,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id, imageId } = await params;
 
     // Make request to Buildium API for image download
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/rentals/${id}/images/${imageId}/download`;
-    
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-    });
+    const response = await buildiumFetch('POST', `/rentals/${id}/images/${imageId}/download`, undefined, undefined, undefined);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = response.json ?? {};
       logger.error(`Buildium property image download failed`);
 
       return NextResponse.json(
@@ -235,7 +198,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       );
     }
 
-    const downloadData = await response.json();
+    const downloadData = response.json ?? {};
 
     logger.info(`Buildium property image download initiated successfully`);
 

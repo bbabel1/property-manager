@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/auth/guards'
 import { logger } from '@/lib/logger'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { supabaseAdmin } from '@/lib/db'
 
 type BalanceResponse = {
@@ -21,14 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.info({ reconciliationId, action: 'get_buildium_reconciliation_balance' }, 'Fetching Buildium reconciliation balance');
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/reconciliations/${reconciliationId}/balance`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', `/bankaccounts/reconciliations/${reconciliationId}/balance`, undefined, undefined, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -40,7 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const balance = (await response.json()) as BalanceResponse;
+    const balance = (response.json ?? {}) as BalanceResponse;
 
     return NextResponse.json({
       success: true,
@@ -68,16 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = (await request.json()) as Record<string, unknown>;
 
     // Buildium API call
-    const response = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/reconciliations/${reconciliationId}/balance`, {
-      method: 'PUT',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(body)
-    });
+    const response = await buildiumFetch('PUT', `/bankaccounts/reconciliations/${reconciliationId}/balance`, undefined, body, undefined);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -89,7 +74,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const updatedBalance = (await response.json()) as BalanceResponse;
+    const updatedBalance = (response.json ?? {}) as BalanceResponse;
 
     // Upsert balance fields into reconciliation_log
     try {

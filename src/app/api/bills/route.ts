@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { logger } from '@/lib/logger';
 import type { Database as DatabaseSchema } from '@/types/database';
 
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
     transaction_type: 'Bill',
     date: billDate,
     due_date: dueDate,
-    vendor_id: toNullableNumber(data.vendor_id) ?? data.vendor_id,
+    vendor_id: data.vendor_id ? String(data.vendor_id) : null,
     reference_number: data.reference_number?.trim() || null,
     memo: data.memo || null,
     status: 'Due',
@@ -239,18 +240,6 @@ async function syncBillToBuildium(
   billId: string,
   admin: ReturnType<typeof requireSupabaseAdmin>,
 ): Promise<BuildiumSyncResult> {
-  const missingEnv = ['BUILDIUM_BASE_URL', 'BUILDIUM_CLIENT_ID', 'BUILDIUM_CLIENT_SECRET'].filter(
-    (key) => !process.env[key],
-  );
-  if (missingEnv.length) {
-    logger.error({ billId, missingEnv }, 'Buildium environment variables missing');
-    return {
-      success: false,
-      status: 500,
-      message: 'Buildium integration is not configured. The bill was saved locally.',
-    };
-  }
-
   let payload: Awaited<ReturnType<typeof mapTransactionBillToBuildium>>;
   try {
     payload = await mapTransactionBillToBuildium(billId, admin);
@@ -268,7 +257,7 @@ async function syncBillToBuildium(
 
   const { data: tx, error: txError } = await admin
     .from('transactions')
-    .select('buildium_bill_id')
+    .select('buildium_bill_id, org_id')
     .eq('id', billId)
     .maybeSingle();
 
@@ -281,38 +270,39 @@ async function syncBillToBuildium(
     };
   }
 
-  const buildiumBaseUrl = (process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1').replace(
-    /\/$/,
-    '',
-  );
-  const isUpdate = typeof tx?.buildium_bill_id === 'number' && tx.buildium_bill_id > 0;
-  const buildiumUrl = isUpdate
-    ? `${buildiumBaseUrl}/bills/${tx.buildium_bill_id}`
-    : `${buildiumBaseUrl}/bills`;
+  // Resolve orgId from transaction
+  let orgId = tx?.org_id ?? undefined;
 
-  try {
-    const buildiumResponse = await fetch(buildiumUrl, {
-      method: isUpdate ? 'PUT' : 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!,
-      },
-      body: JSON.stringify(payload),
-    });
+  // If no orgId on transaction, try to resolve from property via transaction_lines
+  if (!orgId) {
+    const { data: txnLine } = await admin
+      .from('transaction_lines')
+      .select('property_id')
+      .eq('transaction_id', billId)
+      .not('property_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
 
-    const responseText = await buildiumResponse.text();
-    let responseBody: unknown = null;
-    if (responseText) {
-      try {
-        responseBody = JSON.parse(responseText);
-      } catch {
-        responseBody = responseText;
+    if (txnLine?.property_id) {
+      const { data: property } = await admin
+        .from('properties')
+        .select('org_id')
+        .eq('id', txnLine.property_id)
+        .maybeSingle();
+      if (property?.org_id) {
+        orgId = property.org_id;
       }
     }
+  }
+
+  const isUpdate = typeof tx?.buildium_bill_id === 'number' && tx.buildium_bill_id > 0;
+  const path = isUpdate ? `/bills/${tx.buildium_bill_id}` : '/bills';
+
+  try {
+    const buildiumResponse = await buildiumFetch(isUpdate ? 'PUT' : 'POST', path, undefined, payload, orgId);
 
     if (!buildiumResponse.ok) {
+      const responseBody = buildiumResponse.json ?? null;
       const message =
         describeBuildiumError(responseBody) ?? 'Failed to sync bill to Buildium. The bill was saved locally.';
       logger.error({ billId, status: buildiumResponse.status, response: responseBody }, message);
@@ -320,6 +310,7 @@ async function syncBillToBuildium(
     }
 
     if (!isUpdate) {
+      const responseBody = buildiumResponse.json ?? null;
       const maybeId = (responseBody as { Id?: number } | null)?.Id;
       if (typeof maybeId === 'number') {
         await admin

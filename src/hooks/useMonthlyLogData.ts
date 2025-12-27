@@ -113,8 +113,6 @@ const deriveTransactionScope = (
   return transaction.lease_id ? 'lease' : 'unit';
 };
 
-const OWNER_DRAW_ACCOUNT_NAME = 'owner draw';
-
 const deriveLocalSummary = (
   transactions: MonthlyLogTransaction[],
   baseSummary?: MonthlyLogFinancialSummary | null,
@@ -233,14 +231,14 @@ export function useMonthlyLogData(
     Boolean(options.leaseId) && options.loadLeaseUnassigned !== false;
   const shouldLoadUnitUnassigned = Boolean(options.unitId) && options.loadUnitUnassigned !== false;
 
-  const {
-    data: unassignedPages,
-    error: unassignedError,
-    isLoading: loadingUnassigned,
-    mutate: mutateUnassigned,
-    size,
-    setSize,
-  } = useSWRInfinite<UnassignedPage>(
+	  const {
+	    data: unassignedPages,
+	    error: unassignedError,
+	    isLoading: loadingUnassigned,
+	    mutate: mutateUnassigned,
+	    size: _size,
+	    setSize,
+	  } = useSWRInfinite<UnassignedPage>(
     (pageIndex, previousPageData) => {
       if (!shouldLoadLeaseUnassigned) return null;
       if (pageIndex > 0 && previousPageData && !previousPageData.nextCursor) return null;
@@ -273,14 +271,14 @@ export function useMonthlyLogData(
     },
   );
 
-  const {
-    data: unitUnassignedPages,
-    error: unitUnassignedError,
-    isLoading: loadingUnitUnassigned,
-    mutate: mutateUnitUnassigned,
-    size: unitSize,
-    setSize: setUnitSize,
-  } = useSWRInfinite<UnassignedPage>(
+	  const {
+	    data: unitUnassignedPages,
+	    error: unitUnassignedError,
+	    isLoading: loadingUnitUnassigned,
+	    mutate: mutateUnitUnassigned,
+	    size: _unitSize,
+	    setSize: setUnitSize,
+	  } = useSWRInfinite<UnassignedPage>(
     (pageIndex, previousPageData) => {
       if (!shouldLoadUnitUnassigned) return null;
       if (pageIndex > 0 && previousPageData && !previousPageData.nextCursor) return null;

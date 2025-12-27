@@ -40,11 +40,12 @@ async function ensureStaffRecord(userId: string) {
       .eq('user_id', userId)
       .returns<ContactSelect>()
       .maybeSingle()
-    if (contact) {
-      contactFirst = contact.first_name ?? null
-      contactLast = contact.last_name ?? null
-      contactPhone = contact.primary_phone ?? null
-      contactEmail = contact.primary_email ?? null
+    const contactRow = (contact || null) as ContactSelect | null
+    if (contactRow) {
+      contactFirst = contactRow.first_name ?? null
+      contactLast = contactRow.last_name ?? null
+      contactPhone = contactRow.primary_phone ?? null
+      contactEmail = contactRow.primary_email ?? null
     }
   } catch (err) {
     console.warn('Failed to load contact while auto-provisioning staff', err)
@@ -110,9 +111,9 @@ export async function POST(request: NextRequest) {
   const platform_developer = body?.platform_developer === true
   const user_types_raw = Array.isArray(body?.user_types) ? body.user_types : []
   const user_types = Array.from(
-    new Set(
+    new Set<string>(
       user_types_raw
-        .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+        .map((value: unknown) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
         .filter((value: string) => USER_TYPES.has(value))
     )
   )

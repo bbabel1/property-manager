@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/db'
+import { buildiumFetch } from '@/lib/buildium-http'
 import { logger } from '@/lib/logger'
 import type { Database as DatabaseSchema } from '@/types/database'
 
@@ -50,9 +51,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to list bank accounts' }, { status: 500 })
   }
 
-  const clientId = process.env.BUILDIUM_CLIENT_ID
-  const clientSecret = process.env.BUILDIUM_CLIENT_SECRET
-  if (!clientId || !clientSecret) return NextResponse.json({ error: 'Buildium credentials missing' }, { status: 500 })
+  // This is a platform_admin route, so orgId is undefined (falls back to env vars)
 
   let totalAccounts = 0
   let totalRecs = 0
@@ -83,15 +82,12 @@ export async function GET(req: NextRequest) {
     totalAccounts++
     try {
       // Fetch reconciliations per Buildium bank account
-      const res = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/${buildiumBankAccountId}/reconciliations`, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret },
-      })
+      const res = await buildiumFetch('GET', `/bankaccounts/${buildiumBankAccountId}/reconciliations`, undefined, undefined, undefined)
       if (!res.ok) {
         logger.warn({ bank: buildiumBankAccountId, status: res.status }, 'Reconciliations fetch failed')
         continue
       }
-      const recs = (await res.json()) as BuildiumReconciliation[]
+      const recs = (res.json ?? []) as BuildiumReconciliation[]
       for (const r of recs) {
         totalRecs++
         // Map to local property via properties.operating_bank_gl_account_id or deposit_trust_gl_account_id (fallback legacy)
@@ -121,13 +117,10 @@ export async function GET(req: NextRequest) {
         // Fetch balance for this reconciliation
         const bid = r?.Id ?? r?.id
         if (bid != null) {
-          const balRes = await fetch(`https://apisandbox.buildium.com/v1/bankaccounts/reconciliations/${bid}/balance`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json', 'x-buildium-client-id': clientId, 'x-buildium-client-secret': clientSecret },
-          })
+          const balRes = await buildiumFetch('GET', `/bankaccounts/reconciliations/${bid}/balance`, undefined, undefined, undefined)
           if (balRes.ok) {
             totalBalances++
-            const b = (await balRes.json()) as BuildiumBalance
+            const b = (balRes.json ?? {}) as BuildiumBalance
             const balPatch: Partial<ReconciliationInsert> = {
               buildium_reconciliation_id: bid,
               ending_balance: b?.EndingBalance ?? b?.endingBalance ?? null,

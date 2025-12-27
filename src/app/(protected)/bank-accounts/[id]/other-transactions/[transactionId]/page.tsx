@@ -9,36 +9,6 @@ import EditTransferForm, {
   type TransferUnitOption,
 } from '@/components/bank-accounts/EditTransferForm';
 
-type BankAccountDetail = { id: string; name: string | null };
-
-type BankAccountRow = {
-  id: string;
-  name: string | null;
-  bank_balance: number | null;
-};
-
-type PropertyRow = {
-  id: string;
-  name: string | null;
-  address_line1: string | null;
-  is_active: boolean | null;
-};
-
-type UnitRow = {
-  id: string;
-  property_id: string | null;
-  unit_number: string | null;
-  unit_name: string | null;
-};
-
-type GLAccountRow = {
-  id: string;
-  name: string | null;
-  account_number: string | null;
-  type: string | null;
-  is_bank_account?: boolean | null;
-};
-
 type TransactionRow = {
   id: string;
   date: string;

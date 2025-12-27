@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireRole } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
+import type { TablesInsert } from '@/types/database';
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
 
 type BankAccountRow = { id: string; org_id: string | null; buildium_gl_account_id: number | null };
@@ -328,7 +329,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const depositTransactionId = String(depositTx.id);
 
     // Transaction lines: debit bank, credit undeposited funds (for selected payments), plus credits for other items.
-    const lineRows: Record<string, unknown>[] = [];
+    const lineRows: TablesInsert<'transaction_lines'>[] = [];
     lineRows.push({
       transaction_id: depositTransactionId,
       gl_account_id: targetBankAccountId,
@@ -474,8 +475,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           buildiumPayload,
         );
 
+        const buildiumDepositRaw = buildiumResult?.Id ?? (buildiumResult as { id?: unknown })?.id;
         const buildiumDepositId =
-          typeof buildiumResult?.Id === 'number' ? buildiumResult.Id : buildiumResult?.id ?? null;
+          typeof buildiumDepositRaw === 'number'
+            ? buildiumDepositRaw
+            : Number.isFinite(Number(buildiumDepositRaw))
+              ? Number(buildiumDepositRaw)
+              : null;
         if (buildiumDepositId != null) {
           await supabaseAdmin
             .from('transactions')

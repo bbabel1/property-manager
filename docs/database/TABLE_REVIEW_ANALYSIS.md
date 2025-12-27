@@ -1,7 +1,7 @@
 # Database Table Review Analysis
 
-**Date**: 2025-01-31  
-**Total Base Tables**: 90  
+**Date**: 2025-01-31
+**Total Base Tables**: 90
 **Total Views**: 25
 
 ## Summary of Findings

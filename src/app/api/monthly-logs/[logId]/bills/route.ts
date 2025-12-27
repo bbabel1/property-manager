@@ -11,6 +11,7 @@ import { requireAuth } from '@/lib/auth/guards';
 import type { AppRole } from '@/lib/auth/roles';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
+import { buildiumFetch } from '@/lib/buildium-http';
 import type { BuildiumBillCreate } from '@/types/buildium';
 import { assignTransactionToMonthlyLog, fetchTransactionWithLines } from '@/lib/lease-transaction-helpers';
 import { upsertBillWithLines } from '@/lib/buildium-mappers';
@@ -281,20 +282,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       Lines: lines,
     };
 
-    const buildiumUrl = `${process.env.BUILDIUM_BASE_URL}/bills`;
-    const response = await fetch(buildiumUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID || '',
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET || '',
-      },
-      body: JSON.stringify(buildiumPayload),
-    });
+    // Resolve orgId from monthly_log
+    const orgId = logRecord?.org_id ?? undefined;
+
+    const response = await buildiumFetch('POST', '/bills', undefined, buildiumPayload, orgId);
 
     if (!response.ok) {
-      const details = await response.json().catch(() => ({} as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> }));
+      const details = (response.json ?? {}) as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> };
       const message =
         details?.UserMessage ||
         details?.error ||

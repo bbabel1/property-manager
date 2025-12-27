@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth/guards';
 import { logger } from '@/lib/logger';
 import { BuildiumCheckCreateSchema } from '@/schemas/buildium';
 import { sanitizeAndValidate } from '@/lib/sanitize';
+import { buildiumFetch } from '@/lib/buildium-http';
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert';
 
 type BuildiumCheckResponse = {
@@ -26,20 +27,13 @@ export async function GET(_request: NextRequest) {
     logger.info({ userId: user.id, action: 'get_buildium_checks' }, 'Fetching Buildium checks');
 
     // Buildium API call
-    const response = await fetch('https://apisandbox.buildium.com/v1/bankaccounts/checks', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      }
-    });
+    const response = await buildiumFetch('GET', '/bankaccounts/checks', undefined, undefined, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const checks = await response.json();
+    const checks = (response.json ?? []) as unknown[];
 
     return NextResponse.json({
       success: true,
@@ -68,23 +62,13 @@ export async function POST(request: NextRequest) {
     const { bankAccountId: requestedBankAccountId, ...buildiumPayload } = data;
 
     // Buildium API call
-    const baseUrl = process.env.BUILDIUM_BASE_URL || 'https://apisandbox.buildium.com/v1';
-    const response = await fetch(`${baseUrl}/bankaccounts/${requestedBankAccountId}/checks`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-buildium-client-id': process.env.BUILDIUM_CLIENT_ID!,
-        'x-buildium-client-secret': process.env.BUILDIUM_CLIENT_SECRET!
-      },
-      body: JSON.stringify(buildiumPayload)
-    });
+    const response = await buildiumFetch('POST', `/bankaccounts/${requestedBankAccountId}/checks`, undefined, buildiumPayload, undefined);
 
     if (!response.ok) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const newCheck: BuildiumCheckResponse = await response.json();
+    const newCheck: BuildiumCheckResponse = (response.json ?? {}) as BuildiumCheckResponse;
 
     let localTransactionId: string | null = null;
     try {
