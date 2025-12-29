@@ -231,37 +231,45 @@ async function resolveOrgId(
     // Try to find the real user by email using users_with_auth view
     // This view joins auth.users with profiles and org_memberships
     try {
-      const { data: userRow, error: userLookupError } = await supabaseAdminMaybe
+      const { data: userRow, error: userLookupError } = await (supabaseAdminMaybe as any)
         .from('users_with_auth')
         .select('user_id, memberships')
         .eq('email', user.email)
-        .maybeSingle<{
-          user_id?: string;
-          memberships?: Array<{ org_id?: string; role?: string }>;
-        }>();
+        .maybeSingle();
+
+      type UserWithAuthRow = {
+        user_id?: string;
+        memberships?: Array<{ org_id?: string; role?: string }>;
+      };
+
+      const typedUserRow = userRow as UserWithAuthRow | null;
+
       if (userLookupError) {
         console.warn('Failed to resolve user via users_with_auth', userLookupError);
       }
-      if (userRow?.user_id) {
-        addCandidateUserId(userRow.user_id);
+      if (typedUserRow?.user_id) {
+        addCandidateUserId(typedUserRow.user_id);
       }
 
       // Extract org_ids from memberships array
       const orgIdsFromMemberships =
-        userRow?.memberships
-          ?.map((m) => m.org_id)
-          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0) ?? [];
+        typedUserRow?.memberships
+          ?.map((m: { org_id?: string; role?: string }) => m.org_id)
+          .filter(
+            (id: string | undefined): id is string =>
+              typeof id === 'string' && id.trim().length > 0,
+          ) ?? [];
 
       if (orgIdsFromMemberships.length > 0) {
         // Use the first org_id from the user's memberships
         orgId = normalizeOrgId(orgIdsFromMemberships[0]);
         addClaimOrgIds(orgIdsFromMemberships);
-      } else if (userRow?.user_id && isValidUUID(userRow.user_id)) {
+      } else if (typedUserRow?.user_id && isValidUUID(typedUserRow.user_id)) {
         // If we found the user but no memberships, try to get org from org_memberships directly
         const { data: membershipRows } = await supabaseAdminMaybe
           .from('org_memberships')
           .select('org_id')
-          .eq('user_id', userRow.user_id)
+          .eq('user_id', typedUserRow.user_id)
           .order('created_at', { ascending: true })
           .limit(1);
         orgId = normalizeOrgId(membershipRows?.[0]?.org_id);
