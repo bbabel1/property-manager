@@ -58,13 +58,6 @@ interface BuildiumBankAccount {
   ModifiedDate: string
 }
 
-interface BuildiumApiResponse<T> {
-  data: T[]
-  totalCount: number
-  pageSize: number
-  pageNumber: number
-}
-
 async function fetchBankAccountsFromBuildium(): Promise<BuildiumBankAccount[]> {
   const allBankAccounts: BuildiumBankAccount[] = []
   let pageNumber = 1

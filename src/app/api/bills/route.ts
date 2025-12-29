@@ -37,14 +37,6 @@ const termsToDays: Record<string, number> = {
   net_60: 60,
 };
 
-const toNullableNumber = (value?: string | null) => {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 const normalizeEntityId = (value?: string | null) => {
   if (!value) return null;
   const trimmed = value.trim();

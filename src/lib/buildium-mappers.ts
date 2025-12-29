@@ -987,11 +987,13 @@ export async function resolveGLAccountId(
 
   try {
     // Step 1: Search for existing GL account record
-    const { data: existingGLAccount, error: searchError } = await supabase
+    const { data: existingGLAccountRaw, error: searchError } = await supabase
       .from('gl_accounts')
-      .select('id, org_id')
+      .select('id')
       .eq('buildium_gl_account_id', buildiumGLAccountId)
       .single();
+    type GLAccountLookup = { id: string };
+    const existingGLAccount = existingGLAccountRaw as unknown as GLAccountLookup | null;
 
     if (searchError && searchError.code !== 'PGRST116') {
       console.error('Error searching for GL account:', searchError);
@@ -1004,7 +1006,7 @@ export async function resolveGLAccountId(
     }
 
     // Resolve orgId from existing GL account if available, or use provided orgId
-    let resolvedOrgId = orgId ?? existingGLAccount?.org_id ?? undefined;
+    const resolvedOrgId = orgId ?? undefined;
 
     // Step 2: GL account not found, fetch from Buildium API
     console.log(`GL account ${buildiumGLAccountId} not found, fetching from Buildium...`);
@@ -1020,7 +1022,7 @@ export async function resolveGLAccountId(
       return null;
     }
 
-    const buildiumGLAccount = (response.json ?? {}) as unknown;
+    const buildiumGLAccount = (response.json ?? {}) as BuildiumGLAccountExtended;
     console.log('Fetched GL account from Buildium:', buildiumGLAccount);
 
     // Step 3: Map and create GL account record with sub_accounts resolution
@@ -1443,11 +1445,12 @@ export async function mapTransactionBillToBuildium(
       // Resolve orgId from transaction
       let orgId = tx.org_id ?? undefined;
       if (!orgId && tx.vendor_id) {
-        const { data: vendor } = await supabase
+        const { data: vendorRaw } = await supabase
           .from('vendors')
           .select('org_id')
           .eq('id', tx.vendor_id)
           .maybeSingle();
+        const vendor = vendorRaw as { org_id?: string | null } | null;
         if (vendor?.org_id) {
           orgId = vendor.org_id;
         }
@@ -2418,7 +2421,7 @@ export async function resolveBankGlAccountId(
     if (!findErr && existingGl?.id) return existingGl.id;
 
     // Resolve orgId from existing GL account if available, or use provided orgId
-    let resolvedOrgId = orgId ?? existingGl?.org_id ?? undefined;
+    const resolvedOrgId = orgId ?? existingGl?.org_id ?? undefined;
 
     const { buildiumFetch } = await import('./buildium-http');
     const response = await buildiumFetch('GET', `/bankaccounts/${buildiumBankAccountId}`, undefined, undefined, resolvedOrgId);
@@ -4403,22 +4406,24 @@ export async function resolveLocalVendorIdFromBuildium(
 ): Promise<string | null> {
   if (!buildiumVendorId) return null;
   try {
-    const { data: existing, error: findErr } = await supabase
+    const { data: existingRaw, error: findErr } = await supabase
       .from('vendors')
       .select('id, org_id')
       .eq('buildium_vendor_id', buildiumVendorId)
       .single();
+    type VendorLookup = { id: string; org_id?: string | null };
+    const existing = existingRaw as unknown as VendorLookup | null;
     if (!findErr && existing) return existing.id;
     if (findErr && findErr.code !== 'PGRST116') throw findErr;
 
     // Resolve orgId from existing vendor if available, or use provided orgId
-    let resolvedOrgId = orgId ?? existing?.org_id ?? undefined;
+    const resolvedOrgId = orgId ?? existing?.org_id ?? undefined;
 
     // Fetch vendor from Buildium and create
     const { buildiumFetch } = await import('./buildium-http');
     const resp = await buildiumFetch('GET', `/vendors/${buildiumVendorId}`, undefined, undefined, resolvedOrgId);
     if (!resp.ok) return null;
-    const buildiumVendor = (resp.json ?? {}) as unknown;
+    const buildiumVendor = (resp.json ?? {}) as BuildiumVendor;
     const vendorPayload = await mapVendorFromBuildiumWithCategory(buildiumVendor, supabase);
     const now = new Date().toISOString();
     if (!vendorPayload.contact_id) {

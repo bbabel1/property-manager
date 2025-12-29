@@ -63,7 +63,6 @@ class APIDocGenerator {
   private parseAPIFile(filePath: string, routePath: string) {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const fileName = path.basename(filePath, path.extname(filePath));
       
       // Extract HTTP methods from the file
       const methods = this.extractHTTPMethods(content);

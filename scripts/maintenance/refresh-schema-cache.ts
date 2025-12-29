@@ -30,7 +30,7 @@ async function refreshSchemaCache() {
   
   try {
     // Refresh the materialized views
-    const { data, error } = await supabase.rpc('refresh_schema_cache')
+    const { error } = await supabase.rpc('refresh_schema_cache')
     
     if (error) {
       console.error('❌ Error refreshing schema cache:', error)

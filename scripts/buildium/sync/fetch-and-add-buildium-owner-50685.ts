@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { mapOwnerFromBuildium, findOrCreateOwnerContact } from '@/lib/buildium-mappers'
+import { findOrCreateOwnerContact } from '@/lib/buildium-mappers'
 import type { BuildiumOwner } from '@/types/buildium'
 import * as dotenv from 'dotenv'
 

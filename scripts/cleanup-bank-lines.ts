@@ -26,8 +26,6 @@ if (propIdx === -1 || !args[propIdx + 1]) {
 }
 const propertyId = args[propIdx + 1]
 
-const BANK_GL_NAME = 'Trust account' // fallback; we will resolve by property
-
 async function getPropertyBankGlAccountId(pid: string) {
   const { data, error } = await supabase
     .from('properties')

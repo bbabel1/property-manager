@@ -7,9 +7,6 @@ import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTaskFromBuildiumWithRelations } from '@/lib/buildium-mappers';
 import { sanitizeAndValidate } from '@/lib/sanitize';
 import { buildiumFetch } from '@/lib/buildium-http';
-import type { Database } from '@/types/database';
-
-type TaskInsert = Database['public']['Tables']['tasks']['Insert'];
 type BuildiumToDoRequest = {
   Id?: number | string | null;
   RequestedByUserEntity?: { Type?: string | number | null } | null;

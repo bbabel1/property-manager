@@ -22,16 +22,10 @@ const eslintConfig = [
   // Global ignores (Flat config replacement for .eslintignore)
   {
     ignores: [
-      "backups/**",
-      "docs/**",
-      "scripts/**",
-      "stories/**",
-      "supabase/**",
       ".next/**",
+      "node_modules/**",
       "next-env.d.ts",
-      "fix-markdown.js",
-      // Ignore generated or vendor type definitions
-      "src/types/**"
+      "fix-markdown.js"
     ]
   },
   // Warn when importing the service-role client; enforce guard review per file
@@ -93,7 +87,7 @@ const eslintConfig = [
       // Treat unused vars as warnings in CI; allow underscore prefix
       "@typescript-eslint/no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true }
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_", ignoreRestSiblings: true }
       ],
       "@typescript-eslint/no-empty-object-type": "warn",
       "react/no-unescaped-entities": "off"

@@ -135,6 +135,10 @@ class DocumentationMonitor {
   }
 
   private async updateApiDocumentation(changes: FileChange[]): Promise<void> {
+    if (!changes.length) {
+      console.log('🔄 No API changes detected; skipping API doc regeneration.')
+      return
+    }
     console.log('🔄 Updating API documentation...')
     
     // Read all API route files
@@ -165,6 +169,10 @@ class DocumentationMonitor {
   }
 
   private async updateSchemaDocumentation(changes: FileChange[]): Promise<void> {
+    if (!changes.length) {
+      console.log('🗄️ No schema changes detected; skipping schema doc regeneration.')
+      return
+    }
     console.log('🗄️ Updating schema documentation...')
     
     // Read all migration files
@@ -182,6 +190,10 @@ class DocumentationMonitor {
   }
 
   private async updateAuthDocumentation(changes: FileChange[]): Promise<void> {
+    if (!changes.length) {
+      console.log('🔐 No auth changes detected; skipping auth doc updates.')
+      return
+    }
     console.log('🔐 Updating authentication documentation...')
     
     // Check if NextAuth is still present
@@ -204,11 +216,16 @@ class DocumentationMonitor {
   }
 
   private async updateBusinessLogicDocumentation(changes: FileChange[]): Promise<void> {
+    if (!changes.length) {
+      console.log('💼 No business-logic changes detected; skipping business doc updates.')
+      return
+    }
     console.log('💼 Updating business logic documentation...')
     
     // Analyze type definitions for changes
     const typeFiles = await this.findFiles('src/types', /\.ts$/)
     const serviceFiles = await this.findFiles('src/lib', /-service\.ts$/)
+    console.log(`Found ${typeFiles.length} type files and ${serviceFiles.length} service files to evaluate.`)
     
     // Update business logic documentation with new type information
     const timestamp = new Date().toISOString()
@@ -224,6 +241,10 @@ class DocumentationMonitor {
   }
 
   private async updateDependencyDocumentation(changes: FileChange[]): Promise<void> {
+    if (!changes.length) {
+      console.log('📦 No dependency-related changes detected; skipping dependency doc updates.')
+      return
+    }
     console.log('📦 Updating dependency documentation...')
     
     const packageContent = await fs.readFile('package.json', 'utf-8')
@@ -264,7 +285,7 @@ class DocumentationMonitor {
           files.push(fullPath)
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // Directory doesn't exist or can't be read
     }
     
@@ -473,7 +494,7 @@ npm run docs:update
         } else {
           console.log(`✅ ${doc} exists and has content`)
         }
-      } catch (error) {
+      } catch (_error) {
         console.log(`❌ ${doc} is missing`)
         valid = false
       }

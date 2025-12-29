@@ -61,7 +61,7 @@ class BuildiumClient {
 }
 
 // Data mapping function for lease transactions -> transactions table
-function mapLeaseTransactionFromBuildium(buildiumTransaction: any): any {
+export function mapLeaseTransactionFromBuildium(buildiumTransaction: any): any {
   const txType = buildiumTransaction?.TransactionTypeEnum || buildiumTransaction?.TransactionType;
   const amount =
     typeof buildiumTransaction?.TotalAmount === 'number'

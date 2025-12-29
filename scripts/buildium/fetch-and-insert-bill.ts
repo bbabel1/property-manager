@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 
 import { config } from 'dotenv'
@@ -38,7 +39,7 @@ async function fetchBillFromBuildium(billId: number) {
     logger.info(`Successfully fetched bill ${billId} from Buildium`)
     return data
   } catch (error) {
-    logger.error('Error fetching bill from Buildium')
+    logger.error('Error fetching bill from Buildium', error)
     console.error('Error details:', error)
     throw error
   }
@@ -93,7 +94,7 @@ async function insertBillIntoDatabase(buildiumBill: any) {
     return insertedBill
 
   } catch (error) {
-    logger.error(`Error inserting bill into database: ${error instanceof Error ? error.message : String(error)}`)
+    logger.error(`Error inserting bill into database: ${error instanceof Error ? error.message : String(error)}`, error)
     throw error
   }
 }
@@ -109,7 +110,7 @@ async function getVendorId(buildiumVendorId: number): Promise<string | null> {
 
     return vendor?.id || null
   } catch (error) {
-    logger.warn(`Vendor with Buildium ID ${buildiumVendorId} not found in database`)
+    logger.warn(`Vendor with Buildium ID ${buildiumVendorId} not found in database`, { error })
     return null
   }
 }
@@ -125,7 +126,7 @@ async function getPropertyId(buildiumPropertyId: number): Promise<string | null>
 
     return property?.id || null
   } catch (error) {
-    logger.warn(`Property with Buildium ID ${buildiumPropertyId} not found in database`)
+    logger.warn(`Property with Buildium ID ${buildiumPropertyId} not found in database`, { error })
     return null
   }
 }
@@ -141,7 +142,7 @@ async function getUnitId(buildiumUnitId: number): Promise<string | null> {
 
     return unit?.id || null
   } catch (error) {
-    logger.warn(`Unit with Buildium ID ${buildiumUnitId} not found in database`)
+    logger.warn(`Unit with Buildium ID ${buildiumUnitId} not found in database`, { error })
     return null
   }
 }

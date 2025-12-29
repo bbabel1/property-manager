@@ -140,7 +140,7 @@ async function fetchAndAddBuildiumTenant(tenantId: number) {
     try {
       buildiumTenant = await fetchTenantFromBuildium(tenantId)
       console.log('✅ Successfully fetched tenant from Buildium:', buildiumTenant.FirstName, buildiumTenant.LastName)
-    } catch (error) {
+    } catch (_error) {
       console.log('⚠️ Direct tenant fetch failed, trying fallback method...')
       buildiumTenant = await fetchTenantFromLease(tenantId)
       console.log('✅ Successfully fetched tenant from lease fallback:', buildiumTenant.FirstName, buildiumTenant.LastName)

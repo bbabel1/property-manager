@@ -122,7 +122,7 @@ async function testBuildiumConnection() {
           buildium_id: null,
         })
     } catch (statusError) {
-      console.warn('⚠️ Warning: Could not record connection failure status')
+      console.warn('⚠️ Warning: Could not record connection failure status', statusError)
     }
     
     process.exit(1)

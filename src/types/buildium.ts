@@ -290,7 +290,7 @@ export interface BuildiumPropertyCreate {
   RentalManager?: number;
 }
 
-export interface BuildiumPropertyUpdate extends Partial<BuildiumPropertyCreate> {}
+export type BuildiumPropertyUpdate = Partial<BuildiumPropertyCreate>;
 
 // ============================================================================
 // UNIT TYPES
@@ -360,7 +360,7 @@ export interface BuildiumUnitCreate {
   Description?: string;
 }
 
-export interface BuildiumUnitUpdate extends Partial<BuildiumUnitCreate> {}
+export type BuildiumUnitUpdate = Partial<BuildiumUnitCreate>;
 
 // ============================================================================
 // UNIT IMAGE + FILE TYPES
@@ -593,7 +593,7 @@ export interface BuildiumOwnerCreate {
   PropertyIds?: number[];
 }
 
-export interface BuildiumOwnerUpdate extends Partial<BuildiumOwnerCreate> {}
+export type BuildiumOwnerUpdate = Partial<BuildiumOwnerCreate>;
 
 // ============================================================================
 // LEASE TYPES
@@ -721,7 +721,7 @@ export interface BuildiumLeaseCreate {
   SecurityDepositAmount?: number;
 }
 
-export interface BuildiumLeaseUpdate extends Partial<BuildiumLeaseCreate> {}
+export type BuildiumLeaseUpdate = Partial<BuildiumLeaseCreate>;
 
 // ============================================================================
 // WORK ORDER TYPES
@@ -882,7 +882,7 @@ export interface BuildiumVendorCreate {
   IsActive?: boolean;
 }
 
-export interface BuildiumVendorUpdate extends Partial<BuildiumVendorCreate> {}
+export type BuildiumVendorUpdate = Partial<BuildiumVendorCreate>;
 
 // ============================================================================
 // BILL TYPES
@@ -963,7 +963,7 @@ export interface BuildiumBillCreate {
   }>;
 }
 
-export interface BuildiumBillUpdate extends Partial<BuildiumBillCreate> {}
+export type BuildiumBillUpdate = Partial<BuildiumBillCreate>;
 
 // ============================================================================
 // TASK TYPES
@@ -1001,7 +1001,7 @@ export interface BuildiumTaskCreate {
   Notes?: string;
 }
 
-export interface BuildiumTaskUpdate extends Partial<BuildiumTaskCreate> {}
+export type BuildiumTaskUpdate = Partial<BuildiumTaskCreate>;
 
 // ============================================================================
 // JOURNAL ENTRY TYPES
@@ -1176,7 +1176,7 @@ export interface BuildiumBankAccountCreate {
   IsActive?: boolean;
 }
 
-export interface BuildiumBankAccountUpdate extends Partial<BuildiumBankAccountCreate> {}
+export type BuildiumBankAccountUpdate = Partial<BuildiumBankAccountCreate>;
 
 // ============================================================================
 // WEBHOOK TYPES
@@ -1263,7 +1263,7 @@ export interface BuildiumTenantCreate {
   SMSOptInStatus?: boolean;
 }
 
-export interface BuildiumTenantUpdate extends Partial<BuildiumTenantCreate> {}
+export type BuildiumTenantUpdate = Partial<BuildiumTenantCreate>;
 
 export interface BuildiumTenantNote {
   Id: number;
@@ -1278,7 +1278,7 @@ export interface BuildiumTenantNoteCreate {
   Note: string;
 }
 
-export interface BuildiumTenantNoteUpdate extends Partial<BuildiumTenantNoteCreate> {}
+export type BuildiumTenantNoteUpdate = Partial<BuildiumTenantNoteCreate>;
 
 // ============================================================================
 // API RESPONSE TYPES
@@ -1396,7 +1396,7 @@ export interface BuildiumApplianceCreate {
   IsActive?: boolean;
 }
 
-export interface BuildiumApplianceUpdate extends Partial<BuildiumApplianceCreate> {}
+export type BuildiumApplianceUpdate = Partial<BuildiumApplianceCreate>;
 
 export type BuildiumApplianceServiceType =
   | 'Maintenance'
@@ -1427,5 +1427,5 @@ export interface BuildiumApplianceServiceHistoryCreate {
   Notes?: string | null;
 }
 
-export interface BuildiumApplianceServiceHistoryUpdate
-  extends Partial<BuildiumApplianceServiceHistoryCreate> {}
+export type BuildiumApplianceServiceHistoryUpdate =
+  Partial<BuildiumApplianceServiceHistoryCreate>;

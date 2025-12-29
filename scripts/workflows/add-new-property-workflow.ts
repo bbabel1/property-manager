@@ -262,7 +262,7 @@ async function addNewPropertyWorkflow() {
     // Step 7: Link Tenant to Lease
     console.log('\n📋 Step 7: Linking Tenant to Lease...')
     
-    const { data: leaseContact, error: leaseContactError } = await supabase
+    const { error: leaseContactError } = await supabase
       .from('lease_contacts')
       .insert({
         lease_id: lease.id,
@@ -271,8 +271,6 @@ async function addNewPropertyWorkflow() {
         is_primary: true,
         move_in_date: "2025-01-01"
       })
-      .select()
-      .single()
     
     if (leaseContactError) {
       throw new Error(`Lease contact creation failed: ${leaseContactError.message}`)

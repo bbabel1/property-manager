@@ -386,7 +386,6 @@ async function ensureGlAccountFromGlLineEdge(
 async function mapPropertyFromBuildiumWithBankAccount(
   buildiumProperty: any,
   supabase: any,
-  buildiumClient: BuildiumClient,
 ): Promise<any> {
   const baseProperty = {
     name: buildiumProperty.Name,
@@ -1057,7 +1056,7 @@ async function processWebhookEvent(
 
       case 'Lease.Created':
       case 'Lease.Updated':
-        return await processLeaseEvent(event, buildiumClient, supabase);
+        return await processLeaseEvent(event);
 
       case 'BankAccount.Created':
         return await processBankAccountEvent(event, buildiumClient, supabase);
@@ -1099,11 +1098,7 @@ async function processPropertyEvent(
     const property = await buildiumClient.getProperty(entityId);
 
     // Map to local format with bank account resolution
-    const localData = await mapPropertyFromBuildiumWithBankAccount(
-      property,
-      supabase,
-      buildiumClient,
-    );
+    const localData = await mapPropertyFromBuildiumWithBankAccount(property, supabase);
 
     // Check if property already exists locally
     const { data: existingProperty } = await supabase
@@ -1162,11 +1157,7 @@ async function processOwnerEvent(
   }
 }
 
-async function processLeaseEvent(
-  event: BuildiumWebhookEvent,
-  buildiumClient: BuildiumClient,
-  supabase: any,
-): Promise<{ success: boolean; error?: string }> {
+async function processLeaseEvent(event: BuildiumWebhookEvent): Promise<{ success: boolean; error?: string }> {
   try {
     const leaseId = Number(
       event.LeaseId ?? event.EntityId ?? (event as any)?.Data?.LeaseId ?? (event as any)?.Data?.EntityId,
@@ -1415,11 +1406,11 @@ async function processBankAccountTransactionEvent(
     } else if (isUpdateEvent) {
       // Buildium may represent deposits as bank-account "deposits" rather than generic "transactions".
       // We try the deposit endpoint first (consistent with Created), and fall back to the transactions endpoint.
-      try {
-        deposit = await buildiumClient.getBankDeposit(bankAccountId, depositId);
-      } catch (err) {
-        deposit = await buildiumClient.getBankTransaction(bankAccountId, depositId);
-      }
+    try {
+      deposit = await buildiumClient.getBankDeposit(bankAccountId, depositId);
+    } catch (_err) {
+      deposit = await buildiumClient.getBankTransaction(bankAccountId, depositId);
+    }
     } else {
       deposit = await buildiumClient.getBankDeposit(bankAccountId, depositId);
     }

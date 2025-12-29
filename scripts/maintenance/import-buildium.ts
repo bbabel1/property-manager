@@ -120,7 +120,7 @@ main().catch((error) => {
   if (!(error instanceof Error)) {
     try {
       console.error('Unexpected error object:', JSON.stringify(error, null, 2));
-    } catch (_) {
+    } catch {
       console.error('Unexpected error object:', error);
     }
   }

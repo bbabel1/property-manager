@@ -1,6 +1,5 @@
 #!/usr/bin/env -S node --loader tsx
 import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
 
 const MIGRATIONS_DIR = 'supabase/migrations'
 const RE = /^\d{14}_\d{3}_[a-z0-9_]+\.sql$/
@@ -20,4 +19,3 @@ function main() {
 }
 
 main()
-

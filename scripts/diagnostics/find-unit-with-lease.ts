@@ -81,7 +81,6 @@ async function findUnitWithLease() {
       // Calculate unit-specific balance from active lease
       let unitBalance = 0
       let activeLeaseRent: number | null = null
-      let depositsHeld = 0
       let prepayments = 0
       
       // Get the most recent active lease
@@ -164,8 +163,6 @@ async function findUnitWithLease() {
           } else {
             console.log('⚠️ No transaction lines found')
           }
-          
-          depositsHeld = activeLease?.security_deposit || 0
         } catch (error) {
           console.error('❌ Error calculating lease balance:', error)
         }

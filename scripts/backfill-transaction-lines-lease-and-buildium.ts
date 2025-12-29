@@ -162,7 +162,7 @@ async function main() {
       if (!buildiumLeaseId && lease?.buildium_lease_id) buildiumLeaseId = lease.buildium_lease_id;
 
       let propertyId = row.property_id ?? lease?.property_id ?? null;
-      let unitId = row.unit_id ?? lease?.unit_id ?? null;
+      const unitId = row.unit_id ?? lease?.unit_id ?? null;
 
       const unit = await fetchUnit(unitId);
       if (!propertyId && unit?.property_id) {

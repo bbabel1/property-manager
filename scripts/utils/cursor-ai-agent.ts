@@ -1,5 +1,4 @@
 import { watch } from 'fs';
-import { spawn } from 'child_process';
 import { logger } from './logger';
 
 interface AIAnalysisResult {
@@ -220,7 +219,7 @@ class CursorAIAgent {
   }
 
   private async runCursorAICommand(command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // This would integrate with Cursor's AI API
       // For now, we'll simulate AI analysis
       logger.info(`🤖 Running Cursor AI command: ${command}`);

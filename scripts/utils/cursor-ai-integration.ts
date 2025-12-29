@@ -1,8 +1,4 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { logger } from './logger';
-
-const execAsync = promisify(exec);
 
 interface CursorAIResponse {
   success: boolean;
