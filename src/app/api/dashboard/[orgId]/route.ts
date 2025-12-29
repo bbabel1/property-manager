@@ -271,93 +271,95 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
       `[Dashboard] Querying expiring leases: orgId=${orgId}, dateFrom=${expiringLeasesDateFrom}, dateTo=${expiringLeasesDateTo}\n`,
     );
 
-    const [kpis, renewals, onboardingSummary, recentTx, activeWOs, expiringLeases] =
-      await Promise.all([
-        dataClient
-          .from('v_dashboard_kpis')
-          .select(
-            'org_id,total_properties,total_units,occupied_units,available_units,occupancy_rate,monthly_rent_roll,active_leases,growth_rate,open_work_orders,urgent_work_orders',
-          )
-          .eq('org_id', orgId)
-          .maybeSingle(),
-        dataClient
-          .from('v_lease_renewals_summary')
-          .select('critical,upcoming,future')
-          .eq('org_id', orgId)
-          .maybeSingle(),
-        dataClient
-          .from('v_property_onboarding_summary')
-          .select('in_progress,pending_approval,overdue')
-          .eq('org_id', orgId)
-          .maybeSingle(),
-        dataClient
-          .from('v_recent_transactions_ranked')
-          .select('id,date,total_amount,memo,transaction_type,created_at')
-          .eq('org_id', orgId)
-          .gte('date', windowStartDate)
-          .order('date', { ascending: false })
-          .order('created_at', { ascending: false, nullsFirst: false })
-          .range(0, 49),
-        dataClient
-          .from('v_active_work_orders_ranked')
-          .select('id,subject,description,priority,status,created_at,scheduled_date,rn')
-          .eq('org_id', orgId)
-          .lte('rn', 5)
-          .order('rn', { ascending: true }),
-        (async () => {
-          // First, let's check all active leases for this org to debug
-          const allActiveLeases = await dataClient
-            .from('lease')
-            .select('id,lease_to_date,renewal_offer_status,status,org_id')
+    const [kpis, renewals, recentTx, activeWOs, expiringLeases] = await Promise.all([
+      // Try v_dashboard_kpis first, fallback to buildKpisFromTables if it fails
+      (async () => {
+        try {
+          const result = await (dataClient as any)
+            .from('v_dashboard_kpis')
+            .select(
+              'org_id,total_properties,total_units,occupied_units,available_units,occupancy_rate,monthly_rent_roll,active_leases,growth_rate,open_work_orders,urgent_work_orders',
+            )
             .eq('org_id', orgId)
-            .in('status', ['active', 'Active', 'ACTIVE']);
-          const activeCount = allActiveLeases.data?.length ?? 0;
-          process.stdout.write(`[Dashboard] All active leases for org: count=${activeCount}\n`);
-          if (allActiveLeases.error) {
-            process.stdout.write(
-              `[Dashboard] Error fetching active leases: ${allActiveLeases.error.message}\n`,
-            );
-          }
-          if (activeCount > 0 && activeCount <= 5) {
-            process.stdout.write(
-              `[Dashboard] Sample leases: ${JSON.stringify(
-                allActiveLeases.data?.map((l) => ({
-                  id: l.id,
-                  lease_to_date: l.lease_to_date,
-                  status: l.status,
-                })),
-              )}\n`,
-            );
-          }
-
-          // Now query with date filters
-          const dateFrom = startOfTodayIso.split('T')[0];
-          const dateTo = ninetyDaysFromNowIso.split('T')[0];
-          const result = await dataClient
-            .from('lease')
-            .select('id,lease_to_date,renewal_offer_status,status')
-            .eq('org_id', orgId)
-            .in('status', ['active', 'Active', 'ACTIVE'])
-            .not('lease_to_date', 'is', null)
-            .gte('lease_to_date', dateFrom) // Use date-only format YYYY-MM-DD
-            .lte('lease_to_date', dateTo); // Use date-only format YYYY-MM-DD
-
-          const filteredCount = result.data?.length ?? 0;
-          process.stdout.write(
-            `[Dashboard] Filtered expiring leases: count=${filteredCount}, dateFrom=${dateFrom}, dateTo=${dateTo}\n`,
-          );
-          if (result.error) {
-            process.stdout.write(`[Dashboard] Filtered query error: ${result.error.message}\n`);
-          }
-          if (filteredCount > 0) {
-            process.stdout.write(
-              `[Dashboard] Expiring leases: ${JSON.stringify(result.data?.slice(0, 3))}\n`,
-            );
-          }
-
+            .maybeSingle();
           return result;
-        })(),
-      ]);
+        } catch {
+          return { data: null, error: null };
+        }
+      })(),
+      dataClient
+        .from('v_lease_renewals_summary')
+        .select('critical,upcoming,future')
+        .eq('org_id', orgId)
+        .maybeSingle(),
+      dataClient
+        .from('v_recent_transactions_ranked')
+        .select('id,date,total_amount,memo,transaction_type,created_at')
+        .eq('org_id', orgId)
+        .gte('date', windowStartDate)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .range(0, 49),
+      dataClient
+        .from('v_active_work_orders_ranked')
+        .select('id,subject,description,priority,status,created_at,scheduled_date,rn')
+        .eq('org_id', orgId)
+        .lte('rn', 5)
+        .order('rn', { ascending: true }),
+      (async () => {
+        // First, let's check all active leases for this org to debug
+        const allActiveLeases = await dataClient
+          .from('lease')
+          .select('id,lease_to_date,renewal_offer_status,status,org_id')
+          .eq('org_id', orgId)
+          .in('status', ['active', 'Active', 'ACTIVE']);
+        const activeCount = allActiveLeases.data?.length ?? 0;
+        process.stdout.write(`[Dashboard] All active leases for org: count=${activeCount}\n`);
+        if (allActiveLeases.error) {
+          process.stdout.write(
+            `[Dashboard] Error fetching active leases: ${allActiveLeases.error.message}\n`,
+          );
+        }
+        if (activeCount > 0 && activeCount <= 5) {
+          process.stdout.write(
+            `[Dashboard] Sample leases: ${JSON.stringify(
+              allActiveLeases.data?.map((l) => ({
+                id: l.id,
+                lease_to_date: l.lease_to_date,
+                status: l.status,
+              })),
+            )}\n`,
+          );
+        }
+
+        // Now query with date filters
+        const dateFrom = startOfTodayIso.split('T')[0];
+        const dateTo = ninetyDaysFromNowIso.split('T')[0];
+        const result = await dataClient
+          .from('lease')
+          .select('id,lease_to_date,renewal_offer_status,status')
+          .eq('org_id', orgId)
+          .in('status', ['active', 'Active', 'ACTIVE'])
+          .not('lease_to_date', 'is', null)
+          .gte('lease_to_date', dateFrom) // Use date-only format YYYY-MM-DD
+          .lte('lease_to_date', dateTo); // Use date-only format YYYY-MM-DD
+
+        const filteredCount = result.data?.length ?? 0;
+        process.stdout.write(
+          `[Dashboard] Filtered expiring leases: count=${filteredCount}, dateFrom=${dateFrom}, dateTo=${dateTo}\n`,
+        );
+        if (result.error) {
+          process.stdout.write(`[Dashboard] Filtered query error: ${result.error.message}\n`);
+        }
+        if (filteredCount > 0) {
+          process.stdout.write(
+            `[Dashboard] Expiring leases: ${JSON.stringify(result.data?.slice(0, 3))}\n`,
+          );
+        }
+
+        return result;
+      })(),
+    ]);
 
     // Check for errors, with specific logging for expiring leases
     if (expiringLeases.error) {
@@ -371,12 +373,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
     }
 
     const error =
-      kpis.error ||
-      renewals.error ||
-      onboardingSummary.error ||
-      recentTx.error ||
-      activeWOs.error ||
-      expiringLeases.error;
+      kpis.error || renewals.error || recentTx.error || activeWOs.error || expiringLeases.error;
     if (error) {
       logger.error(
         { error, orgId, expiringLeasesError: expiringLeases.error },
@@ -425,7 +422,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
       logger.error({ fallbackError, orgId }, 'Failed to build KPI fallback from base tables');
     }
 
-    const mergedKpis = mergeKpis(kpis.data ?? null, fallbackKpis, orgId);
+    const mergedKpis = mergeKpis((kpis.data as typeof fallbackKpis) ?? null, fallbackKpis, orgId);
 
     const renewalsData = renewals.data
       ? {
@@ -435,13 +432,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ orgId: s
         }
       : null;
 
-    const onboardingData = onboardingSummary.data
-      ? {
-          in_progress: onboardingSummary.data.in_progress ?? 0,
-          pending_approval: onboardingSummary.data.pending_approval ?? 0,
-          overdue: onboardingSummary.data.overdue ?? 0,
-        }
-      : null;
+    // v_property_onboarding_summary was dropped in cleanup migration
+    const onboardingData = null;
 
     const recentTransactions = (recentTx.data ?? []) as RecentTransactionRow[];
     // Transactions are already filtered by date at the database level and sorted
