@@ -2,6 +2,7 @@
 // Systematically validates all Buildium API endpoints to ensure they're correct
 
 import { getOrgScopedBuildiumConfig } from './buildium/credentials-manager';
+import type { BuildiumConfig } from './buildium/credentials-manager';
 
 interface EndpointTest {
   name: string
@@ -27,15 +28,18 @@ export class BuildiumEndpointValidator {
   private clientId: string
   private clientSecret: string
 
-  constructor(orgId?: string) {
-    // For validator, use undefined orgId to fall back to env vars (platform_admin context)
-    const config = getOrgScopedBuildiumConfig(orgId);
+  private constructor(config: BuildiumConfig) {
+    this.baseUrl = config.baseUrl
+    this.clientId = config.clientId
+    this.clientSecret = config.clientSecret
+  }
+
+  static async create(orgId?: string): Promise<BuildiumEndpointValidator> {
+    const config = await getOrgScopedBuildiumConfig(orgId)
     if (!config) {
-      throw new Error('Buildium credentials not available');
+      throw new Error('Buildium credentials not available')
     }
-    this.baseUrl = config.baseUrl;
-    this.clientId = config.clientId;
-    this.clientSecret = config.clientSecret;
+    return new BuildiumEndpointValidator(config)
   }
 
   /**
@@ -360,7 +364,7 @@ export class BuildiumEndpointValidator {
 export async function runEndpointValidation(orgId?: string): Promise<void> {
   console.log('🔍 Starting Buildium API endpoint validation...')
   
-  const validator = new BuildiumEndpointValidator(orgId)
+  const validator = await BuildiumEndpointValidator.create(orgId)
   const results = await validator.validateAllEndpoints()
   const report = validator.generateReport(results)
   

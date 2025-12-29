@@ -577,7 +577,7 @@ export default async function BankAccountShow({
       p_org_id: bankAccount.org_id,
       p_gl_account_id: bankAccount.id,
       p_as_of: asOf,
-      p_property_id: null,
+      p_property_id: undefined,
     });
 
     if (!error && typeof data === 'number' && Number.isFinite(data)) return data;

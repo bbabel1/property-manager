@@ -14,59 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      appliance_service_history: {
-        Row: {
-          appliance_id: string
-          buildium_service_history_id: number | null
-          cost: number | null
-          created_at: string
-          description: string | null
-          id: string
-          notes: string | null
-          public_id: number
-          service_date: string
-          service_type: Database["public"]["Enums"]["appliance_service_type_enum"]
-          updated_at: string
-          vendor_name: string | null
-        }
-        Insert: {
-          appliance_id: string
-          buildium_service_history_id?: number | null
-          cost?: number | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          notes?: string | null
-          public_id?: number
-          service_date: string
-          service_type: Database["public"]["Enums"]["appliance_service_type_enum"]
-          updated_at?: string
-          vendor_name?: string | null
-        }
-        Update: {
-          appliance_id?: string
-          buildium_service_history_id?: number | null
-          cost?: number | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          notes?: string | null
-          public_id?: number
-          service_date?: string
-          service_type?: Database["public"]["Enums"]["appliance_service_type_enum"]
-          updated_at?: string
-          vendor_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appliance_service_history_appliance_id_fkey"
-            columns: ["appliance_id"]
-            isOneToOne: false
-            referencedRelation: "appliances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       appliances: {
         Row: {
           buildium_appliance_id: number | null
@@ -271,14 +218,14 @@ export type Database = {
             foreignKeyName: "billing_events_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transaction_amounts"
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "billing_events_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transactions"
+            referencedRelation: "v_bank_register_transactions"
             referencedColumns: ["id"]
           },
           {
@@ -290,48 +237,6 @@ export type Database = {
           },
           {
             foreignKeyName: "billing_events_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      building_permit_units: {
-        Row: {
-          created_at: string
-          id: string
-          permit_id: string
-          public_id: number
-          unit_id: string | null
-          unit_reference: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          permit_id: string
-          public_id?: number
-          unit_id?: string | null
-          unit_reference?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          permit_id?: string
-          public_id?: number
-          unit_id?: string | null
-          unit_reference?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "building_permit_units_permit_id_fkey"
-            columns: ["permit_id"]
-            isOneToOne: false
-            referencedRelation: "building_permits"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "building_permit_units_unit_id_fkey"
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
@@ -818,39 +723,6 @@ export type Database = {
           tax_volume?: string | null
           updated_at?: string
           zip_code?: string | null
-        }
-        Relationships: []
-      }
-      buildium_api_cache: {
-        Row: {
-          created_at: string | null
-          endpoint: string
-          expires_at: string
-          id: string
-          parameters: Json | null
-          public_id: number
-          response_data: Json | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          endpoint: string
-          expires_at: string
-          id?: string
-          parameters?: Json | null
-          public_id?: number
-          response_data?: Json | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          endpoint?: string
-          expires_at?: string
-          id?: string
-          parameters?: Json | null
-          public_id?: number
-          response_data?: Json | null
-          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2289,6 +2161,68 @@ export type Database = {
           },
         ]
       }
+      gl_account_balances: {
+        Row: {
+          as_of_date: string
+          balance: number
+          computed_at: string
+          gl_account_id: string
+          org_id: string
+          payload: Json | null
+          property_id: string | null
+          source: string
+        }
+        Insert: {
+          as_of_date: string
+          balance: number
+          computed_at?: string
+          gl_account_id: string
+          org_id: string
+          payload?: Json | null
+          property_id?: string | null
+          source?: string
+        }
+        Update: {
+          as_of_date?: string
+          balance?: number
+          computed_at?: string
+          gl_account_id?: string
+          org_id?: string
+          payload?: Json | null
+          property_id?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gl_account_balances_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_account_balances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_account_balances_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_account_balances_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+        ]
+      }
       gl_account_category: {
         Row: {
           category: Database["public"]["Enums"]["gl_category"]
@@ -2312,13 +2246,6 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "gl_account_category_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: true
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
           },
         ]
       }
@@ -2719,14 +2646,14 @@ export type Database = {
             foreignKeyName: "journal_entries_transaction_id_fkey1"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transaction_amounts"
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "journal_entries_transaction_id_fkey1"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transactions"
+            referencedRelation: "v_bank_register_transactions"
             referencedColumns: ["id"]
           },
           {
@@ -3334,137 +3261,6 @@ export type Database = {
           },
         ]
       }
-      nyc_open_data_integrations: {
-        Row: {
-          app_token_encrypted: string | null
-          base_url: string
-          created_at: string
-          dataset_asbestos_violations: string
-          dataset_bedbug_reporting: string
-          dataset_dob_active_violations: string
-          dataset_dob_certificate_of_occupancy_now: string
-          dataset_dob_certificate_of_occupancy_old: string
-          dataset_dob_complaints: string
-          dataset_dob_ecb_violations: string
-          dataset_dob_job_applications: string
-          dataset_dob_now_approved_permits: string
-          dataset_dob_now_job_filings: string
-          dataset_dob_now_safety_boiler: string
-          dataset_dob_now_safety_facade: string
-          dataset_dob_permit_issuance_old: string
-          dataset_dob_violations: string
-          dataset_elevator_complaints: string
-          dataset_elevator_devices: string
-          dataset_elevator_inspections: string
-          dataset_elevator_violations: string
-          dataset_elevator_violations_active: string
-          dataset_elevator_violations_historic: string
-          dataset_fdny_violations: string
-          dataset_heat_sensor_program: string
-          dataset_hpd_complaints: string
-          dataset_hpd_registrations: string
-          dataset_hpd_violations: string
-          dataset_sidewalk_violations: string
-          deleted_at: string | null
-          geoservice_api_key_encrypted: string | null
-          geoservice_app_id_encrypted: string | null
-          geoservice_base_url: string | null
-          id: string
-          is_enabled: boolean
-          org_id: string
-          public_id: number
-          updated_at: string
-        }
-        Insert: {
-          app_token_encrypted?: string | null
-          base_url?: string
-          created_at?: string
-          dataset_asbestos_violations?: string
-          dataset_bedbug_reporting?: string
-          dataset_dob_active_violations?: string
-          dataset_dob_certificate_of_occupancy_now?: string
-          dataset_dob_certificate_of_occupancy_old?: string
-          dataset_dob_complaints?: string
-          dataset_dob_ecb_violations?: string
-          dataset_dob_job_applications?: string
-          dataset_dob_now_approved_permits?: string
-          dataset_dob_now_job_filings?: string
-          dataset_dob_now_safety_boiler?: string
-          dataset_dob_now_safety_facade?: string
-          dataset_dob_permit_issuance_old?: string
-          dataset_dob_violations?: string
-          dataset_elevator_complaints?: string
-          dataset_elevator_devices?: string
-          dataset_elevator_inspections?: string
-          dataset_elevator_violations?: string
-          dataset_elevator_violations_active?: string
-          dataset_elevator_violations_historic?: string
-          dataset_fdny_violations?: string
-          dataset_heat_sensor_program?: string
-          dataset_hpd_complaints?: string
-          dataset_hpd_registrations?: string
-          dataset_hpd_violations?: string
-          dataset_sidewalk_violations?: string
-          deleted_at?: string | null
-          geoservice_api_key_encrypted?: string | null
-          geoservice_app_id_encrypted?: string | null
-          geoservice_base_url?: string | null
-          id?: string
-          is_enabled?: boolean
-          org_id: string
-          public_id?: number
-          updated_at?: string
-        }
-        Update: {
-          app_token_encrypted?: string | null
-          base_url?: string
-          created_at?: string
-          dataset_asbestos_violations?: string
-          dataset_bedbug_reporting?: string
-          dataset_dob_active_violations?: string
-          dataset_dob_certificate_of_occupancy_now?: string
-          dataset_dob_certificate_of_occupancy_old?: string
-          dataset_dob_complaints?: string
-          dataset_dob_ecb_violations?: string
-          dataset_dob_job_applications?: string
-          dataset_dob_now_approved_permits?: string
-          dataset_dob_now_job_filings?: string
-          dataset_dob_now_safety_boiler?: string
-          dataset_dob_now_safety_facade?: string
-          dataset_dob_permit_issuance_old?: string
-          dataset_dob_violations?: string
-          dataset_elevator_complaints?: string
-          dataset_elevator_devices?: string
-          dataset_elevator_inspections?: string
-          dataset_elevator_violations?: string
-          dataset_elevator_violations_active?: string
-          dataset_elevator_violations_historic?: string
-          dataset_fdny_violations?: string
-          dataset_heat_sensor_program?: string
-          dataset_hpd_complaints?: string
-          dataset_hpd_registrations?: string
-          dataset_hpd_violations?: string
-          dataset_sidewalk_violations?: string
-          deleted_at?: string | null
-          geoservice_api_key_encrypted?: string | null
-          geoservice_app_id_encrypted?: string | null
-          geoservice_base_url?: string | null
-          id?: string
-          is_enabled?: boolean
-          org_id?: string
-          public_id?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "nyc_open_data_integrations_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       org_memberships: {
         Row: {
           created_at: string
@@ -3710,42 +3506,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      owners_list_cache: {
-        Row: {
-          contact_id: number
-          display_name: string | null
-          management_agreement_end_date: string | null
-          management_agreement_start_date: string | null
-          owner_id: string
-          primary_email: string | null
-          primary_phone: string | null
-          public_id: string
-          updated_at: string
-        }
-        Insert: {
-          contact_id: number
-          display_name?: string | null
-          management_agreement_end_date?: string | null
-          management_agreement_start_date?: string | null
-          owner_id: string
-          primary_email?: string | null
-          primary_phone?: string | null
-          public_id?: string
-          updated_at?: string
-        }
-        Update: {
-          contact_id?: number
-          display_name?: string | null
-          management_agreement_end_date?: string | null
-          management_agreement_start_date?: string | null
-          owner_id?: string
-          primary_email?: string | null
-          primary_phone?: string | null
-          public_id?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       ownerships: {
         Row: {
@@ -4143,13 +3903,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "properties_deposit_trust_gl_account_id_fkey"
-            columns: ["deposit_trust_gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
             foreignKeyName: "properties_operating_bank_gl_account_id_fkey"
             columns: ["operating_bank_gl_account_id"]
             isOneToOne: false
@@ -4157,92 +3910,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "properties_operating_bank_gl_account_id_fkey"
-            columns: ["operating_bank_gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
             foreignKeyName: "properties_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      property_automation_overrides: {
-        Row: {
-          created_at: string | null
-          id: string
-          is_active: boolean | null
-          offering_id: string
-          override_config: Json
-          property_id: string
-          public_id: number
-          rule_id: string
-          unit_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          offering_id: string
-          override_config: Json
-          property_id: string
-          public_id?: number
-          rule_id: string
-          unit_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          offering_id?: string
-          override_config?: Json
-          property_id?: string
-          public_id?: number
-          rule_id?: string
-          unit_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "property_automation_overrides_offering_id_fkey"
-            columns: ["offering_id"]
-            isOneToOne: false
-            referencedRelation: "service_offerings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_automation_overrides_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_automation_overrides_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "v_service_revenue_by_owner"
-            referencedColumns: ["property_id"]
-          },
-          {
-            foreignKeyName: "property_automation_overrides_rule_id_fkey"
-            columns: ["rule_id"]
-            isOneToOne: false
-            referencedRelation: "service_automation_rules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_automation_overrides_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
@@ -4358,141 +4029,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_service_revenue_by_owner"
             referencedColumns: ["property_id"]
-          },
-        ]
-      }
-      property_onboarding: {
-        Row: {
-          assigned_staff_id: number | null
-          created_at: string
-          current_stage: string | null
-          due_date: string | null
-          id: string
-          org_id: string | null
-          progress: number
-          property_id: string
-          public_id: number
-          status: Database["public"]["Enums"]["onboarding_status_enum"]
-          updated_at: string
-        }
-        Insert: {
-          assigned_staff_id?: number | null
-          created_at?: string
-          current_stage?: string | null
-          due_date?: string | null
-          id?: string
-          org_id?: string | null
-          progress?: number
-          property_id: string
-          public_id?: number
-          status?: Database["public"]["Enums"]["onboarding_status_enum"]
-          updated_at?: string
-        }
-        Update: {
-          assigned_staff_id?: number | null
-          created_at?: string
-          current_stage?: string | null
-          due_date?: string | null
-          id?: string
-          org_id?: string | null
-          progress?: number
-          property_id?: string
-          public_id?: number
-          status?: Database["public"]["Enums"]["onboarding_status_enum"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "property_onboarding_assigned_staff_id_fkey"
-            columns: ["assigned_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_onboarding_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_onboarding_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_onboarding_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "v_service_revenue_by_owner"
-            referencedColumns: ["property_id"]
-          },
-        ]
-      }
-      property_onboarding_tasks: {
-        Row: {
-          assigned_staff_id: number | null
-          completed_at: string | null
-          created_at: string
-          due_date: string | null
-          id: string
-          name: string
-          onboarding_id: string
-          org_id: string | null
-          public_id: number
-          status: Database["public"]["Enums"]["onboarding_task_status_enum"]
-          updated_at: string
-        }
-        Insert: {
-          assigned_staff_id?: number | null
-          completed_at?: string | null
-          created_at?: string
-          due_date?: string | null
-          id?: string
-          name: string
-          onboarding_id: string
-          org_id?: string | null
-          public_id?: number
-          status?: Database["public"]["Enums"]["onboarding_task_status_enum"]
-          updated_at?: string
-        }
-        Update: {
-          assigned_staff_id?: number | null
-          completed_at?: string | null
-          created_at?: string
-          due_date?: string | null
-          id?: string
-          name?: string
-          onboarding_id?: string
-          org_id?: string | null
-          public_id?: number
-          status?: Database["public"]["Enums"]["onboarding_task_status_enum"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "property_onboarding_tasks_assigned_staff_id_fkey"
-            columns: ["assigned_staff_id"]
-            isOneToOne: false
-            referencedRelation: "staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_onboarding_tasks_onboarding_id_fkey"
-            columns: ["onboarding_id"]
-            isOneToOne: false
-            referencedRelation: "property_onboarding"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "property_onboarding_tasks_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -4651,25 +4187,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "reconciliation_log_bank_gl_account_id_fkey"
-            columns: ["bank_gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
             foreignKeyName: "reconciliation_log_gl_account_id_fkey"
             columns: ["gl_account_id"]
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "reconciliation_log_property_id_fkey"
@@ -4916,78 +4438,6 @@ export type Database = {
             columns: ["offering_id"]
             isOneToOne: false
             referencedRelation: "service_offerings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      service_fee_history: {
-        Row: {
-          amount: number
-          billing_event_id: string | null
-          calculation_details: Json | null
-          created_at: string | null
-          id: string
-          offering_id: string | null
-          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
-          public_id: number
-          transaction_id: string | null
-        }
-        Insert: {
-          amount: number
-          billing_event_id?: string | null
-          calculation_details?: Json | null
-          created_at?: string | null
-          id?: string
-          offering_id?: string | null
-          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
-          public_id?: number
-          transaction_id?: string | null
-        }
-        Update: {
-          amount?: number
-          billing_event_id?: string | null
-          calculation_details?: Json | null
-          created_at?: string | null
-          id?: string
-          offering_id?: string | null
-          plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
-          public_id?: number
-          transaction_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "service_fee_history_billing_event_id_fkey"
-            columns: ["billing_event_id"]
-            isOneToOne: false
-            referencedRelation: "billing_events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "service_fee_history_offering_id_fkey"
-            columns: ["offering_id"]
-            isOneToOne: false
-            referencedRelation: "service_offerings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "service_fee_history_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transaction_amounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "service_fee_history_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "service_fee_history_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
         ]
@@ -5330,13 +4780,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "service_plans_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "service_plans_org_id_fkey"
@@ -5945,6 +5388,72 @@ export type Database = {
           },
         ]
       }
+      transaction_files: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          file_id: string
+          id: string
+          org_id: string
+          transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          file_id: string
+          id?: string
+          org_id: string
+          transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          file_id?: string
+          id?: string
+          org_id?: string
+          transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_files_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_bank_register_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_lines: {
         Row: {
           account_entity_id: number | null
@@ -5972,7 +5481,7 @@ export type Database = {
         }
         Insert: {
           account_entity_id?: number | null
-          account_entity_type: Database["public"]["Enums"]["entity_type_enum"]
+          account_entity_type?: Database["public"]["Enums"]["entity_type_enum"]
           accounting_entity_type_raw?: string | null
           amount?: number | null
           applied_period_start?: string | null
@@ -6027,13 +5536,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "journal_entries_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
             foreignKeyName: "journal_entries_lease_id_fkey"
             columns: ["lease_id"]
             isOneToOne: false
@@ -6058,14 +5560,14 @@ export type Database = {
             foreignKeyName: "journal_entries_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transaction_amounts"
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "journal_entries_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transactions"
+            referencedRelation: "v_bank_register_transactions"
             referencedColumns: ["id"]
           },
           {
@@ -6129,14 +5631,14 @@ export type Database = {
             foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transaction_amounts"
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "transactions"
+            referencedRelation: "v_bank_register_transactions"
             referencedColumns: ["id"]
           },
           {
@@ -6170,6 +5672,7 @@ export type Database = {
         Row: {
           bank_gl_account_buildium_id: number | null
           bank_gl_account_id: string | null
+          bill_transaction_id: string | null
           buildium_application_id: number | null
           buildium_bill_id: number | null
           buildium_last_updated_at: string | null
@@ -6195,7 +5698,19 @@ export type Database = {
           memo: string | null
           monthly_log_id: string | null
           org_id: string | null
+          paid_by_accounting_entity_href: string | null
+          paid_by_accounting_entity_id: number | null
+          paid_by_accounting_entity_type: string | null
+          paid_by_accounting_unit_href: string | null
+          paid_by_accounting_unit_id: number | null
+          paid_by_label: string | null
           paid_date: string | null
+          paid_to_buildium_id: number | null
+          paid_to_href: string | null
+          paid_to_name: string | null
+          paid_to_tenant_id: string | null
+          paid_to_type: string | null
+          paid_to_vendor_id: string | null
           payee_buildium_id: number | null
           payee_buildium_type: string | null
           payee_href: string | null
@@ -6226,6 +5741,7 @@ export type Database = {
         Insert: {
           bank_gl_account_buildium_id?: number | null
           bank_gl_account_id?: string | null
+          bill_transaction_id?: string | null
           buildium_application_id?: number | null
           buildium_bill_id?: number | null
           buildium_last_updated_at?: string | null
@@ -6251,7 +5767,19 @@ export type Database = {
           memo?: string | null
           monthly_log_id?: string | null
           org_id?: string | null
+          paid_by_accounting_entity_href?: string | null
+          paid_by_accounting_entity_id?: number | null
+          paid_by_accounting_entity_type?: string | null
+          paid_by_accounting_unit_href?: string | null
+          paid_by_accounting_unit_id?: number | null
+          paid_by_label?: string | null
           paid_date?: string | null
+          paid_to_buildium_id?: number | null
+          paid_to_href?: string | null
+          paid_to_name?: string | null
+          paid_to_tenant_id?: string | null
+          paid_to_type?: string | null
+          paid_to_vendor_id?: string | null
           payee_buildium_id?: number | null
           payee_buildium_type?: string | null
           payee_href?: string | null
@@ -6282,6 +5810,7 @@ export type Database = {
         Update: {
           bank_gl_account_buildium_id?: number | null
           bank_gl_account_id?: string | null
+          bill_transaction_id?: string | null
           buildium_application_id?: number | null
           buildium_bill_id?: number | null
           buildium_last_updated_at?: string | null
@@ -6307,7 +5836,19 @@ export type Database = {
           memo?: string | null
           monthly_log_id?: string | null
           org_id?: string | null
+          paid_by_accounting_entity_href?: string | null
+          paid_by_accounting_entity_id?: number | null
+          paid_by_accounting_entity_type?: string | null
+          paid_by_accounting_unit_href?: string | null
+          paid_by_accounting_unit_id?: number | null
+          paid_by_label?: string | null
           paid_date?: string | null
+          paid_to_buildium_id?: number | null
+          paid_to_href?: string | null
+          paid_to_name?: string | null
+          paid_to_tenant_id?: string | null
+          paid_to_type?: string | null
+          paid_to_vendor_id?: string | null
           payee_buildium_id?: number | null
           payee_buildium_type?: string | null
           payee_href?: string | null
@@ -6344,11 +5885,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_bank_gl_account_id_fkey"
-            columns: ["bank_gl_account_id"]
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_bank_register_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transactions_category_id_fkey"
@@ -6376,6 +5931,20 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_paid_to_tenant_id_fkey"
+            columns: ["paid_to_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_paid_to_vendor_id_fkey"
+            columns: ["paid_to_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
           {
@@ -6832,13 +6401,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "vendors_gl_account_fkey"
-            columns: ["gl_account"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
             foreignKeyName: "vendors_vendor_category_fkey"
             columns: ["vendor_category"]
             isOneToOne: false
@@ -6978,63 +6540,6 @@ export type Database = {
       }
     }
     Views: {
-      buildium_webhook_events_unhandled: {
-        Row: {
-          buildium_webhook_id: string | null
-          created_at: string | null
-          error: string | null
-          error_message: string | null
-          event_created_at: string | null
-          event_entity_id: string | null
-          event_name: string | null
-          event_type: string | null
-          id: string | null
-          processed: boolean | null
-          processed_at: string | null
-          received_at: string | null
-          retry_count: number | null
-          signature: string | null
-          status: string | null
-          webhook_type: string | null
-        }
-        Insert: {
-          buildium_webhook_id?: string | null
-          created_at?: string | null
-          error?: string | null
-          error_message?: string | null
-          event_created_at?: string | null
-          event_entity_id?: string | null
-          event_name?: string | null
-          event_type?: string | null
-          id?: string | null
-          processed?: boolean | null
-          processed_at?: string | null
-          received_at?: string | null
-          retry_count?: number | null
-          signature?: string | null
-          status?: string | null
-          webhook_type?: string | null
-        }
-        Update: {
-          buildium_webhook_id?: string | null
-          created_at?: string | null
-          error?: string | null
-          error_message?: string | null
-          event_created_at?: string | null
-          event_entity_id?: string | null
-          event_name?: string | null
-          event_type?: string | null
-          id?: string | null
-          processed?: boolean | null
-          processed_at?: string | null
-          received_at?: string | null
-          retry_count?: number | null
-          signature?: string | null
-          status?: string | null
-          webhook_type?: string | null
-        }
-        Relationships: []
-      }
       column_info_cache: {
         Row: {
           comment: string | null
@@ -7052,59 +6557,6 @@ export type Database = {
         }
         Relationships: []
       }
-      foreign_key_relationships: {
-        Row: {
-          constraint_name: unknown
-          id: number | null
-          source_column_name: unknown
-          source_schema: unknown
-          source_table_name: unknown
-          target_column_name: unknown
-          target_table_name: unknown
-          target_table_schema: unknown
-        }
-        Relationships: []
-      }
-      index_usage: {
-        Row: {
-          idx_scan: number | null
-          idx_tup_fetch: number | null
-          idx_tup_read: number | null
-          indexname: unknown
-          schemaname: unknown
-          tablename: unknown
-          usage_status: string | null
-        }
-        Relationships: []
-      }
-      invalid_country_values: {
-        Row: {
-          column_name: string | null
-          id: string | null
-          table_name: string | null
-          value: string | null
-        }
-        Relationships: []
-      }
-      primary_keys: {
-        Row: {
-          column_name: unknown
-          schema: unknown
-          table_id: number | null
-          table_name: unknown
-        }
-        Relationships: []
-      }
-      slow_queries: {
-        Row: {
-          calls: number | null
-          hit_percent: number | null
-          mean_exec_time_ms: number | null
-          query_preview: string | null
-          total_exec_time_ms: number | null
-        }
-        Relationships: []
-      }
       table_info_cache: {
         Row: {
           bytes: number | null
@@ -7119,79 +6571,6 @@ export type Database = {
           size: string | null
         }
         Relationships: []
-      }
-      table_sizes: {
-        Row: {
-          index_size: string | null
-          schemaname: unknown
-          table_size: string | null
-          tablename: unknown
-          total_size: string | null
-        }
-        Relationships: []
-      }
-      transaction_amounts: {
-        Row: {
-          account_name: string | null
-          created_at: string | null
-          date: string | null
-          effective_amount: number | null
-          id: string | null
-          lease_id: number | null
-          memo: string | null
-          monthly_log_id: string | null
-          reference_number: string | null
-          transaction_type:
-            | Database["public"]["Enums"]["transaction_type_enum"]
-            | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_lease_id_fkey"
-            columns: ["lease_id"]
-            isOneToOne: false
-            referencedRelation: "lease"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_monthly_log_id_fkey"
-            columns: ["monthly_log_id"]
-            isOneToOne: false
-            referencedRelation: "monthly_logs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      unbalanced_transactions: {
-        Row: {
-          credit_total: number | null
-          debit_total: number | null
-          diff: number | null
-          transaction_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "journal_entries_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transaction_amounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entries_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entries_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       user_profiles: {
         Row: {
@@ -7282,78 +6661,37 @@ export type Database = {
           },
         ]
       }
-      v_dashboard_kpis: {
+      v_bank_register_transactions: {
         Row: {
-          active_leases: number | null
-          available_units: number | null
-          growth_rate: number | null
-          monthly_rent_roll: number | null
-          occupancy_rate: number | null
-          occupied_units: number | null
-          open_work_orders: number | null
-          org_id: string | null
-          total_properties: number | null
-          total_units: number | null
-          urgent_work_orders: number | null
+          bank_amount: number | null
+          bank_gl_account_id: string | null
+          bank_posting_type: string | null
+          date: string | null
+          id: string | null
+          is_transfer: boolean | null
+          memo: string | null
+          paid_by_label: string | null
+          paid_to_buildium_id: number | null
+          paid_to_name: string | null
+          paid_to_type: string | null
+          payee_buildium_id: number | null
+          payee_buildium_type: string | null
+          payee_name: string | null
+          reference_number: string | null
+          total_amount: number | null
+          transaction_type:
+            | Database["public"]["Enums"]["transaction_type_enum"]
+            | null
+          transfer_other_bank_gl_account_id: string | null
+          vendor_id: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "properties_org_id_fkey"
-            columns: ["org_id"]
+            foreignKeyName: "transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_gl_trial_balance: {
-        Row: {
-          account_number: string | null
-          balance: number | null
-          buildium_gl_account_id: number | null
-          credits: number | null
-          debits: number | null
-          gl_account_id: string | null
-          name: string | null
-          sub_type: string | null
-          type: string | null
-        }
-        Relationships: []
-      }
-      v_latest_reconciliation_by_account: {
-        Row: {
-          gl_account_id: string | null
-          last_reconciled_at: string | null
-          property_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "gl_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "v_service_revenue_by_owner"
-            referencedColumns: ["property_id"]
           },
         ]
       }
@@ -7367,40 +6705,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lease_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_legacy_management_fees: {
-        Row: {
-          monthly_log_id: string | null
-          offering_ids: string[] | null
-          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
-          total_management_fee: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_monthly_log_id_fkey"
-            columns: ["monthly_log_id"]
-            isOneToOne: false
-            referencedRelation: "monthly_logs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_property_onboarding_summary: {
-        Row: {
-          in_progress: number | null
-          org_id: string | null
-          overdue: number | null
-          pending_approval: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "property_onboarding_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -7455,13 +6759,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_bank_gl_account_id_fkey"
-            columns: ["bank_gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "transactions_category_id_fkey"
@@ -7521,54 +6818,6 @@ export type Database = {
           },
         ]
       }
-      v_reconciliation_alerts: {
-        Row: {
-          alert_type: string | null
-          gl_account_id: string | null
-          metric: number | null
-          property_id: string | null
-          ref_date: string | null
-        }
-        Relationships: []
-      }
-      v_reconciliation_stale_alerts: {
-        Row: {
-          days_since: number | null
-          gl_account_id: string | null
-          last_reconciled_at: string | null
-          property_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "gl_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_property_id_fkey"
-            columns: ["property_id"]
-            isOneToOne: false
-            referencedRelation: "v_service_revenue_by_owner"
-            referencedColumns: ["property_id"]
-          },
-        ]
-      }
       v_reconciliation_variance_alerts: {
         Row: {
           as_of: string | null
@@ -7584,13 +6833,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "reconciliation_log_property_id_fkey"
@@ -7640,13 +6882,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "gl_accounts"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
-            columns: ["gl_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_gl_trial_balance"
-            referencedColumns: ["gl_account_id"]
           },
           {
             foreignKeyName: "reconciliation_log_property_id_fkey"
@@ -7907,22 +7142,6 @@ export type Database = {
           },
         ]
       }
-      v_work_order_summary: {
-        Row: {
-          open_count: number | null
-          org_id: string | null
-          urgent_count: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "work_orders_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
       _parse_bool: { Args: { p_value: string }; Returns: boolean }
@@ -7941,6 +7160,10 @@ export type Database = {
       count_active_units_for_property: {
         Args: { property_uuid: string }
         Returns: number
+      }
+      delete_transaction_safe: {
+        Args: { p_transaction_id: string }
+        Returns: undefined
       }
       enforce_same_org: {
         Args: { child_name: string; child_org: string; parent_org: string }
@@ -8034,15 +7257,6 @@ export type Database = {
           total_size: string
         }[]
       }
-      gl_account_balance_as_of: {
-        Args: {
-          p_org_id: string
-          p_gl_account_id: string
-          p_as_of: string
-          p_property_id?: string | null
-        }
-        Returns: number
-      }
       gl_account_activity:
         | {
             Args: { p_from: string; p_to: string }
@@ -8070,6 +7284,16 @@ export type Database = {
               net: number
             }[]
           }
+      gl_account_balance_as_of: {
+        Args: {
+          p_as_of: string
+          p_entity_type?: Database["public"]["Enums"]["entity_type_enum"]
+          p_gl_account_id: string
+          p_org_id: string
+          p_property_id?: string
+        }
+        Returns: number
+      }
       gl_ledger_balance_as_of: {
         Args: {
           p_as_of: string
@@ -8176,12 +7400,16 @@ export type Database = {
         Args: { p_monthly_log_id: string }
         Returns: undefined
       }
-      refresh_mat_view_concurrently: {
-        Args: { view_name: string }
-        Returns: unknown
-      }
       refresh_schema_cache: { Args: never; Returns: undefined }
       release_compliance_lock: { Args: { lock_key: string }; Returns: boolean }
+      replace_transaction_lines: {
+        Args: {
+          p_lines: Json
+          p_transaction_id: string
+          p_validate_balance?: boolean
+        }
+        Returns: undefined
+      }
       resolve_compliance_program: {
         Args: { p_org_id: string; p_template_id: string }
         Returns: {
@@ -8247,8 +7475,36 @@ export type Database = {
         Args: { p_ownership_id: string }
         Returns: undefined
       }
+      v_gl_account_balances_as_of: {
+        Args: { p_as_of: string; p_org_id: string }
+        Returns: {
+          account_number: string
+          as_of_date: string
+          balance: number
+          buildium_gl_account_id: number
+          buildium_parent_gl_account_id: number
+          credits: number
+          debits: number
+          exclude_from_cash_balances: boolean
+          gl_account_id: string
+          is_active: boolean
+          is_bank_account: boolean
+          is_contra_account: boolean
+          is_credit_card_account: boolean
+          lines_count: number
+          name: string
+          org_id: string
+          property_id: string
+          sub_type: string
+          type: string
+        }[]
+      }
       validate_ownership_totals: {
         Args: { p_property_id: string }
+        Returns: undefined
+      }
+      validate_transaction_balance: {
+        Args: { p_tolerance?: number; p_transaction_id: string }
         Returns: undefined
       }
     }

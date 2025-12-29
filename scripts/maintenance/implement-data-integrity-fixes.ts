@@ -87,7 +87,7 @@ async function main() {
     // Step 3: Validate API endpoints
     console.log('\n🌐 Step 3: Validating Buildium API endpoints...')
     
-    const endpointValidator = new BuildiumEndpointValidator()
+    const endpointValidator = await BuildiumEndpointValidator.create()
     const endpointResults = await endpointValidator.validateAllEndpoints()
     
     const criticalFailures = endpointResults.filter(r => {
