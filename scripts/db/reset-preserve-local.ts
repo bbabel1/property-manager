@@ -1,23 +1,10 @@
 #!/usr/bin/env -S node --loader tsx
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, existsSync } from 'node:fs'
 
 function sh(cmd: string, args: string[]) {
   const res = spawnSync(cmd, args, { stdio: 'inherit' })
   if (res.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed (${res.status})`)
-}
-
-function lastBackup(): { schema?: string; data?: string } {
-  const dir = 'backups/local'
-  if (!existsSync(dir)) return {}
-  const files = readdirSync(dir).filter(f => f.endsWith('.sql')).sort()
-  const latestData = [...files].reverse().find(f => f.startsWith('data_'))
-  const latestSchema = [...files].reverse().find(f => f.startsWith('schema_'))
-  return {
-    schema: latestSchema ? join(dir, latestSchema) : undefined,
-    data: latestData ? join(dir, latestData) : undefined,
-  }
 }
 
 function ts() {
@@ -53,4 +40,3 @@ console.log(`[5/5] Restoring data from ${backup.data}`)
 sh('npx', ['supabase@latest', 'db', 'execute', '--file', backup.data!])
 
 console.log('Local database reset completed with data preserved.')
-

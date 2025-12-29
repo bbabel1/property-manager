@@ -17,6 +17,7 @@ interface BuildiumCharge {
   TotalAmount: number
   Memo: string
   BillId: number | null
+  LeaseId?: number | null
   Lines: Array<{
     Amount: number
     GLAccountId: number
@@ -60,10 +61,11 @@ async function getLocalLeaseId(buildiumLeaseId: number): Promise<number> {
 async function createTransactionRecord(charge: BuildiumCharge, localLeaseId: number) {
   const transactionData = {
     buildium_transaction_id: charge.Id,
+    lease_id: localLeaseId,
+    buildium_lease_id: charge.LeaseId ?? Number(leaseId),
     date: charge.Date,
     transaction_type: 'Charge',
     total_amount: charge.TotalAmount,
-    buildium_lease_id: parseInt(leaseId),
     memo: charge.Memo,
     buildium_bill_id: charge.BillId,
     created_at: new Date().toISOString(),

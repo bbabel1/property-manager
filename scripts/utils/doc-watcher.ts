@@ -1,6 +1,5 @@
 import { watch } from 'fs';
 import { spawn } from 'child_process';
-import path from 'path';
 import { logger } from './logger';
 
 class DocumentationWatcher {

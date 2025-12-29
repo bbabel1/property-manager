@@ -59,7 +59,6 @@ async function diagnoseCashBalance() {
     .eq('property_id', propertyId);
 
   const leaseIds = (leases ?? []).map((l) => l.id);
-  const buildiumLeaseIds = (leases ?? []).map((l) => l.buildium_lease_id).filter(Boolean);
 
   console.log(`Found ${leaseIds.length} leases for this property\n`);
 

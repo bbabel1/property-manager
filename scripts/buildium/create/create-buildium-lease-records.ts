@@ -68,7 +68,7 @@ async function getLocalUnitId(buildiumUnitId: number): Promise<string> {
   return unit.id
 }
 
-async function createContactRecord(buildiumTenant: BuildiumTenant): Promise<number> {
+async function _createContactRecord(buildiumTenant: BuildiumTenant): Promise<number> {
   try {
     const phoneEntries = Array.isArray(buildiumTenant.PhoneNumbers)
       ? buildiumTenant.PhoneNumbers
@@ -135,7 +135,7 @@ async function createContactRecord(buildiumTenant: BuildiumTenant): Promise<numb
   }
 }
 
-async function createTenantRecord(contactId: number, buildiumTenant: BuildiumTenant): Promise<string> {
+async function _createTenantRecord(contactId: number, buildiumTenant: BuildiumTenant): Promise<string> {
   try {
     const tenantData = {
       contact_id: contactId,
@@ -215,7 +215,7 @@ async function createLeaseRecord(buildiumLease: BuildiumLease, localPropertyId: 
   }
 }
 
-async function createLeaseContactRecord(leaseId: number, tenantId: string, buildiumTenant: BuildiumTenant, tenantInfo: any): Promise<string> {
+async function _createLeaseContactRecord(leaseId: number, tenantId: string, buildiumTenant: BuildiumTenant, tenantInfo: any): Promise<string> {
   try {
     const leaseContactData = {
       lease_id: leaseId,

@@ -33,28 +33,28 @@ async function debugUnitIdMatching() {
     console.log(`\n🔍 Testing different query approaches:`)
 
     // Approach 1: Direct equality
-    const { data: result1, error: error1 } = await supabase
+    const { data: result1 } = await supabase
       .from('lease')
       .select('id, unit_id')
       .eq('unit_id', leaseUnitId)
     console.log(`  Approach 1 (eq): Found ${result1?.length || 0} leases`)
 
     // Approach 2: Text search
-    const { data: result2, error: error2 } = await supabase
+    const { data: result2 } = await supabase
       .from('lease')
       .select('id, unit_id')
       .textSearch('unit_id', leaseUnitId)
     console.log(`  Approach 2 (textSearch): Found ${result2?.length || 0} leases`)
 
     // Approach 3: Like search
-    const { data: result3, error: error3 } = await supabase
+    const { data: result3 } = await supabase
       .from('lease')
       .select('id, unit_id')
       .like('unit_id', `%${leaseUnitId}%`)
     console.log(`  Approach 3 (like): Found ${result3?.length || 0} leases`)
 
     // Approach 4: Get all leases and filter manually
-    const { data: allLeases, error: error4 } = await supabase
+    const { data: allLeases } = await supabase
       .from('lease')
       .select('id, unit_id')
     console.log(`  Approach 4 (all leases): Found ${allLeases?.length || 0} total leases`)

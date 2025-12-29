@@ -9,12 +9,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-async function updateOwnerTotalFields(ownerId: string) {
+export async function updateOwnerTotalFields(ownerId: string) {
   try {
     console.log(`🔄 Updating total fields for owner: ${ownerId}`)
     
     // Call the database function to update total fields
-    const { data, error } = await supabase.rpc('update_owner_total_fields', {
+    const { error } = await supabase.rpc('update_owner_total_fields', {
       owner_uuid: ownerId
     })
 
@@ -37,9 +37,11 @@ async function updateOwnerTotalFields(ownerId: string) {
       throw fetchError
     }
 
-    console.log('📊 Updated ownership totals:')
-    console.log(`   - Total Units: ${ownership.total_units}`)
-    console.log(`   - Total Properties: ${ownership.total_properties}`)
+    if (ownership) {
+      console.log('📊 Updated ownership totals:')
+      console.log(`   - Total Units: ${ownership.total_units}`)
+      console.log(`   - Total Properties: ${ownership.total_properties}`)
+    }
 
     return ownership
 
@@ -61,7 +63,8 @@ async function updateAllOwnersTotalFields() {
       throw error
     }
 
-    console.log('✅ Successfully updated all owners total fields')
+    const totalUpdated = Array.isArray(data) ? data.length : 0
+    console.log(`✅ Successfully updated all owners total fields (${totalUpdated} rows touched)`)
 
   } catch (error) {
     console.error('❌ Failed to update all owners total fields:', error)

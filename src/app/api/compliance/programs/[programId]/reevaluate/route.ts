@@ -5,7 +5,6 @@ import { supabaseAdmin } from '@/lib/db';
 import type { TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { programTargetsAsset, programTargetsProperty } from '@/lib/compliance-programs';
-import type { ComplianceProgram } from '@/types/compliance';
 import type { Tables } from '@/types/database';
 
 type BuildingRow = Pick<Tables<'buildings'>, 'id' | 'residential_units'>;

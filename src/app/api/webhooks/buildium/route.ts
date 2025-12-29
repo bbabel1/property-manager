@@ -70,12 +70,6 @@ const firstNumber = (...values: unknown[]): number | null => {
   return null
 }
 
-const safeNumber = (value: unknown): number | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
 const safeString = (value: unknown): string | null => (typeof value === 'string' && value.trim().length ? value : null)
 
 const asRecord = (value: unknown): Record<string, any> =>

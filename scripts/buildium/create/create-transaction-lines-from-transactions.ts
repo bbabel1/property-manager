@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import * as dotenv from 'dotenv'
-import { resolveGLAccountId } from '@/lib/buildium-mappers'
 
 dotenv.config()
 

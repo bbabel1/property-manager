@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { config } from 'dotenv'
 config({ path: '.env.local' })
 
@@ -103,7 +104,7 @@ async function runHealthChecks(): Promise<HealthCheck[]> {
           status: count > 0 ? 'pass' : 'warning',
           message: `${count} records`
         })
-      } catch (error) {
+      } catch (_error) {
         const tableName = query.match(/FROM (\w+\.)?(\w+)/)?.[2] || 'unknown'
         dbCheck.checks.push({
           name: `${tableName} table`,
@@ -123,7 +124,7 @@ async function runHealthChecks(): Promise<HealthCheck[]> {
         status: constraintCount > 0 ? 'pass' : 'warning',
         message: `${constraintCount} constraints active`
       })
-    } catch (error) {
+    } catch (_error) {
       dbCheck.checks.push({
         name: 'Foreign Key Constraints',
         status: 'fail',
@@ -131,7 +132,7 @@ async function runHealthChecks(): Promise<HealthCheck[]> {
       })
     }
     
-  } catch (error) {
+  } catch (_error) {
     dbCheck.checks.push({
       name: 'Database Connection',
       status: 'fail',
@@ -185,4 +186,3 @@ async function main() {
 if (require.main === module) {
   main().catch(console.error)
 }
-

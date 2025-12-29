@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /*
   Sync Buildium bank accounts into local Postgres.
   - Uses .env.local for BUILDIUM_* and LOCAL_DB_URL

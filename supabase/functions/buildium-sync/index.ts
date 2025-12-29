@@ -63,16 +63,6 @@ const resolvePostingType = (line: any): 'Debit' | 'Credit' => {
   return amountNum < 0 ? 'Debit' : 'Credit';
 };
 
-// Types for Buildium API
-interface BuildiumApiConfig {
-  baseUrl: string;
-  apiKey: string;
-  clientId?: string;
-  timeout?: number;
-  retryAttempts?: number;
-  retryDelay?: number;
-}
-
 interface BuildiumProperty {
   Id: number;
   Name: string;
@@ -2745,7 +2735,6 @@ serve(async (req) => {
 
     const { method } = req;
     const url = new URL(req.url);
-    const path = url.pathname.split('/').pop();
     const body =
       method === 'POST'
         ? await req.json().catch(() => ({}))
@@ -2845,7 +2834,7 @@ serve(async (req) => {
             const leases = await buildiumClient.listLeases(leaseParams);
             for (const l of leases || []) {
               try {
-                const localLeaseId = await upsertLeaseWithParties(l, supabase);
+                await upsertLeaseWithParties(l, supabase);
                 result.leasesUpserted++;
                 if (includeLeaseTransactions) {
                   const txs = await buildiumClient.listLeaseTransactions(l.Id, { limit: 200 });
@@ -3143,7 +3132,7 @@ serve(async (req) => {
                 } catch (_) {
                   /* swallow sync status errors */
                 }
-              } catch (e) {
+              } catch (_error) {
                 failed++;
               }
             }
@@ -3286,9 +3275,9 @@ serve(async (req) => {
             const params = entityData || {};
             const items = await buildiumClient.listAppliances(params);
             if (operation === 'syncFromBuildium') {
-              let synced = 0,
-                updated = 0,
-                errors: string[] = [];
+              let synced = 0;
+              const updated = 0;
+              const errors: string[] = [];
               for (const a of items) {
                 try {
                   const row = await mapApplianceFromBuildium(a, supabase);
@@ -3419,9 +3408,9 @@ serve(async (req) => {
             const params = entityData || {};
             const items = await buildiumClient.listTenants(params);
             if (operation === 'syncFromBuildium') {
-              let synced = 0,
-                updated = 0,
-                errors: string[] = [];
+              let synced = 0;
+              const updated = 0;
+              const errors: string[] = [];
               for (const t of items) {
                 try {
                   const contactId = await findOrCreateContactForTenant(supabase, t);
@@ -3770,8 +3759,8 @@ serve(async (req) => {
             const items = await buildiumClient.listWorkOrders(params);
             if (operation === 'syncFromBuildium') {
               let synced = 0,
-                updated = 0,
-                errors: string[] = [];
+                updated = 0;
+              const errors: string[] = [];
               for (const wo of items) {
                 try {
                   const row = await mapWorkOrderFromBuildium(wo, supabase);
@@ -4114,6 +4103,7 @@ serve(async (req) => {
                   .select('id')
                   .eq('buildium_gl_account_id', glId)
                   .single();
+                if (findErr && findErr.code !== 'PGRST116') throw findErr;
                 if (existing) return existing.id;
                 // fetch from Buildium and insert
                 const remote = await buildiumClient.getGLAccount(glId);
@@ -4345,27 +4335,22 @@ serve(async (req) => {
 
             result = hydratedEntry ?? created;
           } else if (operation === 'syncFromBuildium') {
-            let {
-              dateFrom,
-              dateTo,
-              glAccountId,
-              limit = 100,
-              offset = 0,
-              overlapDays = 7,
-            } = body || {};
-            if (!dateFrom || !dateTo) {
+            const { glAccountId, limit = 100, offset = 0, overlapDays = 7, dateFrom, dateTo } = body || {};
+            let startDate = dateFrom;
+            let endDate = dateTo;
+            if (!startDate || !endDate) {
               const cursor = await getCursor(supabase, 'gl_entries');
               const lastAt = cursor?.last_imported_at || '1970-01-01T00:00:00Z';
               const window = Number(cursor?.window_days ?? overlapDays);
               const start = new Date(lastAt);
               start.setUTCDate(start.getUTCDate() - (isNaN(window) ? 7 : window));
-              dateFrom = dateFrom || start.toISOString().slice(0, 10);
-              dateTo = dateTo || new Date().toISOString().slice(0, 10);
+              startDate = startDate || start.toISOString().slice(0, 10);
+              endDate = endDate || new Date().toISOString().slice(0, 10);
             }
 
             const qp: Record<string, string> = {};
-            if (dateFrom) qp['dateFrom'] = String(dateFrom);
-            if (dateTo) qp['dateTo'] = String(dateTo);
+            if (startDate) qp['dateFrom'] = String(startDate);
+            if (endDate) qp['dateTo'] = String(endDate);
             if (glAccountId) qp['glAccountId'] = String(glAccountId);
             qp['limit'] = String(limit);
             qp['offset'] = String(offset);
@@ -4382,9 +4367,9 @@ serve(async (req) => {
               }
             }
 
-            const to = dateTo ? new Date(String(dateTo)).toISOString() : new Date().toISOString();
+            const to = endDate ? new Date(String(endDate)).toISOString() : new Date().toISOString();
             await setCursor(supabase, 'gl_entries', to, overlapDays);
-            result = { upserted, failed, dateFrom, dateTo };
+            result = { upserted, failed, dateFrom: startDate, dateTo: endDate };
           } else {
             throw new Error(`Unsupported operation for glEntry: ${operation}`);
           }

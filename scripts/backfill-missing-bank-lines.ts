@@ -106,30 +106,10 @@ async function getLeaseMeta(leaseId: number | null): Promise<{ property_id: stri
   return meta
 }
 
-function classifyBankLines(lines: TxLine[]) {
-  return lines.filter(
-    (l) => {
-      const ga = Array.isArray(l.gl_accounts) ? l.gl_accounts[0] : l.gl_accounts
-      return ga?.is_bank_account && !ga?.exclude_from_cash_balances
-    },
-  )
-}
-
-function sumByPosting(lines: TxLine[]) {
-  let debit = 0
-  let credit = 0
-  for (const line of lines) {
-    const amt = Math.abs(Number(line.amount) || 0)
-    if (line.posting_type === 'Debit') debit += amt
-    else if (line.posting_type === 'Credit') credit += amt
-  }
-  return { debit, credit }
-}
-
 async function backfill() {
   let offset = 0
   let scanned = 0
-  let alreadyHasBank = 0
+  const alreadyHasBank = 0
   let missingProperty = 0
   let missingBankGl = 0
   let balancedSkip = 0

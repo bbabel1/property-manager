@@ -120,7 +120,7 @@ async function reviewTables() {
         );
         console.log(`${table.table_name}: ${countResult.rows[0].count} rows`);
       } catch (e) {
-        console.log(`${table.table_name}: (error querying)`);
+        console.log(`${table.table_name}: (error querying)`, e);
       }
     }
   } finally {

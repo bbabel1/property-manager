@@ -6,6 +6,7 @@ type RunSummary = {
   scanned: number
   upserted: number
   linked: number
+  received: number
   errors: string[]
 }
 
@@ -21,6 +22,7 @@ function resolveBuildiumCreds(input?: Partial<BuildiumCredentials> | null): Buil
 serve(async (req) => {
   const url = new URL(req.url)
   const mode = url.searchParams.get('mode') || 'scheduled'
+  console.log(`Buildium staff sync mode: ${mode}`)
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -34,7 +36,7 @@ serve(async (req) => {
 
   const runId = crypto.randomUUID()
   const start = Date.now()
-  const summary: RunSummary = { scanned: 0, upserted: 0, linked: 0, errors: [] }
+  const summary: RunSummary = { scanned: 0, upserted: 0, linked: 0, received: 0, errors: [] }
 
   async function writeResult(status: 'success' | 'partial' | 'failed') {
     try {
@@ -51,7 +53,9 @@ serve(async (req) => {
         status,
         errors: summary.errors.length ? summary.errors.slice(0, 20) : null
       })
-    } catch (_) {}
+    } catch (err) {
+      console.warn('Failed to record buildium staff sync status', err)
+    }
   }
 
   try {
@@ -116,6 +120,7 @@ serve(async (req) => {
       // If fewer than limit returned, done
       if (users.length < limit) break
     }
+    summary.received = totalReceived
 
     // ---- Reconcile property managers from Buildium ----
     // Buildium typically exposes properties under /rentals/properties; fallback to /properties if needed.
