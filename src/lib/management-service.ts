@@ -1,4 +1,4 @@
-'use server';
+import 'server-only';
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
 import { logger } from '@/lib/logger';

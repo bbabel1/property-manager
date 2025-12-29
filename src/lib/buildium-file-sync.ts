@@ -1,4 +1,4 @@
-"use server"
+import 'server-only'
 
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client'
 import { extractBuildiumFileIdFromPayload } from '@/lib/buildium-utils'
