@@ -202,7 +202,7 @@ export default async function BankingPage({
           p_org_id: row.org_id,
           p_gl_account_id: row.id,
           p_as_of: today,
-          p_property_id: null,
+          p_property_id: undefined,
         };
         const { data, error: balanceError } = await supabaseTyped.rpc('gl_account_balance_as_of', balanceArgs);
         if (balanceError) {

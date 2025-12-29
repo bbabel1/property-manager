@@ -8,7 +8,8 @@ import type {
   BuildiumUnitCreate,
   BuildiumUnitUpdate,
   BuildiumUnitImage,
-  BuildiumFileDownloadMessage
+  BuildiumFileDownloadMessage,
+  BuildiumProperty,
 } from '@/types/buildium'
 import { mapUnitFromBuildium, mapUnitToBuildium, mapPropertyFromBuildiumWithBankAccount } from './buildium-mappers'
 
@@ -157,7 +158,7 @@ export default class UnitService {
       if (!pres.ok) {
         throw new Error(`No local property and failed to fetch Buildium property ${buildiumUnit.PropertyId}: ${pres.status}`)
       }
-      const buildiumProperty = (pres.json ?? {}) as unknown
+      const buildiumProperty = (pres.json ?? {}) as BuildiumProperty
       const mappedProperty = await mapPropertyFromBuildiumWithBankAccount(
         buildiumProperty,
         supabase,

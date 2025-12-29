@@ -16,7 +16,7 @@ export async function refreshServiceMetricsViews(): Promise<void> {
   ];
 
   for (const view of views) {
-    const { error } = await supabaseAdmin.rpc('refresh_mat_view_concurrently', {
+    const { error } = await (supabaseAdmin as typeof supabaseAdmin & { rpc: any }).rpc('refresh_mat_view_concurrently', {
       view_name: view,
     });
     if (error) {

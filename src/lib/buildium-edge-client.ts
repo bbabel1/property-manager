@@ -53,7 +53,7 @@ export class BuildiumEdgeClient {
   /**
    * Helper method to add credentials to request body
    */
-  private withCreds<T extends Record<string, unknown>>(body: T): T & { credentials?: typeof this.credentials } {
+  private withCreds<T extends Record<string, unknown>>(body: T): T & { credentials?: BuildiumEdgeClient['credentials'] } {
     return { ...body, credentials: this.credentials }
   }
 
