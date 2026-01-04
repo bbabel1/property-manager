@@ -23,11 +23,20 @@ type GoogleAutocomplete = {
   getPlace: () => GooglePlaceResult;
 };
 
+type PlacesServiceStatus = 'OK' | 'ZERO_RESULTS' | 'OVER_QUERY_LIMIT' | 'REQUEST_DENIED' | 'INVALID_REQUEST' | 'UNKNOWN_ERROR';
+type PlacesService = {
+  getDetails: (
+    request: { placeId: string; fields: string[] },
+    callback: (place: GooglePlaceResult & { place_id?: string }, status: PlacesServiceStatus) => void,
+  ) => void;
+};
+
 type GoogleMapsPlaces = {
   Autocomplete: new (
     input: HTMLInputElement,
     options: { types: string[]; fields: string[] },
   ) => GoogleAutocomplete;
+  PlacesService: new (node: HTMLElement) => PlacesService;
 };
 
 type GoogleMapsEvent = {
@@ -82,6 +91,7 @@ export default function GooglePlacesAutocomplete({
 }: GooglePlacesAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<GoogleAutocomplete | null>(null);
+  const placesServiceRef = useRef<PlacesService | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -365,8 +375,11 @@ export default function GooglePlacesAutocomplete({
       // #endregion
       autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
         types: ['address'],
-        fields: ['address_components', 'formatted_address', 'geometry'],
+        fields: ['address_components', 'formatted_address', 'geometry', 'place_id'],
       });
+      if (google.maps.places?.PlacesService) {
+        placesServiceRef.current = new google.maps.places.PlacesService(document.createElement('div'));
+      }
 
       // Install capture listeners after Google injects the dropdown
       // This prevents outside-click from closing surrounding dialogs.
@@ -417,103 +430,128 @@ export default function GooglePlacesAutocomplete({
         }
         // #endregion
       }, 0);
+      const applyPlace = (place: GooglePlaceResult & { place_id?: string } | null | undefined) => {
+        if (!place?.address_components) return;
+
+        let address = '';
+        let streetNumber = '';
+        let routeName = '';
+        let city = '';
+        let state = '';
+        let postalCode = '';
+        let postalSuffix = '';
+        let country = '';
+        let countryLong = '';
+
+        let locality = '';
+        let postalTown = '';
+        let sublocality1 = '';
+        let sublocality = '';
+        let adminLevel3 = '';
+        let adminLevel2 = '';
+
+        for (const component of place.address_components) {
+          const types = component.types;
+          if (types.includes('street_number')) {
+            streetNumber = component.long_name;
+          } else if (types.includes('route')) {
+            routeName = component.long_name;
+          } else if (types.includes('locality')) {
+            locality = component.long_name;
+          } else if (types.includes('postal_town')) {
+            postalTown = component.long_name;
+          } else if (types.includes('sublocality_level_1')) {
+            sublocality1 = component.long_name;
+          } else if (types.includes('sublocality')) {
+            sublocality = component.long_name;
+          } else if (types.includes('administrative_area_level_3')) {
+            adminLevel3 = component.long_name;
+          } else if (types.includes('administrative_area_level_2')) {
+            adminLevel2 = component.long_name;
+          } else if (types.includes('administrative_area_level_1')) {
+            state = component.short_name;
+          } else if (types.includes('postal_code')) {
+            postalCode = component.long_name;
+          } else if (types.includes('postal_code_suffix')) {
+            postalSuffix = component.long_name;
+          } else if (types.includes('country')) {
+            country = component.short_name;
+            countryLong = component.long_name;
+          }
+        }
+
+        address = [streetNumber, routeName].filter(Boolean).join(' ').trim();
+        if (!address && place.formatted_address) {
+          address = place.formatted_address;
+        }
+        if (postalCode && postalSuffix) postalCode = `${postalCode}-${postalSuffix}`;
+        city =
+          locality ||
+          postalTown ||
+          sublocality1 ||
+          sublocality ||
+          adminLevel3 ||
+          adminLevel2 ||
+          '';
+
+        const lat = place?.geometry?.location?.lat
+          ? Number(place.geometry.location.lat())
+          : undefined;
+        const lng = place?.geometry?.location?.lng
+          ? Number(place.geometry.location.lng())
+          : undefined;
+
+        const borough = sublocality1 || adminLevel2 || '';
+        const neighborhood =
+          place.address_components.find((component) => component.types.includes('neighborhood'))
+            ?.long_name ||
+          sublocality ||
+          sublocality1 ||
+          '';
+
+        if (address) {
+          onChange(address);
+        }
+        if (onPlaceSelect) {
+          const countryOut = countryLong || country;
+          onPlaceSelect({
+            address,
+            city,
+            state,
+            postalCode,
+            country: countryOut,
+            latitude: lat,
+            longitude: lng,
+            borough,
+            neighborhood,
+          });
+        }
+      };
+
       autocompleteRef.current.addListener('place_changed', () => {
         const autocomplete = autocompleteRef.current;
         if (!autocomplete) return;
-        const place = autocomplete.getPlace();
-        if (place.address_components) {
-          let address = '';
-          let streetNumber = '';
-          let routeName = '';
-          let city = '';
-          let state = '';
-          let postalCode = '';
-          let postalSuffix = '';
-          let country = '';
-          let countryLong = '';
-
-          let locality = '';
-          let postalTown = '';
-          let sublocality1 = '';
-          let sublocality = '';
-          let adminLevel3 = '';
-          let adminLevel2 = '';
-
-          for (const component of place.address_components) {
-            const types = component.types;
-            if (types.includes('street_number')) {
-              streetNumber = component.long_name;
-            } else if (types.includes('route')) {
-              routeName = component.long_name;
-            } else if (types.includes('locality')) {
-              locality = component.long_name;
-            } else if (types.includes('postal_town')) {
-              postalTown = component.long_name;
-            } else if (types.includes('sublocality_level_1')) {
-              sublocality1 = component.long_name;
-            } else if (types.includes('sublocality')) {
-              sublocality = component.long_name;
-            } else if (types.includes('administrative_area_level_3')) {
-              adminLevel3 = component.long_name;
-            } else if (types.includes('administrative_area_level_2')) {
-              adminLevel2 = component.long_name;
-            } else if (types.includes('administrative_area_level_1')) {
-              state = component.short_name;
-            } else if (types.includes('postal_code')) {
-              postalCode = component.long_name;
-            } else if (types.includes('postal_code_suffix')) {
-              postalSuffix = component.long_name;
-            } else if (types.includes('country')) {
-              country = component.short_name;
-              countryLong = component.long_name;
-            }
-          }
-
-          address = [streetNumber, routeName].filter(Boolean).join(' ').trim();
-          if (postalCode && postalSuffix) postalCode = `${postalCode}-${postalSuffix}`;
-          // Fallbacks for city selection
-          city =
-            locality ||
-            postalTown ||
-            sublocality1 ||
-            sublocality ||
-            adminLevel3 ||
-            adminLevel2 ||
-            '';
-
-          // geometry
-          const lat = place?.geometry?.location?.lat
-            ? Number(place.geometry.location.lat())
-            : undefined;
-          const lng = place?.geometry?.location?.lng
-            ? Number(place.geometry.location.lng())
-            : undefined;
-
-          // heuristics for borough and neighborhood
-          const borough = sublocality1 || adminLevel2 || '';
-          const neighborhood =
-            place.address_components.find((component) => component.types.includes('neighborhood'))
-              ?.long_name ||
-            sublocality ||
-            sublocality1 ||
-            '';
-
-          onChange(address);
-          if (onPlaceSelect) {
-            const countryOut = countryLong || country;
-            onPlaceSelect({
-              address,
-              city,
-              state,
-              postalCode,
-              country: countryOut,
-              latitude: lat,
-              longitude: lng,
-              borough,
-              neighborhood,
-            });
-          }
+        const place = autocomplete.getPlace() as GooglePlaceResult & { place_id?: string };
+        if (place.address_components && place.address_components.length) {
+          applyPlace(place);
+          return;
         }
+
+        const placeId = place?.place_id;
+        if (!placeId || !placesServiceRef.current) {
+          setError('Unable to retrieve address details for the selected place');
+          return;
+        }
+        placesServiceRef.current.getDetails(
+          { placeId, fields: ['address_components', 'formatted_address', 'geometry', 'place_id'] },
+          (details, status) => {
+            if (status === 'OK' && details?.address_components) {
+              applyPlace(details);
+              return;
+            }
+            setError('Unable to retrieve address details for the selected place');
+          },
+        );
       });
     } catch {
       setError('Failed to initialize autocomplete');

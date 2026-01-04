@@ -86,7 +86,9 @@ const LANDING_PAGES = [
   { value: 'board', label: 'Board / Association' },
 ]
 
-const TIMEZONE_OPTIONS = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'UTC']
+// Use common timezones from the static registry (no DB query)
+import { getCommonTimezones } from '@/lib/timezones'
+const TIMEZONE_OPTIONS = getCommonTimezones()
 const LOCALE_OPTIONS = ['en-US', 'en-GB', 'es-ES', 'fr-CA']
 const DATE_FORMATS = ['MM/DD/YYYY', 'DD/MM/YYYY']
 const NUMBER_FORMATS = ['1,234.00', '1.234,00']

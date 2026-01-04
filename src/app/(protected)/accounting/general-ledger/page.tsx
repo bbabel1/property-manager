@@ -21,6 +21,7 @@ import {
 } from '@/server/financials/ledger-utils';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import AccountingBasisToggle from '@/components/financials/AccountingBasisToggle';
+import LedgerFilterPersistence from '@/components/financials/LedgerFilterPersistence';
 
 type SearchParams = {
   from?: string;
@@ -392,6 +393,7 @@ export default async function GeneralLedgerPage({
 
   return (
     <PageShell>
+      <LedgerFilterPersistence />
       <PageHeader
         title="General ledger"
         description="Track journal entries across every property and GL account."

@@ -777,6 +777,9 @@ export default function PropertyComplianceView({ propertyIdOverride }: PropertyC
           )}
 
           <LargeDialogContent>
+            <DialogHeader className="sr-only">
+              <DialogTitle>Manage property programs</DialogTitle>
+            </DialogHeader>
             <div className="p-6">
               <PropertyProgramsManager
                 propertyId={propertyId}

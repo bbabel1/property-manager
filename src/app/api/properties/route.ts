@@ -286,6 +286,7 @@ export async function POST(request: NextRequest) {
     propertyData.deposit_trust_gl_account_id = depositGlId;
 
     let enrichmentResult: Awaited<ReturnType<typeof enrichBuildingForProperty>> | null = null;
+    let enrichmentFailed = false;
     try {
       enrichmentResult = await enrichBuildingForProperty(
         {
@@ -316,10 +317,25 @@ export async function POST(request: NextRequest) {
     } catch (enrichErr) {
       const message = enrichErr instanceof Error ? enrichErr.message : 'Address enrichment failed';
       logger.error({ error: message }, 'Address enrichment failed');
-      return NextResponse.json(
-        { error: 'Address enrichment failed', details: message },
-        { status: 422 },
-      );
+      enrichmentFailed = true;
+      propertyData.location_verified = false;
+      const fallbackPatch: Partial<PropertiesInsert> = {
+        normalized_address_key: normalizedAddress?.normalizedAddressKey || null,
+        borough: propertyData.borough ?? null,
+        neighborhood: propertyData.neighborhood ?? null,
+        location_verified: false,
+      };
+      if (manualBin) fallbackPatch.bin = manualBin;
+      if (manualBbl) fallbackPatch.bbl = manualBbl;
+      const fallbackBlock = toNumberOrNull(manualBlock);
+      if (fallbackBlock !== null) fallbackPatch.block = fallbackBlock;
+      const fallbackLot = toNumberOrNull(manualLot);
+      if (fallbackLot !== null) fallbackPatch.lot = fallbackLot;
+      enrichmentResult = {
+        building: null,
+        propertyPatch: fallbackPatch,
+        errors: [message],
+      };
     }
 
     if (enrichmentResult?.propertyPatch) {
@@ -336,12 +352,18 @@ export async function POST(request: NextRequest) {
     const boroughLc = boroughName ? boroughName.toLowerCase() : null;
     const isNYC = boroughLc ? NYC_BOROUGHS.has(boroughLc) : false;
     if (isNYC && !propertyData.bin) {
-      return NextResponse.json(
-        {
-          error: 'BIN required for NYC properties to sync elevators',
-          details: 'Provide a BIN or use the address autocomplete so Geoservice can resolve it',
-        },
-        { status: 422 },
+      if (!enrichmentFailed) {
+        return NextResponse.json(
+          {
+            error: 'BIN required for NYC properties to sync elevators',
+            details: 'Provide a BIN or use the address autocomplete so Geoservice can resolve it',
+          },
+          { status: 422 },
+        );
+      }
+      logger.warn(
+        { borough: boroughName, errors: enrichmentResult?.errors || [] },
+        'Skipping BIN requirement because address enrichment failed',
       );
     }
 

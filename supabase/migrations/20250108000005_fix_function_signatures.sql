@@ -190,3 +190,5 @@ comment on function public.get_property_financials(uuid, date) is
 
 commit;
 
+
+

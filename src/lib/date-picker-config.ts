@@ -18,11 +18,11 @@ export const DATE_PICKER_CONFIG = {
 
   /**
    * Default props that mirror the global UX requirements (current year plus a
-   * 10-year lookback, allow picking up to 10 years ahead).
+   * 10-year lookback, allow picking up to 5 years ahead).
    */
   defaultProps: {
     pastYearRange: 10,
-    futureYearRange: 10,
+    futureYearRange: 5,
   } satisfies Partial<DateInputProps>,
 
   /**

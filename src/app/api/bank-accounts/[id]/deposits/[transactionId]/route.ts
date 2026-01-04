@@ -284,7 +284,135 @@ export async function DELETE(
       return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
-    const { error: deleteError } = await supabaseAdmin.from('transactions').delete().eq('id', transactionId);
+    // Before deleting, fetch deposit context and linked payment references
+    const { data: depositTx, error: depositError } = await supabaseAdmin
+      .from('transactions')
+      .select('id, org_id, bank_gl_account_id, date')
+      .eq('id', transactionId)
+      .maybeSingle<TransactionRow>();
+    if (depositError) {
+      return NextResponse.json({ error: 'Failed to load deposit' }, { status: 500 });
+    }
+    if (!depositTx) {
+      return NextResponse.json({ error: 'Deposit not found' }, { status: 404 });
+    }
+
+    const orgId = depositTx?.org_id ?? null;
+    const depositBankAccountId = depositTx?.bank_gl_account_id ?? null;
+
+    // Get payment transactions linked to this deposit before deletion
+    const { data: paymentLinks, error: paymentLinksError } = await supabaseAdmin
+      .from('transaction_payment_transactions')
+      .select('buildium_payment_transaction_id')
+      .eq('transaction_id', transactionId);
+    if (paymentLinksError) {
+      return NextResponse.json({ error: 'Failed to load linked payments' }, { status: 500 });
+    }
+
+    // Resolve UDF account before deleting; if missing, block the delete to avoid inconsistency.
+    let udfGlAccountId: string | null = null;
+    if (paymentLinks && paymentLinks.length > 0 && orgId) {
+      udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
+      if (!udfGlAccountId) {
+        return NextResponse.json(
+          {
+            error:
+              'Cannot delete deposit: undeposited funds account not found. Payments cannot be reclassified.',
+          },
+          { status: 422 },
+        );
+      }
+    }
+
+    // Reclass payment transactions and their lines before removing the deposit to avoid stranding cash.
+    if (paymentLinks && paymentLinks.length > 0 && udfGlAccountId) {
+      const paymentBuildiumIds = paymentLinks
+        .map((p) => p?.buildium_payment_transaction_id)
+        .filter((v): v is number => typeof v === 'number');
+
+      const paymentTypeFilters = [
+        'Payment',
+        'ElectronicFundsTransfer',
+        'ApplyDeposit',
+        'Refund',
+        'UnreversedPayment',
+        'UnreversedElectronicFundsTransfer',
+        'ReverseElectronicFundsTransfer',
+        'ReversePayment',
+        'Check',
+      ];
+
+      const paymentIdSet = new Set<string>();
+
+      if (paymentBuildiumIds.length > 0) {
+        const { data: paymentTxs, error: paymentTxError } = await supabaseAdmin
+          .from('transactions')
+          .select('id')
+          .in('buildium_transaction_id', paymentBuildiumIds)
+          .limit(1000);
+        if (paymentTxError) {
+          return NextResponse.json({ error: 'Failed to load linked payments' }, { status: 500 });
+        }
+        (paymentTxs || []).forEach((tx) => paymentIdSet.add(tx.id));
+      }
+
+      // Fallback for local-only payments (no Buildium ids): grab payments on this bank account in this org.
+      if (paymentIdSet.size === 0 && depositBankAccountId && orgId) {
+        const { data: fallbackPayments, error: fallbackError } = await supabaseAdmin
+          .from('transactions')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('bank_gl_account_id', depositBankAccountId)
+          .in('transaction_type', paymentTypeFilters)
+          .limit(1000);
+        if (fallbackError) {
+          return NextResponse.json({ error: 'Failed to load fallback payments' }, { status: 500 });
+        }
+        (fallbackPayments || []).forEach((tx) => paymentIdSet.add(tx.id));
+      }
+
+      const paymentIds = Array.from(paymentIdSet);
+
+      if (paymentIds.length > 0) {
+        const nowIso = new Date().toISOString();
+        const { error: updatePaymentsError } = await supabaseAdmin
+          .from('transactions')
+          .update({ bank_gl_account_id: udfGlAccountId, updated_at: nowIso })
+          .in('id', paymentIds);
+        if (updatePaymentsError) {
+          return NextResponse.json({ error: 'Failed to reclassify payments' }, { status: 500 });
+        }
+
+        // Reclass any payment transaction lines that still point at the deposit bank account.
+        if (depositBankAccountId) {
+          const { data: bankLines, error: bankLinesError } = await supabaseAdmin
+            .from('transaction_lines')
+            .select('id')
+            .in('transaction_id', paymentIds)
+            .eq('gl_account_id', depositBankAccountId)
+            .limit(5000);
+          if (bankLinesError) {
+            return NextResponse.json({ error: 'Failed to load payment lines' }, { status: 500 });
+          }
+          if (bankLines && bankLines.length > 0) {
+            const lineIds = bankLines.map((l) => l.id).filter(Boolean);
+            const { error: updateLinesError } = await supabaseAdmin
+              .from('transaction_lines')
+              .update({ gl_account_id: udfGlAccountId, updated_at: nowIso })
+              .in('id', lineIds);
+            if (updateLinesError) {
+              return NextResponse.json({ error: 'Failed to reclassify payment lines' }, { status: 500 });
+            }
+          }
+        }
+      }
+    }
+
+    // Delete the deposit transaction (lines will cascade via FK). Use the safe helper to
+    // temporarily disable balance validation triggers so legacy/unbalanced deposits can be removed.
+    const { error: deleteError } = await supabaseAdmin.rpc('delete_transaction_safe', {
+      p_transaction_id: transactionId,
+    });
     if (deleteError) {
       return NextResponse.json({ error: 'Failed to delete deposit' }, { status: 500 });
     }

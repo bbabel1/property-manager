@@ -67,5 +67,31 @@
       "cash_balance": 400,
       "usedArFallback": true
     }
+  },
+  {
+    "name": "shared_bank_gl_lines_do_not_inflate_other_property",
+    "transactionLines": [],
+    "transactions": [],
+    "reserve": 0,
+    "propertyBankAccount": {
+      "type": "asset",
+      "is_bank_account": true,
+      "name": "Operating Bank"
+    },
+    "externalBankLines": [
+      {
+        "amount": 14050,
+        "posting_type": "debit",
+        "transaction_id": "other-bank-tx",
+        "gl_accounts": {
+          "type": "asset",
+          "is_bank_account": true,
+          "name": "Operating Bank"
+        }
+      }
+    ],
+    "expected": {
+      "cash_balance": 0
+    }
   }
 ]

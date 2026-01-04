@@ -25,6 +25,7 @@ type LeaseListItem = {
   lease_from_date: string;
   lease_to_date: string | null;
   rent_amount: number | null;
+  balance?: number;
   tenant_name?: string | null;
   property_id?: string | null;
   property_name?: string | null;
@@ -252,6 +253,7 @@ export default function LeasesPage() {
                         <TableHead>Status</TableHead>
                         <TableHead>Term</TableHead>
                         <TableHead>Rent</TableHead>
+                        <TableHead>Lease Balance</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -296,6 +298,7 @@ export default function LeasesPage() {
                             {formatDateRange(lease.lease_from_date, lease.lease_to_date)}
                           </TableCell>
                           <TableCell>{formatCurrency(lease.rent_amount)}</TableCell>
+                          <TableCell>{formatCurrency(lease.balance)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -175,14 +175,12 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
     const pastYears = pastYearRange < 0 ? 0 : pastYearRange;
     const futureYears = futureYearRange < 0 ? 0 : futureYearRange;
 
+    const startYear = CURRENT_YEAR + futureYears;
+    const endYear = CURRENT_YEAR - pastYears;
     const years: string[] = [];
 
-    for (let offset = 0; offset <= pastYears; offset += 1) {
-      years.push(String(CURRENT_YEAR - offset));
-    }
-
-    for (let offset = 1; offset <= futureYears; offset += 1) {
-      years.push(String(CURRENT_YEAR + offset));
+    for (let yearValue = startYear; yearValue >= endYear; yearValue -= 1) {
+      years.push(String(yearValue));
     }
 
     return years;

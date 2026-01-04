@@ -33,6 +33,8 @@ type CashBalanceCase = {
   transactionLines: TransactionLineSpec[];
   transactions?: TransactionSpec[];
   reserve?: number;
+  propertyBankAccount?: TransactionLineSpec['gl_accounts'];
+  externalBankLines?: TransactionLineSpec[];
   expected?: Record<string, unknown>;
 };
 
@@ -43,6 +45,7 @@ type SeededCase = {
   propertyId: string;
   unitId: string;
   leaseId: number | null;
+  otherPropertyId?: string | null;
   glAccountIds: string[];
   transactionIds: string[];
 };
@@ -70,6 +73,7 @@ async function seedFixtureCase(
   const orgId = crypto.randomUUID();
   const propertyId = crypto.randomUUID();
   const unitId = crypto.randomUUID();
+  let otherPropertyId: string | null = null;
   const now = nowIso();
 
   const orgRes = await db.from('organizations').insert({
@@ -80,6 +84,44 @@ async function seedFixtureCase(
     updated_at: now,
   });
   if (orgRes.error) throw orgRes.error;
+
+  const glAccountIds: string[] = [];
+  const glAccountMap = new Map<string, string>();
+  let glCounter = 1;
+  let primaryBankGlId: string | null = null;
+
+  const ensureGlAccount = async (ga?: TransactionLineSpec['gl_accounts']): Promise<string> => {
+    const safeGa = ga ?? {};
+    const key = JSON.stringify(safeGa);
+    if (glAccountMap.has(key)) return glAccountMap.get(key)!;
+    const glId = crypto.randomUUID();
+    const insert = await db
+      .from('gl_accounts')
+      .insert({
+        id: glId,
+        org_id: orgId,
+        name: safeGa.name || `GL ${glCounter}`,
+        type: safeGa.type || 'asset',
+        sub_type: safeGa.sub_type ?? null,
+        is_bank_account: Boolean(safeGa.is_bank_account),
+        is_security_deposit_liability: Boolean(safeGa.is_security_deposit_liability),
+        exclude_from_cash_balances: false,
+        buildium_gl_account_id: 100000 + glCounter,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('id')
+      .single();
+    if (insert.error) throw insert.error;
+    glAccountMap.set(key, glId);
+    glAccountIds.push(glId);
+    glCounter += 1;
+    return glId;
+  };
+
+  if (spec.propertyBankAccount) {
+    primaryBankGlId = await ensureGlAccount(spec.propertyBankAccount);
+  }
 
   const propertyRes = await db.from('properties').insert({
     id: propertyId,
@@ -92,6 +134,8 @@ async function seedFixtureCase(
     service_assignment: 'Property Level',
     status: 'Active',
     property_type: 'Rental Building',
+    operating_bank_gl_account_id: primaryBankGlId,
+    deposit_trust_gl_account_id: null,
     total_units: 1,
     total_active_units: 1,
     total_inactive_units: 0,
@@ -148,36 +192,8 @@ async function seedFixtureCase(
   if (leaseRes.error) throw leaseRes.error;
   const leaseId = leaseRes.data?.id ?? null;
 
-  const glAccountIds: string[] = [];
-  const glAccountMap = new Map<string, string>();
-  let glCounter = 1;
-
   for (const line of spec.transactionLines) {
-    const ga = line.gl_accounts ?? {};
-    const key = JSON.stringify(ga);
-    if (glAccountMap.has(key)) continue;
-    const glId = crypto.randomUUID();
-    const insert = await db
-      .from('gl_accounts')
-      .insert({
-        id: glId,
-        org_id: orgId,
-        name: ga.name || `GL ${glCounter}`,
-        type: ga.type || 'asset',
-        sub_type: ga.sub_type ?? null,
-        is_bank_account: Boolean(ga.is_bank_account),
-        is_security_deposit_liability: Boolean(ga.is_security_deposit_liability),
-        exclude_from_cash_balances: false,
-        buildium_gl_account_id: 100000 + glCounter,
-        created_at: now,
-        updated_at: now,
-      })
-      .select('id')
-      .single();
-    if (insert.error) throw insert.error;
-    glAccountMap.set(key, glId);
-    glAccountIds.push(glId);
-    glCounter += 1;
+    await ensureGlAccount(line.gl_accounts);
   }
 
   const transactionIds: string[] = [];
@@ -226,11 +242,70 @@ async function seedFixtureCase(
     if (insertLine.error) throw insertLine.error;
   }
 
-  return { orgId, propertyId, unitId, leaseId, glAccountIds, transactionIds };
+  if (spec.externalBankLines && spec.externalBankLines.length > 0) {
+    otherPropertyId = crypto.randomUUID();
+    const otherProp = await db.from('properties').insert({
+      id: otherPropertyId,
+      name: `Fixture Property ${otherPropertyId.slice(0, 8)}`,
+      address_line1: '456 Other St',
+      city: 'Test City',
+      country: 'United States',
+      postal_code: '00000',
+      org_id: orgId,
+      service_assignment: 'Property Level',
+      status: 'Active',
+      property_type: 'Rental Building',
+      operating_bank_gl_account_id: primaryBankGlId,
+      deposit_trust_gl_account_id: null,
+      total_units: 0,
+      total_active_units: 0,
+      total_inactive_units: 0,
+      total_occupied_units: 0,
+      total_vacant_units: 0,
+      reserve: 0,
+      cash_balance: 0,
+      available_balance: 0,
+      created_at: now,
+      updated_at: now,
+    });
+    if (otherProp.error) throw otherProp.error;
+
+    for (const line of spec.externalBankLines) {
+      const glAccountId = await ensureGlAccount(line.gl_accounts ?? spec.propertyBankAccount);
+      const insertLine = await db.from('transaction_lines').insert({
+        amount: line.amount ?? 0,
+        posting_type: toPostingType(line.posting_type),
+        transaction_id: line.transaction_id ? String(line.transaction_id) : null,
+        gl_account_id: glAccountId,
+        property_id: otherPropertyId,
+        lease_id: null,
+        unit_id: null,
+        account_entity_type: 'Rental',
+        account_entity_id: null,
+        date: asOf,
+        created_at: now,
+        updated_at: now,
+      });
+      if (insertLine.error) throw insertLine.error;
+    }
+  }
+
+  return {
+    orgId,
+    propertyId,
+    unitId,
+    leaseId,
+    otherPropertyId,
+    glAccountIds,
+    transactionIds,
+  };
 }
 
 async function cleanupFixtureCase(db: SupabaseClient, seeded: SeededCase) {
   await db.from('transaction_lines').delete().eq('property_id', seeded.propertyId);
+  if (seeded.otherPropertyId) {
+    await db.from('transaction_lines').delete().eq('property_id', seeded.otherPropertyId);
+  }
   if (seeded.transactionIds.length) {
     await db.from('transactions').delete().in('id', seeded.transactionIds);
   }
@@ -239,6 +314,9 @@ async function cleanupFixtureCase(db: SupabaseClient, seeded: SeededCase) {
   }
   await db.from('units').delete().eq('id', seeded.unitId);
   await db.from('properties').delete().eq('id', seeded.propertyId);
+  if (seeded.otherPropertyId) {
+    await db.from('properties').delete().eq('id', seeded.otherPropertyId);
+  }
   if (seeded.glAccountIds.length) {
     await db.from('gl_accounts').delete().in('id', seeded.glAccountIds);
   }

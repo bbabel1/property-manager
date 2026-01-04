@@ -25,6 +25,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TableRowLink } from '@/components/ui/table-row-link';
+import BankTransactionActions, {
+  type TransactionActionCategory,
+} from '@/components/bank-accounts/BankTransactionActions';
 import EditBankAccountLauncher from '@/components/bank-accounts/EditBankAccountLauncher';
 import BalanceBreakdownControls from '@/components/bank-accounts/BalanceBreakdownControls';
 import { fetchPropertyFinancials } from '@/server/financials/property-finance';
@@ -134,19 +137,23 @@ type BalanceBreakdownRow = {
   properties?: string[];
 };
 
+type TransactionDisplayType = 'Check' | 'Deposit' | 'Other';
+
 type DisplayTransactionRow = {
-  id: string;
+  id: string | null;
+  key: string;
+  href: string;
+  deleteUrl: string | null;
+  actionCategory: TransactionActionCategory | null;
   dateLabel: string;
   numberLabel: string;
-  typeLabel: 'Check' | 'Deposit' | 'Other';
+  typeLabel: TransactionDisplayType;
   paidByLabel: string;
   paidToLabel: string;
   memoLabel: string;
   paymentAmount: number;
   depositAmount: number;
   balanceAfter: number;
-  transactionType: string;
-  isTransfer: boolean;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -271,6 +278,64 @@ function splitPaymentAndDeposit(
 
   // Default: treat as payment for balance purposes.
   return { paymentAmount: absAmount, depositAmount: 0 };
+}
+
+function resolveTransactionLinks(params: {
+  bankAccountId: string;
+  transactionId: string | null;
+  transactionType: string | null;
+  typeLabel: TransactionDisplayType;
+  isTransfer: boolean;
+}): { href: string; deleteUrl: string | null; actionCategory: TransactionActionCategory | null } {
+  const { bankAccountId, transactionId, transactionType, typeLabel, isTransfer } = params;
+
+  const txType = normalizeTxType(transactionType);
+  const hasId = Boolean(transactionId);
+  const isDeposit = txType === 'deposit';
+  const isCheck = typeLabel === 'Check';
+  const isOther = txType === 'other';
+  const isTransferLike = isTransfer || isOther || txType === 'transfer';
+
+  if (!hasId) {
+    return { href: '#', deleteUrl: null, actionCategory: null };
+  }
+
+  if (isDeposit) {
+    const path = `/bank-accounts/${bankAccountId}/deposits/${transactionId}`;
+    return {
+      href: path,
+      deleteUrl: `/api/bank-accounts/${bankAccountId}/deposits/${transactionId}`,
+      actionCategory: 'deposit',
+    };
+  }
+
+  if (isCheck) {
+    const path = `/bank-accounts/${bankAccountId}/checks/${transactionId}`;
+    return {
+      href: path,
+      deleteUrl: `/api/bank-accounts/${bankAccountId}/checks/${transactionId}`,
+      actionCategory: 'check',
+    };
+  }
+
+  if (isTransferLike) {
+    const viewPath = isOther
+      ? `/bank-accounts/${bankAccountId}/other-transactions/${transactionId}`
+      : `/bank-accounts/${bankAccountId}/transfers/${transactionId}`;
+    return {
+      href: viewPath,
+      deleteUrl: `/api/bank-accounts/${bankAccountId}/transfers/${transactionId}`,
+      actionCategory: 'transfer',
+    };
+  }
+
+  // Fallback: allow deletion for miscellaneous transaction types via the generic transfer delete API.
+  // That endpoint validates bank-account membership before deleting.
+  return {
+    href: '#',
+    deleteUrl: `/api/bank-accounts/${bankAccountId}/transfers/${transactionId}`,
+    actionCategory: null,
+  };
 }
 
 function nameOfVendor(v: VendorRecord) {
@@ -661,7 +726,7 @@ export default async function BankAccountShow({
 
   let runningBalance = closingBalance - totalDelta;
 
-  const displayRows: DisplayTransactionRow[] = transactions.map((row) => {
+  const displayRows: DisplayTransactionRow[] = transactions.map((row, index) => {
     const { paymentAmount, depositAmount } = splitPaymentAndDeposit(
       row.transaction_type,
       row.bank_amount ?? row.total_amount,
@@ -696,8 +761,23 @@ export default async function BankAccountShow({
       row.is_transfer,
     );
 
+    const transactionId = row.id ? String(row.id) : null;
+    const rowKey =
+      transactionId ?? `${row.date ?? 'tx'}-${row.reference_number ?? 'ref'}-${index}`;
+    const links = resolveTransactionLinks({
+      bankAccountId: bankAccount.id,
+      transactionId,
+      transactionType: row.transaction_type,
+      typeLabel,
+      isTransfer: Boolean(row.is_transfer),
+    });
+
     return {
-      id: row.id ? String(row.id) : `${row.date ?? 'tx'}-${Math.random().toString(36).slice(2)}`,
+      id: transactionId,
+      key: rowKey,
+      href: links.href,
+      deleteUrl: links.deleteUrl,
+      actionCategory: links.actionCategory,
       dateLabel: formatDate(row.date),
       numberLabel: row.reference_number || '—',
       typeLabel,
@@ -707,8 +787,6 @@ export default async function BankAccountShow({
       paymentAmount,
       depositAmount,
       balanceAfter: runningBalance,
-      transactionType: String(row.transaction_type ?? ''),
-      isTransfer: Boolean(row.is_transfer),
     };
   });
 
@@ -821,7 +899,7 @@ export default async function BankAccountShow({
                     </div>
 
                     <div className="overflow-x-auto">
-                      <Table className="min-w-[960px]">
+                      <Table className="min-w-[1040px]">
                         <TableHeader>
                           <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold tracking-widest uppercase">
                             <TableHead className="text-muted-foreground w-[7rem]">Date</TableHead>
@@ -843,13 +921,16 @@ export default async function BankAccountShow({
                             <TableHead className="text-muted-foreground w-[10rem] text-right">
                               Balance
                             </TableHead>
+                            <TableHead className="text-muted-foreground w-[7rem] text-right">
+                              Actions
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {displayRows.length === 0 ? (
                             <TableRow>
                               <TableCell
-                                colSpan={9}
+                                colSpan={10}
                                 className="text-muted-foreground py-10 text-center text-sm"
                               >
                                 We didn&apos;t find any transactions for this account in the
@@ -858,24 +939,10 @@ export default async function BankAccountShow({
                             </TableRow>
                           ) : (
                             displayRows.map((row) => {
-                              const txType = row.transactionType.toLowerCase();
-                              const isDeposit = txType === 'deposit';
-                              const isCheck = row.typeLabel === 'Check';
-                              const isTransfer = row.isTransfer;
-                              const isOther = txType === 'other';
-                              const href = isDeposit
-                                ? `/bank-accounts/${bankAccount.id}/deposits/${row.id}`
-                                : isCheck
-                                  ? `/bank-accounts/${bankAccount.id}/checks/${row.id}`
-                                  : isTransfer
-                                    ? `/bank-accounts/${bankAccount.id}/transfers/${row.id}`
-                                    : isOther
-                                      ? `/bank-accounts/${bankAccount.id}/other-transactions/${row.id}`
-                                      : '#';
                               return (
                                 <TableRowLink
-                                  key={row.id}
-                                  href={href}
+                                  key={row.key}
+                                  href={row.href}
                                   className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
                                 >
                                   <TableCell className="align-top text-sm">
@@ -906,6 +973,13 @@ export default async function BankAccountShow({
                                   <TableCell className="align-top text-sm">—</TableCell>
                                   <TableCell className="text-right align-top text-sm">
                                     {formatCurrency(row.balanceAfter)}
+                                  </TableCell>
+                                  <TableCell className="text-right align-top text-sm">
+                                    <BankTransactionActions
+                                      deleteUrl={row.deleteUrl}
+                                      detailHref={row.href}
+                                      transactionCategory={row.actionCategory}
+                                    />
                                   </TableCell>
                                 </TableRowLink>
                               );

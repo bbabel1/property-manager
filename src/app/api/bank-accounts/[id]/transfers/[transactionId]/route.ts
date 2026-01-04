@@ -493,10 +493,10 @@ export async function DELETE(
       return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
-    const { error: deleteErr } = await supabaseAdmin
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId);
+    // Use safe helper to disable balance validation triggers while removing legacy/unbalanced transfers.
+    const { error: deleteErr } = await supabaseAdmin.rpc('delete_transaction_safe', {
+      p_transaction_id: transactionId,
+    });
     if (deleteErr) {
       return NextResponse.json({ error: 'Failed to delete transfer' }, { status: 500 });
     }

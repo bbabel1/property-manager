@@ -81,12 +81,84 @@ type TransactionWithBank = Pick<
   | 'memo'
   | 'check_number'
   | 'buildium_transaction_id'
+  | 'bill_transaction_id'
+  | 'buildium_bill_id'
   | 'payee_buildium_id'
   | 'payee_buildium_type'
   | 'bank_gl_account_id'
 > & {
   gl_accounts?: Pick<GlAccountRow, 'buildium_gl_account_id'> | null;
 };
+
+async function recomputeBillAfterPaymentRemoval(params: {
+  billTransactionId?: string | null;
+  buildiumBillId?: number | null;
+  deletedTransactionId: string;
+}) {
+  const { billTransactionId, buildiumBillId, deletedTransactionId } = params;
+
+  // Resolve the local bill transaction id
+  let billId = billTransactionId ?? null;
+  if (!billId && buildiumBillId != null) {
+    const { data: billRow } = await supabaseAdmin
+      .from('transactions')
+      .select('id')
+      .eq('buildium_bill_id', buildiumBillId)
+      .eq('transaction_type', 'Bill')
+      .maybeSingle();
+    billId = billRow?.id ?? null;
+  }
+
+  if (!billId) return;
+
+  const { data: bill } = await supabaseAdmin
+    .from('transactions')
+    .select('id, total_amount, due_date, paid_date, status')
+    .eq('id', billId)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+  if (!bill) return;
+
+  // Sum remaining payments/checks tied to the bill (exclude cancelled ones)
+  const { data: payments } = await supabaseAdmin
+    .from('transactions')
+    .select('id, total_amount, status, transaction_type')
+    .eq('bill_transaction_id', bill.id)
+    .in('transaction_type', ['Payment', 'Check'])
+    .neq('id', deletedTransactionId)
+    .limit(5000);
+
+  const paidTotal = (payments || []).reduce((sum, row) => {
+    if (String(row.status || '').toLowerCase() === 'cancelled') return sum;
+    const amt = Math.abs(Number(row.total_amount ?? 0));
+    return Number.isFinite(amt) ? sum + amt : sum;
+  }, 0);
+
+  const billTotal = Math.abs(Number(bill.total_amount ?? 0));
+  const remaining = Math.max(0, billTotal - paidTotal);
+
+  const today = new Date().toISOString().slice(0, 10);
+  let nextStatus: TransactionRow['status'] = bill.status;
+  if (remaining <= 0.01) {
+    nextStatus = 'Paid';
+  } else if (paidTotal > 0) {
+    nextStatus = 'Partially paid';
+  } else if (bill.due_date && bill.due_date < today) {
+    nextStatus = 'Overdue';
+  } else {
+    nextStatus = 'Due';
+  }
+
+  const nextPaidDate =
+    nextStatus === 'Paid'
+      ? bill.paid_date || today
+      : null;
+
+  await supabaseAdmin
+    .from('transactions')
+    .update({ status: nextStatus, paid_date: nextPaidDate, updated_at: new Date().toISOString() })
+    .eq('id', bill.id);
+}
 
 async function assertCheckInBankAccountContext(params: {
   bankAccountId: string;
@@ -629,12 +701,29 @@ export async function DELETE(
       return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
-    const { error: deleteErr } = await supabaseAdmin
+    const { data: txMeta } = await supabaseAdmin
       .from('transactions')
-      .delete()
-      .eq('id', transactionId);
+      .select('bill_transaction_id, buildium_bill_id')
+      .eq('id', transactionId)
+      .maybeSingle();
+
+    // Use safe delete helper to avoid balance-validation trigger failures when removing
+    // checks that may have unbalanced or legacy lines.
+    const { error: deleteErr } = await supabaseAdmin.rpc('delete_transaction_safe', {
+      p_transaction_id: transactionId,
+    });
     if (deleteErr) {
       return NextResponse.json({ error: 'Failed to delete check' }, { status: 500 });
+    }
+
+    // If this check was tied to a bill, recompute the bill status/paid_date
+    if (txMeta?.bill_transaction_id || txMeta?.buildium_bill_id) {
+      await recomputeBillAfterPaymentRemoval({
+        billTransactionId: txMeta?.bill_transaction_id ?? null,
+        buildiumBillId:
+          typeof txMeta?.buildium_bill_id === 'number' ? txMeta.buildium_bill_id : null,
+        deletedTransactionId: transactionId,
+      });
     }
 
     return NextResponse.json({ success: true });

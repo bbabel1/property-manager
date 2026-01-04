@@ -35,3 +35,5 @@ comment on constraint transaction_lines_account_entity_type_not_null on public.t
 
 commit;
 
+
+

@@ -78,6 +78,7 @@ export async function fetchPropertyFinancials(
           .map((u) => (u?.id != null ? String(u.id) : null))
           .filter((v): v is string => !!v)
       : [];
+  const unitIdSet = new Set(unitIds);
 
   const { data: leaseRows } = await db
     .from('lease')
@@ -95,6 +96,8 @@ export async function fetchPropertyFinancials(
           .map((l) => l?.buildium_lease_id)
           .filter((v): v is number => typeof v === 'number')
       : [];
+  const leaseIdSet = new Set(leaseIds.map((id) => String(id)));
+  const buildiumLeaseIdSet = new Set(buildiumLeaseIds.map((id) => String(id)));
 
   const lineSelect =
     'id, transaction_id, lease_id, unit_id, property_id, buildium_lease_id, date, amount, posting_type, gl_account_id, gl_accounts(name, type, sub_type, is_bank_account, is_security_deposit_liability, exclude_from_cash_balances)';
@@ -162,7 +165,31 @@ export async function fetchPropertyFinancials(
       .in('gl_account_id', propertyBankGlAccounts)
       .lte('date', asOf);
 
-    collectLines(bankLines);
+    const filteredBankLines = Array.isArray(bankLines)
+      ? bankLines.filter((line) => {
+          const propertyMatch =
+            line?.property_id != null && String(line.property_id) === String(propertyId);
+          const unitMatch =
+            line?.unit_id != null && unitIdSet.has(String(line.unit_id ?? ''));
+          const leaseMatch =
+            line?.lease_id != null && leaseIdSet.has(String(line.lease_id ?? ''));
+          const buildiumLeaseMatch =
+            line?.buildium_lease_id != null &&
+            buildiumLeaseIdSet.has(String(line.buildium_lease_id ?? ''));
+          const isUnscoped =
+            line?.property_id == null &&
+            line?.unit_id == null &&
+            line?.lease_id == null &&
+            line?.buildium_lease_id == null;
+
+          // Only include bank-account lines that are tied to this property/unit/lease,
+          // or are completely unscoped (to allow property-owned bank GL balances
+          // that were ingested without property linkage).
+          return propertyMatch || unitMatch || leaseMatch || buildiumLeaseMatch || isUnscoped;
+        })
+      : [];
+
+    collectLines(filteredBankLines);
   }
 
   const transactionLines = Array.from(lineMap.values());
@@ -316,10 +343,18 @@ export async function fetchPropertyFinancials(
       usedPaymentFallback: debug?.usedPaymentFallback,
       bankTotal: debug?.totals?.bank,
       bankLineCount: debug?.bankLineCount,
-      bankLinesIncluded,
-      note: bankLinesIncluded.length === 200 ? 'truncated at 200 lines' : undefined,
     },
     '[property-finance] Cash balance transaction_lines used',
+  );
+
+  // Keep debug output lightweight: log counts instead of full line payloads
+  logger.debug(
+    {
+      propertyId,
+      asOf,
+      bankLineCount: bankLinesIncluded.length,
+    },
+    '[property-finance] Cash balance transaction_lines detail',
   );
 
   return { fin: derivedFin, debug: { ...debug, rpcFin } };

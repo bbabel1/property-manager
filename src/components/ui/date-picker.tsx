@@ -67,7 +67,7 @@ const resolveYearRanges = (minDate?: Date, maxDate?: Date) => {
   const currentYear = new Date().getFullYear();
 
   const defaultPast = DATE_PICKER_CONFIG.defaultProps.pastYearRange ?? 10;
-  const defaultFuture = DATE_PICKER_CONFIG.defaultProps.futureYearRange ?? 10;
+  const defaultFuture = DATE_PICKER_CONFIG.defaultProps.futureYearRange ?? 5;
 
   const pastYearRange =
     minDate && minDate instanceof Date
