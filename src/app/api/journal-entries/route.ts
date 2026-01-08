@@ -190,6 +190,10 @@ export async function POST(request: Request) {
     status: 'Due' as const,
     email_receipt: false,
     print_receipt: false,
+    property_id: propertyRow?.id ?? null,
+    unit_id: unitRow?.id ?? null,
+    account_entity_type: propertyRow ? 'Rental' : 'Company',
+    account_entity_id: propertyRow?.buildium_property_id ?? null,
   };
 
   const { data: transaction, error: insertError } = await adminClient
@@ -260,6 +264,9 @@ export async function POST(request: Request) {
       buildium_gl_entry_id: null,
       created_at: nowIso,
       updated_at: nowIso,
+      org_id: resolvedOrgId,
+      property_id: propertyRow?.id ?? null,
+      unit_id: unitRow?.id ?? null,
     })
     .select('id, buildium_gl_entry_id')
     .single();

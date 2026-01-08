@@ -6533,13 +6533,388 @@ export type Database = {
             foreignKeyName: "work_orders_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+          referencedRelation: "vendors"
+          referencedColumns: ["id"]
+        },
+      ]
+    }
+      buildium_failure_codes: {
+        Row: {
+          description: string | null
+          failure_category: string | null
+          normalized_code: string
+          raw_code: string
+        }
+        Insert: {
+          description?: string | null
+          failure_category?: string | null
+          normalized_code: string
+          raw_code: string
+        }
+        Update: {
+          description?: string | null
+          failure_category?: string | null
+          normalized_code?: string
+          raw_code?: string
+        }
+        Relationships: []
+      }
+      manual_payment_events: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          event_data: Json
+          id: string
+          normalized_event_type: string | null
+          occurred_at: string
+          org_id: string
+          payment_id: string | null
+          payment_intent_id: string | null
+          raw_event_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          event_data: Json
+          id?: string
+          normalized_event_type?: string | null
+          occurred_at: string
+          org_id: string
+          payment_id?: string | null
+          payment_intent_id?: string | null
+          raw_event_type: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          event_data?: Json
+          id?: string
+          normalized_event_type?: string | null
+          occurred_at?: string
+          org_id?: string
+          payment_id?: string | null
+          payment_intent_id?: string | null
+          raw_event_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payment_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_events_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_events_payment_intent_id_fkey"
+            columns: ["payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intent"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payer_restriction_methods: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          payer_restriction_id: string
+          payment_method: Database["public"]["Enums"]["payment_method_enum"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          payer_restriction_id: string
+          payment_method: Database["public"]["Enums"]["payment_method_enum"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          payer_restriction_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method_enum"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_restriction_methods_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payer_restriction_methods_parent_fk"
+            columns: ["payer_restriction_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "payer_restrictions"
+            referencedColumns: ["id", "org_id"]
+          },
+        ]
+      }
+      payer_restrictions: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json
+          org_id: string
+          payer_id: string | null
+          payer_type: string | null
+          reason: string | null
+          restricted_until: string | null
+          restriction_type: string
+          source_event_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          org_id: string
+          payer_id?: string | null
+          payer_type?: string | null
+          reason?: string | null
+          restricted_until?: string | null
+          restriction_type: string
+          source_event_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          org_id?: string
+          payer_id?: string | null
+          payer_type?: string | null
+          reason?: string | null
+          restricted_until?: string | null
+          restriction_type?: string
+          source_event_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_restrictions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment: {
+        Row: {
+          amount: number | null
+          chargeback_id: string | null
+          created_at: string
+          disputed_at: string | null
+          gateway_transaction_id: string | null
+          id: string
+          normalized_return_reason_code: string | null
+          normalized_state: string | null
+          org_id: string
+          payer_id: string | null
+          payer_type: string | null
+          payment_intent_id: string
+          payment_method: Database["public"]["Enums"]["payment_method_enum"] | null
+          raw_return_reason_code: string | null
+          returned_at: string | null
+          settled_at: string | null
+          state: string | null
+          transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          chargeback_id?: string | null
+          created_at?: string
+          disputed_at?: string | null
+          gateway_transaction_id?: string | null
+          id?: string
+          normalized_return_reason_code?: string | null
+          normalized_state?: string | null
+          org_id: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_intent_id: string
+          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
+          raw_return_reason_code?: string | null
+          returned_at?: string | null
+          settled_at?: string | null
+          state?: string | null
+          transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          chargeback_id?: string | null
+          created_at?: string
+          disputed_at?: string | null
+          gateway_transaction_id?: string | null
+          id?: string
+          normalized_return_reason_code?: string | null
+          normalized_state?: string | null
+          org_id?: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_intent_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
+          raw_return_reason_code?: string | null
+          returned_at?: string | null
+          settled_at?: string | null
+          state?: string | null
+          transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intent_fk"
+            columns: ["org_id", "payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intent"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "payment_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_intent: {
+        Row: {
+          allocation_plan: Json | null
+          amount: number
+          bypass_udf: boolean
+          created_at: string
+          gateway_intent_id: string | null
+          gateway_provider: string | null
+          id: string
+          idempotency_key: string
+          metadata: Json
+          org_id: string
+          payer_id: string | null
+          payer_type: string | null
+          payment_method: Database["public"]["Enums"]["payment_method_enum"] | null
+          state: Database["public"]["Enums"]["payment_intent_state_enum"]
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          allocation_plan?: Json | null
+          amount: number
+          bypass_udf?: boolean
+          created_at?: string
+          gateway_intent_id?: string | null
+          gateway_provider?: string | null
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          org_id: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
+          state?: Database["public"]["Enums"]["payment_intent_state_enum"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allocation_plan?: Json | null
+          amount?: number
+          bypass_udf?: boolean
+          created_at?: string
+          gateway_intent_id?: string | null
+          gateway_provider?: string | null
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          org_id?: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
+          state?: Database["public"]["Enums"]["payment_intent_state_enum"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intent_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
+      payment_events: {
+        Row: {
+          created_at: string | null
+          event_data: Json | null
+          normalized_event_type: string | null
+          normalized_result_code: string | null
+          occurred_at: string | null
+          org_id: string | null
+          payment_id: string | null
+          payment_intent_id: string | null
+          provider: string | null
+          raw_event_type: string | null
+          raw_result_code: string | null
+          source_event_id: string | null
+        }
+        Relationships: []
+      }
+      payment_lifecycle_projection: {
+        Row: {
+          amount: number | null
+          chargeback_id: string | null
+          created_at: string | null
+          derived_normalized_state: string | null
+          derived_settled_at: string | null
+          disputed_at: string | null
+          gateway_transaction_id: string | null
+          id: string | null
+          internal_transaction_is_pending: boolean | null
+          internal_transaction_result_date: string | null
+          is_internal_transaction: boolean | null
+          normalized_result_code: string | null
+          normalized_return_reason_code: string | null
+          normalized_state: string | null
+          org_id: string | null
+          payer_id: string | null
+          payer_type: string | null
+          payment_intent_id: string | null
+          payment_method: Database["public"]["Enums"]["payment_method_enum"] | null
+          raw_result_code: string | null
+          raw_return_reason_code: string | null
+          returned_at: string | null
+          settled_at: string | null
+          state: string | null
+          transaction_id: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       column_info_cache: {
         Row: {
           comment: string | null
@@ -7957,6 +8332,13 @@ export type Database = {
         | "DirectDeposit"
         | "CreditCard"
         | "ElectronicPayment"
+      payment_intent_state_enum:
+        | "authorized"
+        | "created"
+        | "failed"
+        | "pending"
+        | "settled"
+        | "submitted"
       plan_amount_type: "flat" | "percent"
       plan_percent_basis: "lease_rent_amount" | "collected_rent"
       property_status: "Active" | "Inactive"
@@ -8627,6 +9009,14 @@ export const Constants = {
         "DirectDeposit",
         "CreditCard",
         "ElectronicPayment",
+      ],
+      payment_intent_state_enum: [
+        "authorized",
+        "created",
+        "failed",
+        "pending",
+        "settled",
+        "submitted",
       ],
       plan_amount_type: ["flat", "percent"],
       plan_percent_basis: ["lease_rent_amount", "collected_rent"],

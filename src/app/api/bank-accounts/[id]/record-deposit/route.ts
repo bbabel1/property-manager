@@ -5,6 +5,9 @@ import { supabaseAdmin } from '@/lib/db';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import type { TablesInsert } from '@/types/database';
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
+import { loadRecordDepositPrefill } from '@/server/bank-accounts/record-deposit';
+import type { DepositItemInput, DepositLineInput, DepositPaymentSplitInput } from '@/lib/deposit-service';
+import { createDepositWithMeta, touchDepositMeta } from '@/lib/deposit-service';
 
 type BankAccountRow = { id: string; org_id: string | null; buildium_gl_account_id: number | null };
 type PaymentLineRow = {
@@ -64,6 +67,21 @@ const PayloadSchema = z.object({
   otherItems: z.array(OtherItemSchema).optional(),
 });
 
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireRole('platform_admin');
+    const { id } = await params;
+    const result = await loadRecordDepositPrefill(id);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 404 });
+    }
+    return NextResponse.json({ data: result.data });
+  } catch (error) {
+    console.error('Failed to load record deposit prefill via API', error);
+    return NextResponse.json({ error: 'Unable to load record deposit data' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireRole('platform_admin');
@@ -97,6 +115,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const orgId = bankAccount.org_id ?? null;
+    if (!orgId) {
+      return NextResponse.json(
+        { error: { code: 'UNPROCESSABLE_ENTITY', message: 'Bank account is missing organization context' } },
+        { status: 422 },
+      );
+    }
     const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
     if (!udfGlAccountId) {
       return NextResponse.json(
@@ -302,36 +326,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const nowIso = new Date().toISOString();
 
-    // Create deposit transaction header
-    const { data: depositTx, error: depositErr } = await supabaseAdmin
-      .from('transactions')
-      .insert({
-        date: payload.date,
-        memo: payload.memo ?? null,
-        paid_by_label: paidByLabel,
-        total_amount: total,
-        transaction_type: 'Deposit',
-        status: 'Paid',
-        org_id: orgId,
-        bank_gl_account_id: targetBankAccountId,
-        print_receipt: Boolean(payload.printDepositSlips),
-        email_receipt: false,
-        created_at: nowIso,
-        updated_at: nowIso,
-      })
-      .select('id')
-      .maybeSingle();
+    const transactionInsert: TablesInsert<'transactions'> = {
+      date: payload.date,
+      memo: payload.memo ?? null,
+      paid_by_label: paidByLabel,
+      total_amount: total,
+      transaction_type: 'Deposit',
+      status: 'Paid',
+      org_id: orgId,
+      bank_gl_account_id: targetBankAccountId,
+      print_receipt: Boolean(payload.printDepositSlips),
+      email_receipt: false,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
 
-    if (depositErr || !depositTx?.id) {
-      throw depositErr ?? new Error('Failed to create deposit');
-    }
-
-    const depositTransactionId = String(depositTx.id);
-
-    // Transaction lines: debit bank, credit undeposited funds (for selected payments), plus credits for other items.
-    const lineRows: TablesInsert<'transaction_lines'>[] = [];
+    const lineRows: DepositLineInput[] = [];
     lineRows.push({
-      transaction_id: depositTransactionId,
       gl_account_id: targetBankAccountId,
       amount: total,
       posting_type: 'Debit',
@@ -347,7 +358,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (paymentsTotal > 0) {
       lineRows.push({
-        transaction_id: depositTransactionId,
         gl_account_id: udfGlAccountId,
         amount: paymentsTotal,
         posting_type: 'Credit',
@@ -366,7 +376,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const amt = parseCurrencyInput(item.amount);
       if (!Number.isFinite(amt) || amt <= 0) return;
       lineRows.push({
-        transaction_id: depositTransactionId,
         gl_account_id: item.glAccountId,
         amount: amt,
         posting_type: 'Credit',
@@ -381,31 +390,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       });
     });
 
-    const { error: linesErr } = await supabaseAdmin.from('transaction_lines').insert(lineRows);
-    if (linesErr) throw linesErr;
+    const depositItems: DepositItemInput[] = paymentRows.map((p) => ({
+      payment_transaction_id: p.id,
+      buildium_payment_transaction_id: p.buildium_transaction_id,
+      amount: p.amount,
+      created_at: nowIso,
+      updated_at: nowIso,
+    }));
 
-    // Link payment transactions to this deposit (for downstream display/filtering).
-    if (paymentRows.length > 0) {
-      const splitRows = paymentRows.map((p) => {
-        const buildiumPropertyId =
-          p.property_id != null ? propertyBuildiumById.get(String(p.property_id)) : null;
-        const buildiumUnitId = p.unit_id != null ? unitBuildiumById.get(String(p.unit_id)) : null;
-        return {
-          transaction_id: depositTransactionId,
-          amount: p.amount,
-          buildium_payment_transaction_id: p.buildium_transaction_id,
-          accounting_entity_type: buildiumPropertyId ? 'Rental' : null,
-          accounting_entity_id: buildiumPropertyId ?? null,
-          accounting_unit_id: buildiumUnitId ?? null,
-          created_at: nowIso,
-          updated_at: nowIso,
-        };
-      });
-      const { error: splitErr } = await supabaseAdmin
-        .from('transaction_payment_transactions')
-        .insert(splitRows);
-      if (splitErr) throw splitErr;
-    }
+    const paymentSplits: DepositPaymentSplitInput[] =
+      paymentRows.length > 0
+        ? paymentRows.map((p) => {
+            const buildiumPropertyId =
+              p.property_id != null ? propertyBuildiumById.get(String(p.property_id)) : null;
+            const buildiumUnitId = p.unit_id != null ? unitBuildiumById.get(String(p.unit_id)) : null;
+            return {
+              amount: p.amount,
+              buildium_payment_transaction_id: p.buildium_transaction_id,
+              accounting_entity_type: buildiumPropertyId ? 'Rental' : null,
+              accounting_entity_id: buildiumPropertyId ?? null,
+              accounting_unit_id: buildiumUnitId ?? null,
+              created_at: nowIso,
+              updated_at: nowIso,
+            };
+          })
+        : [];
+
+    const { transactionId: depositTransactionId, depositId } = await createDepositWithMeta({
+      transaction: transactionInsert,
+      lines: lineRows,
+      depositItems,
+      paymentSplits,
+      buildiumSyncStatus: 'pending',
+    });
 
     // Push to Buildium (best-effort)
     try {
@@ -483,17 +500,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               ? Number(buildiumDepositRaw)
               : null;
         if (buildiumDepositId != null) {
+          const syncedAt = new Date().toISOString();
           await supabaseAdmin
             .from('transactions')
-            .update({ buildium_transaction_id: buildiumDepositId, updated_at: new Date().toISOString() })
+            .update({ buildium_transaction_id: buildiumDepositId, updated_at: syncedAt })
             .eq('id', depositTransactionId);
+          await touchDepositMeta(
+            depositTransactionId,
+            {
+              buildium_deposit_id: buildiumDepositId,
+              buildium_sync_status: 'synced',
+              buildium_sync_error: null,
+              buildium_last_synced_at: syncedAt,
+            },
+            supabaseAdmin,
+          );
         }
       }
     } catch (err) {
       console.error('Failed to sync deposit to Buildium', err);
+      await touchDepositMeta(
+        depositTransactionId,
+        {
+          buildium_sync_status: 'failed',
+          buildium_sync_error: err instanceof Error ? err.message : 'Unknown Buildium sync error',
+        },
+        supabaseAdmin,
+      );
     }
 
-    return NextResponse.json({ data: { transactionId: depositTransactionId } }, { status: 201 });
+    return NextResponse.json({ data: { transactionId: depositTransactionId, depositId } }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       {

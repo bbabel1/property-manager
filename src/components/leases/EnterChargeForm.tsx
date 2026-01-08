@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { z } from 'zod';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
@@ -55,6 +54,8 @@ export interface EnterChargeFormProps {
   accounts: LeaseAccountOption[];
   onCancel?: () => void;
   onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitError?: (message?: string | null) => void;
   mode?: 'create' | 'edit';
   transactionId?: number;
   initialValues?: {
@@ -63,6 +64,11 @@ export interface EnterChargeFormProps {
     memo?: string | null;
     allocations?: Array<{ account_id: string; amount: number; memo?: string | null }>;
   };
+  prefillTenantId?: string | null;
+  prefillAccountId?: string | null;
+  prefillAmount?: number | null;
+  prefillMemo?: string | null;
+  prefillDate?: string | null;
   layout?: 'standalone' | 'embedded';
   footerRenderer?: (context: { submitting: boolean; onCancel?: () => void }) => ReactNode;
   hideTitle?: boolean;
@@ -73,9 +79,15 @@ export default function EnterChargeForm({
   accounts,
   onCancel,
   onSuccess,
+  onSubmitSuccess,
+  onSubmitError,
   mode = 'create',
   transactionId,
   initialValues,
+  prefillAccountId,
+  prefillAmount,
+  prefillDate,
+  prefillMemo,
   layout = 'standalone',
   footerRenderer,
   hideTitle = false,
@@ -87,19 +99,42 @@ export default function EnterChargeForm({
       ? globalThis.crypto.randomUUID()
       : Math.random().toString(36).slice(2);
 
-  const [form, setForm] = useState<FormState>({
-    date: initialValues?.date ?? null,
-    amount: initialValues ? String(initialValues.amount ?? '') : '',
-    memo: initialValues?.memo ?? 'Charge',
-    allocations:
-      Array.isArray(initialValues?.allocations) && initialValues?.allocations?.length
-        ? initialValues.allocations.map((entry) => ({
-            id: createId(),
-            account_id: entry.account_id,
-            amount: String(entry.amount ?? ''),
-          }))
-        : [{ id: createId(), account_id: '', amount: '' }],
-  });
+  const resolvedInitial = useMemo<FormState>(() => {
+    if (initialValues) {
+      return {
+        date: initialValues.date ?? null,
+        amount: String(initialValues.amount ?? ''),
+        memo: initialValues.memo ?? 'Charge',
+        allocations:
+          Array.isArray(initialValues.allocations) && initialValues.allocations.length
+            ? initialValues.allocations.map((entry) => ({
+                id: createId(),
+                account_id: entry.account_id,
+                amount: String(entry.amount ?? ''),
+              }))
+            : [{ id: createId(), account_id: '', amount: '' }],
+      };
+    }
+
+    const amountStr =
+      typeof prefillAmount === 'number' && Number.isFinite(prefillAmount)
+        ? String(prefillAmount)
+        : '';
+    return {
+      date: prefillDate ?? null,
+      amount: amountStr,
+      memo: prefillMemo ?? 'Charge',
+      allocations: [
+        {
+          id: createId(),
+          account_id: prefillAccountId ?? '',
+          amount: amountStr,
+        },
+      ],
+    };
+  }, [initialValues, prefillAccountId, prefillAmount, prefillDate, prefillMemo]);
+
+  const [form, setForm] = useState<FormState>(resolvedInitial);
   const [errors, setErrors] = useState<
     Partial<Record<keyof FormState, string>> & { allocations?: string }
   >({});
@@ -251,7 +286,7 @@ export default function EnterChargeForm({
             ? `/api/leases/${leaseId}/transactions/${transactionId}`
             : `/api/leases/${leaseId}/charges`;
         const method = mode === 'edit' && transactionId != null ? 'PUT' : 'POST';
-        const payload =
+        const submitPayload =
           mode === 'edit'
             ? {
                 transaction_type: 'Charge' as const,
@@ -269,7 +304,7 @@ export default function EnterChargeForm({
         const res = await fetch(endpoint, {
           method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(submitPayload),
         });
 
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -291,11 +326,14 @@ export default function EnterChargeForm({
           setErrors({});
         }
         const transactionRecord = extractLeaseTransactionFromResponse(body);
-        onSuccess?.(
-          transactionRecord ? { transaction: transactionRecord } : undefined,
-        );
+        const resultPayload = transactionRecord ? { transaction: transactionRecord } : undefined;
+        onSubmitSuccess?.(resultPayload);
+        onSuccess?.(resultPayload);
       } catch (error) {
         setFormError(
+          error instanceof Error ? error.message : 'Unexpected error while saving charge',
+        );
+        onSubmitError?.(
           error instanceof Error ? error.message : 'Unexpected error while saving charge',
         );
         setSubmitting(false);
@@ -304,15 +342,21 @@ export default function EnterChargeForm({
 
       setSubmitting(false);
     },
-    [form, leaseId, onSuccess, allocationsTotal, mode, transactionId],
+    [form, leaseId, onSuccess, onSubmitError, onSubmitSuccess, allocationsTotal, mode, transactionId],
   );
 
   return (
-    <div className={layout === 'embedded' ? 'space-y-6' : 'mx-auto w-full max-w-5xl space-y-8'}>
+    <div
+      className={
+        layout === 'embedded'
+          ? 'space-y-6'
+          : 'mx-auto w-full max-w-screen-xl space-y-8 pb-10'
+      }
+    >
       {layout === 'standalone' && !hideTitle ? (
         <div className="space-y-1">
           <h1 className="text-foreground text-2xl font-semibold">
-            {mode === 'edit' ? 'Edit charge' : 'Enter charge'}
+            {mode === 'edit' ? 'Edit charge' : 'Add charge'}
           </h1>
         </div>
       ) : null}
@@ -480,155 +524,156 @@ export default function EnterChargeForm({
           </form>
         </div>
       ) : (
-        <Card className="border-border/70 border shadow-sm">
-          <CardContent className="p-8">
-            <form className="space-y-10" onSubmit={handleSubmit}>
-              <section className="grid gap-6 lg:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                    Date *
-                  </span>
-                  <DateInput
-                    value={form.date || ''}
-                    onChange={(nextValue) => updateField('date', nextValue)}
-                  />
-                  {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
-                </label>
-                <label className="space-y-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                    Amount *
-                  </span>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={form.amount}
-                    onChange={(event) => updateField('amount', event.target.value)}
-                    placeholder="$0.00"
-                  />
-                  {errors.amount ? (
-                    <p className="text-destructive text-xs">{errors.amount}</p>
-                  ) : null}
-                </label>
-                <label className="space-y-2 lg:col-span-2">
-                  <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                    Memo
-                  </span>
-                  <Textarea
-                    rows={3}
-                    value={form.memo}
-                    onChange={(event) => updateField('memo', event.target.value)}
-                    maxLength={200}
-                  />
-                </label>
-              </section>
+        <form className="space-y-6 md:space-y-8" onSubmit={handleSubmit}>
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:gap-6">
+            <label className="space-y-2">
+              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Date *
+              </span>
+              <DateInput
+                value={form.date || ''}
+                onChange={(nextValue) => updateField('date', nextValue)}
+              />
+              {errors.date ? <p className="text-destructive text-xs">{errors.date}</p> : null}
+            </label>
+            <label className="space-y-2">
+              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Amount *
+              </span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={form.amount}
+                onChange={(event) => updateField('amount', event.target.value)}
+                placeholder="$0.00"
+              />
+              {errors.amount ? <p className="text-destructive text-xs">{errors.amount}</p> : null}
+            </label>
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                Memo
+              </span>
+              <Textarea
+                rows={3}
+                value={form.memo}
+                onChange={(event) => updateField('memo', event.target.value)}
+                maxLength={200}
+              />
+            </label>
+          </section>
 
-              <section className="space-y-4">
-                <h2 className="text-foreground text-sm font-semibold">Apply to accounts</h2>
-                <div className="border-border overflow-hidden rounded-lg border">
-                  <Table className="min-w-full">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Account</TableHead>
-                        <TableHead className="w-32 text-right">Amount</TableHead>
-                        <TableHead className="w-12 text-right">Remove</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {form.allocations.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            <Dropdown
-                              value={row.account_id}
-                              onChange={(value) => updateAllocation(row.id, { account_id: value })}
-                              options={accountDropdownOptions}
-                              placeholder="Select account"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Input
-                              className="w-28"
-                              type="number"
-                              inputMode="decimal"
-                              step="0.01"
-                              value={row.amount}
-                              onChange={(event) =>
-                                updateAllocation(row.id, { amount: event.target.value })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeRow(row.id)}
-                              aria-label="Remove allocation"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/30 font-medium">
-                        <TableCell>Total</TableCell>
-                        <TableCell className="text-right text-sm">
-                          ${allocationsTotal.toFixed(2)}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-                <Button variant="link" className="px-0" type="button" onClick={addRow}>
-                  <Plus className="h-4 w-4" /> Add row
+          <section className="space-y-3 md:space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                Apply to accounts
+              </h2>
+              <Button
+                variant="ghost"
+                className="h-9 px-2 text-sm font-semibold"
+                type="button"
+                onClick={addRow}
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                Add row
+              </Button>
+            </div>
+            <div className="overflow-hidden rounded-md border">
+              <Table className="min-w-full">
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Account
+                    </TableHead>
+                    <TableHead className="w-32 text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Amount
+                    </TableHead>
+                    <TableHead className="w-12 text-right text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                      Remove
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {form.allocations.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="align-middle">
+                        <Dropdown
+                          value={row.account_id}
+                          onChange={(value) => updateAllocation(row.id, { account_id: value })}
+                          options={accountDropdownOptions}
+                          placeholder="Select account"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right align-middle">
+                        <Input
+                          className="w-28 text-right"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          value={row.amount}
+                          onChange={(event) =>
+                            updateAllocation(row.id, { amount: event.target.value })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-right align-middle">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRow(row.id)}
+                          aria-label="Remove allocation"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/20 font-semibold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-right text-sm">
+                      ${allocationsTotal.toFixed(2)}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            {errors.allocations ? (
+              <p className="text-destructive text-xs">{errors.allocations}</p>
+            ) : null}
+          </section>
+
+          {formError ? (
+            <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
+              {formError}
+            </div>
+          ) : null}
+
+          {footerRenderer ? (
+            footerRenderer({ submitting, onCancel })
+          ) : (
+            <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Total:{' '}
+                <span className="font-semibold text-foreground">${allocationsTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <Button type="button" variant="outline" onClick={onCancel}>
+                  Cancel
                 </Button>
-                {errors.allocations ? (
-                  <p className="text-destructive text-xs">{errors.allocations}</p>
-                ) : null}
-              </section>
-
-              {formError ? (
-                <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border px-4 py-3 text-sm">
-                  {formError}
-                </div>
-              ) : null}
-
-              {footerRenderer ? (
-                footerRenderer({ submitting, onCancel })
-              ) : (
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button type="submit" disabled={submitting}>
-                    {submitting ? 'Saving…' : 'Save charge'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="text-muted-foreground"
-                    disabled
-                  >
-                    Add another charge
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="text-muted-foreground"
-                    disabled
-                  >
-                    Save and prepare invoice
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="cancel"
-                    className="text-muted-foreground"
-                    onClick={onCancel}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </form>
-          </CardContent>
-        </Card>
+                <Button type="button" variant="outline" disabled>
+                  Add another charge
+                </Button>
+                <Button type="button" variant="outline" disabled>
+                  Save and prepare invoice
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save charge'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </form>
       )}
     </div>
   );

@@ -18,9 +18,25 @@ const isApply = process.argv.includes('--apply');
 const propIdx = process.argv.indexOf('--property');
 const propertyId = propIdx !== -1 ? process.argv[propIdx + 1] : null;
 
-async function getGlIdByName(name: string) {
-  const { data } = await supabase.from('gl_accounts').select('id').ilike('name', name).maybeSingle();
-  return (data as any)?.id ?? null;
+async function resolveApGlAccountId(orgId: string | null): Promise<string | null> {
+  if (!orgId) return null;
+  const { data, error } = await supabase.rpc('resolve_ap_gl_account_id', { p_org_id: orgId });
+  if (error) throw error;
+  return (data as any) ?? null;
+}
+
+async function getPropertyContext(propertyId: string) {
+  const { data, error } = await supabase
+    .from('properties')
+    .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
+    .eq('id', propertyId)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    bankGlId: (data as any)?.operating_bank_gl_account_id ?? null,
+    depositTrustGlId: (data as any)?.deposit_trust_gl_account_id ?? null,
+    orgId: (data as any)?.org_id ?? null,
+  };
 }
 
 async function main() {
@@ -29,19 +45,12 @@ async function main() {
     process.exit(1);
   }
 
-  const apId = await getGlIdByName('Accounts Payable');
-  const bankGl = await supabase
-    .from('properties')
-    .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
-    .eq('id', propertyId)
-    .maybeSingle();
-  const bankGlId =
-    (bankGl as any)?.data?.operating_bank_gl_account_id ??
-    (bankGl as any)?.data?.deposit_trust_gl_account_id ??
-    null;
+  const propertyContext = await getPropertyContext(propertyId);
+  const bankGlId = propertyContext.bankGlId ?? propertyContext.depositTrustGlId ?? null;
+  const apId = await resolveApGlAccountId(propertyContext.orgId ?? null);
 
   if (!apId) {
-    console.error('Accounts Payable GL not found.');
+    console.error('Accounts Payable GL not found for property org.');
     process.exit(1);
   }
 

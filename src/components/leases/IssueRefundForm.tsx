@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -77,6 +77,15 @@ export interface IssueRefundFormProps {
   parties: LeaseTenantOption[];
   onCancel?: () => void;
   onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitError?: (message?: string | null) => void;
+  prefillAccountId?: string | null;
+  prefillBankAccountId?: string | null;
+  prefillPartyId?: string | null;
+  prefillAmount?: number | null;
+  prefillMemo?: string | null;
+  prefillDate?: string | null;
+  prefillMethod?: 'check' | 'eft' | null;
 }
 
 const AddressOptions = [
@@ -94,35 +103,86 @@ export default function IssueRefundForm({
   parties,
   onCancel,
   onSuccess,
+  onSubmitSuccess,
+  onSubmitError,
+  prefillAccountId,
+  prefillBankAccountId,
+  prefillPartyId,
+  prefillAmount,
+  prefillMemo,
+  prefillDate,
+  prefillMethod,
 }: IssueRefundFormProps) {
-  const createId = () =>
-    typeof globalThis !== 'undefined' &&
-    globalThis.crypto &&
-    typeof globalThis.crypto.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
+  const createId = useCallback(
+    () =>
+      typeof globalThis !== 'undefined' &&
+      globalThis.crypto &&
+      typeof globalThis.crypto.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : Math.random().toString(36).slice(2),
+    [],
+  );
 
-  const defaultPartyValue =
-    parties && parties.length > 0 ? getTenantOptionValue(parties[0]) : '';
+  const prefillPartyValue = useMemo(() => {
+    if (!prefillPartyId) return '';
+    const match = parties?.find((party) => String(party.id) === String(prefillPartyId));
+    return match ? getTenantOptionValue(match) : '';
+  }, [parties, prefillPartyId]);
 
-  const [form, setForm] = useState<FormState>({
-    date: null,
-    bank_gl_account_id: bankAccounts?.[0]?.id ?? '',
-    payment_method: 'check',
-    party_id: defaultPartyValue,
-    amount: '',
-    check_number: '',
-    memo: '',
-    queue_print: false,
-    address_option: 'current',
-    custom_address: '',
-    allocations: [{ id: createId(), account_id: accounts?.[0]?.id ?? '', amount: '' }],
-  });
+  const defaultPartyValue = useMemo(() => {
+    if (prefillPartyValue) return prefillPartyValue;
+    return parties && parties.length > 0 ? getTenantOptionValue(parties[0]) : '';
+  }, [parties, prefillPartyValue]);
+
+  const initialFormState = useMemo<FormState>(() => {
+    const amountString =
+      typeof prefillAmount === 'number' && Number.isFinite(prefillAmount)
+        ? String(prefillAmount)
+        : '';
+    return {
+      date: prefillDate ?? null,
+      bank_gl_account_id: prefillBankAccountId ?? bankAccounts?.[0]?.id ?? '',
+      payment_method: prefillMethod ?? 'check',
+      party_id: defaultPartyValue,
+      amount: amountString,
+      check_number: '',
+      memo: prefillMemo ?? 'Refund',
+      queue_print: false,
+      address_option: 'current',
+      custom_address: '',
+      allocations: [
+        {
+          id: createId(),
+          account_id: prefillAccountId ?? accounts?.[0]?.id ?? '',
+          amount: amountString,
+        },
+      ],
+    };
+  }, [
+    accounts,
+    bankAccounts,
+    createId,
+    defaultPartyValue,
+    prefillAccountId,
+    prefillAmount,
+    prefillBankAccountId,
+    prefillDate,
+    prefillMemo,
+    prefillMethod,
+  ]);
+
+  const [form, setForm] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<
     Partial<Record<keyof FormState, string>> & { allocations?: string }
   >({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setForm(initialFormState);
+    setErrors({});
+    setFormError(null);
+  }, [initialFormState]);
 
   const updateField = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -142,7 +202,7 @@ export default function IssueRefundForm({
       ...prev,
       allocations: [...prev.allocations, { id: createId(), account_id: '', amount: '' }],
     }));
-  }, []);
+  }, [createId]);
 
   const removeRow = useCallback((id: string) => {
     setForm((prev) => ({
@@ -227,25 +287,25 @@ export default function IssueRefundForm({
         }
 
         setForm({
-          date: null,
-          bank_gl_account_id: bankAccounts?.[0]?.id ?? '',
-          payment_method: 'check',
-          party_id: defaultPartyValue,
-          amount: '',
-          check_number: '',
-          memo: '',
-          queue_print: false,
-          address_option: 'current',
-          custom_address: '',
-          allocations: [{ id: createId(), account_id: '', amount: '' }],
+          ...initialFormState,
+          allocations: [
+            {
+              id: createId(),
+              account_id: initialFormState.allocations[0]?.account_id ?? '',
+              amount: initialFormState.amount,
+            },
+          ],
         });
         setErrors({});
         const transactionRecord = extractLeaseTransactionFromResponse(body);
-        onSuccess?.(
-          transactionRecord ? { transaction: transactionRecord } : undefined,
-        );
+        const payload = transactionRecord ? { transaction: transactionRecord } : undefined;
+        onSubmitSuccess?.(payload);
+        onSuccess?.(payload);
       } catch (error) {
         setFormError(
+          error instanceof Error ? error.message : 'Unexpected error while issuing refund',
+        );
+        onSubmitError?.(
           error instanceof Error ? error.message : 'Unexpected error while issuing refund',
         );
         setSubmitting(false);
@@ -254,7 +314,7 @@ export default function IssueRefundForm({
 
       setSubmitting(false);
     },
-    [form, leaseId, onSuccess, allocationsTotal, bankAccounts, defaultPartyValue],
+    [form, leaseId, onSuccess, onSubmitError, onSubmitSuccess, allocationsTotal, initialFormState, createId],
   );
 
   const party = parties.find((item) => getTenantOptionValue(item) === form.party_id);

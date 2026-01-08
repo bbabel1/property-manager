@@ -301,6 +301,18 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
 
   const gridColumnsClass = hideYear ? "grid-cols-2" : "grid-cols-3";
 
+  const handleSetToday = () => {
+    const today = new Date();
+    const nextMonth = String(today.getMonth() + 1).padStart(2, "0");
+    const nextDay = String(today.getDate()).padStart(2, "0");
+    const nextYear = String(today.getFullYear());
+
+    setMonth(nextMonth);
+    setDay(nextDay);
+    setYear(nextYear);
+    emitChange(nextMonth, nextDay, nextYear);
+  };
+
   return (
     <div className={cn("relative", containerClassName)}>
       <Calendar className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
@@ -375,13 +387,28 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function DateInpu
               </div>
             )}
           </div>
-          {hideClear ? null : (
-            <div className="flex items-center justify-end">
-              <Button type="button" variant="ghost" size="sm" onClick={handleClear} disabled={disabled}>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleSetToday}
+              disabled={disabled}
+            >
+              Today
+            </Button>
+            {hideClear ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClear}
+                disabled={disabled}
+              >
                 Clear
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </PopoverContent>
       </Popover>
     </div>

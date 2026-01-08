@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { toast } from 'sonner';
 
@@ -14,10 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import ReceivePaymentForm from '@/components/leases/ReceivePaymentForm';
-import EnterChargeForm from '@/components/leases/EnterChargeForm';
-import IssueCreditForm from '@/components/leases/IssueCreditForm';
-import IssueRefundForm from '@/components/leases/IssueRefundForm';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import CreateBillForm from '@/components/monthly-logs/CreateBillForm';
 import ManagementFeesStage from '@/components/monthly-logs/ManagementFeesStage';
@@ -25,11 +22,7 @@ import OwnerDrawForm, { type OwnerDrawSuccessPayload } from '@/components/monthl
 import PropertyTaxEscrowForm, {
   type PropertyTaxEscrowSuccessPayload,
 } from '@/components/monthly-logs/PropertyTaxEscrowForm';
-import type {
-  LeaseAccountOption,
-  LeaseFormSuccessPayload,
-  LeaseTenantOption,
-} from '@/components/leases/types';
+import type { LeaseAccountOption, LeaseFormSuccessPayload } from '@/components/leases/types';
 import {
   normalizeMonthlyLogTransaction,
   type MonthlyLogFinancialSummary,
@@ -60,7 +53,6 @@ interface MonthlyLogTransactionOverlayProps {
     propertyUnit?: string | null;
     tenants?: string | null;
   };
-  tenantOptions: LeaseTenantOption[];
   hasActiveLease: boolean;
   monthlyLogId: string;
   propertyId: string | null;
@@ -139,7 +131,6 @@ export default function MonthlyLogTransactionOverlay({
   allowedModes,
   leaseId,
   leaseSummary,
-  tenantOptions,
   hasActiveLease,
   monthlyLogId,
   propertyId,
@@ -155,6 +146,7 @@ export default function MonthlyLogTransactionOverlay({
   periodStart: _periodStart,
   activeLease: _activeLease,
 }: MonthlyLogTransactionOverlayProps) {
+  const router = useRouter();
   const [assigningTransactionId, setAssigningTransactionId] = useState<string | null>(null);
   const leaseResourceId = encodeURIComponent(String(leaseId));
   const isLeaseMode = LEASE_MODE_VALUES.includes(mode);
@@ -539,6 +531,29 @@ export default function MonthlyLogTransactionOverlay({
   }, [allowedModes, baseModeOptions]);
 
   useEffect(() => {
+    if (!mode || !leaseId) return;
+    const redirectModes: TransactionMode[] = ['charge', 'payment', 'credit', 'refund'];
+    if (!redirectModes.includes(mode)) return;
+    const current =
+      typeof window !== 'undefined'
+        ? `${window.location.pathname}${window.location.search}`
+        : '';
+    const fallbackReturn = `/monthly-logs/${monthlyLogId}`;
+    const returnTo = current || fallbackReturn;
+    const base =
+      mode === 'payment'
+        ? `/leases/${leaseId}/add-payment`
+        : mode === 'credit'
+          ? `/leases/${leaseId}/add-credit`
+          : mode === 'refund'
+            ? `/leases/${leaseId}/add-refund`
+            : `/leases/${leaseId}/add-charge`;
+    const target = `${base}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`;
+    router.push(target);
+    onClose();
+  }, [leaseId, mode, monthlyLogId, onClose, router]);
+
+  useEffect(() => {
     const activeOption = modeOptions.find((option) => option.value === mode);
     if (activeOption?.disabled) {
       const fallback = modeOptions.find((option) => !option.disabled);
@@ -619,52 +634,27 @@ export default function MonthlyLogTransactionOverlay({
     switch (mode) {
       case 'payment':
         return (
-          <ReceivePaymentForm
-            key="payment"
-            leaseId={leaseId}
-            leaseSummary={leaseSummary}
-            accounts={accountOptions}
-            tenants={tenantOptions}
-            onCancel={handleOverlayClose}
-            onSuccess={handleTransactionSuccess}
-            density="compact"
-            hideHeader
-          />
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
+            Redirecting to payment form…
+          </div>
         );
       case 'charge':
         return (
-          <EnterChargeForm
-            key="charge"
-            leaseId={leaseId}
-            accounts={accountOptions}
-            onCancel={handleOverlayClose}
-            onSuccess={handleTransactionSuccess}
-            hideTitle
-          />
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
+            Redirecting to charge form…
+          </div>
         );
       case 'credit':
         return (
-          <IssueCreditForm
-            key="credit"
-            leaseId={leaseId}
-            leaseSummary={leaseSummary}
-            accounts={accountOptions}
-            onCancel={handleOverlayClose}
-            onSuccess={handleTransactionSuccess}
-          />
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
+            Redirecting to credit form…
+          </div>
         );
       case 'refund':
         return (
-          <IssueRefundForm
-            key="refund"
-            leaseId={leaseId}
-            leaseSummary={leaseSummary}
-            bankAccounts={bankAccountOptions}
-            accounts={accountOptions}
-            parties={tenantOptions}
-            onCancel={handleOverlayClose}
-            onSuccess={handleTransactionSuccess}
-          />
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-600">
+            Redirecting to refund form…
+          </div>
         );
       case 'deposit':
         return (

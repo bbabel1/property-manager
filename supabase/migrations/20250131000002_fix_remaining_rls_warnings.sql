@@ -139,72 +139,87 @@ DROP FUNCTION IF EXISTS public.fix_policy_auth_calls();
 -- lease policies (if they exist and need fixing)
 DO $$
 BEGIN
+  -- Only attempt to rewrite lease org policies when org_memberships.role exists
   IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'lease' 
-    AND policyname = 'lease_org_read'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'org_memberships'
+      AND column_name = 'role'
   ) THEN
-    -- Recreate with wrapped auth calls
-    DROP POLICY IF EXISTS lease_org_read ON public.lease;
-    CREATE POLICY lease_org_read ON public.lease
-      FOR SELECT USING (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships m
-          WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id
-        )
-      );
-  END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'lease' 
+      AND policyname = 'lease_org_read'
+    ) THEN
+      -- Recreate with wrapped auth calls
+      DROP POLICY IF EXISTS lease_org_read ON public.lease;
+      CREATE POLICY lease_org_read ON public.lease
+        FOR SELECT USING (
+          EXISTS (
+            SELECT 1 FROM public.org_memberships m
+            WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id
+          )
+        );
+    END IF;
 
-  IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'lease' 
-    AND policyname = 'lease_org_write'
-  ) THEN
-    DROP POLICY IF EXISTS lease_org_write ON public.lease;
-    CREATE POLICY lease_org_write ON public.lease
-      FOR INSERT WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships m
-          WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id 
-          AND m.role IN ('org_admin','org_manager','platform_admin')
-        )
-      );
-  END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'lease' 
+      AND policyname = 'lease_org_write'
+    ) THEN
+      DROP POLICY IF EXISTS lease_org_write ON public.lease;
+      EXECUTE $lease_org_write$
+        CREATE POLICY lease_org_write ON public.lease
+          FOR INSERT WITH CHECK (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships m
+              WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id 
+              AND m.role IN ('org_admin','org_manager','platform_admin')
+            )
+          );
+      $lease_org_write$;
+    END IF;
 
-  IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'lease' 
-    AND policyname = 'lease_org_update'
-  ) THEN
-    DROP POLICY IF EXISTS lease_org_update ON public.lease;
-    CREATE POLICY lease_org_update ON public.lease
-      FOR UPDATE USING (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships m
-          WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id 
-          AND m.role IN ('org_admin','org_manager','platform_admin')
-        )
-      );
-  END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'lease' 
+      AND policyname = 'lease_org_update'
+    ) THEN
+      DROP POLICY IF EXISTS lease_org_update ON public.lease;
+      EXECUTE $lease_org_update$
+        CREATE POLICY lease_org_update ON public.lease
+          FOR UPDATE USING (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships m
+              WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id 
+              AND m.role IN ('org_admin','org_manager','platform_admin')
+            )
+          );
+      $lease_org_update$;
+    END IF;
 
-  IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'lease' 
-    AND policyname = 'lease_org_delete'
-  ) THEN
-    DROP POLICY IF EXISTS lease_org_delete ON public.lease;
-    CREATE POLICY lease_org_delete ON public.lease
-      FOR DELETE USING (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships m
-          WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id 
-          AND m.role IN ('org_admin','org_manager','platform_admin')
-        )
-      );
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'lease' 
+      AND policyname = 'lease_org_delete'
+    ) THEN
+      DROP POLICY IF EXISTS lease_org_delete ON public.lease;
+      EXECUTE $lease_org_delete$
+        CREATE POLICY lease_org_delete ON public.lease
+          FOR DELETE USING (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships m
+              WHERE m.user_id = (select auth.uid()) AND m.org_id = lease.org_id 
+              AND m.role IN ('org_admin','org_manager','platform_admin')
+            )
+          );
+      $lease_org_delete$;
+    END IF;
   END IF;
 END $$;
 
@@ -319,56 +334,71 @@ END $$;
 -- role_permissions policies
 DO $$
 BEGIN
+  -- Only rewrite permission_profile policies when org_memberships.role exists
   IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'role_permissions'
-    AND policyname LIKE 'permission_profile_permissions_%'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'org_memberships'
+      AND column_name = 'role'
   ) THEN
-    -- Recreate with wrapped auth calls
-    DROP POLICY IF EXISTS permission_profile_permissions_read ON public.role_permissions;
-    DROP POLICY IF EXISTS permission_profile_permissions_write ON public.role_permissions;
-    DROP POLICY IF EXISTS permission_profile_permissions_update ON public.role_permissions;
-    DROP POLICY IF EXISTS permission_profile_permissions_delete ON public.role_permissions;
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'role_permissions'
+      AND policyname LIKE 'permission_profile_permissions_%'
+    ) THEN
+      -- Recreate with wrapped auth calls
+      DROP POLICY IF EXISTS permission_profile_permissions_read ON public.role_permissions;
+      DROP POLICY IF EXISTS permission_profile_permissions_write ON public.role_permissions;
+      DROP POLICY IF EXISTS permission_profile_permissions_update ON public.role_permissions;
+      DROP POLICY IF EXISTS permission_profile_permissions_delete ON public.role_permissions;
 
-    CREATE POLICY permission_profile_permissions_read ON public.role_permissions
-      FOR SELECT USING (
-        public.is_org_member((select auth.uid()), 
-          (SELECT org_id FROM public.membership_roles WHERE id = role_permissions.role_id))
-      );
+      CREATE POLICY permission_profile_permissions_read ON public.role_permissions
+        FOR SELECT USING (
+          public.is_org_member((select auth.uid()), 
+            (SELECT org_id FROM public.membership_roles WHERE id = role_permissions.role_id))
+        );
 
-    CREATE POLICY permission_profile_permissions_write ON public.role_permissions
-      FOR INSERT WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM public.membership_roles mr
-          JOIN public.org_memberships om ON om.org_id = mr.org_id
-          WHERE mr.id = role_permissions.role_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      );
+      EXECUTE $perm_prof_write$
+        CREATE POLICY permission_profile_permissions_write ON public.role_permissions
+          FOR INSERT WITH CHECK (
+            EXISTS (
+              SELECT 1 FROM public.membership_roles mr
+              JOIN public.org_memberships om ON om.org_id = mr.org_id
+              WHERE mr.id = role_permissions.role_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          );
+      $perm_prof_write$;
 
-    CREATE POLICY permission_profile_permissions_update ON public.role_permissions
-      FOR UPDATE USING (
-        EXISTS (
-          SELECT 1 FROM public.membership_roles mr
-          JOIN public.org_memberships om ON om.org_id = mr.org_id
-          WHERE mr.id = role_permissions.role_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      );
+      EXECUTE $perm_prof_update$
+        CREATE POLICY permission_profile_permissions_update ON public.role_permissions
+          FOR UPDATE USING (
+            EXISTS (
+              SELECT 1 FROM public.membership_roles mr
+              JOIN public.org_memberships om ON om.org_id = mr.org_id
+              WHERE mr.id = role_permissions.role_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          );
+      $perm_prof_update$;
 
-    CREATE POLICY permission_profile_permissions_delete ON public.role_permissions
-      FOR DELETE USING (
-        EXISTS (
-          SELECT 1 FROM public.membership_roles mr
-          JOIN public.org_memberships om ON om.org_id = mr.org_id
-          WHERE mr.id = role_permissions.role_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      );
+      EXECUTE $perm_prof_delete$
+        CREATE POLICY permission_profile_permissions_delete ON public.role_permissions
+          FOR DELETE USING (
+            EXISTS (
+              SELECT 1 FROM public.membership_roles mr
+              JOIN public.org_memberships om ON om.org_id = mr.org_id
+              WHERE mr.id = role_permissions.role_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          );
+      $perm_prof_delete$;
+    END IF;
   END IF;
 END $$;
 
@@ -410,87 +440,97 @@ END $$;
 -- Combine membership_roles_admin_write and user_permission_profiles_* into single policies
 DO $$
 BEGIN
+  -- Only consolidate when org_memberships.role exists
   IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'membership_roles'
-    AND policyname IN ('membership_roles_admin_write', 'user_permission_profiles_read', 'user_permission_profiles_write', 'user_permission_profiles_update', 'user_permission_profiles_delete')
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'org_memberships'
+      AND column_name = 'role'
   ) THEN
-    -- Drop the overlapping policies
-    DROP POLICY IF EXISTS user_permission_profiles_read ON public.membership_roles;
-    DROP POLICY IF EXISTS user_permission_profiles_write ON public.membership_roles;
-    DROP POLICY IF EXISTS user_permission_profiles_update ON public.membership_roles;
-    DROP POLICY IF EXISTS user_permission_profiles_delete ON public.membership_roles;
-    
-    -- Ensure membership_roles_admin_write covers all operations
-    DROP POLICY IF EXISTS membership_roles_admin_write ON public.membership_roles;
-    CREATE POLICY membership_roles_admin_write ON public.membership_roles
-      FOR ALL TO authenticated, dashboard_user
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships om
-          WHERE om.org_id = membership_roles.org_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      )
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships om
-          WHERE om.org_id = membership_roles.org_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      );
-  END IF;
-END $$;
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'membership_roles'
+      AND policyname IN ('membership_roles_admin_write', 'user_permission_profiles_read', 'user_permission_profiles_write', 'user_permission_profiles_update', 'user_permission_profiles_delete')
+    ) THEN
+      -- Drop the overlapping policies
+      DROP POLICY IF EXISTS user_permission_profiles_read ON public.membership_roles;
+      DROP POLICY IF EXISTS user_permission_profiles_write ON public.membership_roles;
+      DROP POLICY IF EXISTS user_permission_profiles_update ON public.membership_roles;
+      DROP POLICY IF EXISTS user_permission_profiles_delete ON public.membership_roles;
+      
+      -- Ensure membership_roles_admin_write covers all operations
+      DROP POLICY IF EXISTS membership_roles_admin_write ON public.membership_roles;
+      EXECUTE $membership_roles_admin_write$
+        CREATE POLICY membership_roles_admin_write ON public.membership_roles
+          FOR ALL TO authenticated, dashboard_user
+          USING (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships om
+              WHERE om.org_id = membership_roles.org_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          )
+          WITH CHECK (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships om
+              WHERE om.org_id = membership_roles.org_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          );
+      $membership_roles_admin_write$;
+    END IF;
 
--- Consolidate multiple permissive policies for org_memberships
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'org_memberships'
-    AND policyname IN ('memberships_read', 'memberships_admin_manage')
-  ) THEN
-    -- Combine into a single policy that handles both read and admin operations
-    DROP POLICY IF EXISTS memberships_read ON public.org_memberships;
-    DROP POLICY IF EXISTS memberships_admin_manage ON public.org_memberships;
-    
-    CREATE POLICY memberships_read ON public.org_memberships
-      FOR SELECT TO authenticated, dashboard_user
-      USING (
-        user_id = (select auth.uid())
-        OR EXISTS (
-          SELECT 1 FROM public.org_memberships om
-          WHERE om.org_id = org_memberships.org_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      );
-    
-    CREATE POLICY memberships_admin_manage ON public.org_memberships
-      FOR INSERT, UPDATE, DELETE TO authenticated, dashboard_user
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships om
-          WHERE om.org_id = org_memberships.org_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      )
-      WITH CHECK (
-        EXISTS (
-          SELECT 1 FROM public.org_memberships om
-          WHERE om.org_id = org_memberships.org_id
-            AND om.user_id = (select auth.uid())
-            AND om.role IN ('org_admin', 'platform_admin')
-        )
-      );
+    -- Consolidate multiple permissive policies for org_memberships
+    IF EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE schemaname = 'public' 
+      AND tablename = 'org_memberships'
+      AND policyname IN ('memberships_read', 'memberships_admin_manage')
+    ) THEN
+      -- Combine into a single policy that handles both read and admin operations
+      DROP POLICY IF EXISTS memberships_read ON public.org_memberships;
+      DROP POLICY IF EXISTS memberships_admin_manage ON public.org_memberships;
+      
+      EXECUTE $memberships_read$
+        CREATE POLICY memberships_read ON public.org_memberships
+          FOR SELECT TO authenticated, dashboard_user
+          USING (
+            user_id = (select auth.uid())
+            OR EXISTS (
+              SELECT 1 FROM public.org_memberships om
+              WHERE om.org_id = org_memberships.org_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          );
+      $memberships_read$;
+      
+      EXECUTE $memberships_admin_manage$
+        CREATE POLICY memberships_admin_manage ON public.org_memberships
+          FOR INSERT, UPDATE, DELETE TO authenticated, dashboard_user
+          USING (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships om
+              WHERE om.org_id = org_memberships.org_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          )
+          WITH CHECK (
+            EXISTS (
+              SELECT 1 FROM public.org_memberships om
+              WHERE om.org_id = org_memberships.org_id
+                AND om.user_id = (select auth.uid())
+                AND om.role IN ('org_admin', 'platform_admin')
+            )
+          );
+      $memberships_admin_manage$;
+    END IF;
   END IF;
 END $$;
 
 COMMIT;
-
-

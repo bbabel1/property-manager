@@ -21,8 +21,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     
     logger.info({ reconciliationId, action: 'get_buildium_reconciliation_balance' }, 'Fetching Buildium reconciliation balance');
 
-    // Buildium API call
-    const response = await buildiumFetch('GET', `/bankaccounts/reconciliations/${reconciliationId}/balance`, undefined, undefined, undefined);
+    // Get bank account ID from reconciliation_log (required for balance endpoint)
+    const admin = supabaseAdmin
+    if (!admin) {
+      return NextResponse.json({ error: 'Service key not configured' }, { status: 500 })
+    }
+
+    const { data: recLog } = await admin
+      .from('reconciliation_log')
+      .select('buildium_bank_account_id')
+      .eq('buildium_reconciliation_id', Number(reconciliationId))
+      .maybeSingle()
+
+    if (!recLog?.buildium_bank_account_id) {
+      return NextResponse.json(
+        { error: 'Reconciliation not found in local database or missing bank account ID' },
+        { status: 404 }
+      )
+    }
+
+    const buildiumBankAccountId = recLog.buildium_bank_account_id
+
+    // Buildium API call - balance endpoint requires bank account ID in path
+    const response = await buildiumFetch(
+      'GET',
+      `/bankaccounts/${buildiumBankAccountId}/reconciliations/${reconciliationId}/balance`,
+      undefined,
+      undefined,
+      undefined,
+    );
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -61,8 +88,35 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Parse request body
     const body = (await request.json()) as Record<string, unknown>;
 
-    // Buildium API call
-    const response = await buildiumFetch('PUT', `/bankaccounts/reconciliations/${reconciliationId}/balance`, undefined, body, undefined);
+    // Get bank account ID from reconciliation_log (required for balance endpoint)
+    const admin = supabaseAdmin
+    if (!admin) {
+      return NextResponse.json({ error: 'Service key not configured' }, { status: 500 })
+    }
+
+    const { data: recLog } = await admin
+      .from('reconciliation_log')
+      .select('buildium_bank_account_id')
+      .eq('buildium_reconciliation_id', Number(reconciliationId))
+      .maybeSingle()
+
+    if (!recLog?.buildium_bank_account_id) {
+      return NextResponse.json(
+        { error: 'Reconciliation not found in local database or missing bank account ID' },
+        { status: 404 }
+      )
+    }
+
+    const buildiumBankAccountId = recLog.buildium_bank_account_id
+
+    // Buildium API call - balance endpoint requires bank account ID in path
+    const response = await buildiumFetch(
+      'PUT',
+      `/bankaccounts/${buildiumBankAccountId}/reconciliations/${reconciliationId}/balance`,
+      undefined,
+      body,
+      undefined,
+    );
 
     if (!response.ok) {
       if (response.status === 404) {

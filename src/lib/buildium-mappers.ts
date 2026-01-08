@@ -86,6 +86,7 @@ import type {
 } from '../types/buildium';
 import { normalizeStaffRole } from '@/lib/staff-role';
 import { logger } from '@/lib/logger';
+import type { DepositStatus } from '@/types/deposits';
 
 // Type alias for typed Supabase client
 
@@ -198,6 +199,54 @@ type BuildiumWorkOrderExtended = BuildiumWorkOrder & {
 type BuildiumTenantExtended = BuildiumTenant & {
   Address?: BuildiumTenant['PrimaryAddress'];
 };
+
+export function deriveDepositStatusFromBuildiumPayload(payload: unknown): DepositStatus {
+  const candidate = payload as Record<string, unknown> | null | undefined;
+  const statusRaw = String(
+    (candidate?.Status as string | undefined) ??
+      (candidate?.status as string | undefined) ??
+      (candidate?.BankEntryStatus as string | undefined) ??
+      '',
+  ).toLowerCase();
+
+  const isReconFlag =
+    statusRaw.includes('reconciled') ||
+    statusRaw === 'reconciled' ||
+    statusRaw === 'cleared' ||
+    statusRaw === 'settled' ||
+    statusRaw === 'clearedreconciled' ||
+    statusRaw === 'cleared_reconciled';
+
+  const booleanRecon =
+    Boolean((candidate as any)?.IsReconciled) ||
+    Boolean((candidate as any)?.Reconciled) ||
+    Boolean((candidate as any)?.Cleared) ||
+    Boolean((candidate as any)?.IsCleared);
+
+  const hasReconDate =
+    Boolean((candidate as any)?.ReconciledDate) || Boolean((candidate as any)?.ClearedDate);
+
+  if (isReconFlag || booleanRecon || hasReconDate) return 'reconciled';
+  if (statusRaw.includes('void')) return 'voided';
+  return 'posted';
+}
+
+export function extractBuildiumDepositId(payload: unknown): number | null {
+  const candidate = payload as Record<string, unknown> | null | undefined;
+  const idCandidates = [
+    (candidate?.Id as number | undefined) ?? null,
+    (candidate?.id as number | undefined) ?? null,
+    (candidate?.TransactionId as number | undefined) ?? null,
+    (candidate?.transactionId as number | undefined) ?? null,
+    (candidate?.DepositId as number | undefined) ?? null,
+    (candidate?.depositId as number | undefined) ?? null,
+  ];
+
+  for (const val of idCandidates) {
+    if (typeof val === 'number' && Number.isFinite(val) && val > 0) return val;
+  }
+  return null;
+}
 
 function isBuildiumGLAccountSummary(value: unknown): value is BuildiumGLAccountSummary {
   if (!value || typeof value !== 'object') return false;
@@ -1647,6 +1696,26 @@ export async function mapTransactionBillToBuildium(
   const originalTotal = Number(tx.total_amount ?? 0);
   const adjustedTotal = Math.max(0, originalTotal - excludedLinesTotal);
 
+  const { data: workflowRow } = await supabase
+    .from('bill_workflow')
+    .select('approval_state')
+    .eq('bill_transaction_id', transactionId)
+    .maybeSingle();
+  const approvalState = (workflowRow as any)?.approval_state ?? null;
+
+  const approvalStateToBuildiumStatus = (
+    state: string | null,
+  ): 'Approved' | 'PendingApproval' | 'Rejected' | 'Voided' | undefined => {
+    if (!state) return undefined;
+    const normalized = state.toLowerCase();
+    if (normalized === 'approved') return 'Approved';
+    if (normalized === 'pending_approval' || normalized === 'pending') return 'PendingApproval';
+    if (normalized === 'rejected') return 'Rejected';
+    if (normalized === 'voided') return 'Voided';
+    return undefined;
+  };
+  const mappedStatus = approvalStateToBuildiumStatus(approvalState);
+
   const payload: BuildiumBillCreate = {
     VendorId: vendorBuildiumId,
     Date: normalizeDateString(tx.date),
@@ -1659,9 +1728,82 @@ export async function mapTransactionBillToBuildium(
     ReferenceNumber: tx.reference_number || undefined,
     CategoryId: billCategoryBuildiumId,
     Lines: buildiumLines.length > 0 ? buildiumLines : undefined,
+    Status: mappedStatus,
   };
 
   return payload;
+}
+
+/**
+ * Map local bill applications for a payment/credit into Buildium BillIds list.
+ * Returns BillIds array and allocations when Buildium bill IDs are present.
+ */
+export async function mapPaymentApplicationsToBuildium(
+  sourceTransactionId: string,
+  supabase: TypedSupabaseClient,
+): Promise<{ billIds: number[]; allocations: Array<{ billId: number; amount: number }> }> {
+  const { data, error } = await supabase
+    .from('bill_applications')
+    .select(
+      `
+        applied_amount,
+        bill_transaction_id,
+        bill:bill_transaction_id (
+          id,
+          buildium_bill_id
+        )
+      `,
+    )
+    .eq('source_transaction_id', sourceTransactionId);
+  if (error) throw error;
+
+  const billIds = new Set<number>();
+  const allocations: Array<{ billId: number; amount: number }> = [];
+
+  for (const row of data || []) {
+    const buildiumBillId = (row as any)?.bill?.buildium_bill_id;
+    if (typeof buildiumBillId === 'number' && buildiumBillId > 0) {
+      billIds.add(buildiumBillId);
+      const amount = Number((row as any)?.applied_amount ?? 0);
+      if (Number.isFinite(amount) && amount > 0) {
+        allocations.push({ billId: buildiumBillId, amount });
+      }
+    }
+  }
+
+  if ((data?.length ?? 0) > 0 && billIds.size === 0) {
+    logger.warn(
+      { sourceTransactionId, applications: data?.length },
+      'Bill applications found but no Buildium BillIds present; outbound BillIds will be empty.',
+    );
+  }
+
+  return { billIds: Array.from(billIds), allocations };
+}
+
+/**
+ * Map a Buildium vendor transaction (credit/refund) into a local transaction insert payload.
+ * This provides a lightweight mapping so webhook processors can upsert the header.
+ */
+export function mapVendorCreditFromBuildium(
+  buildiumTx: Partial<BuildiumLeaseTransactionExtended>,
+): TransactionInsertBase {
+  const amount =
+    typeof buildiumTx.TotalAmount === 'number'
+      ? Math.abs(buildiumTx.TotalAmount)
+      : typeof buildiumTx.Amount === 'number'
+        ? Math.abs(buildiumTx.Amount)
+        : 0;
+
+  return {
+    buildium_transaction_id: buildiumTx.Id ?? null,
+    transaction_type: 'VendorCredit',
+    date: normalizeDateString(buildiumTx.Date || buildiumTx.TransactionDate || buildiumTx.PostDate),
+    total_amount: amount,
+    memo: buildiumTx.Memo ?? (buildiumTx as any)?.Journal?.Memo ?? null,
+    status: 'Paid',
+    vendor_id: null,
+  };
 }
 
 /**

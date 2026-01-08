@@ -14,6 +14,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import ActionButton from '@/components/ui/ActionButton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import DynamicOverlay from '@/components/ui/DynamicOverlay';
 import RentScheduleForm, {
   RentScheduleFormDefaults,
@@ -22,6 +28,16 @@ import RentScheduleForm, {
 
 type RentLogRowDisplay = {
   id: string;
+  schedule: {
+    id: string;
+    start_date: string | null;
+    end_date: string | null;
+    rent_cycle: string | null;
+    total_amount: number;
+    status: string;
+  };
+  memo: string | null;
+  postingLabel: string;
   statusLabel: string;
   statusVariant: 'default' | 'secondary' | 'outline';
   startLabel: string;
@@ -52,6 +68,14 @@ type RentTabInteractiveProps = {
   rentStatusOptions: string[];
   leaseSummary: RentScheduleFormLeaseSummary;
   defaults?: RentScheduleFormDefaults;
+  rentAccountOptions?: { value: string; label: string }[];
+  recurringTransactionId?: string | number | null;
+  recurringDefaults?: {
+    memo?: string | null;
+    posting_day?: number | null;
+    posting_days_in_advance?: number | null;
+    gl_account_id?: string | null;
+  };
 };
 
 export default function RentTabInteractive({
@@ -63,11 +87,16 @@ export default function RentTabInteractive({
   rentStatusOptions,
   leaseSummary,
   defaults,
+  rentAccountOptions,
+  recurringTransactionId,
+  recurringDefaults,
 }: RentTabInteractiveProps) {
   const router = useRouter();
   const [isAdding, setIsAdding] = useState(false);
+  const [editTarget, setEditTarget] = useState<RentLogRowDisplay | null>(null);
   const [overlayTop, setOverlayTop] = useState(0);
   const [overlayLeft, setOverlayLeft] = useState(0);
+  const overlayActive = isAdding || Boolean(editTarget);
 
   const rentLogSummary = useMemo(() => {
     if (!rentLog.length) return 'No rent schedules yet';
@@ -77,7 +106,7 @@ export default function RentTabInteractive({
   const leaseSummaryForForm = useMemo(() => leaseSummary, [leaseSummary]);
 
   useLayoutEffect(() => {
-    if (!isAdding) return;
+    if (!overlayActive) return;
     const update = () => {
       const anchor = document.querySelector('[data-lease-back-link]');
       if (anchor instanceof HTMLElement) {
@@ -105,36 +134,69 @@ export default function RentTabInteractive({
       const anchor = document.querySelector('[data-lease-back-link]') as HTMLElement | null;
       if (anchor) anchor.style.visibility = '';
     };
-  }, [isAdding]);
+  }, [overlayActive]);
 
   useEffect(() => {
-    if (!isAdding) return;
+    if (!overlayActive) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previous;
     };
-  }, [isAdding]);
+  }, [overlayActive]);
 
-  const formMarkup = (
-    <RentScheduleForm
-      leaseId={leaseId}
-      rentCycleOptions={rentCycleOptions}
-      rentStatusOptions={rentStatusOptions}
-      leaseSummary={leaseSummaryForForm}
-      defaults={defaults}
-      onCancel={() => setIsAdding(false)}
-      onSuccess={() => {
-        setIsAdding(false);
-        router.refresh();
-      }}
-    />
-  );
+  const renderForm = () => {
+    if (editTarget) {
+      const scheduleDefaults: RentScheduleFormDefaults = {
+        start_date: editTarget.schedule.start_date,
+        end_date: editTarget.schedule.end_date,
+        rent_cycle: editTarget.schedule.rent_cycle,
+        total_amount: editTarget.schedule.total_amount,
+        status: editTarget.schedule.status,
+      };
+      return (
+        <RentScheduleForm
+          leaseId={leaseId}
+          rentScheduleId={editTarget.schedule.id}
+          recurringTransactionId={recurringTransactionId}
+          rentCycleOptions={rentCycleOptions}
+          rentStatusOptions={rentStatusOptions}
+          rentAccountOptions={rentAccountOptions}
+          leaseSummary={leaseSummaryForForm}
+          defaults={scheduleDefaults}
+          recurringDefaults={recurringDefaults}
+          onCancel={() => setEditTarget(null)}
+          onSuccess={() => {
+            setEditTarget(null);
+            router.refresh();
+          }}
+        />
+      );
+    }
 
-  if (isAdding) {
+    return (
+      <RentScheduleForm
+        leaseId={leaseId}
+        recurringTransactionId={recurringTransactionId}
+        rentCycleOptions={rentCycleOptions}
+        rentStatusOptions={rentStatusOptions}
+        rentAccountOptions={rentAccountOptions}
+        leaseSummary={leaseSummaryForForm}
+        defaults={defaults}
+        recurringDefaults={recurringDefaults}
+        onCancel={() => setIsAdding(false)}
+        onSuccess={() => {
+          setIsAdding(false);
+          router.refresh();
+        }}
+      />
+    );
+  };
+
+  if (overlayActive) {
     return (
       <DynamicOverlay overlayTop={overlayTop} overlayLeft={overlayLeft}>
-        {formMarkup}
+        {renderForm()}
       </DynamicOverlay>
     );
   }
@@ -227,39 +289,52 @@ export default function RentTabInteractive({
               <TableRow>
                 <TableHead className="w-32">Status</TableHead>
                 <TableHead>Start date</TableHead>
-                <TableHead>End date</TableHead>
-                <TableHead>Cycle</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-16 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="divide-border bg-card divide-y">
-              {rentLog.length ? (
-                rentLog.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Badge variant={row.statusVariant} className="tracking-wide uppercase">
+              <TableHead>End date</TableHead>
+              <TableHead>Cycle</TableHead>
+              <TableHead>Posting</TableHead>
+              <TableHead>Memo</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-16 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="divide-border bg-card divide-y">
+            {rentLog.length ? (
+              rentLog.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <Badge variant={row.statusVariant} className="tracking-wide uppercase">
                         {row.statusLabel}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-foreground text-sm">{row.startLabel}</TableCell>
                     <TableCell className="text-foreground text-sm">{row.endLabel}</TableCell>
                     <TableCell className="text-foreground text-sm">{row.cycleLabel}</TableCell>
+                    <TableCell className="text-foreground text-sm">{row.postingLabel}</TableCell>
+                    <TableCell className="text-foreground text-sm">{row.memo || '—'}</TableCell>
                     <TableCell className="text-foreground text-right text-sm">
                       {row.amountLabel}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <ActionButton aria-label="Rent schedule actions" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton aria-label="Rent schedule actions" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEditTarget(row)}>
+                          Edit
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground py-6 text-center text-sm">
+                  <TableCell colSpan={8} className="text-muted-foreground py-6 text-center text-sm">
                     No rent schedules recorded yet.
                   </TableCell>
                 </TableRow>
-              )}
+            )}
             </TableBody>
           </Table>
         </div>

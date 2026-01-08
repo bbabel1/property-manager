@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { AlertTriangle, Plus, Trash2, Paperclip } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -543,11 +544,10 @@ export default function EditCheckForm(props: {
           <Label htmlFor="edit-check-date" className="text-xs font-semibold tracking-wide">
             DATE <span className="text-destructive">*</span>
           </Label>
-          <Input
+          <DatePicker
             id="edit-check-date"
-            type="date"
             value={form.date}
-            onChange={(e) => setFormValue('date', e.target.value)}
+            onChange={(value) => setFormValue('date', value ?? '')}
             aria-invalid={Boolean(fieldErrors.date)}
           />
           {fieldErrors.date && <p className="text-destructive mt-1 text-xs">{fieldErrors.date}</p>}

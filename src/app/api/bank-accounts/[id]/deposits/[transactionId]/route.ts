@@ -3,6 +3,15 @@ import { requireRole } from '@/lib/auth/guards';
 import { supabaseAdmin } from '@/lib/db';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
+import { validateBankTransactionEditable } from '@/lib/bank-register-validation';
+import type { DepositStatus } from '@/types/deposits';
+import { DEPOSIT_STATUSES } from '@/types/deposits';
+import {
+  getDepositItemsByDepositTransactionId,
+  getDepositMetaByTransactionId,
+  touchDepositMeta,
+  updateDepositStatus,
+} from '@/lib/deposit-service';
 
 type TransactionRow = {
   id: string;
@@ -66,27 +75,59 @@ export async function PATCH(
 ) {
   try {
     await requireRole('platform_admin');
-  const { id: bankAccountId, transactionId } = await params;
+    const { id: bankAccountId, transactionId } = await params;
 
     const membership = await assertDepositInBankAccountContext({ bankAccountId, transactionId });
     if (!membership.ok) {
       return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
+    const { data: depositMeta } = await getDepositMetaByTransactionId(transactionId, supabaseAdmin);
+    const metaStatus = (depositMeta?.status as DepositStatus | undefined) ?? 'posted';
+    const isLocked = metaStatus === 'reconciled' || metaStatus === 'voided';
+    const currentBankAccountId = membership.tx?.bank_gl_account_id ?? bankAccountId;
+
+    const editable = await validateBankTransactionEditable(supabaseAdmin, {
+      transactionId,
+      bankGlAccountId: bankAccountId,
+    });
+    if (!editable.editable) {
+      return NextResponse.json({ error: editable.reason }, { status: 409 });
+    }
+
     const body = await request.json().catch(() => ({}));
-    const { bank_gl_account_id, date, memo } = body as {
+    const { bank_gl_account_id, date, memo, status } = body as {
       bank_gl_account_id?: string | null;
       date?: string;
       memo?: string | null;
+      status?: string | null;
     };
 
+    if (isLocked && (bank_gl_account_id !== undefined || date !== undefined)) {
+      console.warn('Attempted edit on locked deposit', { transactionId, metaStatus });
+      return NextResponse.json({ error: 'Deposit is reconciled or voided and cannot be edited' }, { status: 409 });
+    }
+
+    let statusUpdate: DepositStatus | undefined;
+    if (status !== undefined && status !== null) {
+      if (!DEPOSIT_STATUSES.includes(status as DepositStatus)) {
+        return NextResponse.json({ error: 'Invalid deposit status' }, { status: 400 });
+      }
+      statusUpdate = status as DepositStatus;
+    }
+
+    const nowIso = new Date().toISOString();
     const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     };
     if (date !== undefined) updateData.date = date;
     if (memo !== undefined) updateData.memo = memo || null;
 
     if (bank_gl_account_id !== undefined) {
+      if (metaStatus === 'posted' && bank_gl_account_id && bank_gl_account_id !== currentBankAccountId) {
+        return NextResponse.json({ error: 'Cannot change bank account for posted deposits' }, { status: 409 });
+      }
+
       if (bank_gl_account_id) {
         const { data: glAccount } = await supabaseAdmin
           .from('gl_accounts')
@@ -127,6 +168,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update deposit' }, { status: 500 });
     }
 
+    if (date !== undefined && metaStatus === 'posted') {
+      const { error: lineDateError } = await supabaseAdmin
+        .from('transaction_lines')
+        .update({ date, updated_at: nowIso })
+        .eq('transaction_id', transactionId);
+      if (lineDateError) {
+        console.error('Failed to update deposit line dates', lineDateError);
+        return NextResponse.json({ error: 'Failed to update deposit line dates' }, { status: 500 });
+      }
+    }
+
+    if (statusUpdate) {
+      const statusResult = await updateDepositStatus(supabaseAdmin, { transactionId, status: statusUpdate });
+      if (!statusResult.ok) {
+        return NextResponse.json({ error: statusResult.error }, { status: 409 });
+      }
+    } else {
+      const { error: metaTouchError } = await touchDepositMeta(transactionId, {}, supabaseAdmin);
+      if (metaTouchError) {
+        console.error('Failed to update deposit metadata timestamp', metaTouchError);
+      }
+    }
+
     // Best-effort sync to Buildium if this deposit is already linked.
     try {
       const { data: txRow } = await supabaseAdmin
@@ -159,6 +223,11 @@ export async function PATCH(
       if (buildiumDepositId && bankBuildiumId) {
         const orgId = txRow?.org_id ?? null;
         const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
+        await touchDepositMeta(
+          transactionId,
+          { buildium_sync_status: 'pending', buildium_sync_error: null },
+          supabaseAdmin,
+        );
 
         // PaymentTransactionIds from splits
         const { data: splits } = await supabaseAdmin
@@ -257,9 +326,27 @@ export async function PATCH(
           `/bankaccounts/${bankBuildiumId}/deposits/${buildiumDepositId}`,
           buildiumPayload,
         );
+        await touchDepositMeta(
+          transactionId,
+          {
+            buildium_deposit_id: buildiumDepositId,
+            buildium_sync_status: 'synced',
+            buildium_sync_error: null,
+            buildium_last_synced_at: new Date().toISOString(),
+          },
+          supabaseAdmin,
+        );
       }
     } catch (err) {
       console.error('Failed to sync deposit update to Buildium', err);
+      await touchDepositMeta(
+        transactionId,
+        {
+          buildium_sync_status: 'failed',
+          buildium_sync_error: err instanceof Error ? err.message : 'Unknown Buildium sync error',
+        },
+        supabaseAdmin,
+      );
     }
 
     return NextResponse.json({ success: true });
@@ -284,6 +371,14 @@ export async function DELETE(
       return NextResponse.json({ error: membership.message }, { status: membership.status });
     }
 
+    const editable = await validateBankTransactionEditable(supabaseAdmin, {
+      transactionId,
+      bankGlAccountId: bankAccountId,
+    });
+    if (!editable.editable) {
+      return NextResponse.json({ error: editable.reason }, { status: 409 });
+    }
+
     // Before deleting, fetch deposit context and linked payment references
     const { data: depositTx, error: depositError } = await supabaseAdmin
       .from('transactions')
@@ -300,18 +395,42 @@ export async function DELETE(
     const orgId = depositTx?.org_id ?? null;
     const depositBankAccountId = depositTx?.bank_gl_account_id ?? null;
 
-    // Get payment transactions linked to this deposit before deletion
-    const { data: paymentLinks, error: paymentLinksError } = await supabaseAdmin
-      .from('transaction_payment_transactions')
-      .select('buildium_payment_transaction_id')
-      .eq('transaction_id', transactionId);
-    if (paymentLinksError) {
+    // Get payment transactions linked to this deposit before deletion (deterministic via deposit_items)
+    const { data: depositItems, error: depositItemsError } = await getDepositItemsByDepositTransactionId(
+      transactionId,
+      supabaseAdmin,
+    );
+    if (depositItemsError) {
       return NextResponse.json({ error: 'Failed to load linked payments' }, { status: 500 });
+    }
+
+    const paymentIdSet = new Set<string>();
+    const paymentBuildiumIdSet = new Set<number>();
+    (depositItems || []).forEach((item) => {
+      if (item?.payment_transaction_id) paymentIdSet.add(String(item.payment_transaction_id));
+      if (typeof (item as { buildium_payment_transaction_id?: number | null })?.buildium_payment_transaction_id === 'number') {
+        paymentBuildiumIdSet.add(
+          (item as { buildium_payment_transaction_id: number }).buildium_payment_transaction_id,
+        );
+      }
+    });
+
+    // Legacy fallback: if no deposit_items present, look for Buildium payment splits
+    if (paymentIdSet.size === 0) {
+      const { data: legacySplits } = await supabaseAdmin
+        .from('transaction_payment_transactions')
+        .select('buildium_payment_transaction_id')
+        .eq('transaction_id', transactionId)
+        .not('buildium_payment_transaction_id', 'is', null);
+      (legacySplits || []).forEach((row) => {
+        const idNum = Number((row as { buildium_payment_transaction_id?: number | null })?.buildium_payment_transaction_id ?? NaN);
+        if (Number.isFinite(idNum)) paymentBuildiumIdSet.add(idNum);
+      });
     }
 
     // Resolve UDF account before deleting; if missing, block the delete to avoid inconsistency.
     let udfGlAccountId: string | null = null;
-    if (paymentLinks && paymentLinks.length > 0 && orgId) {
+    if ((paymentIdSet.size > 0 || paymentBuildiumIdSet.size > 0) && orgId) {
       udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, orgId);
       if (!udfGlAccountId) {
         return NextResponse.json(
@@ -325,50 +444,17 @@ export async function DELETE(
     }
 
     // Reclass payment transactions and their lines before removing the deposit to avoid stranding cash.
-    if (paymentLinks && paymentLinks.length > 0 && udfGlAccountId) {
-      const paymentBuildiumIds = paymentLinks
-        .map((p) => p?.buildium_payment_transaction_id)
-        .filter((v): v is number => typeof v === 'number');
-
-      const paymentTypeFilters = [
-        'Payment',
-        'ElectronicFundsTransfer',
-        'ApplyDeposit',
-        'Refund',
-        'UnreversedPayment',
-        'UnreversedElectronicFundsTransfer',
-        'ReverseElectronicFundsTransfer',
-        'ReversePayment',
-        'Check',
-      ];
-
-      const paymentIdSet = new Set<string>();
-
-      if (paymentBuildiumIds.length > 0) {
+    if ((paymentIdSet.size > 0 || paymentBuildiumIdSet.size > 0) && udfGlAccountId) {
+      if (paymentIdSet.size === 0 && paymentBuildiumIdSet.size > 0) {
         const { data: paymentTxs, error: paymentTxError } = await supabaseAdmin
           .from('transactions')
           .select('id')
-          .in('buildium_transaction_id', paymentBuildiumIds)
+          .in('buildium_transaction_id', Array.from(paymentBuildiumIdSet))
           .limit(1000);
         if (paymentTxError) {
           return NextResponse.json({ error: 'Failed to load linked payments' }, { status: 500 });
         }
         (paymentTxs || []).forEach((tx) => paymentIdSet.add(tx.id));
-      }
-
-      // Fallback for local-only payments (no Buildium ids): grab payments on this bank account in this org.
-      if (paymentIdSet.size === 0 && depositBankAccountId && orgId) {
-        const { data: fallbackPayments, error: fallbackError } = await supabaseAdmin
-          .from('transactions')
-          .select('id')
-          .eq('org_id', orgId)
-          .eq('bank_gl_account_id', depositBankAccountId)
-          .in('transaction_type', paymentTypeFilters)
-          .limit(1000);
-        if (fallbackError) {
-          return NextResponse.json({ error: 'Failed to load fallback payments' }, { status: 500 });
-        }
-        (fallbackPayments || []).forEach((tx) => paymentIdSet.add(tx.id));
       }
 
       const paymentIds = Array.from(paymentIdSet);

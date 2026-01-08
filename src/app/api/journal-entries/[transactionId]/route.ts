@@ -17,6 +17,7 @@ import {
   syncJournalEntryToBuildium,
 } from '../buildium-sync';
 import type { Database, TablesInsert } from '@/types/database';
+import { validateBankTransactionEditable } from '@/lib/bank-register-validation';
 
 type RouteParams = {
   transactionId: string;
@@ -222,6 +223,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
     }
   }
 
+  const editableCheck = await validateBankTransactionEditable(admin, {
+    transactionId,
+    bankGlAccountId: null,
+  });
+  if (!editableCheck.editable) {
+    logIssue('journal entry update blocked by reconciliation lock');
+    return NextResponse.json({ error: editableCheck.reason }, { status: 409 });
+  }
+
   const { data: journalEntry, error: journalError } = await admin
     .from('journal_entries')
     .select('id, transaction_id, buildium_gl_entry_id, date, memo, total_amount')
@@ -285,6 +295,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<Rou
         { status: 403 },
       );
     }
+  }
+
+  const editable = await validateBankTransactionEditable(admin, {
+    transactionId,
+    bankGlAccountId: null,
+  });
+  if (!editable.editable) {
+    logIssue('journal entry delete blocked by reconciliation lock');
+    return NextResponse.json({ error: editable.reason }, { status: 409 });
   }
 
   try {
@@ -744,6 +763,10 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
       total_amount: normalizedLines.debitTotal,
       updated_at: nowIso,
       org_id: resolvedOrgId,
+      property_id: propertyRow?.id ?? null,
+      unit_id: unitRow?.id ?? null,
+      account_entity_type: propertyRow ? 'Rental' : 'Company',
+      account_entity_id: propertyRow?.buildium_property_id ?? null,
     })
     .eq('id', transactionId);
 
@@ -829,6 +852,9 @@ export async function PUT(request: Request, { params }: { params: Promise<RouteP
       memo: memoValue,
       total_amount: normalizedLines.debitTotal,
       updated_at: nowIso,
+      org_id: resolvedOrgId,
+      property_id: propertyRow?.id ?? null,
+      unit_id: unitRow?.id ?? null,
     })
     .eq('id', journalEntry.id);
 

@@ -67,14 +67,14 @@ async function verifyViewSecurity() {
   `;
 
   try {
-    const { data, error } = await supabase.rpc('exec_sql', {
+    const { error } = await supabase.rpc('exec_sql', {
       query,
       params: [views],
     });
 
     if (error) {
       // Try alternative approach - direct query
-      const { data: directData, error: directError } = await supabase
+      const { error: directError } = await supabase
         .from('pg_views')
         .select('viewname')
         .in('viewname', views);
@@ -207,7 +207,7 @@ async function testTenantIsolation() {
 
   for (const table of tenantTables) {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from(table)
         .select('*')
         .limit(1);
@@ -278,4 +278,3 @@ main().catch((err) => {
   console.error('❌ Verification failed:', err);
   process.exit(1);
 });
-

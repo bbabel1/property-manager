@@ -121,9 +121,9 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 vi.mock('@/lib/buildium-edge-client', () => ({
-  buildiumEdgeClient: {
+  getOrgScopedBuildiumEdgeClient: vi.fn().mockResolvedValue({
     uploadPropertyImage: uploadPropertyImageMock,
-  },
+  }),
 }));
 
 vi.mock('@/lib/sanitize', () => ({
@@ -232,4 +232,3 @@ describe('Buildium property images API', () => {
     expect(tableData.property_images[0].buildium_image_id).toBe(777);
   });
 });
-

@@ -28,7 +28,10 @@ const BILLING_FREQUENCIES: BillingFrequency[] = [
 const FALLBACK_FREQUENCY: BillingFrequency = 'monthly';
 
 function isALaCartePlanName(name: string) {
-  return name.trim().toLowerCase() === 'a-la-carte';
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '') === 'alacarte';
 }
 
 function isMissingColumnError(error: unknown) {

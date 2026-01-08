@@ -4,7 +4,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    environmentMatchGlobs: [['src/components/**', 'jsdom']],
+    environmentMatchGlobs: [
+      ['src/components/**', 'jsdom'],
+      ['src/app/(protected)/**/__tests__/**', 'jsdom'],
+    ],
     exclude: ['tests/playwright/**', 'node_modules/**'],
     setupFiles: ['./src/test/setup.ts'],
     server: {

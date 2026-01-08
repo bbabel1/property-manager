@@ -436,6 +436,27 @@ export default async function FinancialsTab({
   }
 
   const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
+  const depositTxIds = Array.from(
+    new Set(
+      groups
+        .flatMap((g) => g.lines.map(({ line }) => line.transactionId))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const depositMetaByTx = new Map<string, { deposit_id: string | null }>();
+  if (depositTxIds.length) {
+    const { data: depositMetaRows } = await supabase
+      .from('deposit_meta')
+      .select('transaction_id, deposit_id')
+      .in('transaction_id', depositTxIds);
+    (depositMetaRows || []).forEach((row) => {
+      if (row?.transaction_id) {
+        depositMetaByTx.set(String(row.transaction_id), {
+          deposit_id: (row as any)?.deposit_id ?? null,
+        });
+      }
+    });
+  }
 
   const fmt = (n: number) =>
     `$${Number(Math.abs(n || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -586,9 +607,16 @@ export default async function FinancialsTab({
                             const memo = line.memo || line.transactionMemo || '—';
                             // Route deposits to deposit edit page, others to journal entry page
                             const isDeposit = line.transactionType === 'Deposit';
+                            const depositMeta = line.transactionId
+                              ? depositMetaByTx.get(line.transactionId)
+                              : null;
+                            const depositSlug =
+                              isDeposit && depositMeta?.deposit_id
+                                ? depositMeta.deposit_id
+                                : line.transactionId;
                             const detailHref = line.transactionId
                               ? isDeposit
-                                ? `/properties/${propertyPublicId}/financials/deposits/${line.transactionId}`
+                                ? `/properties/${propertyPublicId}/financials/deposits/${depositSlug}`
                                 : `/properties/${propertyPublicId}/financials/entries/${line.transactionId}`
                               : null;
                             const rowContent = (

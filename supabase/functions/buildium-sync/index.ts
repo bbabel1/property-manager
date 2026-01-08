@@ -1859,6 +1859,16 @@ async function resolveUndepositedFundsGlAccountId(
   return null;
 }
 
+async function resolveApAccountId(
+  supabase: any,
+  orgId: string | null,
+): Promise<string | null> {
+  if (!orgId) return null;
+  const { data, error } = await supabase.rpc('resolve_ap_gl_account_id', { p_org_id: orgId });
+  if (error && error.code !== 'PGRST116') throw error;
+  return (data as any) ?? null;
+}
+
 async function resolveLocalUnitId(
   supabase: any,
   buildiumUnitId: number | null | undefined,
@@ -1963,6 +1973,61 @@ async function upsertLeaseTransactionWithLines(
     supabase,
     payeeTenantBuildiumId ?? null,
   );
+  const lines = leaseTx?.Journal?.Lines || [];
+  let leaseOrgId: string | null = null;
+  let propertyIdLocal: string | null = null;
+  let defaultBuildiumPropertyId: number | null = null;
+  let defaultBuildiumUnitId: number | null = null;
+  let defaultUnitIdLocal: string | null = null;
+  let propertyBankContext:
+    | {
+        operating_bank_gl_account_id?: string | null;
+        deposit_trust_gl_account_id?: string | null;
+        org_id?: string | null;
+      }
+    | null = null;
+  if (leaseIdLocal) {
+    const { data: leaseRow } = await supabase
+      .from('lease')
+      .select('property_id, unit_id, buildium_property_id, buildium_unit_id, org_id')
+      .eq('id', leaseIdLocal)
+      .maybeSingle();
+    leaseOrgId = (leaseRow as any)?.org_id ?? null;
+    propertyIdLocal = (leaseRow as any)?.property_id ?? null;
+    defaultBuildiumPropertyId = (leaseRow as any)?.buildium_property_id ?? null;
+    defaultBuildiumUnitId = (leaseRow as any)?.buildium_unit_id ?? null;
+    defaultUnitIdLocal = (leaseRow as any)?.unit_id ?? null;
+  }
+
+  if (!propertyIdLocal) {
+    const firstLinePropertyId =
+      (lines.find((l: any) => l?.PropertyId)?.PropertyId as number | null | undefined) ?? null;
+    if (firstLinePropertyId) {
+      propertyIdLocal = (await resolveLocalPropertyId(supabase, firstLinePropertyId)) ?? null;
+      defaultBuildiumPropertyId = defaultBuildiumPropertyId ?? firstLinePropertyId ?? null;
+    }
+  }
+
+  if (propertyIdLocal) {
+    const { data: propertyRow, error: propertyErr } = await supabase
+      .from('properties')
+      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
+      .eq('id', propertyIdLocal)
+      .maybeSingle();
+    if (propertyErr && propertyErr.code !== 'PGRST116') throw propertyErr;
+    propertyBankContext = propertyRow ?? null;
+  }
+
+  const propertyOrgId = (propertyBankContext as any)?.org_id ?? null;
+  const unitIdLocalForHeader =
+    propertyIdLocal && (unitIdLocal ?? defaultUnitIdLocal)
+      ? unitIdLocal ?? defaultUnitIdLocal
+      : null;
+
+  const orgIdLocal = propertyOrgId ?? leaseOrgId ?? bankGlOrgId ?? null;
+  if (!orgIdLocal) {
+    throw new Error('Unable to resolve org_id for Buildium sync transaction');
+  }
   let transactionId: string;
   if (existing?.id) {
     const { data, error } = await supabase
@@ -1970,7 +2035,9 @@ async function upsertLeaseTransactionWithLines(
       .update({
         ...transactionHeader,
         lease_id: leaseIdLocal,
-        unit_id: unitIdLocal,
+        property_id: propertyIdLocal,
+        org_id: orgIdLocal,
+        unit_id: unitIdLocalForHeader,
         tenant_id: payeeTenantLocal ?? null,
       })
       .eq('id', existing.id)
@@ -1984,7 +2051,9 @@ async function upsertLeaseTransactionWithLines(
       .insert({
         ...transactionHeader,
         lease_id: leaseIdLocal,
-        unit_id: unitIdLocal,
+        property_id: propertyIdLocal,
+        org_id: orgIdLocal,
+        unit_id: unitIdLocalForHeader,
         tenant_id: payeeTenantLocal ?? null,
         created_at: now,
       })
@@ -1999,7 +2068,6 @@ async function upsertLeaseTransactionWithLines(
 
   let debit = 0,
     credit = 0;
-  const lines = leaseTx?.Journal?.Lines || [];
   const pendingLineRows: any[] = [];
   const glAccountBankFlags = new Map<string, boolean>();
 
@@ -2038,12 +2106,10 @@ async function upsertLeaseTransactionWithLines(
       .ilike('name', 'Accounts Receivable')
       .maybeSingle();
     accountsReceivableGlId = (arGl as any)?.id ?? null;
-    const { data: apGl } = await supabase
-      .from('gl_accounts')
-      .select('id')
-      .ilike('name', 'Accounts Payable')
-      .maybeSingle();
-    accountsPayableGlId = (apGl as any)?.id ?? null;
+    accountsPayableGlId = await resolveApAccountId(
+      supabase,
+      orgIdLocal ?? propertyOrgId ?? leaseOrgId ?? null,
+    );
   }
 
   // Get property ID from lease record for bank account resolution

@@ -29,7 +29,14 @@ Authorization: Bearer <your-jwt-token>
 
 ### Bills
 
+- `GET /api/bills` - List bills; supports `approval_state` filter via `?approval_state=pending_approval`
 - `POST /api/bills` - Record a vendor bill (header + debit lines + credit balancing line)
+- `PATCH /api/bills/{id}` - Update bill header/lines; amount/line edits blocked when approved
+- `DELETE /api/bills/{id}` - Hard delete drafts only (no applications, not synced)
+- `POST /api/bills/{id}/submit` - Move to pending approval
+- `POST /api/bills/{id}/approve` - Approve (requires `bills.approve`)
+- `POST /api/bills/{id}/reject` - Reject (requires `bills.approve`)
+- `POST /api/bills/{id}/void` - Void with reversal (requires `bills.void`)
 
 **Request Body:**
 
@@ -124,6 +131,23 @@ Authorization: Bearer <your-jwt-token>
 
 ### Email Templates
 
+### Vendor payments & credits
+
+- `POST /api/payments`
+  - Payload: `{ bank_account_id, amount, payment_date, bill_allocations: [{ bill_id, amount }] }`
+  - Rules: allocations must equal amount; bank/bills must share org; bank must be `is_bank_account`; uses `validate_bill_application`; 409 if source payment reconciled
+- `POST /api/bills/{id}/applications`
+  - Payload: `{ source_transaction_id, applied_amount, source_type? }`
+  - Rules: org match, validation via RPC, 409 if source reconciled
+- `DELETE /api/bills/{id}/applications/{applicationId}`
+  - Removes application; 409 if source reconciled
+- `POST /api/vendor-credits`
+  - Payload: `{ vendor_id, credit_date, amount, gl_account_id, bill_allocations? }`
+  - Rules: credit GL must be non-bank and org-aligned; allocations ≤ amount; uses `post_transaction`
+- `POST /api/vendor-credits/{id}/apply`
+  - Payload: `{ bill_allocations: [{ bill_id, amount }] }`
+  - Rules: org match; uses `validate_bill_application`; 409 if credit reconciled
+
 - `GET /api/email-templates` - List email templates with pagination and filtering
 - `POST /api/email-templates` - Create new email template (admin/manager only)
 - `GET /api/email-templates/{id}` - Get template by ID
@@ -183,6 +207,20 @@ Response:
   "warnings": ["Missing required variable: recipientName"]
 }
 ```
+
+### Buildium sync (bills/AP)
+
+- Outbound payments: include `BillIds[]` built from `bill_applications` allocations; keeps Buildium in sync with multi-bill payments.
+- Inbound BillPayment/VendorTransaction webhooks: create/update `bill_workflow` (Buildium bills treated as approved), build `bill_applications` from `BillIds[]`, and ingest vendor credits/refunds with allocations when provided.
+- Vendor credits/refunds outbound: currently not supported; local transaction remains primary (warn logged).
+- Approval conflicts prefer local state; discrepancies are logged for manual review.
+
+### Backfill runbook
+
+- Script: `scripts/backfill-bill-workflow-and-applications.ts`
+- DRY RUN: `DRY_RUN=true npx tsx scripts/backfill-bill-workflow-and-applications.ts`
+- Live: `npx tsx scripts/backfill-bill-workflow-and-applications.ts`
+- Outputs `backfill-report-<timestamp>.json` with metrics (workflows/applications created, AP account resolutions, failures).
 
 **Error Codes:**
 

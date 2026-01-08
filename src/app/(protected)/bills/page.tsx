@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ChevronDown } from 'lucide-react';
 
 import BillsFilters from '@/components/financials/BillsFilters';
 import BillRowActions from '@/components/financials/BillRowActions';
@@ -14,10 +15,17 @@ import {
 } from '@/components/ui/table';
 import { TableRowLink } from '@/components/ui/table-row-link';
 import { cn } from '@/components/ui/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase, supabaseAdmin } from '@/lib/db';
 import BillsTabSwitcher from '@/components/financials/BillsTabSwitcher';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
+import { BillBulkActions } from '@/components/bills/BillBulkActions';
 
 type Option = { id: string; label: string; internalId?: string };
 type SearchParams = {
@@ -26,6 +34,7 @@ type SearchParams = {
   vendors?: string;
   bstatus?: string;
   tab?: string;
+  approval?: string;
 };
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
@@ -43,6 +52,7 @@ const BILL_STATUS_SLUG_TO_LABEL = new Map(BILL_STATUS_OPTIONS.map((opt) => [opt.
 type BillRowRecord = {
   id: string;
   status: BillStatusLabel;
+  approval_state?: string | null;
   due_date?: string | null;
   paid_date?: string | null;
   total_amount?: number | string | null;
@@ -265,6 +275,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
 
   const spVendors = typeof sp?.vendors === 'string' ? sp.vendors : '';
   const spStatusRaw = typeof sp?.bstatus === 'string' ? sp.bstatus : '';
+  const spApprovalRaw = typeof sp?.approval === 'string' ? sp.approval : '';
 
   let selectedVendorIds = spVendors
     ? spVendors
@@ -291,6 +302,13 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
     .filter((label): label is BillStatusLabel => Boolean(label));
   const explicitStatusFilterSet = new Set(explicitStatusLabels);
   const hasExplicitStatusFilters = explicitStatusFilterSet.size > 0;
+
+  const approvalParams = spApprovalRaw
+    ? spApprovalRaw
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
 
   const defaultStatusSlugsForFilters = statusParamSlugs.length
     ? statusParamSlugs
@@ -326,6 +344,17 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
       amountByTransaction.set(txId, (amountByTransaction.get(txId) ?? 0) + amount);
     }
     transactionIds.push(...txIdSet);
+  }
+
+  const workflowMap = new Map<string, string | null>();
+  if (transactionIds.length) {
+    const { data: wfRows } = await db
+      .from('bill_workflow')
+      .select('bill_transaction_id, approval_state')
+      .in('bill_transaction_id', transactionIds);
+    for (const row of wfRows || []) {
+      workflowMap.set(String((row as any)?.bill_transaction_id), (row as any)?.approval_state ?? null);
+    }
   }
 
   const statusUpdates: { id: string; status: BillStatusLabel }[] = [];
@@ -365,7 +394,8 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
         : Number.isFinite(computedAmount) && computedAmount !== undefined
           ? computedAmount
           : 0;
-      return { ...row, status: derived, total_amount: finalAmount } as BillRowRecord;
+      const approval_state = workflowMap.get(String(row.id)) ?? null;
+      return { ...row, status: derived, total_amount: finalAmount, approval_state } as BillRowRecord;
     });
 
     if (statusUpdates.length) {
@@ -393,9 +423,14 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
     });
   }
 
-  const filteredRows = hasExplicitStatusFilters
+  let filteredRows = hasExplicitStatusFilters
     ? rowsWithProperties.filter((row) => explicitStatusFilterSet.has(row.status))
     : rowsWithProperties;
+  if (approvalParams.length) {
+    filteredRows = filteredRows.filter((row) =>
+      approvalParams.includes(String(row.approval_state || 'draft').toLowerCase()),
+    );
+  }
 
   const unpaidRows = filteredRows.filter((row) => row.status !== 'Paid');
   const paidRows = filteredRows.filter((row) => row.status === 'Paid');
@@ -409,13 +444,27 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
         <CardContent className="p-0">
           <div className="flex flex-wrap items-end gap-4 p-6 pb-4">
             <BillsFilters
-              defaultPropertyIds={selectedPropertyIds}
+              defaultPropertyIds={selectedPropertyFilterIds}
               defaultUnitIds={selectedUnitIds}
               defaultVendorIds={selectedVendorIds}
               defaultStatuses={defaultStatusSlugsForFilters}
+              defaultApprovalStates={
+                approvalParams.length
+                  ? approvalParams
+                  : ['draft', 'pending_approval', 'approved', 'rejected', 'voided']
+              }
               propertyOptions={propertyOptions}
               unitOptions={unitOptions}
               vendorOptions={vendorOptions}
+              showApprovalFilter
+            />
+          </div>
+          <div className="px-6 pb-4">
+            <BillBulkActions
+              bills={filteredRows.map((row) => ({
+                id: String(row.id),
+                approval_state: row.approval_state ?? null,
+              }))}
             />
           </div>
 
@@ -428,6 +477,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                   <TableHead className="text-muted-foreground w-[16rem]">Vendors</TableHead>
                   <TableHead className="text-muted-foreground">Memo</TableHead>
                   <TableHead className="text-muted-foreground w-[10rem]">Ref No.</TableHead>
+                  <TableHead className="text-muted-foreground w-[12rem]">Approval</TableHead>
                   <TableHead className="text-muted-foreground w-[10rem] text-right">
                     Amount
                   </TableHead>
@@ -475,6 +525,13 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
                         </TableCell>
                         <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
                         <TableCell>{row.reference_number || '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">
+                            {row.approval_state
+                              ? String(row.approval_state).replace(/_/g, ' ')
+                              : 'draft'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(
                             Number.isFinite(Number(row.total_amount))
@@ -507,9 +564,19 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
             <Button type="button" size="sm" asChild>
               <Link href="/bills/new">Record bill</Link>
             </Button>
-            <Button type="button" size="sm" variant="outline">
-              Pay bills
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" variant="outline" className="gap-2">
+                  Pay bills
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/accounting/pay-bills-by-check">By check</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         }
       />

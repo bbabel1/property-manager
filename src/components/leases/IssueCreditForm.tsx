@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Info, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,12 @@ export interface IssueCreditFormProps {
   accounts: LeaseAccountOption[];
   onCancel?: () => void;
   onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitError?: (message?: string | null) => void;
+  prefillAccountId?: string | null;
+  prefillAmount?: number | null;
+  prefillMemo?: string | null;
+  prefillDate?: string | null;
 }
 
 const ACTION_OPTIONS = [
@@ -78,26 +84,49 @@ export default function IssueCreditForm({
   accounts,
   onCancel,
   onSuccess,
+  onSubmitSuccess,
+  onSubmitError,
+  prefillAccountId,
+  prefillAmount,
+  prefillMemo,
+  prefillDate,
 }: IssueCreditFormProps) {
-  const createId = () =>
-    typeof globalThis !== 'undefined' &&
-    globalThis.crypto &&
-    typeof globalThis.crypto.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
+  const createId = useCallback(
+    () =>
+      typeof globalThis !== 'undefined' &&
+      globalThis.crypto &&
+      typeof globalThis.crypto.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : Math.random().toString(36).slice(2),
+    [],
+  );
 
-  const [form, setForm] = useState<FormState>({
-    date: null,
-    amount: '',
-    action: 'waive_charges',
-    memo: 'Credit',
-    allocations: [{ id: createId(), account_id: '', amount: '' }],
-  });
+  const initialFormState = useMemo<FormState>(() => {
+    const amountString =
+      typeof prefillAmount === 'number' && Number.isFinite(prefillAmount)
+        ? String(prefillAmount)
+        : '';
+    return {
+      date: prefillDate ?? null,
+      amount: amountString,
+      action: 'waive_charges',
+      memo: prefillMemo ?? 'Credit',
+      allocations: [{ id: createId(), account_id: prefillAccountId ?? '', amount: amountString }],
+    };
+  }, [createId, prefillAccountId, prefillAmount, prefillDate, prefillMemo]);
+
+  const [form, setForm] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<
     Partial<Record<keyof FormState, string>> & { allocations?: string }
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm(initialFormState);
+    setErrors({});
+    setFormError(null);
+  }, [initialFormState]);
 
   const updateField = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -117,7 +146,7 @@ export default function IssueCreditForm({
       ...prev,
       allocations: [...prev.allocations, { id: createId(), account_id: '', amount: '' }],
     }));
-  }, []);
+  }, [createId]);
 
   const removeRow = useCallback((id: string) => {
     setForm((prev) => ({
@@ -198,19 +227,25 @@ export default function IssueCreditForm({
         }
 
         setForm({
-          date: null,
-          amount: '',
-          action: 'waive_charges',
-          memo: 'Credit',
-          allocations: [{ id: createId(), account_id: '', amount: '' }],
+          ...initialFormState,
+          allocations: [
+            {
+              id: createId(),
+              account_id: initialFormState.allocations[0]?.account_id ?? '',
+              amount: initialFormState.amount,
+            },
+          ],
         });
         setErrors({});
         const transactionRecord = extractLeaseTransactionFromResponse(body);
-        onSuccess?.(
-          transactionRecord ? { transaction: transactionRecord } : undefined,
-        );
+        const payload = transactionRecord ? { transaction: transactionRecord } : undefined;
+        onSubmitSuccess?.(payload);
+        onSuccess?.(payload);
       } catch (error) {
         setFormError(
+          error instanceof Error ? error.message : 'Unexpected error while issuing credit',
+        );
+        onSubmitError?.(
           error instanceof Error ? error.message : 'Unexpected error while issuing credit',
         );
         setSubmitting(false);
@@ -219,7 +254,7 @@ export default function IssueCreditForm({
 
       setSubmitting(false);
     },
-    [form, leaseId, onSuccess, allocationsTotal],
+    [form, leaseId, onSuccess, onSubmitError, onSubmitSuccess, allocationsTotal, initialFormState, createId],
   );
 
   const radioId = (value: string) => `credit-action-${value}`;

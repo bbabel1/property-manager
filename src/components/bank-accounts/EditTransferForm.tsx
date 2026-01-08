@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -299,7 +300,7 @@ export default function EditTransferForm(props: {
                 <Label htmlFor="et-date" className="text-xs font-semibold tracking-wide">
                   DATE <span className="text-destructive">*</span>
                 </Label>
-                <Input id="et-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DatePicker id="et-date" value={date} onChange={(value) => setDate(value ?? '')} />
               </div>
 
               <div>
@@ -553,5 +554,3 @@ export default function EditTransferForm(props: {
     </div>
   );
 }
-
-

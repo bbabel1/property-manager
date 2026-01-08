@@ -39,6 +39,13 @@ export type RentScheduleFormDefaults = Partial<{
   status: string | null
 }>
 
+type RecurringDefaults = Partial<{
+  memo: string | null
+  posting_day: number | null
+  posting_days_in_advance: number | null
+  gl_account_id: string | null
+}>
+
 export interface RentScheduleFormLeaseSummary {
   leaseType?: string | null
   leaseRange?: string | null
@@ -49,21 +56,29 @@ export interface RentScheduleFormLeaseSummary {
 
 interface RentScheduleFormProps {
   leaseId: number | string
+  rentScheduleId?: number | string | null
+  recurringTransactionId?: number | string | null
   rentCycleOptions: string[]
   rentStatusOptions: string[]
+  rentAccountOptions?: { value: string; label: string }[]
   onCancel?: () => void
   onSuccess?: () => void
   defaults?: RentScheduleFormDefaults
+  recurringDefaults?: RecurringDefaults
   leaseSummary?: RentScheduleFormLeaseSummary
 }
 
 export function RentScheduleForm({
   leaseId,
+  rentScheduleId,
+  recurringTransactionId,
   rentCycleOptions,
   rentStatusOptions,
+  rentAccountOptions,
   onCancel,
   onSuccess,
   defaults,
+  recurringDefaults,
   leaseSummary,
 }: RentScheduleFormProps) {
   const resolvedCycleOptions = rentCycleOptions.length ? rentCycleOptions : RentCycleEnumDb.options
@@ -92,6 +107,16 @@ export function RentScheduleForm({
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [memo, setMemo] = useState<string>(recurringDefaults?.memo ?? '')
+  const [postingDay, setPostingDay] = useState<string>(
+    recurringDefaults?.posting_day != null ? String(recurringDefaults.posting_day) : ''
+  )
+  const [postingDaysInAdvance, setPostingDaysInAdvance] = useState<string>(
+    recurringDefaults?.posting_days_in_advance != null
+      ? String(recurringDefaults.posting_days_in_advance)
+      : ''
+  )
+  const [glAccountId, setGlAccountId] = useState<string>(recurringDefaults?.gl_account_id ?? '')
 
   const updateField = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
     setFormValues((prev) => ({ ...prev, [key]: value }))
@@ -129,8 +154,13 @@ export function RentScheduleForm({
       }
 
       try {
-        const res = await fetch(`/api/leases/${leaseId}/rent-schedules`, {
-          method: 'POST',
+        const isEdit = rentScheduleId != null
+        const endpoint = isEdit
+          ? `/api/rent-schedules/${rentScheduleId}`
+          : `/api/leases/${leaseId}/rent-schedules`
+
+        const res = await fetch(endpoint, {
+          method: isEdit ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(parsed.data),
         })
@@ -143,6 +173,34 @@ export function RentScheduleForm({
           return
         }
 
+        // Also update recurring transaction (rent template) when provided
+        if (recurringTransactionId) {
+          const postingDayNum = postingDay ? Number(postingDay) : null
+          const postingOffsetNum = postingDaysInAdvance ? Number(postingDaysInAdvance) : null
+          const recurringRes = await fetch(`/api/recurring-transactions/${recurringTransactionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: parsed.data.total_amount,
+              memo,
+              start_date: parsed.data.start_date,
+              end_date: parsed.data.end_date,
+              frequency: parsed.data.rent_cycle,
+              posting_day: Number.isFinite(postingDayNum) ? postingDayNum : null,
+              posting_days_in_advance: Number.isFinite(postingOffsetNum) ? postingOffsetNum : null,
+              gl_account_id: glAccountId || null,
+            }),
+          })
+          if (!recurringRes.ok) {
+            const payload = await recurringRes.json().catch(() => ({}))
+            const message =
+              typeof payload?.error === 'string' ? payload.error : 'Failed to update recurring rent'
+            setFormError(message)
+            setSubmitting(false)
+            return
+          }
+        }
+
         setFormValues({
           start_date: null,
           end_date: null,
@@ -151,6 +209,10 @@ export function RentScheduleForm({
           status: statusDropdown[0]?.value ?? 'Future',
           backdate_charges: false,
         })
+        setMemo('')
+        setPostingDay('')
+        setPostingDaysInAdvance('')
+        setGlAccountId('')
         setErrors({})
         onSuccess?.()
       } catch (error) {
@@ -162,7 +224,19 @@ export function RentScheduleForm({
 
       setSubmitting(false)
     },
-    [cycleDropdown, formValues, leaseId, onSuccess, statusDropdown]
+    [
+      cycleDropdown,
+      formValues,
+      glAccountId,
+      leaseId,
+      memo,
+      onSuccess,
+      postingDay,
+      postingDaysInAdvance,
+      recurringTransactionId,
+      rentScheduleId,
+      statusDropdown,
+    ]
   )
 
   return (
@@ -276,6 +350,44 @@ export function RentScheduleForm({
                             Backdate charges for this schedule
                           </label>
                         </div>
+                        <label className="space-y-2">
+                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Account</span>
+                          <Dropdown
+                            value={glAccountId}
+                            onChange={(value) => setGlAccountId(String(value))}
+                            options={(rentAccountOptions || []).map((opt) => ({
+                              value: opt.value,
+                              label: opt.label,
+                            }))}
+                            placeholder="Select account"
+                          />
+                        </label>
+                        <label className="space-y-2 sm:col-span-2">
+                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Memo</span>
+                          <Input value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Rent" />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Post day</span>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={31}
+                            value={postingDay}
+                            onChange={(e) => setPostingDay(e.target.value)}
+                            placeholder="1"
+                          />
+                        </label>
+                        <label className="space-y-2">
+                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Days in advance</span>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            value={postingDaysInAdvance}
+                            onChange={(e) => setPostingDaysInAdvance(e.target.value)}
+                            placeholder="0"
+                          />
+                        </label>
                       </div>
                     </div>
                     <button

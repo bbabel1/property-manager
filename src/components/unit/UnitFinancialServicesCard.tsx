@@ -23,7 +23,7 @@ type UnitFinancialSummaryCardProps = {
 const eyebrowLabelClass = 'eyebrow-label';
 const metricValueClass = 'text-base font-semibold text-foreground';
 const detailLabelClass = 'text-sm font-medium text-muted-foreground';
-const detailValueClass = 'text-base font-medium text-foreground';
+const detailValueClass = 'text-sm font-medium text-foreground';
 
 const formatCurrency = (value?: number | null) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value ?? 0);

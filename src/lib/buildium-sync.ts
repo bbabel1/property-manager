@@ -61,7 +61,7 @@ type LocalUnitRecord = LocalEntityBase & {
 type LocalOwnerRecord = LocalEntityBase & { buildium_owner_id?: number | null };
 type LocalVendorRecord = LocalEntityBase & { buildium_vendor_id?: number | null };
 type LocalTaskRecord = LocalEntityBase & { buildium_task_id?: number | null };
-type LocalBillRecord = LocalEntityBase & { buildium_bill_id?: number | null };
+type LocalBillRecord = LocalEntityBase & { buildium_bill_id?: number | null; org_id?: PrimitiveId | null };
 type LocalBankAccountRecord = LocalEntityBase & {
   // Phase 4+: bank accounts are modeled as gl_accounts rows.
   buildium_bank_id?: number | string | null; // legacy alias
@@ -1228,6 +1228,27 @@ export class BuildiumSyncService {
       const client = await this.getClient(orgId);
       await this.updateSyncStatus('bill', localBill.id, null, 'syncing', orgId);
 
+      // Map approval state to Buildium status if present
+      let billStatus: 'Approved' | 'PendingApproval' | 'Rejected' | 'Voided' | undefined;
+      const { data: wfRow } = await supabase
+        .from('bill_workflow')
+        .select('approval_state')
+        .eq('bill_transaction_id', localBill.id)
+        .maybeSingle();
+      const approvalState = (wfRow as any)?.approval_state ?? null;
+      if (typeof approvalState === 'string') {
+        const normalized = approvalState.toLowerCase();
+        if (normalized === 'approved') billStatus = 'Approved';
+        else if (normalized === 'pending_approval' || normalized === 'pending') billStatus = 'PendingApproval';
+        else if (normalized === 'rejected') billStatus = 'Rejected';
+        else if (normalized === 'voided') billStatus = 'Voided';
+      }
+
+      const billPayload = {
+        ...localBill,
+        Status: billStatus ?? (localBill as any)?.Status,
+      };
+
       let buildiumId: number | null = null;
       const existingBuildiumId =
         localBill.buildium_bill_id != null ? Number(localBill.buildium_bill_id) : null;
@@ -1236,17 +1257,31 @@ export class BuildiumSyncService {
         // Update existing bill
         const buildiumBill = await client.updateBill(
           existingBuildiumId,
-          coerceBuildiumInput<BillUpdateInput>(localBill),
+          coerceBuildiumInput<BillUpdateInput>(billPayload),
         );
         buildiumId = buildiumBill.Id;
         logger.info({ billId: localBill.id, buildiumId }, 'Bill updated in Buildium');
+
+        if (billStatus && (buildiumBill as any)?.Status && (buildiumBill as any).Status !== billStatus) {
+          logger.warn(
+            { billId: localBill.id, localStatus: billStatus, remoteStatus: (buildiumBill as any).Status },
+            'Buildium bill status differs from local approval state; keeping local state',
+          );
+        }
       } else {
         // Create new bill
         const buildiumBill = await client.createBill(
-          coerceBuildiumInput<BillCreateInput>(localBill),
+          coerceBuildiumInput<BillCreateInput>(billPayload),
         );
         buildiumId = buildiumBill.Id;
         logger.info({ billId: localBill.id, buildiumId }, 'Bill created in Buildium');
+
+        if (billStatus && (buildiumBill as any)?.Status && (buildiumBill as any).Status !== billStatus) {
+          logger.warn(
+            { billId: localBill.id, localStatus: billStatus, remoteStatus: (buildiumBill as any).Status },
+            'Buildium bill status differs from local approval state after create; keeping local state',
+          );
+        }
       }
 
       // Update local transaction record with Buildium ID
@@ -1272,6 +1307,78 @@ export class BuildiumSyncService {
 
       return { success: false, error: errorMessage };
     }
+  }
+
+  // ============================================================================
+  // PAYMENT SYNC (vendor) - map bill applications to Buildium BillIds
+  // ============================================================================
+
+  async syncVendorPaymentToBuildium(localPayment: any, orgId?: string) {
+    if (!(await this.isEnabled(orgId))) {
+      logger.info({ orgId }, 'Buildium sync disabled, skipping vendor payment');
+      return { success: true };
+    }
+
+    const client = await this.getClient(orgId);
+    const payload: any = { ...localPayment };
+
+    // Attach BillIds from bill_applications
+    try {
+      const { mapPaymentApplicationsToBuildium } = await import('./buildium-mappers');
+      const { billIds, allocations } = await mapPaymentApplicationsToBuildium(
+        String(localPayment.id),
+        supabase,
+      );
+      if (billIds.length) {
+        payload.BillIds = billIds;
+        payload.Allocations = allocations.map((a) => ({ BillId: a.billId, Amount: a.amount }));
+      }
+    } catch (err) {
+      logger.error({ paymentId: localPayment.id, err }, 'Failed to map bill applications for Buildium sync');
+    }
+
+    // Resolve orgId if missing on payment
+    if (!orgId) {
+      orgId =
+        (localPayment as any)?.org_id ??
+        (await (async () => {
+          const { data } = await supabase
+            .from('transactions')
+            .select('org_id')
+            .eq('id', toStringId(localPayment.id))
+            .maybeSingle();
+          return (data as any)?.org_id ?? null;
+        })());
+    }
+
+    // If Buildium transaction id exists, update; otherwise create payment scoped to bill(s)
+    const existingId =
+      typeof localPayment.buildium_transaction_id === 'number'
+        ? localPayment.buildium_transaction_id
+        : null;
+    if (existingId) {
+      await client.updateBillPayment(existingId, payload);
+      return { success: true, buildiumId: existingId };
+    }
+
+    const created = await client.createBillPayment(payload);
+    if (created?.Id) {
+      await supabase
+        .from('transactions')
+        .update({ buildium_transaction_id: created.Id, updated_at: new Date().toISOString() })
+        .eq('id', toStringId(localPayment.id));
+    }
+    return { success: true, buildiumId: created?.Id };
+  }
+
+  // Placeholder for vendor credits/refunds outbound; Buildium API support is limited.
+  async syncVendorCreditToBuildium(localCredit: any, _orgId?: string) {
+    const creditId = toStringId(localCredit?.id);
+    const message =
+      'Vendor credit/refund outbound sync is not supported yet; apply in Buildium manually. ' +
+      'Local transaction remains primary.';
+    logger.warn({ creditId }, message);
+    return { success: false, error: message };
   }
 
   // ============================================================================

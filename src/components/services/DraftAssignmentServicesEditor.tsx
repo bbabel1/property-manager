@@ -72,7 +72,12 @@ function parseNumberValue(value: string) {
 }
 
 function isALaCartePlanName(name: string | null | undefined) {
-  return String(name || '').trim().toLowerCase() === 'a-la-carte';
+  return (
+    String(name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, '') === 'alacarte'
+  );
 }
 
 const frequencyOptions = [

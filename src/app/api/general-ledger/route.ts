@@ -302,8 +302,8 @@ export async function GET(request: NextRequest) {
     const shouldQueryLedger =
       selectedPropertyPublicIds.length > 0 && !noUnitsSelected && !accountsExplicitNone;
 
-    const qBase = () =>
-      db.from('transaction_lines').select(
+    const qBase = () => {
+      let query = db.from('transaction_lines').select(
         `transaction_id,
            property_id,
            unit_id,
@@ -318,6 +318,11 @@ export async function GET(request: NextRequest) {
            transactions(id, transaction_type, memo, reference_number),
            properties(id, name)`,
       );
+      if (basisParam === 'cash') {
+        query = query.eq('is_cash_posting', true);
+      }
+      return query;
+    };
 
     const mapLine = (row: Record<string, unknown>): LedgerLine | null => {
       const mapped = mapTransactionLine(row);

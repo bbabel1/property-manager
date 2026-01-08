@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -139,10 +140,9 @@ export default function TaskCreateDialog({
               <Label className="text-xs font-semibold tracking-wide text-slate-600 uppercase">
                 Due date
               </Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={formState.dueDate}
-                onChange={(event) => updateField('dueDate', event.target.value)}
+                onChange={(value) => updateField('dueDate', value ?? '')}
                 disabled={saving}
               />
             </div>

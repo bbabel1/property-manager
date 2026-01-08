@@ -39,10 +39,13 @@ import {
 } from '@/lib/buildium-mappers';
 import type { BuildiumLease, BuildiumLeasePerson } from '@/types/buildium';
 import type { Database, TablesInsert, TablesUpdate } from '@/types/database';
+import PaymentIntentService from '@/lib/payments/payment-intent-service';
+import PaymentService from '@/lib/payments/payment-service';
 
 type UnknownRecord = Record<string, any>;
 type IncomingBuildiumEvent = Record<string, any>;
 type BuildiumWebhookUpdate = Database['public']['Tables']['buildium_webhook_events']['Update'];
+type TransactionRow = Database['public']['Tables']['transactions']['Row'];
 
 // Shared admin client for module-scope helpers (webhook toggles, etc.)
 const admin = supabaseAdmin || supabase;
@@ -94,6 +97,73 @@ const safeString = (value: unknown): string | null =>
 
 const asRecord = (value: unknown): Record<string, any> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : {};
+
+const syncPaymentLifecycleFromTransaction = async (
+  localTransactionId: string | null,
+  buildiumTransactionId: number | null,
+) => {
+  if (!localTransactionId) return;
+  const { data: tx, error: txError } = await admin
+    .from('transactions')
+    .select(
+      'id, org_id, transaction_type, buildium_transaction_id, is_internal_transaction, internal_transaction_is_pending, internal_transaction_result_code, internal_transaction_result_date, created_at, total_amount, payment_method, payee_tenant_id',
+    )
+    .eq('id', localTransactionId)
+    .maybeSingle();
+
+  if (txError || !tx) {
+    if (txError && txError.code !== 'PGRST116') {
+      console.error('[buildium-webhook] Failed to load transaction for payment sync', txError);
+    }
+    return;
+  }
+
+  if ((tx.transaction_type || '').toLowerCase() !== 'payment') {
+    return;
+  }
+
+  const orgId = tx.org_id;
+  if (!orgId) return;
+
+  const intentKey = `buildium:tx:${orgId}:${buildiumTransactionId ?? tx.buildium_transaction_id ?? tx.id}`;
+
+  try {
+    const { intent } = await PaymentIntentService.createIntent(
+      {
+        orgId,
+        amount: Number(tx.total_amount ?? 0),
+        paymentMethod: tx.payment_method as TransactionRow['payment_method'],
+        payerId: tx.payee_tenant_id ? String(tx.payee_tenant_id) : null,
+        payerType: tx.payee_tenant_id ? 'tenant' : null,
+        gatewayProvider: 'buildium',
+      },
+      intentKey,
+    );
+
+    await PaymentIntentService.transitionStateFromBuildiumFields({
+      orgId,
+      intentId: intent.id,
+      transaction: tx as TransactionRow,
+    });
+
+    await PaymentService.createFromTransaction({
+      orgId,
+      intentId: intent.id,
+      transactionId: tx.id,
+      gatewayTransactionId: tx.buildium_transaction_id ?? buildiumTransactionId,
+      paymentMethod: tx.payment_method as TransactionRow['payment_method'],
+      amount: tx.total_amount ?? null,
+      payerId: tx.payee_tenant_id ? String(tx.payee_tenant_id) : null,
+      payerType: tx.payee_tenant_id ? 'tenant' : null,
+    });
+  } catch (err) {
+    console.error('[buildium-webhook] Failed to sync payment lifecycle from transaction', {
+      err,
+      localTransactionId,
+      buildiumTransactionId,
+    });
+  }
+};
 
 const resolvePostingType = (line: UnknownRecord): 'Debit' | 'Credit' => {
   const raw =
@@ -1764,6 +1834,19 @@ export async function POST(req: NextRequest) {
 
       return null;
     };
+    const resolveAccountsReceivableGlAccountIdLocal = async (orgId: string | null) => {
+      const lookup = async (scoped: boolean) => {
+        let query = admin.from('gl_accounts').select('id').ilike('name', 'Accounts Receivable');
+        if (scoped && orgId) query = query.eq('org_id', orgId);
+        const { data, error } = await query.limit(1).maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+        return (data as { id?: string | null } | null)?.id ?? null;
+      };
+
+      const scoped = orgId ? await lookup(true) : null;
+      if (scoped) return scoped;
+      return await lookup(false);
+    };
     const upsertLeaseTransactionWithLinesLocal = async (
       leaseTx: UnknownRecord,
       fetchGL: (id: number) => Promise<UnknownRecord | null>,
@@ -1933,18 +2016,35 @@ export async function POST(req: NextRequest) {
         credit = 0;
       const pendingLines: TablesInsert<'transaction_lines'>[] = [];
       const glAccountBankFlags = new Map<string, boolean>();
+      const glAccountMeta = new Map<
+        string,
+        { name: string | null; type: string | null; subType: string | null }
+      >();
 
-      const loadIsBankAccount = async (glAccountId: string) => {
-        if (glAccountBankFlags.has(glAccountId))
+      const loadGlAccountMeta = async (glAccountId: string) => {
+        if (glAccountBankFlags.has(glAccountId) && glAccountMeta.has(glAccountId))
           return glAccountBankFlags.get(glAccountId) === true;
         const { data: glRow, error: glErr } = await admin
           .from('gl_accounts')
-          .select('is_bank_account')
+          .select('is_bank_account, name, type, sub_type')
           .eq('id', glAccountId)
           .maybeSingle();
         if (glErr && glErr.code !== 'PGRST116') throw glErr;
-        const isBank = Boolean((glRow as { is_bank_account?: boolean } | null)?.is_bank_account);
+        const gl = glRow as
+          | {
+              is_bank_account?: boolean | null;
+              name?: string | null;
+              type?: string | null;
+              sub_type?: string | null;
+            }
+          | null;
+        const isBank = Boolean(gl?.is_bank_account);
         glAccountBankFlags.set(glAccountId, isBank);
+        glAccountMeta.set(glAccountId, {
+          name: gl?.name ?? null,
+          type: gl?.type ?? null,
+          subType: gl?.sub_type ?? null,
+        });
         return isBank;
       };
 
@@ -1957,7 +2057,7 @@ export async function POST(req: NextRequest) {
             : (line?.GLAccount?.Id ?? line?.GLAccountId ?? null);
         const glId = await ensureGLAccountId(glBuildiumId, fetchGL);
         if (!glId) throw new Error(`GL account not found for line. BuildiumId=${glBuildiumId}`);
-        await loadIsBankAccount(glId);
+        await loadGlAccountMeta(glId);
         const buildiumPropertyId = line?.PropertyId ?? defaultBuildiumPropertyId ?? null;
         const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? defaultBuildiumUnitId ?? null;
         const propertyIdLocal =
@@ -2012,6 +2112,43 @@ export async function POST(req: NextRequest) {
           unit_id: defaultUnitId,
         });
         debit += credit;
+      }
+
+      const isChargeTransaction =
+        String(header.transaction_type || '').toLowerCase() === 'charge' ||
+        String(leaseTx?.TransactionType || leaseTx?.TransactionTypeEnum || '').toLowerCase() ===
+          'charge';
+      const hasAccountsReceivableLine = Array.from(glAccountMeta.values()).some((meta) => {
+        const type = (meta.type || '').toLowerCase();
+        const name = (meta.name || '').toLowerCase();
+        const normalizedSubType = (meta.subType || '').toLowerCase().replace(/[\s_-]+/g, '');
+        return type === 'asset' && (name.includes('receivable') || normalizedSubType.includes('accountsreceivable'));
+      });
+
+      if (isChargeTransaction && !hasAccountsReceivableLine && credit > debit) {
+        const arGlAccountId = await resolveAccountsReceivableGlAccountIdLocal(propertyOrgId);
+        const arAmount = credit - debit;
+        if (arGlAccountId && arAmount > 0) {
+          pendingLines.push({
+            transaction_id: transactionId,
+            gl_account_id: arGlAccountId,
+            amount: arAmount,
+            posting_type: 'Debit',
+            memo: leaseTx?.Memo ?? header.memo ?? null,
+            account_entity_type: 'Rental',
+            account_entity_id: defaultBuildiumPropertyId,
+            date: leaseTxDate,
+            created_at: now,
+            updated_at: now,
+            buildium_property_id: defaultBuildiumPropertyId,
+            buildium_unit_id: defaultBuildiumUnitId,
+            buildium_lease_id: leaseTx.LeaseId ?? null,
+            lease_id: leaseIdLocal,
+            property_id: defaultPropertyId,
+            unit_id: defaultUnitId,
+          });
+          debit += arAmount;
+        }
       }
 
       if (pendingLines.length) {
@@ -2920,7 +3057,14 @@ export async function POST(req: NextRequest) {
             try {
               const glFetcher = async (glId: number) => fetchGLAccount(glId);
               const buildiumAccountId = event?.AccountId ?? event?.Data?.AccountId ?? null;
-              await upsertLeaseTransactionWithLinesLocal(tx, glFetcher, buildiumAccountId);
+              const upsertResult = await upsertLeaseTransactionWithLinesLocal(
+                tx,
+                glFetcher,
+                buildiumAccountId,
+              );
+              const localTransactionId = upsertResult?.transactionId ?? null;
+              const buildiumTxnIdNum = transactionId ? Number(transactionId) : null;
+              await syncPaymentLifecycleFromTransaction(localTransactionId, buildiumTxnIdNum);
             } catch (err) {
               console.error('[buildium-webhook] Failed to upsert lease transaction locally', err);
             }

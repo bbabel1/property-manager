@@ -7,7 +7,19 @@ import type { DateInputProps } from "./date-input";
 import { cn } from "./utils";
 import { DATE_PICKER_CONFIG } from "@/lib/date-picker-config";
 
-export type DatePickerProps = {
+type ForwardedInputProps = Omit<
+  DateInputProps,
+  | "value"
+  | "onChange"
+  | "containerClassName"
+  | "className"
+  | "hideClear"
+  | "pastYearRange"
+  | "futureYearRange"
+  | "hideYear"
+>;
+
+export type DatePickerProps = ForwardedInputProps & {
   value?: string | null;
   onChange: (value: string | null) => void;
   placeholder?: string;
@@ -15,6 +27,7 @@ export type DatePickerProps = {
   minDate?: Date;
   maxDate?: Date;
   className?: string;
+  inputClassName?: string;
   id?: string;
   name?: string;
   clearable?: boolean;
@@ -90,10 +103,12 @@ export function DatePicker({
   minDate,
   maxDate,
   className,
+  inputClassName,
   id,
   name,
   clearable = true,
   hideYear = false,
+  ...inputProps
 }: DatePickerProps) {
   const normalizedValue = (() => {
     const parsed = parseInput(value);
@@ -123,11 +138,13 @@ export function DatePicker({
     name,
     placeholder,
     disabled,
+    className: inputClassName,
     containerClassName: cn("w-full", className),
     hideClear: !clearable,
     pastYearRange,
     futureYearRange,
     hideYear,
+    ...inputProps,
   };
 
   return (

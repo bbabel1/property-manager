@@ -366,20 +366,11 @@ export default async function LeaseDetailsPage({
     glAccounts = Array.isArray(accounts) ? accounts : [];
   } catch {}
 
-  let bankAccounts: UnknownRow[] = [];
-  try {
-    const { data: banks } = await supabase
-      .from('gl_accounts')
-      .select('id, name')
-      .eq('is_bank_account', true)
-      .order('name', { ascending: true });
-    bankAccounts = Array.isArray(banks) ? banks : [];
-  } catch {}
-
   // Step 5: Fetch ledger transactions from local store (if available)
   let transactions: UnknownRow[] = [];
   let transactionsError: string | null = null;
   try {
+    // Fetch full transaction history so balance math matches the leases list
     const { data: txRows, error: txError } = await supabase
       .from('transactions')
       .select(
@@ -404,8 +395,7 @@ export default async function LeaseDetailsPage({
       `,
       )
       .eq('lease_id', lease.id)
-      .order('date', { ascending: false })
-      .limit(50);
+      .order('date', { ascending: false });
 
     if (txError) throw txError;
     transactions = Array.isArray(txRows) ? txRows : [];
@@ -619,28 +609,12 @@ export default async function LeaseDetailsPage({
     }
   } catch {}
 
-  // Outstanding balances from Buildium
+  // Calculate balances from local transactions only (no Buildium API calls)
   let balances: { balance: number; prepayments: number; depositsHeld: number } = {
     balance: 0,
     prepayments: 0,
     depositsHeld: 0,
   };
-  try {
-    if (lease.buildium_lease_id) {
-      const res = await fetch(
-        `/api/buildium/leases/${lease.buildium_lease_id}/transactions/outstanding-balances`,
-        { cache: 'no-store' },
-      );
-      const j = await res.json().catch(() => null as unknown);
-      const d = (j as { data?: UnknownRow })?.data || j || {};
-      const toNum = (v: unknown) => (v == null ? 0 : Number(v));
-      balances = {
-        balance: toNum(d.Balance ?? d.balance ?? d.TotalBalance ?? d.OutstandingBalance),
-        prepayments: toNum(d.Prepayments ?? d.prepayments ?? d.PrepaymentBalance),
-        depositsHeld: toNum(d.DepositsHeld ?? d.depositsHeld ?? d.Deposits),
-      };
-    }
-  } catch {}
 
   const tenantNames: string[] = Array.isArray(contacts)
     ? contacts
@@ -678,10 +652,23 @@ export default async function LeaseDetailsPage({
     return toTitleCase(spaced.trim()) || spaced.trim();
   };
 
+  const parseDateOnly = (input?: string | null): Date | null => {
+    if (!input) return null;
+    const datePart = typeof input === 'string' ? input.slice(0, 10) : '';
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+    if (match) {
+      const [, y, m, d] = match;
+      const parsed = new Date(Number(y), Number(m) - 1, Number(d));
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    const parsed = new Date(input);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const formatScheduleDate = (value?: string | null) => {
     if (!value) return 'No end date';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '—';
+    const parsed = parseDateOnly(value);
+    if (!parsed) return '—';
     return parsed.toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
@@ -875,6 +862,9 @@ export default async function LeaseDetailsPage({
     status: string;
     start_date: string | null;
     end_date: string | null;
+    startMs: number | null;
+    endMs: number | null;
+    statusLower: string;
     rent_cycle: string | null;
     total_amount: number;
     backdate_charges: boolean;
@@ -882,61 +872,148 @@ export default async function LeaseDetailsPage({
     statusVariant: 'default' | 'secondary' | 'outline';
   };
 
+  const today = new Date();
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
   const rentScheduleEntries: RentScheduleEntry[] = rentSchedules
     .filter(Boolean)
     .map((schedule) => {
       const status = String(schedule?.status ?? 'Future');
-      const statusLower = status.toLowerCase();
+      const startDate = parseDateOnly(schedule?.start_date ?? null);
+      const endDate = parseDateOnly(schedule?.end_date ?? null);
+      const startMs = startDate ? startDate.getTime() : null;
+      const endMs = endDate ? endDate.getTime() : null;
+      const derivedStatus = (() => {
+        if (startMs !== null) {
+          if (startMs > todayMidnight.getTime()) return 'Future';
+          if (endMs !== null && endMs < todayMidnight.getTime()) return 'Past';
+          return 'Current';
+        }
+        return status;
+      })();
+      const derivedStatusLower = derivedStatus.toLowerCase();
       const variant: 'default' | 'secondary' | 'outline' =
-        statusLower === 'current' ? 'default' : statusLower === 'future' ? 'secondary' : 'outline';
+        derivedStatusLower === 'current'
+          ? 'default'
+          : derivedStatusLower === 'future'
+            ? 'secondary'
+            : 'outline';
 
       return {
         id: String(schedule?.id ?? randomUUID()),
-        status,
+        status: derivedStatus,
         start_date: schedule?.start_date ?? null,
         end_date: schedule?.end_date ?? null,
+        startMs,
+        endMs,
         rent_cycle: schedule?.rent_cycle ?? null,
         total_amount: (() => {
           const amt = Number(schedule?.total_amount ?? 0);
           return Number.isFinite(amt) ? amt : 0;
         })(),
         backdate_charges: Boolean(schedule?.backdate_charges),
-        statusLabel: status.toUpperCase(),
+        statusLabel: derivedStatus.toUpperCase(),
         statusVariant: variant,
+        statusLower: derivedStatusLower,
       };
     })
     .sort((a, b) => {
-      const aDate = a.start_date ? new Date(a.start_date).getTime() : 0;
-      const bDate = b.start_date ? new Date(b.start_date).getTime() : 0;
+      const aDate = a.startMs ?? 0;
+      const bDate = b.startMs ?? 0;
       return bDate - aDate;
     });
 
   const currentSchedule =
-    rentScheduleEntries.find((entry) => entry.status.toLowerCase() === 'current') || null;
+    rentScheduleEntries.find(
+      (entry) =>
+        entry.startMs !== null &&
+        entry.startMs <= todayMidnight.getTime() &&
+        (entry.endMs === null || entry.endMs >= todayMidnight.getTime()),
+    ) ||
+    rentScheduleEntries.find((entry) => entry.statusLower === 'current') ||
+    null;
   const upcomingSchedule =
     rentScheduleEntries
-      .filter((entry) => entry.status.toLowerCase() === 'future')
+      .filter((entry) => entry.startMs !== null && entry.startMs > todayMidnight.getTime())
       .sort((a, b) => {
-        const aDate = a.start_date ? new Date(a.start_date).getTime() : Number.POSITIVE_INFINITY;
-        const bDate = b.start_date ? new Date(b.start_date).getTime() : Number.POSITIVE_INFINITY;
+        const aDate = a.startMs ?? Number.POSITIVE_INFINITY;
+        const bDate = b.startMs ?? Number.POSITIVE_INFINITY;
         return aDate - bDate;
-      })[0] || null;
-  const paymentDueDayLabel = formatOrdinalDay(lease?.payment_due_day);
+      })[0] ||
+    rentScheduleEntries.find((entry) => entry.statusLower === 'future') ||
+    null;
+  const paymentDueDayLabel = formatOrdinalDay(
+    lease?.payment_due_day ??
+      (currentSchedule?.startMs != null ? new Date(currentSchedule.startMs).getDate() : null),
+  );
   const currentCycleLabel = currentSchedule
     ? formatRentCycleLabel(currentSchedule.rent_cycle)
     : null;
   const upcomingCycleLabel = upcomingSchedule
     ? formatRentCycleLabel(upcomingSchedule.rent_cycle)
     : null;
-  const rentLogDisplay = rentScheduleEntries.map((row) => ({
-    id: row.id,
-    statusLabel: row.statusLabel,
-    statusVariant: row.statusVariant,
-    startLabel: row.start_date ? formatScheduleDate(row.start_date) : '—',
-    endLabel: row.end_date ? formatScheduleDate(row.end_date) : 'No end date',
-    cycleLabel: formatRentCycleLabel(row.rent_cycle),
-    amountLabel: fmtUsd(row.total_amount),
-  }));
+  const rentRecurringTemplate =
+    recurringTemplates.find((row) => {
+      const freq = String(row?.frequency ?? '').toLowerCase();
+      if (freq === 'onetime') return false;
+      const memo = String(row?.memo ?? '').toLowerCase();
+      const type = String(row?.type ?? '').toLowerCase();
+      return memo.includes('rent') || type.includes('rent');
+    }) ||
+    recurringTemplates.find((row) => String(row?.frequency ?? '').toLowerCase() !== 'onetime') ||
+    null;
+  const rentRecurringDefaults = rentRecurringTemplate
+    ? (() => {
+        const postingDayRaw = (rentRecurringTemplate as any)?.posting_day;
+        const postingAdvanceRaw = (rentRecurringTemplate as any)?.posting_days_in_advance;
+        const glAccountRaw = (rentRecurringTemplate as any)?.gl_account_id;
+        const toNumberOrNull = (val: unknown) => {
+          const num = typeof val === 'number' ? val : Number(val);
+          return Number.isFinite(num) ? num : null;
+        };
+        return {
+          memo: (rentRecurringTemplate as any)?.memo ?? null,
+          posting_day: toNumberOrNull(postingDayRaw),
+          posting_days_in_advance: toNumberOrNull(postingAdvanceRaw),
+          gl_account_id: glAccountRaw != null ? String(glAccountRaw) : null,
+        };
+      })()
+    : null;
+  const rentLogDisplay = rentScheduleEntries.map((row) => {
+    const memo = rentRecurringDefaults?.memo ?? null;
+    const postingLabel = (() => {
+      const offset = rentRecurringDefaults?.posting_days_in_advance ?? null;
+      if (typeof offset === 'number' && offset !== 0) {
+        const days = Math.abs(offset);
+        const suffix = days === 1 ? 'day' : 'days';
+        const direction = offset > 0 ? 'in advance' : 'after';
+        return `Post ${days} ${suffix} ${direction}`;
+      }
+      if (rentRecurringDefaults?.posting_day) {
+        return `Post on day ${rentRecurringDefaults.posting_day}`;
+      }
+      return 'Post on due date';
+    })();
+    return {
+      id: row.id,
+      memo,
+      postingLabel,
+      schedule: {
+        id: row.id,
+        start_date: row.start_date,
+        end_date: row.end_date,
+        rent_cycle: row.rent_cycle,
+        total_amount: row.total_amount,
+        status: row.status,
+      },
+      statusLabel: row.statusLabel,
+      statusVariant: row.statusVariant,
+      startLabel: row.start_date ? formatScheduleDate(row.start_date) : '—',
+      endLabel: row.end_date ? formatScheduleDate(row.end_date) : 'No end date',
+      cycleLabel: formatRentCycleLabel(row.rent_cycle),
+      amountLabel: fmtUsd(row.total_amount),
+    };
+  });
   const currentCard = currentSchedule
     ? {
         rangeLabel: summarizeScheduleRange(currentSchedule),
@@ -1006,10 +1083,6 @@ export default async function LeaseDetailsPage({
     }));
 
   const recurringTenantLabel = tenantNames.length ? tenantNames.join(', ') : null;
-  const bankAccountOptions = bankAccounts
-    .filter((account) => account && account.id != null)
-    .map((account) => ({ id: String(account.id), name: account.name || 'Bank account' }));
-
   const recurringRows: RecurringRow[] = recurringTemplates.filter(Boolean).map((row) => {
     const nextDate = row?.start_date ? formatScheduleDate(row.start_date) : '—';
     const frequencyLabel = formatRentCycleLabel(row?.frequency) || '—';
@@ -1083,6 +1156,26 @@ export default async function LeaseDetailsPage({
     return typeof raw === 'string' ? raw.toLowerCase() : '';
   };
 
+  const normalizeTransactionType = (tx: unknown) => {
+    if (!isRecord(tx)) return '';
+    const raw =
+      (tx as { TransactionTypeEnum?: unknown })?.TransactionTypeEnum ??
+      (tx as { TransactionType?: unknown })?.TransactionType ??
+      (tx as { transaction_type?: unknown })?.transaction_type ??
+      (tx as { type?: unknown })?.type ??
+      '';
+    return typeof raw === 'string' ? raw.toLowerCase() : '';
+  };
+
+  const isChargeLikeTransaction = (type: string) => {
+    const normalized = type.toLowerCase();
+    return (
+      normalized.includes('charge') ||
+      normalized.includes('invoice') ||
+      normalized.includes('bill')
+    );
+  };
+
   const pickString = (obj: UnknownRow | null | undefined, keys: string[]) => {
     if (!obj) return '';
     for (const key of keys) {
@@ -1123,9 +1216,7 @@ export default async function LeaseDetailsPage({
     };
   };
 
-  // If Buildium balances are unavailable or zero, fall back to local
-  // transactions to compute a current balance so the UI reflects
-  // newly entered charges immediately.
+  // Calculate balances from local transactions (balances start at zero)
   try {
     balances = resolveLeaseBalances(balances, transactions);
   } catch {}
@@ -1147,6 +1238,8 @@ export default async function LeaseDetailsPage({
       for (const tx of transactions) {
         const lines = extractTransactionLines(tx);
         if (!lines.length) continue;
+        const txType = normalizeTransactionType(tx);
+        const isChargeLike = isChargeLikeTransaction(txType);
 
         for (const line of lines) {
           const amountRaw = readAmount(line);
@@ -1160,8 +1253,7 @@ export default async function LeaseDetailsPage({
           const { name, type, subType, isDeposit } = extractAccountFromLine(line);
           const depositFlag = isDeposit || name.includes('deposit') || subType.includes('deposit');
           if (depositFlag) {
-            // For liabilities, credits increase the balance; ignore debits so a "charge" doesn't wipe out the held deposit.
-            depositBalance += isCredit ? amount : 0;
+            if (!isChargeLike) depositBalance += signed;
             continue;
           }
 
@@ -1169,7 +1261,7 @@ export default async function LeaseDetailsPage({
             name.includes('prepay') ||
             subType.includes('prepay') ||
             (type === 'liability' && !depositFlag);
-          if (prepayFlag) prepaymentBalance += signed;
+          if (prepayFlag && !isChargeLike) prepaymentBalance += signed;
         }
       }
 
@@ -1340,6 +1432,8 @@ export default async function LeaseDetailsPage({
           (isRecord(tx) && typeof tx.TransactionType === 'string' ? tx.TransactionType : null) ||
           (isRecord(tx) && typeof tx.transaction_type === 'string' ? tx.transaction_type : null) ||
           'Transaction';
+        const txTypeNormalized = normalizeTransactionType(tx);
+        const isChargeLike = isChargeLikeTransaction(txTypeNormalized);
 
         for (const line of lines) {
           const amountRaw = readAmountFromLine(line);
@@ -1358,6 +1452,7 @@ export default async function LeaseDetailsPage({
             (type === 'liability' && !depositFlag);
 
           if (!depositFlag && !prepayFlag) continue;
+          if (isChargeLike) continue;
 
           // For liabilities, treat credits as increases and debits as decreases.
           running += signed;
@@ -1437,6 +1532,9 @@ export default async function LeaseDetailsPage({
       });
     }
   }
+  const depositsTableLastBalance =
+    depositsTableRows.length > 0 ? depositsTableRows[depositsTableRows.length - 1].balance : 0;
+  const depositsTableAmountTotal = depositsTableRows.reduce((sum, row) => sum + row.amount, 0);
   const ledgerMatchesLabel = transactionsError
     ? 'Unable to load ledger'
     : ledgerRowsWithBalance.length
@@ -1594,7 +1692,11 @@ export default async function LeaseDetailsPage({
 
       <TabsContent value="financials" className="space-y-6 px-6 pb-6">
         <div className="border-border border-b">
-          <Tabs defaultValue="ledger" className="relative space-y-4">
+          <Tabs
+            key="financials"
+            defaultValue="ledger"
+            className="relative space-y-4"
+          >
             <TabsList className="text-muted-foreground flex h-auto w-fit items-center gap-8 rounded-none bg-transparent p-0">
               {[
                 { value: 'ledger', label: 'Ledger' },
@@ -1625,7 +1727,6 @@ export default async function LeaseDetailsPage({
                   tenants: recurringTenantLabel,
                 }}
                 errorMessage={transactionsError}
-                bankAccountOptions={bankAccountOptions}
               />
             </TabsContent>
 
@@ -1651,10 +1752,14 @@ export default async function LeaseDetailsPage({
                 </div>
                 <div className="flex items-center gap-2">
                   <Button asChild>
-                    <Link href={`/leases/${lease.id}?tab=financials`}>Receive payment</Link>
+                    <Link
+                      href={`/leases/${lease.id}/add-payment?returnTo=${encodeURIComponent(`/leases/${lease.id}?tab=deposits`)}`}
+                    >
+                      Receive payment
+                    </Link>
                   </Button>
                   <Button asChild variant="outline">
-                    <Link href={`/leases/${lease.id}?tab=financials`}>Enter charge</Link>
+                    <Link href={`/leases/${lease.id}/add-charge`}>Enter charge</Link>
                   </Button>
                 </div>
               </div>
@@ -1708,10 +1813,10 @@ export default async function LeaseDetailsPage({
                         <TableRow className="bg-muted/40 font-medium">
                           <TableCell colSpan={3}>Total</TableCell>
                           <TableCell>
-                            {fmtUsd(depositsTableRows.reduce((sum, row) => sum + row.amount, 0))}
+                            {fmtUsd(depositsTableAmountTotal)}
                           </TableCell>
                           <TableCell>
-                            {fmtUsd(depositsTableRows.reduce((sum, row) => sum + row.balance, 0))}
+                            {fmtUsd(depositsTableLastBalance)}
                           </TableCell>
                           <TableCell />
                         </TableRow>
@@ -1737,6 +1842,16 @@ export default async function LeaseDetailsPage({
                 rentStatusOptions={rentStatusOptions}
                 leaseSummary={leaseSummaryInfo}
                 defaults={rentFormDefaults}
+                rentAccountOptions={recurringAccountOptions.map((opt) => ({
+                  value: opt.id,
+                  label: opt.name,
+                }))}
+                recurringTransactionId={
+                  rentRecurringTemplate && rentRecurringTemplate.id
+                    ? String(rentRecurringTemplate.id)
+                    : null
+                }
+                recurringDefaults={rentRecurringDefaults || undefined}
               />
             </TabsContent>
             <TabsContent value="recurring" className="space-y-6">

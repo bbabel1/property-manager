@@ -6,36 +6,56 @@
  */
 
 import { supabaseAdmin, type TypedSupabaseClient } from '@/lib/db';
-import { subMonths, parseISO, format } from 'date-fns';
+import { parseISO, format } from 'date-fns';
 import { calculateNetToOwnerValue } from '@/types/monthly-log';
 
 /**
  * Get previous lease balance from prior month's monthly log
  *
- * Formula: Previous month's (charges - payments)
+ * Formula: Sum of open/partial charges (amount_open) due before current period
  *
- * @param unitId - UUID of the unit
+ * @param unitId - UUID of the unit (used if leaseId is not provided)
  * @param periodStart - ISO date string (YYYY-MM-DD) for current period
+ * @param leaseId - Optional lease id to scope charges directly
  * @returns Previous lease balance amount
  */
 export async function getPreviousLeaseBalance(
   unitId: string,
   periodStart: string,
+  leaseId?: number | null,
 ): Promise<number> {
-  const priorMonth = subMonths(parseISO(periodStart), 1);
-  const priorPeriodStart = format(priorMonth, 'yyyy-MM-01');
+  const resolvedPeriodStart = format(parseISO(periodStart), 'yyyy-MM-dd');
+  let resolvedLeaseId = leaseId ?? null;
+  if (!resolvedLeaseId) {
+    const { data: leaseRow } = await supabaseAdmin
+      .from('lease')
+      .select('id')
+      .eq('unit_id', unitId)
+      .eq('status', 'active')
+      .order('lease_from_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    resolvedLeaseId = leaseRow?.id ?? null;
+  }
 
-  const { data: priorLog } = await supabaseAdmin
-    .from('monthly_logs')
-    .select('charges_amount, payments_amount')
-    .eq('unit_id', unitId)
-    .eq('period_start', priorPeriodStart)
-    .maybeSingle();
+  if (!resolvedLeaseId) {
+    return 0;
+  }
 
-  if (!priorLog) return 0;
+  const { data, error } = await supabaseAdmin
+    .from('charges')
+    .select('amount_open')
+    .eq('lease_id', resolvedLeaseId)
+    .in('status', ['open', 'partial'])
+    .lt('due_date', resolvedPeriodStart);
 
-  // Previous balance = charges - payments from prior month
-  return priorLog.charges_amount - priorLog.payments_amount;
+  if (error) {
+    console.error('Error fetching previous lease balance from charges:', error);
+    return 0;
+  }
+
+  const sum = (data ?? []).reduce((s, row: any) => s + Number(row.amount_open || 0), 0);
+  return Number.isFinite(sum) ? sum : 0;
 }
 
 export type OwnerDrawTransaction = {
@@ -195,10 +215,9 @@ export async function getOwnerDrawSummary(
  */
 export function calculateTotalRentOwed(params: {
   previousLeaseBalance: number;
-  leaseCharges: number; // sum of Charge transactions for this lease in this month
-  leaseCredits: number; // sum of Credit transactions for this lease in this month
+  periodOutstandingCharges: number;
 }): number {
-  return params.previousLeaseBalance + params.leaseCharges - params.leaseCredits;
+  return params.previousLeaseBalance + params.periodOutstandingCharges;
 }
 
 /**

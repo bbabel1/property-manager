@@ -9,6 +9,7 @@ import { Paperclip, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -31,37 +32,13 @@ import { Textarea } from '@/components/ui/textarea';
 import TransactionFileUploadDialog, {
   type TransactionAttachmentDraft,
 } from '@/components/files/TransactionFileUploadDialog';
-
-export type BankAccountOption = {
-  id: string;
-  label: string;
-  balance?: number | null;
-};
-
-export type PropertyOption = { id: string; label: string; buildiumPropertyId: number | null };
-export type UnitOption = {
-  id: string;
-  label: string;
-  propertyId: string | null;
-  buildiumUnitId: number | null;
-};
-export type GlAccountOption = {
-  id: string;
-  label: string;
-  buildiumGlAccountId: number | null;
-  type: string | null;
-};
-
-export type UndepositedPaymentRow = {
-  id: string;
-  date: string;
-  propertyLabel: string;
-  unitLabel: string;
-  nameLabel: string;
-  memoLabel: string;
-  checkNumberLabel: string;
-  amount: number;
-};
+import type {
+  BankAccountOption,
+  GlAccountOption,
+  PropertyOption,
+  UndepositedPaymentRow,
+  UnitOption,
+} from '@/types/record-deposit';
 
 type OtherDepositItem = {
   id: string;
@@ -131,11 +108,27 @@ export default function RecordDepositForm(props: {
   properties: PropertyOption[];
   units: UnitOption[];
   glAccounts: GlAccountOption[];
+  afterSaveHref?: string;
+  onSaved?: (result: { intent: 'save' | 'save-and-new'; transactionId: string | null }) => void;
+  onCancel?: () => void;
 }) {
+  const {
+    bankAccountId: initialBankAccountId,
+    bankAccounts,
+    defaultBankAccountId,
+    undepositedPaymentsTitle,
+    undepositedPayments,
+    properties,
+    units,
+    glAccounts,
+    afterSaveHref,
+    onSaved,
+    onCancel,
+  } = props;
   const router = useRouter();
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const [bankAccountId, setBankAccountId] = useState<string>(props.defaultBankAccountId);
+  const [bankAccountId, setBankAccountId] = useState<string>(defaultBankAccountId);
   const [date, setDate] = useState<string>(todayIso);
   const [memo, setMemo] = useState<string>('');
   const [printDepositSlips, setPrintDepositSlips] = useState<boolean>(false);
@@ -152,24 +145,24 @@ export default function RecordDepositForm(props: {
   const [formError, setFormError] = useState<string | null>(null);
 
   const selectedBank = useMemo(
-    () => props.bankAccounts.find((a) => a.id === bankAccountId) ?? null,
-    [bankAccountId, props.bankAccounts],
+    () => bankAccounts.find((a) => a.id === bankAccountId) ?? null,
+    [bankAccountId, bankAccounts],
   );
 
   const unitsByProperty = useMemo(() => {
     const map = new Map<string | null, UnitOption[]>();
-    for (const unit of props.units) {
+    for (const unit of units) {
       const list = map.get(unit.propertyId ?? null) ?? [];
       list.push(unit);
       map.set(unit.propertyId ?? null, list);
     }
     return map;
-  }, [props.units]);
+  }, [units]);
 
   const selectedPaymentsTotal = useMemo(() => {
     const selected = selectedPaymentIds;
-    return props.undepositedPayments.reduce((sum, row) => sum + (selected.has(row.id) ? row.amount : 0), 0);
-  }, [props.undepositedPayments, selectedPaymentIds]);
+    return undepositedPayments.reduce((sum, row) => sum + (selected.has(row.id) ? row.amount : 0), 0);
+  }, [undepositedPayments, selectedPaymentIds]);
 
   const otherItemsTotal = useMemo(() => {
     return otherItems.reduce((sum, item) => sum + parseCurrencyInput(item.amount), 0);
@@ -177,10 +170,7 @@ export default function RecordDepositForm(props: {
 
   const totalDepositAmount = selectedPaymentsTotal + otherItemsTotal;
 
-  const allSelectableIds = useMemo(
-    () => props.undepositedPayments.map((p) => p.id),
-    [props.undepositedPayments],
-  );
+  const allSelectableIds = useMemo(() => undepositedPayments.map((p) => p.id), [undepositedPayments]);
 
   const allSelected = allSelectableIds.length > 0 && selectedPaymentIds.size === allSelectableIds.length;
   const someSelected = selectedPaymentIds.size > 0 && !allSelected;
@@ -313,7 +303,7 @@ export default function RecordDepositForm(props: {
           return;
         }
 
-        const res = await fetch(`/api/bank-accounts/${props.bankAccountId}/record-deposit`, {
+        const res = await fetch(`/api/bank-accounts/${bankAccountId}/record-deposit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(parsed.data),
@@ -340,12 +330,20 @@ export default function RecordDepositForm(props: {
 
         toast.success('Deposit recorded');
 
+        const meta = { intent, transactionId };
+        onSaved?.(meta);
+
         if (intent === 'save-and-new') {
           resetForNew();
           return;
         }
 
-        router.push(`/bank-accounts/${props.bankAccountId}`);
+        if (onSaved) {
+          return;
+        }
+
+        const destination = afterSaveHref || `/bank-accounts/${initialBankAccountId}`;
+        router.push(destination);
         router.refresh();
       } catch (error) {
         setFormError(error instanceof Error ? error.message : 'Failed to record deposit.');
@@ -359,7 +357,9 @@ export default function RecordDepositForm(props: {
       memo,
       otherItems,
       printDepositSlips,
-      props.bankAccountId,
+      initialBankAccountId,
+      afterSaveHref,
+      onSaved,
       resetForNew,
       router,
       selectedPaymentIds,
@@ -367,6 +367,14 @@ export default function RecordDepositForm(props: {
       uploadAttachments,
     ],
   );
+
+  const handleCancel = useCallback(() => {
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    router.push(`/bank-accounts/${initialBankAccountId}`);
+  }, [initialBankAccountId, onCancel, router]);
 
   return (
     <div className="w-full space-y-8 pb-10">
@@ -392,7 +400,7 @@ export default function RecordDepositForm(props: {
               <SelectValue placeholder="Select bank account" />
             </SelectTrigger>
             <SelectContent>
-              {props.bankAccounts.map((a) => (
+              {bankAccounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.label}
                 </SelectItem>
@@ -405,7 +413,7 @@ export default function RecordDepositForm(props: {
           <Label htmlFor="record-deposit-date" className="text-xs font-semibold tracking-wide">
             DATE <span className="text-destructive">*</span>
           </Label>
-          <Input id="record-deposit-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DatePicker id="record-deposit-date" value={date} onChange={(value) => setDate(value ?? '')} />
         </div>
 
         <div className="sm:col-span-2">
@@ -489,7 +497,7 @@ export default function RecordDepositForm(props: {
                             <SelectValue placeholder="Select a property..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {props.properties.map((p) => (
+                            {properties.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.label}
                               </SelectItem>
@@ -523,7 +531,7 @@ export default function RecordDepositForm(props: {
                             <SelectValue placeholder="Type or select an account..." />
                           </SelectTrigger>
                           <SelectContent>
-                            <GlAccountSelectItems accounts={props.glAccounts} />
+                            <GlAccountSelectItems accounts={glAccounts} />
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -567,7 +575,7 @@ export default function RecordDepositForm(props: {
       </div>
 
       <div className="space-y-3">
-        <div className="text-sm font-semibold">{props.undepositedPaymentsTitle}</div>
+        <div className="text-sm font-semibold">{undepositedPaymentsTitle}</div>
         <div className="overflow-x-auto rounded-md border">
           <Table className="min-w-[980px]">
             <TableHeader>
@@ -600,7 +608,7 @@ export default function RecordDepositForm(props: {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {props.undepositedPayments.length === 0 ? (
+              {undepositedPayments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     There are no undeposited payments for this bank account.
@@ -611,7 +619,7 @@ export default function RecordDepositForm(props: {
                   </TableCell>
                 </TableRow>
               ) : (
-                props.undepositedPayments.map((row) => (
+                undepositedPayments.map((row) => (
                   <TableRow key={row.id} className="border-b last:border-0">
                     <TableCell>
                       <Checkbox
@@ -689,7 +697,7 @@ export default function RecordDepositForm(props: {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(`/bank-accounts/${props.bankAccountId}`)}
+            onClick={handleCancel}
             disabled={isSaving}
           >
             Cancel

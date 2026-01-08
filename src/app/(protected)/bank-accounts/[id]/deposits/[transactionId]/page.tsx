@@ -2,6 +2,7 @@ import { supabase, supabaseAdmin } from '@/lib/db';
 import { PageBody, PageHeader, PageShell } from '@/components/layout/page-shell';
 import InfoCard from '@/components/layout/InfoCard';
 import EditDepositForm from '@/components/bank-accounts/EditDepositForm';
+import type { DepositStatus } from '@/types/deposits';
 
 type BankAccount = {
   id: string;
@@ -312,8 +313,17 @@ export default async function BankAccountDepositEditPage({
         ? Number(transaction.total_amount)
         : 0;
 
+  // Fetch deposit overlay (status + deposit_id)
+  const { data: depositMeta } = await db
+    .from('deposit_meta')
+    .select('deposit_id, status')
+    .eq('transaction_id', transactionId)
+    .maybeSingle();
+
   const depositData = {
     id: transactionId,
+    deposit_id: depositMeta?.deposit_id ?? transactionId,
+    status: (depositMeta?.status as DepositStatus | undefined) ?? 'posted',
     date: transaction.date || '',
     memo: transaction.memo || null,
     total_amount: totalAmount,
@@ -322,13 +332,21 @@ export default async function BankAccountDepositEditPage({
     payment_transactions: paymentTransactionsWithDetails,
   };
 
+  const displayDepositId = depositData.deposit_id || depositData.id;
+  const statusLabel = depositData.status
+    ? depositData.status.charAt(0).toUpperCase() + depositData.status.slice(1)
+    : null;
+
   const patchUrl = `/api/bank-accounts/${bankAccountId}/deposits/${transactionId}`;
   const deleteUrl = `/api/bank-accounts/${bankAccountId}/deposits/${transactionId}`;
   const returnHref = `/bank-accounts/${bankAccountId}`;
 
   return (
     <PageShell>
-      <PageHeader title="Edit deposit" />
+      <PageHeader
+        title={`Deposit ${displayDepositId}`}
+        description={statusLabel ? `Status: ${statusLabel}` : undefined}
+      />
       <PageBody>
         <EditDepositForm
           deposit={depositData}

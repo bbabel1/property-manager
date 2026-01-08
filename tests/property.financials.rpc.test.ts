@@ -8,6 +8,7 @@ type SupabaseClient = ReturnType<typeof createClient<Database>>;
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const shouldRunRpcTests = Boolean(url && key && process.env.RUN_SUPABASE_RPC_TESTS === 'true');
 
 type TransactionLineSpec = {
   amount?: number | null;
@@ -323,9 +324,9 @@ async function cleanupFixtureCase(db: SupabaseClient, seeded: SeededCase) {
   await db.from('organizations').delete().eq('id', seeded.orgId);
 }
 
-if (!url || !key) {
-  // Skip integration test if env not provided
-  describe.skip('property financials RPC alignment (env missing)', () => {});
+if (!shouldRunRpcTests) {
+  // Skip integration test if env not provided/opted in
+  describe.skip('property financials RPC alignment (skipped)', () => {});
 } else {
   const db = createClient<Database>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },

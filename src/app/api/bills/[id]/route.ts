@@ -1,10 +1,13 @@
 import { createHmac } from 'crypto';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth/guards';
 import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { logger } from '@/lib/logger';
 import { assertTransactionBalanced, DOUBLE_ENTRY_TOLERANCE } from '@/lib/accounting-validation';
+import { hasPermission } from '@/lib/permissions';
+import { supabaseAdmin } from '@/lib/db';
 import type { Database as DatabaseSchema } from '@/types/database';
 
 type TransactionLineInsert = DatabaseSchema['public']['Tables']['transaction_lines']['Insert'];
@@ -16,6 +19,32 @@ type BillLinePayload = {
   unit_id?: string | null;
 };
 
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { roles } = await requireAuth();
+  if (!hasPermission(roles, 'bills.read')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { id } = await context.params;
+  const { data, error } = await supabaseAdmin
+    .from('transactions')
+    .select(
+      '*, bill_workflow:bill_workflow(*), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at)',
+    )
+    .eq('id', id)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ data });
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const payload = await request.json().catch(() => null);
@@ -24,6 +53,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const admin = requireSupabaseAdmin('update bill');
   const nowIso = new Date().toISOString();
 
+  const { data: workflowRow } = await admin
+    .from('bill_workflow')
+    .select('approval_state')
+    .eq('bill_transaction_id', id)
+    .maybeSingle();
+  const approvalState = (workflowRow as any)?.approval_state ?? 'draft';
+  if (approvalState === 'approved') {
+    const blockedKeys = ['date', 'due_date', 'vendor_id', 'status', 'transaction_type', 'bill_transaction_id'];
+    if (blockedKeys.some((key) => key in payload)) {
+      return NextResponse.json(
+        { error: 'Approved bills cannot be edited. Void or reject to change amounts.' },
+        { status: 409 },
+      );
+    }
+  }
+
   const update: Record<string, unknown> = {};
   if ('date' in payload) update.date = payload.date || null;
   if ('due_date' in payload) update.due_date = payload.due_date || null;
@@ -31,6 +76,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if ('reference_number' in payload) update.reference_number = payload.reference_number || null;
   if ('memo' in payload) update.memo = payload.memo || null;
   update.updated_at = nowIso;
+
+  // If approved, block amount/line changes
+  if (approvalState === 'approved' && Array.isArray(payload?.lines)) {
+    return NextResponse.json(
+      { error: 'Approved bills cannot be edited. Void or reject to change amounts.' },
+      { status: 409 },
+    );
+  }
 
   const { data: header, error } = await admin
     .from('transactions')
@@ -181,6 +234,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   // Only update total_amount when we've computed a new debitTotal
   if (debitTotal !== null) {
+    if (approvalState === 'approved') {
+      return NextResponse.json(
+        { error: 'Approved bills cannot change amounts. Void or reject to modify.' },
+        { status: 409 },
+      );
+    }
     await admin
       .from('transactions')
       .update({ total_amount: debitTotal, updated_at: nowIso })
@@ -189,7 +248,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const { data: billSnapshot, error: billSnapshotError } = await admin
     .from('transactions')
-    .select('*')
+    .select(
+      '*, bill_workflow:bill_workflow(*), applications:bill_applications(applied_amount, source_transaction_id, source_type)',
+    )
     .eq('id', id)
     .maybeSingle();
 
@@ -562,9 +623,41 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   }
 
   const buildiumBillId =
-    typeof bill.buildium_bill_id === 'number' && bill.buildium_bill_id > 0
-      ? bill.buildium_bill_id
-      : null;
+    typeof bill.buildium_bill_id === 'number' && bill.buildium_bill_id > 0 ? bill.buildium_bill_id : null;
+
+  // Hard delete guardrails: only drafts, no applications, not synced
+  if (buildiumBillId) {
+    return NextResponse.json(
+      { error: 'Cannot hard delete a bill that is synced to Buildium. Void instead.' },
+      { status: 400 },
+    );
+  }
+
+  const { data: workflow } = await admin
+    .from('bill_workflow')
+    .select('approval_state')
+    .eq('bill_transaction_id', id)
+    .maybeSingle();
+
+  const approvalState = (workflow as any)?.approval_state ?? 'draft';
+  if (approvalState !== 'draft') {
+    return NextResponse.json(
+      { error: 'Only draft bills without applications can be hard deleted. Use void instead.' },
+      { status: 400 },
+    );
+  }
+
+  const { count: applicationCount } = await admin
+    .from('bill_applications')
+    .select('id', { count: 'exact', head: true })
+    .eq('bill_transaction_id', id);
+
+  if ((applicationCount ?? 0) > 0) {
+    return NextResponse.json(
+      { error: 'Cannot delete a bill with payment or credit applications. Use void instead.' },
+      { status: 400 },
+    );
+  }
 
   if (SHOULD_SYNC_BUILDUM_DELETE && buildiumBillId) {
     if (!confirmationPayload) {

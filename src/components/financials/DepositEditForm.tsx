@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -231,13 +231,11 @@ export default function DepositEditForm({
               <Label htmlFor="date" className="text-sm font-medium">
                 DATE <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <DatePicker
                 id="date"
-                type="date"
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, date: value ?? '' })}
                 required
-                className="w-full"
               />
             </div>
           </div>

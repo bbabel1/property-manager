@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/db'
 import { PAYMENT_METHOD_VALUES } from '@/lib/enums/payment-method'
 import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
+import { allocationEngine } from '@/lib/allocation-engine'
 import {
   buildLinesFromAllocations,
   fetchBuildiumGlAccountMap,
@@ -14,9 +15,11 @@ import {
   mapPaymentMethodToBuildium,
   coerceTenantIdentifier,
   amountsRoughlyEqual,
-  fetchBankAccountBuildiumId,
   castLeaseTransactionLinesForPersistence
 } from '@/lib/lease-transaction-helpers'
+import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers'
+import { ensurePaymentToUndepositedFunds } from '@/lib/deposit-service'
+import PayerRestrictionsService from '@/lib/payments/payer-restrictions-service'
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1),
@@ -27,6 +30,17 @@ const ReceivePaymentSchema = z.object({
   allocations: z.array(z.object({ account_id: z.string().min(1), amount: z.number().nonnegative() })),
   send_email: z.boolean().optional(),
   print_receipt: z.boolean().optional(),
+  bypass_udf: z.boolean().optional(),
+  charge_allocations: z
+    .array(
+      z.object({
+        charge_id: z.string().min(1),
+        amount: z.number().positive(),
+      })
+    )
+    .optional(),
+  allocation_external_id: z.string().nullable().optional(),
+  idempotency_key: z.string().min(1).optional(),
 })
 
 export async function POST(
@@ -67,34 +81,6 @@ export async function POST(
 
     const leaseContext = await fetchLeaseContextById(leaseId)
 
-    // Resolve Buildium bank account for the property's operating bank GL (so cash hits the correct bank)
-    const resolveBankAccountId = async () => {
-      const propertyId = leaseContext.propertyId
-      const buildiumPropertyId = leaseContext.buildiumPropertyId
-
-      if (!propertyId && !buildiumPropertyId) return null
-
-      const { data: propertyRow } = await supabaseAdmin
-        .from('properties')
-        .select('operating_bank_gl_account_id')
-        .or(
-          [
-            propertyId ? `id.eq.${propertyId}` : null,
-            buildiumPropertyId ? `buildium_property_id.eq.${buildiumPropertyId}` : null,
-          ]
-            .filter(Boolean)
-            .join(','),
-        )
-        .limit(1)
-        .maybeSingle()
-
-      const operatingBankGlAccountId =
-        propertyRow?.operating_bank_gl_account_id ?? null
-      if (!operatingBankGlAccountId) return null
-
-      return fetchBankAccountBuildiumId(operatingBankGlAccountId, supabaseAdmin).catch(() => null)
-    }
-
     const glAccountMap = await fetchBuildiumGlAccountMap(
       parsed.data.allocations.map((line) => line.account_id)
     )
@@ -110,7 +96,45 @@ export async function POST(
       )
     }
 
-    const buildiumBankAccountId = await resolveBankAccountId()
+    const udfGlAccountId = await resolveUndepositedFundsGlAccountId(supabaseAdmin, leaseContext.orgId)
+    if (!udfGlAccountId) {
+      return NextResponse.json(
+        { error: 'Undeposited Funds account is missing for this organization.' },
+        { status: 422 }
+      )
+    }
+
+    // Intended bank (stored on header), but do not send to Buildium payload
+    const intendedBankBuildiumId = null
+
+    // Restriction check before calling Buildium
+    if (payeeTenantId != null && leaseContext.orgId) {
+      // Resolve local tenant id to align with payer_restrictions.payer_id (UUID)
+      const { data: tenantRow } = await supabaseAdmin
+        .from('tenants')
+        .select('id')
+        .eq('buildium_tenant_id', payeeTenantId)
+        .maybeSingle()
+      const payerId = tenantRow?.id ?? null
+      if (payerId) {
+        const restricted = await PayerRestrictionsService.checkRestriction(
+          leaseContext.orgId,
+          payerId,
+          parsed.data.payment_method
+        )
+        if (restricted) {
+          return NextResponse.json(
+            { error: 'This payer is restricted from using the selected payment method.' },
+            { status: 422 }
+          )
+        }
+      }
+    }
+
+    const shouldUseUdf = !parsed.data.bypass_udf &&
+      ['ElectronicPayment', 'DirectDeposit', 'CreditCard'].includes(parsed.data.payment_method)
+
+    const bankAccountIdForBuildium = shouldUseUdf ? undefined : intendedBankBuildiumId ?? undefined
 
     const buildiumPayload: BuildiumLeaseTransactionCreate = {
       TransactionType: 'Payment',
@@ -122,19 +146,45 @@ export async function POST(
       SendEmailReceipt: Boolean(parsed.data.send_email),
       PrintReceipt: Boolean(parsed.data.print_receipt),
       Lines: lines,
-    }
-
-    if (buildiumBankAccountId != null) {
-      buildiumPayload.BankAccountId = buildiumBankAccountId
+      BankAccountId: bankAccountIdForBuildium,
     }
 
     const result = await LeaseTransactionService.createInBuildiumAndDB(
       leaseContext.buildiumLeaseId,
-      buildiumPayload
+      buildiumPayload,
+      leaseContext.orgId ?? undefined,
+      { idempotencyKey: parsed.data.idempotency_key, bypassUdf: Boolean(parsed.data.bypass_udf) }
     )
+
+    let intentState: string | null = null
+    if (result.intentId) {
+      const { data: intentRow } = await supabaseAdmin
+        .from('payment_intent')
+        .select('state')
+        .eq('id', result.intentId)
+        .maybeSingle()
+      if (!intentRow && leaseContext.orgId) {
+        const scoped = await supabaseAdmin
+          .from('payment_intent')
+          .select('state')
+          .eq('org_id', leaseContext.orgId)
+          .eq('id', result.intentId)
+          .maybeSingle()
+        intentState = (scoped.data?.state as string | null) ?? null
+      } else {
+        intentState = (intentRow?.state as string | null) ?? null
+      }
+    }
+    if (result.localId) {
+      await ensurePaymentToUndepositedFunds(result.localId, leaseContext.orgId, supabaseAdmin, {
+        intendedBankBuildiumId: intendedBankBuildiumId ?? null,
+      })
+    }
 
     let normalized: Record<string, unknown> | null = null
     let responseLines: Record<string, unknown>[] = []
+    let allocationsResponse: Record<string, unknown>[] = []
+    let updatedCharges: Record<string, unknown>[] = []
     const memoValue = parsed.data.memo ?? null
     if (result.localId) {
       const record = await fetchTransactionWithLines(result.localId)
@@ -142,6 +192,26 @@ export async function POST(
         normalized = { ...record.transaction, memo: memoValue }
         responseLines = (record.lines ?? []) as Record<string, unknown>[]
       }
+
+      const allocationResult = await allocationEngine.allocatePayment(
+        parsed.data.amount,
+        leaseId,
+        result.localId,
+        undefined,
+        parsed.data.charge_allocations?.map((alloc) => ({
+          chargeId: alloc.charge_id,
+          amount: alloc.amount,
+        })),
+        parsed.data.allocation_external_id ?? undefined
+      )
+      allocationsResponse = allocationResult.allocations
+      updatedCharges = allocationResult.charges
+
+      // Stamp payment metadata for reconciliation
+      await supabaseAdmin
+        .from('transactions')
+        .update({ metadata: { payment_id: result.localId } })
+        .eq('id', result.localId)
     }
 
     if (!normalized) {
@@ -157,12 +227,31 @@ export async function POST(
       responseLines = lines
     }
 
-    return NextResponse.json({ data: { transaction: normalized, lines: responseLines } }, { status: 201 })
+    return NextResponse.json(
+      {
+        data: {
+          transaction: normalized,
+        lines: responseLines,
+        allocations: allocationsResponse,
+        charges: updatedCharges,
+        intent_id: result.intentId ?? null,
+        intent_state: intentState,
+      },
+    },
+    { status: 201 },
+  )
   } catch (error) {
     console.error('Error creating lease payment:', error)
     if (error instanceof Error) {
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (
+        error.message.includes('allocation') ||
+        error.message.includes('outstanding charges') ||
+        error.message.includes('lease mismatch')
+      ) {
+        return NextResponse.json({ error: error.message }, { status: 422 })
       }
       if (
         error.message === 'Lease not found' ||

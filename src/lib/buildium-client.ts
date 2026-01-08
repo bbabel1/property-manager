@@ -220,6 +220,20 @@ export class BuildiumClient {
   }
 
   // ============================================================================
+  // BILL PAYMENT METHODS (vendor payments with BillIds allocations)
+  // ============================================================================
+
+  async createBillPayment(data: Record<string, unknown>): Promise<any> {
+    const sanitized = sanitizeForBuildium(data);
+    return this.makeRequest<any>(`POST`, `/bills/payments`, sanitized);
+  }
+
+  async updateBillPayment(id: number, data: Record<string, unknown>): Promise<any> {
+    const sanitized = sanitizeForBuildium(data);
+    return this.makeRequest<any>(`PUT`, `/bills/payments/${id}`, sanitized);
+  }
+
+  // ============================================================================
   // VENDOR METHODS
   // ============================================================================
 

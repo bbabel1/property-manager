@@ -16,7 +16,11 @@ export type Permission =
   | 'monthly_logs.read'
   | 'monthly_logs.write'
   | 'monthly_logs.approve'
-  | 'monthly_logs.send_statement';
+  | 'monthly_logs.send_statement'
+  | 'bills.read'
+  | 'bills.write'
+  | 'bills.approve'
+  | 'bills.void';
 
 export const AllPermissions: Permission[] = [
   'properties.read',
@@ -35,6 +39,10 @@ export const AllPermissions: Permission[] = [
   'monthly_logs.write',
   'monthly_logs.approve',
   'monthly_logs.send_statement',
+  'bills.read',
+  'bills.write',
+  'bills.approve',
+  'bills.void',
 ];
 
 const Matrix: Record<AppRole, Permission[]> = {
@@ -55,6 +63,10 @@ const Matrix: Record<AppRole, Permission[]> = {
     'monthly_logs.write',
     'monthly_logs.approve',
     'monthly_logs.send_statement',
+    'bills.read',
+    'bills.write',
+    'bills.approve',
+    'bills.void',
   ],
   org_admin: [
     'properties.read',
@@ -73,6 +85,10 @@ const Matrix: Record<AppRole, Permission[]> = {
     'monthly_logs.write',
     'monthly_logs.approve',
     'monthly_logs.send_statement',
+    'bills.read',
+    'bills.write',
+    'bills.approve',
+    'bills.void',
   ],
   org_manager: [
     'properties.read',
@@ -90,6 +106,10 @@ const Matrix: Record<AppRole, Permission[]> = {
     'monthly_logs.write',
     'monthly_logs.approve',
     'monthly_logs.send_statement',
+    'bills.read',
+    'bills.write',
+    'bills.approve',
+    'bills.void',
   ],
   org_staff: [
     'properties.read',
@@ -100,6 +120,8 @@ const Matrix: Record<AppRole, Permission[]> = {
     'leases.read',
     'monthly_logs.read',
     'monthly_logs.write', // Staff can edit but not approve or send
+    'bills.read',
+    'bills.write',
   ],
   owner_portal: [
     'properties.read',

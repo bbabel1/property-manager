@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/db';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert';
 import { resolveBuildiumAccountingEntityType } from '@/app/api/journal-entries/buildium-sync';
+import { validateBankTransactionEditable } from '@/lib/bank-register-validation';
 import type { Database } from '@/types/database';
 
 const parseCurrencyInput = (value: string | null | undefined) => {
@@ -278,6 +279,14 @@ export async function PATCH(
     const membership = await assertCheckInBankAccountContext({ bankAccountId, transactionId });
     if (!membership.ok) {
       return NextResponse.json({ error: membership.message }, { status: membership.status });
+    }
+
+    const editable = await validateBankTransactionEditable(supabaseAdmin, {
+      transactionId,
+      bankGlAccountId: bankAccountId,
+    });
+    if (!editable.editable) {
+      return NextResponse.json({ error: editable.reason }, { status: 409 });
     }
 
     const rawBody: unknown = await request.json().catch(() => null);

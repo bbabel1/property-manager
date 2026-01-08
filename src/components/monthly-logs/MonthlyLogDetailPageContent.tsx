@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/components/ui/utils';
 import EnhancedHeader from '@/components/monthly-logs/EnhancedHeader';
@@ -952,13 +953,11 @@ function TasksPanel({
           />
         </div>
         <div className="w-full sm:w-[140px]">
-          <Input
+          <DatePicker
             id="quick-due-date"
-            type="date"
             value={quickDueDate}
-            onChange={(event) => setQuickDueDate(event.target.value)}
+            onChange={(value) => setQuickDueDate(value ?? '')}
             disabled={saving}
-            className="h-9 bg-white text-sm"
           />
         </div>
         <div className="flex w-full gap-1.5 sm:w-auto">

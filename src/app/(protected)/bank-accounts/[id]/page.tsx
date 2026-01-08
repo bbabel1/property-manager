@@ -1,5 +1,5 @@
 import { endOfMonth, startOfMonth } from 'date-fns';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 
 import { supabase, supabaseAdmin } from '@/lib/db';
 import InfoCard from '@/components/layout/InfoCard';
@@ -45,6 +45,7 @@ type SearchParams = {
   balancePropertyId?: string;
   balanceView?: string;
   tab?: string;
+  depositStatus?: string;
 };
 
 type BankAccountDetail = {
@@ -74,6 +75,10 @@ type BankTransactionRow = {
   bank_gl_account_id: string | null;
   bank_amount: number | null;
   bank_posting_type: string | null;
+  bank_entry_status?: Database['public']['Enums']['bank_entry_status_enum'] | null;
+  current_reconciliation_log_id?: string | null;
+  cleared_at?: string | null;
+  reconciled_at?: string | null;
   paid_by_label: string | null;
   paid_to_name: string | null;
   paid_to_type: string | null;
@@ -148,12 +153,16 @@ type DisplayTransactionRow = {
   dateLabel: string;
   numberLabel: string;
   typeLabel: TransactionDisplayType;
+  depositId?: string | null;
+  depositStatus?: Database['public']['Enums']['deposit_status_enum'] | null;
   paidByLabel: string;
   paidToLabel: string;
   memoLabel: string;
   paymentAmount: number;
   depositAmount: number;
   balanceAfter: number;
+  bankEntryStatus: string | null;
+  reconciliationId: string | null;
 };
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -283,11 +292,12 @@ function splitPaymentAndDeposit(
 function resolveTransactionLinks(params: {
   bankAccountId: string;
   transactionId: string | null;
+  depositId?: string | null;
   transactionType: string | null;
   typeLabel: TransactionDisplayType;
   isTransfer: boolean;
 }): { href: string; deleteUrl: string | null; actionCategory: TransactionActionCategory | null } {
-  const { bankAccountId, transactionId, transactionType, typeLabel, isTransfer } = params;
+  const { bankAccountId, transactionId, transactionType, typeLabel, isTransfer, depositId } = params;
 
   const txType = normalizeTxType(transactionType);
   const hasId = Boolean(transactionId);
@@ -301,7 +311,7 @@ function resolveTransactionLinks(params: {
   }
 
   if (isDeposit) {
-    const path = `/bank-accounts/${bankAccountId}/deposits/${transactionId}`;
+    const path = `/bank-accounts/${bankAccountId}/deposits/${depositId || transactionId}`;
     return {
       href: path,
       deleteUrl: `/api/bank-accounts/${bankAccountId}/deposits/${transactionId}`,
@@ -424,7 +434,7 @@ export default async function BankAccountShow({
     db
       .from('v_bank_register_transactions')
       .select(
-        'id, date, reference_number, memo, total_amount, transaction_type, vendor_id, bank_gl_account_id, bank_amount, bank_posting_type, paid_by_label, paid_to_name, paid_to_type, paid_to_buildium_id, payee_name, payee_buildium_type, payee_buildium_id, is_transfer, transfer_other_bank_gl_account_id',
+        'id, date, reference_number, memo, total_amount, transaction_type, vendor_id, bank_gl_account_id, bank_amount, bank_posting_type, bank_entry_status, current_reconciliation_log_id, cleared_at, reconciled_at, paid_by_label, paid_to_name, paid_to_type, paid_to_buildium_id, payee_name, payee_buildium_type, payee_buildium_id, is_transfer, transfer_other_bank_gl_account_id',
       )
       .eq('bank_gl_account_id', id)
       .gte('date', fromStr)
@@ -458,6 +468,34 @@ export default async function BankAccountShow({
   const bankAccount = account as BankAccountDetail;
   const transactions = (txData || []) as BankTransactionRow[];
   const linkedPropertiesRaw = (propertiesData || []) as LinkedPropertyRecord[];
+  const depositStatusFilterRaw = typeof sp?.depositStatus === 'string' ? sp.depositStatus : 'all';
+  const depositStatusFilter = ['posted', 'reconciled', 'voided'].includes(
+    depositStatusFilterRaw.toLowerCase(),
+  )
+    ? depositStatusFilterRaw.toLowerCase()
+    : 'all';
+  const depositTxIds = transactions
+    .filter((row) => normalizeTxType(row.transaction_type) === 'deposit' && row.id)
+    .map((row) => String(row.id));
+
+  const depositMetaByTx = new Map<
+    string,
+    { deposit_id: string | null; status: Database['public']['Enums']['deposit_status_enum'] | null }
+  >();
+  if (depositTxIds.length > 0) {
+    const { data: depositMetaRows } = await db
+      .from('deposit_meta')
+      .select('transaction_id, deposit_id, status')
+      .in('transaction_id', depositTxIds);
+    (depositMetaRows || []).forEach((row) => {
+      if (row?.transaction_id) {
+        depositMetaByTx.set(String(row.transaction_id), {
+          deposit_id: (row as any).deposit_id ?? null,
+          status: (row as any).status ?? null,
+        });
+      }
+    });
+  }
 
   const vendorIds = Array.from(
     new Set(
@@ -726,7 +764,7 @@ export default async function BankAccountShow({
 
   let runningBalance = closingBalance - totalDelta;
 
-  const displayRows: DisplayTransactionRow[] = transactions.map((row, index) => {
+  const displayRows: (DisplayTransactionRow | null)[] = transactions.map((row, index) => {
     const { paymentAmount, depositAmount } = splitPaymentAndDeposit(
       row.transaction_type,
       row.bank_amount ?? row.total_amount,
@@ -734,6 +772,16 @@ export default async function BankAccountShow({
       row.bank_amount,
     );
 
+    const depositMeta = row.id ? depositMetaByTx.get(String(row.id)) : null;
+    if (
+      depositStatusFilter !== 'all' &&
+      normalizeTxType(row.transaction_type) === 'deposit' &&
+      depositMeta &&
+      depositMeta.status &&
+      depositMeta.status.toLowerCase() !== depositStatusFilter
+    ) {
+      return null;
+    }
     runningBalance += depositAmount - paymentAmount;
 
     const vendorLabel = row.vendor_id ? vendorMap.get(String(row.vendor_id)) : null;
@@ -764,9 +812,14 @@ export default async function BankAccountShow({
     const transactionId = row.id ? String(row.id) : null;
     const rowKey =
       transactionId ?? `${row.date ?? 'tx'}-${row.reference_number ?? 'ref'}-${index}`;
+    const bankEntryStatus = row.bank_entry_status ? String(row.bank_entry_status) : null;
+    const reconciliationId = row.current_reconciliation_log_id
+      ? String(row.current_reconciliation_log_id)
+      : null;
     const links = resolveTransactionLinks({
       bankAccountId: bankAccount.id,
       transactionId,
+      depositId: depositMeta?.deposit_id ?? null,
       transactionType: row.transaction_type,
       typeLabel,
       isTransfer: Boolean(row.is_transfer),
@@ -779,18 +832,26 @@ export default async function BankAccountShow({
       deleteUrl: links.deleteUrl,
       actionCategory: links.actionCategory,
       dateLabel: formatDate(row.date),
-      numberLabel: row.reference_number || '—',
+      numberLabel:
+        normalizeTxType(row.transaction_type) === 'deposit'
+          ? depositMeta?.deposit_id || row.reference_number || '—'
+          : row.reference_number || '—',
       typeLabel,
+      depositId: depositMeta?.deposit_id ?? null,
+      depositStatus: depositMeta?.status ?? null,
       paidByLabel: row.paid_by_label || '—',
       paidToLabel: payToLabel,
       memoLabel: row.memo || '—',
       paymentAmount,
       depositAmount,
       balanceAfter: runningBalance,
+      bankEntryStatus,
+      reconciliationId,
     };
   });
-
-  const matchLabel = displayRows.length === 1 ? 'match' : 'matches';
+  const filteredDisplayRows = displayRows.filter(
+    (row): row is DisplayTransactionRow => Boolean(row),
+  );
 
   const maskedAccountNumber = maskAccountNumber(bankAccount.bank_account_number);
   const accountTypeLabel = formatAccountType(bankAccount.bank_account_type);
@@ -804,6 +865,164 @@ export default async function BankAccountShow({
     bank_country: bankAccount.bank_country ?? null,
     bank_check_printing_info: bankAccount.bank_check_printing_info ?? null,
   };
+
+  const renderTransactionsTable = (rows: DisplayTransactionRow[]) => (
+    <Card className="border-border/70 border shadow-sm">
+      <CardContent className="flex flex-col gap-0 p-0">
+        <div className="border-border/70 flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4">
+          <DateRangeControls defaultFrom={from} defaultTo={to} defaultRange={range} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={`/bank-accounts/${bankAccount.id}/record-check`}>Record check</Link>
+            </Button>
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={`/bank-accounts/${bankAccount.id}/record-deposit`}>Record deposit</Link>
+            </Button>
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={`/bank-accounts/${bankAccount.id}/record-other-transaction`}>
+                Record other transaction
+              </Link>
+            </Button>
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={`/bank-accounts/${bankAccount.id}/reconciliation`}>Reconcile</Link>
+            </Button>
+            <div className="flex items-center gap-2">
+              {[
+                { value: 'all', label: 'All deposits' },
+                { value: 'posted', label: 'Posted' },
+                { value: 'reconciled', label: 'Reconciled' },
+                { value: 'voided', label: 'Voided' },
+              ].map((opt) => {
+                const params = new URLSearchParams(sp as Record<string, string | undefined>);
+                if (opt.value === 'all') params.delete('depositStatus');
+                else params.set('depositStatus', opt.value);
+                const href = params.toString() ? `?${params.toString()}` : '.';
+                const isActive = depositStatusFilter === opt.value || (opt.value === 'all' && depositStatusFilter === 'all');
+                return (
+                  <Button
+                    key={opt.value}
+                    asChild
+                    size="sm"
+                    variant={isActive ? 'secondary' : 'outline'}
+                  >
+                    <Link href={href}>{opt.label}</Link>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
+          <span>
+            {rows.length} {rows.length === 1 ? 'match' : 'matches'}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground px-3"
+          >
+            Export
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table className="min-w-[1080px]">
+            <TableHeader>
+              <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold tracking-widest uppercase">
+                <TableHead className="text-muted-foreground w-[7rem]">Date</TableHead>
+                <TableHead className="text-muted-foreground w-[6rem]">Type</TableHead>
+                <TableHead className="text-muted-foreground w-[18rem]">Paid by</TableHead>
+                <TableHead className="text-muted-foreground w-[18rem]">Paid to</TableHead>
+                <TableHead className="text-muted-foreground">Memo</TableHead>
+                <TableHead className="text-muted-foreground w-[9rem] text-right">Payment</TableHead>
+                <TableHead className="text-muted-foreground w-[9rem] text-right">Deposit</TableHead>
+                <TableHead className="text-muted-foreground w-[8rem] text-center">Status</TableHead>
+                <TableHead className="text-muted-foreground w-[10rem] text-right">Balance</TableHead>
+                <TableHead className="text-muted-foreground w-[7rem] text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={10}
+                    className="text-muted-foreground py-10 text-center text-sm"
+                  >
+                    We didn&apos;t find any transactions for this account in the selected date
+                    range.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row) => {
+      const statusLabel =
+        row.bankEntryStatus === 'reconciled'
+          ? 'Reconciled'
+          : row.bankEntryStatus === 'cleared'
+            ? 'Cleared'
+            : 'Uncleared';
+                  const showLock = row.bankEntryStatus === 'reconciled' && row.reconciliationId;
+
+                  return (
+                    <TableRowLink
+                      key={row.key}
+                      href={row.href}
+                      className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
+                    >
+                      <TableCell className="align-top text-sm">{row.dateLabel}</TableCell>
+                      <TableCell className="align-top text-sm">
+                        <div className="flex flex-col gap-1">
+                          <div className="font-medium leading-tight">
+                            {row.depositId && row.typeLabel === 'Deposit'
+                              ? `${row.typeLabel} • ${row.depositId}`
+                              : row.typeLabel}
+                          </div>
+                          {row.depositStatus ? (
+                            <Badge
+                              variant="outline"
+                              className="w-fit text-[11px] capitalize"
+                            >
+                              {row.depositStatus}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="align-top text-sm">{row.paidByLabel}</TableCell>
+                      <TableCell className="align-top text-sm">{row.paidToLabel}</TableCell>
+                      <TableCell className="align-top text-sm">{row.memoLabel}</TableCell>
+                      <TableCell className="text-right align-top text-sm">
+                        {row.paymentAmount > 0 ? formatCurrency(row.paymentAmount) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right align-top text-sm">
+                        {row.depositAmount > 0 ? formatCurrency(row.depositAmount) : '—'}
+                      </TableCell>
+                      <TableCell className="align-top text-sm text-center">
+                        <span className="inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold">
+                          {showLock ? <Lock className="h-3 w-3" aria-hidden /> : null}
+                          {statusLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right align-top text-sm">
+                        {formatCurrency(row.balanceAfter)}
+                      </TableCell>
+                      <TableCell className="text-right align-top text-sm">
+                        <BankTransactionActions
+                          deleteUrl={row.deleteUrl}
+                          detailHref={row.href}
+                          transactionCategory={row.actionCategory}
+                        />
+                      </TableCell>
+                    </TableRowLink>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <PageShell>
@@ -853,143 +1072,28 @@ export default async function BankAccountShow({
           <NavTabsContent value="transactions">
             <Tabs defaultValue="all-transactions" className="space-y-4">
               <TabsList>
-                <TabsTrigger value="all-transactions">All transactions</TabsTrigger>
+                <TabsTrigger value="all-transactions">All</TabsTrigger>
+                <TabsTrigger value="cleared">Cleared</TabsTrigger>
+                <TabsTrigger value="uncleared">Uncleared</TabsTrigger>
                 <TabsTrigger value="check-search">Check search</TabsTrigger>
               </TabsList>
 
               <TabsContent value="all-transactions" className="space-y-4">
-                <Card className="border-border/70 border shadow-sm">
-                  <CardContent className="flex flex-col gap-0 p-0">
-                    <div className="border-border/70 flex flex-wrap items-center justify-between gap-4 border-b px-6 py-4">
-                      <DateRangeControls defaultFrom={from} defaultTo={to} defaultRange={range} />
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button asChild type="button" size="sm" variant="outline">
-                          <Link href={`/bank-accounts/${bankAccount.id}/record-check`}>
-                            Record check
-                          </Link>
-                        </Button>
-                        <Button asChild type="button" size="sm" variant="outline">
-                          <Link href={`/bank-accounts/${bankAccount.id}/record-deposit`}>
-                            Record deposit
-                          </Link>
-                        </Button>
-                        <Button asChild type="button" size="sm" variant="outline">
-                          <Link href={`/bank-accounts/${bankAccount.id}/record-other-transaction`}>
-                            Record other transaction
-                          </Link>
-                        </Button>
-                        <Button type="button" size="sm" variant="outline">
-                          Reconcile account
-                        </Button>
-                      </div>
-                    </div>
+                {renderTransactionsTable(filteredDisplayRows)}
+              </TabsContent>
 
-                    <div className="border-border/70 text-muted-foreground flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3 text-sm">
-                      <span>
-                        {displayRows.length} {matchLabel}
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="text-muted-foreground hover:text-foreground px-3"
-                      >
-                        Export
-                      </Button>
-                    </div>
+              <TabsContent value="cleared" className="space-y-4">
+                {renderTransactionsTable(
+                  filteredDisplayRows.filter(
+                    (row) => row.bankEntryStatus && row.bankEntryStatus !== 'uncleared',
+                  ),
+                )}
+              </TabsContent>
 
-                    <div className="overflow-x-auto">
-                      <Table className="min-w-[1040px]">
-                        <TableHeader>
-                          <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold tracking-widest uppercase">
-                            <TableHead className="text-muted-foreground w-[7rem]">Date</TableHead>
-                            <TableHead className="text-muted-foreground w-[6rem]">Type</TableHead>
-                            <TableHead className="text-muted-foreground w-[18rem]">
-                              Paid by
-                            </TableHead>
-                            <TableHead className="text-muted-foreground w-[18rem]">
-                              Paid to
-                            </TableHead>
-                            <TableHead className="text-muted-foreground">Memo</TableHead>
-                            <TableHead className="text-muted-foreground w-[9rem] text-right">
-                              Payment
-                            </TableHead>
-                            <TableHead className="text-muted-foreground w-[9rem] text-right">
-                              Deposit
-                            </TableHead>
-                            <TableHead className="text-muted-foreground w-[6rem]">Clr</TableHead>
-                            <TableHead className="text-muted-foreground w-[10rem] text-right">
-                              Balance
-                            </TableHead>
-                            <TableHead className="text-muted-foreground w-[7rem] text-right">
-                              Actions
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {displayRows.length === 0 ? (
-                            <TableRow>
-                              <TableCell
-                                colSpan={10}
-                                className="text-muted-foreground py-10 text-center text-sm"
-                              >
-                                We didn&apos;t find any transactions for this account in the
-                                selected date range.
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            displayRows.map((row) => {
-                              return (
-                                <TableRowLink
-                                  key={row.key}
-                                  href={row.href}
-                                  className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
-                                >
-                                  <TableCell className="align-top text-sm">
-                                    {row.dateLabel}
-                                  </TableCell>
-                                  <TableCell className="align-top text-sm">
-                                    {row.typeLabel}
-                                  </TableCell>
-                                  <TableCell className="align-top text-sm">
-                                    {row.paidByLabel}
-                                  </TableCell>
-                                  <TableCell className="align-top text-sm">
-                                    {row.paidToLabel}
-                                  </TableCell>
-                                  <TableCell className="align-top text-sm">
-                                    {row.memoLabel}
-                                  </TableCell>
-                                  <TableCell className="text-right align-top text-sm">
-                                    {row.paymentAmount > 0
-                                      ? formatCurrency(row.paymentAmount)
-                                      : '—'}
-                                  </TableCell>
-                                  <TableCell className="text-right align-top text-sm">
-                                    {row.depositAmount > 0
-                                      ? formatCurrency(row.depositAmount)
-                                      : '—'}
-                                  </TableCell>
-                                  <TableCell className="align-top text-sm">—</TableCell>
-                                  <TableCell className="text-right align-top text-sm">
-                                    {formatCurrency(row.balanceAfter)}
-                                  </TableCell>
-                                  <TableCell className="text-right align-top text-sm">
-                                    <BankTransactionActions
-                                      deleteUrl={row.deleteUrl}
-                                      detailHref={row.href}
-                                      transactionCategory={row.actionCategory}
-                                    />
-                                  </TableCell>
-                                </TableRowLink>
-                              );
-                            })
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
+              <TabsContent value="uncleared" className="space-y-4">
+                {renderTransactionsTable(
+                  filteredDisplayRows.filter((row) => row.bankEntryStatus === 'uncleared'),
+                )}
               </TabsContent>
 
               <TabsContent value="check-search">
@@ -1012,9 +1116,20 @@ export default async function BankAccountShow({
 
           <NavTabsContent value="reconciliations">
             <Card className="border-border/70 border shadow-sm">
-              <CardContent className="text-muted-foreground py-12 text-center text-sm">
-                Reconciliation history and tools for this bank account will appear here in a future
-                update.
+              <CardContent className="flex flex-col gap-3 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-lg font-semibold">Reconciliation workspace</div>
+                    <div className="text-muted-foreground text-sm">
+                      View cleared/uncleared status and audit activity for this bank account.
+                    </div>
+                  </div>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/bank-accounts/${bankAccount.id}/reconciliation`}>
+                      Open reconciliation
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </NavTabsContent>

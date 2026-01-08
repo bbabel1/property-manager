@@ -4,10 +4,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import TransactionDetailShell from '@/components/transactions/TransactionDetailShell';
-import ReceivePaymentForm from '@/components/leases/ReceivePaymentForm';
-import EnterChargeForm from '@/components/leases/EnterChargeForm';
-import IssueCreditForm from '@/components/leases/IssueCreditForm';
-import IssueRefundForm from '@/components/leases/IssueRefundForm';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import EditTransactionForm from '@/components/leases/EditTransactionForm';
 import ActionButton from '@/components/ui/ActionButton';
@@ -31,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, getTransactionTypeLabel } from '@/lib/transactions/formatting';
-import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
+import type { LeaseAccountOption } from '@/components/leases/types';
 import type { BuildiumLeaseTransaction } from '@/types/buildium';
 
 type LedgerDetailLine = {
@@ -83,14 +79,12 @@ type LeaseLedgerPanelProps = {
     prepayments: number;
     depositsHeld: number;
   };
-  tenantOptions: LeaseTenantOption[];
   accountOptions: LeaseAccountOption[];
   leaseSummary: {
     propertyUnit?: string | null;
     tenants?: string | null;
   };
   errorMessage?: string | null;
-  bankAccountOptions: Array<{ id: string; name: string }>;
 };
 
 export default function LeaseLedgerPanel({
@@ -98,17 +92,13 @@ export default function LeaseLedgerPanel({
   rows,
   ledgerMatchesLabel,
   balances,
-  tenantOptions,
   accountOptions,
   leaseSummary,
   errorMessage,
-  bankAccountOptions,
 }: LeaseLedgerPanelProps) {
   const router = useRouter();
   const detailRequestIdRef = useRef(0);
-  const [mode, setMode] = useState<
-    'none' | 'payment' | 'charge' | 'credit' | 'refund' | 'deposit' | 'edit'
-  >('none');
+  const [mode, setMode] = useState<'none' | 'deposit' | 'edit'>('none');
   const [overlayTop, setOverlayTop] = useState(0);
   const [overlayLeft, setOverlayLeft] = useState(0);
   const [editingTransaction, setEditingTransaction] = useState<{
@@ -174,6 +164,17 @@ export default function LeaseLedgerPanel({
     [balances],
   );
 
+  const buildReturnTo = () =>
+    typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}`
+      : `/leases/${leaseId}?tab=financials`;
+
+  const pushWithReturn = (basePath: string) => {
+    const returnTo = buildReturnTo();
+    const next = returnTo ? `${basePath}?returnTo=${encodeURIComponent(returnTo)}` : basePath;
+    router.push(next);
+  };
+
   const closeOverlay = () => {
     setMode('none');
     setEditingTransaction(null);
@@ -228,7 +229,21 @@ export default function LeaseLedgerPanel({
   const handleEditTransaction = (row: LedgerRow) => {
     const typeLabel = typeof row.type === 'string' ? row.type : '';
     const transactionIdRaw = getNumericTransactionId(row);
-    if (!rowIsCharge(row) || !Number.isFinite(transactionIdRaw)) return;
+    if (!Number.isFinite(transactionIdRaw)) return;
+
+    if (rowIsCharge(row)) {
+      const current =
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}`
+          : `/leases/${leaseId}`;
+      const target = `/leases/${leaseId}/edit-charge?transactionId=${transactionIdRaw}&returnTo=${encodeURIComponent(
+        current,
+      )}`;
+      closeDetailDialog();
+      router.push(target);
+      return;
+    }
+
     closeDetailDialog();
     setEditingTransaction({ id: Number(transactionIdRaw), typeLabel });
     setMode('edit');
@@ -421,60 +436,6 @@ export default function LeaseLedgerPanel({
 
   const renderOverlayContent = () => {
     switch (mode) {
-      case 'payment':
-        return (
-          <ReceivePaymentForm
-            leaseId={leaseId}
-            leaseSummary={leaseSummary}
-            accounts={accountOptions}
-            tenants={tenantOptions}
-            onCancel={closeOverlay}
-            onSuccess={() => {
-              closeOverlay();
-              router.refresh();
-            }}
-          />
-        );
-      case 'charge':
-        return (
-          <EnterChargeForm
-            leaseId={leaseId}
-            accounts={accountOptions}
-            onCancel={closeOverlay}
-            onSuccess={() => {
-              closeOverlay();
-              router.refresh();
-            }}
-          />
-        );
-      case 'credit':
-        return (
-          <IssueCreditForm
-            leaseId={leaseId}
-            leaseSummary={leaseSummary}
-            accounts={accountOptions}
-            onCancel={closeOverlay}
-            onSuccess={() => {
-              closeOverlay();
-              router.refresh();
-            }}
-          />
-        );
-      case 'refund':
-        return (
-          <IssueRefundForm
-            leaseId={leaseId}
-            leaseSummary={leaseSummary}
-            bankAccounts={bankAccountOptions}
-            accounts={accountOptions}
-            parties={tenantOptions}
-            onCancel={closeOverlay}
-            onSuccess={() => {
-              closeOverlay();
-              router.refresh();
-            }}
-          />
-        );
       case 'deposit':
         return (
           <WithholdDepositForm
@@ -536,8 +497,11 @@ export default function LeaseLedgerPanel({
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setMode('payment')}>Receive payment</Button>
-          <Button variant="outline" onClick={() => setMode('charge')}>
+          <Button onClick={() => pushWithReturn(`/leases/${leaseId}/add-payment`)}>Receive payment</Button>
+          <Button
+            variant="outline"
+            onClick={() => pushWithReturn(`/leases/${leaseId}/add-charge`)}
+          >
             Enter charge
           </Button>
           <DropdownMenu>
@@ -545,10 +509,16 @@ export default function LeaseLedgerPanel({
               <ActionButton />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[14rem]">
-              <DropdownMenuItem className="cursor-pointer" onSelect={() => setMode('credit')}>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={() => pushWithReturn(`/leases/${leaseId}/add-credit`)}
+              >
                 Issue credit
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer" onSelect={() => setMode('refund')}>
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={() => pushWithReturn(`/leases/${leaseId}/add-refund`)}
+              >
                 Issue refund
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer" onSelect={() => setMode('deposit')}>

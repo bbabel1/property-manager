@@ -333,6 +333,87 @@ async function ensureBankGlAccountEdge(
   return { glAccountId: (created as any)?.id ?? null, glAccountBuildiumId: buildiumIdForRow };
 }
 
+function deriveDepositStatusFromBuildiumPayloadEdge(payload: any): 'posted' | 'reconciled' | 'voided' {
+  const statusRaw = String(
+    payload?.Status ??
+      payload?.status ??
+      payload?.BankEntryStatus ??
+      payload?.bankEntryStatus ??
+      '',
+  ).toLowerCase();
+  const reconFlag =
+    statusRaw.includes('reconciled') ||
+    statusRaw === 'reconciled' ||
+    statusRaw === 'cleared' ||
+    statusRaw === 'settled';
+  const reconBool =
+    Boolean(payload?.IsReconciled) ||
+    Boolean(payload?.Reconciled) ||
+    Boolean(payload?.Cleared) ||
+    Boolean(payload?.IsCleared);
+  const hasReconDate = Boolean(payload?.ReconciledDate) || Boolean(payload?.ClearedDate);
+  if (reconFlag || reconBool || hasReconDate) return 'reconciled';
+  if (statusRaw.includes('void')) return 'voided';
+  return 'posted';
+}
+
+async function ensureDepositMetaEdge(params: {
+  supabase: any;
+  transactionId: string;
+  orgId: string | null;
+  buildiumDepositId: number;
+  status: 'posted' | 'reconciled' | 'voided';
+}) {
+  const { supabase, transactionId, orgId, buildiumDepositId, status } = params;
+  const nowIso = new Date().toISOString();
+
+  const { data: existing, error: existingErr } = await supabase
+    .from('deposit_meta')
+    .select('id, status, deposit_id')
+    .eq('transaction_id', transactionId)
+    .maybeSingle();
+  if (existingErr && existingErr.code !== 'PGRST116') throw existingErr;
+
+  let depositId = existing?.deposit_id ?? null;
+  if (!depositId) {
+    const { data: generated, error: genErr } = await supabase
+      .rpc('generate_deposit_id', { transaction_id_param: transactionId })
+      .single();
+    if (genErr) throw genErr;
+    depositId =
+      (generated as any)?.generate_deposit_id ??
+      (generated as any)?.deposit_id ??
+      (generated as any)?.id ??
+      transactionId;
+  }
+
+  const currentStatus = (existing?.status as 'posted' | 'reconciled' | 'voided' | null) ?? null;
+  const resolvedStatus =
+    currentStatus === 'reconciled' || currentStatus === 'voided'
+      ? currentStatus
+      : status === 'reconciled'
+        ? 'reconciled'
+        : currentStatus ?? status;
+
+  const payload = {
+    transaction_id: transactionId,
+    org_id: orgId,
+    deposit_id: depositId,
+    status: resolvedStatus,
+    buildium_deposit_id: buildiumDepositId,
+    buildium_sync_status: 'synced',
+    buildium_sync_error: null,
+    buildium_last_synced_at: nowIso,
+    updated_at: nowIso,
+  };
+
+  if (existing?.id) {
+    await supabase.from('deposit_meta').update(payload).eq('id', existing.id);
+  } else {
+    await supabase.from('deposit_meta').insert({ ...payload, created_at: nowIso });
+  }
+}
+
 async function ensureGlAccountFromGlLineEdge(
   supabase: any,
   glAccount: any,
@@ -1072,6 +1153,22 @@ async function processWebhookEvent(
       case 'BankAccount.Transaction.Deleted':
         return await processBankAccountTransactionDeletedEvent(event, buildiumClient, supabase);
 
+      case 'Bill.Created':
+      case 'Bill.Updated':
+        return await processBillEvent(event, supabase);
+      case 'Bill.Paid':
+        return await processBillPaidEvent(event, supabase);
+      case 'Bill.Payment.Created':
+      case 'Bill.Payment.Updated':
+        return await processBillPaymentEvent(event, supabase);
+      case 'Bill.Payment.Deleted':
+        return await processBillPaymentEvent(event, supabase, { delete: true });
+      case 'Vendor.Transaction.Created':
+      case 'Vendor.Transaction.Updated':
+        return await processVendorTransactionEvent(event, supabase);
+      case 'Vendor.Transaction.Deleted':
+        return await processVendorTransactionEvent(event, supabase, { delete: true });
+
       default:
         console.log('Unhandled webhook event type:', eventType);
         return { success: true }; // Don't fail for unhandled events
@@ -1155,6 +1252,496 @@ async function processOwnerEvent(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return { success: false, error: errorMessage };
   }
+}
+
+async function processBillEvent(event: BuildiumWebhookEvent, supabase: any): Promise<{ success: boolean; error?: string }> {
+  const billId = Number(event.EntityId ?? (event as any)?.Data?.EntityId);
+  if (!Number.isFinite(billId)) {
+    return { success: false, error: 'Missing EntityId for bill event' };
+  }
+
+  const { data: billRow } = await supabase
+    .from('transactions')
+    .select('id, org_id')
+    .eq('buildium_bill_id', billId)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+
+  if (!billRow?.id) {
+    console.warn('Bill event received but local bill not found', { billId });
+    return { success: true };
+  }
+
+  const now = new Date().toISOString();
+  await supabase.from('bill_workflow').upsert(
+    {
+      bill_transaction_id: billRow.id,
+      org_id: billRow.org_id,
+      approval_state: 'approved',
+      submitted_at: now,
+      approved_at: now,
+      updated_at: now,
+    },
+    { onConflict: 'bill_transaction_id' },
+  );
+
+  await supabase.from('bill_approval_audit').insert({
+    bill_transaction_id: billRow.id,
+    action: 'approved',
+    from_state: 'pending_approval',
+    to_state: 'approved',
+    user_id: null,
+    notes: 'Approved from Buildium bill event',
+    created_at: now,
+  });
+
+  return { success: true };
+}
+
+async function processBillPaidEvent(
+  event: BuildiumWebhookEvent,
+  supabase: any,
+): Promise<{ success: boolean; error?: string }> {
+  const billId = Number(event.EntityId ?? (event as any)?.Data?.EntityId);
+  if (!Number.isFinite(billId)) {
+    return { success: false, error: 'Missing EntityId for bill paid event' };
+  }
+
+  const { data: billRow } = await supabase
+    .from('transactions')
+    .select('id, org_id, paid_date')
+    .eq('buildium_bill_id', billId)
+    .eq('transaction_type', 'Bill')
+    .maybeSingle();
+
+  if (!billRow?.id) {
+    console.warn('Bill paid event received but local bill not found', { billId });
+    return { success: true };
+  }
+
+  const nowDate = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+
+  await supabase
+    .from('transactions')
+    .update({ status: 'Paid', paid_date: billRow.paid_date ?? nowDate, updated_at: now })
+    .eq('id', billRow.id);
+
+  await supabase.from('bill_workflow').upsert(
+    {
+      bill_transaction_id: billRow.id,
+      org_id: billRow.org_id,
+      approval_state: 'approved',
+      approved_at: now,
+      updated_at: now,
+    },
+    { onConflict: 'bill_transaction_id' },
+  );
+
+  await supabase.from('bill_approval_audit').insert({
+    bill_transaction_id: billRow.id,
+    action: 'approved',
+    from_state: 'pending_approval',
+    to_state: 'approved',
+    user_id: null,
+    notes: 'Marked paid from Buildium bill payment event',
+    created_at: now,
+  });
+
+  return { success: true };
+}
+
+type BillPaymentEventOptions = { delete?: boolean };
+
+async function processBillPaymentEvent(
+  event: BuildiumWebhookEvent,
+  supabase: any,
+  options: BillPaymentEventOptions = {},
+): Promise<{ success: boolean; error?: string }> {
+  const paymentId = Number(
+    (event as any)?.PaymentId ?? (event as any)?.EntityId ?? (event as any)?.Data?.PaymentId,
+  );
+  const billIdsRaw =
+    (Array.isArray((event as any)?.BillIds) && (event as any)?.BillIds.length
+      ? (event as any)?.BillIds
+      : Array.isArray((event as any)?.Data?.BillIds) && (event as any)?.Data?.BillIds.length
+        ? (event as any)?.Data?.BillIds
+        : []) ?? [];
+  const billIds = billIdsRaw
+    .map((b: any) => Number(b))
+    .filter((b: any) => Number.isFinite(b) && b > 0);
+
+  if (!Number.isFinite(paymentId) || billIds.length === 0) {
+    return { success: false, error: 'Bill payment event missing PaymentId or BillIds' };
+  }
+
+  const allocationsFromPayload = (() => {
+    const arr =
+      (event as any)?.Data?.BillPayments ??
+      (event as any)?.BillPayments ??
+      (event as any)?.Data?.Allocations ??
+      (event as any)?.Data?.Amounts ??
+      [];
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((item: any) => {
+        if (typeof item === 'number') return { amount: Number(item) };
+        if (item && typeof item === 'object') {
+          return {
+            billId: Number((item as any).BillId ?? (item as any).BillID ?? (item as any).Bill),
+            amount: Number((item as any).Amount ?? (item as any).applied_amount ?? 0),
+          };
+        }
+        return null;
+      })
+      .filter((x: any) => x && Number.isFinite((x as any)?.amount));
+  })();
+
+  const amountFromPayload = Number(
+    (event as any)?.Amount ?? (event as any)?.Data?.Amount ?? (event as any)?.Data?.TotalAmount,
+  );
+
+  const { data: bills } = await supabase
+    .from('transactions')
+    .select('id, org_id, total_amount')
+    .in('buildium_bill_id', billIds)
+    .eq('transaction_type', 'Bill');
+  const billMap = new Map<number, { id: string; org_id: string | null; total_amount: number | null }>();
+  for (const bill of bills || []) {
+    const buildiumId = (bill as any)?.buildium_bill_id ?? null;
+    if (Number.isFinite(Number(buildiumId))) {
+      billMap.set(Number(buildiumId), {
+        id: (bill as any).id,
+        org_id: (bill as any).org_id,
+        total_amount: (bill as any).total_amount,
+      });
+    }
+  }
+
+  // Resolve the payment transaction locally if present
+  const { data: paymentRow } = await supabase
+    .from('transactions')
+    .select('id, total_amount, org_id, vendor_id, status')
+    .eq('buildium_transaction_id', paymentId)
+    .maybeSingle();
+  let paymentTransactionId = paymentRow?.id ?? null;
+  let paymentOrgId = (paymentRow as any)?.org_id ?? null;
+
+  if (options.delete) {
+    if (paymentTransactionId) {
+      const billTxnIds = Array.from(billMap.values())
+        .map((b) => b.id)
+        .filter(Boolean);
+      if (billTxnIds.length) {
+        await supabase
+          .from('bill_applications')
+          .delete()
+          .eq('source_transaction_id', paymentTransactionId)
+          .in('bill_transaction_id', billTxnIds);
+      }
+    }
+    return { success: true };
+  }
+
+  if (!paymentTransactionId) {
+    // Create a lightweight payment shell to anchor applications
+    const now = new Date().toISOString();
+    const orgIdFromBill = Array.from(billMap.values()).find((b) => b.org_id)?.org_id ?? null;
+    paymentOrgId = paymentOrgId ?? orgIdFromBill ?? null;
+    if (!paymentOrgId) {
+      return { success: false, error: 'Unable to resolve org for bill payment' };
+    }
+    const { data: inserted, error: insertErr } = await supabase
+      .from('transactions')
+      .insert({
+        transaction_type: 'Payment',
+        status: 'Paid',
+        total_amount: Number.isFinite(amountFromPayload) ? Math.abs(amountFromPayload) : null,
+        buildium_transaction_id: paymentId,
+        org_id: paymentOrgId,
+        date: now.slice(0, 10),
+        created_at: now,
+        updated_at: now,
+      })
+      .select('id')
+      .maybeSingle();
+    if (insertErr) {
+      return { success: false, error: insertErr.message };
+    }
+    paymentTransactionId = inserted?.id ?? null;
+  }
+
+  if (!paymentTransactionId) {
+    return { success: false, error: 'Payment transaction not found or created' };
+  }
+
+  const applicationsToUpsert: any[] = [];
+
+  for (let idx = 0; idx < billIds.length; idx++) {
+    const buildiumBillId = billIds[idx];
+    const localBill = billMap.get(buildiumBillId);
+    if (!localBill) continue;
+
+    const explicitAlloc = allocationsFromPayload.find(
+      (a: any) => Number((a as any).billId) === buildiumBillId,
+    ) as any;
+    const amountFromList =
+      explicitAlloc?.amount ??
+      (Number.isFinite((allocationsFromPayload[idx] as any)?.amount)
+        ? (allocationsFromPayload[idx] as any)?.amount
+        : null);
+
+    const baseAmount = Number.isFinite(amountFromList)
+      ? Number(amountFromList)
+      : Number.isFinite(amountFromPayload)
+        ? Number(amountFromPayload)
+        : Number(paymentRow?.total_amount ?? 0);
+
+    const allocationsByBill = (() => {
+      // If we have structured BillPayments array, use that.
+      const byBill = new Map<number, number>();
+      for (const alloc of allocationsFromPayload) {
+        const billIdNum = Number((alloc as any)?.billId ?? (alloc as any)?.BillId);
+        const amt = Number((alloc as any)?.amount ?? (alloc as any)?.Amount);
+        if (Number.isFinite(billIdNum) && Number.isFinite(amt)) {
+          byBill.set(billIdNum, Number(amt));
+        }
+      }
+      return byBill;
+    })();
+
+    const explicitAmount = allocationsByBill.get(buildiumBillId);
+
+    const allocated =
+      Number.isFinite(explicitAmount) && (explicitAmount as number) > 0
+        ? (explicitAmount as number)
+        : billIds.length > 1 && !Number.isFinite(amountFromList) && Number.isFinite(baseAmount)
+          ? Number(((baseAmount || 0) / billIds.length).toFixed(2))
+          : baseAmount;
+
+    if (!Number.isFinite(allocated) || allocated <= 0) continue;
+
+    const { error: validationError } = await supabase.rpc('validate_bill_application', {
+      p_bill_id: localBill.id,
+      p_source_id: paymentTransactionId,
+      p_amount: allocated,
+    });
+    if (validationError) {
+      console.warn('Validation failed for bill application from payment webhook', {
+        billId: localBill.id,
+        paymentId,
+        error: validationError.message,
+      });
+      continue;
+    }
+
+    applicationsToUpsert.push({
+      bill_transaction_id: localBill.id,
+      source_transaction_id: paymentTransactionId,
+      source_type: 'payment',
+      applied_amount: allocated,
+      applied_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      org_id: localBill.org_id ?? paymentOrgId ?? null,
+    });
+  }
+
+  if (applicationsToUpsert.length) {
+    const { error: upsertErr } = await supabase
+      .from('bill_applications')
+      .upsert(applicationsToUpsert, { onConflict: 'bill_transaction_id,source_transaction_id' });
+    if (upsertErr) {
+      const msg = upsertErr.message || 'Failed to upsert bill applications';
+      console.error('[buildium-webhook] Failed to upsert bill applications for payment', {
+        paymentId,
+        error: msg,
+      });
+      return { success: false, error: msg };
+    }
+  }
+
+  // Mark workflow approved for affected bills
+  const now = new Date().toISOString();
+  for (const bill of billMap.values()) {
+    if (!bill.id) continue;
+    await supabase
+      .from('bill_workflow')
+      .upsert(
+        {
+          bill_transaction_id: bill.id,
+          org_id: bill.org_id,
+          approval_state: 'approved',
+          approved_at: now,
+          updated_at: now,
+        },
+        { onConflict: 'bill_transaction_id' },
+      );
+  }
+
+  return { success: true };
+}
+
+type VendorTransactionOptions = { delete?: boolean };
+async function processVendorTransactionEvent(
+  event: BuildiumWebhookEvent,
+  supabase: any,
+  options: VendorTransactionOptions = {},
+): Promise<{ success: boolean; error?: string }> {
+  const transactionId = Number(
+    (event as any)?.TransactionId ??
+      (event as any)?.EntityId ??
+      (event as any)?.Data?.TransactionId ??
+      (event as any)?.Id,
+  );
+  if (!Number.isFinite(transactionId)) return { success: false, error: 'Missing TransactionId' };
+
+  const vendorBuildiumId = Number(
+    (event as any)?.VendorId ?? (event as any)?.Data?.VendorId ?? (event as any)?.PayeeId,
+  );
+  const amount = Number(
+    (event as any)?.Amount ?? (event as any)?.Data?.Amount ?? (event as any)?.TotalAmount,
+  );
+  const date =
+    (event as any)?.Date ??
+    (event as any)?.Data?.Date ??
+    (event as any)?.TransactionDate ??
+    new Date().toISOString();
+  const memo = (event as any)?.Memo ?? (event as any)?.Data?.Memo ?? null;
+
+  const { data: vendorRow } = await supabase
+    .from('vendors')
+    .select('id, org_id')
+    .eq('buildium_vendor_id', vendorBuildiumId)
+    .maybeSingle();
+
+  const billIdsRaw =
+    (Array.isArray((event as any)?.BillIds) && (event as any)?.BillIds.length
+      ? (event as any)?.BillIds
+      : Array.isArray((event as any)?.Data?.BillIds) && (event as any)?.Data?.BillIds.length
+        ? (event as any)?.Data?.BillIds
+        : []) ?? [];
+  const billIds = billIdsRaw
+    .map((b: any) => Number(b))
+    .filter((b: any) => Number.isFinite(b) && b > 0);
+
+  const billPaymentsAlloc = (() => {
+    const arr =
+      (event as any)?.Data?.BillPayments ??
+      (event as any)?.BillPayments ??
+      (event as any)?.Data?.Allocations ??
+      [];
+    if (!Array.isArray(arr)) return new Map<number, number>();
+    const map = new Map<number, number>();
+    for (const row of arr) {
+      const billIdNum = Number((row as any)?.billId ?? (row as any)?.BillId);
+      const amt = Number((row as any)?.amount ?? (row as any)?.Amount);
+      if (Number.isFinite(billIdNum) && Number.isFinite(amt)) {
+        map.set(billIdNum, amt);
+      }
+    }
+    return map;
+  })();
+
+  if (options.delete) {
+    const { data: existing } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('buildium_transaction_id', transactionId)
+      .maybeSingle();
+    if (existing?.id) {
+      await supabase.from('bill_applications').delete().eq('source_transaction_id', existing.id);
+      await supabase.from('transactions').delete().eq('id', existing.id);
+    }
+    return { success: true };
+  }
+
+  if (!vendorRow?.id) {
+    console.warn('Vendor transaction webhook could not resolve vendor locally', { vendorBuildiumId });
+    return { success: true };
+  }
+
+  const now = new Date().toISOString();
+  const { data: existingTx } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('buildium_transaction_id', transactionId)
+    .maybeSingle();
+
+  let sourceTransactionId = existingTx?.id ?? null;
+  if (existingTx?.id) {
+    await supabase
+      .from('transactions')
+      .update({
+        total_amount: Number.isFinite(amount) ? Math.abs(amount) : null,
+        memo: memo ?? null,
+        updated_at: now,
+      })
+      .eq('id', existingTx.id);
+  } else {
+    const { data: inserted, error: insertErr } = await supabase.from('transactions').insert({
+      transaction_type: 'VendorCredit',
+      status: 'Paid',
+      total_amount: Number.isFinite(amount) ? Math.abs(amount) : null,
+      buildium_transaction_id: transactionId,
+      vendor_id: vendorRow.id,
+      org_id: vendorRow.org_id,
+      date: typeof date === 'string' ? date.slice(0, 10) : now.slice(0, 10),
+      memo: memo ?? null,
+      created_at: now,
+      updated_at: now,
+    }).select('id').maybeSingle();
+    if (insertErr) return { success: false, error: insertErr.message };
+    sourceTransactionId = inserted?.id ?? null;
+  }
+
+  // Apply credit to bills if BillIds provided
+  if (sourceTransactionId && billIds.length) {
+    const { data: bills } = await supabase
+      .from('transactions')
+      .select('id, org_id, buildium_bill_id')
+      .in('buildium_bill_id', billIds)
+      .eq('transaction_type', 'Bill');
+    const billMap = new Map<number, string>();
+    for (const row of bills || []) {
+      const bid = (row as any)?.buildium_bill_id;
+      if (Number.isFinite(bid)) billMap.set(Number(bid), (row as any)?.id);
+    }
+
+    for (const buildiumBillId of billIds) {
+      const billIdLocal = billMap.get(buildiumBillId) ?? null;
+      if (!billIdLocal) continue;
+      const alloc =
+        billPaymentsAlloc.get(buildiumBillId) ??
+        (Number.isFinite(amount) && billIds.length > 0
+          ? Number((Number(amount) / billIds.length).toFixed(2))
+          : Number(amount) || 0);
+      if (!Number.isFinite(alloc) || alloc <= 0) continue;
+      const { error: validationError } = await supabase.rpc('validate_bill_application', {
+        p_bill_id: billIdLocal,
+        p_source_id: sourceTransactionId,
+        p_amount: alloc,
+      });
+      if (validationError) continue;
+      await supabase
+        .from('bill_applications')
+        .upsert(
+          {
+            bill_transaction_id: billIdLocal,
+            source_transaction_id: sourceTransactionId,
+            source_type: 'credit',
+            applied_amount: alloc,
+            applied_at: now,
+            created_at: now,
+            updated_at: now,
+            org_id: vendorRow.org_id,
+          },
+          { onConflict: 'bill_transaction_id,source_transaction_id' },
+        );
+    }
+  }
+
+  return { success: true };
 }
 
 async function processLeaseEvent(event: BuildiumWebhookEvent): Promise<{ success: boolean; error?: string }> {
@@ -1636,6 +2223,7 @@ async function processBankAccountTransactionEvent(
 
   const now = new Date().toISOString();
   const headerDate = baseHeaderDate;
+  const depositStatus = deriveDepositStatusFromBuildiumPayloadEdge(deposit);
 
   // Build a normalized list of payment components for this deposit:
   // Prefer PaymentTransactions (with amounts), else fall back to PaymentTransactionIds.
@@ -1927,6 +2515,22 @@ async function processBankAccountTransactionEvent(
       .insert(splitRows);
     if (splitErr) throw splitErr;
 
+    try {
+      await ensureDepositMetaEdge({
+        supabase,
+        transactionId: transactionIdLocal,
+        orgId: orgId ?? null,
+        buildiumDepositId: depositId,
+        status: depositStatus,
+      });
+    } catch (err) {
+      console.error('Failed to upsert deposit_meta from webhook (split path)', {
+        depositId,
+        transactionIdLocal,
+        err: (err as any)?.message ?? String(err),
+      });
+    }
+
     return { success: true };
   }
 
@@ -1982,6 +2586,22 @@ async function processBankAccountTransactionEvent(
       .from('transaction_payment_transactions')
       .insert(splitRows);
     if (splitErr) throw splitErr;
+  }
+
+  try {
+    await ensureDepositMetaEdge({
+      supabase,
+      transactionId: transactionIdLocal,
+      orgId: orgId ?? null,
+      buildiumDepositId: depositId,
+      status: depositStatus,
+    });
+  } catch (err) {
+    console.error('Failed to upsert deposit_meta from webhook (fallback path)', {
+      depositId,
+      transactionIdLocal,
+      err: (err as any)?.message ?? String(err),
+    });
   }
 
   return { success: true };

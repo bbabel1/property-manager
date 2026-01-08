@@ -1,0 +1,56 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireAuth } from '@/lib/auth/guards';
+import PaymentReversalService from '@/lib/payments/reversal-service';
+import { supabaseAdmin } from '@/lib/db';
+
+const ResolveSchema = z.object({
+  won: z.boolean(),
+  occurred_at: z.string().nullable().optional(),
+});
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ paymentId: string }> },
+) {
+  const { paymentId } = await context.params;
+  const payload = await request.json().catch(() => null);
+  const parsed = ResolveSchema.safeParse(payload);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+
+  try {
+    const auth = await requireAuth();
+
+    const { data: payment } = await supabaseAdmin
+      .from('payment')
+      .select('org_id')
+      .eq('id', paymentId)
+      .maybeSingle();
+    if (!payment) {
+      return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
+    }
+    const { data: membership } = await supabaseAdmin
+      .from('org_memberships')
+      .select('id')
+      .eq('org_id', payment.org_id)
+      .eq('user_id', auth.user.id)
+      .maybeSingle();
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const updated = await PaymentReversalService.resolveChargeback({
+      paymentId,
+      orgId: null as unknown as string, // org resolved inside service
+      won: parsed.data.won,
+      occurredAt: parsed.data.occurred_at ?? null,
+    });
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
+    console.error('Error resolving chargeback', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}

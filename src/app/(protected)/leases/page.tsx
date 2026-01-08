@@ -1,11 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, Search } from 'lucide-react';
 
 import { Cluster, PageBody, PageHeader, PageShell, Stack } from '@/components/layout/page-shell';
-import AddLeaseForm from '@/components/leases/AddLeaseModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -46,10 +46,23 @@ const formatCurrency = (amount: number | null | undefined) => {
   }).format(amount);
 };
 
+const parseDateOnly = (value?: string | null) => {
+  if (!value) return null;
+  const datePart = value.slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (match) {
+    const [, y, m, d] = match;
+    const dt = new Date(Number(y), Number(m) - 1, Number(d));
+    if (!Number.isNaN(dt.getTime())) return dt;
+  }
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
 const formatDate = (value: string | null | undefined) => {
   if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  const date = parseDateOnly(value);
+  if (!date) return '—';
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
@@ -91,7 +104,6 @@ export default function LeasesPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All statuses');
-  const [showAddForm, setShowAddForm] = useState(false);
 
   const loadLeases = useCallback(async () => {
     try {
@@ -165,148 +177,134 @@ export default function LeasesPage() {
         title="Leases"
         description="Monitor active leases, renewal opportunities, and tenancy details in one place."
         actions={
-          showAddForm ? (
-            <Button variant="outline" onClick={() => setShowAddForm(false)}>
-              Cancel
-            </Button>
-          ) : (
-            <Button className="flex items-center gap-2" onClick={() => setShowAddForm(true)}>
+          <Button asChild className="flex items-center gap-2">
+            <Link href="/leases/add?returnTo=/leases">
               <Plus className="h-4 w-4" />
               Add Lease
-            </Button>
-          )
+            </Link>
+          </Button>
         }
       />
       <PageBody>
         <Stack gap="lg">
-          {showAddForm ? (
-            <AddLeaseForm
-              onCancel={() => setShowAddForm(false)}
-              onSuccess={() => {
-                loadLeases();
-                setShowAddForm(false);
-              }}
-            />
-          ) : (
-            <Card className="overflow-hidden">
-              <Stack gap="md" className="px-6 py-4">
-                <Stack gap="sm" className="sm:flex-row sm:items-center sm:justify-between">
-                  <div className="relative w-full sm:max-w-sm">
-                    <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
-                    <Input
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search leases..."
-                      className="pl-9"
-                    />
-                  </div>
-                  <Cluster gap="sm" className="w-full sm:w-auto" align="center" justify="end" wrap={false}>
-                    <label className="sr-only" htmlFor="leases-status-filter">
-                      Filter leases by status
-                    </label>
-                    <select
-                      id="leases-status-filter"
-                      value={statusFilter}
-                      onChange={(event) => setStatusFilter(event.target.value)}
-                      className="border-input bg-background focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 sm:w-48"
-                    >
-                      <option>All statuses</option>
-                      {statusOptions.map((option) => (
-                        <option key={option}>{option}</option>
-                      ))}
-                    </select>
-                  </Cluster>
-                </Stack>
+          <Card className="overflow-hidden">
+            <Stack gap="md" className="px-6 py-4">
+              <Stack gap="sm" className="sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative w-full sm:max-w-sm">
+                  <Search className="text-muted-foreground absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+                  <Input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search leases..."
+                    className="pl-9"
+                  />
+                </div>
+                <Cluster gap="sm" className="w-full sm:w-auto" align="center" justify="end" wrap={false}>
+                  <label className="sr-only" htmlFor="leases-status-filter">
+                    Filter leases by status
+                  </label>
+                  <select
+                    id="leases-status-filter"
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="border-input bg-background focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 sm:w-48"
+                  >
+                    <option>All statuses</option>
+                    {statusOptions.map((option) => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </Cluster>
               </Stack>
-              <div className="border-b px-6 py-3 text-sm text-muted-foreground">
-                {loading
-                  ? 'Loading leases…'
-                  : `Showing ${filteredLeases.length} lease${filteredLeases.length === 1 ? '' : 's'}`}
-              </div>
-              <div className="px-6 py-4">
-                {loading ? (
-                  <Stack gap="sm" align="center" className="py-12 text-muted-foreground">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                    <span>Loading leases…</span>
-                  </Stack>
-                ) : error ? (
-                  <Stack gap="sm" align="center" className="py-12 text-center">
-                    <p className="text-destructive text-sm">{error}</p>
-                    <Button onClick={loadLeases} className="mt-1">
-                      Try Again
-                    </Button>
-                  </Stack>
-                ) : filteredLeases.length === 0 ? (
-                  <Stack gap="sm" align="center" className="py-12 text-center text-muted-foreground">
-                    <p className="text-sm">
-                      {leases.length === 0
-                        ? 'No leases found. Start by adding your first lease.'
-                        : 'No leases match the current filters.'}
-                    </p>
-                  </Stack>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Property</TableHead>
-                        <TableHead>Tenant</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Term</TableHead>
-                        <TableHead>Rent</TableHead>
-                        <TableHead>Lease Balance</TableHead>
+            </Stack>
+            <div className="border-b px-6 py-3 text-sm text-muted-foreground">
+              {loading
+                ? 'Loading leases…'
+                : `Showing ${filteredLeases.length} lease${filteredLeases.length === 1 ? '' : 's'}`}
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <Stack gap="sm" align="center" className="py-12 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span>Loading leases…</span>
+                </Stack>
+              ) : error ? (
+                <Stack gap="sm" align="center" className="py-12 text-center">
+                  <p className="text-destructive text-sm">{error}</p>
+                  <Button onClick={loadLeases} className="mt-1">
+                    Try Again
+                  </Button>
+                </Stack>
+              ) : filteredLeases.length === 0 ? (
+                <Stack gap="sm" align="center" className="py-12 text-center text-muted-foreground">
+                  <p className="text-sm">
+                    {leases.length === 0
+                      ? 'No leases found. Start by adding your first lease.'
+                      : 'No leases match the current filters.'}
+                  </p>
+                </Stack>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Property</TableHead>
+                      <TableHead>Tenant</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Term</TableHead>
+                      <TableHead>Rent</TableHead>
+                      <TableHead>Lease Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLeases.map((lease) => (
+                      <TableRow
+                        key={lease.id}
+                        onClick={() => handleRowClick(lease.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handleRowClick(lease.id);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        className="cursor-pointer"
+                      >
+                        <TableCell>
+                          <div className="text-foreground font-medium">
+                            {lease.property_name ?? 'Unknown property'}
+                          </div>
+                          <div className="text-muted-foreground text-xs">
+                            {lease.unit_number ? `Unit ${lease.unit_number}` : lease.unit_name || '—'}
+                          </div>
+                          {propertyAddress(lease) ? (
+                            <div className="text-muted-foreground text-xs">{propertyAddress(lease)}</div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="align-middle">
+                          {lease.tenant_name ? (
+                            <span className="text-foreground">{lease.tenant_name}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={statusBadgeClass(lease.status)}>
+                            {normalizeStatusLabel(lease.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {formatDateRange(lease.lease_from_date, lease.lease_to_date)}
+                        </TableCell>
+                        <TableCell>{formatCurrency(lease.rent_amount)}</TableCell>
+                        <TableCell>{formatCurrency(lease.balance)}</TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredLeases.map((lease) => (
-                        <TableRow
-                          key={lease.id}
-                          onClick={() => handleRowClick(lease.id)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault();
-                              handleRowClick(lease.id);
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
-                          className="cursor-pointer"
-                        >
-                          <TableCell>
-                            <div className="text-foreground font-medium">
-                              {lease.property_name ?? 'Unknown property'}
-                            </div>
-                            <div className="text-muted-foreground text-xs">
-                              {lease.unit_number ? `Unit ${lease.unit_number}` : lease.unit_name || '—'}
-                            </div>
-                            {propertyAddress(lease) ? (
-                              <div className="text-muted-foreground text-xs">{propertyAddress(lease)}</div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="align-middle">
-                            {lease.tenant_name ? (
-                              <span className="text-foreground">{lease.tenant_name}</span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={statusBadgeClass(lease.status)}>
-                              {normalizeStatusLabel(lease.status)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {formatDateRange(lease.lease_from_date, lease.lease_to_date)}
-                          </TableCell>
-                          <TableCell>{formatCurrency(lease.rent_amount)}</TableCell>
-                          <TableCell>{formatCurrency(lease.balance)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            </Card>
-          )}
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </Card>
         </Stack>
       </PageBody>
     </PageShell>

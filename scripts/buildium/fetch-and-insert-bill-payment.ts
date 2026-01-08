@@ -114,7 +114,7 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
     const accountsPayableGlId = await resolveGLAccountId(7, supabaseAdmin)
     const { data: bankAccount } = await supabaseAdmin
       .from('bank_accounts')
-      .select('id, gl_account, property_id, buildium_bank_id')
+      .select('id, gl_account, property_id, buildium_bank_id, org_id')
       .eq('buildium_bank_id', buildiumPayment.BankAccountId != null ? String(buildiumPayment.BankAccountId) : '')
       .maybeSingle()
 
@@ -131,6 +131,34 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
     }
     if (!bankGlAccountId && buildiumPayment.BankAccountId) {
       bankGlAccountId = await resolveGLAccountId(buildiumPayment.BankAccountId, supabaseAdmin)
+    }
+
+    const propertyIdForHeader = localPropertyId ?? (bankAccount as any)?.property_id ?? null
+    let propertyOrgId: string | null = (bankAccount as any)?.org_id ?? null
+    if (propertyIdForHeader && !propertyOrgId) {
+      const { data: propertyRow, error: propertyErr } = await supabaseAdmin
+        .from('properties')
+        .select('org_id')
+        .eq('id', propertyIdForHeader)
+        .maybeSingle()
+      if (propertyErr) throw propertyErr
+      propertyOrgId = (propertyRow as any)?.org_id ?? null
+    }
+
+    let bankGlOrgId: string | null = null
+    if (bankGlAccountId) {
+      const { data: bankGlRow, error: bankGlErr } = await supabaseAdmin
+        .from('gl_accounts')
+        .select('org_id')
+        .eq('id', bankGlAccountId)
+        .maybeSingle()
+      if (bankGlErr) throw bankGlErr
+      bankGlOrgId = (bankGlRow as any)?.org_id ?? null
+    }
+
+    const orgIdForHeader = propertyOrgId ?? bankGlOrgId ?? null
+    if (!orgIdForHeader) {
+      throw new Error('Unable to resolve organization for bill payment')
     }
 
     // Pull lease context from the originating bill
@@ -154,6 +182,9 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
       memo: buildiumPayment.Memo ?? null,
       buildium_bill_id: billId,
       bank_account_id: bankAccount?.id ?? null,
+      property_id: propertyIdForHeader ?? null,
+      unit_id: propertyIdForHeader ? localUnitId ?? null : null,
+      org_id: orgIdForHeader,
       updated_at: nowIso
     }
 
@@ -196,7 +227,7 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
       .delete()
       .eq('transaction_id', transactionId)
 
-    const propertyIdForLines = localPropertyId ?? bankAccount?.property_id ?? null
+    const propertyIdForLines = propertyIdForHeader
     const lineTimestamp = nowIso
     const lineDate = entryDate
     const memo = buildiumPayment.Memo ?? null
@@ -218,7 +249,7 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
         buildium_unit_id: buildiumUnitId,
         buildium_lease_id: null,
         property_id: propertyIdForLines,
-        unit_id: localUnitId
+        unit_id: propertyIdForLines ? localUnitId : null
       })
     } else {
       if (!accountsPayableGlId) {
@@ -242,7 +273,7 @@ async function insertBillPaymentIntoDatabase(buildiumPayment: any, billId: numbe
         buildium_unit_id: buildiumUnitId,
         buildium_lease_id: null,
         property_id: propertyIdForLines,
-        unit_id: localUnitId
+        unit_id: propertyIdForLines ? localUnitId : null
       })
     } else {
       if (!bankGlAccountId) {

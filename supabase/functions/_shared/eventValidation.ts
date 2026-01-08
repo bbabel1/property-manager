@@ -28,7 +28,7 @@ const MOVE_OUT_EVENT_NAMES = [
   'Lease.MoveOut.Deleted',
 ] as const;
 
-const BILL_PAYMENT_EVENT_NAMES = [
+export const BILL_PAYMENT_EVENT_NAMES = [
   'Bill.Payment.Created',
   'Bill.Payment.Updated',
   'Bill.Payment.Deleted',
@@ -76,7 +76,7 @@ const VENDOR_CATEGORY_EVENT_NAMES = [
   'VendorCategory.Deleted',
 ] as const;
 
-const VENDOR_TRANSACTION_EVENT_NAMES = [
+export const VENDOR_TRANSACTION_EVENT_NAMES = [
   'Vendor.Transaction.Created',
   'Vendor.Transaction.Updated',
   'Vendor.Transaction.Deleted',

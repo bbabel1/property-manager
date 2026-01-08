@@ -194,7 +194,7 @@ const TOUR_STEPS: Record<number, TourStepConfig> = {
   7: {
     id: 7,
     title: 'Assign property manager',
-    description: 'Optional but recommended—stored in state for later use.',
+    description: 'Recommended—stored in state for later use.',
     icon: UserCheck,
     bullets: ['Pick a manager or leave blank', 'Finish creates the property and routes to it'],
     optional: true,
@@ -656,47 +656,18 @@ export default function AddPropertyModal({
       >
         {/* Header */}
         <DialogHeader className="border-border border-b p-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <DialogTitle className="text-foreground text-xl font-semibold">
-              Add New Property
-            </DialogTitle>
-            <Button
-              type="button"
-              size="sm"
-              variant={isTourActive ? 'secondary' : 'outline'}
-              onClick={() => {
-                setIsTourActive(true);
-                setShowTourIntro(true);
-              }}
-              className={`${FOCUS_RING} flex items-center gap-2`}
-            >
-              <Sparkles className="h-4 w-4" />
-              {isTourActive ? 'Tour active' : 'Start guided tour'}
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-sm">
-            Follow the same seven steps as the modal: Property Type → Details → Ownership → Unit
-            Details → Management Services → Bank Account → Property Manager.
-          </p>
+          <DialogTitle className="text-foreground text-xl font-semibold">Add New Property</DialogTitle>
         </DialogHeader>
 
         {/* Progress Steps */}
         <div className="border-border border-b px-6 py-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="bg-primary/10 text-primary rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase">
-                Step {currentStep} of {TOTAL_STEPS}
-              </span>
-              <span className="text-foreground text-sm font-semibold">
-                {STEPS[currentStep - 1]?.title}
-              </span>
-            </div>
-            {isTourActive ? (
+          {isTourActive ? (
+            <div className="mb-3 flex justify-end">
               <span className="text-muted-foreground text-xs">
                 {stepReady ? 'Next is ready' : 'Complete this step to unlock Next'}
               </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between">
             {STEPS.map((step, index) => (
               <div key={step.id} className="flex items-center">
@@ -806,7 +777,7 @@ export default function AddPropertyModal({
               type="button"
               onClick={handleNext}
               disabled={!nextEnabled}
-              className={`${FOCUS_RING} min-h-[44px] ${nextEnabled ? 'shadow-primary/30 shadow-lg' : ''}`}
+              className={`${FOCUS_RING} min-h-[44px]`}
             >
               {submitting ? 'Saving...' : currentStep === TOTAL_STEPS ? 'Create Property' : 'Next'}
             </Button>
@@ -834,11 +805,6 @@ function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boole
               <span className="bg-primary/10 text-primary rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase">
                 Step {config.id} / {TOTAL_STEPS}
               </span>
-              {config.optional ? (
-                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
-                  Optional
-                </span>
-              ) : null}
             </div>
             <span className={`text-xs ${ready ? 'text-success' : 'text-muted-foreground'}`}>
               {ready ? 'Ready for Next' : 'Finish required items'}
@@ -874,11 +840,6 @@ function GuidedStepTip({ config, ready }: { config: TourStepConfig; ready: boole
               <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
                 Step {config.id}/{TOTAL_STEPS}
               </span>
-              {config.optional ? (
-                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]">
-                  Optional
-                </span>
-              ) : null}
             </div>
             <p className="text-foreground text-sm font-semibold">{config.title}</p>
             <p className="text-muted-foreground text-xs">{config.description}</p>
@@ -1043,7 +1004,7 @@ function Step2PropertyDetails({
 
         <div>
           <label className="text-foreground mb-1 block text-sm font-medium">
-            Address Line 2 (Optional)
+            Address Line 2
           </label>
           <input
             type="text"
@@ -1146,7 +1107,7 @@ function Step2PropertyDetails({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="text-foreground mb-1 block text-sm font-medium">
-              Year Built (Optional)
+              Year Built
             </label>
             <input
               type="text"
@@ -1158,7 +1119,7 @@ function Step2PropertyDetails({
           </div>
           <div className="sm:col-span-2">
             <label className="text-foreground mb-1 block text-sm font-medium">
-              Description (Optional)
+              Description
             </label>
             <textarea
               value={formData.structureDescription}
@@ -1399,7 +1360,7 @@ function Step3Ownership({
             setOwnerSelectValue(OWNER_PLACEHOLDER_VALUE);
           }}
         >
-          <SelectTrigger className={`h-10 w-full ${FOCUS_RING}`}>
+          <SelectTrigger className="h-10 w-full">
             <SelectValue placeholder="Choose owners to add..." />
           </SelectTrigger>
           <SelectContent>
@@ -1450,7 +1411,7 @@ function Step3Ownership({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-muted-foreground mb-1 block text-xs">Phone (Optional)</label>
+                <label className="text-muted-foreground mb-1 block text-xs">Phone</label>
                 <input
                   className={`border-border bg-background h-9 w-full rounded border px-2 ${FOCUS_RING}`}
                   value={createPhone}
@@ -1593,7 +1554,7 @@ function Step3Ownership({
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => removeOwner(owner.id)}
-                          className={`text-destructive hover:underline ${FOCUS_RING}`}
+                          className={`text-destructive text-sm hover:underline ${FOCUS_RING}`}
                           aria-label={`Remove ${owner.name} from property`}
                         >
                           Remove
@@ -1975,7 +1936,7 @@ function Step7PropertyManager({
       <div className="mb-6 text-center">
         <CurrentIcon className="text-primary mx-auto mb-4 h-16 w-16" />
         <h3 className="text-foreground mb-2 text-xl font-semibold">Property Manager</h3>
-        <p className="text-muted-foreground">Assign a property manager (optional)</p>
+        <p className="text-muted-foreground">Assign a property manager</p>
       </div>
 
       <div className="space-y-6">
@@ -1984,7 +1945,7 @@ function Step7PropertyManager({
           htmlFor="add-property-manager"
           className="text-foreground mb-1 block text-sm font-medium"
         >
-          Property Manager (Optional)
+          Property Manager
         </label>
         <Select
           value={formData.propertyManagerId || EMPTY_OPTION_VALUE}
@@ -2124,7 +2085,7 @@ function Step4UnitDetails({
                 <input
                   value={u.unitNumber}
                   onChange={(e) => updateUnit(idx, { unitNumber: e.target.value })}
-                  className={`border-border bg-background h-9 w-full rounded-md border px-3 ${FOCUS_RING}`}
+                  className={`border-border bg-background h-8 w-full rounded-md border px-3 text-sm ${FOCUS_RING}`}
                   placeholder="e.g., 101, A, 1"
                 />
               </div>
@@ -2139,7 +2100,7 @@ function Step4UnitDetails({
                         key={b}
                         type="button"
                         onClick={() => updateUnit(idx, { unitBedrooms: b })}
-                        className={`flex-1 py-3 text-center text-sm ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
+                        className={`flex-1 py-1.5 text-center text-sm ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
                         aria-label={`Select ${b} bedrooms for unit ${idx + 1}`}
                       >
                         {b}
@@ -2159,7 +2120,7 @@ function Step4UnitDetails({
                         key={b}
                         type="button"
                         onClick={() => updateUnit(idx, { unitBathrooms: b })}
-                        className={`flex-1 py-3 text-center text-sm ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
+                        className={`flex-1 py-1.5 text-center text-sm ${selected ? 'bg-primary/10 text-primary' : 'bg-background hover:bg-muted text-foreground'} ${FOCUS_RING}`}
                         aria-label={`Select ${b} bathrooms for unit ${idx + 1}`}
                       >
                         {b}
@@ -2171,13 +2132,13 @@ function Step4UnitDetails({
               {/* Description */}
               <div>
                 <label className="text-foreground mb-1 block text-sm font-medium">
-                  Description (Optional)
+                  Description
                 </label>
                 <textarea
                   value={u.description || ''}
                   onChange={(e) => updateUnit(idx, { description: e.target.value || undefined })}
-                  rows={3}
-                  className={`border-border bg-background w-full rounded-lg border px-3 py-2 ${FOCUS_RING}`}
+                  rows={2}
+                  className={`border-border bg-background w-full rounded-md border px-3 py-1.5 text-sm leading-tight ${FOCUS_RING}`}
                   placeholder="Unit-specific details, amenities, notes..."
                 />
               </div>

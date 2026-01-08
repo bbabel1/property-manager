@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { Info, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,12 @@ import {
 } from '@/components/leases/types';
 import { PAYMENT_METHOD_OPTIONS, PAYMENT_METHOD_VALUES } from '@/lib/enums/payment-method';
 import type { PaymentMethodValue } from '@/lib/enums/payment-method';
+import { PayerRestrictionsAlert } from '@/components/payments/PayerRestrictionsAlert';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { hasPermission } from '@/lib/permissions';
+import type { AppRole } from '@/lib/auth/roles';
+import { PaymentIntentStatus } from '@/components/payments/PaymentIntentStatus';
+import { PaymentEventsTimeline } from '@/components/payments/PaymentEventsTimeline';
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1, 'Date required'),
@@ -74,8 +80,15 @@ type ReceivePaymentFormProps = {
   tenants: LeaseTenantOption[];
   onCancel?: () => void;
   onSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitSuccess?: (payload?: LeaseFormSuccessPayload) => void;
+  onSubmitError?: (message?: string | null) => void;
   density?: 'comfortable' | 'compact';
   hideHeader?: boolean;
+  prefillTenantId?: string | null;
+  prefillAccountId?: string | null;
+  prefillAmount?: number | null;
+  prefillMemo?: string | null;
+  prefillDate?: string | null;
 };
 
 export default function ReceivePaymentForm({
@@ -85,15 +98,25 @@ export default function ReceivePaymentForm({
   tenants,
   onCancel,
   onSuccess,
+  onSubmitSuccess,
+  onSubmitError,
   density = 'comfortable',
   hideHeader = false,
+  prefillTenantId,
+  prefillAccountId,
+  prefillAmount,
+  prefillMemo,
+  prefillDate,
 }: ReceivePaymentFormProps) {
-  const createId = () =>
-    typeof globalThis !== 'undefined' &&
-    globalThis.crypto &&
-    typeof globalThis.crypto.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
+  const createId = useCallback(
+    () =>
+      typeof globalThis !== 'undefined' &&
+      globalThis.crypto &&
+      typeof globalThis.crypto.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : Math.random().toString(36).slice(2),
+    [],
+  );
 
   const { tenantsWithBuildiumId, tenantDropdownOptions } = useMemo(() => {
     const allTenants = tenants || [];
@@ -128,27 +151,142 @@ export default function ReceivePaymentForm({
     return { tenantsWithBuildiumId: withBuildium, tenantDropdownOptions: options };
   }, [tenants]);
 
-  const defaultTenantValue =
-    tenantsWithBuildiumId && tenantsWithBuildiumId.length > 0
-      ? getTenantOptionValue(tenantsWithBuildiumId[0])
-      : '';
+  const prefillTenantValue = useMemo(() => {
+    if (!prefillTenantId) return '';
+    const match = tenants?.find((tenant) => String(tenant.id) === String(prefillTenantId));
+    return match ? getTenantOptionValue(match) : '';
+  }, [prefillTenantId, tenants]);
 
-  const [form, setForm] = useState<FormState>({
-    date: null,
-    amount: '',
-    payment_method: (PAYMENT_METHOD_OPTIONS[0]?.value ?? 'Check') as PaymentMethodValue,
-    resident_id: defaultTenantValue,
-    memo: 'Payment',
-    allocations: [{ id: createId(), account_id: '', amount: '' }],
-    send_email: false,
-    print_receipt: false,
-    override_buildium_tenant_id: '',
-  });
+  const defaultTenantValue = useMemo(
+    () =>
+      prefillTenantValue ||
+      (tenantsWithBuildiumId && tenantsWithBuildiumId.length > 0
+        ? getTenantOptionValue(tenantsWithBuildiumId[0])
+        : ''),
+    [prefillTenantValue, tenantsWithBuildiumId],
+  );
+
+  const initialFormState = useMemo<FormState>(() => {
+    const amountString =
+      typeof prefillAmount === 'number' && Number.isFinite(prefillAmount)
+        ? String(prefillAmount)
+        : '';
+    return {
+      date: prefillDate ?? null,
+      amount: amountString,
+      payment_method: (PAYMENT_METHOD_OPTIONS[0]?.value ?? 'Check') as PaymentMethodValue,
+      resident_id: defaultTenantValue,
+      memo: prefillMemo ?? 'Payment',
+      allocations: [{ id: createId(), account_id: prefillAccountId ?? '', amount: amountString }],
+      send_email: false,
+      print_receipt: false,
+      override_buildium_tenant_id: '',
+    };
+  }, [createId, defaultTenantValue, prefillAccountId, prefillAmount, prefillDate, prefillMemo]);
+
+  const [form, setForm] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<
     Partial<Record<keyof FormState, string>> & { allocations?: string }
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [restrictions, setRestrictions] = useState<
+    { id: string; restriction_type: string; restricted_until: string | null; reason: string | null; methods: string[] }[]
+  >([]);
+  const [roles, setRoles] = useState<AppRole[]>([]);
+  const [lastIntentState, setLastIntentState] = useState<string | null>(null);
+  const [eventHistory, setEventHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    setForm(initialFormState);
+    setErrors({});
+    setFormError(null);
+    setLastIntentState(null);
+    setEventHistory([]);
+  }, [initialFormState]);
+
+  useEffect(() => {
+    const payerOption = tenants?.find((t) => getTenantOptionValue(t) === form.resident_id);
+    const payerId = payerOption?.id;
+    if (!payerId) {
+      setRestrictions([]);
+      return;
+    }
+
+    let active = true;
+    const fetchRestrictions = async () => {
+      try {
+        const res = await fetch(`/api/payers/${payerId}/restrictions`);
+        if (!active) return;
+        if (!res.ok) {
+          setRestrictions([]);
+          return;
+        }
+        const json = await res.json().catch(() => null);
+        const data = Array.isArray(json?.data) ? json.data : [];
+        setRestrictions(
+          data.map((r: any) => ({
+            id: r.id,
+            restriction_type: r.restriction_type,
+            restricted_until: r.restricted_until,
+            reason: r.reason ?? null,
+            methods: Array.isArray(r?.methods) ? r.methods : [],
+          })),
+        );
+      } catch (err) {
+        console.warn('Failed to fetch payer restrictions', err);
+        setRestrictions([]);
+      }
+    };
+
+    fetchRestrictions();
+    return () => {
+      active = false;
+    };
+  }, [form.resident_id, tenants]);
+
+  useEffect(() => {
+    getSupabaseBrowserClient()
+      .auth.getUser()
+      .then(({ data }) => {
+        const roleList =
+          ((data.user?.app_metadata as any)?.roles ||
+            (data.user?.user_metadata as any)?.roles ||
+            []) as AppRole[];
+        if (Array.isArray(roleList)) {
+          setRoles(roleList.filter((r): r is AppRole => typeof r === 'string'));
+        }
+      })
+      .catch(() => setRoles([]));
+  }, []);
+
+  const handleClearRestriction = useCallback(
+    async (restrictionId: string) => {
+      const payerOption = tenants?.find((t) => getTenantOptionValue(t) === form.resident_id);
+      const payerId = payerOption?.id;
+      if (!payerId) return;
+      try {
+        const res = await fetch(`/api/payers/${payerId}/restrictions/${restrictionId}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          const message =
+            res.status === 403
+              ? 'You do not have permission to clear this restriction.'
+              : res.status === 404
+                ? 'Restriction not found or already cleared.'
+                : (body as any)?.error ?? 'Failed to clear restriction.';
+          setFormError(message);
+          return;
+        }
+        setRestrictions((prev) => prev.filter((r) => r.id !== restrictionId));
+      } catch (_err) {
+        setFormError('Failed to clear restriction.');
+      }
+    },
+    [form.resident_id, tenants],
+  );
 
   const isCompact = density === 'compact';
 
@@ -213,7 +351,7 @@ export default function ReceivePaymentForm({
       ...prev,
       allocations: [...prev.allocations, { id: createId(), account_id: '', amount: '' }],
     }));
-  }, []);
+  }, [createId]);
 
   const removeRow = useCallback((id: string) => {
     setForm((prev) => ({
@@ -336,7 +474,9 @@ export default function ReceivePaymentForm({
           }),
         });
 
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        const body = (await res.json().catch(() => null)) as
+          | { error?: string; data?: { intent_state?: string | null; intent_id?: string | null } }
+          | null;
         if (!res.ok) {
           throw new Error(
             body && typeof body?.error === 'string'
@@ -346,21 +486,34 @@ export default function ReceivePaymentForm({
         }
 
         setForm({
-          date: null,
-          amount: '',
-          payment_method: (PAYMENT_METHOD_OPTIONS[0]?.value ?? 'Check') as PaymentMethodValue,
-          resident_id: defaultTenantValue,
-          memo: 'Payment',
-          allocations: [{ id: createId(), account_id: '', amount: '' }],
-          send_email: false,
-          print_receipt: false,
-          override_buildium_tenant_id: '',
+          ...initialFormState,
+          allocations: [
+            {
+              id: createId(),
+              account_id: initialFormState.allocations[0]?.account_id ?? '',
+              amount: initialFormState.amount,
+            },
+          ],
         });
         setErrors({});
+        setLastIntentState(body?.data?.intent_state ?? 'submitted');
+        if (body?.data?.intent_id) {
+          fetch(`/api/payments/intents/${body.data.intent_id}/events`)
+            .then((r) => r.json())
+            .then((payload) => {
+              setEventHistory(Array.isArray(payload?.data) ? payload.data : []);
+            })
+            .catch(() => setEventHistory([]));
+        }
         const transactionRecord = extractLeaseTransactionFromResponse(body);
-        onSuccess?.(transactionRecord ? { transaction: transactionRecord } : undefined);
+        const payload = transactionRecord ? { transaction: transactionRecord } : undefined;
+        onSubmitSuccess?.(payload);
+        onSuccess?.(payload);
       } catch (error) {
         setFormError(
+          error instanceof Error ? error.message : 'Unexpected error while saving payment',
+        );
+        onSubmitError?.(
           error instanceof Error ? error.message : 'Unexpected error while saving payment',
         );
         setSubmitting(false);
@@ -369,7 +522,7 @@ export default function ReceivePaymentForm({
 
       setSubmitting(false);
     },
-    [allocationsTotal, defaultTenantValue, form, leaseId, onSuccess, tenants],
+    [allocationsTotal, form, leaseId, onSuccess, onSubmitError, onSubmitSuccess, tenants, initialFormState, createId],
   );
 
   return (
@@ -388,6 +541,17 @@ export default function ReceivePaymentForm({
           </div>
         </div>
       )}
+
+      <PayerRestrictionsAlert
+        restrictions={restrictions}
+        onClearRestriction={
+          hasPermission(roles, 'settings.write') ? handleClearRestriction : undefined
+        }
+      />
+      <div className="flex flex-col gap-3">
+        <PaymentIntentStatus state={lastIntentState} />
+        <PaymentEventsTimeline events={eventHistory} />
+      </div>
 
       <Card className="border-border/70 border shadow-sm">
         <CardContent className={cn('p-8', isCompact && 'p-6 sm:p-7')}>
@@ -424,7 +588,9 @@ export default function ReceivePaymentForm({
                 <Dropdown
                   value={form.payment_method}
                   onChange={(value) => updateField('payment_method', value as PaymentMethodValue)}
-                  options={PAYMENT_METHOD_OPTIONS}
+                  options={PAYMENT_METHOD_OPTIONS.filter(
+                    (opt) => !restrictions.some((r) => r.methods.includes(opt.value)),
+                  )}
                   placeholder="Select payment method"
                 />
                 {errors.payment_method ? (

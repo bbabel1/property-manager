@@ -75,9 +75,20 @@ export async function buildiumFetch(
       },
       body: payload && method !== 'GET' ? JSON.stringify(payload) : undefined
     })
-    const text = await res.text()
+    let text = ''
     let json: unknown
-    try { json = text ? JSON.parse(text) : undefined } catch { json = undefined }
+    if (typeof (res as any)?.text === 'function') {
+      text = await res.text()
+      try { json = text ? JSON.parse(text) : undefined } catch { json = undefined }
+    } else if (typeof (res as any)?.json === 'function') {
+      try {
+        json = await (res as any).json()
+        text = json ? JSON.stringify(json) : ''
+      } catch {
+        json = undefined
+        text = ''
+      }
+    }
     if (res.ok) {
       const parsedId = (json as { Id?: unknown } | null | undefined)?.Id
       console.log(

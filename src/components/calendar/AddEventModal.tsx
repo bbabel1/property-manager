@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -152,10 +153,16 @@ export function AddEventModal({ open, onOpenChange, defaultDate, onCreated }: Ad
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="space-y-1">
               <Label className="text-xs text-gray-600">Date</Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={format(date, 'yyyy-MM-dd')}
-                onChange={(e) => setDate(new Date(e.target.value))}
+                onChange={(value) => {
+                  if (!value) return;
+                  const next = new Date(value);
+                  if (!Number.isNaN(next.getTime())) {
+                    setDate(next);
+                  }
+                }}
+                clearable={false}
               />
             </div>
             <div className="flex items-center gap-2">

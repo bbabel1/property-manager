@@ -5,10 +5,22 @@ import InlineEditCard from '@/components/form/InlineEditCard';
 import EditLink from '@/components/ui/EditLink';
 import { DateInput } from '@/components/ui/date-input';
 
+function parseDateOnly(input?: string | null): Date | null {
+  if (!input) return null;
+  const datePart = typeof input === 'string' ? input.slice(0, 10) : '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (match) {
+    const [, y, m, d] = match;
+    const parsed = new Date(Number(y), Number(m) - 1, Number(d));
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const parsed = new Date(input);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function toInputDate(d?: string | null) {
-  if (!d) return '';
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return '';
+  const dt = parseDateOnly(d);
+  if (!dt) return '';
   return dt.toISOString().slice(0, 10);
 }
 
@@ -252,9 +264,8 @@ export default function LeaseHeaderMeta({
 }
 
 function formatDisplayDate(input?: string | null): string {
-  if (!input) return '—';
-  const parsed = new Date(input);
-  if (Number.isNaN(parsed.getTime())) return '—';
+  const parsed = parseDateOnly(input);
+  if (!parsed) return '—';
   return parsed.toLocaleDateString(undefined, {
     month: 'numeric',
     day: 'numeric',

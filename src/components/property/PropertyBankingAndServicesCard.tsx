@@ -41,7 +41,7 @@ const fieldSurfaceClass = `inline-flex h-11 w-full items-center justify-between 
 const eyebrowLabelClass = 'eyebrow-label';
 const metricValueClass = 'text-base font-semibold text-foreground';
 const detailLabelClass = 'text-sm font-medium text-muted-foreground';
-const detailValueClass = 'text-base font-medium text-foreground';
+const detailValueClass = 'text-sm font-medium text-foreground';
 type CreateBankAccountResult =
   | BankAccount
   | {

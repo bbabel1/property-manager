@@ -284,16 +284,17 @@ describe('/api/monthly-logs/[logId]/owner-draw', () => {
   });
 
   it('writes balanced owner draw journal lines on POST', async () => {
-    process.env.BUILDIUM_BASE_URL = 'https://example.buildium.test';
+    process.env.BUILDIUM_BASE_URL = 'https://apisandbox.buildium.com';
     process.env.BUILDIUM_CLIENT_ID = 'client';
     process.env.BUILDIUM_CLIENT_SECRET = 'secret';
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 201,
-      json: async () => ({ Id: 1000, CheckNumber: '123' }),
+      statusText: 'Created',
+      text: async () => JSON.stringify({ Id: 1000, CheckNumber: '123' }),
     });
-    global.fetch = fetchMock;
+    global.fetch = fetchMock as any;
 
     const payload = {
       payeeId: 'owner-1',

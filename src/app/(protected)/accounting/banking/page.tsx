@@ -12,15 +12,6 @@ import { supabaseAdminMaybe, type TypedSupabaseClient } from '@/lib/db';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { TableRowLink } from '@/components/ui/table-row-link';
-import {
   NavTabs,
   NavTabsContent,
   NavTabsHeader,
@@ -31,6 +22,7 @@ import BankingHeaderActions from '@/components/financials/BankingHeaderActions';
 import BankingStatusFilter, {
   type BankingStatus,
 } from '@/components/financials/BankingStatusFilter';
+import BankAccountsTable from '@/components/financials/BankAccountsTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,46 +72,6 @@ type UndepositedFundsLine = {
     property_id: string | null;
   } | null;
 };
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: '2-digit',
-  day: '2-digit',
-  year: 'numeric',
-  timeZone: 'UTC',
-});
-
-function formatCurrency(amount: number | null | undefined) {
-  if (amount == null || Number.isNaN(Number(amount))) {
-    return currencyFormatter.format(0);
-  }
-  return currencyFormatter.format(Number(amount));
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return '—';
-  try {
-    const isoLike = value.includes('T') ? value : `${value}T00:00:00Z`;
-    const date = new Date(isoLike);
-    if (Number.isNaN(date.getTime())) return '—';
-    return dateFormatter.format(date);
-  } catch {
-    return '—';
-  }
-}
-
-function maskAccountNumber(value: string | null) {
-  if (!value) return '—';
-  const s = String(value);
-  if (s.length <= 4) return s;
-  return s.replace(/.(?=.{4}$)/g, '•');
-}
 
 function normalizeStatus(raw: unknown): BankingStatus {
   const value = String(raw ?? '').toLowerCase();
@@ -366,86 +318,7 @@ export default async function BankingPage({
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <Table className="min-w-[960px]">
-            <TableHeader>
-              <TableRow className="border-border/70 bg-muted/40 text-muted-foreground border-b text-xs font-semibold uppercase tracking-widest">
-                <TableHead className="text-muted-foreground w-[18rem]">
-                  Name
-                </TableHead>
-                <TableHead className="text-muted-foreground w-[10rem]">
-                  Account number
-                </TableHead>
-                <TableHead className="text-muted-foreground w-[10rem]">
-                  EPay enabled
-                </TableHead>
-                <TableHead className="text-muted-foreground w-[12rem]">
-                  Retail cash enabled
-                </TableHead>
-                <TableHead className="text-muted-foreground w-[12rem]">
-                  Last reconciliation date
-                </TableHead>
-                <TableHead className="text-muted-foreground w-[10rem]">
-                  Undeposited funds
-                </TableHead>
-                <TableHead className="text-muted-foreground w-[10rem] text-right">
-                  Balance
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="text-muted-foreground py-10 text-center text-sm"
-                  >
-                    We didn&apos;t find any bank accounts. Try adjusting your
-                    filters or add a new bank account.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((row) => (
-                  <TableRowLink
-                    key={row.id}
-                    href={`/bank-accounts/${row.id}`}
-                    className="border-border/70 bg-background hover:bg-muted/40 border-b transition-colors last:border-0"
-                  >
-                    <TableCell className="align-top">
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-semibold text-primary">
-                          {row.name}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {row.description || 'Bank account'}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="align-top text-sm">
-                      {maskAccountNumber(row.bank_account_number)}
-                    </TableCell>
-                    <TableCell className="align-top text-sm">
-                      {/* Placeholder until ElectronicPayments payload is surfaced */}
-                      —
-                    </TableCell>
-                    <TableCell className="align-top text-sm">—</TableCell>
-                    <TableCell className="align-top text-sm">
-                      {formatDate(row.last_reconciliation_date)}
-                    </TableCell>
-                    <TableCell className="align-top text-sm">
-                      {row.undeposited_funds == null
-                        ? '—'
-                        : formatCurrency(row.undeposited_funds)}
-                    </TableCell>
-                    <TableCell className="align-top text-right text-sm">
-                      {formatCurrency(row.bank_balance)}
-                    </TableCell>
-                  </TableRowLink>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <BankAccountsTable rows={rows} />
       </CardContent>
     </Card>
   );

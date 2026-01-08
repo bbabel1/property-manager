@@ -3,9 +3,10 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -26,7 +27,8 @@ import { Textarea } from '@/components/ui/textarea';
 import TransactionFileUploadDialog, {
   type TransactionAttachmentDraft,
 } from '@/components/files/TransactionFileUploadDialog';
-import { Paperclip } from 'lucide-react';
+import type { DepositStatus } from '@/types/deposits';
+import { Lock, Paperclip } from 'lucide-react';
 
 type BankAccountOption = {
   id: string;
@@ -47,9 +49,12 @@ type PaymentTransaction = {
 
 type DepositData = {
   id: string;
+  deposit_id?: string | null;
+  status?: DepositStatus | null;
   date: string;
   memo?: string | null;
   total_amount: number;
+  bank_account_name?: string | null;
   bank_gl_account_id?: string | null;
   payment_transactions: PaymentTransaction[];
 };
@@ -119,6 +124,25 @@ const makeId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
+const depositStatusLabel: Record<DepositStatus, string> = {
+  posted: 'Posted',
+  reconciled: 'Reconciled',
+  voided: 'Voided',
+};
+
+const depositStatusClassName: Record<DepositStatus, string> = {
+  posted: 'border-primary/30 bg-primary/10 text-primary',
+  reconciled: 'border-muted-foreground/30 bg-muted text-muted-foreground',
+  voided: 'border-destructive/30 bg-destructive/10 text-destructive',
+};
+
+const renderStatusBadge = (status: DepositStatus) => (
+  <Badge variant="outline" className={`flex items-center gap-1 ${depositStatusClassName[status]}`}>
+    {status === 'reconciled' ? <Lock className="h-3.5 w-3.5" aria-hidden /> : null}
+    {depositStatusLabel[status]}
+  </Badge>
+);
+
 export default function EditDepositForm(props: EditDepositFormProps): JSX.Element {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
@@ -128,6 +152,16 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
+  const status: DepositStatus = (props.deposit.status as DepositStatus | undefined) ?? 'posted';
+  const isReconciled = status === 'reconciled';
+  const isVoided = status === 'voided';
+  const isLocked = isReconciled || isVoided;
+  const displayId = props.deposit.deposit_id || props.deposit.id;
+  const depositBankLabel =
+    props.deposit.bank_account_name ||
+    props.bankAccounts.find((b) => b.id === props.deposit.bank_gl_account_id)?.name ||
+    null;
+
   const [formData, setFormData] = useState(() => ({
     bankAccountId: props.deposit.bank_gl_account_id || '',
     date: props.deposit.date ? props.deposit.date.slice(0, 10) : '',
@@ -136,6 +170,10 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
 
   const handleAddAttachment = useCallback(
     (draft: TransactionAttachmentDraft) => {
+      if (isLocked) {
+        setAttachmentError('Attachments cannot be modified for reconciled or voided deposits.');
+        return;
+      }
       if (attachments.length >= 5) {
         setAttachmentError('Attachments limited to 5 files for deposits.');
         return;
@@ -143,15 +181,20 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
       setAttachmentError(null);
       setAttachments((prev) => [...prev, { ...draft, id: makeId() }]);
     },
-    [attachments.length],
+    [attachments.length, isLocked],
   );
 
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+  const removeAttachment = useCallback(
+    (id: string) => {
+      if (isLocked) return;
+      setAttachments((prev) => prev.filter((a) => a.id !== id));
+    },
+    [isLocked],
+  );
 
   const removeExistingAttachment = useCallback(
     async (fileId: string) => {
+      if (isLocked) return;
       try {
         const res = await fetch(`/api/transactions/${props.deposit.id}/files?fileId=${fileId}`, {
           method: 'DELETE',
@@ -162,7 +205,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
         // ignore
       }
     },
-    [props.deposit.id],
+    [isLocked, props.deposit.id],
   );
 
   const loadExistingAttachments = useCallback(async () => {
@@ -179,6 +222,10 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
   useEffect(() => {
     void loadExistingAttachments();
   }, [loadExistingAttachments]);
+
+  useEffect(() => {
+    if (isLocked) setIsUploadDialogOpen(false);
+  }, [isLocked]);
 
   const uploadAttachments = useCallback(
     async (transactionId: string | null) => {
@@ -228,6 +275,13 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
       : Number.isFinite(Number(props.deposit.total_amount))
         ? Number(props.deposit.total_amount)
         : 0;
+  const bankSelectDisabled = isLocked || status === 'posted';
+  const dateDisabled = isLocked;
+  const memoDisabled = isVoided;
+  const attachmentsDisabled = isLocked;
+  const canDelete = !isLocked;
+  const canSubmit = !isVoided;
+  const saveLabel = isReconciled ? 'Save memo' : 'Save';
 
   const handleCancel = useCallback(() => {
     router.replace(props.returnHref);
@@ -240,6 +294,10 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
   const handleSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
+      if (!canSubmit) {
+        setError('Voided deposits are read-only and cannot be edited.');
+        return;
+      }
       setIsSaving(true);
       setError(null);
 
@@ -285,10 +343,15 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
       props.returnHref,
       router,
       uploadAttachments,
+      canSubmit,
     ],
   );
 
   const handleDelete = useCallback(async () => {
+    if (!canDelete) {
+      setError('This deposit is reconciled or voided and cannot be deleted.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this deposit?')) return;
     setIsSaving(true);
     setError(null);
@@ -308,7 +371,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
     } finally {
       setIsSaving(false);
     }
-  }, [props.deleteUrl, props.returnHref, router]);
+  }, [canDelete, props.deleteUrl, props.returnHref, router]);
 
   const paymentRows = useMemo(
     () => props.deposit.payment_transactions ?? [],
@@ -317,6 +380,26 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
 
   return (
     <div className="w-full space-y-8 pb-10">
+      <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="text-xs font-semibold tracking-wide text-muted-foreground">Deposit</div>
+          <div className="text-lg font-semibold leading-tight">{displayId}</div>
+          {depositBankLabel ? (
+            <div className="text-sm text-muted-foreground">Bank account: {depositBankLabel}</div>
+          ) : null}
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          {renderStatusBadge(status)}
+          <div className="text-xs text-muted-foreground">
+            {isVoided
+              ? 'Voided deposits are read-only.'
+              : isReconciled
+                ? 'Reconciled deposits are locked. Memo updates only.'
+                : 'Posted deposits allow memo and date edits.'}
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="border-destructive/20 bg-destructive/10 rounded-md border p-4">
           <p className="text-destructive text-sm">{error}</p>
@@ -329,19 +412,20 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
             <Label
               htmlFor="edit-deposit-bank-account"
               className="text-xs font-semibold tracking-wide"
-            >
-              BANK ACCOUNT <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={formData.bankAccountId}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, bankAccountId: value }))}
-            >
-              <SelectTrigger id="edit-deposit-bank-account">
-                <SelectValue placeholder="Select bank account" />
-              </SelectTrigger>
-              <SelectContent>
-                {props.bankAccounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
+          >
+            BANK ACCOUNT <span className="text-destructive">*</span>
+          </Label>
+          <Select
+            value={formData.bankAccountId}
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, bankAccountId: value }))}
+            disabled={bankSelectDisabled}
+          >
+            <SelectTrigger id="edit-deposit-bank-account" disabled={bankSelectDisabled}>
+              <SelectValue placeholder="Select bank account" />
+            </SelectTrigger>
+            <SelectContent>
+              {props.bankAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
                     {account.name}
                     {account.account_number ? ` - ${account.account_number}` : ''}
                   </SelectItem>
@@ -354,11 +438,11 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
             <Label htmlFor="edit-deposit-date" className="text-xs font-semibold tracking-wide">
               DATE <span className="text-destructive">*</span>
             </Label>
-            <Input
+            <DatePicker
               id="edit-deposit-date"
-              type="date"
               value={formData.date}
-              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+              onChange={(value) => setFormData((prev) => ({ ...prev, date: value ?? '' }))}
+              disabled={dateDisabled}
             />
           </div>
 
@@ -372,6 +456,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
               onChange={(e) => setFormData((prev) => ({ ...prev, memo: e.target.value }))}
               placeholder="Enter memo"
               className="min-h-20"
+              disabled={memoDisabled}
               maxLength={245}
             />
             <div className="text-muted-foreground mt-1 text-right text-xs">
@@ -459,8 +544,22 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
               <div className="text-sm font-semibold">Attachments</div>
               <div className="text-xs text-muted-foreground">Add supporting files for this deposit.</div>
               {attachmentError ? <p className="text-xs text-destructive">{attachmentError}</p> : null}
+              {attachmentsDisabled ? (
+                <p className="text-xs text-muted-foreground">
+                  Attachments are locked once a deposit is reconciled or voided.
+                </p>
+              ) : null}
             </div>
-            <Button type="button" size="sm" variant="outline" onClick={() => setIsUploadDialogOpen(true)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (attachmentsDisabled) return;
+                setIsUploadDialogOpen(true);
+              }}
+              disabled={attachmentsDisabled || isSaving}
+            >
               Add files
             </Button>
           </div>
@@ -486,7 +585,13 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
                       {a.uploadedAt ? ` · Uploaded ${new Date(a.uploadedAt).toLocaleDateString()}` : ''}
                     </div>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeExistingAttachment(a.fileId)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeExistingAttachment(a.fileId)}
+                    disabled={attachmentsDisabled || isSaving}
+                  >
                     Remove
                   </Button>
                 </div>
@@ -503,7 +608,13 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
                       {a.category || 'Uncategorized'} · {Math.round(a.file.size / 1024)} KB
                     </div>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(a.id)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeAttachment(a.id)}
+                    disabled={attachmentsDisabled || isSaving}
+                  >
                     Remove
                   </Button>
                 </div>
@@ -514,15 +625,21 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
 
         <TransactionFileUploadDialog
           open={isUploadDialogOpen}
-          onOpenChange={setIsUploadDialogOpen}
+          onOpenChange={(open) => {
+            if (attachmentsDisabled) {
+              setIsUploadDialogOpen(false);
+              return;
+            }
+            setIsUploadDialogOpen(open);
+          }}
           onSaved={handleAddAttachment}
           maxBytes={1000 * 1024}
         />
 
         <div className="flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <Button type="submit" disabled={isSaving}>
-              Save
+            <Button type="submit" disabled={isSaving || !canSubmit}>
+              {saveLabel}
             </Button>
             <Button type="button" variant="outline" onClick={handlePrint} disabled={isSaving}>
               Print
@@ -535,7 +652,7 @@ export default function EditDepositForm(props: EditDepositFormProps): JSX.Elemen
             type="button"
             variant="outline"
             onClick={handleDelete}
-            disabled={isSaving}
+            disabled={isSaving || !canDelete}
             className="text-destructive"
           >
             Delete

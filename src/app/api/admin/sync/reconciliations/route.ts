@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/db'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { logger } from '@/lib/logger'
 import type { Database as DatabaseSchema } from '@/types/database'
+import { syncBuildiumReconciliationTransactions } from '@/lib/buildium-reconciliation-sync'
 
 type BankAccountRow = Pick<DatabaseSchema['public']['Tables']['gl_accounts']['Row'], 'id' | 'buildium_gl_account_id'>
 type PropertyAccountRow = Pick<
@@ -10,6 +11,10 @@ type PropertyAccountRow = Pick<
   'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id'
 >
 type ReconciliationInsert = DatabaseSchema['public']['Tables']['reconciliation_log']['Insert']
+type ReconciliationRow = Pick<
+  DatabaseSchema['public']['Tables']['reconciliation_log']['Row'],
+  'id' | 'is_finished' | 'ending_balance' | 'statement_ending_date'
+>
 
 type BuildiumReconciliation = {
   Id?: number
@@ -37,6 +42,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const bankAccountId = url.searchParams.get('bankAccountId')
   const propertyId = url.searchParams.get('propertyId')
+  const includeFinished = url.searchParams.get('includeFinished') === 'true'
 
   let bankAccounts: BankAccountRow[] = []
   try {
@@ -56,6 +62,9 @@ export async function GET(req: NextRequest) {
   let totalAccounts = 0
   let totalRecs = 0
   let totalBalances = 0
+  let totalTxnSyncs = 0
+  let totalUnmatched = 0
+  let syncErrors = 0
   let changes = 0
 
     // If propertyId provided, restrict bank accounts to the property's linked accounts
@@ -83,12 +92,12 @@ export async function GET(req: NextRequest) {
     try {
       // Fetch reconciliations per Buildium bank account
       const res = await buildiumFetch('GET', `/bankaccounts/${buildiumBankAccountId}/reconciliations`, undefined, undefined, undefined)
-      if (!res.ok) {
-        logger.warn({ bank: buildiumBankAccountId, status: res.status }, 'Reconciliations fetch failed')
-        continue
-      }
-      const recs = (res.json ?? []) as BuildiumReconciliation[]
-      for (const r of recs) {
+        if (!res.ok) {
+          logger.warn({ bank: buildiumBankAccountId, status: res.status }, 'Reconciliations fetch failed')
+          continue
+        }
+        const recs = (res.json ?? []) as BuildiumReconciliation[]
+        for (const r of recs) {
         totalRecs++
         // Map to local property via properties.operating_bank_gl_account_id or deposit_trust_gl_account_id (fallback legacy)
         let property_id: string | null = null
@@ -102,8 +111,11 @@ export async function GET(req: NextRequest) {
           if (prop) property_id = prop.id
         } catch {}
 
+        const buildiumRecId = r?.Id ?? r?.id
+        if (buildiumRecId == null) continue
+
         const payload: Partial<ReconciliationInsert> = {
-          buildium_reconciliation_id: r?.Id ?? r?.id,
+          buildium_reconciliation_id: buildiumRecId,
           buildium_bank_account_id: buildiumBankAccountId,
           bank_gl_account_id: ba.id,
           gl_account_id: ba.id,
@@ -111,13 +123,30 @@ export async function GET(req: NextRequest) {
           statement_ending_date: r?.StatementEndingDate ?? r?.statementEndingDate ?? null,
           is_finished: Boolean(r?.IsFinished ?? r?.isFinished ?? false),
         }
-        const { error: upErr } = await admin.from('reconciliation_log').upsert(payload, { onConflict: 'buildium_reconciliation_id' })
-        if (!upErr) changes++
+        const { data: recRow, error: upErr } = await admin
+          .from('reconciliation_log')
+          .upsert(payload, { onConflict: 'buildium_reconciliation_id' })
+          .select('id, is_finished, ending_balance, statement_ending_date')
+          .maybeSingle<ReconciliationRow>()
+        if (upErr) {
+          logger.warn(
+            { err: upErr.message, recId: buildiumRecId, bank: buildiumBankAccountId },
+            'Upsert reconciliation failed',
+          )
+        } else {
+          changes++
+        }
 
         // Fetch balance for this reconciliation
-        const bid = r?.Id ?? r?.id
+        const bid = buildiumRecId
         if (bid != null) {
-          const balRes = await buildiumFetch('GET', `/bankaccounts/reconciliations/${bid}/balance`, undefined, undefined, undefined)
+          const balRes = await buildiumFetch(
+            'GET',
+            `/bankaccounts/${buildiumBankAccountId}/reconciliations/${bid}/balance`,
+            undefined,
+            undefined,
+            undefined,
+          )
           if (balRes.ok) {
             totalBalances++
             const b = (balRes.json ?? {}) as BuildiumBalance
@@ -127,7 +156,46 @@ export async function GET(req: NextRequest) {
               total_checks_withdrawals: b?.TotalChecksAndWithdrawals ?? b?.totalChecksAndWithdrawals ?? null,
               total_deposits_additions: b?.TotalDepositsAndAdditions ?? b?.totalDepositsAndAdditions ?? null,
             }
-            await admin.from('reconciliation_log').upsert(balPatch, { onConflict: 'buildium_reconciliation_id' })
+            const { error: balUpErr } = await admin
+              .from('reconciliation_log')
+              .upsert(balPatch, { onConflict: 'buildium_reconciliation_id' })
+            if (balUpErr) {
+              logger.warn(
+                { err: balUpErr.message, recId: bid, bank: buildiumBankAccountId },
+                'Balance upsert failed',
+              )
+            }
+          } else {
+            // Graceful fallback: keep syncing transactions; log once
+            const msg = `Balance fetch failed: bank=${buildiumBankAccountId}, rec=${bid}, status=${balRes.status}`
+            logger.warn({ bank: buildiumBankAccountId, recId: bid, status: balRes.status }, 'Balance fetch failed')
+            // Mark sync error for this reconciliation so UI can surface staleness, but don't stop txn sync
+            await admin
+              .from('reconciliation_log')
+              .update({ last_sync_error: msg })
+              .eq('buildium_reconciliation_id', bid)
+          }
+        }
+
+        // Sync reconciliation transactions for open or optionally finished reconciliations
+        const isFinished = Boolean(recRow?.is_finished ?? r?.IsFinished ?? r?.isFinished ?? false)
+        if (!isFinished || includeFinished) {
+          if (recRow?.id) {
+            const syncResult = await syncBuildiumReconciliationTransactions(
+              recRow.id,
+              bid,
+              ba.id,
+              buildiumBankAccountId,
+              admin,
+              {
+                markReconciled: isFinished,
+                endingBalance: recRow.ending_balance ?? null,
+                statementEndingDate: recRow.statement_ending_date ?? null,
+              },
+            )
+            totalTxnSyncs += syncResult.synced
+            totalUnmatched += syncResult.unmatched.length
+            if (syncResult.errors.length) syncErrors += syncResult.errors.length
           }
         }
       }
@@ -146,5 +214,14 @@ export async function GET(req: NextRequest) {
     }
   } catch {}
 
-  return NextResponse.json({ success: true, totalAccounts, totalRecs, totalBalances, changes })
+  return NextResponse.json({
+    success: true,
+    totalAccounts,
+    totalRecs,
+    totalBalances,
+    changes,
+    totalTxnSyncs,
+    totalUnmatched,
+    syncErrors,
+  })
 }

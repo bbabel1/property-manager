@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -26,7 +27,13 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Loader2, Plus, UploadCloud, XCircle } from 'lucide-react';
 import ActionButton from '@/components/ui/ActionButton';
 import AddLink from '@/components/ui/AddLink';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  FullscreenDialogContent,
+} from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
@@ -197,6 +204,19 @@ const toNumericId = (value: unknown): number | null => {
   return Number.isFinite(num) ? num : null;
 };
 
+const parseDateOnly = (input?: string | null): Date | null => {
+  if (!input) return null;
+  const datePart = typeof input === 'string' ? input.slice(0, 10) : '';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (match) {
+    const [, y, m, d] = match;
+    const parsed = new Date(Number(y), Number(m) - 1, Number(d));
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const parsed = new Date(input);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const extractLeaseIdFromLeaseResponse = (response: unknown): number | null => {
   if (!response || typeof response !== 'object') return null;
 
@@ -223,6 +243,10 @@ const extractLeaseIdFromLeaseResponse = (response: unknown): number | null => {
 // UI component
 
 export default function LeaseSection({ leases: initialLeases, unit, property }: LeaseSectionProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchString = searchParams?.toString() || '';
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -244,6 +268,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
   const [rent, setRent] = useState('');
   const [rentCycle, setRentCycle] = useState<RentFrequency>('Monthly');
   const [nextDueDate, setNextDueDate] = useState<string>('');
+  const [paymentDueDay, setPaymentDueDay] = useState<string>('');
   const [depositDate, setDepositDate] = useState<string>('');
   const [rentMemo, setRentMemo] = useState<string>('');
   const [depositMemo, setDepositMemo] = useState<string>('');
@@ -384,6 +409,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     setRent('');
     setRentCycle('Monthly');
     setNextDueDate('');
+    setPaymentDueDay('');
     setDepositDate('');
     setRentMemo('');
     setDepositMemo('');
@@ -444,7 +470,17 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     prevStartDateRef.current = '';
   }
 
-  const fmt = (d?: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
+  function closeLeaseDialog() {
+    resetForm();
+    setSaving(false);
+    setError(null);
+    setOpen(false);
+  }
+
+  const fmt = (d?: string | null) => {
+    const parsed = parseDateOnly(d);
+    return parsed ? parsed.toLocaleDateString() : '—';
+  };
   const fmtUsd = (n?: number | null) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
 
@@ -455,6 +491,15 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
+
+  const navigateToAddLease = useCallback(() => {
+    const baseReturnTo =
+      pathname && pathname.length > 0 ? pathname + (searchString ? `?${searchString}` : '') : '/leases';
+    const params = new URLSearchParams({ returnTo: baseReturnTo });
+    if (property?.id != null) params.set('propertyId', String(property.id));
+    if (unit?.id != null) params.set('unitId', String(unit.id));
+    router.push(`/leases/add?${params.toString()}`);
+  }, [pathname, property?.id, router, searchString, unit?.id]);
 
   const isAllowedMimeType = useCallback(
     (mimeType: string | undefined | null) => {
@@ -869,7 +914,18 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
         throw new Error('Deposit due date is required when amount is set');
       const propertyIdValue = propertyId || (property?.id ? String(property.id) : undefined);
       const unitIdValue = unitId || (unit?.id ? String(unit.id) : undefined);
-      const paymentDueDay = nextDueDate ? new Date(nextDueDate).getDate() : null;
+      const paymentDueDayValue = (() => {
+        if (paymentDueDay) {
+          const asNum = Number(paymentDueDay);
+          return Number.isFinite(asNum) ? asNum : null;
+        }
+        if (!nextDueDate) return null;
+        const parsed = new Date(`${nextDueDate}T00:00:00`);
+        return Number.isNaN(parsed.getTime()) ? null : parsed.getDate();
+      })();
+
+      if (rentHasAmount && !paymentDueDayValue)
+        throw new Error('Rent due day is required when amount is set');
 
       if (rentHasAmount && rentAccountOptions.length > 0 && !rentGlAccountId) {
         throw new Error('Select a GL account for rent charges');
@@ -888,7 +944,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
         rent_amount: Number.isFinite(rentAmount) ? rentAmount : null,
         lease_charges: leaseChargesValue ? leaseChargesValue : null,
         security_deposit: Number.isFinite(depositAmount) ? depositAmount : null,
-        payment_due_day: paymentDueDay,
+        payment_due_day: paymentDueDayValue,
         unit_number: unit?.unit_number ?? null,
         lease_type: leaseType || 'Fixed',
         send_welcome_email: sendWelcomeEmail,
@@ -970,13 +1026,22 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
         };
         const scheduleStart = nextDueDate || from || null;
         const scheduleEnd = to || null;
+        const scheduleStatus = (() => {
+          const start = scheduleStart || '';
+          if (!start) return 'Current';
+          const startDate = new Date(`${start}T00:00:00`);
+          if (Number.isNaN(startDate.getTime())) return 'Current';
+          const today = new Date();
+          const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          return startDate > todayMidnight ? 'Future' : 'Current';
+        })();
         payload.rent_schedules = [
           {
             start_date: scheduleStart,
             end_date: scheduleEnd,
             total_amount: rentAmount,
             rent_cycle: mapRentCycleToDb(rentCycle),
-            status: 'Current',
+            status: scheduleStatus,
             backdate_charges: false,
           },
         ];
@@ -1198,6 +1263,14 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     prevStartDateRef.current = from;
   }, [from, nextDueDate, depositDate]);
 
+  useEffect(() => {
+    if (paymentDueDay || !nextDueDate) return;
+    const parsed = new Date(`${nextDueDate}T00:00:00`);
+    if (!Number.isNaN(parsed.getTime())) {
+      setPaymentDueDay(String(parsed.getDate()));
+    }
+  }, [nextDueDate, paymentDueDay]);
+
   const describeGlAccount = (account: GlAccountOption) => account.name || 'Account';
 
   const incomeAccounts = glAccounts.filter((acc) => (acc.type ?? '').toLowerCase() === 'income');
@@ -1222,6 +1295,10 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     : depositAccountOptions.length
       ? 'Select account'
       : 'No GL accounts found';
+  const paymentDueDayOptions = Array.from({ length: 31 }, (_, idx) => {
+    const day = idx + 1;
+    return { value: String(day), label: `${day}` };
+  });
   // Hide property/unit selectors when the modal is scoped to a specific unit
   const hidePropertyUnitFields =
     property?.id !== undefined &&
@@ -1229,7 +1306,7 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     unit?.id !== undefined &&
     unit?.id !== null;
   const rentGridClass =
-    'grid grid-cols-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,12rem)_max-content_minmax(0,16rem)] gap-3';
+    'grid grid-cols-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,12rem)_max-content_max-content_minmax(0,16rem)] gap-3';
   // Security deposit defaults come from org settings; keep them but hide account/memo controls in this modal
   const hideDepositAccountMemoFields = true;
   const depositGridClass = hideDepositAccountMemoFields
@@ -1240,126 +1317,122 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
     <section className="relative">
       <div className="mb-2 flex items-center gap-2">
         <h3 className="text-foreground text-base font-semibold">Leases</h3>
-        {!open && (
-          <AddLink
-            onClick={() => {
-              resetForm();
-              setError(null);
-              setOpen(true);
-            }}
-            aria-label="Add lease"
-          />
-        )}
+        <AddLink onClick={navigateToAddLease} aria-label="Add lease" />
       </div>
-
-      {!open && (
-        <Card>
-          <Table>
-            <TableHeader>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Status</TableHead>
+              <TableHead>Start - End</TableHead>
+              <TableHead>Tenant</TableHead>
+              <TableHead>Rent</TableHead>
+              <TableHead className="w-[50px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {!leases || leases.length === 0 ? (
               <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Start - End</TableHead>
-                <TableHead>Tenant</TableHead>
-                <TableHead>Rent</TableHead>
-                <TableHead className="w-[50px]">Actions</TableHead>
+                <TableCell colSpan={5} className="text-muted-foreground text-sm">
+                  You don't have any leases for this unit right now.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {!leases || leases.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground text-sm">
-                    You don't have any leases for this unit right now.
+            ) : (
+              leases.map((lease) => (
+                <TableRow
+                  key={lease.id}
+                  className="hover:bg-muted cursor-pointer"
+                  onClick={() => {
+                    if (lease?.id != null) window.location.href = `/leases/${lease.id}`;
+                  }}
+                >
+                  <TableCell className="text-foreground text-sm">{lease.status || '—'}</TableCell>
+                  <TableCell className="text-foreground text-sm">
+                    <span>
+                      {fmt(lease.lease_from_date)} – {fmt(lease.lease_to_date)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-foreground text-sm">
+                    {lease.tenant_name ? (
+                      <span className="text-foreground">{lease.tenant_name}</span>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
+                  <TableCell className="text-foreground text-sm">
+                    {fmtUsd(lease.rent_amount)}
+                  </TableCell>
+                  <TableCell className="text-foreground text-sm">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <ActionButton onClick={(e) => e.stopPropagation()} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/leases/${lease.id}`;
+                          }}
+                        >
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            syncLease(String(lease.id));
+                          }}
+                          disabled={syncingLeaseId === String(lease.id)}
+                        >
+                          {syncingLeaseId === String(lease.id)
+                            ? 'Syncing…'
+                            : lease.buildium_lease_id
+                              ? 'Re-sync'
+                              : 'Sync to Buildium'}
+                        </DropdownMenuItem>
+                        {lease.buildium_lease_id && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <div className="text-muted-foreground px-2 py-1.5 text-xs">
+                              Buildium ID: {lease.buildium_lease_id}
+                            </div>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {leaseSyncError?.id === String(lease.id) ? (
+                      <p className="text-destructive mt-1 text-xs">{leaseSyncError.message}</p>
+                    ) : null}
+                    {lease.last_sync_error ? (
+                      <p className="text-destructive mt-1 text-xs">
+                        Last error: {lease.last_sync_error}
+                      </p>
+                    ) : null}
                   </TableCell>
                 </TableRow>
-              ) : (
-                leases.map((lease) => (
-                  <TableRow
-                    key={lease.id}
-                    className="hover:bg-muted cursor-pointer"
-                    onClick={() => {
-                      if (lease?.id != null) window.location.href = `/leases/${lease.id}`;
-                    }}
-                  >
-                    <TableCell className="text-foreground text-sm">{lease.status || '—'}</TableCell>
-                    <TableCell className="text-foreground text-sm">
-                      <span>
-                        {fmt(lease.lease_from_date)} – {fmt(lease.lease_to_date)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-foreground text-sm">
-                      {lease.tenant_name ? (
-                        <span className="text-foreground">{lease.tenant_name}</span>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
-                    <TableCell className="text-foreground text-sm">
-                      {fmtUsd(lease.rent_amount)}
-                    </TableCell>
-                    <TableCell className="text-foreground text-sm">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <ActionButton onClick={(e) => e.stopPropagation()} />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.location.href = `/leases/${lease.id}`;
-                            }}
-                          >
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              syncLease(String(lease.id));
-                            }}
-                            disabled={syncingLeaseId === String(lease.id)}
-                          >
-                            {syncingLeaseId === String(lease.id)
-                              ? 'Syncing…'
-                              : lease.buildium_lease_id
-                                ? 'Re-sync'
-                                : 'Sync to Buildium'}
-                          </DropdownMenuItem>
-                          {lease.buildium_lease_id && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <div className="text-muted-foreground px-2 py-1.5 text-xs">
-                                Buildium ID: {lease.buildium_lease_id}
-                              </div>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {leaseSyncError?.id === String(lease.id) ? (
-                        <p className="text-destructive mt-1 text-xs">{leaseSyncError.message}</p>
-                      ) : null}
-                      {lease.last_sync_error ? (
-                        <p className="text-destructive mt-1 text-xs">
-                          Last error: {lease.last_sync_error}
-                        </p>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
-
-      {open && (
-        <div className="border-border bg-card space-y-6 rounded-lg border p-6">
-          <div className="border-border flex items-center justify-between border-b pb-4">
-            <h2 className="text-foreground text-xl font-semibold">Add Lease</h2>
-            {pendingCosigners.length > 0 && (
-              <div className="text-muted-foreground text-xs">
-                {pendingCosigners.length} cosigner{pendingCosigners.length > 1 ? 's' : ''} added
-              </div>
+              ))
             )}
-            <div className="flex items-center gap-2">
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) closeLeaseDialog();
+        }}
+      >
+        <FullscreenDialogContent className="bg-background text-foreground">
+          <DialogTitle className="sr-only">Add lease</DialogTitle>
+          <div className="flex flex-col gap-0">
+            <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <div className="space-y-1">
+                <div className="text-xl font-semibold">Add lease</div>
+                {pendingCosigners.length > 0 && (
+                  <div className="text-muted-foreground text-xs">
+                    {pendingCosigners.length} cosigner{pendingCosigners.length > 1 ? 's' : ''} added
+                  </div>
+                )}
+              </div>
               <label className="text-foreground mr-2 flex items-center gap-2 text-xs select-none">
                 <Checkbox
                   id="syncBuildiumOnSave"
@@ -1368,23 +1441,9 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 />
                 <span>Sync to Buildium on save</span>
               </label>
-              <Button
-                variant="cancel"
-                size="sm"
-                onClick={() => {
-                  resetForm();
-                  setOpen(false);
-                  setError(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button size="sm" onClick={save} disabled={saving}>
-                {saving ? 'Saving…' : 'Save'}
-              </Button>
             </div>
-          </div>
-          <div className="space-y-6">
+            <div className="min-h-[320px] overflow-y-auto px-6 pb-8 pt-6">
+              <div className="mx-auto max-w-5xl space-y-6">
             {/* Lease details (Property, Unit, Type, Dates) */}
             <div>
               <h3 className="text-foreground mb-4 text-sm font-semibold">Lease details</h3>
@@ -1640,6 +1699,16 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                         onChange={setNextDueDate}
                         placeholder="m/d/yyyy"
                         containerClassName="sm:w-fit sm:max-w-[12rem] sm:min-w-[9.5rem]"
+                      />
+                    </div>
+                    <div className="w-full sm:w-fit sm:justify-self-start">
+                      <label className="mb-1 block text-xs">Due day *</label>
+                      <Dropdown
+                        value={paymentDueDay}
+                        onChange={(value) => setPaymentDueDay(String(value))}
+                        options={paymentDueDayOptions}
+                        placeholder="Select"
+                        className="sm:w-[8rem]"
                       />
                     </div>
                     <div>
@@ -2190,11 +2259,21 @@ export default function LeaseSection({ leases: initialLeases, unit, property }: 
                 in, they can make online payments, view important documents, submit requests, and
                 more!
               </p>
+                </div>
+                {error ? <div className="text-destructive text-sm">{error}</div> : null}
+                <div className="border-border flex flex-col gap-2 border-t pt-6 sm:flex-row sm:items-center sm:justify-start">
+                  <Button variant="cancel" size="sm" onClick={closeLeaseDialog}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={save} disabled={saving}>
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+              </div>
             </div>
-            {error ? <div className="text-destructive text-sm">{error}</div> : null}
           </div>
-        </div>
-      )}
+        </FullscreenDialogContent>
+      </Dialog>
       <Dialog open={showAddTenant} onOpenChange={setShowAddTenant}>
         <DialogContent className="w-[680px] max-w-[680px]">
           <DialogHeader>

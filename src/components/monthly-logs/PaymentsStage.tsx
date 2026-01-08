@@ -22,6 +22,7 @@ interface PaymentsData {
   feeCharges: number;
   unitId: string;
   propertyId: string;
+  tenantId?: string | null;
 }
 
 export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
@@ -234,6 +235,7 @@ export default function PaymentsStage({ monthlyLogId }: PaymentsStageProps) {
         monthlyLogId={monthlyLogId}
         unitId={data?.unitId || ''}
         propertyId={data?.propertyId || ''}
+        tenantId={data?.tenantId ?? undefined}
         isOpen={showCreatePayment}
         onClose={() => setShowCreatePayment(false)}
         onSuccess={handlePaymentCreated}

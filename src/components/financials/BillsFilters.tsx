@@ -11,10 +11,13 @@ type Props = {
   defaultUnitIds: string[]
   defaultVendorIds: string[]
   defaultStatuses: string[]
+  defaultApprovalStates?: string[]
   propertyOptions: Option[]
   unitOptions: Option[]
   vendorOptions: Option[]
   showPropertyFilter?: boolean
+  showUnitFilter?: boolean
+  showApprovalFilter?: boolean
 }
 
 export default function BillsFilters({
@@ -22,10 +25,13 @@ export default function BillsFilters({
   defaultUnitIds,
   defaultVendorIds,
   defaultStatuses,
+  defaultApprovalStates = ['draft', 'pending_approval', 'approved', 'rejected', 'voided'],
   propertyOptions,
   unitOptions,
   vendorOptions,
   showPropertyFilter = true,
+  showUnitFilter = true,
+  showApprovalFilter = false,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -39,11 +45,13 @@ export default function BillsFilters({
   const [unitIds, setUnitIds] = useState<string[]>(defaultUnitIds)
   const [vendorIds, setVendorIds] = useState<string[]>(defaultVendorIds)
   const [statusIds, setStatusIds] = useState<string[]>(defaultStatuses)
+  const [approvalIds, setApprovalIds] = useState<string[]>(defaultApprovalStates)
 
   useEffect(() => setPropertyIds(defaultPropertyIds), [defaultPropertyIds])
   useEffect(() => setUnitIds(defaultUnitIds), [defaultUnitIds])
   useEffect(() => setVendorIds(defaultVendorIds), [defaultVendorIds])
   useEffect(() => setStatusIds(defaultStatuses), [defaultStatuses])
+  useEffect(() => setApprovalIds(defaultApprovalStates), [defaultApprovalStates])
 
   const updateSearch = useCallback((mutator: (p: URLSearchParams) => void) => {
     const base = searchParams ? searchParams.toString() : ''
@@ -81,6 +89,16 @@ export default function BillsFilters({
     ],
     []
   )
+  const approvalOptionsFormatted = useMemo(
+    () => [
+      { value: 'draft', label: 'Draft', group: 'Approval', groupLabel: 'Approval' },
+      { value: 'pending_approval', label: 'Pending approval', group: 'Approval', groupLabel: 'Approval' },
+      { value: 'approved', label: 'Approved', group: 'Approval', groupLabel: 'Approval' },
+      { value: 'rejected', label: 'Rejected', group: 'Approval', groupLabel: 'Approval' },
+      { value: 'voided', label: 'Voided', group: 'Approval', groupLabel: 'Approval' },
+    ],
+    [],
+  )
 
   function handlePropertiesChange(ids: string[]) {
     setPropertyIds(ids)
@@ -117,6 +135,15 @@ export default function BillsFilters({
     })
   }
 
+  function handleApprovalChange(ids: string[]) {
+    setApprovalIds(ids)
+    updateSearch((p) => {
+      const all = ['draft', 'pending_approval', 'approved', 'rejected', 'voided']
+      if (!ids.length || ids.length === all.length) p.delete('approval')
+      else p.set('approval', ids.join(','))
+    })
+  }
+
   return (
     <div className="flex flex-wrap items-end gap-4">
       {showPropertyFilter ? (
@@ -134,19 +161,21 @@ export default function BillsFilters({
           />
         </div>
       ) : null}
-      <div className="flex flex-col gap-1 min-w-[16rem]">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unit</span>
-        <AccountMultiSelect
-          value={unitIds}
-          onChange={handleUnitsChange}
-          options={unitOptionsFormatted}
-          placeholder="All units"
-          hideGroupSidebar
-          selectAllLabel="Select all units"
-          clearAllLabel="Clear all units"
-          className="min-w-[16rem]"
-        />
-      </div>
+      {showUnitFilter && unitOptions.length ? (
+        <div className="flex flex-col gap-1 min-w-[16rem]">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Unit</span>
+          <AccountMultiSelect
+            value={unitIds}
+            onChange={handleUnitsChange}
+            options={unitOptionsFormatted}
+            placeholder="All units"
+            hideGroupSidebar
+            selectAllLabel="Select all units"
+            clearAllLabel="Clear all units"
+            className="min-w-[16rem]"
+          />
+        </div>
+      ) : null}
       <div className="flex flex-col gap-1 min-w-[16rem]">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Vendors</span>
         <AccountMultiSelect
@@ -173,6 +202,21 @@ export default function BillsFilters({
           className="min-w-[16rem]"
         />
       </div>
+      {showApprovalFilter ? (
+        <div className="flex flex-col gap-1 min-w-[16rem]">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Approval</span>
+          <AccountMultiSelect
+            value={approvalIds}
+            onChange={handleApprovalChange}
+            options={approvalOptionsFormatted}
+            placeholder="All approval states"
+            hideGroupSidebar
+            selectAllLabel="Select all approval states"
+            clearAllLabel="Clear all approval states"
+            className="min-w-[16rem]"
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

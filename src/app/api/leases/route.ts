@@ -8,6 +8,7 @@ import { getOrgGlSettingsOrThrow } from '@/lib/gl-settings';
 import { createCharge } from '@/lib/posting-service';
 import { generateRecurringCharges } from '@/lib/recurring-engine';
 import { normalizeCountry, normalizeCountryWithDefault } from '@/lib/normalizers';
+import { resolveLeaseBalances } from '@/lib/lease-balance';
 import { Pool, type PoolClient } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '@/types/database';
@@ -561,7 +562,8 @@ async function createContactsForNewPeople(
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const requestUrl = new URL(request.url);
+    const { searchParams } = requestUrl;
     const status = searchParams.get('status');
     const propertyId = searchParams.get('propertyId');
     const unitId = searchParams.get('unitId');
@@ -662,95 +664,72 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calculate lease balances from transaction_lines
     const leaseIds = mapped
       .map((lease) => lease.id)
       .filter((id): id is number => typeof id === 'number');
-    const balanceMap = new Map<number, number>();
 
+    // Gather recent transactions for fallback balance calculations (matches lease details page logic)
+    const transactionsByLease = new Map<number, unknown[]>();
     if (leaseIds.length > 0) {
       try {
-        // Create map of buildium_lease_id -> lease.id for mapping transaction lines
-        const buildiumToLeaseIdMap = new Map<number, number>();
-        for (const lease of mapped) {
-          if (
-            lease.id != null &&
-            lease.buildium_lease_id != null &&
-            typeof lease.buildium_lease_id === 'number'
-          ) {
-            buildiumToLeaseIdMap.set(lease.buildium_lease_id, lease.id);
-          }
-        }
-
-        const { data: transactionLines, error: balanceError } = await db
-          .from('transaction_lines')
-          .select('lease_id, buildium_lease_id, amount, posting_type')
+        const { data: txRows, error: txError } = await db
+          .from('transactions')
+          .select(
+            `
+            lease_id,
+            id,
+            transaction_type,
+            total_amount,
+            buildium_transaction_id,
+            transaction_lines (
+              amount,
+              posting_type,
+              gl_account_id,
+              gl_accounts ( id, type, sub_type, name, is_security_deposit_liability, exclude_from_cash_balances )
+            )
+          `,
+          )
           .in('lease_id', leaseIds);
 
-        if (!balanceError && transactionLines) {
-          // Also query by buildium_lease_id for leases that might be linked that way
-          const buildiumLeaseIds = Array.from(buildiumToLeaseIdMap.keys());
-          if (buildiumLeaseIds.length > 0) {
-            const { data: buildiumLines } = await db
-              .from('transaction_lines')
-              .select('lease_id, buildium_lease_id, amount, posting_type')
-              .in('buildium_lease_id', buildiumLeaseIds);
-
-            if (buildiumLines) {
-              transactionLines.push(...buildiumLines);
-            }
-          }
-
-          // Group transaction lines by lease_id and calculate balance
-          const leaseLineMap = new Map<
-            number,
-            Array<{ amount: number; posting_type: string | null }>
-          >();
-          for (const line of transactionLines) {
-            let leaseId: number | null = typeof line.lease_id === 'number' ? line.lease_id : null;
-
-            // If lease_id is null but buildium_lease_id exists, map it to the actual lease.id
-            if (leaseId == null && line.buildium_lease_id != null) {
-              const buildiumId =
-                typeof line.buildium_lease_id === 'number'
-                  ? line.buildium_lease_id
-                  : Number(line.buildium_lease_id);
-              if (Number.isFinite(buildiumId)) {
-                leaseId = buildiumToLeaseIdMap.get(buildiumId) ?? null;
-              }
-            }
-
-            if (leaseId == null) continue;
-
-            if (!leaseLineMap.has(leaseId)) {
-              leaseLineMap.set(leaseId, []);
-            }
-            leaseLineMap.get(leaseId)!.push({
-              amount: typeof line.amount === 'number' ? line.amount : Number(line.amount) || 0,
-              posting_type: line.posting_type,
-            });
-          }
-
-          // Calculate balance for each lease: debits - credits
-          for (const [leaseId, lines] of leaseLineMap.entries()) {
-            let balance = 0;
-            for (const line of lines) {
-              const amount = Math.abs(line.amount);
-              const isDebit = (line.posting_type || '').toLowerCase() === 'debit';
-              balance += isDebit ? amount : -amount;
-            }
-            balanceMap.set(leaseId, balance);
+        if (txError) {
+          logger.warn({ error: txError }, 'Failed to load lease transactions for balances');
+        } else {
+          for (const tx of txRows || []) {
+            if (!tx || typeof tx !== 'object') continue;
+            const leaseId = (tx as { lease_id?: number | null }).lease_id;
+            if (typeof leaseId !== 'number') continue;
+            if (!transactionsByLease.has(leaseId)) transactionsByLease.set(leaseId, []);
+            transactionsByLease.get(leaseId)!.push(tx);
           }
         }
-      } catch (balanceErr) {
-        logger.warn({ error: balanceErr }, 'Failed to calculate lease balances');
+      } catch (txErr) {
+        logger.warn({ error: txErr }, 'Failed to build lease transactions map');
       }
     }
 
+    // Calculate balances from local transactions only (no Buildium API calls)
     const enriched = mapped.map((lease) => {
       const property = lease.property_id ? propertyMap.get(lease.property_id) : undefined;
       const unit = lease.unit_id ? unitMap.get(lease.unit_id) : undefined;
-      const balance = lease.id != null ? (balanceMap.get(lease.id) ?? 0) : 0;
+      const balances = (() => {
+        if (lease.id == null) return { balance: 0, prepayments: 0, depositsHeld: 0 };
+        // Always start with zero balances - calculate from local transactions only
+        const base = { balance: 0, prepayments: 0, depositsHeld: 0 };
+        const txs = transactionsByLease.get(lease.id) ?? [];
+        try {
+          return resolveLeaseBalances(base, txs as Parameters<typeof resolveLeaseBalances>[1]);
+        } catch (err) {
+          logger.warn(
+            { error: err, leaseId: lease.id },
+            'Failed to resolve lease balances, using zero balance',
+          );
+          return base;
+        }
+      })();
+      const balance =
+        typeof balances.balance === 'number' && Number.isFinite(balances.balance)
+          ? balances.balance
+          : 0;
       return {
         ...lease,
         unit_number: lease.unit_number ?? unit?.unit_number ?? null,
@@ -1124,191 +1103,248 @@ export async function POST(request: NextRequest) {
     docs = docs ?? [];
     const safeLeaseId = leaseIdNumber;
 
+    const orgId: string | null = lease?.org_id ?? resolvedOrgId ?? null;
+    if (!orgId) {
+      return NextResponse.json(
+        { error: 'Organization is required to seed lease accounting' },
+        { status: 422 },
+      );
+    }
+
+    let gl: Awaited<ReturnType<typeof getOrgGlSettingsOrThrow>>;
+    try {
+      gl = await getOrgGlSettingsOrThrow(orgId);
+    } catch (glErr) {
+      const message = glErr instanceof Error ? glErr.message : String(glErr);
+      return NextResponse.json(
+        {
+          error: 'GL account settings are missing for this organization',
+          details: message,
+        },
+        { status: 422 },
+      );
+    }
+
+    const securityDeposit = Number(lease?.security_deposit ?? body.security_deposit ?? 0) || 0;
+    if (securityDeposit > 0) {
+      const { data: depositAccount, error: depositAccountError } = await (admin || supabase)
+        .from('gl_accounts')
+        .select('id, name, type, is_security_deposit_liability')
+        .eq('id', gl.tenant_deposit_liability)
+        .maybeSingle();
+      if (depositAccountError) {
+        return NextResponse.json(
+          {
+            error: 'Failed to load security deposit liability account',
+            details: depositAccountError.message,
+          },
+          { status: 500 },
+        );
+      }
+      if (!depositAccount) {
+        return NextResponse.json(
+          {
+            error: 'Security deposit liability account not found',
+            details: `GL id ${gl.tenant_deposit_liability} is not present`,
+          },
+          { status: 422 },
+        );
+      }
+      if (!depositAccount.is_security_deposit_liability) {
+        return NextResponse.json(
+          {
+            error: 'Security deposit liability account is not marked as a deposit liability',
+            details: `Update GL account "${depositAccount.name}" to set is_security_deposit_liability = true`,
+          },
+          { status: 422 },
+        );
+      }
+    }
+
     // Seed accounting: recurring rent template + one-time deposit/proration charges
     try {
-      const orgId: string | null = lease?.org_id ?? resolvedOrgId ?? null;
-      if (orgId) {
-        const gl = await getOrgGlSettingsOrThrow(orgId);
-
-        // 1) Ensure a recurring rent template exists when rent_amount is present
-        const rentAmount = Number(lease?.rent_amount ?? body.rent_amount ?? 0) || 0;
-        if (rentAmount > 0) {
-          const { data: existingRecurs, error: existingRecursError } = await (admin || supabase)
-            .from('recurring_transactions')
-            .select('id')
-            .eq('lease_id', safeLeaseId)
-            .limit(1);
-          if (existingRecursError) {
-            throw existingRecursError;
-          }
-          if (!existingRecurs || existingRecurs.length === 0) {
-            // Compute a reasonable start_date: prefer provided schedule, else anchor to payment_due_day relative to lease_from_date
-            let start_date: string | null = null;
-            const providedStart =
-              Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.start_date;
-            if (providedStart) start_date = String(providedStart);
-            else {
-              const leaseStart: string | null = lease?.lease_from_date ?? null;
-              const dueDay: number | null = lease?.payment_due_day ?? null;
-              if (leaseStart && dueDay) {
-                const d = new Date(String(leaseStart) + 'T00:00:00Z');
-                const maxDay = new Date(
-                  Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
-                ).getUTCDate();
-                const anchoredDay = Math.min(dueDay, maxDay);
-                const tentative = new Date(
-                  Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), anchoredDay),
-                );
-                const start =
-                  tentative < d
-                    ? new Date(
-                        Date.UTC(
-                          d.getUTCFullYear(),
-                          d.getUTCMonth() + 1,
-                          Math.min(
-                            anchoredDay,
-                            new Date(
-                              Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 0),
-                            ).getUTCDate(),
-                          ),
+      // 1) Ensure a recurring rent template exists when rent_amount is present
+      const rentAmount = Number(lease?.rent_amount ?? body.rent_amount ?? 0) || 0;
+      if (rentAmount > 0) {
+        const { data: existingRecurs, error: existingRecursError } = await (admin || supabase)
+          .from('recurring_transactions')
+          .select('id')
+          .eq('lease_id', safeLeaseId)
+          .limit(1);
+        if (existingRecursError) {
+          throw existingRecursError;
+        }
+        if (!existingRecurs || existingRecurs.length === 0) {
+          // Compute a reasonable start_date: prefer provided schedule, else anchor to payment_due_day relative to lease_from_date
+          let start_date: string | null = null;
+          const providedStart =
+            Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.start_date;
+          if (providedStart) start_date = String(providedStart);
+          else {
+            const leaseStart: string | null = lease?.lease_from_date ?? null;
+            const dueDay: number | null = lease?.payment_due_day ?? null;
+            if (leaseStart && dueDay) {
+              const d = new Date(String(leaseStart) + 'T00:00:00Z');
+              const maxDay = new Date(
+                Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
+              ).getUTCDate();
+              const anchoredDay = Math.min(dueDay, maxDay);
+              const tentative = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), anchoredDay));
+              const start =
+                tentative < d
+                  ? new Date(
+                      Date.UTC(
+                        d.getUTCFullYear(),
+                        d.getUTCMonth() + 1,
+                        Math.min(
+                          anchoredDay,
+                          new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 0)).getUTCDate(),
                         ),
-                      )
-                    : tentative;
-                start_date = start.toISOString().slice(0, 10);
-              } else if (leaseStart) {
-                start_date = String(leaseStart);
-              }
+                      ),
+                    )
+                  : tentative;
+              start_date = start.toISOString().slice(0, 10);
+            } else if (leaseStart) {
+              start_date = String(leaseStart);
             }
-
-            await (admin || supabase).from('recurring_transactions').insert({
-              lease_id: safeLeaseId,
-              frequency: 'Monthly',
-              amount: rentAmount,
-              memo: 'Monthly rent',
-              start_date: start_date || null,
-            });
           }
 
-          // Ensure a rent_schedules row exists for this lease
-          const { data: existingSchedules, error: existingSchedulesError } = await (
-            admin || supabase
-          )
+          await (admin || supabase).from('recurring_transactions').insert({
+            lease_id: safeLeaseId,
+            frequency: 'Monthly',
+            amount: rentAmount,
+            memo: 'Monthly rent',
+            start_date: start_date || null,
+          });
+        }
+
+        // Ensure a rent_schedules row exists for this lease
+        const { data: existingSchedules, error: existingSchedulesError } = await (admin || supabase)
+          .from('rent_schedules')
+          .select('id')
+          .eq('lease_id', safeLeaseId)
+          .limit(1);
+        if (existingSchedulesError) {
+          throw existingSchedulesError;
+        }
+        if (!existingSchedules || existingSchedules.length === 0) {
+          let scheduleStart: string | null = null;
+          const providedScheduleStart =
+            Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.start_date;
+          if (providedScheduleStart) scheduleStart = String(providedScheduleStart);
+          else {
+            const leaseStart: string | null = lease?.lease_from_date ?? null;
+            scheduleStart = leaseStart ? String(leaseStart) : null;
+          }
+          const resolvedScheduleStart =
+            scheduleStart || lease?.lease_from_date || new Date().toISOString().slice(0, 10);
+          const scheduleEnd: string | null = lease?.lease_to_date ?? null;
+          const scheduleCycleRaw: unknown =
+            (Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.rent_cycle) ||
+            'Monthly';
+          const scheduleCycle = mapRentCycleToDbEnum(
+            scheduleCycleRaw,
+          ) as Database['public']['Enums']['rent_cycle_enum'];
+          const now = new Date().toISOString();
+          const { error: scheduleInsertError } = await (admin || supabase)
             .from('rent_schedules')
-            .select('id')
-            .eq('lease_id', safeLeaseId)
-            .limit(1);
-          if (existingSchedulesError) {
-            throw existingSchedulesError;
-          }
-          if (!existingSchedules || existingSchedules.length === 0) {
-            let scheduleStart: string | null = null;
-            const providedScheduleStart =
-              Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.start_date;
-            if (providedScheduleStart) scheduleStart = String(providedScheduleStart);
-            else {
-              const leaseStart: string | null = lease?.lease_from_date ?? null;
-              scheduleStart = leaseStart ? String(leaseStart) : null;
-            }
-            const resolvedScheduleStart =
-              scheduleStart || lease?.lease_from_date || new Date().toISOString().slice(0, 10);
-            const scheduleEnd: string | null = lease?.lease_to_date ?? null;
-            const scheduleCycleRaw: unknown =
-              (Array.isArray(payload.rent_schedules) && payload.rent_schedules[0]?.rent_cycle) ||
-              'Monthly';
-            const scheduleCycle = mapRentCycleToDbEnum(
-              scheduleCycleRaw,
-            ) as Database['public']['Enums']['rent_cycle_enum'];
-            const now = new Date().toISOString();
-            const { error: scheduleInsertError } = await (admin || supabase)
-              .from('rent_schedules')
-              .insert({
-                lease_id: safeLeaseId,
-                start_date: resolvedScheduleStart,
-                end_date: scheduleEnd,
-                total_amount: rentAmount,
-                rent_cycle: scheduleCycle,
-                backdate_charges: false,
-                created_at: now,
-                updated_at: now,
-              } satisfies Database['public']['Tables']['rent_schedules']['Insert']);
-            if (scheduleInsertError) {
-              logger.warn(
-                { leaseId: lease_id, error: scheduleInsertError.message },
-                'Failed to insert rent schedule (enum mismatch?)',
-              );
-            }
-          }
-        }
-
-        // 2) One-time security deposit charge (A/R vs Deposit Liability)
-        const securityDeposit = Number(lease?.security_deposit ?? body.security_deposit ?? 0) || 0;
-        if (securityDeposit > 0) {
-          const depIdem = `lease:init:deposit:${safeLeaseId}`;
-          const { data: depExists, error: depositExistsError } = await (admin || supabase)
-            .from('transactions')
-            .select('id')
-            .eq('idempotency_key', depIdem)
-            .maybeSingle();
-          if (depositExistsError) {
-            throw depositExistsError;
-          }
-          if (!depExists?.id) {
-            const chargeDate: string =
-              lease?.lease_from_date || new Date().toISOString().slice(0, 10);
-            await createCharge({
+            .insert({
               lease_id: safeLeaseId,
-              date: chargeDate,
-              memo: 'Security deposit',
-              idempotency_key: depIdem,
-              lines: [
-                { gl_account_id: gl.ar_lease, amount: securityDeposit, dr_cr: 'DR' },
-                {
-                  gl_account_id: gl.tenant_deposit_liability,
-                  amount: securityDeposit,
-                  dr_cr: 'CR',
-                },
-              ],
-            });
+              start_date: resolvedScheduleStart,
+              end_date: scheduleEnd,
+              total_amount: rentAmount,
+              rent_cycle: scheduleCycle,
+              backdate_charges: false,
+              created_at: now,
+              updated_at: now,
+            } satisfies Database['public']['Tables']['rent_schedules']['Insert']);
+          if (scheduleInsertError) {
+            logger.warn(
+              { leaseId: lease_id, error: scheduleInsertError.message },
+              'Failed to insert rent schedule (enum mismatch?)',
+            );
           }
         }
-
-        // 3) Optional prorated first month rent (one-time)
-        const prorated =
-          Number(lease?.prorated_first_month_rent ?? body.prorated_first_month_rent ?? 0) || 0;
-        if (prorated > 0) {
-          const proIdem = `lease:init:prorate:${safeLeaseId}`;
-          const { data: proExists, error: prorateExistsError } = await (admin || supabase)
-            .from('transactions')
-            .select('id')
-            .eq('idempotency_key', proIdem)
-            .maybeSingle();
-          if (prorateExistsError) {
-            throw prorateExistsError;
-          }
-          if (!proExists?.id) {
-            const chargeDate: string =
-              lease?.lease_from_date || new Date().toISOString().slice(0, 10);
-            await createCharge({
-              lease_id: safeLeaseId,
-              date: chargeDate,
-              memo: 'Prorated first month rent',
-              idempotency_key: proIdem,
-              lines: [
-                { gl_account_id: gl.ar_lease, amount: prorated, dr_cr: 'DR' },
-                { gl_account_id: gl.rent_income, amount: prorated, dr_cr: 'CR' },
-              ],
-            });
-          }
-        }
-
-        // 4) Generate near-term recurring charges now (idempotent to idempotency_key scheme in generator)
-        await generateRecurringCharges(60);
       }
+
+      // 2) One-time security deposit charge (A/R vs Deposit Liability)
+      if (securityDeposit > 0) {
+        const depIdem = `lease:init:deposit:${safeLeaseId}`;
+        const { data: depExists, error: depositExistsError } = await (admin || supabase)
+          .from('transactions')
+          .select('id')
+          .eq('idempotency_key', depIdem)
+          .maybeSingle();
+        if (depositExistsError) {
+          throw depositExistsError;
+        }
+        if (!depExists?.id) {
+          const depositSchedule = (
+            Array.isArray(payload.recurring_transactions)
+              ? payload.recurring_transactions.find((row) => {
+                  const freq = (row as { frequency?: unknown }).frequency;
+                  return typeof freq === 'string' && freq.toLowerCase() === 'onetime';
+                })
+              : undefined
+          ) as { start_date?: unknown; end_date?: unknown } | undefined;
+          const chargeDate: string =
+            (typeof depositSchedule?.start_date === 'string' && depositSchedule.start_date) ||
+            (typeof depositSchedule?.end_date === 'string' && depositSchedule.end_date) ||
+            lease?.lease_from_date ||
+            new Date().toISOString().slice(0, 10);
+          await createCharge({
+            lease_id: safeLeaseId,
+            date: chargeDate,
+            memo: 'Security deposit',
+            idempotency_key: depIdem,
+            lines: [
+              { gl_account_id: gl.ar_lease, amount: securityDeposit, dr_cr: 'DR' },
+              {
+                gl_account_id: gl.tenant_deposit_liability,
+                amount: securityDeposit,
+                dr_cr: 'CR',
+              },
+            ],
+          });
+        }
+      }
+
+      // 3) Optional prorated first month rent (one-time)
+      const prorated =
+        Number(lease?.prorated_first_month_rent ?? body.prorated_first_month_rent ?? 0) || 0;
+      if (prorated > 0) {
+        const proIdem = `lease:init:prorate:${safeLeaseId}`;
+        const { data: proExists, error: prorateExistsError } = await (admin || supabase)
+          .from('transactions')
+          .select('id')
+          .eq('idempotency_key', proIdem)
+          .maybeSingle();
+        if (prorateExistsError) {
+          throw prorateExistsError;
+        }
+        if (!proExists?.id) {
+          const chargeDate: string = lease?.lease_from_date || new Date().toISOString().slice(0, 10);
+          await createCharge({
+            lease_id: safeLeaseId,
+            date: chargeDate,
+            memo: 'Prorated first month rent',
+            idempotency_key: proIdem,
+            lines: [
+              { gl_account_id: gl.ar_lease, amount: prorated, dr_cr: 'DR' },
+              { gl_account_id: gl.rent_income, amount: prorated, dr_cr: 'CR' },
+            ],
+          });
+        }
+      }
+
+      // 4) Generate near-term recurring charges now (idempotent to idempotency_key scheme in generator)
+      await generateRecurringCharges(60, { leaseId: safeLeaseId, ensureFirstOccurrence: true });
     } catch (seedErr) {
-      // Do not fail lease creation if accounting seeding fails; include warning in response logs
-      logger.warn(
-        { error: seedErr instanceof Error ? seedErr.message : String(seedErr) },
-        'Lease accounting seeding failed',
+      const message = seedErr instanceof Error ? seedErr.message : String(seedErr);
+      logger.error({ error: message, leaseId: safeLeaseId }, 'Lease accounting seeding failed');
+      return NextResponse.json(
+        { error: 'Failed to seed lease accounting', details: message },
+        { status: 500 },
       );
     }
 

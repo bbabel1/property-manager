@@ -21,11 +21,16 @@ type ManagementServiceConfig = {
   billing_frequency: string | null;
 };
 
-type PlanOption = { id: string; name: string };
+type PlanOption = { id: string; name: string; offering_ids?: string[] };
 type ServiceOption = { id: string; name: string; is_active: boolean; category?: string | null };
 
 function isAlaCarte(planName: string | null | undefined) {
-  return String(planName || '').trim().toLowerCase() === 'a-la-carte';
+  return (
+    String(planName || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, '') === 'alacarte'
+  );
 }
 
 function parseNumber(value: string) {
@@ -64,6 +69,42 @@ export default function ManagementServiceCard({
 
   const alaCarte = useMemo(() => isAlaCarte(planName), [planName]);
 
+  const normalizePlanKey = useCallback(
+    (name: string | null | undefined) =>
+      String(name || '')
+        .trim()
+        .toLowerCase(),
+    [],
+  );
+
+  const plansByName = useMemo(() => {
+    const map = new Map<string, PlanOption>();
+    plans.forEach((p) => map.set(normalizePlanKey(p.name), p));
+    return map;
+  }, [plans, normalizePlanKey]);
+
+  const serviceNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    services.forEach((svc) => map.set(svc.id, svc.name));
+    return map;
+  }, [services]);
+
+  const applyPlanDefaults = useCallback(
+    (nextPlanName: string, preserveWhenNoDefaults = false) => {
+      const plan = plansByName.get(normalizePlanKey(nextPlanName));
+      const offeringIds = plan?.offering_ids || [];
+      const defaults = offeringIds
+        .map((id) => serviceNameById.get(id))
+        .filter((name): name is string => Boolean(name));
+      if (defaults.length) {
+        setSelectedServices(new Set(defaults));
+      } else if (!preserveWhenNoDefaults) {
+        setSelectedServices(new Set());
+      }
+    },
+    [plansByName, serviceNameById, normalizePlanKey],
+  );
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -77,38 +118,55 @@ export default function ManagementServiceCard({
       ]);
 
       const cfgJson = await configRes.json().catch(() => ({}));
+      const plansJson = await plansRes.json().catch(() => ({}));
+      const servicesJson = await servicesRes.json().catch(() => ({}));
       if (!configRes.ok) {
         throw new Error(cfgJson?.error?.message || cfgJson?.error || 'Failed to load configuration');
       }
       const cfg = (cfgJson?.data || {}) as ManagementServiceConfig;
       setConfig(cfg);
       setPlanName(cfg.service_plan || '');
-      setSelectedServices(new Set(Array.isArray(cfg.active_services) ? cfg.active_services : []));
+      const plansRows: PlanOption[] = plansJson?.data
+        ? (plansJson.data as any[]).map((p: any) => ({
+            id: String(p.id),
+            name: String(p.name || ''),
+            offering_ids: Array.isArray(p.offering_ids)
+              ? p.offering_ids.map((id: any) => String(id)).filter(Boolean)
+              : [],
+          }))
+        : [];
+      const serviceRows: ServiceOption[] = servicesJson?.data
+        ? servicesJson.data.map((row: any) => ({
+            id: String(row.id),
+            name: String(row.name || ''),
+            category: row.category || '',
+            is_active: row.is_active === undefined ? true : Boolean(row.is_active),
+          }))
+        : [];
+      const nameById = new Map<string, string>();
+      serviceRows.forEach((s) => nameById.set(s.id, s.name));
+      const configServices = new Set(
+        Array.isArray(cfg.active_services) ? cfg.active_services : [],
+      );
+      if (!configServices.size && cfg.service_plan) {
+        const plan = plansRows.find(
+          (p) => normalizePlanKey(p.name) === normalizePlanKey(cfg.service_plan),
+        );
+        if (plan?.offering_ids?.length) {
+          plan.offering_ids.forEach((id) => {
+            const name = nameById.get(id);
+            if (name) configServices.add(name);
+          });
+        }
+      }
+      setSelectedServices(configServices);
       setBillNotes(cfg.bill_administration || '');
       setFeeAmount(cfg.fee_amount != null ? String(cfg.fee_amount) : '');
       setFeePercent(cfg.fee_percent != null ? String(cfg.fee_percent) : '');
       setFeeFrequency((cfg.billing_frequency || 'monthly').toLowerCase());
 
-      const plansJson = await plansRes.json().catch(() => ({}));
-      if (plansRes.ok && Array.isArray(plansJson?.data)) {
-        setPlans(
-          plansJson.data
-            .map((p: any) => ({ id: String(p.id), name: String(p.name || '') }))
-            .filter((p: PlanOption) => p.name),
-        );
-      }
-
-      const servicesJson = await servicesRes.json().catch(() => ({}));
-      if (servicesRes.ok && Array.isArray(servicesJson?.data)) {
-        setServices(
-          servicesJson.data.map((row: any) => ({
-            id: String(row.id),
-            name: String(row.name || ''),
-            category: row.category || '',
-            is_active: row.is_active === undefined ? true : Boolean(row.is_active),
-          })),
-        );
-      }
+      setPlans(plansRows.filter((p) => p.name));
+      setServices(serviceRows);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load management services';
       setError(message);
@@ -116,7 +174,7 @@ export default function ManagementServiceCard({
     } finally {
       setLoading(false);
     }
-  }, [propertyId, unitId]);
+  }, [normalizePlanKey, propertyId, unitId]);
 
   useEffect(() => {
     load();
@@ -131,6 +189,11 @@ export default function ManagementServiceCard({
     });
   };
 
+  const handlePlanChange = (value: string) => {
+    setPlanName(value);
+    applyPlanDefaults(value);
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -138,7 +201,7 @@ export default function ManagementServiceCard({
       if (unitId) params.set('unitId', unitId);
       const body = {
         service_plan: planName,
-        active_services: alaCarte ? Array.from(selectedServices) : [],
+        active_services: Array.from(selectedServices),
         bill_administration: billNotes,
         plan_fee_amount: parseNumber(feeAmount),
         plan_fee_percent: parseNumber(feePercent),
@@ -280,7 +343,7 @@ export default function ManagementServiceCard({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Service Plan</Label>
-                <Select value={planName} onValueChange={setPlanName}>
+                <Select value={planName} onValueChange={handlePlanChange}>
                   <SelectTrigger aria-label="Service Plan">
                     <SelectValue placeholder="Select plan" />
                   </SelectTrigger>
@@ -339,14 +402,14 @@ export default function ManagementServiceCard({
               <p className="text-foreground text-sm font-medium">{feeSummary}</p>
             </div>
 
-            <div className="space-y-2">
+              <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Active Services {alaCarte ? '(A-la-carte)' : ''}</Label>
-                {!alaCarte ? (
-                  <span className="text-muted-foreground text-xs">
-                    Plan defaults apply; change to A-la-carte to pick services.
-                  </span>
-                ) : null}
+                <span className="text-muted-foreground text-xs">
+                  {alaCarte
+                    ? 'Select services for this plan.'
+                    : 'Plan services are pre-selected; uncheck to override.'}
+                </span>
               </div>
               {alaCarte && selectedServices.size === 0 ? (
                 <p className="text-muted-foreground text-sm">
@@ -357,7 +420,6 @@ export default function ManagementServiceCard({
                 {sortedServices.map((svc) => (
                   <label key={svc.id} className="flex items-center gap-2 text-sm">
                     <Checkbox
-                      disabled={!alaCarte}
                       checked={selectedServices.has(svc.name)}
                       onCheckedChange={() => toggleService(svc.name)}
                     />

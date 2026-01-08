@@ -704,22 +704,37 @@ export async function POST(request: NextRequest) {
           rental_type: 'Rental',
           property_type: propertyType || null,
         });
-        // Attach PropertyManagerId from staff.buildium_user_id when available
+        // Attach PropertyManagerId from staff.buildium_staff_id when available
         if (propertyManagerId) {
           try {
             const { data: pm, error: pmError } = await db
               .from('staff')
-              .select('buildium_user_id')
+              .select('buildium_staff_id')
               .eq('id', propertyManagerId)
-              .not('buildium_user_id', 'is', null)
+              .not('buildium_staff_id', 'is', null)
               .single();
             if (pmError) {
-              logger.warn({ error: pmError, propertyManagerId }, 'Unable to load property manager Buildium user id');
-            } else {
-              const pmId = pm?.buildium_user_id ? Number(pm.buildium_user_id) : null;
-              if (pmId) propertyPayload.PropertyManagerId = pmId;
+              logger.warn(
+                { error: pmError, propertyManagerId, staffId: propertyManagerId },
+                'Unable to load property manager Buildium staff id',
+              );
+            } else if (pm?.buildium_staff_id != null) {
+              const pmId = Number(pm.buildium_staff_id);
+              if (Number.isFinite(pmId)) {
+                propertyPayload.PropertyManagerId = pmId;
+              } else {
+                logger.warn(
+                  { propertyManagerId, staffId: propertyManagerId, buildiumStaffId: pm.buildium_staff_id },
+                  'Invalid Buildium staff id for property manager; skipping PropertyManagerId',
+                );
+              }
             }
-          } catch {}
+          } catch (error) {
+            logger.warn(
+              { error, propertyManagerId, staffId: propertyManagerId },
+              'Unexpected error loading property manager Buildium staff id',
+            );
+          }
         }
         if (prelinkedOwnerIds.length)
           propertyPayload.RentalOwnerIds = prelinkedOwnerIds;

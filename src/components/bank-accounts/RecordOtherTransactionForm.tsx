@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { ArrowRight, Info } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -296,12 +297,7 @@ export default function RecordOtherTransactionForm(props: {
             <Label htmlFor="rot-date" className="text-xs font-semibold tracking-wide">
               DATE <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="rot-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <DatePicker id="rot-date" value={date} onChange={(value) => setDate(value ?? '')} />
           </div>
 
           <div>

@@ -31,4 +31,13 @@ if (!env.NEXTAUTH_SECRET) {
   Reflect.set(env, 'NEXTAUTH_SECRET', 'test-secret-key-for-testing-only-min-32-chars')
 }
 
+// Default opt-out for Supabase RPC integration tests unless explicitly enabled
+if (!env.RUN_SUPABASE_RPC_TESTS) {
+  Reflect.set(env, 'RUN_SUPABASE_RPC_TESTS', 'false')
+}
+
+// Provide a placeholder Buildium webhook secret for tests that rely on env fallback
+if (!env.BUILDIUM_WEBHOOK_SECRET) {
+  Reflect.set(env, 'BUILDIUM_WEBHOOK_SECRET', 'test-webhook-secret-for-testing-only')
+}
 

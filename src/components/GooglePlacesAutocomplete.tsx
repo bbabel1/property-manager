@@ -480,9 +480,10 @@ export default function GooglePlacesAutocomplete({
           }
         }
 
+        const formattedAddress = (place as any)?.formatted_address as string | undefined;
         address = [streetNumber, routeName].filter(Boolean).join(' ').trim();
-        if (!address && place.formatted_address) {
-          address = place.formatted_address;
+        if (!address && formattedAddress) {
+          address = formattedAddress;
         }
         if (postalCode && postalSuffix) postalCode = `${postalCode}-${postalSuffix}`;
         city =

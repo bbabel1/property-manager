@@ -361,6 +361,27 @@ export default async function GeneralLedgerPage({
   }
 
   const groups = buildLedgerGroups(priorLines, periodLines, { basis: basisParam });
+  const depositTxIds = Array.from(
+    new Set(
+      groups
+        .flatMap((g) => g.lines.map(({ line }) => line.transactionId))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const depositMetaByTx = new Map<string, { deposit_id: string | null }>();
+  if (depositTxIds.length) {
+    const { data: depositMetaRows } = await supabase
+      .from('deposit_meta')
+      .select('transaction_id, deposit_id')
+      .in('transaction_id', depositTxIds);
+    (depositMetaRows || []).forEach((row) => {
+      if (row?.transaction_id) {
+        depositMetaByTx.set(String(row.transaction_id), {
+          deposit_id: (row as any)?.deposit_id ?? null,
+        });
+      }
+    });
+  }
 
   const fmt = (value: number) =>
     `$${Number(Math.abs(value || 0)).toLocaleString(undefined, {
@@ -513,10 +534,17 @@ export default async function GeneralLedgerPage({
                             const memo = line.memo || line.transactionMemo || '—';
                             // Route deposits to deposit edit page, others to journal entry page
                             const isDeposit = line.transactionType === 'Deposit';
+                            const depositMeta = line.transactionId
+                              ? depositMetaByTx.get(line.transactionId)
+                              : null;
+                            const depositSlug =
+                              isDeposit && depositMeta?.deposit_id
+                                ? depositMeta.deposit_id
+                                : line.transactionId;
                             const detailHref =
                               line.transactionId && line.propertyId
                                 ? isDeposit
-                                  ? `/properties/${line.propertyId}/financials/deposits/${line.transactionId}`
+                                  ? `/properties/${line.propertyId}/financials/deposits/${depositSlug}`
                                   : `/properties/${line.propertyId}/financials/entries/${line.transactionId}`
                                 : null;
                             const unitPrimary = line.unitLabel || '—';

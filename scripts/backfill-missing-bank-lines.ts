@@ -63,26 +63,31 @@ type TxRow = {
 
 const propertyBankCache = new Map<
   string,
-  { bankGlId: string | null; depositTrustGlId: string | null }
+  { bankGlId: string | null; depositTrustGlId: string | null; orgId: string | null }
 >()
 const leaseCache = new Map<string, { property_id: string | null; unit_id: string | null }>()
+const apCache = new Map<string, string | null>()
 
-async function getPropertyBankGlAccountId(propertyId: string | null): Promise<string | null> {
-  if (!propertyId) return null
+async function getPropertyContext(
+  propertyId: string | null,
+): Promise<{ bankGlId: string | null; depositTrustGlId: string | null; orgId: string | null }> {
+  if (!propertyId) return { bankGlId: null, depositTrustGlId: null, orgId: null }
   const cached = propertyBankCache.get(propertyId)
-  if (cached) return cached.bankGlId ?? cached.depositTrustGlId ?? null
+  if (cached) return cached
 
   const { data, error } = await supabase
     .from('properties')
-    .select('operating_bank_gl_account_id, deposit_trust_gl_account_id')
+    .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
     .eq('id', propertyId)
     .maybeSingle()
   if (error) throw error
 
   const bankGlId = (data as any)?.operating_bank_gl_account_id ?? null
   const depositTrustGlId = (data as any)?.deposit_trust_gl_account_id ?? null
-  propertyBankCache.set(propertyId, { bankGlId, depositTrustGlId })
-  return bankGlId ?? depositTrustGlId ?? null
+  const orgId = (data as any)?.org_id ?? null
+  const context = { bankGlId, depositTrustGlId, orgId }
+  propertyBankCache.set(propertyId, context)
+  return context
 }
 
 async function getLeaseMeta(leaseId: number | null): Promise<{ property_id: string | null; unit_id: string | null }> {
@@ -106,6 +111,16 @@ async function getLeaseMeta(leaseId: number | null): Promise<{ property_id: stri
   return meta
 }
 
+async function resolveAccountsPayableGlId(orgId: string | null): Promise<string | null> {
+  if (!orgId) return null
+  if (apCache.has(orgId)) return apCache.get(orgId) ?? null
+  const { data, error } = await supabase.rpc('resolve_ap_gl_account_id', { p_org_id: orgId })
+  if (error) throw error
+  const apId = (data as any) ?? null
+  apCache.set(orgId, apId)
+  return apId
+}
+
 async function backfill() {
   let offset = 0
   let scanned = 0
@@ -118,7 +133,6 @@ async function backfill() {
   console.log(`Starting backfill (dry-run=${!isApply})…`)
 
   const accountsReceivableGlId = await getGlIdByName('Accounts Receivable')
-  const accountsPayableGlId = await getGlIdByName('Accounts Payable')
 
   while (true) {
     const { data, error } = await supabase
@@ -177,12 +191,15 @@ async function backfill() {
         continue
       }
 
-      const bankGlId = await getPropertyBankGlAccountId(propertyId)
+      const propertyContext = await getPropertyContext(propertyId)
+      const bankGlId = propertyContext.bankGlId ?? propertyContext.depositTrustGlId ?? null
       if (!bankGlId) {
         missingBankGl++
         console.warn(`[skip][missing bank gl] tx=${tx.id} property=${propertyId}`)
         continue
       }
+
+      const accountsPayableGlId = await resolveAccountsPayableGlId(propertyContext.orgId)
 
       const rebuilt: any[] = []
       const nowIso = new Date().toISOString()

@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/db';
 import { buildCanonicalTransactionPatch } from '@/lib/transaction-canonical';
 import { getOrgScopedBuildiumClient } from '@/lib/buildium-client';
 import type { Tables } from '@/types/database';
+import { validateBankTransactionEditable } from '@/lib/bank-register-validation';
 
 type GlAccountRow = Tables<'gl_accounts'>;
 type TransactionRow = Tables<'transactions'>;
@@ -95,6 +96,14 @@ export async function PATCH(
     const membership = await assertTransferInBankAccountContext({ bankAccountId, transactionId });
     if (!membership.ok) {
       return NextResponse.json({ error: membership.message }, { status: membership.status });
+    }
+
+    const editable = await validateBankTransactionEditable(supabaseAdmin, {
+      transactionId,
+      bankGlAccountId: bankAccountId,
+    });
+    if (!editable.editable) {
+      return NextResponse.json({ error: editable.reason }, { status: 409 });
     }
 
     const rawBody = await request.json().catch(() => null);
@@ -491,6 +500,14 @@ export async function DELETE(
     const membership = await assertTransferInBankAccountContext({ bankAccountId, transactionId });
     if (!membership.ok) {
       return NextResponse.json({ error: membership.message }, { status: membership.status });
+    }
+
+    const editable = await validateBankTransactionEditable(supabaseAdmin, {
+      transactionId,
+      bankGlAccountId: bankAccountId,
+    });
+    if (!editable.editable) {
+      return NextResponse.json({ error: editable.reason }, { status: 409 });
     }
 
     // Use safe helper to disable balance validation triggers while removing legacy/unbalanced transfers.

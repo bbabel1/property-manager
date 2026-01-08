@@ -84,12 +84,18 @@ const BILLING_FREQUENCIES: BillingFrequency[] = [
   'quarterly',
 ];
 
+const normalizeAlaCarte = (name: string | null | undefined) =>
+  String(name ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+
 function normalizePlanName(name: string | null | undefined) {
   return String(name ?? '').trim();
 }
 
 function isALaCarte(planName: string | null | undefined) {
-  return normalizePlanName(planName).toLowerCase() === A_LA_CARTE_PLAN;
+  return normalizeAlaCarte(planName) === normalizeAlaCarte(A_LA_CARTE_PLAN);
 }
 
 function coerceString(value: unknown) {

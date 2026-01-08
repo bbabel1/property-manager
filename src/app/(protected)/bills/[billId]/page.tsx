@@ -21,11 +21,16 @@ import BillFileAttachmentsCard from '@/components/bills/BillFileAttachmentsCard'
 import BillActionsMenu from '@/components/bills/BillActionsMenu';
 import type { BillFileRecord } from '@/components/bills/types';
 import type { Database } from '@/types/database';
+import { BillApprovalWorkflow } from '@/components/bills/BillApprovalWorkflow';
+import { BillApplicationsList } from '@/components/bills/BillApplicationsList';
+import { BillPaymentForm } from '@/components/bills/BillPaymentForm';
+import { VendorCreditForm } from '@/components/bills/VendorCreditForm';
 
 export type BillPageParams = { billId: string };
 type BillPageProps = { params: Promise<BillPageParams> };
 
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
+type Option = { id: string; label: string; meta?: string | null };
 
 type LineItem = {
   id: string;
@@ -260,11 +265,99 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
       })()
     : Promise.resolve({ data: null, error: null });
 
-  const [linesRes, vendorRes, paymentsRes, workOrderRes] = await Promise.all([
+  const workflowPromise = (async () => {
+    const { data, error } = await db
+      .from('bill_workflow')
+      .select('approval_state, submitted_at, approved_at, rejected_at, voided_at, reversal_transaction_id')
+      .eq('bill_transaction_id', bill.id)
+      .maybeSingle();
+    return { data: (data as any) ?? null, error };
+  })();
+
+  const auditPromise = (async () => {
+    const { data, error } = await db
+      .from('bill_approval_audit')
+      .select('*')
+      .eq('bill_transaction_id', bill.id)
+      .order('created_at', { ascending: true });
+    return { data: (data as any[] | null) ?? [], error };
+  })();
+
+  const applicationsPromise = (async () => {
+    const { data, error } = await db
+      .from('bill_applications')
+      .select(
+        'id, applied_amount, applied_at, source_type, source_transaction_id, source:source_transaction_id(id, transaction_type, status, total_amount, payment_method, is_reconciled, date, reference_number, check_number)',
+      )
+      .eq('bill_transaction_id', bill.id);
+    return { data: (data as any[] | null) ?? [], error };
+  })();
+
+  const bankAccountsPromise = (async () => {
+    const { data, error } = await db
+      .from('gl_accounts')
+      .select('id, name, account_number')
+      .eq('org_id', bill.org_id)
+      .eq('is_bank_account', true)
+      .order('name', { ascending: true });
+    return { data: (data as any[] | null) ?? [], error };
+  })();
+
+  const creditAccountsPromise = (async () => {
+    const { data, error } = await db
+      .from('gl_accounts')
+      .select('id, name, account_number, is_bank_account')
+      .eq('org_id', bill.org_id)
+      .neq('is_bank_account', true)
+      .order('name', { ascending: true });
+    return { data: (data as any[] | null) ?? [], error };
+  })();
+
+  const vendorListPromise = (async () => {
+    const { data, error } = await db
+      .from('vendors')
+      .select('id, contacts(display_name, company_name)')
+      .eq('org_id', bill.org_id)
+      .order('created_at', { ascending: true });
+    return { data: (data as any[] | null) ?? [], error };
+  })();
+
+  const billOptionsPromise = (async () => {
+    const { data, error } = await db
+      .from('transactions')
+      .select('id, reference_number, memo, total_amount, status, due_date')
+      .eq('org_id', bill.org_id)
+      .eq('transaction_type', 'Bill')
+      .eq('vendor_id', bill.vendor_id)
+      .not('status', 'eq', 'Cancelled')
+      .order('due_date', { ascending: true });
+    return { data: (data as any[] | null) ?? [], error };
+  })();
+
+  const [
+    linesRes,
+    vendorRes,
+    paymentsRes,
+    workOrderRes,
+    workflowRes,
+    auditRes,
+    applicationsRes,
+    bankAccountsRes,
+    creditAccountsRes,
+    vendorListRes,
+    billOptionsRes,
+  ] = await Promise.all([
     linesPromise,
     vendorPromise,
     paymentsPromise,
     workOrderPromise,
+    workflowPromise,
+    auditPromise,
+    applicationsPromise,
+    bankAccountsPromise,
+    creditAccountsPromise,
+    vendorListPromise,
+    billOptionsPromise,
   ]);
 
   if (linesRes?.error) {
@@ -280,6 +373,27 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   if (workOrderRes?.error) {
     console.error('Failed to load work order for bill', workOrderRes.error);
   }
+  if (workflowRes?.error) {
+    console.error('Failed to load bill workflow', workflowRes.error);
+  }
+  if (auditRes?.error) {
+    console.error('Failed to load bill approval audit', auditRes.error);
+  }
+  if (applicationsRes?.error) {
+    console.error('Failed to load bill applications', applicationsRes.error);
+  }
+  if (bankAccountsRes?.error) {
+    console.error('Failed to load bank accounts', bankAccountsRes.error);
+  }
+  if (creditAccountsRes?.error) {
+    console.error('Failed to load credit accounts', creditAccountsRes.error);
+  }
+  if (vendorListRes?.error) {
+    console.error('Failed to load vendors', vendorListRes.error);
+  }
+  if (billOptionsRes?.error) {
+    console.error('Failed to load vendor bills for payment forms', billOptionsRes.error);
+  }
 
   const rawLines = linesRes.data.filter(
     (line) => String(line?.posting_type || '').toLowerCase() !== 'credit',
@@ -292,6 +406,57 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     (vendorContact?.company_name as string | undefined) ||
     'Vendor';
   const workOrder = workOrderRes?.data ?? null;
+  const workflow = workflowRes?.data ?? null;
+  const approvalState = (workflow as any)?.approval_state ?? 'draft';
+  const auditEntries = auditRes?.data ?? [];
+  const applications = applicationsRes?.data ?? [];
+  const hasReconciledApplications = applications.some(
+    (app: any) => (app?.source as any)?.is_reconciled,
+  );
+  const bankAccountOptions: Option[] = (bankAccountsRes?.data ?? []).map((row: any) => ({
+    id: String(row.id),
+    label: row.name || 'Bank account',
+    meta: row.account_number ? `#${row.account_number}` : null,
+  }));
+  const creditAccountOptions: Option[] = (creditAccountsRes?.data ?? []).map((row: any) => ({
+    id: String(row.id),
+    label: row.name || 'GL account',
+    meta: row.account_number ? `#${row.account_number}` : null,
+  }));
+  const vendorOptions: Option[] = (vendorListRes?.data ?? []).map((row: any) => ({
+    id: String(row.id),
+    label:
+      (row?.contacts?.display_name as string) ||
+      (row?.contacts?.company_name as string) ||
+      'Vendor',
+    meta: null,
+  }));
+  if (bill.vendor_id && !vendorOptions.some((v) => v.id === String(bill.vendor_id))) {
+    vendorOptions.unshift({
+      id: String(bill.vendor_id),
+      label: vendorName,
+      meta: null,
+    });
+  }
+  const billOptions: Option[] = (billOptionsRes?.data ?? []).map((row: any) => ({
+    id: String(row.id),
+    label:
+      row.reference_number ||
+      row.memo ||
+      (row.id ? `Bill ${String(row.id).slice(0, 6)}` : 'Bill'),
+    meta: `${formatCurrency(row.total_amount ?? 0)} • Due ${formatDate(
+      row.due_date || bill.due_date || bill.date,
+    )}`,
+  }));
+  if (!billOptions.some((b) => b.id === bill.id)) {
+    billOptions.unshift({
+      id: bill.id,
+      label: bill.reference_number || bill.memo || `Bill ${bill.id.slice(0, 6)}`,
+      meta: `${formatCurrency(bill.total_amount ?? 0)} • Due ${formatDate(
+        bill.due_date || bill.date,
+      )}`,
+    });
+  }
 
   let billFiles: BillFileRecord[] = [];
   try {
@@ -384,6 +549,17 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     (sum, p) => sum + (Number.isFinite(p.displayAmount) ? p.displayAmount : 0),
     0,
   );
+  const appliedPaymentTotal = applications.reduce((sum: number, app: any) => {
+    const amt = Number(app?.applied_amount ?? 0);
+    return app?.source_type === 'payment' && Number.isFinite(amt) ? sum + amt : sum;
+  }, 0);
+  const appliedCreditTotal = applications.reduce((sum: number, app: any) => {
+    const amt = Number(app?.applied_amount ?? 0);
+    return app && ['credit', 'refund'].includes(String(app?.source_type || '')) && Number.isFinite(amt)
+      ? sum + amt
+      : sum;
+  }, 0);
+  const applicationNet = appliedPaymentTotal + appliedCreditTotal;
 
   const billAmount = Number(bill.total_amount ?? 0) || 0;
   const lineItemsInitialTotalFallback = rawLines.reduce((sum, line) => {
@@ -393,9 +569,11 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   const billDueAmount = billAmount > 0 ? billAmount : lineItemsInitialTotalFallback;
   const billDateLabel = formatDate(bill.date);
   const billDueLabel = formatDate(bill.due_date);
+  const ledgerStatus = normalizeBillStatus(bill.status);
   const statusNormalized = (() => {
-    if (paymentsTotal > 0 && paymentsTotal < billDueAmount) return 'Partially paid' as BillStatusLabel;
-    if (paymentsTotal >= billDueAmount && billDueAmount > 0) return 'Paid' as BillStatusLabel;
+    const paidAmount = applicationNet || paymentsTotal;
+    if (paidAmount > 0 && paidAmount < billDueAmount) return 'Partially paid' as BillStatusLabel;
+    if (paidAmount >= billDueAmount && billDueAmount > 0) return 'Paid' as BillStatusLabel;
     return normalizeBillStatus(bill.status);
   })();
   const statusLabel = deriveBillStatusFromDates(statusNormalized, bill.due_date ?? null, bill.paid_date ?? null);
@@ -465,11 +643,16 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   // Now calculate derived values that depend on the totals
   const baseDue = lineItemsInitialTotal || billAmount;
   const remainingAmount =
-    statusLabel === 'Paid' ? 0 : Math.max(baseDue - paymentsTotal, 0);
+    statusLabel === 'Paid' ? 0 : Math.max(baseDue - (applicationNet || paymentsTotal), 0);
 
   const detailEntries: DetailEntry[] = [
     { name: 'Date', value: billDateLabel },
     { name: 'Due', value: billDueLabel },
+    { name: 'Ledger status', value: statusLabel || ledgerStatus || '—' },
+    {
+      name: 'Approval',
+      value: approvalState ? String(approvalState).replace(/_/g, ' ') : 'draft',
+    },
     { name: 'Reference number', value: bill.reference_number || '—' },
     {
       name: 'Work order',
@@ -485,6 +668,19 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     { name: 'Pay to', value: vendorName || '—' },
     { name: 'Memo', value: bill.memo || 'Add a memo', multiline: true },
   ];
+  if ((workflow as any)?.reversal_transaction_id) {
+    detailEntries.push({
+      name: 'Reversal transaction',
+      value: (
+        <Link
+          href={`/transactions/${(workflow as any).reversal_transaction_id}`}
+          className="text-primary hover:underline"
+        >
+          View reversal
+        </Link>
+      ),
+    });
+  }
 
   return (
     <PageShell>
@@ -504,6 +700,9 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                 {statusLabel}
               </Badge>
             ) : null}
+            <Badge variant="outline" className="capitalize">
+              {String(approvalState || 'draft').replace(/_/g, ' ')}
+            </Badge>
           </div>
         }
         description={`Bill ${formatCurrency(lineItemsInitialTotal || billAmount)} | Due: ${billDueLabel}`}
@@ -528,6 +727,11 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
             <span aria-hidden>←</span>
             Back to bills
           </Link>
+          {approvalState === 'approved' ? (
+            <div className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              This bill is approved. Amount and line edits are locked; only memo and reference updates are allowed.
+            </div>
+          ) : null}
           <PageColumns
             gap="xl"
             className="lg:grid-cols-[minmax(0,2fr)_minmax(480px,1.2fr)]"
@@ -559,6 +763,13 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     </dl>
                   </CardContent>
                 </Card>
+
+                <BillApprovalWorkflow
+                  billId={bill.id}
+                  approvalState={approvalState}
+                  audit={auditEntries}
+                  canVoid={!hasReconciledApplications}
+                />
 
                 <Card className="border-border/70 shadow-sm">
                   <CardHeader className="border-border/60 bg-muted/30 flex flex-wrap items-center justify-between gap-3 border-b">
@@ -662,6 +873,14 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                   </CardContent>
                 </Card>
 
+                {hasReconciledApplications ? (
+                  <div className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    One or more applications are reconciled and locked. Remove/void actions are disabled for those rows.
+                  </div>
+                ) : null}
+
+                <BillApplicationsList billId={bill.id} applications={applications as any[]} />
+
                 <Card className="border-border/70 shadow-sm">
                   <CardHeader className="border-border/60 bg-muted/30 border-b">
                     <CardTitle>Payment history</CardTitle>
@@ -758,6 +977,19 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
                     </Button>
                   </CardContent>
                 </Card>
+
+                <BillPaymentForm
+                  defaultBillId={bill.id}
+                  bankAccounts={bankAccountOptions}
+                  billOptions={billOptions}
+                />
+                <VendorCreditForm
+                  vendorId={bill.vendor_id ? String(bill.vendor_id) : ''}
+                  vendorOptions={vendorOptions}
+                  creditAccounts={creditAccountOptions}
+                  billOptions={billOptions}
+                  defaultBillId={bill.id}
+                />
               </>
             }
           />

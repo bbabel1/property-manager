@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Calendar, DollarSign, CreditCard, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,11 +20,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { PAYMENT_METHOD_OPTIONS } from '@/lib/enums/payment-method';
 import { toast } from 'sonner';
 import { safeParseJson } from '@/types/monthly-log';
+import { PaymentIntentStatus } from '@/components/payments/PaymentIntentStatus';
+import { PaymentEventsTimeline } from '@/components/payments/PaymentEventsTimeline';
+import { PayerRestrictionsAlert } from '@/components/payments/PayerRestrictionsAlert';
+import { hasPermission } from '@/lib/permissions';
+import type { AppRole } from '@/lib/auth/roles';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface CreatePaymentFormProps {
   monthlyLogId: string;
   unitId: string;
   propertyId: string;
+  tenantId?: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -48,10 +55,19 @@ interface PaymentFormData {
   }>;
 }
 
+interface Restriction {
+  id: string;
+  restriction_type: string;
+  restricted_until: string | null;
+  reason: string | null;
+  methods: string[];
+}
+
 export default function CreatePaymentForm({
   monthlyLogId,
   unitId: _unitId,
   propertyId: _propertyId,
+  tenantId,
   isOpen,
   onClose,
   onSuccess,
@@ -68,6 +84,10 @@ export default function CreatePaymentForm({
     allocations: [{ account_id: '', amount: '' }],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [eventHistory, setEventHistory] = useState<any[]>([]);
+  const [intentState, setIntentState] = useState<string | null>(null);
+  const [restrictions, setRestrictions] = useState<Restriction[]>([]);
+  const [roles, setRoles] = useState<AppRole[]>([]);
 
   const loadGLAccounts = useCallback(async () => {
     setGlLoading(true);
@@ -98,8 +118,107 @@ export default function CreatePaymentForm({
   useEffect(() => {
     if (isOpen) {
       void loadGLAccounts();
+      // Fetch roles for permission-aware UI (clear restrictions)
+      getSupabaseBrowserClient()
+        .auth.getUser()
+        .then(({ data }) => {
+          const roleList =
+            ((data.user?.app_metadata as any)?.roles ||
+              (data.user?.user_metadata as any)?.roles ||
+              []) as AppRole[];
+          if (Array.isArray(roleList)) {
+            setRoles(roleList.filter((r): r is AppRole => typeof r === 'string'));
+          }
+        })
+        .catch(() => setRoles([]));
     }
   }, [isOpen, loadGLAccounts]);
+
+  // Fetch payer restrictions when tenant is known and the dialog is open
+  useEffect(() => {
+    if (!tenantId || !isOpen) {
+      setRestrictions([]);
+      return;
+    }
+    let active = true;
+    const fetchRestrictions = async () => {
+      try {
+        const res = await fetch(`/api/payers/${tenantId}/restrictions`);
+        if (!active) return;
+        if (!res.ok) {
+          setRestrictions([]);
+          return;
+        }
+        const json = await res.json().catch(() => null);
+        const data = Array.isArray(json?.data) ? json.data : [];
+        setRestrictions(
+          data.map((r: any) => ({
+            id: r.id,
+            restriction_type: r.restriction_type,
+            restricted_until: r.restricted_until ?? null,
+            reason: r.reason ?? null,
+            methods: Array.isArray(r?.methods) ? r.methods : [],
+          })),
+        );
+      } catch (err) {
+        console.warn('Failed to fetch payer restrictions', err);
+        setRestrictions([]);
+      }
+    };
+    void fetchRestrictions();
+    return () => {
+      active = false;
+    };
+  }, [isOpen, tenantId]);
+
+  const restrictedMethods = useMemo(() => {
+    const set = new Set<string>();
+    restrictions.forEach((r) => {
+      (r.methods ?? []).forEach((m) => {
+        if (typeof m === 'string') set.add(m);
+      });
+    });
+    return Array.from(set);
+  }, [restrictions]);
+
+  // If the selected method becomes restricted, fall back to the first allowed option
+  useEffect(() => {
+    if (!restrictedMethods.length) return;
+    const restrictedSet = new Set(restrictedMethods);
+    if (restrictedSet.has(formData.payment_method)) {
+      const fallback = PAYMENT_METHOD_OPTIONS.find((opt) => !restrictedSet.has(opt.value));
+      if (fallback) {
+        setFormData((prev) => ({ ...prev, payment_method: fallback.value }));
+      }
+    }
+  }, [formData.payment_method, restrictedMethods]);
+
+  const handleClearRestriction = useCallback(
+    async (restrictionId: string) => {
+      if (!tenantId) return;
+      try {
+        const res = await fetch(`/api/payers/${tenantId}/restrictions/${restrictionId}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          if (res.status === 403) {
+            toast.error('You do not have permission to clear this restriction.');
+          } else if (res.status === 404) {
+            toast.error('Restriction not found or already cleared.');
+          } else {
+            toast.error('Failed to clear restriction.');
+          }
+          return;
+        }
+        setRestrictions((prev) => prev.filter((r) => r.id !== restrictionId));
+        toast.success('Restriction cleared');
+      } catch (error) {
+        console.error('Failed to clear restriction', error);
+        toast.error('Failed to clear restriction.');
+      }
+    },
+    [tenantId],
+  );
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -197,6 +316,9 @@ export default function CreatePaymentForm({
         throw new Error(errorData.error?.message || 'Failed to create payment');
       }
 
+      const text = await response.text();
+      const parsed = safeParseJson<{ data?: { intent_id?: string | null; intent_state?: string | null } }>(text);
+
       toast.success('Payment created successfully');
       onSuccess();
       onClose();
@@ -210,6 +332,14 @@ export default function CreatePaymentForm({
         allocations: [{ account_id: '', amount: '' }],
       });
       setErrors({});
+      setIntentState(parsed?.data?.intent_state ?? null);
+      setEventHistory([]);
+      if (parsed?.data?.intent_id) {
+        fetch(`/api/payments/intents/${parsed.data.intent_id}/events`)
+          .then((r) => r.json())
+          .then((payload) => setEventHistory(Array.isArray(payload?.data) ? payload.data : []))
+          .catch(() => setEventHistory([]));
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create payment';
       toast.error(message);
@@ -270,6 +400,19 @@ export default function CreatePaymentForm({
             Create Payment
           </DialogTitle>
         </DialogHeader>
+
+        <div className="space-y-3">
+          <PayerRestrictionsAlert
+            restrictions={restrictions}
+            onClearRestriction={
+              hasPermission(roles, 'settings.write') ? handleClearRestriction : undefined
+            }
+          />
+          <div className="flex flex-col gap-2">
+            <PaymentIntentStatus state={intentState} />
+            <PaymentEventsTimeline events={eventHistory} />
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Payment Information */}
@@ -336,11 +479,15 @@ export default function CreatePaymentForm({
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PAYMENT_METHOD_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    {PAYMENT_METHOD_OPTIONS.map((option) => {
+                      const disabled = restrictedMethods.includes(option.value);
+                      return (
+                        <SelectItem key={option.value} value={option.value} disabled={disabled}>
+                          {option.label}
+                          {disabled ? ' (restricted)' : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 {errors.payment_method && (
