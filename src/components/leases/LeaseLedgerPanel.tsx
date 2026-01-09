@@ -27,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, getTransactionTypeLabel } from '@/lib/transactions/formatting';
-import type { LeaseAccountOption } from '@/components/leases/types';
+import type { LeaseAccountOption, LeaseTenantOption } from '@/components/leases/types';
 import type { BuildiumLeaseTransaction } from '@/types/buildium';
 
 type LedgerDetailLine = {
@@ -79,6 +79,7 @@ type LeaseLedgerPanelProps = {
     prepayments: number;
     depositsHeld: number;
   };
+  tenantOptions?: LeaseTenantOption[];
   accountOptions: LeaseAccountOption[];
   leaseSummary: {
     propertyUnit?: string | null;
@@ -92,6 +93,7 @@ export default function LeaseLedgerPanel({
   rows,
   ledgerMatchesLabel,
   balances,
+  tenantOptions,
   accountOptions,
   leaseSummary,
   errorMessage,

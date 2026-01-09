@@ -1230,7 +1230,9 @@ export class BuildiumSyncService {
 
       // Map approval state to Buildium status if present
       let billStatus: 'Approved' | 'PendingApproval' | 'Rejected' | 'Voided' | undefined;
-      const { data: wfRow } = await supabase
+      const supabaseAny = supabase as any;
+
+      const { data: wfRow } = await supabaseAny
         .from('bill_workflow')
         .select('approval_state')
         .eq('bill_transaction_id', localBill.id)
@@ -1371,14 +1373,82 @@ export class BuildiumSyncService {
     return { success: true, buildiumId: created?.Id };
   }
 
-  // Placeholder for vendor credits/refunds outbound; Buildium API support is limited.
-  async syncVendorCreditToBuildium(localCredit: any, _orgId?: string) {
+  // Vendor credits/refunds outbound (best-effort, does not block local ledger)
+  async syncVendorCreditToBuildium(localCredit: any, orgId?: string) {
+    if (!(await this.isEnabled(orgId))) {
+      logger.info({ orgId }, 'Buildium sync disabled, skipping vendor credit');
+      return { success: true };
+    }
+
     const creditId = toStringId(localCredit?.id);
-    const message =
-      'Vendor credit/refund outbound sync is not supported yet; apply in Buildium manually. ' +
-      'Local transaction remains primary.';
-    logger.warn({ creditId }, message);
-    return { success: false, error: message };
+
+    try {
+      const client = await this.getClient(orgId);
+
+      // Resolve vendor Buildium ID
+      const vendorId =
+        localCredit?.vendor_id ||
+        (await (async () => {
+          const { data } = await supabase
+            .from('transactions')
+            .select('vendor_id')
+            .eq('id', creditId)
+            .maybeSingle();
+          return (data as any)?.vendor_id ?? null;
+        })());
+
+      if (!vendorId) {
+        const msg = 'Vendor credit missing vendor_id; cannot sync to Buildium';
+        logger.warn({ creditId }, msg);
+        return { success: false, error: msg };
+      }
+
+      const { data: vendorRow } = await supabase
+        .from('vendors')
+        .select('buildium_vendor_id, org_id')
+        .eq('id', vendorId as string)
+        .maybeSingle();
+      const buildiumVendorId = (vendorRow as any)?.buildium_vendor_id;
+      if (!buildiumVendorId || typeof buildiumVendorId !== 'number') {
+        const msg = 'Vendor lacks Buildium vendor id; cannot sync vendor credit';
+        logger.warn({ creditId, vendorId }, msg);
+        return { success: false, error: msg };
+      }
+
+      const amount = Math.abs(Number(localCredit?.total_amount ?? 0)) || 0;
+      if (amount <= 0) {
+        const msg = 'Vendor credit amount is zero; skipping Buildium sync';
+        logger.warn({ creditId }, msg);
+        return { success: false, error: msg };
+      }
+
+      const txDate = localCredit?.date || localCredit?.created_at || new Date().toISOString();
+      const payload = {
+        Amount: amount,
+        Date: new Date(txDate).toISOString(),
+        Description: localCredit?.memo || 'Vendor credit',
+        ReferenceNumber: localCredit?.reference_number || undefined,
+        Notes: localCredit?.memo || undefined,
+      };
+
+      const created = await client.createVendorCredit(buildiumVendorId, payload);
+      const buildiumId =
+        (created as any)?.Id ??
+        (typeof (created as any) === 'number' ? (created as any) : null);
+
+      if (buildiumId) {
+        await supabase
+          .from('transactions')
+          .update({ buildium_transaction_id: buildiumId, updated_at: new Date().toISOString() })
+          .eq('id', creditId);
+      }
+
+      return { success: true, buildiumId };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ creditId, error: errMsg }, 'Failed to sync vendor credit to Buildium');
+      return { success: false, error: errMsg };
+    }
   }
 
   // ============================================================================

@@ -35,7 +35,9 @@ This guide summarizes how vendor bills, approvals, payments, and credits flow th
 ## Buildium sync
 - Bills sync with approval state to Buildium; BillCreated/BillUpdated webhooks create/update workflow as `approved` (Buildium bills are pre-approved).
 - Bill payments (outbound) include `BillIds[]` built from `bill_applications`; inbound BillPaid with `BillIds[]` creates applications per bill.
-- Vendor transactions (credits/refunds) inbound: upsert vendor credit transaction and apply `bill_applications` (source_type `credit`/`refund`) from Buildium payload; outbound credits are logged as unsupported until Buildium parity is finalized.
+- Vendor transactions (credits/refunds):
+  - Inbound: upsert vendor credit transaction and apply `bill_applications` (source_type `credit`/`refund`) from Buildium payload.
+  - Outbound: best-effort mirror using Buildium vendor credit endpoint (requires `vendors.buildium_vendor_id`); stores returned `buildium_transaction_id`; failures are non-blocking and logged.
 - Reconciliation locks and void workflows are honored locally; Buildium zero-out/void flows use `void_bill()` semantics. Approval conflicts default to local state and log for review.
 
 ## Backfill + reporting runbook

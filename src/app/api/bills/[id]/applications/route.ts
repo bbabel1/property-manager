@@ -18,7 +18,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { id } = await params;
-  const { data, error } = await supabaseAdmin
+  const db = supabaseAdmin as any;
+  const { data, error } = await db
     .from('bill_applications')
     .select(
       'id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at, org_id',
@@ -42,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = parsed.data;
 
-  const { data: bill, error: billErr } = await supabaseAdmin
+  const { data: bill, error: billErr } = await db
     .from('transactions')
     .select('id, org_id, transaction_type')
     .eq('id', id)
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
   }
 
-  const { data: sourceTransaction, error: sourceErr } = await supabaseAdmin
+  const { data: sourceTransaction, error: sourceErr } = await db
     .from('transactions')
     .select('id, org_id, is_reconciled')
     .eq('id', body.source_transaction_id)
@@ -81,7 +82,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const now = new Date().toISOString();
   try {
     // Validate constraints before insert
-    const { error: validationError } = await supabaseAdmin.rpc('validate_bill_application', {
+    const { error: validationError } = await db.rpc('validate_bill_application', {
       p_bill_id: id,
       p_source_id: body.source_transaction_id,
       p_amount: body.applied_amount,
@@ -93,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const { error } = await supabaseAdmin.from('bill_applications').insert({
+    const { error } = await db.from('bill_applications').insert({
       bill_transaction_id: id,
       source_transaction_id: body.source_transaction_id,
       source_type: body.source_type ?? 'payment',

@@ -66,16 +66,13 @@ export default async function PreparePaymentPage({
     }
   }
 
-  const groups = Array.from(
-    bills.reduce((map, bill) => {
+  const groupsMap = bills.reduce(
+    (map, bill) => {
       const bankId = bill.operating_bank_gl_account_id;
       const key = bankId ?? '_none';
       const label =
-        bankId && bankLabelById.get(bankId)
-          ? bankLabelById.get(bankId)
-          : bankId
-            ? 'Bank account'
-            : 'No operating bank account';
+        bankLabelById.get(bankId ?? null) ??
+        (bankId ? 'Bank account' : 'No operating bank account');
       const group =
         map.get(key) ??
         {
@@ -83,11 +80,15 @@ export default async function PreparePaymentPage({
           bankLabel: label,
           bills: [] as typeof bills,
         };
+      group.bankLabel = group.bankLabel || label;
       group.bills.push(bill);
       map.set(key, group);
       return map;
-    }, new Map<string, { bankGlAccountId: string | null; bankLabel: string; bills: typeof bills }>()),
+    },
+    new Map<string, { bankGlAccountId: string | null; bankLabel: string; bills: typeof bills }>(),
   );
+
+  const groups = Array.from(groupsMap.values());
 
   const total = bills.reduce((sum, bill) => sum + (bill.remaining_amount || 0), 0);
 

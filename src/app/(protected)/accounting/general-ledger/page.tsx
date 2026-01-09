@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { endOfMonth, startOfMonth } from 'date-fns';
 import DateRangeControls from '@/components/DateRangeControls';
 import LedgerFilters from '@/components/financials/LedgerFilters';
@@ -370,17 +371,20 @@ export default async function GeneralLedgerPage({
   );
   const depositMetaByTx = new Map<string, { deposit_id: string | null }>();
   if (depositTxIds.length) {
-    const { data: depositMetaRows } = await supabase
+    const dbAny = db as unknown as SupabaseClient<any, any, any>;
+    const { data: depositMetaRows } = await dbAny
       .from('deposit_meta')
       .select('transaction_id, deposit_id')
       .in('transaction_id', depositTxIds);
-    (depositMetaRows || []).forEach((row) => {
-      if (row?.transaction_id) {
-        depositMetaByTx.set(String(row.transaction_id), {
-          deposit_id: (row as any)?.deposit_id ?? null,
-        });
-      }
-    });
+    (depositMetaRows || []).forEach(
+      (row: { transaction_id?: string | number | null; deposit_id?: string | null }) => {
+        if (row?.transaction_id) {
+          depositMetaByTx.set(String(row.transaction_id), {
+            deposit_id: row.deposit_id ?? null,
+          });
+        }
+      },
+    );
   }
 
   const fmt = (value: number) =>

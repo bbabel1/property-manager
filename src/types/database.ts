@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -82,6 +82,401 @@ export type Database = {
           },
         ]
       }
+      bank_register_state: {
+        Row: {
+          bank_gl_account_id: string
+          buildium_transaction_id: number | null
+          cleared_at: string | null
+          cleared_by_user_id: string | null
+          created_at: string
+          current_reconciliation_log_id: string | null
+          org_id: string
+          reconciled_at: string | null
+          reconciled_by_user_id: string | null
+          status: Database["public"]["Enums"]["bank_entry_status_enum"]
+          transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          bank_gl_account_id: string
+          buildium_transaction_id?: number | null
+          cleared_at?: string | null
+          cleared_by_user_id?: string | null
+          created_at?: string
+          current_reconciliation_log_id?: string | null
+          org_id: string
+          reconciled_at?: string | null
+          reconciled_by_user_id?: string | null
+          status?: Database["public"]["Enums"]["bank_entry_status_enum"]
+          transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          bank_gl_account_id?: string
+          buildium_transaction_id?: number | null
+          cleared_at?: string | null
+          cleared_by_user_id?: string | null
+          created_at?: string
+          current_reconciliation_log_id?: string | null
+          org_id?: string
+          reconciled_at?: string | null
+          reconciled_by_user_id?: string | null
+          status?: Database["public"]["Enums"]["bank_entry_status_enum"]
+          transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_register_state_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_current_reconciliation_log_id_fkey"
+            columns: ["current_reconciliation_log_id"]
+            isOneToOne: false
+            referencedRelation: "reconciliation_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_current_reconciliation_log_id_fkey"
+            columns: ["current_reconciliation_log_id"]
+            isOneToOne: false
+            referencedRelation: "v_reconciliation_transactions"
+            referencedColumns: ["reconciliation_id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      banking_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          bank_gl_account_id: string | null
+          created_at: string
+          field_changes: Json | null
+          id: string
+          org_id: string
+          reconciliation_id: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          bank_gl_account_id?: string | null
+          created_at?: string
+          field_changes?: Json | null
+          id?: string
+          org_id: string
+          reconciliation_id?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          bank_gl_account_id?: string | null
+          created_at?: string
+          field_changes?: Json | null
+          id?: string
+          org_id?: string
+          reconciliation_id?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "banking_audit_log_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_reconciliation_id_fkey"
+            columns: ["reconciliation_id"]
+            isOneToOne: false
+            referencedRelation: "reconciliation_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_reconciliation_id_fkey"
+            columns: ["reconciliation_id"]
+            isOneToOne: false
+            referencedRelation: "v_reconciliation_transactions"
+            referencedColumns: ["reconciliation_id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "banking_audit_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      bill_applications: {
+        Row: {
+          applied_amount: number
+          applied_at: string
+          bill_transaction_id: string
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          org_id: string
+          source_transaction_id: string
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          applied_amount: number
+          applied_at?: string
+          bill_transaction_id: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          org_id: string
+          source_transaction_id: string
+          source_type: string
+          updated_at?: string
+        }
+        Update: {
+          applied_amount?: number
+          applied_at?: string
+          bill_transaction_id?: string
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          org_id?: string
+          source_transaction_id?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_applications_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bill_applications_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "bill_applications_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_applications_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bill_applications_source_transaction_id_fkey"
+            columns: ["source_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      bill_approval_audit: {
+        Row: {
+          action: string
+          bill_transaction_id: string
+          created_at: string
+          from_state: Database["public"]["Enums"]["approval_state_enum"] | null
+          id: string
+          notes: string | null
+          to_state: Database["public"]["Enums"]["approval_state_enum"] | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          bill_transaction_id: string
+          created_at?: string
+          from_state?: Database["public"]["Enums"]["approval_state_enum"] | null
+          id?: string
+          notes?: string | null
+          to_state?: Database["public"]["Enums"]["approval_state_enum"] | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          bill_transaction_id?: string
+          created_at?: string
+          from_state?: Database["public"]["Enums"]["approval_state_enum"] | null
+          id?: string
+          notes?: string | null
+          to_state?: Database["public"]["Enums"]["approval_state_enum"] | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_approval_audit_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_approval_audit_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_approval_audit_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_approval_audit_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bill_approval_audit_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
       bill_categories: {
         Row: {
           buildium_category_id: number | null
@@ -114,6 +509,141 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      bill_workflow: {
+        Row: {
+          approval_state: Database["public"]["Enums"]["approval_state_enum"]
+          approved_at: string | null
+          approved_by_user_id: string | null
+          bill_transaction_id: string
+          created_at: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by_user_id: string | null
+          rejection_reason: string | null
+          reversal_transaction_id: string | null
+          submitted_at: string | null
+          submitted_by_user_id: string | null
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by_user_id: string | null
+        }
+        Insert: {
+          approval_state?: Database["public"]["Enums"]["approval_state_enum"]
+          approved_at?: string | null
+          approved_by_user_id?: string | null
+          bill_transaction_id: string
+          created_at?: string
+          org_id: string
+          rejected_at?: string | null
+          rejected_by_user_id?: string | null
+          rejection_reason?: string | null
+          reversal_transaction_id?: string | null
+          submitted_at?: string | null
+          submitted_by_user_id?: string | null
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by_user_id?: string | null
+        }
+        Update: {
+          approval_state?: Database["public"]["Enums"]["approval_state_enum"]
+          approved_at?: string | null
+          approved_by_user_id?: string | null
+          bill_transaction_id?: string
+          created_at?: string
+          org_id?: string
+          rejected_at?: string | null
+          rejected_by_user_id?: string | null
+          rejection_reason?: string | null
+          reversal_transaction_id?: string | null
+          submitted_at?: string | null
+          submitted_by_user_id?: string | null
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_workflow_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_reversal_transaction_id_fkey"
+            columns: ["reversal_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_reversal_transaction_id_fkey"
+            columns: ["reversal_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_reversal_transaction_id_fkey"
+            columns: ["reversal_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_reversal_transaction_id_fkey"
+            columns: ["reversal_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bill_workflow_reversal_transaction_id_fkey"
+            columns: ["reversal_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
       }
       billing_events: {
         Row: {
@@ -225,15 +755,29 @@ export type Database = {
             foreignKeyName: "billing_events_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_bank_register_transactions"
+            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "billing_events_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
+            referencedRelation: "v_transaction_with_reversal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_events_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "billing_events_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "billing_events_unit_id_fkey"
@@ -765,6 +1309,27 @@ export type Database = {
         }
         Relationships: []
       }
+      buildium_failure_codes: {
+        Row: {
+          description: string | null
+          failure_category: string | null
+          normalized_code: string
+          raw_code: string
+        }
+        Insert: {
+          description?: string | null
+          failure_category?: string | null
+          normalized_code: string
+          raw_code: string
+        }
+        Update: {
+          description?: string | null
+          failure_category?: string | null
+          normalized_code?: string
+          raw_code?: string
+        }
+        Relationships: []
+      }
       buildium_integration_audit_log: {
         Row: {
           action: string
@@ -1054,6 +1619,257 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      charge_schedules: {
+        Row: {
+          amount: number
+          charge_type: Database["public"]["Enums"]["charge_type_enum"]
+          created_at: string
+          description: string | null
+          end_date: string | null
+          frequency: Database["public"]["Enums"]["rent_cycle_enum"]
+          gl_account_id: string
+          id: string
+          is_active: boolean | null
+          lease_id: number
+          max_occurrences: number | null
+          org_id: string
+          start_date: string
+          timezone: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          charge_type: Database["public"]["Enums"]["charge_type_enum"]
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          frequency: Database["public"]["Enums"]["rent_cycle_enum"]
+          gl_account_id: string
+          id?: string
+          is_active?: boolean | null
+          lease_id: number
+          max_occurrences?: number | null
+          org_id: string
+          start_date: string
+          timezone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          charge_type?: Database["public"]["Enums"]["charge_type_enum"]
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          frequency?: Database["public"]["Enums"]["rent_cycle_enum"]
+          gl_account_id?: string
+          id?: string
+          is_active?: boolean | null
+          lease_id?: number
+          max_occurrences?: number | null
+          org_id?: string
+          start_date?: string
+          timezone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "charge_schedules_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charge_schedules_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charge_schedules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      charge_telemetry_events: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          event: string
+          lease_id: number | null
+          org_id: string | null
+          prefills: Json | null
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          event: string
+          lease_id?: number | null
+          org_id?: string | null
+          prefills?: Json | null
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          event?: string
+          lease_id?: number | null
+          org_id?: string | null
+          prefills?: Json | null
+          source?: string | null
+        }
+        Relationships: []
+      }
+      charges: {
+        Row: {
+          amount: number
+          amount_open: number
+          base_amount: number | null
+          buildium_charge_id: number | null
+          charge_schedule_id: string | null
+          charge_type: Database["public"]["Enums"]["charge_type_enum"]
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string
+          external_id: string | null
+          id: string
+          is_prorated: boolean | null
+          lease_id: number
+          org_id: string
+          paid_amount: number | null
+          parent_charge_id: string | null
+          proration_days: number | null
+          source: string | null
+          status: Database["public"]["Enums"]["charge_status_enum"]
+          transaction_id: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount: number
+          amount_open: number
+          base_amount?: number | null
+          buildium_charge_id?: number | null
+          charge_schedule_id?: string | null
+          charge_type: Database["public"]["Enums"]["charge_type_enum"]
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date: string
+          external_id?: string | null
+          id?: string
+          is_prorated?: boolean | null
+          lease_id: number
+          org_id: string
+          paid_amount?: number | null
+          parent_charge_id?: string | null
+          proration_days?: number | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["charge_status_enum"]
+          transaction_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          amount_open?: number
+          base_amount?: number | null
+          buildium_charge_id?: number | null
+          charge_schedule_id?: string | null
+          charge_type?: Database["public"]["Enums"]["charge_type_enum"]
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string
+          external_id?: string | null
+          id?: string
+          is_prorated?: boolean | null
+          lease_id?: number
+          org_id?: string
+          paid_amount?: number | null
+          parent_charge_id?: string | null
+          proration_days?: number | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["charge_status_enum"]
+          transaction_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "charges_charge_schedule_id_fkey"
+            columns: ["charge_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "charge_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_parent_charge_id_fkey"
+            columns: ["parent_charge_id"]
+            isOneToOne: false
+            referencedRelation: "charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "charges_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
         ]
       }
@@ -1867,6 +2683,219 @@ export type Database = {
         }
         Relationships: []
       }
+      deposit_items: {
+        Row: {
+          amount: number
+          buildium_payment_transaction_id: number | null
+          created_at: string
+          deposit_transaction_id: string
+          id: string
+          payment_transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          buildium_payment_transaction_id?: number | null
+          created_at?: string
+          deposit_transaction_id: string
+          id?: string
+          payment_transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          buildium_payment_transaction_id?: number | null
+          created_at?: string
+          deposit_transaction_id?: string
+          id?: string
+          payment_transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_items_deposit_transaction_id_fkey"
+            columns: ["deposit_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_items_deposit_transaction_id_fkey"
+            columns: ["deposit_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_items_deposit_transaction_id_fkey"
+            columns: ["deposit_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_items_deposit_transaction_id_fkey"
+            columns: ["deposit_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "deposit_items_deposit_transaction_id_fkey"
+            columns: ["deposit_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "deposit_items_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_items_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_items_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_items_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "deposit_items_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      deposit_meta: {
+        Row: {
+          buildium_deposit_id: number | null
+          buildium_last_synced_at: string | null
+          buildium_sync_error: string | null
+          buildium_sync_status: string | null
+          created_at: string
+          created_by: string | null
+          deposit_id: string
+          id: string
+          org_id: string
+          status: Database["public"]["Enums"]["deposit_status_enum"]
+          transaction_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          buildium_deposit_id?: number | null
+          buildium_last_synced_at?: string | null
+          buildium_sync_error?: string | null
+          buildium_sync_status?: string | null
+          created_at?: string
+          created_by?: string | null
+          deposit_id: string
+          id?: string
+          org_id: string
+          status?: Database["public"]["Enums"]["deposit_status_enum"]
+          transaction_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          buildium_deposit_id?: number | null
+          buildium_last_synced_at?: string | null
+          buildium_sync_error?: string | null
+          buildium_sync_status?: string | null
+          created_at?: string
+          created_by?: string | null
+          deposit_id?: string
+          id?: string
+          org_id?: string
+          status?: Database["public"]["Enums"]["deposit_status_enum"]
+          transaction_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposit_meta_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_meta_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_meta_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_meta_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deposit_meta_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "deposit_meta_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      deposit_migration_marker: {
+        Row: {
+          completed_at: string
+          id: string
+          migration_name: string
+          rows_processed: number
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          migration_name: string
+          rows_processed: number
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          migration_name?: string
+          rows_processed?: number
+        }
+        Relationships: []
+      }
       device_type_normalization: {
         Row: {
           created_at: string
@@ -2167,6 +3196,7 @@ export type Database = {
           balance: number
           computed_at: string
           gl_account_id: string
+          id: string
           org_id: string
           payload: Json | null
           property_id: string | null
@@ -2177,6 +3207,7 @@ export type Database = {
           balance: number
           computed_at?: string
           gl_account_id: string
+          id?: string
           org_id: string
           payload?: Json | null
           property_id?: string | null
@@ -2187,6 +3218,7 @@ export type Database = {
           balance?: number
           computed_at?: string
           gl_account_id?: string
+          id?: string
           org_id?: string
           payload?: Json | null
           property_id?: string | null
@@ -2282,10 +3314,12 @@ export type Database = {
           is_security_deposit_liability: boolean
           name: string
           org_id: string | null
+          property_id: string | null
           public_id: number
           sub_accounts: string[] | null
           sub_type: string | null
           type: string
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2320,10 +3354,12 @@ export type Database = {
           is_security_deposit_liability?: boolean
           name: string
           org_id?: string | null
+          property_id?: string | null
           public_id?: number
           sub_accounts?: string[] | null
           sub_type?: string | null
           type: string
+          unit_id?: string | null
           updated_at: string
         }
         Update: {
@@ -2358,10 +3394,12 @@ export type Database = {
           is_security_deposit_liability?: boolean
           name?: string
           org_id?: string | null
+          property_id?: string | null
           public_id?: number
           sub_accounts?: string[] | null
           sub_type?: string | null
           type?: string
+          unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2370,6 +3408,27 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_accounts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "gl_accounts_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
@@ -2612,9 +3671,12 @@ export type Database = {
           date: string
           id: string
           memo: string | null
+          org_id: string | null
+          property_id: string | null
           public_id: number
           total_amount: number
           transaction_id: string | null
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2624,9 +3686,12 @@ export type Database = {
           date: string
           id?: string
           memo?: string | null
+          org_id?: string | null
+          property_id?: string | null
           public_id?: number
           total_amount?: number
           transaction_id?: string | null
+          unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2636,12 +3701,36 @@ export type Database = {
           date?: string
           id?: string
           memo?: string | null
+          org_id?: string | null
+          property_id?: string | null
           public_id?: number
           total_amount?: number
           transaction_id?: string | null
+          unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_property_id_fkey1"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_property_id_fkey1"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "journal_entries_transaction_id_fkey1"
             columns: ["transaction_id"]
@@ -2653,14 +3742,35 @@ export type Database = {
             foreignKeyName: "journal_entries_transaction_id_fkey1"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_bank_register_transactions"
+            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "journal_entries_transaction_id_fkey1"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey1"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey1"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_unit_id_fkey1"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
@@ -2981,6 +4091,107 @@ export type Database = {
           },
         ]
       }
+      lease_telemetry_events: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          event: string
+          lease_id: number | null
+          org_id: string | null
+          prefills: Json | null
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          event: string
+          lease_id?: number | null
+          org_id?: string | null
+          prefills?: Json | null
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          event?: string
+          lease_id?: number | null
+          org_id?: string | null
+          prefills?: Json | null
+          source?: string | null
+        }
+        Relationships: []
+      }
+      manual_payment_events: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          event_data: Json
+          id: string
+          normalized_event_type: string | null
+          occurred_at: string
+          org_id: string
+          payment_id: string | null
+          payment_intent_id: string | null
+          raw_event_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          event_data: Json
+          id?: string
+          normalized_event_type?: string | null
+          occurred_at: string
+          org_id: string
+          payment_id?: string | null
+          payment_intent_id?: string | null
+          raw_event_type: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          event_data?: Json
+          id?: string
+          normalized_event_type?: string | null
+          occurred_at?: string
+          org_id?: string
+          payment_id?: string | null
+          payment_intent_id?: string | null
+          raw_event_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payment_events_intent_fk"
+            columns: ["org_id", "payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intent"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "manual_payment_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_events_payment_fk"
+            columns: ["org_id", "payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "manual_payment_events_payment_fk"
+            columns: ["org_id", "payment_id"]
+            isOneToOne: false
+            referencedRelation: "payment_lifecycle_projection"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
       membership_roles: {
         Row: {
           created_at: string
@@ -3261,6 +4472,101 @@ export type Database = {
           },
         ]
       }
+      org_accounting_config: {
+        Row: {
+          auto_lock_on_post: boolean | null
+          enforce_immutability: boolean | null
+          org_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          auto_lock_on_post?: boolean | null
+          enforce_immutability?: boolean | null
+          org_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          auto_lock_on_post?: boolean | null
+          enforce_immutability?: boolean | null
+          org_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_accounting_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_control_accounts: {
+        Row: {
+          ar_account_id: string
+          created_at: string
+          late_fee_income_account_id: string | null
+          org_id: string
+          rent_income_account_id: string
+          undeposited_funds_account_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ar_account_id: string
+          created_at?: string
+          late_fee_income_account_id?: string | null
+          org_id: string
+          rent_income_account_id: string
+          undeposited_funds_account_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ar_account_id?: string
+          created_at?: string
+          late_fee_income_account_id?: string | null
+          org_id?: string
+          rent_income_account_id?: string
+          undeposited_funds_account_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_control_accounts_ar_account_id_fkey"
+            columns: ["ar_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_control_accounts_late_fee_income_account_id_fkey"
+            columns: ["late_fee_income_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_control_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_control_accounts_rent_income_account_id_fkey"
+            columns: ["rent_income_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_control_accounts_undeposited_funds_account_id_fkey"
+            columns: ["undeposited_funds_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_memberships: {
         Row: {
           created_at: string
@@ -3299,6 +4605,7 @@ export type Database = {
       organizations: {
         Row: {
           accounting_book_id: number | null
+          ap_gl_account_id: string | null
           buildium_org_id: number | null
           company_name: string | null
           contact_address_line1: string | null
@@ -3326,6 +4633,7 @@ export type Database = {
         }
         Insert: {
           accounting_book_id?: number | null
+          ap_gl_account_id?: string | null
           buildium_org_id?: number | null
           company_name?: string | null
           contact_address_line1?: string | null
@@ -3353,6 +4661,7 @@ export type Database = {
         }
         Update: {
           accounting_book_id?: number | null
+          ap_gl_account_id?: string | null
           buildium_org_id?: number | null
           company_name?: string | null
           contact_address_line1?: string | null
@@ -3378,7 +4687,15 @@ export type Database = {
           updated_at?: string
           url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_ap_gl_account_id_fkey"
+            columns: ["ap_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       owners: {
         Row: {
@@ -3575,6 +4892,386 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_service_revenue_by_owner"
             referencedColumns: ["property_id"]
+          },
+        ]
+      }
+      payer_restriction_methods: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          payer_restriction_id: string
+          payment_method: Database["public"]["Enums"]["payment_method_enum"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          payer_restriction_id: string
+          payment_method: Database["public"]["Enums"]["payment_method_enum"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          payer_restriction_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method_enum"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_restriction_methods_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payer_restriction_methods_parent_fk"
+            columns: ["org_id", "payer_restriction_id"]
+            isOneToOne: false
+            referencedRelation: "payer_restrictions"
+            referencedColumns: ["org_id", "id"]
+          },
+        ]
+      }
+      payer_restrictions: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json
+          org_id: string
+          payer_id: string | null
+          payer_type: string | null
+          reason: string | null
+          restricted_until: string | null
+          restriction_type: string
+          source_event_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          org_id: string
+          payer_id?: string | null
+          payer_type?: string | null
+          reason?: string | null
+          restricted_until?: string | null
+          restriction_type: string
+          source_event_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          org_id?: string
+          payer_id?: string | null
+          payer_type?: string | null
+          reason?: string | null
+          restricted_until?: string | null
+          restriction_type?: string
+          source_event_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payer_restrictions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment: {
+        Row: {
+          amount: number | null
+          chargeback_id: string | null
+          created_at: string
+          disputed_at: string | null
+          gateway_transaction_id: string | null
+          id: string
+          normalized_return_reason_code: string | null
+          normalized_state: string | null
+          org_id: string
+          payer_id: string | null
+          payer_type: string | null
+          payment_intent_id: string
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          raw_return_reason_code: string | null
+          returned_at: string | null
+          settled_at: string | null
+          state: string | null
+          transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          chargeback_id?: string | null
+          created_at?: string
+          disputed_at?: string | null
+          gateway_transaction_id?: string | null
+          id?: string
+          normalized_return_reason_code?: string | null
+          normalized_state?: string | null
+          org_id: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_intent_id: string
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          raw_return_reason_code?: string | null
+          returned_at?: string | null
+          settled_at?: string | null
+          state?: string | null
+          transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          chargeback_id?: string | null
+          created_at?: string
+          disputed_at?: string | null
+          gateway_transaction_id?: string | null
+          id?: string
+          normalized_return_reason_code?: string | null
+          normalized_state?: string | null
+          org_id?: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_intent_id?: string
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          raw_return_reason_code?: string | null
+          returned_at?: string | null
+          settled_at?: string | null
+          state?: string | null
+          transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intent_fk"
+            columns: ["org_id", "payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intent"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "payment_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      payment_allocations: {
+        Row: {
+          allocated_amount: number
+          allocation_order: number
+          charge_id: string
+          created_at: string
+          created_by: string | null
+          external_id: string | null
+          id: string
+          org_id: string
+          payment_transaction_id: string
+          source: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allocated_amount: number
+          allocation_order: number
+          charge_id: string
+          created_at?: string
+          created_by?: string | null
+          external_id?: string | null
+          id?: string
+          org_id: string
+          payment_transaction_id: string
+          source?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allocated_amount?: number
+          allocation_order?: number
+          charge_id?: string
+          created_at?: string
+          created_by?: string | null
+          external_id?: string | null
+          id?: string
+          org_id?: string
+          payment_transaction_id?: string
+          source?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_allocations_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_transaction_id_fkey"
+            columns: ["payment_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      payment_intent: {
+        Row: {
+          allocation_plan: Json | null
+          amount: number
+          bypass_udf: boolean
+          created_at: string
+          gateway_intent_id: string | null
+          gateway_provider: string | null
+          id: string
+          idempotency_key: string
+          metadata: Json
+          org_id: string
+          payer_id: string | null
+          payer_type: string | null
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          state: Database["public"]["Enums"]["payment_intent_state_enum"]
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          allocation_plan?: Json | null
+          amount: number
+          bypass_udf?: boolean
+          created_at?: string
+          gateway_intent_id?: string | null
+          gateway_provider?: string | null
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          org_id: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          state?: Database["public"]["Enums"]["payment_intent_state_enum"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allocation_plan?: Json | null
+          amount?: number
+          bypass_udf?: boolean
+          created_at?: string
+          gateway_intent_id?: string | null
+          gateway_provider?: string | null
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          org_id?: string
+          payer_id?: string | null
+          payer_type?: string | null
+          payment_method?:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          state?: Database["public"]["Enums"]["payment_intent_state_enum"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intent_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4123,10 +5820,83 @@ export type Database = {
           },
         ]
       }
+      receivables: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string
+          external_id: string | null
+          id: string
+          lease_id: number
+          org_id: string
+          outstanding_amount: number | null
+          paid_amount: number
+          receivable_type: Database["public"]["Enums"]["receivable_type_enum"]
+          source: string | null
+          status: Database["public"]["Enums"]["receivable_status_enum"]
+          total_amount: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date: string
+          external_id?: string | null
+          id?: string
+          lease_id: number
+          org_id: string
+          outstanding_amount?: number | null
+          paid_amount?: number
+          receivable_type: Database["public"]["Enums"]["receivable_type_enum"]
+          source?: string | null
+          status?: Database["public"]["Enums"]["receivable_status_enum"]
+          total_amount: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string
+          external_id?: string | null
+          id?: string
+          lease_id?: number
+          org_id?: string
+          outstanding_amount?: number | null
+          paid_amount?: number
+          receivable_type?: Database["public"]["Enums"]["receivable_type_enum"]
+          source?: string | null
+          status?: Database["public"]["Enums"]["receivable_status_enum"]
+          total_amount?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receivables_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receivables_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reconciliation_log: {
         Row: {
           as_of: string | null
           bank_gl_account_id: string | null
+          book_balance_snapshot: number | null
           buildium_bank_account_id: number | null
           buildium_reconciliation_id: number | null
           created_at: string
@@ -4134,17 +5904,24 @@ export type Database = {
           gl_account_id: string | null
           id: string
           is_finished: boolean
+          last_sync_error: string | null
+          last_synced_at: string | null
+          locked_at: string | null
+          locked_by_user_id: string | null
           notes: string | null
           performed_by: string | null
           property_id: string | null
           public_id: number
           statement_ending_date: string | null
+          statement_start_date: string | null
           total_checks_withdrawals: number | null
           total_deposits_additions: number | null
+          unmatched_buildium_transaction_ids: number[] | null
         }
         Insert: {
           as_of?: string | null
           bank_gl_account_id?: string | null
+          book_balance_snapshot?: number | null
           buildium_bank_account_id?: number | null
           buildium_reconciliation_id?: number | null
           created_at?: string
@@ -4152,17 +5929,24 @@ export type Database = {
           gl_account_id?: string | null
           id?: string
           is_finished?: boolean
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          locked_at?: string | null
+          locked_by_user_id?: string | null
           notes?: string | null
           performed_by?: string | null
           property_id?: string | null
           public_id?: number
           statement_ending_date?: string | null
+          statement_start_date?: string | null
           total_checks_withdrawals?: number | null
           total_deposits_additions?: number | null
+          unmatched_buildium_transaction_ids?: number[] | null
         }
         Update: {
           as_of?: string | null
           bank_gl_account_id?: string | null
+          book_balance_snapshot?: number | null
           buildium_bank_account_id?: number | null
           buildium_reconciliation_id?: number | null
           created_at?: string
@@ -4170,13 +5954,19 @@ export type Database = {
           gl_account_id?: string | null
           id?: string
           is_finished?: boolean
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          locked_at?: string | null
+          locked_by_user_id?: string | null
           notes?: string | null
           performed_by?: string | null
           property_id?: string | null
           public_id?: number
           statement_ending_date?: string | null
+          statement_start_date?: string | null
           total_checks_withdrawals?: number | null
           total_deposits_additions?: number | null
+          unmatched_buildium_transaction_ids?: number[] | null
         }
         Relationships: [
           {
@@ -4312,24 +6102,66 @@ export type Database = {
           },
         ]
       }
+      returned_payment_policies: {
+        Row: {
+          auto_create_nsf_fee: boolean | null
+          created_at: string
+          nsf_fee_amount: number | null
+          nsf_fee_gl_account_id: string | null
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_create_nsf_fee?: boolean | null
+          created_at?: string
+          nsf_fee_amount?: number | null
+          nsf_fee_gl_account_id?: string | null
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_create_nsf_fee?: boolean | null
+          created_at?: string
+          nsf_fee_amount?: number | null
+          nsf_fee_gl_account_id?: string | null
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "returned_payment_policies_nsf_fee_gl_account_id_fkey"
+            columns: ["nsf_fee_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "returned_payment_policies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           created_at: string
-          permission_id: string | null
+          permission_id: string
           public_id: number
           role_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          permission_id?: string | null
+          permission_id: string
           public_id?: number
           role_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
-          permission_id?: string | null
+          permission_id?: string
           public_id?: number
           role_id?: string
           updated_at?: string
@@ -5442,15 +7274,29 @@ export type Database = {
             foreignKeyName: "transaction_files_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_bank_register_transactions"
+            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transaction_files_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
+            referencedRelation: "v_transaction_with_reversal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "transaction_files_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
         ]
       }
@@ -5567,15 +7413,29 @@ export type Database = {
             foreignKeyName: "journal_entries_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_bank_register_transactions"
+            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "journal_entries_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
+            referencedRelation: "v_transaction_with_reversal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "journal_entries_unit_id_fkey"
@@ -5638,15 +7498,29 @@ export type Database = {
             foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_bank_register_transactions"
+            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
+            referencedRelation: "v_transaction_with_reversal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "transaction_payment_transactions_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
         ]
       }
@@ -5670,6 +7544,10 @@ export type Database = {
       }
       transactions: {
         Row: {
+          account_entity_id: number | null
+          account_entity_type:
+            | Database["public"]["Enums"]["entity_type_enum"]
+            | null
           bank_gl_account_buildium_id: number | null
           bank_gl_account_id: string | null
           bill_transaction_id: string | null
@@ -5688,16 +7566,22 @@ export type Database = {
           email_receipt: boolean
           fee_category: Database["public"]["Enums"]["fee_category_enum"] | null
           id: string
+          idempotency_key: string | null
           internal_transaction_is_pending: boolean | null
           internal_transaction_result_code: string | null
           internal_transaction_result_date: string | null
           is_internal_transaction: boolean | null
+          is_reconciled: boolean | null
           is_recurring: boolean | null
           lease_id: number | null
           legacy_memo: string | null
+          locked_at: string | null
+          locked_by_user_id: string | null
+          locked_reason: string | null
           memo: string | null
+          metadata: Json | null
           monthly_log_id: string | null
-          org_id: string | null
+          org_id: string
           paid_by_accounting_entity_href: string | null
           paid_by_accounting_entity_id: number | null
           paid_by_accounting_entity_type: string | null
@@ -5722,9 +7606,11 @@ export type Database = {
           payment_method_raw: string | null
           plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt: boolean
+          property_id: string | null
           public_id: number
           recurring_schedule: Json | null
           reference_number: string | null
+          reversal_of_transaction_id: string | null
           service_offering_id: string | null
           status: Database["public"]["Enums"]["transaction_status_enum"]
           tenant_id: string | null
@@ -5739,6 +7625,10 @@ export type Database = {
           work_order_id: string | null
         }
         Insert: {
+          account_entity_id?: number | null
+          account_entity_type?:
+            | Database["public"]["Enums"]["entity_type_enum"]
+            | null
           bank_gl_account_buildium_id?: number | null
           bank_gl_account_id?: string | null
           bill_transaction_id?: string | null
@@ -5757,16 +7647,22 @@ export type Database = {
           email_receipt?: boolean
           fee_category?: Database["public"]["Enums"]["fee_category_enum"] | null
           id?: string
+          idempotency_key?: string | null
           internal_transaction_is_pending?: boolean | null
           internal_transaction_result_code?: string | null
           internal_transaction_result_date?: string | null
           is_internal_transaction?: boolean | null
+          is_reconciled?: boolean | null
           is_recurring?: boolean | null
           lease_id?: number | null
           legacy_memo?: string | null
+          locked_at?: string | null
+          locked_by_user_id?: string | null
+          locked_reason?: string | null
           memo?: string | null
+          metadata?: Json | null
           monthly_log_id?: string | null
-          org_id?: string | null
+          org_id: string
           paid_by_accounting_entity_href?: string | null
           paid_by_accounting_entity_id?: number | null
           paid_by_accounting_entity_type?: string | null
@@ -5791,9 +7687,11 @@ export type Database = {
           payment_method_raw?: string | null
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt?: boolean
+          property_id?: string | null
           public_id?: number
           recurring_schedule?: Json | null
           reference_number?: string | null
+          reversal_of_transaction_id?: string | null
           service_offering_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status_enum"]
           tenant_id?: string | null
@@ -5808,6 +7706,10 @@ export type Database = {
           work_order_id?: string | null
         }
         Update: {
+          account_entity_id?: number | null
+          account_entity_type?:
+            | Database["public"]["Enums"]["entity_type_enum"]
+            | null
           bank_gl_account_buildium_id?: number | null
           bank_gl_account_id?: string | null
           bill_transaction_id?: string | null
@@ -5826,16 +7728,22 @@ export type Database = {
           email_receipt?: boolean
           fee_category?: Database["public"]["Enums"]["fee_category_enum"] | null
           id?: string
+          idempotency_key?: string | null
           internal_transaction_is_pending?: boolean | null
           internal_transaction_result_code?: string | null
           internal_transaction_result_date?: string | null
           is_internal_transaction?: boolean | null
+          is_reconciled?: boolean | null
           is_recurring?: boolean | null
           lease_id?: number | null
           legacy_memo?: string | null
+          locked_at?: string | null
+          locked_by_user_id?: string | null
+          locked_reason?: string | null
           memo?: string | null
+          metadata?: Json | null
           monthly_log_id?: string | null
-          org_id?: string | null
+          org_id?: string
           paid_by_accounting_entity_href?: string | null
           paid_by_accounting_entity_id?: number | null
           paid_by_accounting_entity_type?: string | null
@@ -5860,9 +7768,11 @@ export type Database = {
           payment_method_raw?: string | null
           plan_id?: Database["public"]["Enums"]["service_plan_enum"] | null
           print_receipt?: boolean
+          property_id?: string | null
           public_id?: number
           recurring_schedule?: Json | null
           reference_number?: string | null
+          reversal_of_transaction_id?: string | null
           service_offering_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status_enum"]
           tenant_id?: string | null
@@ -5895,15 +7805,29 @@ export type Database = {
             foreignKeyName: "transactions_bill_transaction_id_fkey"
             columns: ["bill_transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_bank_register_transactions"
+            referencedRelation: "v_recent_transactions_ranked"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "transactions_bill_transaction_id_fkey"
             columns: ["bill_transaction_id"]
             isOneToOne: false
-            referencedRelation: "v_recent_transactions_ranked"
+            referencedRelation: "v_transaction_with_reversal"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "transactions_category_id_fkey"
@@ -5946,6 +7870,55 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vendors"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
           {
             foreignKeyName: "transactions_service_offering_id_fkey"
@@ -6533,340 +8506,30 @@ export type Database = {
             foreignKeyName: "work_orders_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
-          referencedRelation: "vendors"
-          referencedColumns: ["id"]
-        },
-      ]
-    }
-      buildium_failure_codes: {
-        Row: {
-          description: string | null
-          failure_category: string | null
-          normalized_code: string
-          raw_code: string
-        }
-        Insert: {
-          description?: string | null
-          failure_category?: string | null
-          normalized_code: string
-          raw_code: string
-        }
-        Update: {
-          description?: string | null
-          failure_category?: string | null
-          normalized_code?: string
-          raw_code?: string
-        }
-        Relationships: []
-      }
-      manual_payment_events: {
-        Row: {
-          created_at: string
-          created_by_user_id: string | null
-          event_data: Json
-          id: string
-          normalized_event_type: string | null
-          occurred_at: string
-          org_id: string
-          payment_id: string | null
-          payment_intent_id: string | null
-          raw_event_type: string
-        }
-        Insert: {
-          created_at?: string
-          created_by_user_id?: string | null
-          event_data: Json
-          id?: string
-          normalized_event_type?: string | null
-          occurred_at: string
-          org_id: string
-          payment_id?: string | null
-          payment_intent_id?: string | null
-          raw_event_type: string
-        }
-        Update: {
-          created_at?: string
-          created_by_user_id?: string | null
-          event_data?: Json
-          id?: string
-          normalized_event_type?: string | null
-          occurred_at?: string
-          org_id?: string
-          payment_id?: string | null
-          payment_intent_id?: string | null
-          raw_event_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "manual_payment_events_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "manual_payment_events_payment_id_fkey"
-            columns: ["payment_id"]
-            isOneToOne: false
-            referencedRelation: "payment"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "manual_payment_events_payment_intent_id_fkey"
-            columns: ["payment_intent_id"]
-            isOneToOne: false
-            referencedRelation: "payment_intent"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payer_restriction_methods: {
-        Row: {
-          created_at: string
-          id: string
-          org_id: string
-          payer_restriction_id: string
-          payment_method: Database["public"]["Enums"]["payment_method_enum"]
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          org_id: string
-          payer_restriction_id: string
-          payment_method: Database["public"]["Enums"]["payment_method_enum"]
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          org_id?: string
-          payer_restriction_id?: string
-          payment_method?: Database["public"]["Enums"]["payment_method_enum"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payer_restriction_methods_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payer_restriction_methods_parent_fk"
-            columns: ["payer_restriction_id", "org_id"]
-            isOneToOne: false
-            referencedRelation: "payer_restrictions"
-            referencedColumns: ["id", "org_id"]
-          },
-        ]
-      }
-      payer_restrictions: {
-        Row: {
-          created_at: string
-          id: string
-          metadata: Json
-          org_id: string
-          payer_id: string | null
-          payer_type: string | null
-          reason: string | null
-          restricted_until: string | null
-          restriction_type: string
-          source_event_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          metadata?: Json
-          org_id: string
-          payer_id?: string | null
-          payer_type?: string | null
-          reason?: string | null
-          restricted_until?: string | null
-          restriction_type: string
-          source_event_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          metadata?: Json
-          org_id?: string
-          payer_id?: string | null
-          payer_type?: string | null
-          reason?: string | null
-          restricted_until?: string | null
-          restriction_type?: string
-          source_event_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payer_restrictions_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment: {
-        Row: {
-          amount: number | null
-          chargeback_id: string | null
-          created_at: string
-          disputed_at: string | null
-          gateway_transaction_id: string | null
-          id: string
-          normalized_return_reason_code: string | null
-          normalized_state: string | null
-          org_id: string
-          payer_id: string | null
-          payer_type: string | null
-          payment_intent_id: string
-          payment_method: Database["public"]["Enums"]["payment_method_enum"] | null
-          raw_return_reason_code: string | null
-          returned_at: string | null
-          settled_at: string | null
-          state: string | null
-          transaction_id: string
-          updated_at: string
-        }
-        Insert: {
-          amount?: number | null
-          chargeback_id?: string | null
-          created_at?: string
-          disputed_at?: string | null
-          gateway_transaction_id?: string | null
-          id?: string
-          normalized_return_reason_code?: string | null
-          normalized_state?: string | null
-          org_id: string
-          payer_id?: string | null
-          payer_type?: string | null
-          payment_intent_id: string
-          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
-          raw_return_reason_code?: string | null
-          returned_at?: string | null
-          settled_at?: string | null
-          state?: string | null
-          transaction_id: string
-          updated_at?: string
-        }
-        Update: {
-          amount?: number | null
-          chargeback_id?: string | null
-          created_at?: string
-          disputed_at?: string | null
-          gateway_transaction_id?: string | null
-          id?: string
-          normalized_return_reason_code?: string | null
-          normalized_state?: string | null
-          org_id?: string
-          payer_id?: string | null
-          payer_type?: string | null
-          payment_intent_id?: string
-          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
-          raw_return_reason_code?: string | null
-          returned_at?: string | null
-          settled_at?: string | null
-          state?: string | null
-          transaction_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_intent_fk"
-            columns: ["org_id", "payment_intent_id"]
-            isOneToOne: false
-            referencedRelation: "payment_intent"
-            referencedColumns: ["org_id", "id"]
-          },
-          {
-            foreignKeyName: "payment_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      payment_intent: {
-        Row: {
-          allocation_plan: Json | null
-          amount: number
-          bypass_udf: boolean
-          created_at: string
-          gateway_intent_id: string | null
-          gateway_provider: string | null
-          id: string
-          idempotency_key: string
-          metadata: Json
-          org_id: string
-          payer_id: string | null
-          payer_type: string | null
-          payment_method: Database["public"]["Enums"]["payment_method_enum"] | null
-          state: Database["public"]["Enums"]["payment_intent_state_enum"]
-          submitted_at: string | null
-          updated_at: string
-        }
-        Insert: {
-          allocation_plan?: Json | null
-          amount: number
-          bypass_udf?: boolean
-          created_at?: string
-          gateway_intent_id?: string | null
-          gateway_provider?: string | null
-          id?: string
-          idempotency_key: string
-          metadata?: Json
-          org_id: string
-          payer_id?: string | null
-          payer_type?: string | null
-          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
-          state?: Database["public"]["Enums"]["payment_intent_state_enum"]
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Update: {
-          allocation_plan?: Json | null
-          amount?: number
-          bypass_udf?: boolean
-          created_at?: string
-          gateway_intent_id?: string | null
-          gateway_provider?: string | null
-          id?: string
-          idempotency_key?: string
-          metadata?: Json
-          org_id?: string
-          payer_id?: string | null
-          payer_type?: string | null
-          payment_method?: Database["public"]["Enums"]["payment_method_enum"] | null
-          state?: Database["public"]["Enums"]["payment_intent_state_enum"]
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_intent_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
+      column_info_cache: {
+        Row: {
+          comment: string | null
+          data_type: string | null
+          default_value: string | null
+          format: unknown
+          id: string | null
+          is_identity: boolean | null
+          is_nullable: boolean | null
+          name: unknown
+          ordinal_position: number | null
+          schema: unknown
+          table_id: number | null
+          table_name: unknown
+        }
+        Relationships: []
+      }
       payment_events: {
         Row: {
           created_at: string | null
@@ -6904,7 +8567,9 @@ export type Database = {
           payer_id: string | null
           payer_type: string | null
           payment_intent_id: string | null
-          payment_method: Database["public"]["Enums"]["payment_method_enum"] | null
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
           raw_result_code: string | null
           raw_return_reason_code: string | null
           returned_at: string | null
@@ -6913,24 +8578,57 @@ export type Database = {
           transaction_id: string | null
           updated_at: string | null
         }
-        Relationships: []
-      }
-      column_info_cache: {
-        Row: {
-          comment: string | null
-          data_type: string | null
-          default_value: string | null
-          format: unknown
-          id: string | null
-          is_identity: boolean | null
-          is_nullable: boolean | null
-          name: unknown
-          ordinal_position: number | null
-          schema: unknown
-          table_id: number | null
-          table_name: unknown
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_intent_fk"
+            columns: ["org_id", "payment_intent_id"]
+            isOneToOne: false
+            referencedRelation: "payment_intent"
+            referencedColumns: ["org_id", "id"]
+          },
+          {
+            foreignKeyName: "payment_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "payment_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
       }
       table_info_cache: {
         Row: {
@@ -7036,11 +8734,80 @@ export type Database = {
           },
         ]
       }
+      v_ar_gl_balance: {
+        Row: {
+          ar_gl_balance: number | null
+          org_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_ar_receivables: {
+        Row: {
+          amount_open_total: number | null
+          lease_id: number | null
+          oldest_due_date: string | null
+          open_charge_count: number | null
+          org_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "charges_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "charges_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_ar_reconciliation: {
+        Row: {
+          ar_gl_balance: number | null
+          ar_subledger_balance: number | null
+          org_id: string | null
+          variance: number | null
+        }
+        Relationships: []
+      }
+      v_ar_subledger: {
+        Row: {
+          ar_subledger_balance: number | null
+          org_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "charges_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_bank_register_transactions: {
         Row: {
           bank_amount: number | null
+          bank_entry_status:
+            | Database["public"]["Enums"]["bank_entry_status_enum"]
+            | null
           bank_gl_account_id: string | null
           bank_posting_type: string | null
+          cleared_at: string | null
+          current_reconciliation_log_id: string | null
           date: string | null
           id: string | null
           is_transfer: boolean | null
@@ -7052,6 +8819,7 @@ export type Database = {
           payee_buildium_id: number | null
           payee_buildium_type: string | null
           payee_name: string | null
+          reconciled_at: string | null
           reference_number: string | null
           total_amount: number | null
           transaction_type:
@@ -7060,12 +8828,28 @@ export type Database = {
           transfer_other_bank_gl_account_id: string | null
           vendor_id: string | null
         }
+        Relationships: []
+      }
+      v_dashboard_kpis: {
+        Row: {
+          active_leases: number | null
+          available_units: number | null
+          growth_rate: number | null
+          monthly_rent_roll: number | null
+          occupancy_rate: number | null
+          occupied_units: number | null
+          open_work_orders: number | null
+          org_id: string | null
+          total_properties: number | null
+          total_units: number | null
+          urgent_work_orders: number | null
+        }
         Relationships: [
           {
-            foreignKeyName: "transactions_vendor_id_fkey"
-            columns: ["vendor_id"]
+            foreignKeyName: "properties_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -7190,6 +8974,66 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "work_orders"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_reconciliation_transactions: {
+        Row: {
+          bank_amount: number | null
+          bank_gl_account_id: string | null
+          bank_posting_type: string | null
+          cleared_at: string | null
+          entry_date: string | null
+          locked_at: string | null
+          reconciled_at: string | null
+          reconciliation_id: string | null
+          statement_ending_date: string | null
+          statement_start_date: string | null
+          status: Database["public"]["Enums"]["bank_entry_status_enum"] | null
+          transaction_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_register_state_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "bank_register_state_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
           },
         ]
       }
@@ -7517,12 +9361,347 @@ export type Database = {
           },
         ]
       }
+      v_transaction_with_reversal: {
+        Row: {
+          account_entity_id: number | null
+          account_entity_type:
+            | Database["public"]["Enums"]["entity_type_enum"]
+            | null
+          bank_gl_account_buildium_id: number | null
+          bank_gl_account_id: string | null
+          bill_transaction_id: string | null
+          buildium_application_id: number | null
+          buildium_bill_id: number | null
+          buildium_last_updated_at: string | null
+          buildium_lease_id: number | null
+          buildium_transaction_id: number | null
+          buildium_unit_id: number | null
+          buildium_unit_number: string | null
+          category_id: string | null
+          check_number: string | null
+          created_at: string | null
+          date: string | null
+          due_date: string | null
+          email_receipt: boolean | null
+          fee_category: Database["public"]["Enums"]["fee_category_enum"] | null
+          id: string | null
+          idempotency_key: string | null
+          internal_transaction_is_pending: boolean | null
+          internal_transaction_result_code: string | null
+          internal_transaction_result_date: string | null
+          is_internal_transaction: boolean | null
+          is_recurring: boolean | null
+          lease_id: number | null
+          legacy_memo: string | null
+          locked_at: string | null
+          locked_by_user_id: string | null
+          locked_reason: string | null
+          memo: string | null
+          monthly_log_id: string | null
+          org_id: string | null
+          paid_by_accounting_entity_href: string | null
+          paid_by_accounting_entity_id: number | null
+          paid_by_accounting_entity_type: string | null
+          paid_by_accounting_unit_href: string | null
+          paid_by_accounting_unit_id: number | null
+          paid_by_label: string | null
+          paid_date: string | null
+          paid_to_buildium_id: number | null
+          paid_to_href: string | null
+          paid_to_name: string | null
+          paid_to_tenant_id: string | null
+          paid_to_type: string | null
+          paid_to_vendor_id: string | null
+          payee_buildium_id: number | null
+          payee_buildium_type: string | null
+          payee_href: string | null
+          payee_name: string | null
+          payee_tenant_id: number | null
+          payment_method:
+            | Database["public"]["Enums"]["payment_method_enum"]
+            | null
+          payment_method_raw: string | null
+          plan_id: Database["public"]["Enums"]["service_plan_enum"] | null
+          print_receipt: boolean | null
+          property_id: string | null
+          public_id: number | null
+          recurring_schedule: Json | null
+          reference_number: string | null
+          reversal_date: string | null
+          reversal_id: string | null
+          reversal_locked_at: string | null
+          reversal_memo: string | null
+          reversal_of_transaction_id: string | null
+          service_offering_id: string | null
+          status: Database["public"]["Enums"]["transaction_status_enum"] | null
+          tenant_id: string | null
+          total_amount: number | null
+          transaction_type:
+            | Database["public"]["Enums"]["transaction_type_enum"]
+            | null
+          unit_agreement_href: string | null
+          unit_agreement_id: number | null
+          unit_agreement_type: string | null
+          unit_id: string | null
+          updated_at: string | null
+          vendor_id: string | null
+          work_order_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_bank_gl_account_id_fkey"
+            columns: ["bank_gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "transactions_bill_transaction_id_fkey"
+            columns: ["bill_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "bill_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_lease_id_fkey"
+            columns: ["lease_id"]
+            isOneToOne: false
+            referencedRelation: "lease"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_monthly_log_id_fkey"
+            columns: ["monthly_log_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_paid_to_tenant_id_fkey"
+            columns: ["paid_to_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_paid_to_vendor_id_fkey"
+            columns: ["paid_to_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_recent_transactions_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_transaction_with_reversal"
+            referencedColumns: ["reversal_id"]
+          },
+          {
+            foreignKeyName: "transactions_reversal_of_transaction_id_fkey"
+            columns: ["reversal_of_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "v_undeposited_payments"
+            referencedColumns: ["transaction_id"]
+          },
+          {
+            foreignKeyName: "transactions_service_offering_id_fkey"
+            columns: ["service_offering_id"]
+            isOneToOne: false
+            referencedRelation: "service_offerings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_work_orders_ranked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_udf_warnings: {
+        Row: {
+          avg_age_days: number | null
+          max_age_days: number | null
+          org_id: string | null
+          payment_count: number | null
+          total_amount: number | null
+          warning_level: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_undeposited_payments: {
+        Row: {
+          age_days: number | null
+          is_undeposited: boolean | null
+          memo: string | null
+          org_id: string | null
+          paid_to_tenant_id: string | null
+          payment_date: string | null
+          tenant_id: string | null
+          total_amount: number | null
+          transaction_id: string | null
+          transaction_type:
+            | Database["public"]["Enums"]["transaction_type_enum"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_paid_to_tenant_id_fkey"
+            columns: ["paid_to_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _parse_bool: { Args: { p_value: string }; Returns: boolean }
       _parse_date: { Args: { p_value: string }; Returns: string }
       _parse_timestamptz: { Args: { p_value: string }; Returns: string }
       acquire_compliance_lock: { Args: { lock_key: string }; Returns: boolean }
+      backfill_deposit_items_from_transaction_payment_transactions: {
+        Args: never
+        Returns: number
+      }
+      backfill_deposit_meta_from_transactions: { Args: never; Returns: number }
+      calculate_book_balance: {
+        Args: {
+          p_as_of?: string
+          p_bank_gl_account_id: string
+          p_org_id?: string
+        }
+        Returns: number
+      }
       calculate_owner_total_properties: {
         Args: { owner_uuid: string }
         Returns: number
@@ -7531,6 +9710,15 @@ export type Database = {
         Args: { owner_uuid: string }
         Returns: number
       }
+      calculate_vendor_1099_total: {
+        Args: { p_tax_year: number; p_vendor_id: string }
+        Returns: number
+      }
+      check_payment_reconciliation_status: {
+        Args: { p_transaction_id: string }
+        Returns: boolean
+      }
+      cleanup_audit_logs: { Args: never; Returns: undefined }
       clear_expired_buildium_cache: { Args: never; Returns: number }
       count_active_units_for_property: {
         Args: { property_uuid: string }
@@ -7587,6 +9775,10 @@ export type Database = {
       fn_recalculate_unit_financials: {
         Args: { p_unit_id: string }
         Returns: undefined
+      }
+      generate_deposit_id: {
+        Args: { transaction_id_param: string }
+        Returns: string
       }
       generate_display_name: {
         Args: { company_name: string; first_name: string; last_name: string }
@@ -7659,6 +9851,38 @@ export type Database = {
               net: number
             }[]
           }
+        | {
+            Args: {
+              p_from: string
+              p_gl_account_ids?: string[]
+              p_property_id: string
+              p_to: string
+              p_unit_id?: string
+            }
+            Returns: {
+              credits: number
+              debits: number
+              gl_account_id: string
+              gl_account_name: string
+              net: number
+            }[]
+          }
+      gl_account_activity_cash_basis: {
+        Args: {
+          p_from: string
+          p_gl_account_ids?: string[]
+          p_property_id: string
+          p_to: string
+          p_unit_id?: string
+        }
+        Returns: {
+          credits: number
+          debits: number
+          gl_account_id: string
+          gl_account_name: string
+          net: number
+        }[]
+      }
       gl_account_balance_as_of: {
         Args: {
           p_as_of: string
@@ -7669,28 +9893,58 @@ export type Database = {
         }
         Returns: number
       }
-      gl_ledger_balance_as_of: {
-        Args: {
-          p_as_of: string
-          p_gl_account_id: string
-          p_property_id: string
-        }
-        Returns: number
-      }
-      gl_trial_balance_as_of: {
-        Args: { p_as_of_date: string }
-        Returns: {
-          account_number: string
-          balance: number
-          buildium_gl_account_id: number
-          credits: number
-          debits: number
-          gl_account_id: string
-          name: string
-          sub_type: string
-          type: string
-        }[]
-      }
+      gl_ledger_balance_as_of:
+        | {
+            Args: {
+              p_as_of: string
+              p_gl_account_id: string
+              p_property_id: string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              p_as_of: string
+              p_exclude_unreconciled?: boolean
+              p_gl_account_id: string
+              p_property_id: string
+              p_unit_id?: string
+            }
+            Returns: number
+          }
+      gl_trial_balance_as_of:
+        | {
+            Args: { p_as_of_date: string }
+            Returns: {
+              account_number: string
+              balance: number
+              buildium_gl_account_id: number
+              credits: number
+              debits: number
+              gl_account_id: string
+              name: string
+              sub_type: string
+              type: string
+            }[]
+          }
+        | {
+            Args: {
+              p_as_of_date: string
+              p_property_id?: string
+              p_unit_id?: string
+            }
+            Returns: {
+              account_number: string
+              balance: number
+              buildium_gl_account_id: number
+              credits: number
+              debits: number
+              gl_account_id: string
+              name: string
+              sub_type: string
+              type: string
+            }[]
+          }
       handle_lease_payment_webhook: {
         Args: { event_data: Json }
         Returns: undefined
@@ -7714,6 +9968,19 @@ export type Database = {
       has_permission: {
         Args: { p_org_id: string; p_permission_key: string; p_user_id: string }
         Returns: boolean
+      }
+      has_reconciled_bank_lines: {
+        Args: { p_bank_gl_account_id?: string; p_transaction_id: string }
+        Returns: boolean
+      }
+      identify_permissive_policies_to_consolidate: {
+        Args: never
+        Returns: {
+          cmd: string
+          policies: string[]
+          policy_count: number
+          table_name: string
+        }[]
       }
       is_org_admin: {
         Args: { p_org_id: string; p_user_id: string }
@@ -7742,6 +10009,20 @@ export type Database = {
             } & "Could not choose the best candidate function between: public.is_valid_country(val => text), public.is_valid_country(val => countries). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
           }
       jwt_custom_claims: { Args: never; Returns: Json }
+      list_1099_candidates: {
+        Args: { p_tax_year: number; p_threshold?: number }
+        Returns: {
+          include_1099: boolean
+          org_id: string
+          total: number
+          vendor_id: string
+          vendor_name: string
+        }[]
+      }
+      lock_transaction: {
+        Args: { p_reason: string; p_transaction_id: string; p_user_id?: string }
+        Returns: undefined
+      }
       map_bill_to_buildium: { Args: { p_bill_id: string }; Returns: Json }
       map_event_status_to_item_status: {
         Args: {
@@ -7767,15 +10048,32 @@ export type Database = {
         Returns: Json
       }
       normalize_country: { Args: { val: string }; Returns: string }
+      post_transaction: {
+        Args: {
+          p_header: Json
+          p_idempotency_key?: string
+          p_lines: Json
+          p_validate_balance?: boolean
+        }
+        Returns: string
+      }
       process_buildium_webhook_event: {
         Args: { p_event_data: Json; p_event_id: string; p_event_type: string }
         Returns: boolean
+      }
+      recompute_bill_status: {
+        Args: { p_bill_transaction_id: string }
+        Returns: undefined
       }
       reconcile_monthly_log_balance: {
         Args: { p_monthly_log_id: string }
         Returns: undefined
       }
       refresh_schema_cache: { Args: never; Returns: undefined }
+      refresh_unit_status_from_leases: {
+        Args: { p_unit_id: string }
+        Returns: undefined
+      }
       release_compliance_lock: { Args: { lock_key: string }; Returns: boolean }
       replace_transaction_lines: {
         Args: {
@@ -7785,6 +10083,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      resolve_ap_gl_account_id: { Args: { p_org_id: string }; Returns: string }
       resolve_compliance_program: {
         Args: { p_org_id: string; p_template_id: string }
         Returns: {
@@ -7874,6 +10173,10 @@ export type Database = {
           type: string
         }[]
       }
+      validate_bill_application: {
+        Args: { p_amount: number; p_bill_id: string; p_source_id: string }
+        Returns: undefined
+      }
       validate_ownership_totals: {
         Args: { p_property_id: string }
         Returns: undefined
@@ -7881,6 +10184,14 @@ export type Database = {
       validate_transaction_balance: {
         Args: { p_tolerance?: number; p_transaction_id: string }
         Returns: undefined
+      }
+      void_bill: {
+        Args: {
+          p_bill_transaction_id: string
+          p_reason?: string
+          p_user_id: string
+        }
+        Returns: string
       }
     }
     Enums: {
@@ -7899,6 +10210,12 @@ export type Database = {
         | "Microwave"
         | "Dishwasher"
         | "Washer/Dryer"
+      approval_state_enum:
+        | "draft"
+        | "pending_approval"
+        | "approved"
+        | "rejected"
+        | "voided"
       assignment_level: "Property Level" | "Unit Level"
       assignment_level_enum: "Building" | "Unit"
       automation_frequency_enum:
@@ -7917,6 +10234,7 @@ export type Database = {
         | "savings"
         | "money_market"
         | "certificate_of_deposit"
+      bank_entry_status_enum: "uncleared" | "cleared" | "reconciled"
       bathroom_enum:
         | "1"
         | "1.5"
@@ -8031,6 +10349,8 @@ export type Database = {
         | "TaskCreated"
         | "TaskUpdated"
         | "TaskCompleted"
+      charge_status_enum: "open" | "partial" | "paid" | "cancelled"
+      charge_type_enum: "rent" | "late_fee" | "utility" | "other"
       compliance_applies_to: "property" | "asset" | "both"
       compliance_asset_type:
         | "elevator"
@@ -8270,6 +10590,7 @@ export type Database = {
         | "Yemen"
         | "Zambia"
         | "Zimbabwe"
+      deposit_status_enum: "posted" | "reconciled" | "voided"
       dr_cr_enum: "DR" | "CR"
       email_template_key: "monthly_rental_statement"
       email_template_status: "active" | "inactive" | "archived"
@@ -8324,6 +10645,13 @@ export type Database = {
         | "IN_PROGRESS"
         | "BLOCKED"
         | "DONE"
+      payment_intent_state_enum:
+        | "created"
+        | "submitted"
+        | "pending"
+        | "authorized"
+        | "settled"
+        | "failed"
       payment_method_enum:
         | "Check"
         | "Cash"
@@ -8332,13 +10660,6 @@ export type Database = {
         | "DirectDeposit"
         | "CreditCard"
         | "ElectronicPayment"
-      payment_intent_state_enum:
-        | "authorized"
-        | "created"
-        | "failed"
-        | "pending"
-        | "settled"
-        | "submitted"
       plan_amount_type: "flat" | "percent"
       plan_percent_basis: "lease_rent_amount" | "collected_rent"
       property_status: "Active" | "Inactive"
@@ -8349,6 +10670,8 @@ export type Database = {
         | "Rental Building"
         | "Townhouse"
         | "Mult-Family"
+      receivable_status_enum: "open" | "partial" | "paid" | "cancelled"
+      receivable_type_enum: "rent" | "fee" | "utility" | "other"
       rent_basis_enum: "scheduled" | "billed" | "collected"
       rent_cycle_enum:
         | "Monthly"
@@ -8560,6 +10883,13 @@ export const Constants = {
         "Dishwasher",
         "Washer/Dryer",
       ],
+      approval_state_enum: [
+        "draft",
+        "pending_approval",
+        "approved",
+        "rejected",
+        "voided",
+      ],
       assignment_level: ["Property Level", "Unit Level"],
       assignment_level_enum: ["Building", "Unit"],
       automation_frequency_enum: [
@@ -8581,6 +10911,7 @@ export const Constants = {
         "money_market",
         "certificate_of_deposit",
       ],
+      bank_entry_status_enum: ["uncleared", "cleared", "reconciled"],
       bathroom_enum: [
         "1",
         "1.5",
@@ -8697,6 +11028,8 @@ export const Constants = {
         "TaskUpdated",
         "TaskCompleted",
       ],
+      charge_status_enum: ["open", "partial", "paid", "cancelled"],
+      charge_type_enum: ["rent", "late_fee", "utility", "other"],
       compliance_applies_to: ["property", "asset", "both"],
       compliance_asset_type: [
         "elevator",
@@ -8942,6 +11275,7 @@ export const Constants = {
         "Zambia",
         "Zimbabwe",
       ],
+      deposit_status_enum: ["posted", "reconciled", "voided"],
       dr_cr_enum: ["DR", "CR"],
       email_template_key: ["monthly_rental_statement"],
       email_template_status: ["active", "inactive", "archived"],
@@ -9001,6 +11335,14 @@ export const Constants = {
         "BLOCKED",
         "DONE",
       ],
+      payment_intent_state_enum: [
+        "created",
+        "submitted",
+        "pending",
+        "authorized",
+        "settled",
+        "failed",
+      ],
       payment_method_enum: [
         "Check",
         "Cash",
@@ -9009,14 +11351,6 @@ export const Constants = {
         "DirectDeposit",
         "CreditCard",
         "ElectronicPayment",
-      ],
-      payment_intent_state_enum: [
-        "authorized",
-        "created",
-        "failed",
-        "pending",
-        "settled",
-        "submitted",
       ],
       plan_amount_type: ["flat", "percent"],
       plan_percent_basis: ["lease_rent_amount", "collected_rent"],
@@ -9029,6 +11363,8 @@ export const Constants = {
         "Townhouse",
         "Mult-Family",
       ],
+      receivable_status_enum: ["open", "partial", "paid", "cancelled"],
+      receivable_type_enum: ["rent", "fee", "utility", "other"],
       rent_basis_enum: ["scheduled", "billed", "collected"],
       rent_cycle_enum: [
         "Monthly",

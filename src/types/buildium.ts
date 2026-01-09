@@ -18,7 +18,16 @@ export type BuildiumUnitType =
 export type BuildiumTaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type BuildiumTaskStatus = 'Open' | 'InProgress' | 'Completed' | 'Cancelled' | 'OnHold';
 export type BuildiumTaskRequestedByEntity = BuildiumWorkOrderRequestedByEntity;
-export type BuildiumBillStatus = 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid';
+export type BuildiumBillStatus =
+  | 'Pending'
+  | 'Paid'
+  | 'Overdue'
+  | 'Cancelled'
+  | 'PartiallyPaid'
+  | 'Approved'
+  | 'PendingApproval'
+  | 'Rejected'
+  | 'Voided';
 export type BuildiumPaymentMethod =
   | 'Check'
   | 'Cash'

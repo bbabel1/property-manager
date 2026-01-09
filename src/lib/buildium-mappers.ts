@@ -1696,7 +1696,9 @@ export async function mapTransactionBillToBuildium(
   const originalTotal = Number(tx.total_amount ?? 0);
   const adjustedTotal = Math.max(0, originalTotal - excludedLinesTotal);
 
-  const { data: workflowRow } = await supabase
+  const supabaseAny = supabase as any;
+
+  const { data: workflowRow } = await supabaseAny
     .from('bill_workflow')
     .select('approval_state')
     .eq('bill_transaction_id', transactionId)
@@ -1742,7 +1744,9 @@ export async function mapPaymentApplicationsToBuildium(
   sourceTransactionId: string,
   supabase: TypedSupabaseClient,
 ): Promise<{ billIds: number[]; allocations: Array<{ billId: number; amount: number }> }> {
-  const { data, error } = await supabase
+  const supabaseAny = supabase as any;
+
+  const { data, error } = await supabaseAny
     .from('bill_applications')
     .select(
       `
@@ -4472,9 +4476,7 @@ export function mapBillFromBuildium(buildiumBill: BuildiumBill): {
 
 type LocalBillStatus = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
-function _mapBillStatusToBuildium(
-  localStatus: string,
-): 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid' {
+function _mapBillStatusToBuildium(localStatus: string): BuildiumBillStatus {
   switch (localStatus?.toLowerCase()) {
     case 'paid':
       return 'Paid';
@@ -4486,6 +4488,16 @@ function _mapBillStatusToBuildium(
     case 'partially_paid':
     case 'partiallypaid':
       return 'PartiallyPaid';
+    case 'approved':
+      return 'Approved';
+    case 'pendingapproval':
+    case 'pending_approval':
+    case 'pending':
+      return 'PendingApproval';
+    case 'rejected':
+      return 'Rejected';
+    case 'voided':
+      return 'Voided';
     default:
       return 'Pending';
   }

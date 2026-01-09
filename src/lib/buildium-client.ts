@@ -234,6 +234,34 @@ export class BuildiumClient {
   }
 
   // ============================================================================
+  // VENDOR CREDITS/REFUNDS (used for outbound mirroring)
+  // ============================================================================
+
+  async createVendorCredit(
+    vendorId: number,
+    data: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const sanitized = sanitizeForBuildium(data);
+    return this.makeRequest<Record<string, unknown>>(
+      `POST`,
+      `/vendors/${vendorId}/credits`,
+      sanitized,
+    );
+  }
+
+  async createVendorRefund(
+    vendorId: number,
+    data: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const sanitized = sanitizeForBuildium(data);
+    return this.makeRequest<Record<string, unknown>>(
+      `POST`,
+      `/vendors/${vendorId}/refunds`,
+      sanitized,
+    );
+  }
+
+  // ============================================================================
   // VENDOR METHODS
   // ============================================================================
 

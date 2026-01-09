@@ -47,21 +47,12 @@ export class PostingEngine {
       event.idempotencyKey ??
       (event.externalId ? `${event.externalId}_${event.eventType}` : null)
     const leaseId = headerOverrides?.lease_id ?? this.extractLeaseId(event) ?? leaseContext?.lease_id ?? null
-    const accountEntityType =
-      headerOverrides?.account_entity_type ??
-      event.accountEntityType ??
-      (leaseContext ? ('Rental' as const) : null)
-    const accountEntityId =
-      headerOverrides?.account_entity_id ??
-      event.accountEntityId ??
-      (leaseContext?.buildium_property_id ?? null)
+    const accountEntityType = event.accountEntityType ?? (leaseContext ? ('Rental' as const) : null)
+    const accountEntityId = event.accountEntityId ?? (leaseContext?.buildium_property_id ?? null)
     const reversalOf =
-      headerOverrides?.reversal_of_transaction_id ??
-      (event.eventType === 'reversal'
+      event.eventType === 'reversal'
         ? (event.eventData as { originalTransactionId?: string }).originalTransactionId ?? null
-        : null)
-    const property_id = headerOverrides?.property_id ?? scope.propertyId ?? null
-    const unit_id = headerOverrides?.unit_id ?? scope.unitId ?? null
+        : null
     const memo = headerOverrides?.memo ?? (event.eventData as { memo?: string }).memo ?? null
 
     const linePayload = lines.map((l) => ({
@@ -69,8 +60,8 @@ export class PostingEngine {
       amount: l.amount,
       posting_type: l.posting_type,
       memo: l.memo ?? memo,
-      property_id: l.property_id ?? property_id,
-      unit_id: l.unit_id ?? unit_id,
+      property_id: l.property_id ?? scope.propertyId ?? null,
+      unit_id: l.unit_id ?? scope.unitId ?? null,
       lease_id: l.lease_id ?? leaseId,
       account_entity_type: accountEntityType,
       account_entity_id: accountEntityId,
@@ -87,21 +78,22 @@ export class PostingEngine {
       date: postingDate,
       created_at: headerOverrides?.created_at ?? createdAt,
       updated_at: headerOverrides?.updated_at ?? createdAt,
-      idempotency_key: idempotencyKey,
       total_amount: headerOverrides?.total_amount ?? computeNetAmount(lines),
-      lease_id: leaseId,
-      property_id,
-      unit_id,
-      account_entity_type: accountEntityType ?? undefined,
-      account_entity_id: accountEntityId ?? undefined,
-      reversal_of_transaction_id: reversalOf ?? undefined,
+      lease_id: leaseId ?? undefined,
+      bank_gl_account_id: headerOverrides?.bank_gl_account_id ?? undefined,
+      bank_gl_account_buildium_id: headerOverrides?.bank_gl_account_buildium_id ?? undefined,
+      buildium_application_id: headerOverrides?.buildium_application_id ?? undefined,
+      buildium_bill_id: headerOverrides?.buildium_bill_id ?? undefined,
+      buildium_transaction_id: headerOverrides?.buildium_transaction_id ?? undefined,
+      check_number: headerOverrides?.check_number ?? undefined,
+      reference_number: headerOverrides?.reference_number ?? undefined,
+      is_internal_transaction: headerOverrides?.is_internal_transaction ?? undefined,
+      is_recurring: headerOverrides?.is_recurring ?? undefined,
       buildium_lease_id: headerOverrides?.buildium_lease_id ?? leaseContext?.buildium_lease_id ?? undefined,
-      buildium_property_id:
-        headerOverrides?.buildium_property_id ?? leaseContext?.buildium_property_id ?? undefined,
       buildium_unit_id: headerOverrides?.buildium_unit_id ?? leaseContext?.buildium_unit_id ?? undefined,
     }
 
-    const { data, error } = await this.db.rpc('post_transaction', {
+    const { data, error } = await (this.db as any).rpc('post_transaction', {
       p_header: header as unknown as Database['public']['Tables']['transactions']['Insert'],
       p_lines: linePayload as unknown as Database['public']['Tables']['transaction_lines']['Insert'][],
       p_idempotency_key: idempotencyKey,
@@ -120,6 +112,27 @@ export class PostingEngine {
 
     logRuleEvent(event, transactionId)
     return { transactionId }
+  }
+
+  private buildMetadata(
+    event: PostingEvent,
+    override?: Record<string, unknown>,
+  ): Record<string, unknown> | undefined {
+    const hints = event.metadata
+    const meta: Record<string, unknown> = {}
+
+    if (hints?.chargeId) meta.charge_id = hints.chargeId
+    if (hints?.paymentId) meta.payment_id = hints.paymentId
+    if (hints?.reversalOfPaymentId) meta.reversal_of_payment_id = hints.reversalOfPaymentId
+    if (hints?.nsfFee) meta.nsf_fee = true
+    if (hints?.allocations) meta.allocations = hints.allocations
+
+    if (override && typeof override === 'object') {
+      Object.assign(meta, override as Record<string, unknown>)
+    }
+
+    if (Object.keys(meta).length === 0) return undefined
+    return meta
   }
 
   private async loadLeaseContext(event: PostingEvent): Promise<LeaseContext | undefined> {

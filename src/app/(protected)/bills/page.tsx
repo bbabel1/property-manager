@@ -159,6 +159,7 @@ function formatCurrency(amount?: number | null) {
 
 export default async function BillsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const db = supabaseAdmin || supabase;
+  const dbAny = db as any;
   const sp = (await (searchParams || Promise.resolve({}))) as Record<string, string | undefined>;
 
   const tabParam = typeof sp?.tab === 'string' ? sp.tab : undefined;
@@ -348,7 +349,7 @@ export default async function BillsPage({ searchParams }: { searchParams: Promis
 
   const workflowMap = new Map<string, string | null>();
   if (transactionIds.length) {
-    const { data: wfRows } = await db
+    const { data: wfRows } = await dbAny
       .from('bill_workflow')
       .select('bill_transaction_id, approval_state')
       .in('bill_transaction_id', transactionIds);

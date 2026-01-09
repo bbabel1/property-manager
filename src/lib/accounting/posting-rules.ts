@@ -27,7 +27,14 @@ export type PostingRuleContext = {
 
 export type PostingRuleResult = {
   lines: PostingLine[]
-  headerOverrides?: Partial<Database['public']['Tables']['transactions']['Insert']>
+  headerOverrides?: Partial<Database['public']['Tables']['transactions']['Insert']> & {
+    metadata?: Record<string, unknown>
+    property_id?: string | null
+    unit_id?: string | null
+    account_entity_type?: Database['public']['Enums']['entity_type_enum'] | null
+    account_entity_id?: number | null
+    reversal_of_transaction_id?: string | null
+  }
 }
 
 export type PostingRule = {
@@ -67,9 +74,11 @@ const rentChargeRule: PostingRule = {
     const memo = data?.memo
     const debitAccount = data?.debitGlAccountId ?? glSettings.ar_lease
     const creditAccount = data?.creditGlAccountId ?? glSettings.rent_income
+    if (!debitAccount) throw new Error('rent_charge requires AR control account')
+    if (!creditAccount) throw new Error('rent_charge requires income control account')
     const property_id = data?.propertyId ?? scope.propertyId ?? null
     const unit_id = data?.unitId ?? scope.unitId ?? null
-
+    const lease_id = data?.leaseId ?? leaseContext?.lease_id ?? null
     const lines: PostingLine[] = [
       {
         gl_account_id: debitAccount,
@@ -78,7 +87,7 @@ const rentChargeRule: PostingRule = {
         memo,
         property_id,
         unit_id,
-        lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+        lease_id,
       },
       {
         gl_account_id: creditAccount,
@@ -87,7 +96,7 @@ const rentChargeRule: PostingRule = {
         memo,
         property_id,
         unit_id,
-        lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+        lease_id,
       },
     ]
 
@@ -96,7 +105,7 @@ const rentChargeRule: PostingRule = {
       headerOverrides: {
         transaction_type: 'Charge',
         memo,
-        lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+        lease_id,
         buildium_lease_id: data?.buildiumLeaseId ?? leaseContext?.buildium_lease_id ?? null,
         property_id,
         unit_id,
@@ -118,9 +127,11 @@ const lateFeeRule: PostingRule = {
     const amount = ensureAmount(data?.amount ?? event.businessAmount, 'late_fee')
     const memo = data?.memo ?? 'Late fee'
     const incomeAccount = glSettings.late_fee_income || glSettings.rent_income
+    if (!glSettings.ar_lease) throw new Error('late_fee requires AR control account')
+    if (!incomeAccount) throw new Error('late_fee requires income control account')
     const property_id = data?.propertyId ?? scope.propertyId ?? null
     const unit_id = data?.unitId ?? scope.unitId ?? null
-
+    const lease_id = data?.leaseId ?? leaseContext?.lease_id ?? null
     return {
       lines: [
         {
@@ -130,7 +141,7 @@ const lateFeeRule: PostingRule = {
           memo,
           property_id,
           unit_id,
-          lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+          lease_id,
         },
         {
           gl_account_id: incomeAccount,
@@ -139,13 +150,58 @@ const lateFeeRule: PostingRule = {
           memo,
           property_id,
           unit_id,
-          lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+          lease_id,
         },
       ],
       headerOverrides: {
         transaction_type: 'Charge',
         memo,
-        lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+        lease_id,
+        property_id,
+        unit_id,
+        total_amount: amount,
+      },
+    }
+  },
+}
+
+const nsfFeeRule: PostingRule = {
+  eventType: 'nsf_fee',
+  generateLines: async ({ event, glSettings, scope, leaseContext }) => {
+    const data = event.eventData as RentChargeEventData
+    const amount = ensureAmount(data?.amount ?? event.businessAmount, 'nsf_fee')
+    const memo = data?.memo ?? 'NSF fee'
+    const incomeAccount = glSettings.late_fee_income || glSettings.rent_income
+    if (!glSettings.ar_lease) throw new Error('nsf_fee requires AR control account')
+    if (!incomeAccount) throw new Error('nsf_fee requires income control account')
+    const property_id = data?.propertyId ?? scope.propertyId ?? null
+    const unit_id = data?.unitId ?? scope.unitId ?? null
+    const lease_id = data?.leaseId ?? leaseContext?.lease_id ?? null
+    return {
+      lines: [
+        {
+          gl_account_id: glSettings.ar_lease,
+          amount,
+          posting_type: 'Debit',
+          memo,
+          property_id,
+          unit_id,
+          lease_id,
+        },
+        {
+          gl_account_id: incomeAccount,
+          amount,
+          posting_type: 'Credit',
+          memo,
+          property_id,
+          unit_id,
+          lease_id,
+        },
+      ],
+      headerOverrides: {
+        transaction_type: 'Charge',
+        memo,
+        lease_id,
         property_id,
         unit_id,
         total_amount: amount,
@@ -160,44 +216,55 @@ const tenantPaymentRule: PostingRule = {
     const data = event.eventData as TenantPaymentEventData
     const amount = ensureAmount(data?.amount ?? event.businessAmount, 'tenant_payment')
     const useUndeposited = data.useUndepositedFunds ?? false
-    const bankGlAccountId = useUndeposited
-      ? glSettings.undeposited_funds_account_id ?? null
-      : data.bankGlAccountId ?? glSettings.cash_operating
-    if (!bankGlAccountId) throw new Error('tenant_payment requires bankGlAccountId or undeposited funds account')
+    const arAccount = glSettings.ar_lease
+    if (!arAccount) throw new Error('tenant_payment requires AR control account')
+    let bankGlAccountId: string | null = null
+    if (useUndeposited) {
+      bankGlAccountId = glSettings.undeposited_funds_account_id ?? null
+      if (!bankGlAccountId) {
+        throw new Error(
+          'tenant_payment requires undeposited funds control account when useUndepositedFunds is true',
+        )
+      }
+    } else {
+      bankGlAccountId = data.bankGlAccountId ?? null
+      if (!bankGlAccountId) {
+        throw new Error('tenant_payment requires bankGlAccountId when not using undeposited funds')
+      }
+    }
+    const depositAccountId = bankGlAccountId as string
     const memo = data?.memo
     const property_id = scope.propertyId ?? null
     const unit_id = scope.unitId ?? null
+    const lease_id = data?.leaseId ?? leaseContext?.lease_id ?? null
 
     return {
       lines: [
         {
-          gl_account_id: data.bankGlAccountId,
+          gl_account_id: depositAccountId,
           amount,
           posting_type: 'Debit',
           memo,
           property_id,
           unit_id,
-          lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+          lease_id,
         },
         {
-          gl_account_id: glSettings.ar_lease,
+          gl_account_id: arAccount,
           amount,
           posting_type: 'Credit',
           memo,
           property_id,
           unit_id,
-          lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+          lease_id,
         },
       ],
       headerOverrides: {
         transaction_type: 'Payment',
         memo,
-        lease_id: data?.leaseId ?? leaseContext?.lease_id ?? null,
+        lease_id,
         property_id,
         unit_id,
-        metadata: {
-          payment_id: event.externalId ?? null,
-        } as Database['public']['Tables']['transactions']['Insert']['metadata'],
       },
     }
   },
@@ -356,7 +423,6 @@ const reversalRule: PostingRule = {
       headerOverrides: {
         transaction_type: 'GeneralJournalEntry',
         memo: data.memo || 'Reversal',
-        reversal_of_transaction_id: originalId,
       },
     }
   },
@@ -451,6 +517,7 @@ export const postingRules: Record<PostingEventType, PostingRule> = {
   general_journal_entry: generalJournalRule,
   bank_transfer: bankTransferRule,
   other_transaction: otherTransactionRule,
+  nsf_fee: nsfFeeRule,
 }
 
 export function computeNetAmount(lines: PostingLine[]): number {

@@ -7,17 +7,15 @@ vi.mock('../analytics', () => ({
 }));
 
 describe('emitLeaseTelemetry', () => {
-  const fetchSpy = vi.fn(() => Promise.resolve({ ok: true }));
+  const fetchSpy = vi.fn<typeof fetch>(() => Promise.resolve({ ok: true } as Response));
   const originalFetch = global.fetch;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // @ts-expect-error allow override for test
-    global.fetch = fetchSpy;
+    global.fetch = fetchSpy as unknown as typeof fetch;
   });
 
   afterEach(() => {
-    // @ts-expect-error restore
     global.fetch = originalFetch;
   });
 

@@ -147,6 +147,7 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
     memo: detail?.Memo ?? undefined,
     check_number: detail?.CheckNumber ?? undefined,
     bank_gl_account_buildium_id: bankGlAccountId ?? undefined,
+    org_id: orgId ?? null,
     updated_at: now,
   };
 

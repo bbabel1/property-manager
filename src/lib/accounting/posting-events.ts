@@ -11,7 +11,8 @@ export type PostingEventType =
   | 'recurring_charge'
   | 'late_fee'
   | 'bank_transfer'
-  | 'other_transaction';
+  | 'other_transaction'
+  | 'nsf_fee';
 
 export type PostingLine = {
   gl_account_id: string
@@ -92,6 +93,14 @@ export type PostingEventData =
   | BankTransferEventData
   | CustomLinesEventData
 
+export type PostingMetadataHints = {
+  chargeId?: string | null
+  paymentId?: string | null
+  reversalOfPaymentId?: string | null
+  nsfFee?: boolean
+  allocations?: unknown
+}
+
 export type LeaseContext = {
   lease_id?: number | null
   org_id?: string | null
@@ -116,4 +125,5 @@ export interface PostingEvent {
   idempotencyKey?: string
   businessAmount?: number
   primaryGlAccountId?: string
+  metadata?: PostingMetadataHints
 }

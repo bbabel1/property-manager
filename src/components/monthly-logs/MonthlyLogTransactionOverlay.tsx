@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import type { LeaseTenantOption } from '@/components/leases/types';
 import WithholdDepositForm from '@/components/leases/WithholdDepositForm';
 import CreateBillForm from '@/components/monthly-logs/CreateBillForm';
 import ManagementFeesStage from '@/components/monthly-logs/ManagementFeesStage';
@@ -53,6 +54,7 @@ interface MonthlyLogTransactionOverlayProps {
     propertyUnit?: string | null;
     tenants?: string | null;
   };
+  tenantOptions?: LeaseTenantOption[];
   hasActiveLease: boolean;
   monthlyLogId: string;
   propertyId: string | null;

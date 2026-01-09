@@ -314,7 +314,7 @@ export default async function BankAccountDepositEditPage({
         : 0;
 
   // Fetch deposit overlay (status + deposit_id)
-  const { data: depositMeta } = await db
+  const { data: depositMeta } = await (db as any)
     .from('deposit_meta')
     .select('deposit_id, status')
     .eq('transaction_id', transactionId)

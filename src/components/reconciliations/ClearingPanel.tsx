@@ -77,7 +77,7 @@ export default function ClearingPanel({
             status: nextStatus,
             current_reconciliation_log_id: nextStatus === 'uncleared' ? null : reconciliationId,
             cleared_at: nextStatus === 'uncleared' ? null : timestamp,
-            reconciled_at: nextStatus === 'reconciled' ? timestamp : null,
+            reconciled_at: nextStatus === 'uncleared' ? null : row.reconciled_at,
           })
           .eq('transaction_id', row.transaction_id)
           .eq('bank_gl_account_id', row.bank_gl_account_id),

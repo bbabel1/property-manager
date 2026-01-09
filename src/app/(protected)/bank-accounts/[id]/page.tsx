@@ -75,7 +75,7 @@ type BankTransactionRow = {
   bank_gl_account_id: string | null;
   bank_amount: number | null;
   bank_posting_type: string | null;
-  bank_entry_status?: Database['public']['Enums']['bank_entry_status_enum'] | null;
+  bank_entry_status?: string | null;
   current_reconciliation_log_id?: string | null;
   cleared_at?: string | null;
   reconciled_at?: string | null;
@@ -154,7 +154,7 @@ type DisplayTransactionRow = {
   numberLabel: string;
   typeLabel: TransactionDisplayType;
   depositId?: string | null;
-  depositStatus?: Database['public']['Enums']['deposit_status_enum'] | null;
+  depositStatus?: string | null;
   paidByLabel: string;
   paidToLabel: string;
   memoLabel: string;
@@ -417,6 +417,7 @@ export default async function BankAccountShow({
 
   const db = supabaseAdmin || supabase;
   const supabaseAuthed = await getSupabaseServerClient();
+  const dbAny = db as any;
 
   const [
     { data: account, error: accountError },
@@ -431,7 +432,7 @@ export default async function BankAccountShow({
       .eq('id', id)
       .eq('is_bank_account', true)
       .maybeSingle<BankAccountDetail>(),
-    db
+    dbAny
       .from('v_bank_register_transactions')
       .select(
         'id, date, reference_number, memo, total_amount, transaction_type, vendor_id, bank_gl_account_id, bank_amount, bank_posting_type, bank_entry_status, current_reconciliation_log_id, cleared_at, reconciled_at, paid_by_label, paid_to_name, paid_to_type, paid_to_buildium_id, payee_name, payee_buildium_type, payee_buildium_id, is_transfer, transfer_other_bank_gl_account_id',
@@ -480,14 +481,14 @@ export default async function BankAccountShow({
 
   const depositMetaByTx = new Map<
     string,
-    { deposit_id: string | null; status: Database['public']['Enums']['deposit_status_enum'] | null }
+    { deposit_id: string | null; status: string | null }
   >();
   if (depositTxIds.length > 0) {
-    const { data: depositMetaRows } = await db
+    const { data: depositMetaRows } = await (db as any)
       .from('deposit_meta')
       .select('transaction_id, deposit_id, status')
       .in('transaction_id', depositTxIds);
-    (depositMetaRows || []).forEach((row) => {
+    (depositMetaRows || []).forEach((row: { transaction_id?: string | number | null; deposit_id?: string | null; status?: string | null }) => {
       if (row?.transaction_id) {
         depositMetaByTx.set(String(row.transaction_id), {
           deposit_id: (row as any).deposit_id ?? null,
@@ -893,7 +894,11 @@ export default async function BankAccountShow({
                 { value: 'reconciled', label: 'Reconciled' },
                 { value: 'voided', label: 'Voided' },
               ].map((opt) => {
-                const params = new URLSearchParams(sp as Record<string, string | undefined>);
+                const params = new URLSearchParams(
+                  Object.entries(sp || {}).filter(
+                    (entry): entry is [string, string] => typeof entry[1] === 'string',
+                  ),
+                );
                 if (opt.value === 'all') params.delete('depositStatus');
                 else params.set('depositStatus', opt.value);
                 const href = params.toString() ? `?${params.toString()}` : '.';

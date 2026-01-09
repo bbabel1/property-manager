@@ -116,6 +116,12 @@ async function processChargeSchedule(schedule: ChargeSchedule, from: Date, to: D
   if (!schedule.is_active) return 0
 
   const db = supabaseAdmin || supa
+  const { data: leaseRow } = await db
+    .from('lease')
+    .select('lease_from_date, lease_to_date')
+    .eq('id', schedule.lease_id)
+    .maybeSingle()
+
   const { data: existingRows } = await db
     .from('charges')
     .select('id, due_date')
@@ -129,11 +135,13 @@ async function processChargeSchedule(schedule: ChargeSchedule, from: Date, to: D
   for (const date of dates) {
     if (existingDates.has(date)) continue
     const externalId = `charge_schedule:${schedule.id}:${date}`
+    const proration = maybeProrateCharge(schedule, leaseRow, date)
+    const chargeAmount = proration?.amount ?? schedule.amount
     try {
-      await arService.createChargeWithReceivable({
+      const { charge } = await arService.createChargeWithReceivable({
         leaseId: schedule.lease_id,
         chargeType: schedule.charge_type,
-        amount: schedule.amount,
+        amount: chargeAmount,
         dueDate: date,
         description: schedule.description ?? null,
         memo: schedule.description ?? null,
@@ -144,10 +152,20 @@ async function processChargeSchedule(schedule: ChargeSchedule, from: Date, to: D
         allocations: [
           {
             accountId: schedule.gl_account_id,
-            amount: schedule.amount,
+            amount: chargeAmount,
           },
         ],
+        isProrated: proration?.isProrated ?? false,
+        prorationDays: proration?.prorationDays ?? null,
+        baseAmount: proration?.baseAmount ?? null,
+        parentChargeId: proration?.parentChargeId ?? null,
       })
+      if (proration) {
+        await db
+          .from('charges')
+          .update({ parent_charge_id: charge.id })
+          .eq('id', charge.id)
+      }
       created += 1
     } catch (error) {
       // Continue processing other schedules even if one fails
@@ -291,6 +309,57 @@ async function processLegacyRecurring(
   }
 
   return { created }
+}
+
+type ProrationResult = {
+  amount: number
+  baseAmount: number
+  prorationDays: number
+  isProrated: boolean
+  parentChargeId: null
+}
+
+function maybeProrateCharge(
+  schedule: ChargeSchedule,
+  leaseRow: { lease_from_date?: string | null; lease_to_date?: string | null } | null,
+  dueDate: string,
+): ProrationResult | null {
+  if (!leaseRow) return null
+  if (schedule.frequency !== 'Monthly') return null
+
+  const periodStart = new Date(`${dueDate}T00:00:00Z`)
+  const periodEnd = new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + 1, 0))
+  const leaseStart = leaseRow.lease_from_date ? new Date(`${leaseRow.lease_from_date}T00:00:00Z`) : null
+  const leaseEnd = leaseRow.lease_to_date ? new Date(`${leaseRow.lease_to_date}T00:00:00Z`) : null
+
+  let billStart = periodStart
+  let billEnd = periodEnd
+  let needsProration = false
+
+  if (leaseStart && leaseStart > billStart && leaseStart <= periodEnd) {
+    billStart = leaseStart
+    needsProration = true
+  }
+  if (leaseEnd && leaseEnd < billEnd && leaseEnd >= periodStart) {
+    billEnd = leaseEnd
+    needsProration = true
+  }
+
+  if (!needsProration) return null
+  if (billEnd < billStart) return null
+
+  const totalDays = periodEnd.getUTCDate()
+  const prorationDays = Math.max(1, Math.floor((billEnd.getTime() - billStart.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+  const ratio = prorationDays / totalDays
+  const amount = Math.max(0, Math.round(schedule.amount * ratio * 100) / 100)
+
+  return {
+    amount,
+    baseAmount: schedule.amount,
+    prorationDays,
+    isProrated: true,
+    parentChargeId: null,
+  }
 }
 
 type ChargeSchedule = {

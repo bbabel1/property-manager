@@ -150,55 +150,72 @@ export class ArService {
     const memo = params.memo ?? params.description ?? null;
     const nowIso = new Date().toISOString();
 
-    const transactionId =
-      allocations.length > 1
-        ? await this.postMultiAllocationCharge({
-            lease,
-            params,
-            glSettings,
-            amount,
-            memo,
-            postingDate,
-            nowIso,
-            idempotencyKey,
-          })
-        : await this.postSingleAllocationCharge({
-            lease,
-            params,
-            glSettings,
-            amount,
-            memo,
-            postingDate,
-            nowIso,
-            idempotencyKey,
-            allocations,
-          });
-
-    const { charge, receivable } = await this.insertChargeAndReceivable({
+    const { charge: initialCharge, receivable } = await this.insertChargeAndReceivable({
       lease,
       params,
       amount,
-      transactionId,
+      transactionId: null,
       memo,
       nowIso,
     });
 
+    let chargeRow = initialCharge;
+    let transactionId: string | null = null;
+
+    try {
+      transactionId =
+        allocations.length > 1
+          ? await this.postMultiAllocationCharge({
+              lease,
+              params,
+              glSettings,
+              amount,
+              memo,
+              postingDate,
+              nowIso,
+              idempotencyKey,
+              allocations,
+              chargeId: chargeRow.id,
+            })
+          : await this.postSingleAllocationCharge({
+              lease,
+              params,
+              glSettings,
+              amount,
+              memo,
+              postingDate,
+              nowIso,
+              idempotencyKey,
+              allocations,
+              chargeId: chargeRow.id,
+            });
+    } catch (error) {
+      await this.cleanupChargeAndReceivable(chargeRow.id, receivable?.id);
+      throw error;
+    }
+
     if (transactionId) {
-      await this.db
-        .from('transactions')
-        .update({
-          metadata: {
-            charge_id: charge.id,
-          },
-        })
-        .eq('id', transactionId);
+      const { data: updatedCharge, error: updateErr } = await this.db
+        .from('charges')
+        .update({ transaction_id: transactionId, updated_at: nowIso })
+        .eq('id', chargeRow.id)
+        .select('*')
+        .maybeSingle();
+      if (updateErr) throw updateErr;
+      if (updatedCharge) {
+        chargeRow = updatedCharge;
+      }
     }
 
     const transaction = transactionId
       ? await this.fetchTransactionSummary(transactionId)
       : null;
 
-    return { charge: toCharge(charge), receivable: receivable ? toReceivable(receivable) : null, transaction };
+    return {
+      charge: toCharge(chargeRow),
+      receivable: receivable ? toReceivable(receivable) : null,
+      transaction,
+    };
   }
 
   private async insertChargeAndReceivable({
@@ -279,6 +296,13 @@ export class ArService {
     return { charge, receivable };
   }
 
+  private async cleanupChargeAndReceivable(chargeId: string, receivableId?: string | null) {
+    await this.db.from('charges').delete().eq('id', chargeId);
+    if (receivableId) {
+      await this.db.from('receivables').delete().eq('id', receivableId);
+    }
+  }
+
   private async postSingleAllocationCharge({
     lease,
     params,
@@ -289,6 +313,7 @@ export class ArService {
     nowIso,
     idempotencyKey,
     allocations,
+    chargeId,
   }: {
     lease: LeaseContext;
     params: CreateChargeWithReceivableParams;
@@ -299,6 +324,7 @@ export class ArService {
     nowIso: string;
     idempotencyKey: string | null;
     allocations: ChargeAllocationInput[];
+    chargeId: string;
   }): Promise<string> {
     const creditAccount =
       allocations?.[0]?.accountId ??
@@ -329,6 +355,9 @@ export class ArService {
         debitGlAccountId: glSettings.ar_lease,
         creditGlAccountId: creditAccount,
       },
+      metadata: {
+        chargeId,
+      },
     });
 
     return transactionId;
@@ -343,6 +372,7 @@ export class ArService {
     postingDate,
     nowIso,
     idempotencyKey,
+    chargeId,
   }: {
     lease: LeaseContext;
     params: CreateChargeWithReceivableParams;
@@ -352,6 +382,7 @@ export class ArService {
     postingDate: string;
     nowIso: string;
     idempotencyKey: string | null;
+    chargeId: string;
   }): Promise<string> {
     const lines =
       params.allocations?.map((line) => ({
@@ -390,6 +421,9 @@ export class ArService {
         memo: memo ?? undefined,
         transactionType: 'Charge',
         lines,
+      },
+      metadata: {
+        chargeId,
       },
     });
 

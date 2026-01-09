@@ -188,48 +188,51 @@ export default async function PayBillsByCheckPage({
   const vendorLabelById = new Map(vendorOptions.map((v) => [v.id, v.label]));
 
   const groups: PayBillsByCheckVendorGroup[] = Array.from(
-    unpaidBills.reduce((map, bill) => {
-      const vendorId = bill.vendor_id || null;
-      const key = vendorId ?? '_unknown';
-      const group = map.get(key) ?? {
-        vendorId,
-        vendorLabel:
-          vendorId && vendorLabelById.get(vendorId)
-            ? vendorLabelById.get(vendorId)
-            : bill.vendor_name || 'Vendor',
-        hasInsuranceWarning: bill.vendor_insurance_missing_or_expired,
-        bills: [] as PayBillsByCheckBill[],
-      };
-      if (bill.vendor_insurance_missing_or_expired) {
-        (group as any).hasInsuranceWarning = true;
-      }
-      group.bills.push({
-        id: bill.id,
-        memo: bill.memo,
-        reference_number: bill.reference_number,
-        vendor_id: bill.vendor_id,
-        vendor_name: bill.vendor_name,
-        property_name: bill.property_name,
-        unit_label: bill.unit_label,
-        due_date: bill.due_date,
-        total_amount: bill.total_amount,
-        remaining_amount: bill.remaining_amount,
-        status: bill.status,
-        isSelectable:
-          !!bill.buildium_bill_id &&
-          !!bill.operating_bank_gl_account_id &&
-          bill.bank_has_buildium_id,
-        disabledReason: !bill.buildium_bill_id
-          ? 'This bill is not linked to Buildium, so payments cannot be created yet.'
-          : !bill.operating_bank_gl_account_id
-            ? "The bill's primary property does not have an operating bank account assigned."
-            : !bill.bank_has_buildium_id
-              ? 'The operating bank account is missing a Buildium bank mapping.'
-              : undefined,
-      });
-      map.set(key, group);
-      return map;
-    }, new Map<string, PayBillsByCheckVendorGroup>()).values(),
+    unpaidBills
+      .reduce((map, bill) => {
+        const vendorId = bill.vendor_id || null;
+        const key = vendorId ?? '_unknown';
+        const vendorLabel =
+          (vendorId && vendorLabelById.get(vendorId)) || bill.vendor_name || 'Vendor';
+        const group =
+          map.get(key) ??
+          {
+            vendorId,
+            vendorLabel: vendorLabel ?? 'Vendor',
+            hasInsuranceWarning: bill.vendor_insurance_missing_or_expired,
+            bills: [] as PayBillsByCheckBill[],
+          };
+        group.vendorLabel = group.vendorLabel || vendorLabel || 'Vendor';
+        group.hasInsuranceWarning =
+          group.hasInsuranceWarning || bill.vendor_insurance_missing_or_expired;
+        group.bills.push({
+          id: bill.id,
+          memo: bill.memo,
+          reference_number: bill.reference_number,
+          vendor_id: bill.vendor_id,
+          vendor_name: bill.vendor_name,
+          property_name: bill.property_name,
+          unit_label: bill.unit_label,
+          due_date: bill.due_date,
+          total_amount: bill.total_amount,
+          remaining_amount: bill.remaining_amount,
+          status: bill.status,
+          isSelectable:
+            !!bill.buildium_bill_id &&
+            !!bill.operating_bank_gl_account_id &&
+            bill.bank_has_buildium_id,
+          disabledReason: !bill.buildium_bill_id
+            ? 'This bill is not linked to Buildium, so payments cannot be created yet.'
+            : !bill.operating_bank_gl_account_id
+              ? "The bill's primary property does not have an operating bank account assigned."
+              : !bill.bank_has_buildium_id
+                ? 'The operating bank account is missing a Buildium bank mapping.'
+                : undefined,
+        });
+        map.set(key, group);
+        return map;
+      }, new Map<string, PayBillsByCheckVendorGroup>())
+      .values(),
   );
   const hasVendorInsuranceWarning = groups.some((g) => g.hasInsuranceWarning);
 

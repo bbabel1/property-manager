@@ -212,7 +212,7 @@ Response:
 
 - Outbound payments: include `BillIds[]` built from `bill_applications` allocations; keeps Buildium in sync with multi-bill payments.
 - Inbound BillPayment/VendorTransaction webhooks: create/update `bill_workflow` (Buildium bills treated as approved), build `bill_applications` from `BillIds[]`, and ingest vendor credits/refunds with allocations when provided.
-- Vendor credits/refunds outbound: currently not supported; local transaction remains primary (warn logged).
+- Vendor credits/refunds outbound: best-effort mirror via Buildium vendor credit endpoint when `buildium_vendor_id` is present; stores returned `buildium_transaction_id`; failures are logged and do not block the local ledger.
 - Approval conflicts prefer local state; discrepancies are logged for manual review.
 
 ### Backfill runbook

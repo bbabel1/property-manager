@@ -72,6 +72,7 @@ export async function syncBuildiumReconciliationTransactions(
   let synced = 0
   const nowIso = new Date().toISOString()
   let balanceDrift: number | null = null
+  const supabaseAny = supabase as any
 
   try {
     const res = await buildiumFetch(
@@ -83,9 +84,9 @@ export async function syncBuildiumReconciliationTransactions(
     )
     if (!res.ok) {
       const msg = `Buildium reconciliation transactions fetch failed: ${res.status}`
-      await supabase
+      await supabaseAny
         .from('reconciliation_log')
-        .update({ last_sync_error: msg })
+        .update({ last_sync_error: msg } as any)
         .eq('id', reconciliationLogId)
       return { synced, unmatched, errors: [{ transactionId: null, error: msg }] }
     }
@@ -99,7 +100,7 @@ export async function syncBuildiumReconciliationTransactions(
 
       const desiredStatus = inferStatus(tx, options)
 
-      const { data: localTx, error: localErr } = await supabase
+      const { data: localTx, error: localErr } = await supabaseAny
         .from('transactions')
         .select('id, org_id')
         .eq('buildium_transaction_id', buildiumTransactionId)
@@ -128,7 +129,7 @@ export async function syncBuildiumReconciliationTransactions(
         reconciled_by_user_id: null,
       }
 
-      const { error: upsertErr } = await supabase
+      const { error: upsertErr } = await supabaseAny
         .from('bank_register_state')
         .upsert(payload, {
           onConflict: 'org_id,bank_gl_account_id,transaction_id',
@@ -149,7 +150,7 @@ export async function syncBuildiumReconciliationTransactions(
 
     // Compare local cleared/reconciled balance to Buildium ending balance when context is provided
     if (options?.endingBalance != null && options?.statementEndingDate) {
-      const { data: bookBalance, error: balanceErr } = await supabase.rpc('calculate_book_balance', {
+      const { data: bookBalance, error: balanceErr } = await supabaseAny.rpc('calculate_book_balance', {
         p_bank_gl_account_id: bankGlAccountId,
         p_as_of: options.statementEndingDate,
         p_org_id: options.orgId ?? null,
@@ -170,7 +171,7 @@ export async function syncBuildiumReconciliationTransactions(
       updates.last_sync_error = null
     }
 
-    const updateQuery = supabase.from('reconciliation_log').update(updates)
+    const updateQuery = supabaseAny.from('reconciliation_log').update(updates as any)
     if (typeof (updateQuery as any)?.eq === 'function') {
       await (updateQuery as any).eq('id', reconciliationLogId)
     }
@@ -178,9 +179,9 @@ export async function syncBuildiumReconciliationTransactions(
     return { synced, unmatched, errors, balanceDrift }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    const updateQuery = supabase
+    const updateQuery = supabaseAny
       .from('reconciliation_log')
-      .update({ last_sync_error: message })
+      .update({ last_sync_error: message } as any)
     if (typeof (updateQuery as any)?.eq === 'function') {
       await (updateQuery as any).eq('id', reconciliationLogId)
     }

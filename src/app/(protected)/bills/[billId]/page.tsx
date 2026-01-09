@@ -183,6 +183,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   const { billId } = await params;
 
   const db = supabaseAdmin || supabase;
+  const dbAny = db as any;
   if (!db) {
     throw new Error('Database client is unavailable');
   }
@@ -204,6 +205,12 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   if (!bill || bill.transaction_type !== 'Bill') {
     notFound();
   }
+
+  if (!bill.org_id) {
+    notFound();
+  }
+
+  const orgId = bill.org_id;
 
   const linesPromise: Promise<ListQueryResult<TransactionLineWithRelations>> = (async () => {
     const { data, error } = await db
@@ -266,7 +273,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     : Promise.resolve({ data: null, error: null });
 
   const workflowPromise = (async () => {
-    const { data, error } = await db
+    const { data, error } = await dbAny
       .from('bill_workflow')
       .select('approval_state, submitted_at, approved_at, rejected_at, voided_at, reversal_transaction_id')
       .eq('bill_transaction_id', bill.id)
@@ -275,7 +282,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   })();
 
   const auditPromise = (async () => {
-    const { data, error } = await db
+    const { data, error } = await dbAny
       .from('bill_approval_audit')
       .select('*')
       .eq('bill_transaction_id', bill.id)
@@ -284,7 +291,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
   })();
 
   const applicationsPromise = (async () => {
-    const { data, error } = await db
+    const { data, error } = await dbAny
       .from('bill_applications')
       .select(
         'id, applied_amount, applied_at, source_type, source_transaction_id, source:source_transaction_id(id, transaction_type, status, total_amount, payment_method, is_reconciled, date, reference_number, check_number)',
@@ -297,7 +304,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     const { data, error } = await db
       .from('gl_accounts')
       .select('id, name, account_number')
-      .eq('org_id', bill.org_id)
+      .eq('org_id', orgId)
       .eq('is_bank_account', true)
       .order('name', { ascending: true });
     return { data: (data as any[] | null) ?? [], error };
@@ -307,7 +314,7 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     const { data, error } = await db
       .from('gl_accounts')
       .select('id, name, account_number, is_bank_account')
-      .eq('org_id', bill.org_id)
+      .eq('org_id', orgId)
       .neq('is_bank_account', true)
       .order('name', { ascending: true });
     return { data: (data as any[] | null) ?? [], error };
@@ -317,20 +324,23 @@ export default async function BillDetailsPage({ params }: BillPageProps) {
     const { data, error } = await db
       .from('vendors')
       .select('id, contacts(display_name, company_name)')
-      .eq('org_id', bill.org_id)
+      .eq('org_id', orgId)
       .order('created_at', { ascending: true });
     return { data: (data as any[] | null) ?? [], error };
   })();
 
   const billOptionsPromise = (async () => {
-    const { data, error } = await db
+    let billOptionsQuery = db
       .from('transactions')
       .select('id, reference_number, memo, total_amount, status, due_date')
-      .eq('org_id', bill.org_id)
+      .eq('org_id', orgId)
       .eq('transaction_type', 'Bill')
-      .eq('vendor_id', bill.vendor_id)
       .not('status', 'eq', 'Cancelled')
       .order('due_date', { ascending: true });
+    if (bill.vendor_id) {
+      billOptionsQuery = billOptionsQuery.eq('vendor_id', bill.vendor_id);
+    }
+    const { data, error } = await billOptionsQuery;
     return { data: (data as any[] | null) ?? [], error };
   })();
 

@@ -239,6 +239,7 @@ export default async function FinancialsTab({
   const from = sp?.from ? new Date(sp.from) : defaultFrom;
   const range = hasRangeParam ? sp.range : hasExplicitDates ? 'custom' : 'currentMonth';
   const db = supabaseAdmin || supabase;
+  const dbAny = db as any;
 
   const unitsParam =
     typeof sp?.units === 'string' ? sp.units : typeof sp?.unit === 'string' ? sp.unit : '';
@@ -445,17 +446,19 @@ export default async function FinancialsTab({
   );
   const depositMetaByTx = new Map<string, { deposit_id: string | null }>();
   if (depositTxIds.length) {
-    const { data: depositMetaRows } = await supabase
+    const { data: depositMetaRows } = await dbAny
       .from('deposit_meta')
       .select('transaction_id, deposit_id')
       .in('transaction_id', depositTxIds);
-    (depositMetaRows || []).forEach((row) => {
-      if (row?.transaction_id) {
-        depositMetaByTx.set(String(row.transaction_id), {
-          deposit_id: (row as any)?.deposit_id ?? null,
-        });
-      }
-    });
+    (depositMetaRows || []).forEach(
+      (row: { transaction_id?: string | number | null; deposit_id?: string | null }) => {
+        if (row?.transaction_id) {
+          depositMetaByTx.set(String(row.transaction_id), {
+            deposit_id: (row as any)?.deposit_id ?? null,
+          });
+        }
+      },
+    );
   }
 
   const fmt = (n: number) =>

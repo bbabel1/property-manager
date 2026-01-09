@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient as SupabaseJsClient } from '@supabase/supabase-js';
 import { fetchPropertyFinancials } from '@/server/financials/property-finance';
 import cashBalanceCases from './fixtures/finance-cash-balance-spec.json';
 import type { Database } from '@/types/database';
 
-type SupabaseClient = ReturnType<typeof createClient<Database>>;
+type SupabaseClient = SupabaseJsClient<Database>;
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -328,8 +328,9 @@ if (!shouldRunRpcTests) {
   // Skip integration test if env not provided/opted in
   describe.skip('property financials RPC alignment (skipped)', () => {});
 } else {
-  const db = createClient<Database>(url, key, {
+  const db = createClient<Database, 'public'>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
+    db: { schema: 'public' },
   });
   describe('property financials RPC alignment', () => {
     const asOf = new Date().toISOString().slice(0, 10);

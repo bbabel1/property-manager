@@ -47,6 +47,9 @@ export async function createReversal(params: {
       originalTransactionId,
       memo,
     },
+    metadata: {
+      reversalOfPaymentId: originalTransactionId,
+    },
   })
 
   await db
@@ -391,8 +394,8 @@ export async function reversePaymentWithNSF(params: ReversePaymentParams): Promi
     const policy = await fetchReturnedPaymentPolicy(client, orgId)
     const shouldCreateNsf =
       createNsfFee ??
-      (policy?.auto_create_nsf_fee ?? false) ||
-      Boolean(nsfFeeAmount != null && nsfFeeAmount > 0)
+      ((policy?.auto_create_nsf_fee ?? false) ||
+        Boolean(nsfFeeAmount != null && nsfFeeAmount > 0))
 
     const resolvedNsfAmount =
       nsfFeeAmount ?? policy?.nsf_fee_amount ?? null

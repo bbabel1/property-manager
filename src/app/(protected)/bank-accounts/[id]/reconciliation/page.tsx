@@ -31,7 +31,6 @@ export default async function BankReconciliationPage({
 
   const { data: reconciliation } = await authed
     .from('reconciliation_log')
-    .select('id, statement_ending_date, is_finished, last_synced_at, last_sync_error')
     .select(
       'id, statement_ending_date, is_finished, last_synced_at, last_sync_error, unmatched_buildium_transaction_ids',
     )
