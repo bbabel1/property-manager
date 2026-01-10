@@ -1071,9 +1071,10 @@ serve(async (req) => {
           } else {
             throw new Error(result.error || 'Unknown processing failure');
           }
-        } catch (error) {
+        } catch (error: unknown) {
           lastError = error;
-          const errorMessage = error.message || 'Unknown error';
+          const errorMessage =
+            error instanceof Error ? error.message : String(error ?? 'Unknown error');
           console.error('buildium-lease-transactions processing failed', {
             eventId: storeResult.normalized.buildiumWebhookId,
             eventName: storeResult.normalized.eventName,
@@ -1145,13 +1146,14 @@ serve(async (req) => {
         status: 200,
       },
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
     console.error('Error in buildium-lease-transactions webhook function:', error);
 
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Internal server error',
+        error: errorMessage || 'Internal server error',
       }),
       {
         headers: {
@@ -1219,8 +1221,9 @@ async function processLeaseTransactionEvent(
     );
     console.log('Lease transaction synced from Buildium with lines:', transaction.Id);
     return { success: true };
-  } catch (error) {
-    const errorMessage = error.message || 'Unknown error';
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error ?? 'Unknown error');
     console.error('Error processing lease transaction event:', errorMessage);
     return { success: false, error: errorMessage };
   }

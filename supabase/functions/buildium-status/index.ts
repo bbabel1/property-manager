@@ -133,8 +133,9 @@ serve(async (req) => {
 
           retried++
           results.push({ entityId: sync.entity_id, success: true })
-        } catch (error) {
-          const errorMessage = error.message || 'Unknown error'
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error ?? 'Unknown error')
           errors.push(`Failed to retry sync for ${sync.entity_type}/${sync.entity_id}: ${errorMessage}`)
           results.push({ entityId: sync.entity_id, success: false, error: errorMessage })
         }
@@ -162,13 +163,15 @@ serve(async (req) => {
       }
     )
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error ?? 'Internal server error')
     console.error('Error in buildium-status function:', error)
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Internal server error'
+        error: errorMessage || 'Internal server error'
       }),
       {
         headers: { 

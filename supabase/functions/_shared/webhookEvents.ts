@@ -1,6 +1,6 @@
 // deno-lint-ignore-file
 
-import { canonicalizeEventName } from "./eventValidation"
+import { canonicalizeEventName } from "./eventValidation.ts"
 
 export interface NormalizedBuildiumWebhook {
   buildiumWebhookId: string

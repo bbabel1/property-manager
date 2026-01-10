@@ -29,7 +29,8 @@ export function useSupabaseQuery<Table extends TableName>(
     async function fetchData() {
       try {
         setLoading(true)
-        let queryBuilder = supabase.from(table).select(query?.select ?? '*')
+        const client = supabase as unknown as { from: (table: string) => any }
+        let queryBuilder = client.from(table).select(query?.select ?? '*')
 
         if (query?.filters) {
           Object.entries(query.filters).forEach(([key, value]) => {
@@ -54,7 +55,7 @@ export function useSupabaseQuery<Table extends TableName>(
         if (error) {
           setError(error.message)
         } else {
-          setData((data as TableRow<Table>[] | null) ?? [])
+          setData((data as unknown as TableRow<Table>[] | null) ?? [])
         }
       } catch (err) {
         if (!isMounted) return
@@ -83,7 +84,8 @@ export function useSupabaseMutation() {
     setError(null)
 
     try {
-      const { data: result, error } = await supabase.from(table).insert([data]).select()
+      const client = supabase as unknown as { from: (table: string) => any }
+      const { data: result, error } = await client.from(table).insert([data]).select()
 
       if (error) {
         setError(error.message)
@@ -109,7 +111,8 @@ export function useSupabaseMutation() {
     setError(null)
 
     try {
-      const { data: result, error } = await supabase
+      const client = supabase as unknown as { from: (table: string) => any }
+      const { data: result, error } = await client
         .from(table)
         .update(data)
         .eq('id' as any, id as any)
@@ -135,7 +138,8 @@ export function useSupabaseMutation() {
     setError(null)
 
     try {
-      const { error } = await supabase.from(table).delete().eq('id' as any, id as any)
+      const client = supabase as unknown as { from: (table: string) => any }
+      const { error } = await client.from(table).delete().eq('id' as any, id as any)
 
       if (error) {
         setError(error.message)

@@ -215,21 +215,83 @@ interface BuildiumLeaseTransactionJournalLine {
   Memo?: string | null;
   PropertyId?: number | null;
   UnitId?: number | null;
-  Unit?: { Id?: number | null } | null;
-  AccountingEntity?: { AccountingEntityType?: string | null } | null;
+  Unit?: { Id?: number | null; ID?: number | null; UnitId?: number | null; Href?: string | null } | null;
+  AccountingEntity?: { Id?: number | null; AccountingEntityType?: string | null; Href?: string | null; Unit?: { Id?: number | null; ID?: number | null; UnitId?: number | null; Href?: string | null } | null } | null;
+  ReferenceNumber?: string | number | null;
+  IsCashPosting?: boolean | null;
+  PostingType?: string | null;
+  PostingTypeEnum?: string | null;
+  PostingTypeString?: string | null;
+  posting_type?: string | null;
+  postingType?: string | null;
 }
 interface BuildiumLeaseTransactionJournal {
   Memo?: string | null;
   Lines?: BuildiumLeaseTransactionJournalLine[];
+}
+interface BuildiumLeaseTransactionPayee {
+  Id?: number | null;
+  Type?: string | null;
+  Name?: string | null;
+  Href?: string | null;
+}
+interface BuildiumInternalTransactionStatus {
+  IsPending?: boolean | null;
+  ResultDate?: string | null;
+  ResultCode?: string | null;
+}
+interface BuildiumPaymentDetail {
+  Payee?: BuildiumLeaseTransactionPayee | null;
+  PaymentMethod?: string | null;
+  IsInternalTransaction?: boolean | null;
+  InternalTransactionStatus?: BuildiumInternalTransactionStatus | null;
+}
+interface BuildiumUnitAgreement {
+  Id?: number | null;
+  Type?: string | null;
+  Href?: string | null;
+}
+interface BuildiumLeaseTransactionUnitSummary {
+  Id?: number | null;
+  ID?: number | null;
+  UnitId?: number | null;
+  Number?: string | null;
+  Href?: string | null;
+}
+interface BuildiumAccountingEntity {
+  Id?: number | null;
+  AccountingEntityType?: string | null;
+  Href?: string | null;
+  Unit?: BuildiumLeaseTransactionUnitSummary | null;
+}
+interface BuildiumPaymentTransaction {
+  Id?: number | null;
+  Amount?: number | null;
+  AccountingEntity?: BuildiumAccountingEntity | null;
+}
+interface BuildiumDepositDetails {
+  BankGLAccountId?: number | null;
+  PaymentTransactions?: BuildiumPaymentTransaction[] | null;
 }
 interface BuildiumLeaseTransaction {
   Id: number;
   Date: string;
   LeaseId?: number;
   TransactionType?: string;
+  TransactionTypeEnum?: string | null;
   TotalAmount?: number;
   CheckNumber?: string | null;
   PaymentMethod?: string | null;
+  PayeeTenantId?: number | null;
+  Memo?: string | null;
+  PaymentDetail?: BuildiumPaymentDetail | null;
+  UnitId?: number | null;
+  Unit?: BuildiumLeaseTransactionUnitSummary | null;
+  UnitNumber?: string | null;
+  UnitAgreement?: BuildiumUnitAgreement | null;
+  Application?: { Id?: number | null } | null;
+  DepositDetails?: BuildiumDepositDetails | null;
+  LastUpdatedDateTime?: string | null;
   Journal?: BuildiumLeaseTransactionJournal;
 }
 
@@ -1911,12 +1973,27 @@ async function upsertLeaseTransactionWithLines(
   leaseTx: BuildiumLeaseTransaction,
 ): Promise<string> {
   const now = new Date().toISOString();
-  const paymentDetail = (leaseTx as any)?.PaymentDetail ?? null;
+  const paymentDetail = leaseTx?.PaymentDetail ?? null;
   const payee = paymentDetail?.Payee ?? null;
-  const unitAgreement = (leaseTx as any)?.UnitAgreement ?? null;
-  const unitIdRaw = (leaseTx as any)?.UnitId ?? (leaseTx as any)?.Unit?.Id ?? null;
-  const bankGlBuildiumId = (leaseTx as any)?.DepositDetails?.BankGLAccountId ?? null;
+  const unitAgreement = leaseTx?.UnitAgreement ?? null;
+  const unitIdRaw =
+    leaseTx?.UnitId ??
+    leaseTx?.Unit?.Id ??
+    leaseTx?.Unit?.UnitId ??
+    leaseTx?.Unit?.ID ??
+    null;
+  const bankGlBuildiumId = leaseTx?.DepositDetails?.BankGLAccountId ?? null;
   const bankGlAccountId = await resolveGLAccountId(supabase, buildiumClient, bankGlBuildiumId);
+  let bankGlOrgId: string | null = null;
+  if (bankGlAccountId) {
+    const { data: bankGlRow, error: bankGlErr } = await supabase
+      .from('gl_accounts')
+      .select('org_id')
+      .eq('id', bankGlAccountId)
+      .maybeSingle();
+    if (bankGlErr && bankGlErr.code !== 'PGRST116') throw bankGlErr;
+    bankGlOrgId = (bankGlRow as any)?.org_id ?? null;
+  }
   const payeeTenantBuildiumId =
     leaseTx.PayeeTenantId ?? (payee?.Type === 'Tenant' ? payee?.Id ?? null : null);
 
@@ -1946,14 +2023,14 @@ async function upsertLeaseTransactionWithLines(
     ),
     internal_transaction_result_code: paymentDetail?.InternalTransactionStatus?.ResultCode ?? null,
     buildium_unit_id: unitIdRaw ?? null,
-    buildium_unit_number: (leaseTx as any)?.UnitNumber ?? (leaseTx as any)?.Unit?.Number ?? null,
-    buildium_application_id: (leaseTx as any)?.Application?.Id ?? null,
+    buildium_unit_number: leaseTx?.UnitNumber ?? leaseTx?.Unit?.Number ?? null,
+    buildium_application_id: leaseTx?.Application?.Id ?? null,
     unit_agreement_id: unitAgreement?.Id ?? null,
     unit_agreement_type: unitAgreement?.Type ?? null,
     unit_agreement_href: unitAgreement?.Href ?? null,
     bank_gl_account_id: bankGlAccountId ?? null,
     bank_gl_account_buildium_id: bankGlBuildiumId ?? null,
-    buildium_last_updated_at: (leaseTx as any)?.LastUpdatedDateTime ?? null,
+    buildium_last_updated_at: leaseTx?.LastUpdatedDateTime ?? null,
     updated_at: now,
   };
 
@@ -2023,6 +2100,7 @@ async function upsertLeaseTransactionWithLines(
     propertyIdLocal && (unitIdLocal ?? defaultUnitIdLocal)
       ? unitIdLocal ?? defaultUnitIdLocal
       : null;
+  let bankGlAccountIdToUse: string | null = bankGlAccountId ?? null;
 
   const orgIdLocal = propertyOrgId ?? leaseOrgId ?? bankGlOrgId ?? null;
   if (!orgIdLocal) {
@@ -2111,41 +2189,6 @@ async function upsertLeaseTransactionWithLines(
       orgIdLocal ?? propertyOrgId ?? leaseOrgId ?? null,
     );
   }
-
-  // Get property ID from lease record for bank account resolution
-  let propertyIdLocal: string | null = null;
-  let defaultBuildiumPropertyId: number | null = null;
-  let defaultBuildiumUnitId: number | null = null;
-  let defaultUnitIdLocal: string | null = null;
-  let bankGlAccountIdToUse: string | null = bankGlAccountId ?? null;
-  if (leaseIdLocal) {
-    const { data: leaseRow } = await supabase
-      .from('lease')
-      .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
-      .eq('id', leaseIdLocal)
-      .maybeSingle();
-    propertyIdLocal = (leaseRow as any)?.property_id ?? null;
-    defaultBuildiumPropertyId = (leaseRow as any)?.buildium_property_id ?? null;
-    defaultBuildiumUnitId = (leaseRow as any)?.buildium_unit_id ?? null;
-    defaultUnitIdLocal = (leaseRow as any)?.unit_id ?? null;
-  }
-  let propertyBankContext:
-    | {
-        operating_bank_gl_account_id?: string | null;
-        deposit_trust_gl_account_id?: string | null;
-        org_id?: string | null;
-      }
-    | null = null;
-  if (propertyIdLocal) {
-    const { data: propertyRow, error: propertyErr } = await supabase
-      .from('properties')
-      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
-      .eq('id', propertyIdLocal)
-      .maybeSingle();
-    if (propertyErr && propertyErr.code !== 'PGRST116') throw propertyErr;
-    propertyBankContext = propertyRow ?? null;
-  }
-  const propertyOrgId = (propertyBankContext as any)?.org_id ?? null;
 
   if (needsBankAccountLine && !bankGlAccountIdToUse) {
     bankGlAccountIdToUse = await resolveUndepositedFundsGlAccountId(supabase, propertyOrgId);
@@ -2363,8 +2406,8 @@ async function upsertLeaseTransactionWithLines(
 
   // Replace deposit/payment splits (DepositDetails.PaymentTransactions)
   await supabase.from('transaction_payment_transactions').delete().eq('transaction_id', transactionId);
-  const paymentSplits = Array.isArray((leaseTx as any)?.DepositDetails?.PaymentTransactions)
-    ? (leaseTx as any).DepositDetails.PaymentTransactions
+  const paymentSplits = Array.isArray(leaseTx?.DepositDetails?.PaymentTransactions)
+    ? leaseTx?.DepositDetails?.PaymentTransactions
     : [];
   if (paymentSplits.length > 0) {
     const splitRows = paymentSplits.map((pt: any) => ({
@@ -3342,7 +3385,7 @@ serve(async (req) => {
             const items = await buildiumClient.listAppliances(params);
             if (operation === 'syncFromBuildium') {
               let synced = 0;
-              const updated = 0;
+              let updated = 0;
               const errors: string[] = [];
               for (const a of items) {
                 try {
