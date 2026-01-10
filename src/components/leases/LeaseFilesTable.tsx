@@ -760,13 +760,13 @@ export default function LeaseFilesTable({
                           >
                             Edit details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('Download file', file.id)}>
+                          <DropdownMenuItem>
                             <Download className="mr-2 h-4 w-4" /> Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('Open file', file.id)}>
+                          <DropdownMenuItem>
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('Email file', file.id)}>
+                          <DropdownMenuItem>
                             <Mail className="mr-2 h-4 w-4" /> Email
                           </DropdownMenuItem>
                           {isBuildiumLinked ? (

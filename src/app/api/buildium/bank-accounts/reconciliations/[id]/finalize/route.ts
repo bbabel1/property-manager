@@ -28,14 +28,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const result = response.json ?? {};
+    const result = (response.json ?? {}) as Record<string, unknown>;
 
     // Mark finished in reconciliation_log (and sync date if present)
     try {
       const admin = supabaseAdmin
       if (admin) {
         const recId = Number(reconciliationId)
-        const statementEndingDate = (result?.StatementEndingDate ?? result?.statementEndingDate) as string | undefined
+        const statementEndingDate = (result?.['StatementEndingDate'] ?? result?.['statementEndingDate']) as string | undefined
         await admin.from('reconciliation_log').upsert({
           buildium_reconciliation_id: recId,
           is_finished: true,

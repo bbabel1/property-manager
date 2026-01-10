@@ -161,7 +161,7 @@ export default function LeaseLedgerPanel({
     () => [
       { label: 'Current balance', value: balances.balance },
       { label: 'Prepayments', value: balances.prepayments },
-      { label: 'Deposits held', value: balances.depositsHeld },
+      { label: 'Deposits held', value: Math.abs(balances.depositsHeld) },
     ],
     [balances],
   );
@@ -171,9 +171,62 @@ export default function LeaseLedgerPanel({
       ? `${window.location.pathname}${window.location.search}`
       : `/leases/${leaseId}?tab=financials`;
 
+  const buildAddPaymentHref = () => {
+    const params = new URLSearchParams();
+    const returnTo = buildReturnTo();
+    if (returnTo) params.set('returnTo', returnTo);
+    const defaultAmount = balances?.balance && balances.balance > 0 ? balances.balance : null;
+    const defaultAccountId =
+      Array.isArray(accountOptions) && accountOptions.length > 0
+        ? String(accountOptions[0].id)
+        : null;
+    if (defaultAmount) params.set('amount', String(defaultAmount));
+    if (defaultAccountId) params.set('account', defaultAccountId);
+    const qs = params.toString();
+    return `/leases/${leaseId}/add-payment${qs ? `?${qs}` : ''}`;
+  };
+
+  useEffect(() => {
+    const returnTo = buildReturnTo();
+    const withReturn = (base: string) =>
+      returnTo ? `${base}?returnTo=${encodeURIComponent(returnTo)}` : base;
+    const targets = [
+      buildAddPaymentHref(),
+      withReturn(`/leases/${leaseId}/add-charge`),
+    ];
+    targets.forEach((href) => {
+      if (typeof router.prefetch === 'function') {
+        try {
+          const maybePromise = router.prefetch(href) as unknown;
+          if (
+            typeof maybePromise === 'object' &&
+            maybePromise !== null &&
+            typeof (maybePromise as { catch?: unknown }).catch === 'function'
+          ) {
+            (maybePromise as Promise<void>).catch(() => {});
+          }
+        } catch (_err) {
+          // best-effort prefetch
+        }
+      }
+    });
+    // Safe to ignore returnTo because it is derived from window location
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaseId, router]);
+
   const pushWithReturn = (basePath: string) => {
     const returnTo = buildReturnTo();
-    const next = returnTo ? `${basePath}?returnTo=${encodeURIComponent(returnTo)}` : basePath;
+    const params = new URLSearchParams();
+    if (returnTo) params.set('returnTo', returnTo);
+    const defaultAmount = balances?.balance && balances.balance > 0 ? balances.balance : null;
+    const defaultAccountId =
+      Array.isArray(accountOptions) && accountOptions.length > 0
+        ? String(accountOptions[0].id)
+        : null;
+    if (defaultAmount) params.set('amount', String(defaultAmount));
+    if (defaultAccountId) params.set('account', defaultAccountId);
+    const qs = params.toString();
+    const next = `${basePath}${qs ? `?${qs}` : ''}`;
     router.push(next);
   };
 

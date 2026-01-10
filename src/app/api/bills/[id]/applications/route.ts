@@ -3,8 +3,9 @@ import { z } from 'zod';
 
 import { requireAuth } from '@/lib/auth/guards';
 import { hasPermission } from '@/lib/permissions';
-import { supabaseAdmin } from '@/lib/db';
+import { requireSupabaseAdmin } from '@/lib/supabase-client';
 import { logger } from '@/lib/logger';
+import type { TablesInsert } from '@/types/database';
 
 const ApplicationSchema = z.object({
   source_transaction_id: z.string().min(1),
@@ -17,8 +18,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!hasPermission(roles, 'bills.read')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const db = requireSupabaseAdmin('bill applications GET');
   const { id } = await params;
-  const db = supabaseAdmin as any;
   const { data, error } = await db
     .from('bill_applications')
     .select(
@@ -34,6 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!hasPermission(roles, 'bills.write')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const db = requireSupabaseAdmin('bill applications POST');
   const { id } = await params;
   const parsed = ApplicationSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -94,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const { error } = await db.from('bill_applications').insert({
+    const insertPayload: TablesInsert<'bill_applications'> = {
       bill_transaction_id: id,
       source_transaction_id: body.source_transaction_id,
       source_type: body.source_type ?? 'payment',
@@ -104,7 +106,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       updated_at: now,
       org_id: bill.org_id,
       applied_at: now,
-    });
+    };
+
+    const { error } = await db.from('bill_applications').insert(insertPayload);
     if (error) {
       const msg = error.message || 'Unable to create application';
       const status = msg.toLowerCase().includes('reconciled') ? 409 : 422;

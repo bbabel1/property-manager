@@ -23,6 +23,7 @@ import { normalizeStaffRole } from '@/lib/staff-role';
 import { enrichBuildingForProperty } from '@/lib/building-enrichment';
 import { ComplianceSyncService } from '@/lib/compliance-sync-service';
 import { buildNormalizedAddressKey } from '@/lib/normalized-address';
+import type { BuildiumPropertyCreate } from '@/types/buildium';
 
 type PropertiesInsert = DatabaseSchema['public']['Tables']['properties']['Insert'];
 // type PropertiesUpdate = DatabaseSchema['public']['Tables']['properties']['Update'] // Unused
@@ -43,10 +44,13 @@ type PropertyWithOwners = PropertyRow & {
   > | null;
 };
 type PropertyListRow = PropertyWithOwners & {
-  property_manager_id?: string | number | null;
   operating_bank_gl_account_id?: string | null;
   deposit_trust_gl_account_id?: string | null;
 };
+type PropertyStatusEnum = DatabaseSchema['public']['Enums']['property_status'];
+type PropertyTypeEnum = DatabaseSchema['public']['Enums']['property_type_enum'];
+type UpdateBuildiumSyncStatusArgs =
+  DatabaseSchema['public']['Functions']['update_buildium_sync_status']['Args'];
 
 const NYC_BOROUGHS = new Set(['manhattan', 'bronx', 'brooklyn', 'queens', 'staten island']);
 const ENABLE_COMPLIANCE_SYNC_ON_CREATE =
@@ -562,8 +566,9 @@ export async function POST(request: NextRequest) {
           if ((errCode === 'PGRST204' || errCode === '42703') && missingColumn) {
             let removed = false;
             for (const payload of unitInsertPayloads) {
-              if (missingColumn in payload) {
-                delete payload[missingColumn];
+              const payloadRecord = payload as unknown as Record<string, unknown>;
+              if (missingColumn in payloadRecord) {
+                delete payloadRecord[missingColumn];
                 removed = true;
               }
             }
@@ -688,7 +693,7 @@ export async function POST(request: NextRequest) {
             );
           }
         }
-        const propertyPayload: BuildiumPropertyCreate & Record<string, unknown> = mapPropertyToBuildium({
+        const propertyPayload = mapPropertyToBuildium({
           name,
           structure_description: structureDescription || undefined,
           is_active: status !== 'Inactive',
@@ -703,7 +708,7 @@ export async function POST(request: NextRequest) {
           year_built: toNumberOrNull(yearBuilt),
           rental_type: 'Rental',
           property_type: propertyType || null,
-        });
+        }) as BuildiumPropertyCreate & Record<string, unknown>;
         // Attach PropertyManagerId from staff.buildium_staff_id when available
         if (propertyManagerId) {
           try {
@@ -1158,7 +1163,7 @@ async function _searchBuildiumOwnerId(params: {
   const maxPages = 60; // up to 12,000 owners
 
   for (let page = 0; page < maxPages; page++) {
-    const q: Record<string, unknown> = { limit, offset };
+    const q: Record<string, string | number | boolean | null | undefined> = { limit, offset };
     if (params.buildiumPropertyId) q.propertyids = params.buildiumPropertyId;
     if (ownername) q.ownername = ownername;
 
@@ -1200,13 +1205,15 @@ async function recordSyncStatus(
   errorMessage?: string,
 ) {
   try {
-    await db.rpc('update_buildium_sync_status', {
+    const rpcArgs: UpdateBuildiumSyncStatusArgs = {
       p_entity_type: 'Rental',
       p_entity_id: entityId,
-      p_buildium_id: buildiumId,
+      // Supabase type generator marks this as number-only, but the function accepts null
+      p_buildium_id: (buildiumId ?? null) as unknown as number,
       p_status: status,
-      p_error_message: errorMessage || null,
-    });
+      p_error_message: errorMessage ?? undefined,
+    };
+    await db.rpc('update_buildium_sync_status', rpcArgs);
   } catch (e) {
     console.warn('recordSyncStatus failed', (e as Error).message);
   }
@@ -1233,11 +1240,66 @@ function validateBuildiumPropertyPayload(
   return { ok: missing.length === 0, missing };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Fetch only fields needed for the properties list and map to camelCase
+    const user = await requireUser(request);
+    const url = new URL(request.url);
+    const search = (url.searchParams.get('search') || '').trim();
+    const statusParam = url.searchParams.get('status') || 'all';
+    const validStatuses: PropertyStatusEnum[] = ['Active', 'Inactive'];
+    const statusFilter: PropertyStatusEnum | 'all' = validStatuses.includes(
+      statusParam as PropertyStatusEnum,
+    )
+      ? (statusParam as PropertyStatusEnum)
+      : 'all';
+    const typeParam = url.searchParams.get('type') || 'all';
+    const validTypes: PropertyTypeEnum[] = [
+      'Condo',
+      'Co-op',
+      'Condop',
+      'Rental Building',
+      'Townhouse',
+      'Mult-Family',
+    ];
+    const typeFilter: PropertyTypeEnum | 'all' | 'none' =
+      typeParam === 'none'
+        ? 'none'
+        : validTypes.includes(typeParam as PropertyTypeEnum)
+          ? (typeParam as PropertyTypeEnum)
+          : 'all';
+    const sortDir = url.searchParams.get('dir') === 'desc' ? 'desc' : 'asc';
+    const pageParam = Number(url.searchParams.get('page') || '1');
+    const sizeParam = Number(url.searchParams.get('pageSize') || '25');
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+    const pageSize =
+      Number.isFinite(sizeParam) && sizeParam > 0 ? Math.min(sizeParam, 100) : 25;
+
+    // Resolve org context (header preferred; fallback to first membership)
+    let orgId: string | null = request.headers.get('x-org-id') || null;
+    if (!orgId) {
+      try {
+        const { data: memberships, error: membershipsError } = await (supabaseAdmin || supabase)
+          .from('org_memberships')
+          .select('org_id')
+          .eq('user_id', user.id)
+          .limit(1);
+        if (membershipsError) {
+          logger.error(
+            { error: membershipsError, userId: user.id },
+            'Failed to resolve org for properties list',
+          );
+        }
+        const first = Array.isArray(memberships) && memberships.length > 0 ? memberships[0] : null;
+        orgId = (first as OrgMembershipRow | null)?.org_id ?? null;
+      } catch (err) {
+        console.warn('Failed to resolve orgId for properties list', err);
+      }
+    }
+    if (!orgId) {
+      return NextResponse.json({ error: 'Organization context required' }, { status: 400 });
+    }
+
     const db = supabaseAdmin || supabase;
-    const canJoinOwners = Boolean(supabaseAdmin);
     const baseCols = `
       id,
       name,
@@ -1255,28 +1317,75 @@ export async function GET() {
       operating_bank_gl_account_id,
       deposit_trust_gl_account_id
     `;
-    const withOwners = `${baseCols}, ownerships(id, owners(contacts(first_name, last_name, company_name)))`;
 
-    const columns = canJoinOwners ? withOwners : baseCols;
-    const { data, error } = await db
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = db
       .from('properties')
-      .select(columns)
-      .order('created_at', { ascending: false })
-      .returns<PropertyWithOwners[]>();
+      .select(baseCols, { count: 'exact' })
+      .eq('org_id', orgId);
+
+    if (statusFilter !== 'all') {
+      query = query.eq('status', statusFilter);
+    }
+    if (typeFilter !== 'all') {
+      if (typeFilter === 'none') query = query.is('property_type', null);
+      else query = query.eq('property_type', typeFilter);
+    }
+    if (search.length > 1) {
+      const like = `%${search.replace(/[%_]/g, '\\$&')}%`;
+      query = query.or(
+        [
+          `name.ilike.${like}`,
+          `address_line1.ilike.${like}`,
+          `city.ilike.${like}`,
+          `state.ilike.${like}`,
+        ].join(','),
+      );
+    }
+
+    const { data, error, count } = await query
+      .order('name', { ascending: sortDir === 'asc' })
+      .range(from, to)
+      .returns<PropertyListRow[]>();
 
     if (error) {
       console.error('Error fetching properties:', error);
       return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 });
     }
 
-    const properties = (data as PropertyListRow[]) || [];
-    const managerIds = Array.from(
-      new Set(
-        properties
-          .map((p) => p.property_manager_id)
-          .filter((v): v is string | number => v !== null && v !== undefined),
-      ),
-    );
+    const properties = Array.isArray(data) ? data : [];
+    const propertyIds = properties.map((p) => p.id).filter(Boolean);
+    const propertyManagerStaffMap = new Map<string, number>();
+
+    // Resolve Property Manager assignments via property_staff (one per property)
+    if (propertyIds.length) {
+      try {
+        const { data: assignments, error: assignmentsError } = await db
+          .from('property_staff')
+          .select('property_id, staff_id, role')
+          .in('property_id', propertyIds)
+          .eq('role', 'Property Manager');
+
+        if (assignmentsError) {
+          logger.warn({ error: assignmentsError }, 'Failed to load property manager assignments');
+        }
+
+        for (const row of assignments || []) {
+          const propertyId = (row as { property_id?: string | null })?.property_id;
+          const staffId = (row as { staff_id?: number | null })?.staff_id;
+          if (!propertyId || !staffId) continue;
+          if (!propertyManagerStaffMap.has(propertyId)) {
+            propertyManagerStaffMap.set(propertyId, staffId);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load property manager assignments', err);
+      }
+    }
+
+    const managerIds = Array.from(new Set(propertyManagerStaffMap.values()));
 
     const managerMap = new Map<
       string,
@@ -1286,7 +1395,7 @@ export async function GET() {
       try {
         const { data: managers, error: managersError } = await db
           .from('staff')
-          .select('id, display_name, first_name, last_name, email, phone, role')
+          .select('id, first_name, last_name, email, phone, role')
           .in('id', managerIds);
         if (managersError) {
           logger.warn({ error: managersError }, 'Failed to load property managers');
@@ -1295,7 +1404,6 @@ export async function GET() {
           const normalized = normalizeStaffRole(mgr?.role);
           if (normalized === 'Property Manager') {
             const name =
-              mgr?.display_name ||
               [mgr?.first_name, mgr?.last_name].filter(Boolean).join(' ').trim() ||
               'Property Manager';
             managerMap.set(String(mgr.id), {
@@ -1311,21 +1419,45 @@ export async function GET() {
       }
     }
 
-    const mapped = properties.map((p) => {
-      const ownerships = Array.isArray(p.ownerships) ? p.ownerships : [];
-      const ownersCount = ownerships.length;
-      let primaryOwnerName: string | undefined;
-      if (canJoinOwners && ownerships.length) {
-        const pick = ownerships[0];
-        if (pick?.owners?.contacts) {
-          const c = Array.isArray(pick.owners.contacts)
-            ? pick.owners.contacts[0]
-            : pick.owners.contacts;
-          if (c?.company_name) primaryOwnerName = c.company_name;
-          else if (c)
-            primaryOwnerName = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+    const ownersByProperty = new Map<string, { primaryOwnerName?: string; ownersCount: number }>();
+    if (propertyIds.length) {
+      try {
+        const { data: ownersRows, error: ownersError } = await db
+          .from('property_ownerships_cache')
+          .select('property_id, display_name, primary')
+          .in('property_id', propertyIds);
+        if (ownersError) {
+          logger.warn({ error: ownersError }, 'Failed to load owners for properties list');
         }
+        for (const row of ownersRows || []) {
+          const propertyId = (row as { property_id?: string | null })?.property_id;
+          if (!propertyId) continue;
+          const current = ownersByProperty.get(propertyId) ?? {
+            ownersCount: 0,
+            primaryOwnerName: undefined,
+          };
+          current.ownersCount += 1;
+          const isPrimary = Boolean((row as { primary?: boolean | null }).primary);
+          const displayName = (row as { display_name?: string | null }).display_name;
+          if (isPrimary && displayName) current.primaryOwnerName = displayName;
+          ownersByProperty.set(propertyId, current);
+        }
+        // If no explicit primary found, fall back to first display_name we saw
+        for (const row of ownersRows || []) {
+          const propertyId = (row as { property_id?: string | null })?.property_id;
+          const displayName = (row as { display_name?: string | null }).display_name;
+          if (!propertyId || !displayName) continue;
+          const entry = ownersByProperty.get(propertyId);
+          if (entry && !entry.primaryOwnerName) entry.primaryOwnerName = displayName;
+        }
+      } catch (err) {
+        console.warn('Failed to load owner cache for properties list', err);
       }
+    }
+
+    const mapped = properties.map((p) => {
+      const ownersMeta = ownersByProperty.get(p.id) ?? { ownersCount: 0, primaryOwnerName: null };
+      let primaryOwnerName = ownersMeta.primaryOwnerName;
       if (!primaryOwnerName && typeof p?.primary_owner === 'string') {
         const trimmed = p.primary_owner.trim();
         if (trimmed.length > 0) primaryOwnerName = trimmed;
@@ -1343,17 +1475,24 @@ export async function GET() {
         totalInactiveUnits: p.total_inactive_units ?? 0,
         totalOccupiedUnits: p.total_occupied_units ?? 0,
         totalActiveUnits: p.total_active_units ?? 0,
-        ownersCount,
+        ownersCount: ownersMeta.ownersCount,
         primaryOwnerName,
-        propertyManagerName:
-          managerMap.get(String(p.property_manager_id ?? ''))?.name ?? null,
+        propertyManagerName: (() => {
+          const staffId = propertyManagerStaffMap.get(p.id);
+          return staffId ? managerMap.get(String(staffId))?.name ?? null : null;
+        })(),
         // Preserve legacy response key names; values now reference gl_accounts(id)
         operatingBankAccountId: p.operating_bank_gl_account_id ?? null,
         depositTrustAccountId: p.deposit_trust_gl_account_id ?? null,
       };
     });
 
-    return NextResponse.json(mapped);
+    return NextResponse.json({
+      data: mapped,
+      page,
+      pageSize,
+      total: count ?? mapped.length,
+    });
   } catch (error) {
     console.error('Error fetching properties:', error);
     return NextResponse.json({ error: 'Failed to fetch properties' }, { status: 500 });

@@ -16,7 +16,7 @@ interface ValidationResult {
 interface OrphanedRecord {
   table: string
   id: string
-  buildiumId?: number
+  buildiumId?: number | null
   reason: string
 }
 
@@ -262,11 +262,12 @@ export class DataIntegrityValidator {
         `)
         .or('lease.id.is.null,tenant.id.is.null')
 
-      const invalidLeaseContactRows = (invalidLeaseContacts ?? []) as Array<{
-        id: string
-        lease: { id: string | null } | null
-        tenant: { id: string | null } | null
-      }>;
+      const invalidLeaseContactRows = (invalidLeaseContacts ?? []) as Array<
+        Pick<Database['public']['Tables']['lease_contacts']['Row'], 'id'> & {
+          lease: { id: number | null } | null
+          tenant: { id: string | null } | null
+        }
+      >;
       invalidLeaseContactRows.forEach((lc) => {
         const missingRefs = []
         if (!lc.lease) missingRefs.push('lease')

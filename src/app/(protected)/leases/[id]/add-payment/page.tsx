@@ -2,8 +2,12 @@ import Link from 'next/link';
 import { X } from 'lucide-react';
 
 import ReceivePaymentFormShell from './ReceivePaymentFormShell';
-import { loadPaymentFormData } from '@/server/leases/load-payment-form-data';
+import { loadPaymentFormData, type PaymentFormPrefillResult } from '@/server/leases/load-payment-form-data';
 import { Button } from '@/components/ui/button';
+
+// Force the Node.js runtime; Supabase server fetching relies on Node APIs.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 function formatSummary(propertyUnit?: string | null, tenants?: string | null) {
   if (propertyUnit && tenants) return `${propertyUnit} • ${tenants}`;
@@ -44,7 +48,13 @@ export default async function AddPaymentPage({
   const returnTo =
     (sp && typeof sp.returnTo === 'string' && sp.returnTo) || `/leases/${id}?tab=financials`;
 
-  const result = await loadPaymentFormData(id, { searchParams: sp || {} });
+  let result: PaymentFormPrefillResult;
+  try {
+    result = await loadPaymentFormData(id, { searchParams: sp || {} });
+  } catch (err) {
+    console.error('add-payment: failed to load form data', err);
+    return <ErrorState message="Unable to load payment form" backHref={returnTo} />;
+  }
   if (!result.ok) {
     return <ErrorState message={result.error} backHref={returnTo} />;
   }

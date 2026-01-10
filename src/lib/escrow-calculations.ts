@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from '@/lib/db';
 import { assertTransactionBalanced, assertTransactionHasBankLine } from '@/lib/accounting-validation';
+import type { TablesInsert } from '@/types/database';
 
 export interface EscrowBalance {
   deposits: number;
@@ -166,20 +167,22 @@ export async function createEscrowTransaction(params: {
   const escrowPostingType = params.type === 'deposit' ? 'Credit' : 'Debit';
   const bankPostingType = params.type === 'deposit' ? 'Debit' : 'Credit';
 
+  const transactionInsert: TablesInsert<'transactions'> = {
+    date: params.date,
+    memo: params.memo,
+    total_amount: amount,
+    transaction_type: 'GeneralJournalEntry',
+    status: 'Paid',
+    org_id: params.orgId,
+    monthly_log_id: params.monthlyLogId,
+    bank_gl_account_id: params.bankGlAccountId,
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+
   const { data: transactionRow, error: transactionError } = await supabaseAdmin
     .from('transactions')
-    .insert({
-      date: params.date,
-      memo: params.memo,
-      total_amount: amount,
-      transaction_type: 'GeneralJournalEntry',
-      status: 'Paid',
-      org_id: params.orgId,
-      monthly_log_id: params.monthlyLogId,
-      bank_gl_account_id: params.bankGlAccountId,
-      created_at: nowIso,
-      updated_at: nowIso,
-    })
+    .insert(transactionInsert)
     .select('id')
     .maybeSingle();
 

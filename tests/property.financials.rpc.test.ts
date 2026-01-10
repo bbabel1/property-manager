@@ -4,7 +4,7 @@ import { fetchPropertyFinancials } from '@/server/financials/property-finance';
 import cashBalanceCases from './fixtures/finance-cash-balance-spec.json';
 import type { Database } from '@/types/database';
 
-type SupabaseClient = SupabaseJsClient<Database>;
+type SupabaseClient = SupabaseJsClient<Database, 'public'>;
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -200,8 +200,8 @@ async function seedFixtureCase(
   const transactionIds: string[] = [];
   for (const tx of spec.transactions || []) {
     const txId = tx.id ? String(tx.id) : crypto.randomUUID();
-    const txType =
-      (tx.transaction_type ?? 'Payment') as Database['public']['Enums']['transaction_type_enum'];
+    const txType = (tx.transaction_type ??
+      'Payment') as Database['public']['Enums']['transaction_type_enum'];
     const insertTx = await db.from('transactions').insert({
       id: txId,
       lease_id: leaseId,
@@ -328,7 +328,12 @@ if (!shouldRunRpcTests) {
   // Skip integration test if env not provided/opted in
   describe.skip('property financials RPC alignment (skipped)', () => {});
 } else {
-  const db = createClient<Database, 'public'>(url, key, {
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for RPC tests');
+  }
+  const supabaseUrl: string = url;
+  const supabaseKey: string = key;
+  const db = createClient<Database, 'public'>(supabaseUrl, supabaseKey, {
     auth: { autoRefreshToken: false, persistSession: false },
     db: { schema: 'public' },
   });
@@ -344,11 +349,7 @@ if (!shouldRunRpcTests) {
           });
           expect(error).toBeNull();
           const rpcFin = (rpcData as RpcFinancials | null) ?? null;
-          const { fin: helperFin } = await fetchPropertyFinancials(
-            seeded.propertyId,
-            asOf,
-            db,
-          );
+          const { fin: helperFin } = await fetchPropertyFinancials(seeded.propertyId, asOf, db);
 
           const close = (a?: number | null, b?: number | null, tol = 0.5) =>
             Math.abs((a || 0) - (b || 0)) <= tol;

@@ -106,6 +106,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           { status: 404 },
         );
       }
+      const orgId = fromAccount.org_id;
+      if (!orgId) {
+        return NextResponse.json(
+          {
+            error: {
+              code: 'UNPROCESSABLE_ENTITY',
+              message: 'Bank account is missing an organization; cannot record transaction.',
+            },
+          },
+          { status: 422 },
+        );
+      }
+      const orgIdStrict = orgId as string;
       if (!toAccount) {
         return NextResponse.json(
           { error: { code: 'NOT_FOUND', message: 'Transfer-to bank account not found.' } },
@@ -140,8 +153,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       let propertyLabel: string | null = null;
       let unitLabel: string | null = null;
       let companyLabel: string | null = null;
+      let buildiumPropertyId: number | null = null;
 
-      const orgId = fromAccount?.org_id;
       if (orgId) {
         const { data: orgRow } = await supabaseAdmin
           .from('organizations')
@@ -157,7 +170,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           .select('name, address_line1, buildium_property_id')
           .eq('id', data.propertyId)
           .maybeSingle();
-        const buildiumPropertyId =
+        buildiumPropertyId =
           propertyRow && typeof propertyRow.buildium_property_id === 'number'
             ? propertyRow.buildium_property_id
             : null;
@@ -199,7 +212,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         accountingEntity = { Id: 0, AccountingEntityType: 'Company' };
       }
 
-      const buildiumClient = await getOrgScopedBuildiumClient(fromAccount?.org_id ?? undefined);
+      const buildiumClient = await getOrgScopedBuildiumClient(orgIdStrict);
       const buildiumPayload = {
         EntryDate: data.date,
         TransferToBankAccountId: buildiumToId,
@@ -250,28 +263,35 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         labelContext: data.propertyId
           ? { propertyName: propertyLabel, unitLabel }
           : { propertyName: companyLabel || 'Company' },
-      });
+      }) as Partial<TablesInsert<'transactions'>>;
 
       // Create local transaction after Buildium succeeds to keep systems aligned.
+      const transactionPayload: TablesInsert<'transactions'> = {
+        date: data.date,
+        memo: data.memo ?? null,
+        total_amount: amount,
+        transaction_type: 'Other',
+        status: 'Paid',
+        org_id: orgIdStrict,
+        bank_gl_account_id: data.fromBankAccountId,
+        buildium_transaction_id: buildiumTransferId,
+        created_at: nowIso,
+        updated_at: nowIso,
+        account_entity_type: data.propertyId ? 'Rental' : 'Company',
+        account_entity_id: buildiumPropertyId,
+        property_id: data.propertyId ?? null,
+        unit_id: data.unitId ?? null,
+        ...canonicalPatch,
+      };
       const { data: tx, error: txErr } = await supabaseAdmin
         .from('transactions')
-        .insert({
-          date: data.date,
-          memo: data.memo ?? null,
-          total_amount: amount,
-          transaction_type: 'Other',
-          status: 'Paid',
-          org_id: fromAccount?.org_id ?? null,
-          bank_gl_account_id: data.fromBankAccountId,
-          buildium_transaction_id: buildiumTransferId,
-          created_at: nowIso,
-          updated_at: nowIso,
-          ...canonicalPatch,
-        })
+        .insert(transactionPayload)
         .select('id')
         .maybeSingle();
       if (txErr || !tx?.id) throw txErr ?? new Error('Failed to create transfer');
 
+      const accountEntityType = data.propertyId ? 'Rental' : 'Company';
+      const accountEntityId = data.propertyId ? buildiumPropertyId : null;
       const lines: TablesInsert<'transaction_lines'>[] = [
         {
           transaction_id: tx.id,
@@ -279,8 +299,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           amount,
           posting_type: 'Credit',
           memo: data.memo ?? null,
-          account_entity_type: data.propertyId ? 'Rental' : 'Company',
-          account_entity_id: null,
+          account_entity_type: accountEntityType,
+          account_entity_id: accountEntityId,
           date: data.date,
           property_id: data.propertyId ?? null,
           unit_id: data.unitId ?? null,
@@ -293,8 +313,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           amount,
           posting_type: 'Debit',
           memo: data.memo ?? null,
-          account_entity_type: data.propertyId ? 'Rental' : 'Company',
-          account_entity_id: null,
+          account_entity_type: accountEntityType,
+          account_entity_id: accountEntityId,
           date: data.date,
           property_id: data.propertyId ?? null,
           unit_id: data.unitId ?? null,
@@ -333,6 +353,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         { status: 404 },
       );
     }
+    if (!bankAccount.org_id) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'UNPROCESSABLE_ENTITY',
+            message: 'Bank account is missing an organization; cannot record transaction.',
+          },
+        },
+        { status: 422 },
+      );
+    }
+    const orgId = bankAccount.org_id as string;
 
     let propertyLabel: string | null = null;
     let unitLabel: string | null = null;
@@ -340,11 +372,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let buildiumUnitId: number | undefined;
     let companyLabel: string | null = null;
 
-    if (bankAccount?.org_id) {
+    if (orgId) {
       const { data: orgRow } = await supabaseAdmin
         .from('organizations')
         .select('name')
-        .eq('id', bankAccount.org_id)
+        .eq('id', orgId)
         .maybeSingle();
       companyLabel = orgRow?.name ?? null;
     }
@@ -400,31 +432,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       labelContext: data.propertyId
         ? { propertyName: propertyLabel, unitLabel }
         : { propertyName: companyLabel || 'Company' },
-    });
+    }) as Partial<TablesInsert<'transactions'>>;
 
     // IMPORTANT: For "Record other transaction", keep the local `transactions.transaction_type`
     // as "Other" regardless of the selected mode to mirror Buildium's backend modeling.
     const transactionType = 'Other';
+    const transactionPayload: TablesInsert<'transactions'> = {
+      date: data.date,
+      memo: data.memo ?? null,
+      total_amount: amount,
+      transaction_type: transactionType,
+      status: 'Paid',
+      org_id: orgId,
+      bank_gl_account_id: bankId,
+      created_at: nowIso,
+      updated_at: nowIso,
+      account_entity_type: data.propertyId ? 'Rental' : 'Company',
+      account_entity_id: data.propertyId ? buildiumPropertyId : null,
+      property_id: data.propertyId ?? null,
+      unit_id: data.unitId ?? null,
+      ...canonicalPatch,
+    };
     const { data: tx, error: txErr } = await supabaseAdmin
       .from('transactions')
-      .insert({
-        date: data.date,
-        memo: data.memo ?? null,
-        total_amount: amount,
-        transaction_type: transactionType,
-        status: 'Paid',
-        org_id: bankAccount?.org_id ?? null,
-        bank_gl_account_id: bankId,
-        created_at: nowIso,
-        updated_at: nowIso,
-        ...canonicalPatch,
-      })
+      .insert(transactionPayload)
       .select('id')
       .maybeSingle();
     if (txErr || !tx?.id) throw txErr ?? new Error('Failed to create transaction');
 
     const bankPostingType = data.mode === 'deposit' ? 'Debit' : 'Credit';
     const otherPostingType = data.mode === 'deposit' ? 'Credit' : 'Debit';
+    const accountEntityType = data.propertyId ? 'Rental' : 'Company';
+    const accountEntityId = data.propertyId ? buildiumPropertyId : null;
 
     const lines: TablesInsert<'transaction_lines'>[] = [
       {
@@ -433,8 +472,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         amount,
         posting_type: bankPostingType,
         memo: data.memo ?? null,
-        account_entity_type: data.propertyId ? 'Rental' : 'Company',
-        account_entity_id: null,
+        account_entity_type: accountEntityType,
+        account_entity_id: accountEntityId,
         date: data.date,
         property_id: data.propertyId ?? null,
         unit_id: data.unitId ?? null,
@@ -447,8 +486,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         amount,
         posting_type: otherPostingType,
         memo: data.memo ?? null,
-        account_entity_type: data.propertyId ? 'Rental' : 'Company',
-        account_entity_id: null,
+        account_entity_type: accountEntityType,
+        account_entity_id: accountEntityId,
         date: data.date,
         property_id: data.propertyId ?? null,
         unit_id: data.unitId ?? null,
@@ -519,7 +558,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       try {
-        const buildiumClient = await getOrgScopedBuildiumClient(bankAccount?.org_id ?? undefined);
+        const buildiumClient = await getOrgScopedBuildiumClient(orgId);
         if (data.mode === 'deposit') {
           const payload = {
             EntryDate: data.date,

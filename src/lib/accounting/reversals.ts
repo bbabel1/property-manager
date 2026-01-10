@@ -9,11 +9,12 @@ const engine = new PostingEngine()
 export async function createReversal(params: {
   originalTransactionId: string
   reversalDate: string
-  memo?: string
+  memo?: string | null
   orgId: string
 }): Promise<{ reversalTransactionId: string }> {
   const db = supabaseAdmin
   const { originalTransactionId, reversalDate, memo, orgId } = params
+  const normalizedMemo = memo ?? undefined
 
   const { data: txn, error: txErr } = await db
     .from('transactions')
@@ -45,7 +46,7 @@ export async function createReversal(params: {
     postingDate: reversalDate,
     eventData: {
       originalTransactionId,
-      memo,
+      ...(normalizedMemo !== undefined ? { memo: normalizedMemo } : {}),
     },
     metadata: {
       reversalOfPaymentId: originalTransactionId,
@@ -59,8 +60,8 @@ export async function createReversal(params: {
 
   await db.rpc('lock_transaction', {
     p_transaction_id: transactionId,
-    p_reason: memo ?? 'reversal',
-    p_user_id: null,
+    p_reason: normalizedMemo ?? 'reversal',
+    p_user_id: undefined,
   })
 
   return { reversalTransactionId: transactionId }
@@ -136,6 +137,7 @@ const getPool = () => {
   reversalPool = new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
+    application_name: 'pm-accounting-reversals',
   })
   return reversalPool
 }

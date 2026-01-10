@@ -67,7 +67,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Missing Buildium file ID' }, { status: 400 });
       }
 
-      const res = await buildiumFetch('POST', `/files/${buildiumFileId}/download`, undefined, undefined, file.org_id ?? undefined);
+      const res = await buildiumFetch(
+        'POST',
+        `/files/${buildiumFileId}/download`,
+        undefined,
+        undefined,
+        file.org_id ?? undefined,
+      );
 
       if (!res.ok) {
         return NextResponse.json(
@@ -76,9 +82,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         );
       }
 
-      const json = await res.json();
-      if (json?.DownloadUrl) {
-        return NextResponse.redirect(json.DownloadUrl);
+      const jsonPayload = (res.json && typeof res.json === 'object' ? res.json : undefined) as
+        | { DownloadUrl?: string }
+        | undefined;
+      if (jsonPayload?.DownloadUrl) {
+        return NextResponse.redirect(jsonPayload.DownloadUrl);
       }
 
       return NextResponse.json({ error: 'Buildium did not return download URL' }, { status: 502 });

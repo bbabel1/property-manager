@@ -247,14 +247,15 @@ export async function GET(
     .eq('transaction_id', transactionId)
     .eq('org_id', tx.org_id)
     .is('files.deleted_at', null)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .returns<TransactionFileWithDetails[]>();
 
   if (error) {
     logger.error({ error, transactionId }, 'Failed to list transaction files');
     return NextResponse.json({ error: 'Failed to load files' }, { status: 500 });
   }
 
-  const filesData = (data ?? []) as TransactionFileWithDetails[];
+  const filesData = data ?? [];
   const categoryIds = Array.from(
     new Set(
       filesData

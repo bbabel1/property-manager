@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { PostingEngine } from '@/lib/accounting/posting-engine';
 import { supabaseAdmin, SupabaseServiceRoleMissingError } from '@/lib/db';
 import { getOrgGlSettingsOrThrow } from '@/lib/gl-settings';
+import type { PostingLine } from '@/lib/accounting/posting-events';
 import type { Charge, ChargeType, PaymentAllocation, Receivable } from '@/types/ar';
 
 type ChargeAllocationInput = {
@@ -115,11 +116,20 @@ export class ArService {
     charge: Charge;
     receivable: Receivable | null;
     transaction: TransactionSummary | null;
+    allocations: ChargeAllocationInput[];
   }> {
     const lease = await this.fetchLease(params.leaseId);
     const orgId = lease.org_id;
     const externalId = params.externalId ?? null;
     const idempotencyKey = externalId ? `charge:${orgId}:${externalId}` : null;
+    const normalizedAllocations =
+      Array.isArray(params.allocations) && params.allocations.length
+        ? params.allocations.map((line) => ({
+            accountId: line.accountId,
+            amount: Number(line.amount),
+            memo: line.memo ?? null,
+          }))
+        : [];
 
     if (externalId) {
       const existing = await this.findChargeByExternalId(orgId, externalId);
@@ -128,7 +138,12 @@ export class ArService {
           ? await this.fetchTransactionSummary(existing.transaction_id)
           : null;
         const receivable = await this.findReceivableByExternalId(orgId, externalId);
-        return { charge: toCharge(existing), receivable: receivable ? toReceivable(receivable) : null, transaction: tx };
+        return {
+          charge: toCharge(existing),
+          receivable: receivable ? toReceivable(receivable) : null,
+          transaction: tx,
+          allocations: normalizedAllocations,
+        };
       }
     }
 
@@ -137,15 +152,33 @@ export class ArService {
       throw new Error('Charge amount must be greater than zero');
     }
 
-    const allocations = Array.isArray(params.allocations) ? params.allocations : [];
-    if (allocations.length) {
-      const totalAlloc = allocations.reduce((sum, line) => sum + Number(line.amount ?? 0), 0);
+    if (normalizedAllocations.length) {
+      for (const alloc of normalizedAllocations) {
+        if (!alloc.accountId || !Number.isFinite(alloc.amount)) {
+          throw new Error('Allocations must include an accountId and amount');
+        }
+      }
+      const totalAlloc = normalizedAllocations.reduce((sum, line) => sum + Number(line.amount ?? 0), 0);
       if (!approxEqual(totalAlloc, amount)) {
         throw new Error('Allocated amounts must equal the charge amount');
       }
     }
 
     const glSettings = await getOrgGlSettingsOrThrow(orgId);
+    const defaultCreditAccount =
+      params.chargeType === 'late_fee'
+        ? glSettings.late_fee_income || glSettings.rent_income
+        : glSettings.rent_income;
+    const usedAllocations: ChargeAllocationInput[] =
+      normalizedAllocations.length > 0
+        ? normalizedAllocations
+        : [
+            {
+              accountId: defaultCreditAccount,
+              amount,
+              memo: params.memo ?? params.description ?? null,
+            },
+          ];
     const postingDate = params.transactionDate || params.dueDate;
     const memo = params.memo ?? params.description ?? null;
     const nowIso = new Date().toISOString();
@@ -164,7 +197,7 @@ export class ArService {
 
     try {
       transactionId =
-        allocations.length > 1
+        usedAllocations.length > 1
           ? await this.postMultiAllocationCharge({
               lease,
               params,
@@ -174,7 +207,7 @@ export class ArService {
               postingDate,
               nowIso,
               idempotencyKey,
-              allocations,
+              allocations: usedAllocations,
               chargeId: chargeRow.id,
             })
           : await this.postSingleAllocationCharge({
@@ -186,7 +219,7 @@ export class ArService {
               postingDate,
               nowIso,
               idempotencyKey,
-              allocations,
+              allocations: usedAllocations,
               chargeId: chargeRow.id,
             });
     } catch (error) {
@@ -215,6 +248,7 @@ export class ArService {
       charge: toCharge(chargeRow),
       receivable: receivable ? toReceivable(receivable) : null,
       transaction,
+      allocations: usedAllocations,
     };
   }
 
@@ -357,6 +391,7 @@ export class ArService {
       },
       metadata: {
         chargeId,
+        allocations,
       },
     });
 
@@ -373,6 +408,7 @@ export class ArService {
     nowIso,
     idempotencyKey,
     chargeId,
+    allocations: allocationLines,
   }: {
     lease: LeaseContext;
     params: CreateChargeWithReceivableParams;
@@ -383,12 +419,13 @@ export class ArService {
     nowIso: string;
     idempotencyKey: string | null;
     chargeId: string;
+    allocations: ChargeAllocationInput[];
   }): Promise<string> {
-    const lines =
-      params.allocations?.map((line) => ({
+    const lines: PostingLine[] =
+      allocationLines?.map((line) => ({
         gl_account_id: line.accountId,
         amount: Number(line.amount),
-        posting_type: 'Credit' as const,
+        posting_type: 'Credit',
         memo: line.memo ?? memo ?? undefined,
         property_id: lease.property_id ?? undefined,
         unit_id: lease.unit_id ?? undefined,
@@ -424,6 +461,7 @@ export class ArService {
       },
       metadata: {
         chargeId,
+        allocations: allocationLines,
       },
     });
 

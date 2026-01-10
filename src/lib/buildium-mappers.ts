@@ -2,7 +2,10 @@
 // This file contains functions to map between local database format and Buildium API format
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Json } from '@/types/database';
+import type { Database, Json, TablesInsert } from '@/types/database';
+import { logDebug, logError, logInfo, logWarn } from '@/shared/lib/logger';
+
+const isBuildiumMapperDebug = process.env.DEBUG_BUILDIUM_MAPPERS === 'true';
 type ExtendedDatabase = Database & {
   public: Database['public'] & {
     Tables: Database['public']['Tables'] & {
@@ -59,6 +62,7 @@ import type {
   BuildiumTaskCreate,
   BuildiumBill,
   BuildiumBillCreate,
+  BuildiumBillWithLines,
   BuildiumBankAccountCreate,
   BuildiumBankAccount,
   BuildiumLease,
@@ -68,6 +72,7 @@ import type {
   BuildiumSyncStatus,
   BuildiumLeaseTransaction,
   BuildiumGLAccount,
+  BuildiumGLAccountExtended,
   BuildiumGLCashFlowClassification,
   BuildiumTenant,
   BuildiumTenantPhoneNumbers,
@@ -76,14 +81,14 @@ import type {
   BuildiumAppliance,
   BuildiumApplianceCreate,
   BuildiumApplianceUpdate,
-} from '../types/buildium';
-import type {
+  BuildiumBillStatusApi,
+  BuildiumBillStatusDb,
   BuildiumWorkOrder,
   BuildiumWorkOrderCreate,
   BuildiumWorkOrderUpdate,
   BuildiumWorkOrderPriority,
   BuildiumWorkOrderStatus,
-} from '../types/buildium';
+} from '@/types/buildium';
 import { normalizeStaffRole } from '@/lib/staff-role';
 import { logger } from '@/lib/logger';
 import type { DepositStatus } from '@/types/deposits';
@@ -101,8 +106,8 @@ type TransactionPaymentTransactionInsert =
   Database['public']['Tables']['transaction_payment_transactions']['Insert'];
 type TransactionInsertBase = Omit<
   Database['public']['Tables']['transactions']['Insert'],
-  'updated_at'
->;
+  'updated_at' | 'org_id'
+> & { org_id?: string | null };
 type PropertyRow = Database['public']['Tables']['properties']['Row'];
 type StaffRow = Database['public']['Tables']['staff']['Row'];
 type UnitRow = Database['public']['Tables']['units']['Row'];
@@ -176,20 +181,6 @@ type BuildiumBankAccountExtended = BuildiumBankAccount & {
   Balance?: number | null;
   CheckPrintingInfo?: Json | null;
   ElectronicPayments?: Json | null;
-};
-
-type BuildiumBillLineExtended =
-  | ((BuildiumBill['Lines'] extends Array<infer L> ? L : never) & { Amount?: number | null })
-  | null;
-
-type BuildiumBillExtended = BuildiumBill & {
-  PaidDate?: string | null;
-  AccountId?: number | null;
-  Lines?: BuildiumBillLineExtended[] | null;
-};
-
-type BuildiumGLAccountExtended = BuildiumGLAccount & {
-  IsSecurityDepositLiability?: boolean | null;
 };
 
 type BuildiumWorkOrderExtended = BuildiumWorkOrder & {
@@ -986,23 +977,45 @@ export async function resolveSubAccounts(
 
   try {
     for (const buildiumGLAccountId of buildiumSubAccounts) {
-      console.log(`Resolving sub-account GL account ID: ${buildiumGLAccountId}`);
+      if (isBuildiumMapperDebug) {
+        logDebug(
+          '[buildium-mappers] Resolving sub-account GL account',
+          { buildiumGLAccountId },
+          { force: true },
+        );
+      }
 
       // Use the existing resolveGLAccountId function to handle each sub-account
       const localGLAccountId = await resolveGLAccountId(buildiumGLAccountId, supabase);
 
       if (localGLAccountId) {
         subAccountIds.push(localGLAccountId);
-        console.log(`Added sub-account: ${localGLAccountId}`);
+        if (isBuildiumMapperDebug) {
+          logDebug(
+            '[buildium-mappers] Added sub-account',
+            { buildiumGLAccountId, localId: localGLAccountId },
+            { force: true },
+          );
+        }
       } else {
-        console.warn(`Failed to resolve sub-account GL account ID: ${buildiumGLAccountId}`);
+        logWarn('Failed to resolve sub-account GL account ID', { buildiumGLAccountId });
       }
     }
 
-    console.log(`Resolved ${subAccountIds.length} sub-accounts:`, subAccountIds);
+    if (isBuildiumMapperDebug) {
+      logDebug(
+        '[buildium-mappers] Resolved sub-accounts',
+        {
+          buildiumSubAccountCount: buildiumSubAccounts.length,
+          localCount: subAccountIds.length,
+          localIdsSample: subAccountIds.slice(0, 10),
+        },
+        { force: true },
+      );
+    }
     return subAccountIds;
   } catch (error) {
-    console.error('Error resolving sub-accounts:', error);
+    logError('Error resolving sub-accounts', { error: error instanceof Error ? error.message : error });
     return [];
   }
 }
@@ -1045,12 +1058,18 @@ export async function resolveGLAccountId(
     const existingGLAccount = existingGLAccountRaw as unknown as GLAccountLookup | null;
 
     if (searchError && searchError.code !== 'PGRST116') {
-      console.error('Error searching for GL account:', searchError);
+      logError('Error searching for GL account', { buildiumGLAccountId, error: searchError });
       throw searchError;
     }
 
     if (existingGLAccount) {
-      console.log(`Found existing GL account: ${existingGLAccount.id}`);
+      if (isBuildiumMapperDebug) {
+        logDebug(
+          '[buildium-mappers] Using existing GL account',
+          { buildiumGLAccountId, localId: existingGLAccount.id },
+          { force: true },
+        );
+      }
       return existingGLAccount.id;
     }
 
@@ -1058,21 +1077,38 @@ export async function resolveGLAccountId(
     const resolvedOrgId = orgId ?? undefined;
 
     // Step 2: GL account not found, fetch from Buildium API
-    console.log(`GL account ${buildiumGLAccountId} not found, fetching from Buildium...`);
+    if (isBuildiumMapperDebug) {
+      logDebug(
+        '[buildium-mappers] Fetching GL account from Buildium',
+        { buildiumGLAccountId, orgId: resolvedOrgId },
+        { force: true },
+      );
+    }
 
     const { buildiumFetch } = await import('./buildium-http');
     const response = await buildiumFetch('GET', `/glaccounts/${buildiumGLAccountId}`, undefined, undefined, resolvedOrgId);
 
     if (!response.ok) {
-      console.error(
-        `Failed to fetch GL account ${buildiumGLAccountId} from Buildium:`,
-        response.status,
-      );
+      logError('Failed to fetch GL account from Buildium', {
+        buildiumGLAccountId,
+        status: response.status,
+        orgId: resolvedOrgId,
+      });
       return null;
     }
 
     const buildiumGLAccount = (response.json ?? {}) as BuildiumGLAccountExtended;
-    console.log('Fetched GL account from Buildium:', buildiumGLAccount);
+    if (isBuildiumMapperDebug) {
+      logDebug(
+        '[buildium-mappers] Fetched GL account from Buildium',
+        {
+          buildiumGLAccountId,
+          name: (buildiumGLAccount as { name?: string })?.name,
+          type: (buildiumGLAccount as { type?: string })?.type,
+        },
+        { force: true },
+      );
+    }
 
     // Step 3: Map and create GL account record with sub_accounts resolution
     const localGLAccount = await mapGLAccountFromBuildiumWithSubAccounts(
@@ -1086,7 +1122,7 @@ export async function resolveGLAccountId(
       ...localGLAccount,
       type: localGLAccount.type || 'Other',
       is_security_deposit_liability: localGLAccount.is_security_deposit_liability ?? false,
-      org_id: null,
+      org_id: resolvedOrgId ?? null,
       created_at: now,
       updated_at: now,
     };
@@ -1098,11 +1134,17 @@ export async function resolveGLAccountId(
       .single();
 
     if (createError) {
-      console.error('Error creating GL account:', createError);
+      logError('Error creating GL account', { buildiumGLAccountId, error: createError });
       return null;
     }
 
-    console.log(`Created new GL account: ${newGLAccount.id}`);
+    if (isBuildiumMapperDebug) {
+      logDebug(
+        '[buildium-mappers] Created new GL account',
+        { buildiumGLAccountId, localId: newGLAccount.id },
+        { force: true },
+      );
+    }
 
     // If this new GL account has a parent in Buildium, try to append this child
     // to the local parent's sub_accounts array (if the parent already exists locally).
@@ -1127,24 +1169,35 @@ export async function resolveGLAccountId(
               .eq('id', parentAccount.id);
 
             if (parentUpdateError) {
-              console.warn(
-                'Failed to update parent sub_accounts for GL account:',
-                parentUpdateError,
-              );
+              logWarn('Failed to update parent sub_accounts for GL account', {
+                parentId: parentAccount.id,
+                childId: newGLAccount.id,
+                error: parentUpdateError,
+              });
             } else {
-              console.log(
-                `Updated parent GL account ${parentAccount.id} sub_accounts to include ${newGLAccount.id}`,
-              );
+              if (isBuildiumMapperDebug) {
+                logDebug(
+                  '[buildium-mappers] Linked GL account to parent',
+                  { parentId: parentAccount.id, childId: newGLAccount.id },
+                  { force: true },
+                );
+              }
             }
           }
         }
       }
     } catch (parentLinkErr) {
-      console.warn('Non-fatal: error linking GL account to parent sub_accounts:', parentLinkErr);
+      logWarn('Non-fatal: error linking GL account to parent sub_accounts', {
+        buildiumGLAccountId,
+        error: parentLinkErr instanceof Error ? parentLinkErr.message : parentLinkErr,
+      });
     }
     return newGLAccount.id;
   } catch (error) {
-    console.error('Error resolving GL account ID:', error);
+    logError('Error resolving GL account ID', {
+      buildiumGLAccountId,
+      error: error instanceof Error ? error.message : error,
+    });
     return null;
   }
 }
@@ -1242,6 +1295,38 @@ export function mapGLEntryHeaderFromBuildium(
   };
 }
 
+async function resolveOrgIdForGlEntry(
+  buildiumEntry: Record<string, unknown>,
+  supabase: TypedSupabaseClient,
+): Promise<string> {
+  const glLines = getGlEntryLines(buildiumEntry);
+  for (const line of glLines) {
+    const buildiumPropertyId = line?.AccountingEntity?.Id ?? null;
+    if (buildiumPropertyId) {
+      const { data } = await supabase
+        .from('properties')
+        .select('org_id')
+        .eq('buildium_property_id', buildiumPropertyId)
+        .maybeSingle();
+      if (data?.org_id) return data.org_id;
+    }
+
+    const buildiumGlAccountId =
+      line?.GLAccountId ??
+      (typeof line?.GLAccount === 'object' && line?.GLAccount?.Id ? line.GLAccount.Id : null);
+    if (buildiumGlAccountId) {
+      const { data } = await supabase
+        .from('gl_accounts')
+        .select('org_id')
+        .eq('buildium_gl_account_id', buildiumGlAccountId)
+        .maybeSingle();
+      if (data?.org_id) return data.org_id;
+    }
+  }
+
+  throw new Error('Unable to resolve org_id for GL entry');
+}
+
 /**
  * Upserts a GL Entry (general journal) and its lines into transactions + transaction_lines
  */
@@ -1250,11 +1335,18 @@ export async function upsertGLEntryWithLines(
   supabase: TypedSupabaseClient,
 ): Promise<{ transactionId: string }> {
   const nowIso = new Date().toISOString();
-  const header = mapGLEntryHeaderFromBuildium(buildiumEntry);
+  const orgId = await resolveOrgIdForGlEntry(buildiumEntry, supabase);
+  const headerBase = mapGLEntryHeaderFromBuildium(buildiumEntry);
+  const header: TablesInsert<'transactions'> = {
+    ...headerBase,
+    org_id: orgId,
+    updated_at: nowIso,
+  };
+  const insertPayload: TablesInsert<'transactions'> = { ...header, created_at: nowIso };
 
   // Look up existing transaction by buildium_transaction_id
   let existing: { id: string; created_at: string } | null = null;
-  if (header.buildium_transaction_id !== null) {
+  if (header.buildium_transaction_id != null) {
     const { data, error } = await supabase
       .from('transactions')
       .select('id, created_at')
@@ -1277,7 +1369,7 @@ export async function upsertGLEntryWithLines(
   } else {
     const { data, error } = await supabase
       .from('transactions')
-      .insert({ ...header, created_at: nowIso })
+      .insert(insertPayload)
       .select('id')
       .single();
     if (error) throw error;
@@ -1306,6 +1398,7 @@ export async function upsertGLEntryWithLines(
       line?.GLAccountId ??
         (typeof line?.GLAccount === 'object' && line?.GLAccount?.Id ? line.GLAccount.Id : null),
       supabase,
+      orgId,
     );
     if (!glAccountId)
       throw new Error(
@@ -1806,6 +1899,7 @@ export function mapVendorCreditFromBuildium(
     total_amount: amount,
     memo: buildiumTx.Memo ?? (buildiumTx as any)?.Journal?.Memo ?? null,
     status: 'Paid',
+    org_id: null,
     vendor_id: null,
   };
 }
@@ -1920,6 +2014,7 @@ export function mapLeaseTransactionFromBuildium(
     unit_agreement_href: unitAgreement?.Href ?? null,
     buildium_last_updated_at: buildiumTx.LastUpdatedDateTime ?? null,
     bank_gl_account_buildium_id: buildiumTx.DepositDetails?.BankGLAccountId ?? null,
+    org_id: null,
   };
 }
 
@@ -2064,14 +2159,14 @@ export async function upsertLeaseTransactionWithLines(
   }
 
   // Find existing transaction by buildium_transaction_id
-  let existingTx: { id: string; created_at: string } | null = null;
+  let existingTx: { id: string; created_at: string; property_id?: string | null; unit_id?: string | null; org_id?: string | null } | null = null;
   if (
     mappedTx.buildium_transaction_id !== null &&
     typeof mappedTx.buildium_transaction_id === 'number'
   ) {
     const { data, error } = await supabase
       .from('transactions')
-      .select('id, created_at')
+      .select('id, created_at, property_id, unit_id, org_id')
       .eq('buildium_transaction_id', mappedTx.buildium_transaction_id)
       .single();
     if (error && error.code !== 'PGRST116') {
@@ -2087,22 +2182,80 @@ export async function upsertLeaseTransactionWithLines(
     leaseContext?.propertyId ??
     (defaultBuildiumPropertyId
       ? await resolveLocalPropertyId(defaultBuildiumPropertyId, supabase)
-      : null);
+      : null) ??
+    existingTx?.property_id ??
+    null;
   const defaultLocalUnitId =
     leaseContext?.unitId ??
-    (defaultBuildiumUnitId ? await resolveLocalUnitId(defaultBuildiumUnitId, supabase) : null);
+    (defaultBuildiumUnitId ? await resolveLocalUnitId(defaultBuildiumUnitId, supabase) : null) ??
+    existingTx?.unit_id ??
+    null;
   const unitIdForHeader =
     leaseContext?.unitId ??
-    (mappedTx.buildium_unit_id ? await resolveLocalUnitId(mappedTx.buildium_unit_id, supabase) : null);
+    (mappedTx.buildium_unit_id ? await resolveLocalUnitId(mappedTx.buildium_unit_id, supabase) : null) ??
+    defaultLocalUnitId ??
+    null;
+
+  let propertyIdForHeader = defaultLocalPropertyId ?? null;
+  if (!propertyIdForHeader && unitIdForHeader) {
+    const { data: unitRow, error: unitErr } = await supabase
+      .from('units')
+      .select('property_id')
+      .eq('id', unitIdForHeader)
+      .maybeSingle();
+    if (unitErr && unitErr.code !== 'PGRST116') throw unitErr;
+    propertyIdForHeader = (unitRow as { property_id?: string | null } | null)?.property_id ?? null;
+  }
+
+  type PropertyBankContext = Pick<
+    PropertyRow,
+    'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id' | 'org_id'
+  >;
+  let propertyBankContext: PropertyBankContext | null = null;
+
+  if (propertyIdForHeader) {
+    const { data: propRow, error: propErr } = await supabase
+      .from('properties')
+      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
+      .eq('id', propertyIdForHeader)
+      .maybeSingle();
+    if (propErr && propErr.code !== 'PGRST116') throw propErr;
+    propertyBankContext = (propRow as PropertyBankContext | null) ?? null;
+  }
+
+  let orgIdForTransaction =
+    leaseContext?.orgId ??
+    existingTx?.org_id ??
+    propertyBankContext?.org_id ??
+    null;
+  if (!orgIdForTransaction && leaseContext?.buildiumPropertyId) {
+    const { data: propertyRow } = await supabase
+      .from('properties')
+      .select('org_id')
+      .eq('buildium_property_id', leaseContext.buildiumPropertyId)
+      .maybeSingle();
+    orgIdForTransaction = (propertyRow as { org_id?: string | null } | null)?.org_id ?? null;
+  }
+  if (!orgIdForTransaction) {
+    throw new Error('Unable to resolve org_id for lease transaction upsert');
+  }
+
   const bankGlAccountId =
     mappedTx.bank_gl_account_buildium_id != null
-      ? await resolveGLAccountId(mappedTx.bank_gl_account_buildium_id, supabase)
+      ? await resolveGLAccountId(mappedTx.bank_gl_account_buildium_id, supabase, orgIdForTransaction)
       : null;
+  const txBase = {
+    ...mappedTx,
+    org_id: orgIdForTransaction,
+    property_id: propertyIdForHeader,
+    unit_id: unitIdForHeader,
+  };
+  const propertyOrgId = propertyBankContext?.org_id ?? orgIdForTransaction ?? null;
 
   let transactionId: string;
   if (existingTx) {
     const updatePayload = {
-      ...mappedTx,
+      ...txBase,
       lease_id: leaseIdForUpsert,
       unit_id: unitIdForHeader,
       bank_gl_account_id: bankGlAccountId,
@@ -2118,7 +2271,7 @@ export async function upsertLeaseTransactionWithLines(
     transactionId = data.id;
   } else {
     const insertPayload = {
-      ...mappedTx,
+      ...txBase,
       lease_id: leaseIdForUpsert,
       unit_id: unitIdForHeader,
       bank_gl_account_id: bankGlAccountId,
@@ -2146,22 +2299,6 @@ export async function upsertLeaseTransactionWithLines(
     string,
     { name: string | null; type: string | null; subType: string | null }
   >();
-  type PropertyBankContext = Pick<
-    PropertyRow,
-    'operating_bank_gl_account_id' | 'deposit_trust_gl_account_id' | 'org_id'
-  >;
-  let propertyBankContext: PropertyBankContext | null = null;
-
-  if (defaultLocalPropertyId) {
-    const { data: propRow, error: propErr } = await supabase
-      .from('properties')
-      .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
-      .eq('id', defaultLocalPropertyId)
-      .maybeSingle();
-    if (propErr && propErr.code !== 'PGRST116') throw propErr;
-    propertyBankContext = (propRow as PropertyBankContext | null) ?? null;
-  }
-  const propertyOrgId = leaseContext?.orgId ?? propertyBankContext?.org_id ?? null;
 
   for (const line of lines) {
     const amountAbs = Math.abs(Number(line?.Amount ?? 0));
@@ -2198,8 +2335,14 @@ export async function upsertLeaseTransactionWithLines(
     const buildiumPropertyId = line?.PropertyId ?? defaultBuildiumPropertyId ?? null;
     const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? defaultBuildiumUnitId ?? null;
     const localPropertyId =
-      (await resolveLocalPropertyId(buildiumPropertyId, supabase)) ?? defaultLocalPropertyId;
-    const localUnitId = (await resolveLocalUnitId(buildiumUnitId, supabase)) ?? defaultLocalUnitId;
+      (await resolveLocalPropertyId(buildiumPropertyId, supabase)) ??
+      propertyIdForHeader ??
+      defaultLocalPropertyId;
+    const localUnitId =
+      (await resolveLocalUnitId(buildiumUnitId, supabase)) ??
+      defaultLocalUnitId ??
+      unitIdForHeader ??
+      null;
     const lineMeta = extractLeaseTransactionLineMetadataFromBuildiumLine(line);
     const accountingEntityTypeRaw = lineMeta.accounting_entity_type_raw;
     const accountEntityType: EntityType =
@@ -2260,7 +2403,7 @@ export async function upsertLeaseTransactionWithLines(
         creditSum,
         totalAmount,
         buildiumLeaseId: buildiumTx?.LeaseId ?? null,
-        defaultLocalPropertyId,
+        defaultLocalPropertyId: propertyIdForHeader,
         defaultBuildiumPropertyId,
       },
       'Buildium lease transaction missing bank account line (will attempt bank GL resolution if eligible)',
@@ -2313,7 +2456,7 @@ export async function upsertLeaseTransactionWithLines(
     needsBankAccountLine &&
     !hasBankLikeLine &&
     bankAmountNeeded > 0 &&
-    defaultLocalPropertyId
+    propertyIdForHeader
   ) {
     if (!bankGlAccountIdToUse && propertyBankContext) {
       bankGlAccountIdToUse =
@@ -2326,7 +2469,7 @@ export async function upsertLeaseTransactionWithLines(
           bankGlAccountIdResolved: bankGlAccountIdToUse,
           creditSum,
           totalAmount,
-          defaultLocalPropertyId,
+          propertyIdForHeader,
           operatingBankGlAccountId: propertyBankContext.operating_bank_gl_account_id ?? null,
           depositTrustGlAccountId: propertyBankContext.deposit_trust_gl_account_id ?? null,
           orgId: propertyOrgId,
@@ -2351,8 +2494,8 @@ export async function upsertLeaseTransactionWithLines(
       buildium_property_id: defaultBuildiumPropertyId,
       buildium_unit_id: defaultBuildiumUnitId,
       buildium_lease_id: buildiumTx?.LeaseId ?? null,
-      property_id: defaultLocalPropertyId,
-      unit_id: defaultLocalUnitId,
+      property_id: propertyIdForHeader,
+      unit_id: unitIdForHeader ?? defaultLocalUnitId,
     });
     if (bankPosting === 'Debit') debitSum += bankAmountNeeded;
     else creditSum += bankAmountNeeded;
@@ -2395,8 +2538,8 @@ export async function upsertLeaseTransactionWithLines(
         buildium_property_id: defaultBuildiumPropertyId,
         buildium_unit_id: defaultBuildiumUnitId,
         buildium_lease_id: buildiumTx?.LeaseId ?? null,
-        property_id: defaultLocalPropertyId,
-        unit_id: defaultLocalUnitId,
+        property_id: propertyIdForHeader,
+        unit_id: unitIdForHeader ?? defaultLocalUnitId,
       });
       debitSum += arAmount;
     }
@@ -3237,7 +3380,7 @@ export async function upsertOwnerFromBuildium(
     if (error) throw error;
     return { ownerId: existing.id, created: false };
   } else {
-    const insertPayload = { ...base, created_at: now } as OwnersInsert;
+    const insertPayload: OwnersInsert = { ...base, created_at: now, updated_at: now };
     const { data: created, error } = await supabase
       .from('owners')
       .insert(insertPayload)
@@ -4476,7 +4619,7 @@ export function mapBillFromBuildium(buildiumBill: BuildiumBill): {
 
 type LocalBillStatus = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
 
-function _mapBillStatusToBuildium(localStatus: string): BuildiumBillStatus {
+function _mapBillStatusToBuildium(localStatus: string): BuildiumBillStatusApi {
   switch (localStatus?.toLowerCase()) {
     case 'paid':
       return 'Paid';
@@ -4503,10 +4646,40 @@ function _mapBillStatusToBuildium(localStatus: string): BuildiumBillStatus {
   }
 }
 
-function mapBillStatusFromBuildium(
-  buildiumStatus: 'Pending' | 'Paid' | 'Overdue' | 'Cancelled' | 'PartiallyPaid',
-): LocalBillStatus {
-  switch (buildiumStatus) {
+export function normalizeBuildiumBillStatus(status: unknown): BuildiumBillStatusDb | null {
+  if (typeof status !== 'string') {
+    return null;
+  }
+  const cleaned = status.trim();
+  if (!cleaned) return null;
+  const normalized = cleaned.toLowerCase().replace(/\s+|_/g, '');
+  switch (normalized) {
+    case 'paid':
+      return 'Paid';
+    case 'overdue':
+      return 'Overdue';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelled';
+    case 'partiallypaid':
+    case 'partialpaid':
+    case 'partially_paid':
+      return 'PartiallyPaid';
+    case 'pending':
+    case 'due':
+    case 'pendingapproval':
+    case 'approved':
+    case 'rejected':
+    case 'voided':
+      return 'Pending';
+    default:
+      return null;
+  }
+}
+
+function mapBillStatusFromBuildium(buildiumStatus: BuildiumBillStatusApi | string): LocalBillStatus {
+  const normalized = normalizeBuildiumBillStatus(buildiumStatus) ?? 'Pending';
+  switch (normalized) {
     case 'Overdue':
       return 'Overdue';
     case 'Cancelled':
@@ -4700,7 +4873,7 @@ async function resolveOrgIdFromBuildiumAccount(
 }
 
 export async function mapBillTransactionFromBuildium(
-  buildiumBill: BuildiumBillExtended | BuildiumBillWithLines,
+  buildiumBill: BuildiumBillWithLines,
   supabase: TypedSupabaseClient,
   buildiumAccountId?: number | null,
 ): Promise<Database['public']['Tables']['transactions']['Insert']> {
@@ -4734,6 +4907,9 @@ export async function mapBillTransactionFromBuildium(
       supabase,
       buildiumAccountId ?? buildiumBill?.AccountId ?? null,
     )) ?? null;
+  if (!orgId) {
+    throw new Error('Unable to resolve org_id for Buildium bill transaction');
+  }
 
   return {
     buildium_bill_id: buildiumBill?.Id ?? null,
@@ -4756,22 +4932,6 @@ export async function mapBillTransactionFromBuildium(
  * Upserts a Bill as a row in transactions (by buildium_bill_id),
  * then deletes and re-inserts all transaction_lines from Bill.Lines (if present).
  */
-type BuildiumBillWithLines = BuildiumBillExtended & {
-  Lines?: Array<{
-    Amount?: number | string | null;
-    Memo?: string | null;
-    GlAccountId?: number | null;
-    GLAccount?: { Id?: number | null } | number | null;
-    AccountingEntity?: {
-      Id?: number | null;
-      AccountingEntityType?: 'Rental' | 'Company';
-      UnitId?: number | null;
-      Unit?: { Id?: number | null } | null;
-    } | null;
-  }>;
-  WorkOrderId?: number | null;
-};
-
 export async function upsertBillWithLines(
   buildiumBill: BuildiumBillWithLines,
   supabase: TypedSupabaseClient,

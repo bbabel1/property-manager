@@ -38,6 +38,7 @@ import {
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers';
 import { ensurePaymentToUndepositedFunds } from '@/lib/deposit-service';
 import PayerRestrictionsService from '@/lib/payments/payer-restrictions-service';
+import type { Charge, PaymentAllocation } from '@/types/ar';
 
 const CreatePaymentSchema = z.object({
   date: z.string().min(1, 'Payment date is required'),
@@ -329,24 +330,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       await ensurePaymentToUndepositedFunds(result.localId, context.lease.orgId ?? null, supabaseAdmin);
     }
 
-    let normalized = null;
-    let linesResponse: Array<{
-      id?: string;
-      transaction_id?: string;
-      gl_account_id?: string | null;
-      amount?: number | null;
-      posting_type?: string | null;
-      memo?: string | null;
-    }> = [];
-    let allocationsResponse: Array<Record<string, unknown>> = [];
-    let updatedCharges: Array<Record<string, unknown>> = [];
+    let normalized: Record<string, unknown> | null = null;
+    let linesResponse: Record<string, unknown>[] = [];
+    let allocationsResponse: Record<string, unknown>[] = [];
+    let updatedCharges: Record<string, unknown>[] = [];
 
     if (result.localId) {
       await assignTransactionToMonthlyLog(result.localId, logId);
       const record = await fetchTransactionWithLines(result.localId);
       if (record) {
-        normalized = record.transaction;
-        linesResponse = record.lines ?? [];
+        normalized = { ...record.transaction };
+        linesResponse = (record.lines ?? []).map((line) => {
+          const { transaction_id, ...rest } = line ?? {};
+          return {
+            ...rest,
+            transaction_id: transaction_id ?? undefined,
+          };
+        });
       }
 
       const allocationResult = await allocationEngine.allocatePayment(
@@ -360,8 +360,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
         })),
         parsed.data.allocation_external_id ?? undefined,
       );
-      allocationsResponse = allocationResult.allocations;
-      updatedCharges = allocationResult.charges;
+      allocationsResponse = allocationResult.allocations.map((allocation) => ({ ...allocation }));
+      updatedCharges = allocationResult.charges.map((charge) => ({ ...charge }));
 
       await supabaseAdmin
         .from('transactions')

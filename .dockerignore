@@ -1,0 +1,33 @@
+# Dependencies and build output
+node_modules
+.next
+out
+build
+dist
+.turbo
+.cache
+coverage
+
+# Local env and secrets
+.env*
+
+# Editors and OS noise
+.DS_Store
+.vscode
+.idea
+
+# Logs and debug artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python/virtualenv leftovers
+__pycache__
+.venv
+venv
+
+# Supabase local state
+supabase/.branches
+supabase/.temp

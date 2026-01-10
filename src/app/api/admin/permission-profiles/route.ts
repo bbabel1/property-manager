@@ -12,6 +12,7 @@ type RolePermissionRow = Database['public']['Tables']['role_permissions']['Row']
 type RoleWithPermissions = Pick<RoleRow, 'id' | 'org_id' | 'name' | 'description' | 'is_system'> & {
   role_permissions: RolePermissionRow[] | null
 }
+type RolePermissionInsert = Database['public']['Tables']['role_permissions']['Insert']
 
 const PayloadSchema = z.object({
   id: z.string().uuid().optional(),
@@ -101,13 +102,33 @@ export async function POST(request: NextRequest) {
     }
 
     await supabase.from('role_permissions').delete().eq('role_id', profileId)
-    // Ensure permissions exist; assume seeded in permissions table
-    const rows = payload.permissions.map((p) => ({
-      role_id: profileId,
-      permission_id: null, // resolved via FK by key
-      permission: p,
-      updated_at: now,
-    }))
+    const permissionKeys = Array.from(new Set(payload.permissions))
+    const { data: permissionRows, error: permissionFetchError } = await supabase
+      .from('permissions')
+      .select('id, key, org_id')
+      .in('key', permissionKeys)
+    if (permissionFetchError) {
+      return NextResponse.json({ error: permissionFetchError.message }, { status: 500 })
+    }
+    const missing = permissionKeys.filter((key) => !permissionRows?.some((row) => row?.key === key))
+    if (missing.length) {
+      return NextResponse.json(
+        { error: `Unknown permissions: ${missing.join(', ')}` },
+        { status: 400 },
+      )
+    }
+
+    const rows: RolePermissionInsert[] = []
+    for (const perm of permissionRows ?? []) {
+      if (!perm?.id) continue
+      rows.push({
+        role_id: profileId,
+        permission_id: perm.id,
+        updated_at: now,
+        created_at: now,
+      })
+    }
+
     const { error: permError } = await supabase.from('role_permissions').insert(rows)
     if (permError) {
       return NextResponse.json({ error: permError.message }, { status: 500 })

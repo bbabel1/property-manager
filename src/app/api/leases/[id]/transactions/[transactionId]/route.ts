@@ -299,9 +299,18 @@ export async function DELETE(
     }
 
     if (txIdLocal) {
-      await db.from('transaction_lines').delete().eq('transaction_id', txIdLocal)
-      await db.from('journal_entries').delete().eq('transaction_id', txIdLocal)
-      const { error: delErr } = await db.from('transactions').delete().eq('id', txIdLocal)
+      // Remove overlays that block transaction deletion via restrictive FKs
+      const { error: depositDeleteErr } = await db
+        .from('deposit_items')
+        .delete()
+        .eq('payment_transaction_id', txIdLocal)
+      if (depositDeleteErr) throw depositDeleteErr
+
+      const { error: paymentDeleteErr } = await db.from('payment').delete().eq('transaction_id', txIdLocal)
+      if (paymentDeleteErr) throw paymentDeleteErr
+
+      // Delete the transaction (lines/journal entries cascade); disable balance trigger via helper
+      const { error: delErr } = await db.rpc('delete_transaction_safe', { p_transaction_id: txIdLocal })
       if (delErr) throw delErr
     }
 

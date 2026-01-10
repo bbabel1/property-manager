@@ -66,6 +66,7 @@ const getServiceRolePool = (): Pool => {
   servicePool = new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
+    application_name: 'pm-deposit-service',
   })
   return servicePool
 }

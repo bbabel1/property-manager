@@ -33,6 +33,8 @@ type BuildiumBalance = {
   TotalDepositsAndAdditions?: number
   totalDepositsAndAdditions?: number
 }
+type ReconciliationVarianceAlertRow = { property_id: string | null }
+type ReconciliationAlertRow = { property_id: string | null }
 
 // On-demand sync job for Buildium reconciliations → reconciliation_log
 export async function GET(req: NextRequest) {
@@ -205,8 +207,18 @@ export async function GET(req: NextRequest) {
   }
   // Alert plumbing: log counts for variance and stale alerts
   try {
-    const { data: varRows } = await admin.from('v_reconciliation_variance_alerts').select('property_id').eq('over_24h', true)
-    const { data: staleRows } = await admin.from('v_reconciliation_stale_alerts').select('property_id')
+    // Cast client + view names because these views may lag behind generated Supabase types.
+    const adminAny = admin as any
+    const varianceQuery = adminAny
+      .from('v_reconciliation_variance_alerts' as any)
+      .select('property_id')
+      .eq('over_24h', true)
+    const staleQuery = adminAny.from('v_reconciliation_stale_alerts' as any).select('property_id')
+
+    const { data: rawVarRows } = await varianceQuery
+    const { data: rawStaleRows } = await staleQuery
+    const varRows = rawVarRows as Pick<ReconciliationVarianceAlertRow, 'property_id'>[] | null
+    const staleRows = rawStaleRows as ReconciliationAlertRow[] | null
     const varCount = Array.isArray(varRows) ? varRows.length : 0
     const staleCount = Array.isArray(staleRows) ? staleRows.length : 0
     if (varCount > 0 || staleCount > 0) {

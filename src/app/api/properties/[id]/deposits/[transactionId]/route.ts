@@ -9,16 +9,29 @@ type TransactionRow = Pick<
   Database['public']['Tables']['transactions']['Row'],
   'id' | 'transaction_type' | 'property_id' | 'bank_gl_account_id'
 >;
-type TransactionLineRow = Pick<Database['public']['Tables']['transaction_lines']['Row'], 'property_id'>;
+type TransactionLineRow = Pick<
+  Database['public']['Tables']['transaction_lines']['Row'],
+  'property_id'
+>;
 type TransactionLineDebitRow = Pick<
   Database['public']['Tables']['transaction_lines']['Row'],
   'id' | 'gl_account_id' | 'posting_type'
 >;
-type BankAccountRow = Pick<Database['public']['Tables']['gl_accounts']['Row'], 'id' | 'is_bank_account'>;
+type BankAccountRow = Pick<
+  Database['public']['Tables']['gl_accounts']['Row'],
+  'id' | 'is_bank_account'
+>;
+type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];
+type TransactionLineUpdate = Database['public']['Tables']['transaction_lines']['Update'];
+type DepositPatchPayload = {
+  bank_gl_account_id?: string | null;
+  date?: string | null;
+  memo?: string | null;
+};
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; transactionId: string }> }
+  { params }: { params: Promise<{ id: string; transactionId: string }> },
 ) {
   try {
     const { id: slug, transactionId } = await params;
@@ -61,12 +74,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Deposit not found for this property' }, { status: 404 });
     }
 
-    const body = await request.json();
-    const { bank_gl_account_id, date, memo } = body;
+    const payload = ((await request.json().catch(() => ({}))) ?? {}) as DepositPatchPayload;
+    const bank_gl_account_id = payload.bank_gl_account_id;
+    const date = typeof payload.date === 'string' ? payload.date : undefined;
+    const memo =
+      typeof payload.memo === 'string' ? payload.memo : payload.memo === null ? null : undefined;
+
+    const nowIso = new Date().toISOString();
 
     // Update transaction
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
+    const updateData: TransactionUpdate = {
+      updated_at: nowIso,
     };
 
     if (date !== undefined) {
@@ -78,12 +96,13 @@ export async function PATCH(
     }
 
     if (bank_gl_account_id !== undefined) {
+      const normalizedBankGlAccountId = bank_gl_account_id || null;
       // Verify bank GL account exists and is a bank account
-      if (bank_gl_account_id) {
+      if (normalizedBankGlAccountId) {
         const { data: glAccount, error: glAccountError } = await db
           .from('gl_accounts')
           .select('id, is_bank_account')
-          .eq('id', bank_gl_account_id)
+          .eq('id', normalizedBankGlAccountId)
           .maybeSingle<BankAccountRow>();
 
         if (glAccountError) {
@@ -96,7 +115,7 @@ export async function PATCH(
       }
 
       // Update bank_gl_account_id on transaction
-      updateData.bank_gl_account_id = bank_gl_account_id || null;
+      updateData.bank_gl_account_id = normalizedBankGlAccountId;
 
       // Update transaction_lines to use the new bank GL account
       // Find the bank debit line and update it
@@ -115,16 +134,24 @@ export async function PATCH(
         // Update the first debit line (should be the bank line)
         const bankLine = typedBankLines[0];
 
-        if (bankLine && bank_gl_account_id) {
-          await db
+        if (bankLine && normalizedBankGlAccountId) {
+          const bankLineUpdate: TransactionLineUpdate = {
+            gl_account_id: normalizedBankGlAccountId,
+            updated_at: nowIso,
+          };
+          const { error: bankLineUpdateError } = await (db as any)
             .from('transaction_lines')
-            .update({ gl_account_id: bank_gl_account_id })
+            .update(bankLineUpdate)
             .eq('id', bankLine.id);
+
+          if (bankLineUpdateError) {
+            return NextResponse.json({ error: 'Failed to update bank line' }, { status: 500 });
+          }
         }
       }
     }
 
-    const { error: updateError } = await db
+    const { error: updateError } = await (db as any)
       .from('transactions')
       .update(updateData)
       .eq('id', transactionId);
@@ -138,14 +165,14 @@ export async function PATCH(
     console.error('Error updating deposit:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update deposit' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; transactionId: string }> }
+  { params }: { params: Promise<{ id: string; transactionId: string }> },
 ) {
   try {
     const { id: slug, transactionId } = await params;
@@ -193,7 +220,7 @@ export async function DELETE(
       .from('transactions')
       .select('id, org_id, bank_gl_account_id')
       .eq('id', transactionId)
-      .maybeSingle<{ id: string; org_id: string | null }>();
+      .maybeSingle<{ id: string; org_id: string | null; bank_gl_account_id: string | null }>();
     if (depositError) {
       return NextResponse.json({ error: 'Failed to load deposit' }, { status: 500 });
     }
@@ -241,7 +268,7 @@ export async function DELETE(
         'ReverseElectronicFundsTransfer',
         'ReversePayment',
         'Check',
-      ];
+      ] as const satisfies readonly Database['public']['Enums']['transaction_type_enum'][];
 
       const paymentIdSet = new Set<string>();
 
@@ -302,7 +329,10 @@ export async function DELETE(
               .update({ gl_account_id: udfGlAccountId, updated_at: nowIso })
               .in('id', lineIds);
             if (updateLinesError) {
-              return NextResponse.json({ error: 'Failed to reclassify payment lines' }, { status: 500 });
+              return NextResponse.json(
+                { error: 'Failed to reclassify payment lines' },
+                { status: 500 },
+              );
             }
           }
         }
@@ -350,7 +380,10 @@ export async function DELETE(
               const paymentIds = paymentsToUpdate.map((tx) => tx.id);
               await supabaseAdmin
                 .from('transactions')
-                .update({ bank_gl_account_id: udfGlAccountId, updated_at: new Date().toISOString() })
+                .update({
+                  bank_gl_account_id: udfGlAccountId,
+                  updated_at: new Date().toISOString(),
+                })
                 .in('id', paymentIds);
             }
           }
@@ -363,7 +396,7 @@ export async function DELETE(
     console.error('Error deleting deposit:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete deposit' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

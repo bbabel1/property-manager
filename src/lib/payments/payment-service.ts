@@ -235,6 +235,21 @@ export class PaymentService {
     return (data as PaymentRow | null) ?? null;
   }
 
+  static async findPaymentByIntentId(orgId: string, intentId: string): Promise<PaymentRow | null> {
+    const { data, error } = await supabaseAdmin
+      .from('payment')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('payment_intent_id', intentId)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    return (data as PaymentRow | null) ?? null;
+  }
+
   private static async getTransaction(transactionId: string): Promise<TransactionRow> {
     const { data, error } = await supabaseAdmin
       .from('transactions')

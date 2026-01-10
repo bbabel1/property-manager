@@ -560,6 +560,7 @@ export async function processBankAccountTransactionEvent(supabase: any, event: a
     memo: deposit?.Memo ?? deposit?.Description ?? null,
     bank_gl_account_id: bankGlAccountId,
     bank_gl_account_buildium_id: glAccountBuildiumId ?? null,
+    org_id: orgId ?? null,
     updated_at: now,
   };
 

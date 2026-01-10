@@ -39,6 +39,7 @@ const getServiceRolePool = (): Pool => {
   sharedPool = new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
+    application_name: 'pm-allocation-engine',
   });
   return sharedPool;
 };

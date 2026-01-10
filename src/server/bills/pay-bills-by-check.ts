@@ -115,6 +115,34 @@ const currencySafe = (value: unknown) => {
   return Number.isFinite(num) ? num : 0;
 };
 
+type LineRow = {
+  transaction_id: string | null;
+  amount?: number | null;
+  posting_type?: string | null;
+  property_id?: string | null;
+  unit_id?: string | null;
+  properties?:
+    | {
+        id?: string | null;
+        name?: string | null;
+        operating_bank_gl_account_id?: string | null;
+        org_id?: string | null;
+      }[]
+    | null;
+};
+
+const normalizeLineRows = (rows: unknown[] | null | undefined): LineRow[] =>
+  (rows ?? []).map((row) => ({
+    transaction_id: (row as { transaction_id?: string | null })?.transaction_id ?? null,
+    amount: (row as { amount?: number | null })?.amount ?? null,
+    posting_type: (row as { posting_type?: string | null })?.posting_type ?? null,
+    property_id: (row as { property_id?: string | null })?.property_id ?? null,
+    unit_id: (row as { unit_id?: string | null })?.unit_id ?? null,
+    properties: Array.isArray((row as { properties?: LineRow['properties'] })?.properties)
+      ? ((row as { properties?: LineRow['properties'] }).properties as LineRow['properties'])
+      : null,
+  }));
+
 export async function listUnpaidBillsForCheckPayment(
   filters: UnpaidBillFilters,
 ): Promise<UnpaidBillRow[]> {
@@ -141,6 +169,7 @@ export async function listUnpaidBillsForCheckPayment(
     console.error('Failed to load bill lines for unpaid bills listing', lineError);
     return [];
   }
+  const normalizedLineRows = normalizeLineRows(lineRows as unknown[] | null | undefined);
 
   const amountByTransaction = new Map<string, number>();
   const propertyByTransaction = new Map<string, string | null>();
@@ -160,7 +189,7 @@ export async function listUnpaidBillsForCheckPayment(
   >();
   const transactionIds = new Set<string>();
 
-  for (const row of lineRows || []) {
+  for (const row of normalizedLineRows) {
     const txId = row?.transaction_id ? String(row.transaction_id) : null;
     if (!txId) continue;
     transactionIds.add(txId);
@@ -187,41 +216,41 @@ export async function listUnpaidBillsForCheckPayment(
           org_id?: string | null;
         }[]
       | null;
-    const property = properties?.[0] ?? null;
-    const propertyId = property?.id ? String(property.id) : null;
-
-    if (propertyId) {
-      const amount = currencySafe(row.amount);
-      const postingType = String(row.posting_type || '').toLowerCase();
-      const debitAmount = postingType === 'credit' ? 0 : Math.abs(amount);
-      if (debitAmount > 0) {
-        const totals =
-          propertyTotalsByBill.get(txId) ?? new Map<string, number>();
-        totals.set(propertyId, (totals.get(propertyId) ?? 0) + debitAmount);
-        propertyTotalsByBill.set(txId, totals);
-      }
-
-      const metaMap =
-        propertyMetaByBill.get(txId) ??
-        new Map<
-          string,
-          {
-            id: string;
-            name: string;
-            operatingBankAccountId: string | null;
-            orgId: string | null;
-          }
-        >();
-      if (!metaMap.has(propertyId)) {
-        metaMap.set(propertyId, {
-          id: propertyId,
-          name: property.name ?? 'Property',
-          operatingBankAccountId: property.operating_bank_gl_account_id ?? null,
-          orgId: property.org_id ?? null,
-        });
-      }
-      propertyMetaByBill.set(txId, metaMap);
+    const property = properties?.[0];
+    if (!property?.id) {
+      continue;
     }
+    const propertyId = String(property.id);
+
+    const amount = currencySafe(row.amount);
+    const debitAmount = postingType === 'credit' ? 0 : Math.abs(amount);
+    if (debitAmount > 0) {
+      const totals =
+        propertyTotalsByBill.get(txId) ?? new Map<string, number>();
+      totals.set(propertyId, (totals.get(propertyId) ?? 0) + debitAmount);
+      propertyTotalsByBill.set(txId, totals);
+    }
+
+    const metaMap =
+      propertyMetaByBill.get(txId) ??
+      new Map<
+        string,
+        {
+          id: string;
+          name: string;
+          operatingBankAccountId: string | null;
+          orgId: string | null;
+        }
+      >();
+    if (!metaMap.has(propertyId)) {
+      metaMap.set(propertyId, {
+        id: propertyId,
+        name: property.name ?? 'Property',
+        operatingBankAccountId: property.operating_bank_gl_account_id ?? null,
+        orgId: property.org_id ?? null,
+      });
+    }
+    propertyMetaByBill.set(txId, metaMap);
   }
 
   if (!transactionIds.size) return [];
@@ -623,21 +652,6 @@ export async function getBillsForCheckPreparation(
     console.error('Failed to load bill lines for check preparation', lineErr);
   }
 
-  type LineRow = {
-    transaction_id: string | null;
-    amount?: number | null;
-    posting_type?: string | null;
-    property_id?: string | null;
-    properties?:
-      | {
-          id?: string | null;
-          name?: string | null;
-          operating_bank_gl_account_id?: string | null;
-          org_id?: string | null;
-        }[]
-      | null;
-  };
-
   const linesByBill = new Map<string, LineRow[]>();
   const propertyTotalsByBill = new Map<
     string,
@@ -657,7 +671,9 @@ export async function getBillsForCheckPreparation(
   >();
   const debitTotalByBill = new Map<string, number>();
 
-  for (const row of (lineRows || []) as LineRow[]) {
+  const normalizedLineRows = normalizeLineRows(lineRows as unknown[] | null | undefined);
+
+  for (const row of normalizedLineRows) {
     const txId = row.transaction_id ? String(row.transaction_id) : null;
     if (!txId) continue;
     const arr = linesByBill.get(txId) ?? [];
@@ -668,7 +684,7 @@ export async function getBillsForCheckPreparation(
     const property = properties[0] || null;
     const propertyId = property?.id ? String(property.id) : null;
 
-    if (propertyId) {
+    if (propertyId && property) {
       const amount = currencySafe(row.amount);
       const posting = String(row.posting_type || '').toLowerCase();
       const debitAmount = posting === 'credit' ? 0 : Math.abs(amount);

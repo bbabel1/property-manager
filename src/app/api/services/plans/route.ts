@@ -5,6 +5,7 @@ import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { logger } from '@/lib/logger';
 import { supabaseAdmin } from '@/lib/db';
 import type { Database } from '@/types/database';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 const DEFAULT_PLAN_NAMES = ['Full', 'Basic', 'A-la-carte', 'Custom'];
 
@@ -43,8 +44,8 @@ function isMissingColumnError(error: unknown) {
 }
 
 const OFFERING_SELECTS = [
-  'id, default_freq, markup_pct, markup_pct_cap, hourly_rate, hourly_min_hours' as const,
-  'id, default_freq' as const,
+  'id,default_freq,markup_pct,markup_pct_cap,hourly_rate,hourly_min_hours' as const,
+  'id,default_freq' as const,
   'id' as const,
 ];
 
@@ -63,24 +64,27 @@ function isPlanPercentBasis(value: unknown): value is PlanPercentBasis {
   return value === 'lease_rent_amount' || value === 'collected_rent';
 }
 
-type OfferingRow = Pick<
-  Database['public']['Tables']['service_offerings']['Row'],
-  'id' | 'default_freq' | 'markup_pct' | 'markup_pct_cap' | 'hourly_rate' | 'hourly_min_hours'
-> & {
-  billing_basis?: BillingBasis | null;
-  default_rent_basis?: RentBasis | null;
-};
+type OfferingRow = Pick<Database['public']['Tables']['service_offerings']['Row'], 'id' | 'default_freq'> &
+  Partial<
+    Pick<
+      Database['public']['Tables']['service_offerings']['Row'],
+      'markup_pct' | 'markup_pct_cap' | 'hourly_rate' | 'hourly_min_hours'
+    >
+  > & {
+    billing_basis?: BillingBasis | null;
+    default_rent_basis?: RentBasis | null;
+  };
 
 async function loadOfferingsForPlanAssignment(offeringIds: string[]) {
   const tries = OFFERING_SELECTS;
 
   for (const select of tries) {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = (await supabaseAdmin
       .from('service_offerings')
-      .select(select)
-      .in('id', offeringIds);
+      .select(select as string)
+      .in('id', offeringIds)) as { data: OfferingRow[] | null; error: PostgrestError | null };
 
-    if (!error) return (data as OfferingRow[]) || [];
+    if (!error) return data ?? [];
     if (!isMissingColumnError(error)) throw error;
   }
 
@@ -97,14 +101,16 @@ async function ensureDefaultPlans(orgId: string, userId: string) {
     // Seed defaults only for brand-new orgs with zero plans; avoid recreating
     // deleted plans on every fetch.
     if (!existing || existing.length === 0) {
-      const inserts = DEFAULT_PLAN_NAMES.map((name) => ({
-        org_id: orgId,
-        name,
-        amount_type: 'flat',
-        percent_basis: null,
-        is_active: true,
-        // default_fee_* intentionally omitted; A-la-carte should have no plan-level fee.
-      }));
+      const inserts: Database['public']['Tables']['service_plans']['Insert'][] = DEFAULT_PLAN_NAMES.map(
+        (name) => ({
+          org_id: orgId,
+          name,
+          amount_type: 'flat',
+          percent_basis: null,
+          is_active: true,
+          // default_fee_* intentionally omitted; A-la-carte should have no plan-level fee.
+        }),
+      );
 
       if (inserts.length) {
         await supabaseAdmin.from('service_plans').insert(inserts);

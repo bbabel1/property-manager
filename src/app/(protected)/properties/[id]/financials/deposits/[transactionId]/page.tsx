@@ -126,11 +126,12 @@ export default async function DepositEditPage({
       let unitName: string | null = null;
 
       // Try to resolve unit from accounting_unit_href or accounting_unit_id
-      if (payment.accounting_unit_id) {
+      const accountingUnitId = Number(payment.accounting_unit_id);
+      if (Number.isFinite(accountingUnitId)) {
         const { data: unitData } = await db
           .from('units')
           .select('unit_number, unit_name, property_id, properties(name)')
-          .eq('buildium_unit_id', payment.accounting_unit_id)
+          .eq('buildium_unit_id', accountingUnitId)
           .maybeSingle();
         const unit = (unitData as {
             unit_number: string | null;

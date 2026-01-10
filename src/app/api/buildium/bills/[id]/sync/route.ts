@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { upsertBillWithLines } from '@/lib/buildium-mappers'
+import type { BuildiumBillWithLines } from '@/types/buildium'
 
 // POST /api/buildium/bills/[id]/sync
 // Fetch a single bill from Buildium by Id and persist to DB
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Failed to fetch bill from Buildium', details }, { status: response.status })
     }
 
-    const bill = response.json ?? {}
+    const bill = (response.json ?? {}) as BuildiumBillWithLines
     const supabaseAdmin = requireSupabaseAdmin('sync bill from Buildium')
     const { transactionId } = await upsertBillWithLines(bill, supabaseAdmin)
     return NextResponse.json({ success: true, transactionId })

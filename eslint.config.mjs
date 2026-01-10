@@ -25,7 +25,8 @@ const eslintConfig = [
       ".next/**",
       "node_modules/**",
       "next-env.d.ts",
-      "fix-markdown.js"
+      "fix-markdown.js",
+      "**/*.md"
     ]
   },
   // Warn when importing the service-role client; enforce guard review per file
@@ -126,6 +127,13 @@ const eslintConfig = [
     },
     rules: {
       "@typescript-eslint/no-var-requires": "off"
+    }
+  },
+  // UI components: block noisy console logging (errors/warnings allowed)
+  {
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-console": ["error", { allow: ["warn", "error"] }]
     }
   }
 ];

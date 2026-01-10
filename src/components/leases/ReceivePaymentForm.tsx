@@ -133,7 +133,7 @@ export default function ReceivePaymentForm({
     }));
     const missingOptions = withoutBuildium.map((tenant) => ({
       value: getTenantOptionValue(tenant),
-      label: `${tenant.name} (needs Buildium ID)`,
+      label: tenant.name,
     }));
 
     const options =
@@ -160,10 +160,8 @@ export default function ReceivePaymentForm({
   const defaultTenantValue = useMemo(
     () =>
       prefillTenantValue ||
-      (tenantsWithBuildiumId && tenantsWithBuildiumId.length > 0
-        ? getTenantOptionValue(tenantsWithBuildiumId[0])
-        : ''),
-    [prefillTenantValue, tenantsWithBuildiumId],
+      (tenants && tenants.length > 0 ? getTenantOptionValue(tenants[0]) : ''),
+    [prefillTenantValue, tenants],
   );
 
   const initialFormState = useMemo<FormState>(() => {
@@ -171,18 +169,21 @@ export default function ReceivePaymentForm({
       typeof prefillAmount === 'number' && Number.isFinite(prefillAmount)
         ? String(prefillAmount)
         : '';
+    const defaultAccountId =
+      prefillAccountId ??
+      (Array.isArray(accounts) && accounts.length > 0 ? String(accounts[0].id) : '');
     return {
       date: prefillDate ?? null,
       amount: amountString,
       payment_method: (PAYMENT_METHOD_OPTIONS[0]?.value ?? 'Check') as PaymentMethodValue,
       resident_id: defaultTenantValue,
       memo: prefillMemo ?? 'Payment',
-      allocations: [{ id: createId(), account_id: prefillAccountId ?? '', amount: amountString }],
+      allocations: [{ id: createId(), account_id: defaultAccountId, amount: amountString }],
       send_email: false,
       print_receipt: false,
       override_buildium_tenant_id: '',
     };
-  }, [createId, defaultTenantValue, prefillAccountId, prefillAmount, prefillDate, prefillMemo]);
+  }, [accounts, createId, defaultTenantValue, prefillAccountId, prefillAmount, prefillDate, prefillMemo]);
 
   const [form, setForm] = useState<FormState>(initialFormState);
   const [errors, setErrors] = useState<

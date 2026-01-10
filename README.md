@@ -104,6 +104,18 @@ owners, units, leases, banking, and monthly logs in one stack.
 - `npm run ci:env-check` – Validates env with zod
 - Tests: Playwright/Vitest currently stubbed; see `tests/README.md` for expectations when re-enabled.
 
+### Logging & debugging
+
+- Use the shared logger in `src/shared/lib/logger` (`logDebug|Info|Warn|Error`) instead of raw `console.log/debug`. Errors/warnings are fine, but component `console.log/debug` will fail lint.
+- Debug flags: set `NEXT_PUBLIC_DEBUG_LOGS=true` (or `localStorage.setItem("pm-debug-logs","true")`) for client-side verbose logs; use targeted flags like `DEBUG_BUILDIUM_MAPPERS=true` or `DEBUG_FINANCE=true` for server traces.
+- Sensitive keys (token/secret/key/password/etc.) are auto-redacted when using the shared logger; add to `redactKeys` if needed.
+
+## Docker
+
+- Dev: `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up --build app` mounts source with cached semantics on macOS/Windows and keeps `node_modules`/`.next` in container volumes.
+- Prod-style: `docker compose -f docker-compose.yml up --build app` runs the built image without dev mounts.
+- More details and caveats: `docs/docker-dev.md`.
+
 ## Environment Variables (summary)
 
 <!-- markdownlint-disable MD013 -->

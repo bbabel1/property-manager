@@ -4,6 +4,7 @@
 // ============================================================================
 // BASE TYPES
 // ============================================================================
+import type { Database } from '@/types/database';
 
 export type BuildiumPropertyType = 'Rental' | 'Association' | 'Commercial';
 export type BuildiumUnitType =
@@ -18,7 +19,7 @@ export type BuildiumUnitType =
 export type BuildiumTaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type BuildiumTaskStatus = 'Open' | 'InProgress' | 'Completed' | 'Cancelled' | 'OnHold';
 export type BuildiumTaskRequestedByEntity = BuildiumWorkOrderRequestedByEntity;
-export type BuildiumBillStatus =
+export type BuildiumBillStatusApi =
   | 'Pending'
   | 'Paid'
   | 'Overdue'
@@ -28,6 +29,9 @@ export type BuildiumBillStatus =
   | 'PendingApproval'
   | 'Rejected'
   | 'Voided';
+export type BuildiumBillStatusDb = Database['public']['Enums']['buildium_bill_status'];
+// Preserve legacy alias for existing imports
+export type BuildiumBillStatus = BuildiumBillStatusApi;
 export type BuildiumPaymentMethod =
   | 'Check'
   | 'Cash'
@@ -247,6 +251,10 @@ export interface BuildiumGLAccountBalance {
   EndingBalance: number;
   NetChange: number;
 }
+// Alias used by sync flows
+export type BuildiumGLAccountExtended = BuildiumGLAccount & {
+  IsSecurityDepositLiability?: boolean | null;
+};
 
 // ============================================================================
 // PROPERTY TYPES
@@ -356,6 +364,9 @@ export interface BuildiumUnit {
   IsUnitListed?: boolean;
   IsUnitOccupied?: boolean;
   Href?: string;
+  // Buildium audit timestamps
+  CreatedDate?: string | null;
+  ModifiedDate?: string | null;
 }
 
 export interface BuildiumUnitCreate {
@@ -974,6 +985,36 @@ export interface BuildiumBillCreate {
 
 export type BuildiumBillUpdate = Partial<BuildiumBillCreate>;
 
+// Extended bill shape used by sync flows; mirrors the mapper-level type.
+export type BuildiumBillExtended = BuildiumBill & {
+  PaidDate?: string | null;
+  AccountId?: number | null;
+  Lines?: Array<
+    (BuildiumBill['Lines'] extends Array<infer L> ? L : never) & {
+      Amount?: number | null;
+    }
+  > | null;
+};
+
+// Bill with optional Lines payload for sync/transform helpers
+export type BuildiumBillWithLines = BuildiumBill & {
+  PaidDate?: string | null;
+  AccountId?: number | null;
+  Lines?: Array<{
+    Amount?: number | string | null;
+    Memo?: string | null;
+    GlAccountId?: number | null;
+    GLAccount?: { Id?: number | null } | number | null;
+    AccountingEntity?: {
+      Id?: number | null;
+      AccountingEntityType?: BuildiumAccountingEntityType;
+      UnitId?: number | null;
+      Unit?: { Id?: number | null } | null;
+    } | null;
+  }>;
+  WorkOrderId?: number | null;
+};
+
 // ============================================================================
 // TASK TYPES
 // ============================================================================
@@ -1092,6 +1133,8 @@ export interface BuildiumLeaseTransactionCreateLine {
 
 export interface BuildiumLeaseTransactionCreate {
   TransactionType: 'Charge' | 'Payment' | 'Credit' | 'Adjustment' | 'Refund' | 'ApplyDeposit';
+  // Buildium sometimes surfaces this alongside TransactionType; keep optional for compatibility.
+  TransactionTypeEnum?: BuildiumLeaseTransactionCreate['TransactionType'] | string;
   TransactionDate: string; // yyyy-mm-dd
   PostDate?: string; // yyyy-mm-dd
   Amount: number;

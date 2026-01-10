@@ -83,19 +83,17 @@ export async function PUT(
       );
     }
 
-    const {
-      data: membership,
-      error: membershipError,
-    } = await client
-      .from('org_memberships')
-      .select('role')
+    type MembershipRoleRow = { roles?: { name?: string | null } | null }
+    const { data: membershipRoles, error: membershipRolesError } = await client
+      .from('membership_roles')
+      .select('roles(name)')
       .eq('user_id', user.id)
       .eq('org_id', orgId)
-      .maybeSingle();
+      .returns<MembershipRoleRow[]>();
 
-    if (membershipError) {
+    if (membershipRolesError) {
       logger.error(
-        { error: membershipError, userId: user.id, propertyId, orgId },
+        { error: membershipRolesError, userId: user.id, propertyId, orgId },
         'Failed to verify org membership before banking update'
       );
       return NextResponse.json(
@@ -104,7 +102,16 @@ export async function PUT(
       );
     }
 
-    if (!membership || !ADMIN_ROLE_SET.has(String(membership.role))) {
+    const membershipRoleRows = (membershipRoles ?? []).filter(
+      (row): row is MembershipRoleRow =>
+        Boolean(row) && !(row as any)?.error && typeof (row as any)?.roles === 'object',
+    );
+
+    const hasAdminRole = membershipRoleRows.some(
+      (row) => row?.roles?.name && ADMIN_ROLE_SET.has(String(row.roles.name)),
+    );
+
+    if (!hasAdminRole) {
       return NextResponse.json(
         { error: 'Not authorized to manage this property' },
         { status: 403 }

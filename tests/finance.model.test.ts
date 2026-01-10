@@ -40,6 +40,82 @@ describe('finance model rollup', () => {
     expect(fin.available_balance).toBe(5050);
   });
 
+  it('does not treat deposit charges without payment as deposits held', () => {
+    const lines = [
+      makeLine({
+        amount: 2500,
+        posting_type: 'credit',
+        gl_accounts: { type: 'liability', is_security_deposit_liability: true, name: 'Security Deposit Liability' },
+        transaction_id: 'deposit-charge',
+      }),
+    ];
+    const transactions = [makeTx({ id: 'deposit-charge', transaction_type: 'Charge', total_amount: 2500 })];
+    const { fin } = rollupFinances({
+      transactionLines: lines,
+      transactions,
+      propertyReserve: 0,
+    });
+    expect(fin.cash_balance).toBe(0);
+    expect(fin.security_deposits).toBe(0);
+    expect(fin.available_balance).toBe(0);
+  });
+
+  it('ignores payment-like labels on charge transactions when computing cash', () => {
+    const lines = [
+      makeLine({
+        amount: 2500,
+        posting_type: 'debit',
+        gl_accounts: {
+          type: 'asset',
+          sub_type: 'accountsreceivable',
+          name: 'Accounts Receivable',
+        },
+        transaction_id: 'payment-charge',
+      }),
+    ];
+    const transactions = [
+      makeTx({ id: 'payment-charge', transaction_type: 'Payment Charge', total_amount: 2500 }),
+    ];
+    const { fin, debug } = rollupFinances({
+      transactionLines: lines,
+      transactions,
+      propertyReserve: 0,
+    });
+    expect(fin.cash_balance).toBe(0);
+    expect(debug.usedPaymentFallback).toBe(false);
+    expect(debug.totals.arFallback).toBe(2500);
+  });
+
+  it('ignores deposit liabilities when transaction is a charge even if labeled payment', () => {
+    const lines = [
+      makeLine({
+        amount: 1500,
+        posting_type: 'credit',
+        gl_accounts: {
+          type: 'liability',
+          is_security_deposit_liability: true,
+          name: 'Security Deposit Liability',
+        },
+        transaction_id: 'deposit-payment-charge',
+      }),
+    ];
+    const transactions = [
+      makeTx({
+        id: 'deposit-payment-charge',
+        transaction_type: 'Deposit Payment Charge',
+        total_amount: 1500,
+      }),
+    ];
+    const { fin, debug } = rollupFinances({
+      transactionLines: lines,
+      transactions,
+      propertyReserve: 0,
+    });
+    expect(fin.security_deposits).toBe(0);
+    expect(fin.cash_balance).toBe(0);
+    expect(debug.usedPaymentFallback).toBe(false);
+  });
+
   it('prefers bank GL lines when present', () => {
     const lines = [
       makeLine({
@@ -160,7 +236,7 @@ describe('finance model rollup', () => {
     expect(debug.usedPaymentFallback).toBe(true);
   });
 
-  it('falls back to AR when no bank or payments', () => {
+  it('does not treat AR-only charges as cash when no bank or payments', () => {
     const lines = [
       makeLine({
         amount: 400,
@@ -174,8 +250,9 @@ describe('finance model rollup', () => {
       transactions: [],
       propertyReserve: 0,
     });
-    expect(fin.cash_balance).toBe(400);
-    expect(debug.usedArFallback).toBe(true);
+    expect(fin.cash_balance).toBe(0);
+    expect(debug.usedArFallback).toBe(false);
+    expect(debug.totals.arFallback).toBe(400);
   });
 
   it('treats Accounts Receivable with spaces as AR (not bank)', () => {
@@ -196,9 +273,10 @@ describe('finance model rollup', () => {
       transactions: [],
       propertyReserve: 0,
     });
-    expect(fin.cash_balance).toBe(400);
-    expect(debug.usedArFallback).toBe(true);
+    expect(fin.cash_balance).toBe(0);
+    expect(debug.usedArFallback).toBe(false);
     expect(debug.bankLineCount).toBe(0);
+    expect(debug.totals.arFallback).toBe(400);
   });
 
   it('ignores Accounts Receivable lines when computing bank totals', () => {

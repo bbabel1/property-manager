@@ -22,10 +22,22 @@
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "markdownlint.fixOnSave": true,
+  "markdownlint.fixOnSave": false,
+  "markdownlint.validate": false,
   "[markdown]": {
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "typescript.validate.enable": true,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+  "files.associations": {
+    "*.md": "markdown"
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
   "chatgpt.commentCodeLensEnabled": true
 }

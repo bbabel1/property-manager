@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: development
+    volumes:
+      - .:/app:cached
+      - app-node-modules:/app/node_modules
+      - app-next-cache:/app/.next
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+
+volumes:
+  app-node-modules:
+  app-next-cache:

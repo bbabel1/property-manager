@@ -291,11 +291,24 @@ export async function POST(
     }
 
     const bankGlAccountId = bankGlAccount.id;
+    const resolvedOrgId = orgId ?? bankGlAccount.org_id ?? null;
+
+    if (!resolvedOrgId) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'UNPROCESSABLE_ENTITY',
+            message: 'Operating bank account is missing an organization. Sync property mappings and try again.',
+          },
+        },
+        { status: 422 },
+      );
+    }
 
     const { data: ownerDrawAccount, error: ownerDrawError } = await supabaseAdmin
       .from('gl_accounts')
       .select('id, name, buildium_gl_account_id')
-      .eq('org_id', orgId ?? bankGlAccount.org_id ?? '')
+      .eq('org_id', resolvedOrgId ?? '')
       .ilike('name', 'owner draw')
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -411,7 +424,7 @@ export async function POST(
             `/bankaccounts/${buildiumBankAccountId}/checks`,
             undefined,
             buildiumPayload,
-            orgId ?? undefined,
+            resolvedOrgId ?? undefined,
           );
 
     if (!response.ok) {
@@ -444,7 +457,24 @@ export async function POST(
       );
     }
 
-    const buildiumCheck = (response.json ?? {}) as unknown;
+    const buildiumCheck = (response.json ?? {}) as {
+      CheckNumber?: string | number | null;
+      checkNumber?: string | number | null;
+      Id?: number | null;
+      id?: number | null;
+    };
+    const resolvedCheckNumber =
+      typeof payload.checkNumber === 'string'
+        ? payload.checkNumber
+        : typeof buildiumCheck?.CheckNumber === 'string'
+          ? buildiumCheck.CheckNumber
+          : typeof buildiumCheck?.CheckNumber === 'number'
+            ? String(buildiumCheck.CheckNumber)
+            : typeof buildiumCheck?.checkNumber === 'string'
+              ? buildiumCheck.checkNumber
+              : typeof buildiumCheck?.checkNumber === 'number'
+                ? String(buildiumCheck.checkNumber)
+                : null;
     const nowIso = new Date().toISOString();
 
     const { data: transactionRow, error: transactionError } = await supabaseAdmin
@@ -456,17 +486,13 @@ export async function POST(
         transaction_type: 'GeneralJournalEntry',
         created_at: nowIso,
         updated_at: nowIso,
-        org_id: orgId ?? (bankGlAccount as any).org_id ?? null,
+        org_id: resolvedOrgId,
         status: 'Paid',
         email_receipt: false,
         print_receipt: false,
         monthly_log_id: logId,
         reference_number: payload.referenceNumber ?? null,
-        check_number:
-          payload.checkNumber ??
-          buildiumCheck?.CheckNumber ??
-          buildiumCheck?.checkNumber ??
-          null,
+        check_number: resolvedCheckNumber,
         bank_gl_account_id: bankGlAccountId,
         buildium_transaction_id:
           typeof buildiumCheck?.Id === 'number'

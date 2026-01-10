@@ -9,7 +9,12 @@ import {
 } from '@/lib/buildium-mappers';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
-import type { BuildiumUnit, BuildiumLease, BuildiumOwnerCreate } from '@/types/buildium';
+import type {
+  BuildiumUnit,
+  BuildiumLease,
+  BuildiumOwnerCreate,
+  BuildiumPropertyCreate,
+} from '@/types/buildium';
 
 type UnknownRecord = Record<string, unknown>;
 type PropertyRow = {
@@ -104,7 +109,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Ensure Owners exist in Buildium, collect IDs
     const prelinkedOwnerIds: number[] = [];
-    const ownersPendingCreation: { ownerPayload: Parameters<typeof mapOwnerToBuildium>[0]; ownerId: string }[] = [];
+    const ownersPendingCreation: {
+      ownerPayload: Parameters<typeof mapOwnerToBuildium>[0];
+      ownerId: string;
+    }[] = [];
     try {
       const { data: ownerships } = await db
         .from('ownerships')
@@ -133,7 +141,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           const resolvedAddressLine1 =
             normalizedAddressLine1 && normalizedAddressLine1.toLowerCase() !== 'n/a'
               ? normalizedAddressLine1
-            : fallbackAddressLine1;
+              : fallbackAddressLine1;
 
           const resolvedCity =
             contact?.primary_city || owner?.tax_city || property.city || 'New York';
@@ -146,10 +154,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             '10000';
           const resolvedCountry =
             mapCountryToBuildium(
-              contact?.primary_country ||
-                owner?.tax_country ||
-                property.country ||
-                'United States',
+              contact?.primary_country || owner?.tax_country || property.country || 'United States',
             ) || 'UnitedStates';
 
           const ownerForBuildiumInput: Parameters<typeof mapOwnerToBuildium>[0] = {
@@ -158,8 +163,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             email: contact?.primary_email || undefined,
             phone_number: contact?.primary_phone || undefined,
             address_line1: resolvedAddressLine1,
-            address_line2: contact?.primary_address_line_2 || owner?.tax_address_line2 || undefined,
-            address_line3: contact?.primary_address_line_3 || owner?.tax_address_line3 || undefined,
+            address_line2:
+              contact?.primary_address_line_2 ??
+              contact?.primary_address_line_3 ??
+              owner?.tax_address_line2 ??
+              owner?.tax_address_line3 ??
+              undefined,
             city: resolvedCity,
             state: resolvedState,
             postal_code: resolvedPostal,
@@ -202,7 +211,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Build property payload
-    const payload = mapPropertyToBuildium({
+    const basePayload = mapPropertyToBuildium({
       name: property.name || '',
       structure_description: property.structure_description || undefined,
       is_active: property.status !== 'Inactive',
@@ -218,7 +227,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       rental_type: 'Rental',
       property_type: property.property_type || undefined,
     });
-    if (prelinkedOwnerIds.length) (payload as UnknownRecord).RentalOwnerIds = prelinkedOwnerIds;
+    const payload: BuildiumPropertyCreate & { RentalOwnerIds?: number[] } = {
+      ...basePayload,
+      ...(prelinkedOwnerIds.length ? { RentalOwnerIds: prelinkedOwnerIds } : {}),
+    };
 
     // Create or update in Buildium
     const hadExistingBuildiumId = Boolean(property.buildium_property_id);
@@ -354,14 +366,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               const matches = byNumber.get(key);
               if (matches && matches.length === 1) {
                 const match = matches[0];
+                const now = new Date().toISOString();
                 await db
                   .from('units')
                   .update({
                     buildium_unit_id: match.Id,
                     buildium_property_id: buildiumId,
-                    buildium_created_at: match.CreatedDate || new Date().toISOString(),
-                    buildium_updated_at: match.ModifiedDate || new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
+                    buildium_created_at:
+                      (match as { CreatedDate?: string | null }).CreatedDate ?? now,
+                    buildium_updated_at:
+                      (match as { ModifiedDate?: string | null }).ModifiedDate ?? now,
+                    updated_at: now,
                   })
                   .eq('id', unitRow.id);
                 logger.info(
@@ -411,7 +426,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             .eq('property_id', id);
 
           if (!localLeaseError && Array.isArray(localLeases) && localLeases.length) {
-            const unitIds = Array.from(new Set(localLeases.map((l) => l.unit_id).filter(Boolean))) as string[];
+            const unitIds = Array.from(
+              new Set(localLeases.map((l) => l.unit_id).filter(Boolean)),
+            ) as string[];
             const unitMeta = new Map<
               string,
               { buildium_unit_id: number | null; unit_number: string | null }
@@ -431,8 +448,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
             const normalizeDate = (value: unknown) => {
               if (!value) return null;
+              const candidate =
+                value instanceof Date || typeof value === 'string' || typeof value === 'number'
+                  ? value
+                  : null;
+              if (!candidate) return null;
               try {
-                return new Date(value).toISOString().split('T')[0];
+                return new Date(candidate).toISOString().split('T')[0];
               } catch {
                 return null;
               }

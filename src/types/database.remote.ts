@@ -6600,6 +6600,19 @@ export type Database = {
         }
         Relationships: []
       }
+      users_with_auth: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          last_sign_in_at: string | null
+          memberships: Json | null
+          phone: string | null
+          providers: Json | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       v_active_work_orders_ranked: {
         Row: {
           actual_cost: number | null
@@ -7235,6 +7248,10 @@ export type Database = {
       get_my_claims: { Args: never; Returns: Json }
       get_property_financials: {
         Args: { p_as_of?: string; p_property_id: string }
+        Returns: Json
+      }
+      get_property_summary: {
+        Args: { p_property_id: string }
         Returns: Json
       }
       get_table_columns: {

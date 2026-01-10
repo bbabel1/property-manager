@@ -26,7 +26,7 @@ const admin = createClient<Database>(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 
-async function runBackfill(fnName: string, migrationName: string) {
+async function runBackfill(fnName: keyof Database['public']['Functions'], migrationName: string) {
   const { data: marker } = await admin
     .from('deposit_migration_marker')
     .select('migration_name')

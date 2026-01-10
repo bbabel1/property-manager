@@ -1,84 +1,96 @@
 import { useState, useEffect } from 'react'
+import type { Database } from '@/types/database'
 import { supabase } from '@/lib/db'
 
-export function useSupabaseQuery<T>(
-  table: string,
+type TableName = keyof Database['public']['Tables'] & string
+type TableRow<Table extends TableName> = Database['public']['Tables'][Table]['Row']
+type TableInsert<Table extends TableName> = Database['public']['Tables'][Table]['Insert']
+type TableUpdate<Table extends TableName> = Database['public']['Tables'][Table]['Update']
+type TableFilters<Table extends TableName> = Partial<
+  Record<keyof TableRow<Table> & string, TableRow<Table>[keyof TableRow<Table>]>
+>
+
+export function useSupabaseQuery<Table extends TableName>(
+  table: Table,
   query?: {
     select?: string
-    filters?: Record<string, unknown>
-    orderBy?: { column: string; ascending?: boolean }
+    filters?: TableFilters<Table>
+    orderBy?: { column: keyof TableRow<Table> & string; ascending?: boolean }
     limit?: number
   }
 ) {
-  const [data, setData] = useState<T[]>([])
+  const [data, setData] = useState<TableRow<Table>[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+
     async function fetchData() {
       try {
         setLoading(true)
-        let queryBuilder = supabase.from(table).select(query?.select || '*')
+        let queryBuilder = supabase.from(table).select(query?.select ?? '*')
 
-        // Apply filters
         if (query?.filters) {
           Object.entries(query.filters).forEach(([key, value]) => {
-            queryBuilder = queryBuilder.eq(key, value)
+            queryBuilder = queryBuilder.eq(key as string, value as TableRow<Table>[keyof TableRow<Table>])
           })
         }
 
-        // Apply ordering
         if (query?.orderBy) {
-          queryBuilder = queryBuilder.order(query.orderBy.column, {
-            ascending: query.orderBy.ascending ?? true
+          queryBuilder = queryBuilder.order(query.orderBy.column as string, {
+            ascending: query.orderBy.ascending ?? true,
           })
         }
 
-        // Apply limit
         if (query?.limit) {
           queryBuilder = queryBuilder.limit(query.limit)
         }
 
         const { data, error } = await queryBuilder
 
+        if (!isMounted) return
+
         if (error) {
           setError(error.message)
         } else {
-          setData(data || [])
+          setData((data as TableRow<Table>[] | null) ?? [])
         }
       } catch (err) {
+        if (!isMounted) return
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
 
     fetchData()
+
+    return () => {
+      isMounted = false
+    }
   }, [table, query?.filters, query?.limit, query?.orderBy, query?.select])
 
   return { data, loading, error }
 }
 
-export function useSupabaseMutation<T>() {
+export function useSupabaseMutation() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const insert = async (table: string, data: Partial<T>) => {
+  const insert = async <Table extends TableName>(table: Table, data: Partial<TableInsert<Table>>) => {
     setLoading(true)
     setError(null)
-    
+
     try {
-      const { data: result, error } = await supabase
-        .from(table)
-        .insert([data])
-        .select()
+      const { data: result, error } = await supabase.from(table).insert([data]).select()
 
       if (error) {
         setError(error.message)
         return null
       }
 
-      return result?.[0] || null
+      return (result?.[0] as TableRow<Table> | undefined) ?? null
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred'
       setError(message)
@@ -88,15 +100,19 @@ export function useSupabaseMutation<T>() {
     }
   }
 
-  const update = async (table: string, id: string | number, data: Partial<T>) => {
+  const update = async <Table extends TableName>(
+    table: Table,
+    id: string | number,
+    data: Partial<TableUpdate<Table>>,
+  ) => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const { data: result, error } = await supabase
         .from(table)
         .update(data)
-        .eq('id', id)
+        .eq('id' as any, id as any)
         .select()
 
       if (error) {
@@ -104,7 +120,7 @@ export function useSupabaseMutation<T>() {
         return null
       }
 
-      return result?.[0] || null
+      return (result?.[0] as TableRow<Table> | undefined) ?? null
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An error occurred'
       setError(message)
@@ -114,15 +130,12 @@ export function useSupabaseMutation<T>() {
     }
   }
 
-  const remove = async (table: string, id: string | number) => {
+  const remove = async <Table extends TableName>(table: Table, id: string | number) => {
     setLoading(true)
     setError(null)
-    
+
     try {
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq('id', id)
+      const { error } = await supabase.from(table).delete().eq('id' as any, id as any)
 
       if (error) {
         setError(error.message)

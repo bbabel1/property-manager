@@ -41,16 +41,12 @@ export function PropertySummary({ property, fin, onPropertyUpdate }: PropertySum
     'border-b border-[0.75px] border-[var(--color-surface-primary-soft-border)] bg-[var(--color-surface-primary-soft-highlight)] px-6 py-4';
 
   const handleEditSuccess = () => {
-    console.log('Property updated successfully');
-    // Call the callback to refresh the property data
     if (onPropertyUpdate) {
       onPropertyUpdate();
     }
   };
 
   const handleBankingEditSuccess = () => {
-    console.log('Banking details updated successfully');
-    // Call the callback to refresh the property data
     if (onPropertyUpdate) {
       onPropertyUpdate();
     }

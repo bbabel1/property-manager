@@ -100,7 +100,6 @@ async function main() {
     const { data: balanceData, error: balanceError } = await admin.rpc('calculate_book_balance', {
       p_bank_gl_account_id: rec.bank_gl_account_id,
       p_as_of: rec.statement_ending_date,
-      p_org_id: null,
     });
 
     if (balanceError) {

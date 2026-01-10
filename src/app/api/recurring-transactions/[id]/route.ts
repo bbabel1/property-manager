@@ -16,8 +16,7 @@ const RecurringUpdateSchema = z.object({
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const idRaw = (await params).id;
-  const recurringId = Number(idRaw);
-  if (!idRaw || Number.isNaN(recurringId)) {
+  if (!idRaw || typeof idRaw !== 'string') {
     return NextResponse.json({ error: 'Recurring transaction ID is required' }, { status: 400 });
   }
 
@@ -45,7 +44,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       gl_account_id: payload.gl_account_id ?? null,
       updated_at: now,
     })
-    .eq('id', recurringId)
+    .eq('id', idRaw)
     .select()
     .maybeSingle();
 

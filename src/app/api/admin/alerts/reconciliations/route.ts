@@ -7,12 +7,18 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const type = searchParams.get('type') // 'variance' | 'stale' | null
-  const table = type === 'variance' ? 'v_reconciliation_variance_alerts'
-              : type === 'stale' ? 'v_reconciliation_stale_alerts'
-              : 'v_reconciliation_alerts'
+  const table =
+    type === 'variance'
+      ? 'v_reconciliation_variance_alerts'
+      : type === 'stale'
+        ? 'v_reconciliation_stale_alerts'
+        : 'v_reconciliation_alerts'
 
-  const { data, error } = await admin.from(table).select('*')
+  // These views are not yet in the generated Supabase types; cast to avoid type instantiation blowups
+  const { data, error } = await admin
+    .from(table as unknown as 'v_reconciliation_variance_alerts')
+    .select('*')
+    .returns<Record<string, unknown>[]>()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true, data, count: Array.isArray(data) ? data.length : 0 })
 }
-

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { hasSupabaseAdmin, requireSupabaseAdmin } from '@/lib/supabase-client'
+import { buildiumFetch } from '@/lib/buildium-http'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = (await getSupabaseServerClient()) as any

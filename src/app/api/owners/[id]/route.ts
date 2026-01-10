@@ -517,6 +517,7 @@ export async function PUT(
         id,
         buildium_owner_id,
         contact_id,
+        org_id,
         management_agreement_start_date,
         management_agreement_end_date,
         comment,
@@ -560,22 +561,24 @@ export async function PUT(
         { error: 'Failed to fetch updated owner' },
         { status: 500 }
       );
-    }
+      }
 
-    // Sync update to Buildium via Edge Function
-    try {
-      const contact = (Array.isArray(updatedOwner.contacts)
-        ? updatedOwner.contacts[0]
-        : updatedOwner.contacts) as Record<string, any> | null; // Supabase typed `any` pending regenerated types
-      const buildiumOwnerData = {
-        id: updatedOwner.id,
-        buildium_owner_id: updatedOwner.buildium_owner_id || undefined,
-        FirstName: contact?.first_name || '',
-        LastName: contact?.last_name || '',
-        Email: contact?.primary_email || undefined,
-        PhoneNumber: contact?.primary_phone || undefined,
-        Address: {
-          AddressLine1: contact?.primary_address_line_1 || '',
+      // Sync update to Buildium via Edge Function
+      try {
+        const contact = (Array.isArray(updatedOwner.contacts)
+          ? updatedOwner.contacts[0]
+          : updatedOwner.contacts) as Record<string, any> | null; // Supabase typed `any` pending regenerated types
+        const orgId = (updatedOwner as { org_id?: string | null })?.org_id ?? null;
+        const buildiumOwnerData = {
+          id: updatedOwner.id,
+          buildium_owner_id: updatedOwner.buildium_owner_id || undefined,
+          org_id: orgId,
+          FirstName: contact?.first_name || '',
+          LastName: contact?.last_name || '',
+          Email: contact?.primary_email || undefined,
+          PhoneNumber: contact?.primary_phone || undefined,
+          Address: {
+            AddressLine1: contact?.primary_address_line_1 || '',
           AddressLine2: contact?.primary_address_line_2 || undefined,
           City: contact?.primary_city || '',
           State: contact?.primary_state || '',
@@ -586,7 +589,7 @@ export async function PUT(
         IsActive: true
       }
       // Use org-scoped client for Buildium sync
-      const edgeClient = await getOrgScopedBuildiumEdgeClient(updatedOwner.org_id ?? undefined);
+      const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId ?? undefined);
       const syncRes = await edgeClient.syncOwnerToBuildium(buildiumOwnerData)
       if (syncRes.success && syncRes.buildiumId && !updatedOwner.buildium_owner_id) {
         await supabaseAdmin

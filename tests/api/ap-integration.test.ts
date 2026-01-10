@@ -127,6 +127,12 @@ function makeSupabaseAdmin(overrides: any = {}) {
   };
 }
 
+const mockDb = (supabaseAdmin: any) =>
+  vi.doMock('@/lib/db', () => ({
+    supabaseAdmin,
+    supabaseAdminMaybe: supabaseAdmin,
+  }));
+
 describe('AP integration (route-level happy/guard paths)', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -135,7 +141,7 @@ describe('AP integration (route-level happy/guard paths)', () => {
 
   it('POST /api/payments returns 201 on happy path', async () => {
     const supabaseAdmin = makeSupabaseAdmin();
-    vi.doMock('@/lib/db', () => ({ supabaseAdmin }));
+    mockDb(supabaseAdmin);
     const route = await import('@/app/api/payments/route');
     const res = await route.POST(
       new Request('http://localhost/api/payments', {
@@ -153,7 +159,7 @@ describe('AP integration (route-level happy/guard paths)', () => {
 
   it('POST /api/payments returns 409 when source payment is reconciled', async () => {
     const supabaseAdmin = makeSupabaseAdmin({ sourceReconciled: true });
-    vi.doMock('@/lib/db', () => ({ supabaseAdmin }));
+    mockDb(supabaseAdmin);
     const route = await import('@/app/api/payments/route');
     const res = await route.POST(
       new Request('http://localhost/api/payments', {
@@ -179,7 +185,7 @@ describe('AP integration (route-level happy/guard paths)', () => {
         is_reconciled: true,
       },
     });
-    vi.doMock('@/lib/db', () => ({ supabaseAdmin }));
+    mockDb(supabaseAdmin);
     const route = await import('@/app/api/vendor-credits/[id]/apply/route');
     const res = await route.POST(
       new Request('http://localhost/api/vendor-credits/credit-1/apply', {
@@ -198,7 +204,7 @@ describe('AP integration (route-level happy/guard paths)', () => {
       validateError: { message: 'validation failed' },
       appBill: { id: 'bill-1', org_id: 'org-1', transaction_type: 'Bill' },
     });
-    vi.doMock('@/lib/db', () => ({ supabaseAdmin }));
+    mockDb(supabaseAdmin);
     const route = await import('@/app/api/bills/[id]/applications/route');
     const res422 = await route.POST(
       new Request('http://localhost/api/bills/bill-1/applications', {
@@ -218,7 +224,7 @@ describe('AP integration (route-level happy/guard paths)', () => {
       validateError: null,
       appBill: { id: 'bill-1', org_id: 'org-1', transaction_type: 'Bill' },
     });
-    vi.doMock('@/lib/db', () => ({ supabaseAdmin: supabaseAdminRecon }));
+    mockDb(supabaseAdminRecon);
     const route2 = await import('@/app/api/bills/[id]/applications/route');
     const res409 = await route2.POST(
       new Request('http://localhost/api/bills/bill-1/applications', {

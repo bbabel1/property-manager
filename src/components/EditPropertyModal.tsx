@@ -13,6 +13,7 @@ import AddressAutocomplete from './HybridAddressAutocomplete';
 import { mapGoogleCountryToEnum } from '@/lib/utils';
 import { Listbox } from '@headlessui/react';
 import { Dropdown } from './ui/Dropdown';
+import { isDebugLoggingEnabled, logDebug, logError } from '@/shared/lib/logger';
 
 interface Owner {
   id: string;
@@ -105,6 +106,7 @@ export default function EditPropertyModal({
   property,
 }: EditPropertyModalProps) {
   const { user, loading } = useAuth();
+  const debugEnabled = isDebugLoggingEnabled();
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [formData, setFormData] = useState<EditPropertyFormData>({
     name: '',
@@ -131,7 +133,9 @@ export default function EditPropertyModal({
           setCsrfToken(data.token);
         }
       } catch (error) {
-        console.error('Error fetching CSRF token:', error);
+        logError('Error fetching CSRF token', {
+          error: error instanceof Error ? error.message : error,
+        });
       }
     };
 
@@ -152,15 +156,28 @@ export default function EditPropertyModal({
       if (response.ok) {
         const data = await response.json().catch(() => null);
         const list = parseOwnerList(data);
-        console.log('Fetched owners:', list);
+        if (debugEnabled) {
+          logDebug(
+            'EditPropertyModal: owners fetched',
+            { ownerCount: list.length, propertyId: property?.id },
+            { force: true },
+          );
+        }
         setOwners(list);
       } else {
         const errorData = await response.json();
-        console.error('Failed to fetch owners:', response.status, errorData);
+        logError('Failed to fetch owners', {
+          status: response.status,
+          error: errorData,
+          propertyId: property?.id,
+        });
         setError(`Failed to fetch owners: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error fetching owners:', error);
+      logError('Error fetching owners', {
+        error: error instanceof Error ? error.message : error,
+        propertyId: property?.id,
+      });
       setError('Failed to fetch owners: Network error');
     } finally {
       setIsLoadingOwners(false);
@@ -169,17 +186,19 @@ export default function EditPropertyModal({
 
   // Fetch owners when modal opens and user is authenticated
   useEffect(() => {
-    console.log('EditPropertyModal: isOpen =', isOpen);
     if (isOpen && !loading && user) {
-      console.log('EditPropertyModal: Fetching owners...');
+      if (debugEnabled) {
+        logDebug(
+          'EditPropertyModal: modal opened with authenticated user',
+          { ownersLoaded: owners.length, propertyId: property?.id },
+          { force: true },
+        );
+      }
       if (owners.length === 0) fetchOwners();
-    } else if (isOpen && loading) {
-      console.log('EditPropertyModal: Waiting for authentication...');
     } else if (isOpen && !loading && !user) {
-      console.log('EditPropertyModal: User not authenticated');
       setError('Please log in to edit properties');
     }
-  }, [fetchOwners, isOpen, loading, owners.length, user]);
+  }, [debugEnabled, fetchOwners, isOpen, loading, owners.length, property?.id, user]);
 
   // Initialize form data when modal opens
   useEffect(() => {
@@ -398,8 +417,16 @@ export default function EditPropertyModal({
         throw new Error('CSRF token not found');
       }
 
-      console.log('🔍 EditPropertyModal: Submitting form data:', formData);
-      console.log('🔍 EditPropertyModal: Owners in form data:', formData.owners);
+      if (debugEnabled) {
+        logDebug(
+          'EditPropertyModal: submitting property update',
+          {
+            propertyId: property?.id,
+            ownerCount: formData.owners.length,
+          },
+          { force: true },
+        );
+      }
 
       const response = await fetch(`/api/properties/${property.id}`, {
         method: 'PUT',
@@ -419,12 +446,13 @@ export default function EditPropertyModal({
       }
 
       const result = await response.json();
-      console.log('Property updated successfully:', result);
-
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error updating property:', error);
+      logError('Error updating property', {
+        error: error instanceof Error ? error.message : error,
+        propertyId: property?.id,
+      });
       setError(
         error instanceof Error ? error.message : 'Failed to update property. Please try again.',
       );

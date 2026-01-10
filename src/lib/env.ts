@@ -26,9 +26,9 @@ const envSchema = z.object({
   NYC_GEOSERVICE_API_KEY: z.string().optional(),
   NYC_GEOSERVICE_BASE_URL: z.string().url().optional(),
 
-  // App Configuration (Required)
-  NEXTAUTH_URL: z.string().url(),
-  NEXTAUTH_SECRET: z.string().min(32),
+  // App Configuration (Optional; required only if NextAuth / token encryption are used)
+  NEXTAUTH_URL: z.string().url().optional(),
+  NEXTAUTH_SECRET: z.string().min(32).optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 });
 
@@ -79,19 +79,35 @@ if (parseResult.success) {
     console.log('✅ Environment validation successful');
   }
 } else {
-  // Provide fallback values for required fields
+  // Preserve real Supabase configuration even if optional fields (like NEXTAUTH_*) are missing
   env = {
-    NEXT_PUBLIC_SUPABASE_URL: '',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
-    SUPABASE_SERVICE_ROLE_KEY: '',
-    NEXTAUTH_URL: 'http://localhost:3000',
-    NEXTAUTH_SECRET: 'fallback-secret-key-for-development-only',
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
+    NEXTAUTH_SECRET:
+      process.env.NEXTAUTH_SECRET || 'fallback-secret-key-for-development-only',
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    BUILDIUM_BASE_URL: process.env.BUILDIUM_BASE_URL,
+    BUILDIUM_CLIENT_ID: process.env.BUILDIUM_CLIENT_ID,
+    BUILDIUM_CLIENT_SECRET: process.env.BUILDIUM_CLIENT_SECRET,
+    BUILDIUM_WEBHOOK_SECRET: process.env.BUILDIUM_WEBHOOK_SECRET,
+    GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID,
+    GOOGLE_OAUTH_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    GOOGLE_OAUTH_REDIRECT_URI: process.env.GOOGLE_OAUTH_REDIRECT_URI,
+    GOOGLE_CALENDAR_OAUTH_REDIRECT_URI:
+      process.env.GOOGLE_CALENDAR_OAUTH_REDIRECT_URI,
+    NYC_OPEN_DATA_API_KEY: process.env.NYC_OPEN_DATA_API_KEY,
+    DOB_NOW_API_BASE_URL: process.env.DOB_NOW_API_BASE_URL,
+    NYC_OPEN_DATA_BASE_URL: process.env.NYC_OPEN_DATA_BASE_URL,
+    NYC_OPEN_DATA_APP_TOKEN: process.env.NYC_OPEN_DATA_APP_TOKEN,
+    NYC_GEOSERVICE_API_KEY: process.env.NYC_GEOSERVICE_API_KEY,
+    NYC_GEOSERVICE_BASE_URL: process.env.NYC_GEOSERVICE_BASE_URL,
   } as z.infer<typeof envSchema>;
 
   // Only log warnings in development, not in test mode
   if (process.env.NODE_ENV === 'development') {
-    console.log('ℹ️ Environment validation failed, using fallback values');
+    console.log('ℹ️ Environment validation failed, using fallback values where needed');
     console.debug('Validation details:', parseResult.error.flatten());
   }
 }

@@ -4,11 +4,32 @@ import { hasPermission } from '@/lib/permissions';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
 import { supabaseAdmin } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import type { Database } from '@/types/database';
 
 function parseNumber(value: unknown) {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+type BillingFrequency = Database['public']['Enums']['billing_frequency_enum'];
+
+const BILLING_FREQUENCIES: BillingFrequency[] = [
+  'Annual',
+  'Monthly',
+  'monthly',
+  'annually',
+  'one_time',
+  'per_event',
+  'per_job',
+  'quarterly',
+];
+
+function normalizeFrequency(value: unknown): BillingFrequency | null {
+  if (value === null || value === undefined || value === '') return null;
+  const normalized = String(value).toLowerCase();
+  const match = BILLING_FREQUENCIES.find((freq) => freq.toLowerCase() === normalized);
+  return match ?? null;
 }
 
 export async function GET(request: NextRequest) {
@@ -166,14 +187,15 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const update: Record<string, any> = { updated_at: new Date().toISOString() };
+    const update: Database['public']['Tables']['service_offering_assignments']['Update'] = {
+      updated_at: new Date().toISOString(),
+    };
     if (body.is_active !== undefined) update.is_active = Boolean(body.is_active);
     if (body.override_amount !== undefined) update.override_amount = Boolean(body.override_amount);
     if (body.override_frequency !== undefined)
       update.override_frequency = Boolean(body.override_frequency);
     if (body.amount !== undefined) update.amount = parseNumber(body.amount);
-    if (body.frequency !== undefined)
-      update.frequency = body.frequency === null || body.frequency === '' ? null : String(body.frequency);
+    if (body.frequency !== undefined) update.frequency = normalizeFrequency(body.frequency);
 
     const hasAnyUpdates = Object.keys(update).length > 1;
     if (!hasAnyUpdates) {
@@ -204,7 +226,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const insert = {
+    const insert: Database['public']['Tables']['service_offering_assignments']['Insert'] = {
       assignment_id: assignmentId,
       offering_id: offeringId,
       is_active: update.is_active ?? true,
@@ -314,16 +336,30 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    type NormalizedServiceRow = {
+      offering_id: string;
+      is_active?: boolean;
+      override_amount: boolean;
+      override_frequency: boolean;
+      amount: number | null;
+      frequency: BillingFrequency | null;
+    };
+
     const normalized = services
-      .map((row) => ({
-        offering_id: row?.offering_id ? String(row.offering_id) : null,
-        is_active: row?.is_active === undefined ? undefined : Boolean(row.is_active),
-        override_amount: Boolean(row?.override_amount ?? row?.override ?? false),
-        override_frequency: Boolean(row?.override_frequency ?? row?.override ?? false),
-        amount: parseNumber(row?.amount),
-        frequency: row?.frequency ? String(row.frequency) : null,
-      }))
-      .filter((row) => row.offering_id);
+      .map<NormalizedServiceRow | null>((row) => {
+        const offeringId = row?.offering_id ? String(row.offering_id) : null;
+        if (!offeringId) return null;
+
+        return {
+          offering_id: offeringId,
+          is_active: row?.is_active === undefined ? undefined : Boolean(row.is_active),
+          override_amount: Boolean(row?.override_amount ?? row?.override ?? false),
+          override_frequency: Boolean(row?.override_frequency ?? row?.override ?? false),
+          amount: parseNumber(row?.amount),
+          frequency: normalizeFrequency(row?.frequency),
+        };
+      })
+      .filter((row): row is NormalizedServiceRow => Boolean(row));
 
     const desiredOfferingIds = Array.from(new Set(normalized.map((r) => r.offering_id as string)));
 
@@ -365,19 +401,21 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const upsertRows = normalized.map((row) => {
-      const useOverride = row.override_amount || row.override_frequency;
-      return {
-        assignment_id: assignmentId,
-        offering_id: row.offering_id,
-        is_active: row.is_active ?? true,
-        override_amount: Boolean(row.override_amount),
-        override_frequency: Boolean(row.override_frequency),
-        amount: useOverride ? row.amount : null,
-        frequency: useOverride ? row.frequency : null,
-        updated_at: new Date().toISOString(),
-      };
-    });
+    const upsertRows: Database['public']['Tables']['service_offering_assignments']['Insert'][] =
+      normalized.map((row) => {
+        const useOverride = row.override_amount || row.override_frequency;
+        const payload: Database['public']['Tables']['service_offering_assignments']['Insert'] = {
+          assignment_id: assignmentId,
+          offering_id: row.offering_id,
+          is_active: row.is_active ?? true,
+          override_amount: Boolean(row.override_amount),
+          override_frequency: Boolean(row.override_frequency),
+          amount: useOverride ? row.amount : null,
+          frequency: useOverride ? row.frequency ?? null : null,
+          updated_at: new Date().toISOString(),
+        };
+        return payload;
+      });
 
     if (upsertRows.length) {
       const { error: upsertError } = await supabaseAdmin

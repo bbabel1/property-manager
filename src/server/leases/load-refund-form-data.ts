@@ -23,6 +23,7 @@ type UnitRow = {
 type LeaseTenantRow = {
   tenant_id: string | number | null;
   tenants?: {
+    id?: string | number | null;
     buildium_tenant_id?: number | null;
     contacts?: {
       display_name?: string | null;
@@ -169,9 +170,9 @@ export async function loadRefundFormData(
         : Promise.resolve({ data: null, error: null });
 
     const tenantsPromise = dbClient
-      .from('lease_tenants')
+      .from('lease_contacts')
       .select(
-        'tenant_id, tenants:tenants(buildium_tenant_id, contacts:contacts!tenants_contact_id_fkey(display_name, first_name, last_name, company_name))',
+        'tenant_id, tenants:tenants(id, buildium_tenant_id, contacts:contacts!tenants_contact_id_fkey(display_name, first_name, last_name, company_name))',
       )
       .eq('lease_id', leaseRow.id)
       .limit(50);
@@ -193,19 +194,19 @@ export async function loadRefundFormData(
     const tenantIds = new Set<string>();
     const tenantList: LeaseTenantRow[] = Array.isArray(tenants) ? (tenants as LeaseTenantRow[]) : [];
     tenantList.forEach((row) => {
-      const id = row?.tenant_id;
+      const contact = row.tenants?.contacts;
+      const buildiumTenantId =
+        typeof row.tenants?.buildium_tenant_id === 'number'
+          ? row.tenants.buildium_tenant_id
+          : null;
+      const id = row?.tenant_id ?? row?.tenants?.id ?? buildiumTenantId;
       if (id == null) return;
       tenantIds.add(String(id));
-      const contact = row.tenants?.contacts;
       const display =
         contact?.display_name ||
         [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
         contact?.company_name ||
         'Tenant';
-      const buildiumTenantId =
-        typeof row.tenants?.buildium_tenant_id === 'number'
-          ? row.tenants.buildium_tenant_id
-          : null;
       tenantOptions.push({ id: String(id), name: display, buildiumTenantId });
     });
 

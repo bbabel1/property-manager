@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import type { Database } from "@/types/database"
 
@@ -20,9 +21,11 @@ const sharedClientOptions = {
   },
 } as const;
 
+type ServerSupabaseClient = SupabaseClient<Database>
+
 // Server-side Supabase client for RSC/route handlers.
 // Note: In Server Components we cannot set cookies; setters are no-ops.
-export async function getSupabaseServerClient() {
+export async function getSupabaseServerClient(): Promise<ServerSupabaseClient> {
   const store = await cookies()
   return createServerClient<Database>(url, anon, {
     ...sharedClientOptions,
@@ -34,5 +37,5 @@ export async function getSupabaseServerClient() {
       set() {},
       remove() {},
     },
-  })
+  }) as unknown as ServerSupabaseClient
 }

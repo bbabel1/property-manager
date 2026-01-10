@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth/guards'
 import { supabaseAdmin } from '@/lib/db'
+import { isValidTimezone } from '@/lib/timezones'
 
 const DATE_FORMATS = ['MM/DD/YYYY', 'DD/MM/YYYY'] as const
 const NUMBER_FORMATS = ['1,234.00', '1.234,00'] as const
@@ -21,7 +22,12 @@ const ProfilePayloadSchema = z.object({
   full_name: z.string().trim().max(255).optional(),
   display_name: z.string().trim().max(255).optional(),
   phone: z.string().trim().max(50).optional(),
-  timezone: z.string().trim().max(100).optional(),
+  timezone: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .refine((value) => value === undefined || isValidTimezone(value), 'Invalid timezone'),
   locale: z.string().trim().max(20).optional(),
   date_format: z.enum(DATE_FORMATS).optional(),
   currency: z.enum(CURRENCIES).optional(),

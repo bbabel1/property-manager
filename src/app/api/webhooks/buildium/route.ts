@@ -37,7 +37,7 @@ import {
   upsertOwnerFromBuildium,
   resolvePropertyIdByBuildiumPropertyId,
 } from '@/lib/buildium-mappers';
-import type { BuildiumLease, BuildiumLeasePerson } from '@/types/buildium';
+import type { BuildiumLease, BuildiumLeasePerson, BuildiumOwner } from '@/types/buildium';
 import type { Database, TablesInsert, TablesUpdate } from '@/types/database';
 import PaymentIntentService from '@/lib/payments/payment-intent-service';
 import PaymentService from '@/lib/payments/payment-service';
@@ -578,6 +578,8 @@ export async function POST(req: NextRequest) {
     status: 'processed' | 'duplicate' | 'error' | 'invalid' | 'tombstoned';
     error?: string;
     forwarded?: 'edge';
+    deleted?: boolean;
+    count?: number;
     repaired?: boolean;
     reprocessed?: boolean;
     edgeStatus?: number;
@@ -772,6 +774,14 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId);
     const mappedOrgId = (mapped as { org_id?: string | null }).org_id ?? null;
+    const glPayload: TablesInsert<'gl_accounts'> = {
+      ...mapped,
+      org_id: orgId ?? mappedOrgId ?? null,
+      updated_at: now,
+      type: mapped.type || 'Other',
+      is_security_deposit_liability: mapped.is_security_deposit_liability ?? false,
+      sub_accounts: mapped.sub_accounts ?? null,
+    };
     const { data: existing, error: findErr } = await admin
       .from('gl_accounts')
       .select('id, created_at')
@@ -779,19 +789,13 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (findErr && findErr.code !== 'PGRST116') throw findErr;
     if (existing?.id) {
-      await admin
-        .from('gl_accounts')
-        .update({ ...mapped, org_id: orgId ?? mappedOrgId ?? null, updated_at: now })
-        .eq('id', existing.id);
+      await admin.from('gl_accounts').update(glPayload).eq('id', existing.id);
     } else {
-      await admin
-        .from('gl_accounts')
-        .insert({
-          ...mapped,
-          org_id: orgId ?? mappedOrgId ?? null,
-          created_at: now,
-          updated_at: now,
-        });
+      const insertPayload: TablesInsert<'gl_accounts'> = {
+        ...glPayload,
+        created_at: now,
+      };
+      await admin.from('gl_accounts').insert(insertPayload);
     }
   }
 
@@ -852,12 +856,41 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId);
     const mapped = await mapPropertyFromBuildiumWithBankAccount(parsed.data, admin);
-    const payload = {
-      ...mapped,
-      org_id: orgId ?? (mapped as { org_id?: string | null }).org_id ?? null,
+    const resolvedOrgId = orgId ?? (mapped as { org_id?: string | null }).org_id ?? null;
+    if (!resolvedOrgId) {
+      throw new Error(`Unable to resolve org for Buildium property ${parsed.data.Id ?? 'unknown'}`);
+    }
+    const basePayload: TablesInsert<'properties'> = {
+      buildium_property_id: mapped.buildium_property_id,
+      name: mapped.name,
+      address_line1: mapped.address_line1,
+      address_line2: mapped.address_line2 ?? null,
+      address_line3: mapped.address_line3 ?? null,
+      city: mapped.city,
+      state: mapped.state ?? null,
+      postal_code: mapped.postal_code,
+      country: (mapped.country ?? 'United States') as Database['public']['Enums']['countries'],
+      property_type: (mapped.property_type ?? null) as
+        | Database['public']['Enums']['property_type_enum']
+        | null,
+      structure_description: mapped.structure_description ?? null,
+      rental_type: mapped.rental_type ?? null,
+      operating_bank_gl_account_id: mapped.operating_bank_gl_account_id ?? null,
+      reserve: mapped.reserve ?? null,
+      year_built: mapped.year_built ?? null,
+      total_units: mapped.total_units ?? 0,
+      is_active: mapped.is_active ?? null,
+      org_id: resolvedOrgId,
+      service_assignment: ((
+        mapped as {
+          service_assignment?: Database['public']['Enums']['assignment_level'] | null;
+        }
+      ).service_assignment ?? 'Property Level') as Database['public']['Enums']['assignment_level'],
       updated_at: now,
-      service_assignment:
-        (mapped as { service_assignment?: string | null }).service_assignment ?? 'Property Level',
+    };
+    const payload: TablesUpdate<'properties'> = {
+      ...basePayload,
+      total_units: mapped.total_units ?? undefined,
     };
     const { data: existing, error: findErr } = await admin
       .from('properties')
@@ -869,9 +902,10 @@ export async function POST(req: NextRequest) {
       await admin.from('properties').update(payload).eq('id', existing.id);
       return existing.id;
     } else {
+      const insertPayload: TablesInsert<'properties'> = { ...basePayload, created_at: now };
       const { data: inserted, error: insErr } = await admin
         .from('properties')
-        .insert({ ...payload, created_at: now })
+        .insert(insertPayload)
         .select('id')
         .single();
       if (insErr) throw insErr;
@@ -890,28 +924,60 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId);
     const mapped = mapUnitFromBuildium(parsed.data);
-    const payload = {
-      ...mapped,
-      org_id: orgId ?? (mapped as { org_id?: string | null }).org_id ?? null,
-      updated_at: now,
-    };
-    // Resolve local property_id to link unit
-    const propertyIdLocal = await (async () => {
-      if (!parsed.data?.PropertyId) return null;
-      const { data, error } = await admin
-        .from('properties')
-        .select('id')
-        .eq('buildium_property_id', parsed.data.PropertyId)
-        .maybeSingle();
-      if (error && error.code !== 'PGRST116') throw error;
-      return data?.id ?? null;
-    })();
+    const { data: propertyRow, error: propertyErr } = await admin
+      .from('properties')
+      .select('id, org_id')
+      .eq('buildium_property_id', parsed.data.PropertyId)
+      .maybeSingle();
+    if (propertyErr && propertyErr.code !== 'PGRST116') throw propertyErr;
+    const propertyIdLocal = propertyRow?.id ?? null;
+    const propertyOrgId = propertyRow?.org_id ?? null;
     if (!propertyIdLocal) {
       throw new Error(
         `Missing local property for Buildium unit ${parsed.data.Id} (PropertyId ${parsed.data.PropertyId})`,
       );
     }
-    (payload as { property_id?: string | null }).property_id = propertyIdLocal;
+
+    const resolvedOrgId =
+      orgId ?? propertyOrgId ?? (mapped as { org_id?: string | null }).org_id ?? null;
+    if (!resolvedOrgId) {
+      throw new Error(
+        `Unable to resolve org for Buildium unit ${parsed.data.Id} (PropertyId ${parsed.data.PropertyId})`,
+      );
+    }
+
+    const unitNumber = mapped.unit_number ?? null;
+    const addressLine1 = mapped.address_line1 ?? null;
+    const postalCode = mapped.postal_code ?? null;
+    if (!unitNumber || !addressLine1 || !postalCode) {
+      throw new Error(
+        `Missing required unit fields for Buildium unit ${parsed.data.Id}: unit_number=${unitNumber}, address_line1=${addressLine1}, postal_code=${postalCode}`,
+      );
+    }
+
+    const payload: TablesInsert<'units'> = {
+      buildium_unit_id: mapped.buildium_unit_id,
+      buildium_property_id: mapped.buildium_property_id,
+      building_name: mapped.building_name ?? null,
+      unit_number: unitNumber,
+      description: mapped.description ?? null,
+      market_rent: mapped.market_rent ?? null,
+      address_line1: addressLine1,
+      address_line2: mapped.address_line2 ?? null,
+      address_line3: mapped.address_line3 ?? null,
+      city: mapped.city ?? null,
+      state: mapped.state ?? null,
+      postal_code: postalCode,
+      country: (mapped.country ?? 'United States') as Database['public']['Enums']['countries'],
+      unit_bedrooms: mapped.unit_bedrooms as Database['public']['Enums']['bedroom_enum'] | null,
+      unit_bathrooms: mapped.unit_bathrooms as Database['public']['Enums']['bathroom_enum'] | null,
+      unit_size: mapped.unit_size ?? null,
+      is_active: mapped.is_active ?? null,
+      org_id: resolvedOrgId,
+      property_id: propertyIdLocal,
+      updated_at: now,
+    };
+    // Upsert the unit with the resolved property/org context
     const { data: existing, error: findErr } = await admin
       .from('units')
       .select('id')
@@ -922,9 +988,10 @@ export async function POST(req: NextRequest) {
       await admin.from('units').update(payload).eq('id', existing.id);
       return existing.id;
     } else {
+      const insertPayload: TablesInsert<'units'> = { ...payload, created_at: now };
       const { data: inserted, error: insErr } = await admin
         .from('units')
-        .insert({ ...payload, created_at: now })
+        .insert(insertPayload)
         .select('id')
         .single();
       if (insErr) throw insErr;
@@ -960,9 +1027,10 @@ export async function POST(req: NextRequest) {
     _buildiumAccountId?: number | null,
   ) {
     const now = new Date().toISOString();
-    const payload: Record<string, unknown> = {
+    const categoryName = buildiumCategory?.Name;
+    const payload: TablesInsert<'task_categories'> = {
       buildium_category_id: buildiumCategory?.Id ?? null,
-      name: buildiumCategory?.Name ?? null,
+      name: typeof categoryName === 'string' && categoryName ? categoryName : 'Unnamed Category',
       is_active: true,
       description: null,
       color: null,
@@ -972,7 +1040,7 @@ export async function POST(req: NextRequest) {
     };
     const { data, error } = await admin
       .from('task_categories')
-      .upsert({ ...payload, created_at: now }, { onConflict: 'buildium_category_id' })
+      .upsert(payload as TablesInsert<'task_categories'>, { onConflict: 'buildium_category_id' })
       .select('id')
       .single();
     if (error) throw error;
@@ -984,9 +1052,10 @@ export async function POST(req: NextRequest) {
     _buildiumAccountId?: number | null,
   ) {
     const now = new Date().toISOString();
-    const payload: Record<string, unknown> = {
+    const categoryName = buildiumCategory?.Name;
+    const payload: TablesInsert<'vendor_categories'> = {
       buildium_category_id: buildiumCategory?.Id ?? null,
-      name: buildiumCategory?.Name ?? null,
+      name: typeof categoryName === 'string' && categoryName ? categoryName : 'Unnamed Category',
       is_active: true,
       created_at: now,
       updated_at: now,
@@ -1027,7 +1096,12 @@ export async function POST(req: NextRequest) {
       await admin.from('vendors').update(payload).eq('id', existing.id);
       return existing.id;
     } else {
-      const insertPayload = { ...payload, created_at: now };
+      const insertPayload: TablesInsert<'vendors'> = {
+        ...mapped,
+        contact_id: contactId,
+        created_at: now,
+        updated_at: now,
+      };
       const { data: created, error: insErr } = await admin
         .from('vendors')
         .insert(insertPayload)
@@ -1075,7 +1149,7 @@ export async function POST(req: NextRequest) {
   ): Promise<{ ownerId: string; linkedProperties: number }> {
     // Org from AccountId
     let orgId = await resolveOrgIdFromBuildiumAccount(buildiumAccountId);
-    const { ownerId } = await upsertOwnerFromBuildium(buildiumOwner, admin, orgId);
+    const { ownerId } = await upsertOwnerFromBuildium(buildiumOwner as BuildiumOwner, admin, orgId);
 
     // Create ownerships for each property id provided
     const rawPropertyIds =
@@ -1212,15 +1286,13 @@ export async function POST(req: NextRequest) {
         .eq('property_id', propertyIdLocal)
         .eq('role', 'Property Manager');
     } else if (!existing) {
-      await admin
-        .from('property_staff')
-        .insert({
-          property_id: propertyIdLocal,
-          staff_id: staffId,
-          role: 'Property Manager',
-          created_at: now,
-          updated_at: now,
-        });
+      await admin.from('property_staff').insert({
+        property_id: propertyIdLocal,
+        staff_id: staffId,
+        role: 'Property Manager',
+        created_at: now,
+        updated_at: now,
+      });
     }
   }
 
@@ -1357,8 +1429,12 @@ export async function POST(req: NextRequest) {
       requireCategory: true,
       defaultCategoryName: 'To-Do',
     });
-    const payload = {
-      ...mapped,
+    const taskSubject =
+      mapped.subject ?? buildiumTask?.Title ?? buildiumTask?.Subject ?? 'Untitled Task';
+    const { subject: _, ...mappedWithoutSubject } = mapped;
+    const basePayload = {
+      ...mappedWithoutSubject,
+      subject: taskSubject,
       buildium_task_id: buildiumTask?.Id ?? mapped.buildium_task_id ?? null,
       buildium_assigned_to_user_id:
         buildiumTask?.AssignedToUserId ?? mapped.buildium_assigned_to_user_id ?? null,
@@ -1368,22 +1444,34 @@ export async function POST(req: NextRequest) {
       buildium_tenant_id: mapped.buildium_tenant_id ?? null,
       source: 'buildium' as Database['public']['Enums']['task_source_enum'],
       updated_at: now,
-      created_at: mapped.created_at || now,
     };
 
-    const { data: existing, error: findErr } = await admin
-      .from('tasks')
-      .select('id, created_at')
-      .eq('buildium_task_id', payload.buildium_task_id)
-      .maybeSingle();
-    if (findErr && findErr.code !== 'PGRST116') throw findErr;
+    const buildiumTaskId = basePayload.buildium_task_id;
+    let existing: { id: string; created_at: string | null } | null = null;
+    let findErr: { code?: string; message?: string } | null = null;
+    if (buildiumTaskId != null && typeof buildiumTaskId === 'number') {
+      const result = await admin
+        .from('tasks')
+        .select('id, created_at')
+        .eq('buildium_task_id', buildiumTaskId)
+        .maybeSingle();
+      existing = result.data;
+      findErr = result.error;
+    }
+    if (findErr && (findErr as { code?: string }).code !== 'PGRST116') {
+      throw findErr as Error;
+    }
     if (existing?.id) {
-      await admin.from('tasks').update(payload).eq('id', existing.id);
+      await admin.from('tasks').update(basePayload).eq('id', existing.id);
       return existing.id;
     } else {
+      const insertPayload: TablesInsert<'tasks'> = {
+        ...basePayload,
+        created_at: mapped.created_at || now,
+      };
       const { data: inserted, error: insErr } = await admin
         .from('tasks')
-        .insert(payload)
+        .insert(insertPayload)
         .select('id')
         .single();
       if (insErr) throw insErr;
@@ -1577,8 +1665,10 @@ export async function POST(req: NextRequest) {
       for (const ev of eventsToForward) {
         const leaseId = ev?.LeaseId ?? ev?.Data?.LeaseId;
         const transactionId = ev?.TransactionId ?? ev?.Data?.TransactionId ?? ev?.EntityId;
+        const isDelete = looksLikeDelete(ev);
         let fullTx = null;
-        if (leaseId && transactionId) {
+        // Skip fetching deleted transactions; Buildium returns 404 after removal.
+        if (leaseId && transactionId && !isDelete) {
           try {
             fullTx = await fetchLeaseTransaction(Number(leaseId), Number(transactionId));
           } catch (err) {
@@ -1779,7 +1869,15 @@ export async function POST(req: NextRequest) {
       if (insErr) throw insErr;
       return inserted.id;
     };
-    const mapPaymentMethod = (pm?: string | null) => {
+    type PaymentMethodEnum =
+      | 'Cash'
+      | 'Check'
+      | 'MoneyOrder'
+      | 'CashierCheck'
+      | 'DirectDeposit'
+      | 'CreditCard'
+      | 'ElectronicPayment';
+    const mapPaymentMethod = (pm?: string | null): PaymentMethodEnum | null => {
       if (!pm) return null;
       const v = pm.toLowerCase();
       if (v.includes('check')) return 'Check';
@@ -1791,6 +1889,42 @@ export async function POST(req: NextRequest) {
       if (v.includes('electronic') || v.includes('online') || v.includes('epayment'))
         return 'ElectronicPayment';
       return null;
+    };
+    const TRANSACTION_TYPE_ENUM_VALUES = [
+      'Bill',
+      'Charge',
+      'Credit',
+      'Payment',
+      'JournalEntry',
+      'Check',
+      'Refund',
+      'ApplyDeposit',
+      'ElectronicFundsTransfer',
+      'Other',
+      'Deposit',
+      'GeneralJournalEntry',
+      'OwnerContribution',
+      'ReversePayment',
+      'ReverseElectronicFundsTransfer',
+      'VendorCredit',
+      'RentalApplicationFeePayment',
+      'ReverseRentalApplicationFeePayment',
+      'ReverseOwnerContribution',
+      'VendorRefund',
+      'UnreversedPayment',
+      'UnreversedElectronicFundsTransfer',
+      'UnreversedOwnerContribution',
+      'UnreversedRentalApplicationFeePayment',
+      'ReversedEftRefund',
+    ] as const satisfies Database['public']['Enums']['transaction_type_enum'][];
+    const normalizeTransactionType = (
+      value?: string | null,
+    ): Database['public']['Enums']['transaction_type_enum'] => {
+      if (value) {
+        const found = TRANSACTION_TYPE_ENUM_VALUES.find((v) => v === value);
+        if (found) return found;
+      }
+      return 'Other';
     };
     const mapLeaseStatusFromBuildium = (status?: string | null) => {
       if (!status) return null;
@@ -1851,10 +1985,13 @@ export async function POST(req: NextRequest) {
       leaseTx: UnknownRecord,
       fetchGL: (id: number) => Promise<UnknownRecord | null>,
       buildiumAccountId?: number | null,
-    ) => {
+    ): Promise<{ transactionId: string }> => {
       const now = new Date().toISOString();
       const leaseTxDate = normalizeDate(leaseTx.Date) ?? now.slice(0, 10);
       const paymentMethod = mapPaymentMethod(leaseTx.PaymentMethod);
+      const transactionType = normalizeTransactionType(
+        leaseTx.TransactionType || leaseTx.TransactionTypeEnum || null,
+      );
       const orgFromAccount = await resolveOrgIdFromBuildiumAccount(
         buildiumAccountId ?? leaseTx?.AccountId ?? null,
       );
@@ -1869,18 +2006,20 @@ export async function POST(req: NextRequest) {
         leaseTx?.PayeeTenantId ??
         leaseTx?.PayeeTenantID ??
         (leaseTx?.Payee as UnknownRecord | undefined)?.TenantId ??
-        null ??
         null;
       const payeeTenantLocal = await resolveLocalTenantId(payeeTenantBuildiumId ?? null);
       const header: {
         buildium_transaction_id: number | null;
-        date: string | null;
-        transaction_type: string | null;
+        date: string;
+        transaction_type: Database['public']['Enums']['transaction_type_enum'];
         total_amount: number;
         check_number: string | null;
         buildium_lease_id: number | null;
+        property_id: string | null;
+        unit_id: string | null;
+        org_id: string | null;
         memo: string | null;
-        payment_method: string | null;
+        payment_method: Database['public']['Enums']['payment_method_enum'] | null;
         payee_tenant_id: number | null;
         bank_gl_account_id: string | null;
         bank_gl_account_buildium_id: number | null;
@@ -1888,15 +2027,18 @@ export async function POST(req: NextRequest) {
       } = {
         buildium_transaction_id: leaseTx.Id,
         date: leaseTxDate,
-        transaction_type: leaseTx.TransactionType || leaseTx.TransactionTypeEnum || 'Lease',
+        transaction_type: transactionType,
         total_amount:
           typeof leaseTx.TotalAmount === 'number'
             ? leaseTx.TotalAmount
             : Number(leaseTx.Amount ?? 0),
         check_number: leaseTx.CheckNumber ?? null,
         buildium_lease_id: leaseTx.LeaseId ?? null,
+        property_id: null,
+        unit_id: null,
+        org_id: null,
         memo: leaseTx?.Journal?.Memo ?? leaseTx?.Memo ?? null,
-        payment_method: paymentMethod,
+        payment_method: paymentMethod as Database['public']['Enums']['payment_method_enum'] | null,
         payee_tenant_id: payeeTenantBuildiumId ?? null,
         bank_gl_account_id: null,
         bank_gl_account_buildium_id: null,
@@ -1927,6 +2069,24 @@ export async function POST(req: NextRequest) {
       const defaultBuildiumUnitId = leaseRow?.buildium_unit_id ?? null;
       const defaultPropertyId = leaseRow?.property_id ?? null;
       const defaultUnitId = leaseRow?.unit_id ?? null;
+      const unitIdForHeader =
+        defaultUnitId ??
+        (defaultBuildiumUnitId ? await resolveLocalUnitId(defaultBuildiumUnitId) : null);
+      const buildiumPropertyId = leaseTx?.PropertyId ?? defaultBuildiumPropertyId ?? null;
+      let propertyIdForHeader = defaultPropertyId ?? null;
+      if (!propertyIdForHeader && buildiumPropertyId) {
+        propertyIdForHeader = await resolveLocalPropertyId(buildiumPropertyId);
+      }
+      if (!propertyIdForHeader && unitIdForHeader) {
+        const { data: unitRow, error: unitErr } = await admin
+          .from('units')
+          .select('property_id')
+          .eq('id', unitIdForHeader)
+          .maybeSingle();
+        if (unitErr && unitErr.code !== 'PGRST116') throw unitErr;
+        propertyIdForHeader =
+          (unitRow as { property_id?: string | null } | null)?.property_id ?? null;
+      }
 
       // Resolve property org + bank context (for Undeposited Funds + fallback)
       let propertyBankContext: {
@@ -1934,16 +2094,23 @@ export async function POST(req: NextRequest) {
         deposit_trust_gl_account_id?: string | null;
         org_id?: string | null;
       } | null = null;
-      if (defaultPropertyId) {
+      if (propertyIdForHeader) {
         const { data: prop, error: perr } = await admin
           .from('properties')
           .select('operating_bank_gl_account_id, deposit_trust_gl_account_id, org_id')
-          .eq('id', defaultPropertyId)
+          .eq('id', propertyIdForHeader)
           .maybeSingle();
         if (perr && perr.code !== 'PGRST116') throw perr;
         propertyBankContext = prop ?? null;
       }
-      const propertyOrgId = propertyBankContext?.org_id ?? orgId ?? null;
+      const orgIdForHeader = propertyBankContext?.org_id ?? orgId ?? null;
+      if (!orgIdForHeader) {
+        throw new Error('Unable to resolve org_id for lease transaction');
+      }
+      const propertyOrgId = propertyBankContext?.org_id ?? orgIdForHeader;
+      header.property_id = propertyIdForHeader;
+      header.unit_id = unitIdForHeader;
+      header.org_id = orgIdForHeader;
 
       // Resolve provided bank GL (if Buildium sent it)
       const bankGlBuildiumId =
@@ -1984,7 +2151,12 @@ export async function POST(req: NextRequest) {
       if (existing?.id) {
         const { data, error } = await admin
           .from('transactions')
-          .update({ ...header, lease_id: leaseIdLocal, org_id: orgId, tenant_id: payeeTenantLocal })
+          .update({
+            ...header,
+            lease_id: leaseIdLocal,
+            org_id: orgIdForHeader,
+            tenant_id: payeeTenantLocal,
+          })
           .eq('id', existing.id)
           .select('id')
           .single();
@@ -1996,7 +2168,7 @@ export async function POST(req: NextRequest) {
           .insert({
             ...header,
             lease_id: leaseIdLocal,
-            org_id: orgId,
+            org_id: orgIdForHeader,
             tenant_id: payeeTenantLocal,
             created_at: now,
           })
@@ -2030,14 +2202,12 @@ export async function POST(req: NextRequest) {
           .eq('id', glAccountId)
           .maybeSingle();
         if (glErr && glErr.code !== 'PGRST116') throw glErr;
-        const gl = glRow as
-          | {
-              is_bank_account?: boolean | null;
-              name?: string | null;
-              type?: string | null;
-              sub_type?: string | null;
-            }
-          | null;
+        const gl = glRow as {
+          is_bank_account?: boolean | null;
+          name?: string | null;
+          type?: string | null;
+          sub_type?: string | null;
+        } | null;
         const isBank = Boolean(gl?.is_bank_account);
         glAccountBankFlags.set(glAccountId, isBank);
         glAccountMeta.set(glAccountId, {
@@ -2061,8 +2231,12 @@ export async function POST(req: NextRequest) {
         const buildiumPropertyId = line?.PropertyId ?? defaultBuildiumPropertyId ?? null;
         const buildiumUnitId = line?.Unit?.Id ?? line?.UnitId ?? defaultBuildiumUnitId ?? null;
         const propertyIdLocal =
-          (await resolveLocalPropertyId(buildiumPropertyId)) ?? defaultPropertyId ?? null;
-        const unitIdLocal = (await resolveLocalUnitId(buildiumUnitId)) ?? defaultUnitId ?? null;
+          (await resolveLocalPropertyId(buildiumPropertyId)) ??
+          propertyIdForHeader ??
+          defaultPropertyId ??
+          null;
+        const unitIdLocal =
+          (await resolveLocalUnitId(buildiumUnitId)) ?? unitIdForHeader ?? defaultUnitId ?? null;
         pendingLines.push({
           transaction_id: transactionId,
           gl_account_id: glId,
@@ -2077,7 +2251,6 @@ export async function POST(req: NextRequest) {
           buildium_property_id: buildiumPropertyId ?? defaultBuildiumPropertyId ?? null,
           buildium_unit_id: buildiumUnitId ?? defaultBuildiumUnitId ?? null,
           buildium_lease_id: leaseTx.LeaseId ?? null,
-          lease_id: leaseIdLocal,
           property_id: propertyIdLocal,
           unit_id: unitIdLocal,
         });
@@ -2091,13 +2264,20 @@ export async function POST(req: NextRequest) {
         ? pendingLines.some((l) => l.gl_account_id === bankGlAccountId)
         : false;
       const hasBankLikeLine = hasBankAccountLine || hasProvidedBankLine;
+      const bankAmountNeeded = debit > credit ? debit : credit;
+      const bankPosting = credit >= debit ? 'Debit' : 'Credit';
 
-      if (needsBankAccountLine && !hasBankLikeLine && bankGlAccountIdToUse && credit > 0) {
+      if (
+        needsBankAccountLine &&
+        !hasBankLikeLine &&
+        bankGlAccountIdToUse &&
+        bankAmountNeeded > 0
+      ) {
         pendingLines.push({
           transaction_id: transactionId,
           gl_account_id: bankGlAccountIdToUse,
-          amount: credit,
-          posting_type: 'Debit',
+          amount: bankAmountNeeded,
+          posting_type: bankPosting,
           memo: leaseTx?.Memo ?? header.memo ?? null,
           account_entity_type: 'Rental',
           account_entity_id: defaultBuildiumPropertyId,
@@ -2107,11 +2287,11 @@ export async function POST(req: NextRequest) {
           buildium_property_id: defaultBuildiumPropertyId,
           buildium_unit_id: defaultBuildiumUnitId,
           buildium_lease_id: leaseTx.LeaseId ?? null,
-          lease_id: leaseIdLocal,
-          property_id: defaultPropertyId,
-          unit_id: defaultUnitId,
+          property_id: propertyIdForHeader ?? defaultPropertyId,
+          unit_id: unitIdForHeader ?? defaultUnitId,
         });
-        debit += credit;
+        if (bankPosting === 'Debit') debit += bankAmountNeeded;
+        else credit += bankAmountNeeded;
       }
 
       const isChargeTransaction =
@@ -2122,7 +2302,10 @@ export async function POST(req: NextRequest) {
         const type = (meta.type || '').toLowerCase();
         const name = (meta.name || '').toLowerCase();
         const normalizedSubType = (meta.subType || '').toLowerCase().replace(/[\s_-]+/g, '');
-        return type === 'asset' && (name.includes('receivable') || normalizedSubType.includes('accountsreceivable'));
+        return (
+          type === 'asset' &&
+          (name.includes('receivable') || normalizedSubType.includes('accountsreceivable'))
+        );
       });
 
       if (isChargeTransaction && !hasAccountsReceivableLine && credit > debit) {
@@ -2143,9 +2326,8 @@ export async function POST(req: NextRequest) {
             buildium_property_id: defaultBuildiumPropertyId,
             buildium_unit_id: defaultBuildiumUnitId,
             buildium_lease_id: leaseTx.LeaseId ?? null,
-            lease_id: leaseIdLocal,
-            property_id: defaultPropertyId,
-            unit_id: defaultUnitId,
+            property_id: propertyIdForHeader,
+            unit_id: unitIdForHeader,
           });
           debit += arAmount;
         }
@@ -2161,6 +2343,8 @@ export async function POST(req: NextRequest) {
           `Double-entry integrity violation: debits (${debit}) != credits (${credit})`,
         );
       }
+
+      return { transactionId };
     };
 
     const mapLeaseFromBuildiumLocal = async (
@@ -2720,6 +2904,12 @@ export async function POST(req: NextRequest) {
       const paymentMethodNormalized = paymentMethod as
         | Database['public']['Enums']['payment_method_enum']
         | null;
+      const orgId = orgFromAccount ?? billTxMeta?.org_id;
+      if (!orgId) {
+        throw new Error(
+          `Unable to resolve org for bill payment ${paymentId ?? ''} (buildium account ${buildiumAccountId ?? 'unknown'})`,
+        );
+      }
       const header: TablesInsert<'transactions'> = {
         buildium_transaction_id: paymentId ?? null,
         buildium_bill_id: billId,
@@ -2736,7 +2926,7 @@ export async function POST(req: NextRequest) {
         bank_gl_account_buildium_id: bankAccountId ?? null,
         vendor_id: billTxMeta?.vendor_id ?? null,
         category_id: billTxMeta?.category_id ?? null,
-        org_id: orgFromAccount ?? billTxMeta?.org_id ?? null,
+        org_id: orgId,
         payment_method: paymentMethodNormalized,
         updated_at: now,
       };
@@ -2947,11 +3137,15 @@ export async function POST(req: NextRequest) {
           // Allow delete events to re-run idempotently to ensure local cleanup.
           // If the transaction still exists, delete it (repair path for failed deletions).
           const buildiumTxnId = firstNumber(event?.TransactionId, event?.Data?.TransactionId);
-          if (Number.isFinite(buildiumTxnId) && buildiumTxnId > 0) {
+          if (
+            typeof buildiumTxnId === 'number' &&
+            Number.isFinite(buildiumTxnId) &&
+            buildiumTxnId > 0
+          ) {
             const { data: existingTx } = await admin
               .from('transactions')
               .select('id')
-              .eq('buildium_transaction_id', buildiumTxnId as number)
+              .eq('buildium_transaction_id', buildiumTxnId)
               .maybeSingle();
 
             if (existingTx?.id) {
@@ -3011,12 +3205,12 @@ export async function POST(req: NextRequest) {
 
       // Process lease transactions locally to ensure persistence even if edge function or Buildium IP restrictions fail
       if (typeof type === 'string' && type.includes('LeaseTransaction')) {
-        const leaseId = event?.LeaseId ?? event?.Data?.LeaseId;
-        const transactionId = event?.TransactionId ?? event?.Data?.TransactionId ?? eventId;
+        const leaseId = firstNumber(event?.LeaseId, event?.Data?.LeaseId);
+        const transactionId = firstNumber(event?.TransactionId, event?.Data?.TransactionId);
 
         // Handle deletion locally
         if (looksDelete) {
-          if (transactionId) {
+          if (transactionId != null) {
             const { data: existing } = await admin
               .from('transactions')
               .select('id')
@@ -3044,7 +3238,7 @@ export async function POST(req: NextRequest) {
             results.push({ eventId, status: 'error', error: 'unknown-delete' });
             continue;
           }
-        } else if (leaseId && transactionId) {
+        } else if (leaseId != null && transactionId != null) {
           // Upsert (create/update)
           const tx = await (async () => {
             try {
@@ -3128,7 +3322,11 @@ export async function POST(req: NextRequest) {
       if (normalized.eventName === 'BankAccount.Transaction.Deleted') {
         const buildiumTxnId = firstNumber(event?.TransactionId, event?.Data?.TransactionId);
         if (!buildiumTxnId) {
-          await markWebhookError(admin, eventKey, 'BankAccount.Transaction.Deleted missing TransactionId');
+          await markWebhookError(
+            admin,
+            eventKey,
+            'BankAccount.Transaction.Deleted missing TransactionId',
+          );
           results.push({ eventId, status: 'error', error: 'missing-transaction-id' });
           continue;
         }
@@ -3147,7 +3345,11 @@ export async function POST(req: NextRequest) {
           .select('id')
           .eq('buildium_transaction_id', buildiumTxnId);
         if (txFetchError) {
-          await markWebhookError(admin, eventKey, `transaction-fetch-failed:${txFetchError.message}`);
+          await markWebhookError(
+            admin,
+            eventKey,
+            `transaction-fetch-failed:${txFetchError.message}`,
+          );
           results.push({ eventId, status: 'error', error: 'transaction-fetch-failed' });
           continue;
         }

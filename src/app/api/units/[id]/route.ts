@@ -57,13 +57,22 @@ async function ensureOrgAccess(
   db: typeof supabase | typeof supabaseAdmin,
 ) {
   if (!orgId) return true;
-  const { data: membership } = await db
-    .from('org_memberships')
-    .select('role')
+  type MembershipRoleRow = { roles?: { name?: string | null } | null };
+  const { data: membershipRoles, error } = await db
+    .from('membership_roles')
+    .select('roles(name)')
     .eq('user_id', userId)
     .eq('org_id', orgId)
-    .maybeSingle();
-  return Boolean(membership && ADMIN_ROLE_SET.has(String(membership.role)));
+    .returns<MembershipRoleRow[]>();
+
+  if (error) {
+    console.error('Failed to verify org membership', { error, userId, orgId });
+    return false;
+  }
+
+  return (membershipRoles ?? []).some(
+    (row) => row?.roles?.name && ADMIN_ROLE_SET.has(String(row.roles.name)),
+  );
 }
 
 export async function PUT(

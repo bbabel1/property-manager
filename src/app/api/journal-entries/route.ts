@@ -16,6 +16,7 @@ import {
   resolveBuildiumAccountingEntityType,
   syncJournalEntryToBuildium,
 } from './buildium-sync';
+import type { TablesInsert } from '@/types/database';
 
 type AccountRow = {
   id: string;
@@ -166,27 +167,28 @@ export async function POST(request: Request) {
     user,
     preferred: propertyRow?.org_id ?? null,
   });
+  const orgId = resolvedOrgId?.trim() || null;
 
-  if (resolvedOrgId) {
+  if (orgId) {
     const mismatched = typedAccountRows.some(
-      (account) => account?.org_id && String(account.org_id) !== resolvedOrgId,
+      (account) => account?.org_id && String(account.org_id) !== orgId,
     );
     if (mismatched) {
       return jsonError('Accounts must belong to the same organization as the journal entry');
     }
   } else {
-    console.warn('journal entries: proceeding without resolved org id');
+    return jsonError('Organization context required to post journal entries', 400);
   }
 
   const nowIso = new Date().toISOString();
-  const transactionInsert = {
+  const transactionInsert: TablesInsert<'transactions'> = {
     date: data.date,
     memo: memoValue,
     total_amount: normalized.debitTotal,
     transaction_type: 'GeneralJournalEntry' as const,
     created_at: nowIso,
     updated_at: nowIso,
-    org_id: resolvedOrgId,
+    org_id: orgId,
     status: 'Due' as const,
     email_receipt: false,
     print_receipt: false,
@@ -264,7 +266,7 @@ export async function POST(request: Request) {
       buildium_gl_entry_id: null,
       created_at: nowIso,
       updated_at: nowIso,
-      org_id: resolvedOrgId,
+      org_id: orgId,
       property_id: propertyRow?.id ?? null,
       unit_id: unitRow?.id ?? null,
     })

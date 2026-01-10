@@ -150,6 +150,7 @@ const getLegacyPool = (): Pool | null => {
   legacyPool = new Pool({
     connectionString,
     ssl: { rejectUnauthorized: false },
+    application_name: 'pm-legacy-leases',
   });
   return legacyPool;
 };
@@ -1111,6 +1112,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    type LeaseContactWithTenantLite = LeaseContactRow & {
+      tenants?: { buildium_tenant_id?: number | null; contact_id?: string | null } | null;
+    };
+    let contactsWithTenants: LeaseContactWithTenantLite[] | null = null;
+    let buildiumSyncInfo: { status: 'success' | 'error' | 'skipped'; warning?: string } | null =
+      null;
+
     let gl: Awaited<ReturnType<typeof getOrgGlSettingsOrThrow>>;
     try {
       gl = await getOrgGlSettingsOrThrow(orgId);
@@ -1391,6 +1399,7 @@ export async function POST(request: NextRequest) {
             buildium = leaseFetch.data as BuildiumLease;
           }
         }
+        buildiumSyncInfo = { status: 'success' };
       } else {
         const warningMessage = syncResult.error || 'Buildium create failed';
         buildiumWarning = { warning: warningMessage };
@@ -1414,7 +1423,24 @@ export async function POST(request: NextRequest) {
             { error: 'Buildium sync failed', details: warningMessage },
             { status: 502 },
           );
+        buildiumSyncInfo = { status: 'error', warning: warningMessage };
       }
+    }
+
+    try {
+      const { data: contactDetails, error: contactDetailsError } = await (admin || supabase)
+        .from('lease_contacts')
+        .select('*, tenants:tenants(buildium_tenant_id, contact_id)')
+        .eq('lease_id', safeLeaseId)
+        .returns<LeaseContactWithTenantLite[]>();
+      if (!contactDetailsError && Array.isArray(contactDetails)) {
+        contactsWithTenants = contactDetails;
+      }
+    } catch (err) {
+      logger.warn(
+        { leaseId: safeLeaseId, error: err instanceof Error ? err.message : String(err) },
+        'Failed to load contacts with tenants after lease create',
+      );
     }
 
     const response = {
@@ -1425,6 +1451,12 @@ export async function POST(request: NextRequest) {
       documents: docs,
       ...(buildium ? { buildium } : {}),
       ...(buildiumWarning ? { buildiumSync: buildiumWarning } : {}),
+      ...(buildiumSyncInfo ? { buildium_sync_status: buildiumSyncInfo } : {}),
+      ...(contactsWithTenants
+        ? { contacts_with_tenants: contactsWithTenants }
+        : contacts.length
+          ? { contacts_with_tenants: contacts }
+          : {}),
     };
     await storeIdempotencyResponse(response);
     return NextResponse.json(response, { status: 201 });

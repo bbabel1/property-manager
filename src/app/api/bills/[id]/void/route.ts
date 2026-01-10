@@ -6,8 +6,9 @@ import { supabaseAdmin } from '@/lib/db';
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user, roles } = await requireAuth();
   const { id } = await params;
-  const body = (await request.json().catch(() => ({}))) as { reason?: string | null };
-  const reason = typeof body.reason === 'string' && body.reason.trim().length ? body.reason.trim() : null;
+  const body = (await request.json().catch(() => ({}))) as { reason?: unknown };
+  const reason =
+    typeof body.reason === 'string' && body.reason.trim().length ? body.reason.trim() : null;
 
   if (!hasPermission(roles, 'bills.void')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -26,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { error } = await supabaseAdmin.rpc('void_bill', {
     p_bill_transaction_id: id,
     p_user_id: user.id,
-    p_reason: reason,
+    p_reason: reason ?? undefined,
   });
 
   if (error) {

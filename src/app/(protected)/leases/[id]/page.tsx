@@ -36,6 +36,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FileRow } from '@/lib/files';
 import { resolveLeaseBalances } from '@/lib/lease-balance';
 import type { Database } from '@/types/database';
+import { warmPaymentFormCache } from '@/server/leases/load-payment-form-data';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -124,6 +125,9 @@ export default async function LeaseDetailsPage({
   const initialTab = sp?.tab === 'financials' ? 'financials' : 'summary';
   // Use admin when available to avoid RLS mismatches between source pages and details page
   const supabase = (supabaseAdmin || supaClient) as SupabaseClient<Database>;
+
+  // Warm payment form cache so the receive-payment page loads faster when clicked
+  void warmPaymentFormCache(leaseId);
 
   // Step 1: Load the base lease row first (avoid nested join issues)
   let lease: UnknownRow | null = null;
@@ -1082,6 +1086,20 @@ export default async function LeaseDetailsPage({
           : Number(account.buildium_gl_account_id) || null,
     }));
 
+  const buildDefaultPaymentHref = (returnTo: string | null) => {
+    const params = new URLSearchParams();
+    if (returnTo) params.set('returnTo', returnTo);
+    const defaultAmount = balances?.balance && balances.balance > 0 ? balances.balance : null;
+    const defaultAccountId =
+      Array.isArray(recurringAccountOptions) && recurringAccountOptions.length > 0
+        ? recurringAccountOptions[0].id
+        : null;
+    if (defaultAmount) params.set('amount', String(defaultAmount));
+    if (defaultAccountId) params.set('account', String(defaultAccountId));
+    const qs = params.toString();
+    return `/leases/${lease.id}/add-payment${qs ? `?${qs}` : ''}`;
+  };
+
   const recurringTenantLabel = tenantNames.length ? tenantNames.join(', ') : null;
   const recurringRows: RecurringRow[] = recurringTemplates.filter(Boolean).map((row) => {
     const nextDate = row?.start_date ? formatScheduleDate(row.start_date) : '—';
@@ -1251,7 +1269,9 @@ export default async function LeaseDetailsPage({
           const signed = postingType ? (isCredit ? amount : -amount) : amountRaw;
 
           const { name, type, subType, isDeposit } = extractAccountFromLine(line);
-          const depositFlag = isDeposit || name.includes('deposit') || subType.includes('deposit');
+          const depositFlag =
+            isDeposit ||
+            (type === 'liability' && (name.includes('deposit') || subType.includes('deposit')));
           if (depositFlag) {
             if (!isChargeLike) depositBalance += signed;
             continue;
@@ -1394,7 +1414,8 @@ export default async function LeaseDetailsPage({
 
   const depositsHeldTotal = (() => {
     const val = Number(balances.depositsHeld ?? 0);
-    return Number.isFinite(val) ? val : 0;
+    if (!Number.isFinite(val)) return 0;
+    return Math.abs(val);
   })();
   const prepaymentsTotal = (() => {
     const val = Number(balances.prepayments ?? 0);
@@ -1445,7 +1466,9 @@ export default async function LeaseDetailsPage({
 
           const { displayName, name, type, subType, isDeposit } = extractAccountFromLine(line);
           const accountLabel = displayName || name || 'Account';
-          const depositFlag = isDeposit || name.includes('deposit') || subType.includes('deposit');
+          const depositFlag =
+            isDeposit ||
+            (type === 'liability' && (name.includes('deposit') || subType.includes('deposit')));
           const prepayFlag =
             name.includes('prepay') ||
             subType.includes('prepay') ||
@@ -1679,7 +1702,7 @@ export default async function LeaseDetailsPage({
               </div>
               <div className="text-foreground flex items-center justify-between">
                 <span>Deposits held</span>
-                <span className="font-medium">{fmtUsd(balances.depositsHeld)}</span>
+                <span className="font-medium">{fmtUsd(Math.abs(balances.depositsHeld))}</span>
               </div>
               <div className="text-foreground flex items-center justify-between">
                 <span>Rent</span>
@@ -1753,13 +1776,16 @@ export default async function LeaseDetailsPage({
                 <div className="flex items-center gap-2">
                   <Button asChild>
                     <Link
-                      href={`/leases/${lease.id}/add-payment?returnTo=${encodeURIComponent(`/leases/${lease.id}?tab=deposits`)}`}
+                      prefetch
+                      href={buildDefaultPaymentHref(`/leases/${lease.id}?tab=deposits`)}
                     >
                       Receive payment
                     </Link>
                   </Button>
                   <Button asChild variant="outline">
-                    <Link href={`/leases/${lease.id}/add-charge`}>Enter charge</Link>
+                    <Link prefetch href={`/leases/${lease.id}/add-charge`}>
+                      Enter charge
+                    </Link>
                   </Button>
                 </div>
               </div>

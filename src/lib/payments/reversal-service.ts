@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import type { Json, TablesInsert } from '@/types/database';
 import PaymentService from './payment-service';
 
 type ManualEventType =
@@ -15,21 +16,23 @@ type ManualEventInput = {
   paymentIntentId?: string | null;
   rawEventType: ManualEventType;
   occurredAt?: string | null;
-  eventData?: Record<string, unknown>;
+  eventData?: Json;
   createdByUserId?: string | null;
 };
 
 async function insertManualEvent(input: ManualEventInput) {
-  const { error } = await supabaseAdmin.from('manual_payment_events').insert({
+  const eventData: Json = input.eventData ?? {};
+  const payload: TablesInsert<'manual_payment_events'> = {
     org_id: input.orgId,
     payment_id: input.paymentId,
     payment_intent_id: input.paymentIntentId ?? null,
     raw_event_type: input.rawEventType,
     normalized_event_type: input.rawEventType,
-    event_data: input.eventData ?? {},
+    event_data: eventData,
     occurred_at: input.occurredAt ?? new Date().toISOString(),
     created_by_user_id: input.createdByUserId ?? null,
-  });
+  };
+  const { error } = await supabaseAdmin.from('manual_payment_events').insert(payload);
 
   if (error) {
     logger.error({ error, input }, 'Failed to insert manual payment event');
@@ -45,6 +48,7 @@ async function fetchPayment(paymentId: string, orgId?: string) {
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('Payment not found');
+  if (!data.org_id) throw new Error('Payment org not found');
   if (orgId && data.org_id !== orgId) {
     throw new Error('Payment org mismatch');
   }
@@ -69,7 +73,7 @@ export class PaymentReversalService {
     });
 
     await insertManualEvent({
-      orgId: params.orgId,
+      orgId: payment.org_id,
       paymentId: params.paymentId,
       paymentIntentId: payment.payment_intent_id,
       rawEventType: 'return.nsf',
@@ -98,7 +102,7 @@ export class PaymentReversalService {
     });
 
     await insertManualEvent({
-      orgId: params.orgId,
+      orgId: payment.org_id,
       paymentId: params.paymentId,
       paymentIntentId: payment.payment_intent_id,
       rawEventType: 'chargeback.initiated',
@@ -122,7 +126,7 @@ export class PaymentReversalService {
     const updated = await PaymentService.resolveChargeback(payment.org_id, params.paymentId, params.won);
 
     await insertManualEvent({
-      orgId: params.orgId,
+      orgId: payment.org_id,
       paymentId: params.paymentId,
       paymentIntentId: payment.payment_intent_id,
       rawEventType: params.won ? 'chargeback.won' : 'chargeback.lost',

@@ -77,3 +77,4 @@ ALTER TABLE public.recurring_transactions FORCE ROW LEVEL SECURITY;
 
 
 
+

@@ -13,10 +13,9 @@ const RentSchedulePayloadSchema = z.object({
 });
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const scheduleIdRaw = (await params).id;
-  const scheduleId = Number(scheduleIdRaw);
+  const scheduleId = (await params).id;
 
-  if (!scheduleIdRaw || Number.isNaN(scheduleId)) {
+  if (!scheduleId) {
     return NextResponse.json({ error: 'Rent schedule ID is required' }, { status: 400 });
   }
 

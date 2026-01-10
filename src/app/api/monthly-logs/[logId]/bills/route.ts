@@ -17,6 +17,9 @@ import { assignTransactionToMonthlyLog, fetchTransactionWithLines } from '@/lib/
 import { upsertBillWithLines } from '@/lib/buildium-mappers';
 import { refreshMonthlyLogTotals } from '@/lib/monthly-log-calculations';
 
+// Keep the bill payload shape in sync with the mapper signature.
+type BuildiumBillWithLines = Parameters<typeof upsertBillWithLines>[0];
+
 export async function GET(request: Request, { params }: { params: Promise<{ logId: string }> }) {
   try {
     // Auth check
@@ -288,7 +291,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
     const response = await buildiumFetch('POST', '/bills', undefined, buildiumPayload, orgId);
 
     if (!response.ok) {
-      const details = (response.json ?? {}) as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> };
+      const responseJsonRaw = response.json;
+      const responseJson =
+        responseJsonRaw && typeof responseJsonRaw === 'object'
+          ? (responseJsonRaw as {
+              UserMessage?: string;
+              error?: string;
+              Errors?: Array<{ Key?: string | null; Value?: string | null }>;
+            })
+          : undefined;
+      const details =
+        responseJson ??
+        ({} as { UserMessage?: string; error?: string; Errors?: Array<{ Key?: string | null; Value?: string | null }> });
       const message =
         details?.UserMessage ||
         details?.error ||
@@ -309,7 +323,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ log
       );
     }
 
-    const buildiumBill = await response.json();
+    const parsedBill =
+      response.json && typeof response.json === 'object'
+        ? (response.json as BuildiumBillWithLines)
+        : undefined;
+    const buildiumBill = parsedBill ?? ({} as BuildiumBillWithLines);
 
     // Buildium's response may omit lines or memo; carry forward what we sent so the local record stays complete.
     const buildiumBillWithLines = {

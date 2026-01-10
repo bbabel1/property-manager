@@ -116,6 +116,10 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
       }
     }
   }
+  if (!orgId) {
+    throw new Error('Cannot upsert Buildium bank transaction without org_id');
+  }
+  const orgIdForUpsert = orgId as string;
 
   const detail = await fetchBuildiumBankTransactionDetail(
     params.bankAccountId,
@@ -147,7 +151,7 @@ export async function canonicalUpsertBuildiumBankTransaction(params: {
     memo: detail?.Memo ?? undefined,
     check_number: detail?.CheckNumber ?? undefined,
     bank_gl_account_buildium_id: bankGlAccountId ?? undefined,
-    org_id: orgId ?? null,
+    org_id: orgIdForUpsert,
     updated_at: now,
   };
 

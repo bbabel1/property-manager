@@ -24,7 +24,7 @@ type PropertyRow = DatabaseSchema['public']['Tables']['properties']['Row']
 type AssignmentLevel = DatabaseSchema['public']['Enums']['assignment_level']
 
 type PropertyUpdatePatch = Omit<PropertiesUpdate, 'service_assignment'> & {
-  service_assignment?: AssignmentLevel | null
+  service_assignment?: AssignmentLevel
 }
 
 export async function PUT(
@@ -69,48 +69,51 @@ export async function PUT(
     const headerOrgId = request.headers.get('x-org-id')
     let resolvedOrgId: string | null = propertyRow.org_id ?? null
 
-    const ensureMembership = async (orgId: string | null) => {
-      if (!orgId) return null
-      const { data: membership, error: membershipError } = await adminClient
-        .from('org_memberships')
-        .select('org_id, role')
-        .eq('user_id', user.id)
-        .eq('org_id', orgId)
-        .maybeSingle()
-      if (membershipError) {
-        console.error('Error checking org membership', membershipError)
-        return null
-      }
-      return membership ?? null
+    const {
+      data: membershipRoles,
+      error: membershipRolesError,
+    } = await adminClient
+      .from('membership_roles')
+      .select('org_id, role_id')
+      .eq('user_id', user.id)
+
+    if (membershipRolesError) {
+      console.error('Error loading membership roles for property update:', membershipRolesError)
     }
 
-    let membership = await ensureMembership(resolvedOrgId)
+    const rolesByOrg = new Map<string, string[]>()
+    for (const row of membershipRoles || []) {
+      const roleName = (row as { role_id?: string | null }).role_id
+      if (row?.org_id && roleName) {
+        const list = rolesByOrg.get(row.org_id) ?? []
+        rolesByOrg.set(row.org_id, [...list, String(roleName)])
+      }
+    }
+
+    const getAdminMembership = (orgId: string | null) => {
+      if (!orgId) return null
+      const roles = rolesByOrg.get(orgId) ?? []
+      const matchedRole = roles.find(role => ADMIN_ROLE_SET.has(String(role)))
+      return matchedRole ? { org_id: orgId, role: matchedRole } : null
+    }
+
+    const adminOrgIds = Array.from(rolesByOrg.entries())
+      .filter(([, roles]) => roles.some(role => ADMIN_ROLE_SET.has(String(role))))
+      .map(([orgId]) => orgId)
+
+    let membership = getAdminMembership(resolvedOrgId)
+
+    if (!membership && headerOrgId) {
+      membership = getAdminMembership(headerOrgId)
+      if (membership) resolvedOrgId = headerOrgId
+    }
+
+    if (!membership && adminOrgIds.length === 1) {
+      resolvedOrgId = adminOrgIds[0]
+      membership = getAdminMembership(resolvedOrgId)
+    }
 
     if (!membership) {
-      // Property missing org assignment or user supplied org context
-      const candidateOrgId = resolvedOrgId
-        ?? headerOrgId
-        ?? (await (async () => {
-          const { data: memberships, error } = await adminClient
-            .from('org_memberships')
-            .select('org_id, role')
-            .eq('user_id', user.id)
-          if (error) {
-            console.error('Error loading user memberships:', error)
-            return null
-          }
-          const list = (memberships || []).filter(m => ADMIN_ROLE_SET.has(String(m.role)))
-          if (list.length === 1) return list[0].org_id as string
-          return null
-        })())
-
-      if (candidateOrgId) {
-        resolvedOrgId = candidateOrgId
-        membership = await ensureMembership(candidateOrgId)
-      }
-    }
-
-    if (!membership || !ADMIN_ROLE_SET.has(String(membership.role))) {
       return NextResponse.json({ error: 'Not authorized to manage this property' }, { status: 403 })
     }
 
@@ -214,7 +217,9 @@ export async function PUT(
     const serviceAssignmentInput = getField('service_assignment', 'serviceAssignment')
     if (serviceAssignmentInput !== undefined) {
       const normalizedServiceAssignment = normalizeAssignmentLevel(serviceAssignmentInput)
-      updatePatch.service_assignment = normalizedServiceAssignment ?? null
+      if (normalizedServiceAssignment) {
+        updatePatch.service_assignment = normalizedServiceAssignment
+      }
     }
 
     const billPayListInput = getField('bill_pay_list', 'billPayList')
@@ -521,7 +526,7 @@ export async function PUT(
         }
         const { data: staffRow, error: staffError } = await adminClient
           .from('staff')
-          .select('id, org_id, buildium_user_id')
+          .select('id, buildium_user_id, user_id')
           .eq('id', numericStaffId)
           .maybeSingle()
         if (staffError) {
@@ -531,8 +536,21 @@ export async function PUT(
         if (!staffRow) {
           return NextResponse.json({ error: 'Property manager not found' }, { status: 404 })
         }
-        if (staffRow.org_id && staffRow.org_id !== resolvedOrgId) {
-          return NextResponse.json({ error: 'Property manager belongs to a different organization' }, { status: 403 })
+        if (resolvedOrgId && staffRow.user_id) {
+          const { data: staffMembership, error: staffMembershipError } = await adminClient
+            .from('membership_roles')
+            .select('org_id')
+            .eq('user_id', staffRow.user_id)
+            .eq('org_id', resolvedOrgId)
+            .limit(1)
+            .maybeSingle<{ org_id: string }>()
+          if (staffMembershipError) {
+            console.error('🔍 API: Failed to verify staff membership:', staffMembershipError)
+            return NextResponse.json({ error: 'Failed to verify property manager organization' }, { status: 500 })
+          }
+          if (!staffMembership) {
+            return NextResponse.json({ error: 'Property manager belongs to a different organization' }, { status: 403 })
+          }
         }
 
         const { error: attachError } = await adminClient.from('property_staff').insert({

@@ -20,6 +20,7 @@ import {
 import { resolveUndepositedFundsGlAccountId } from '@/lib/buildium-mappers'
 import { ensurePaymentToUndepositedFunds } from '@/lib/deposit-service'
 import PayerRestrictionsService from '@/lib/payments/payer-restrictions-service'
+import type { Charge, PaymentAllocation } from '@/types/ar'
 
 const ReceivePaymentSchema = z.object({
   date: z.string().min(1),
@@ -183,8 +184,8 @@ export async function POST(
 
     let normalized: Record<string, unknown> | null = null
     let responseLines: Record<string, unknown>[] = []
-    let allocationsResponse: Record<string, unknown>[] = []
-    let updatedCharges: Record<string, unknown>[] = []
+    let allocationsResponse: PaymentAllocation[] = []
+    let updatedCharges: Charge[] = []
     const memoValue = parsed.data.memo ?? null
     if (result.localId) {
       const record = await fetchTransactionWithLines(result.localId)
@@ -193,19 +194,42 @@ export async function POST(
         responseLines = (record.lines ?? []) as Record<string, unknown>[]
       }
 
-      const allocationResult = await allocationEngine.allocatePayment(
-        parsed.data.amount,
-        leaseId,
-        result.localId,
-        undefined,
-        parsed.data.charge_allocations?.map((alloc) => ({
-          chargeId: alloc.charge_id,
-          amount: alloc.amount,
-        })),
-        parsed.data.allocation_external_id ?? undefined
-      )
-      allocationsResponse = allocationResult.allocations
-      updatedCharges = allocationResult.charges
+      const hasChargeAllocations =
+        Array.isArray(parsed.data.charge_allocations) && parsed.data.charge_allocations.length > 0
+      const shouldAttemptAllocation = true // always try to allocate; fallback below handles GL-only payments
+
+      try {
+        if (shouldAttemptAllocation) {
+          const allocationResult = await allocationEngine.allocatePayment(
+            parsed.data.amount,
+            leaseId,
+            result.localId,
+            undefined,
+            parsed.data.charge_allocations?.map((alloc) => ({
+              chargeId: alloc.charge_id,
+              amount: alloc.amount,
+            })),
+            parsed.data.allocation_external_id ?? undefined
+          )
+          allocationsResponse = allocationResult.allocations
+          updatedCharges = allocationResult.charges
+        }
+      } catch (allocationErr) {
+        const message =
+          allocationErr instanceof Error ? allocationErr.message : String(allocationErr ?? '')
+        // If there are no open charges and caller did not request manual charge allocations,
+        // treat this as a GL-only payment and continue. Otherwise, bubble up.
+        if (
+          message.includes('No outstanding charges to allocate against') &&
+          !hasChargeAllocations &&
+          !parsed.data.allocation_external_id
+        ) {
+          allocationsResponse = []
+          updatedCharges = []
+        } else {
+          throw allocationErr
+        }
+      }
 
       // Stamp payment metadata for reconciliation
       await supabaseAdmin

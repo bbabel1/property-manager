@@ -157,20 +157,10 @@ export async function GET(request: NextRequest) {
 
     // 1) Cache path: snapshots table (preferred for list + pagination)
     if (useCache) {
-      let cacheQuery = db
-        .from('gl_account_balances')
-        .select(
-          [
-            'org_id',
-            'gl_account_id',
-            'property_id',
-            'as_of_date',
-            'balance',
-            'computed_at',
-            'payload',
-            'gl_accounts ( id, name, type, sub_type, account_number, is_active, is_bank_account, is_contra_account, is_credit_card_account, exclude_from_cash_balances, buildium_gl_account_id, buildium_parent_gl_account_id )',
-          ].join(', '),
-        )
+      const cacheSelect =
+        'org_id, gl_account_id, property_id, as_of_date, balance, computed_at, payload, gl_accounts ( id, name, type, sub_type, account_number, is_active, is_bank_account, is_contra_account, is_credit_card_account, exclude_from_cash_balances, buildium_gl_account_id, buildium_parent_gl_account_id )'
+
+      let cacheQuery = db.from('gl_account_balances').select(cacheSelect)
         .eq('org_id', orgId)
         .eq('as_of_date', asOfDate)
 
@@ -188,7 +178,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: cacheErr.message }, { status: 500 })
       }
 
-      const records: GlAccountBalanceRow[] = Array.isArray(cacheRows) ? cacheRows : []
+      const cacheRowsArray: unknown[] = Array.isArray(cacheRows) ? cacheRows : []
+      const records = cacheRowsArray.filter(
+        (r): r is GlAccountBalanceRow =>
+          !!r && typeof r === 'object' && 'org_id' in r && 'gl_account_id' in r,
+      )
       if (records.length > 0) {
         const hasMore = records.length > limit
         const trimmed = hasMore ? records.slice(0, limit) : records

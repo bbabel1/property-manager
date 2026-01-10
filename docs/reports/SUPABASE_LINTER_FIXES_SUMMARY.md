@@ -167,3 +167,4 @@ ORDER BY tc.table_name;
 - The linter may show false positives for composite primary keys
 
 
+

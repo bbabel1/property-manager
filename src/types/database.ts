@@ -8673,6 +8673,19 @@ export type Database = {
         }
         Relationships: []
       }
+      users_with_auth: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          last_sign_in_at: string | null
+          memberships: Json | null
+          phone: string | null
+          providers: Json | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       v_active_work_orders_ranked: {
         Row: {
           actual_cost: number | null
@@ -9034,6 +9047,37 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_undeposited_payments"
             referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
+      v_reconciliation_stale_alerts: {
+        Row: {
+          property_id: string | null
+          gl_account_id: string | null
+          last_reconciled_at: string | null
+          days_since: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliation_log_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconciliation_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "v_service_revenue_by_owner"
+            referencedColumns: ["property_id"]
           },
         ]
       }
@@ -9802,6 +9846,10 @@ export type Database = {
       get_my_claims: { Args: never; Returns: Json }
       get_property_financials: {
         Args: { p_as_of?: string; p_property_id: string }
+        Returns: Json
+      }
+      get_property_summary: {
+        Args: { p_property_id: string }
         Returns: Json
       }
       get_table_columns: {

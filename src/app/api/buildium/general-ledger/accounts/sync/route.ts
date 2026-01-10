@@ -5,7 +5,14 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { buildiumFetch } from '@/lib/buildium-http';
 import { getServerSupabaseClient } from '@/lib/supabase-client';
 import { mapGLAccountFromBuildiumWithSubAccounts } from '@/lib/buildium-mappers';
+import type { BuildiumGLAccountExtended } from '@/types/buildium';
 import type { Database } from '@/types/database';
+
+const isBuildiumGLAccountExtended = (value: unknown): value is BuildiumGLAccountExtended => {
+  if (!value || typeof value !== 'object') return false;
+  const account = value as Record<string, unknown>;
+  return typeof account.Id === 'number' && typeof account.Name === 'string' && typeof account.Type === 'string';
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,13 +41,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch GL accounts', details: errorData }, { status: response.status });
     }
 
-    const accounts = (response.json ?? []) as unknown[];
+    if (!Array.isArray(response.json)) {
+      return NextResponse.json({ error: 'Unexpected GL accounts response' }, { status: 502 });
+    }
+    const accountsRaw = response.json as unknown[];
     let synced = 0; let updated = 0; let failed = 0;
 
     const supabase = getServerSupabaseClient('gl accounts sync');
     
-    for (const acc of accounts || []) {
+    for (const acc of accountsRaw) {
       try {
+        if (!isBuildiumGLAccountExtended(acc)) {
+          failed += 1;
+          continue;
+        }
         const mapped = await mapGLAccountFromBuildiumWithSubAccounts(acc, supabase);
         const normalized = {
           ...mapped,

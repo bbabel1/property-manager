@@ -1,20 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { BankEntryStatus, BankRegisterState } from '@/types/bank-register'
+import type { Database, Tables, TablesInsert } from '@/types/database'
 
-type BankRegisterStateRow = {
-  org_id: string
-  bank_gl_account_id: string
-  transaction_id: string
-  buildium_transaction_id: number | null
-  status: BankEntryStatus
-  current_reconciliation_log_id: string | null
-  cleared_at: string | null
-  cleared_by_user_id: string | null
-  reconciled_at: string | null
-  reconciled_by_user_id: string | null
-  created_at: string
-  updated_at: string
-}
+type BankRegisterStateRow = Tables<'bank_register_state'>
+type BankRegisterStateInsert = TablesInsert<'bank_register_state'>
+type TypedSupabaseClient = SupabaseClient<Database>
 
 function mapBankRegisterState(row: BankRegisterStateRow): BankRegisterState {
   return {
@@ -34,34 +24,19 @@ function mapBankRegisterState(row: BankRegisterStateRow): BankRegisterState {
 }
 
 export async function getBankRegisterState(
-  client: SupabaseClient,
+  client: TypedSupabaseClient,
   params: { transactionId: string; bankGlAccountId: string },
 ): Promise<BankRegisterState | null> {
   const { data, error } = await client
     .from('bank_register_state')
-    .select(
-      [
-        'org_id',
-        'bank_gl_account_id',
-        'transaction_id',
-        'buildium_transaction_id',
-        'status',
-        'current_reconciliation_log_id',
-        'cleared_at',
-        'cleared_by_user_id',
-        'reconciled_at',
-        'reconciled_by_user_id',
-        'created_at',
-        'updated_at',
-      ].join(', '),
-    )
+    .select('*')
     .eq('transaction_id', params.transactionId)
     .eq('bank_gl_account_id', params.bankGlAccountId)
     .maybeSingle();
 
   if (error) throw error;
   if (!data) return null;
-  return mapBankRegisterState(data as BankRegisterStateRow);
+  return mapBankRegisterState(data);
 }
 
 type UpsertBankRegisterStateArgs = {
@@ -78,10 +53,11 @@ type UpsertBankRegisterStateArgs = {
 }
 
 export async function upsertBankRegisterState(
-  client: SupabaseClient,
+  client: TypedSupabaseClient,
   params: UpsertBankRegisterStateArgs,
 ): Promise<BankRegisterState> {
-  const payload = {
+  const nowIso = new Date().toISOString();
+  const payload: BankRegisterStateInsert = {
     org_id: params.orgId,
     bank_gl_account_id: params.bankGlAccountId,
     transaction_id: params.transactionId,
@@ -92,6 +68,7 @@ export async function upsertBankRegisterState(
     cleared_by_user_id: params.clearedByUserId ?? null,
     reconciled_at: params.reconciledAt ?? null,
     reconciled_by_user_id: params.reconciledByUserId ?? null,
+    updated_at: nowIso,
   }
 
   const { data, error } = await client
@@ -99,27 +76,12 @@ export async function upsertBankRegisterState(
     .upsert(payload, {
       onConflict: 'org_id,bank_gl_account_id,transaction_id',
     })
-    .select(
-      [
-        'org_id',
-        'bank_gl_account_id',
-        'transaction_id',
-        'buildium_transaction_id',
-        'status',
-        'current_reconciliation_log_id',
-        'cleared_at',
-        'cleared_by_user_id',
-        'reconciled_at',
-        'reconciled_by_user_id',
-        'created_at',
-        'updated_at',
-      ].join(', '),
-    )
-    .maybeSingle();
+    .select('*')
+    .maybeSingle<BankRegisterStateRow>();
 
   if (error || !data) {
     throw error ?? new Error('Failed to upsert bank register state');
   }
 
-  return mapBankRegisterState(data as BankRegisterStateRow);
+  return mapBankRegisterState(data);
 }

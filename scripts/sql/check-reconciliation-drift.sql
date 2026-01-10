@@ -54,3 +54,4 @@ WHERE rl.ending_balance IS NOT NULL
   AND ABS(rl.ending_balance - calculate_book_balance(rl.bank_gl_account_id, rl.statement_ending_date)) > 0.01
 ORDER BY ABS(drift) DESC;
 
+

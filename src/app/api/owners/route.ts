@@ -76,12 +76,14 @@ export async function POST(request: NextRequest) {
       );
     }
     // Provide sensible defaults so quick-create forms can work without full address
+    const bodyInput =
+      bodyRaw && typeof bodyRaw === 'object' && !Array.isArray(bodyRaw) ? bodyRaw : {};
     const body = {
       addressLine1: 'N/A',
       postalCode: '00000',
       country: 'United States',
-      ...bodyRaw
-    }
+      ...bodyInput,
+    };
 
     let data;
     try {

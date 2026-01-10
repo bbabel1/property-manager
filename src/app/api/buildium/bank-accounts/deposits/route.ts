@@ -7,6 +7,7 @@ import { buildiumFetch } from '@/lib/buildium-http'
 import { canonicalUpsertBuildiumBankTransaction } from '@/lib/buildium/canonical-upsert'
 import { supabaseAdmin } from '@/lib/db'
 import { deriveDepositStatusFromBuildiumPayload } from '@/lib/buildium-mappers'
+import type { Database } from '@/types/database'
 import type { DepositStatus } from '@/types/deposits'
 
 type DepositResponse = Record<string, unknown>
@@ -34,7 +35,11 @@ async function upsertDepositMetaForTransaction(params: {
 }) {
   if (!supabaseAdmin) return
   const { transactionId, orgId, buildiumDepositId, status } = params
+  if (!orgId) {
+    throw new Error(`Missing org_id for transaction ${transactionId}`)
+  }
   const nowIso = new Date().toISOString()
+  const orgIdStrict: string = orgId
 
   const { data: existing, error: existingErr } = await supabaseAdmin
     .from('deposit_meta')
@@ -55,15 +60,22 @@ async function upsertDepositMetaForTransaction(params: {
       (generated as any)?.id ??
       transactionId
   }
+  if (!depositId) {
+    throw new Error(`Unable to resolve deposit_id for transaction ${transactionId}`)
+  }
 
   const resolvedStatus = nextDepositStatus((existing?.status as DepositStatus | null) ?? null, status)
-  const payload = {
+  const resolvedDepositId: string = String(depositId ?? transactionId)
+  const payload: Omit<
+    Database['public']['Tables']['deposit_meta']['Insert'],
+    'created_at'
+  > = {
     transaction_id: transactionId,
-    org_id: orgId,
-    deposit_id: depositId,
+    org_id: orgIdStrict,
+    deposit_id: resolvedDepositId,
     status: resolvedStatus,
-    buildium_deposit_id: buildiumDepositId,
-    buildium_sync_status: 'synced' as const,
+    buildium_deposit_id: buildiumDepositId ?? null,
+    buildium_sync_status: 'synced',
     buildium_sync_error: null,
     buildium_last_synced_at: nowIso,
     updated_at: nowIso,
@@ -89,12 +101,12 @@ export async function GET(_request: NextRequest) {
       throw new Error(`Buildium API error: ${response.status} ${response.statusText}`);
     }
 
-    const deposits = (response.json ?? []) as unknown[];
+    const deposits = Array.isArray(response.json) ? (response.json as Record<string, unknown>[]) : [];
 
-    if (Array.isArray(deposits) && supabaseAdmin) {
+    if (deposits.length && supabaseAdmin) {
       const nowIso = new Date().toISOString();
       await Promise.all(
-        deposits.map(async (deposit: Record<string, unknown>) => {
+        deposits.map(async (deposit) => {
           const buildiumDepositId =
             coerceNumericId(deposit?.Id) ??
             coerceNumericId(deposit?.TransactionId) ??
@@ -117,7 +129,7 @@ export async function GET(_request: NextRequest) {
           if (txErr && txErr.code !== 'PGRST116') throw txErr;
 
           let transactionId = tx?.id ?? null;
-          let orgId = (tx as any)?.org_id ?? null;
+          let orgId = tx?.org_id ?? null;
 
           if (!transactionId && bankAccountId) {
             try {
@@ -131,7 +143,7 @@ export async function GET(_request: NextRequest) {
                 .eq('buildium_transaction_id', buildiumDepositId)
                 .maybeSingle();
               transactionId = txAfter?.id ?? null;
-              orgId = (txAfter as any)?.org_id ?? null;
+              orgId = txAfter?.org_id ?? null;
             } catch (err) {
               logger.error(
                 { err, buildiumDepositId, bankAccountId },
@@ -140,7 +152,7 @@ export async function GET(_request: NextRequest) {
             }
           }
 
-          if (!transactionId) return;
+          if (!transactionId || !orgId) return;
 
           try {
             await upsertDepositMetaForTransaction({
@@ -226,10 +238,10 @@ export async function POST(request: NextRequest) {
             .select('id, org_id')
             .eq('buildium_transaction_id', transactionId)
             .maybeSingle();
-          if (tx?.id) {
+          if (tx?.id && tx.org_id) {
             await upsertDepositMetaForTransaction({
               transactionId: tx.id,
-              orgId: (tx as any)?.org_id ?? null,
+              orgId: tx.org_id,
               buildiumDepositId: transactionId,
               status,
             });

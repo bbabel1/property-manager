@@ -52,95 +52,99 @@ export async function writeServiceFeeDual(params: {
     db = supabaseAdmin,
   } = params;
 
-  let propertyOrgId: string | null = null;
+  const { data: property } = await db
+    .from('properties')
+    .select('org_id')
+    .eq('id', propertyId)
+    .maybeSingle();
+
+  if (!property?.org_id) {
+    throw new Error('Property org_id not found; cannot write service fee');
+  }
+  const propertyOrgId = property.org_id;
+
   // Always create billing_event when feature flag is enabled
   let billingEventId: string | undefined;
   if (offeringId) {
-    // Get org_id from property
-    const { data: property } = await db
-      .from('properties')
-      .select('org_id')
-      .eq('id', propertyId)
+    // Get period from monthly log
+    const { data: monthlyLog } = await db
+      .from('monthly_logs')
+      .select('period_start')
+      .eq('id', monthlyLogId)
       .single();
 
-    if (property?.org_id) {
-      propertyOrgId = property.org_id;
-      // Get period from monthly log
-      const { data: monthlyLog } = await db
-        .from('monthly_logs')
-        .select('period_start')
-        .eq('id', monthlyLogId)
-        .single();
+    if (monthlyLog) {
+      const periodEnd = endOfMonthFromPeriodStart(monthlyLog.period_start);
+      // Default basis since service offerings no longer carry billing_basis
+      const basis: BillingBasis = sourceBasis ?? 'per_property';
 
-      if (monthlyLog) {
-        const periodEnd = endOfMonthFromPeriodStart(monthlyLog.period_start);
-        // Default basis since service offerings no longer carry billing_basis
-        const basis: BillingBasis = sourceBasis ?? 'per_property';
+      // Avoid duplicate billing event (uniqueness constraint)
+      const servicePeriodStart = monthlyLog.period_start;
+      const servicePeriodEnd = periodEnd;
+      const { data: billingEvent, error: beError } = await db
+        .from('billing_events')
+        .upsert(
+          {
+            org_id: propertyOrgId,
+            property_id: propertyId,
+            unit_id: unitId || null,
+            offering_id: offeringId,
+            plan_id: planId ?? null,
+            period_start: monthlyLog.period_start,
+            period_end: periodEnd,
+            service_period_start: servicePeriodStart,
+            service_period_end: servicePeriodEnd,
+            charge_type: 'plan_fee',
+            amount,
+            source_basis: basis,
+            rent_basis: rentBasis ?? null,
+            rent_amount: rentAmount ?? null,
+            calculated_at: new Date().toISOString(),
+          },
+          {
+            onConflict:
+              'org_id,unit_id,offering_id,assignment_id,charge_type,service_period_start,service_period_end',
+          },
+        )
+        .select('id')
+        .maybeSingle();
 
-        // Avoid duplicate billing event (uniqueness constraint)
-        const servicePeriodStart = monthlyLog.period_start;
-        const servicePeriodEnd = periodEnd;
-        const { data: billingEvent, error: beError } = await db
-          .from('billing_events')
-          .upsert(
-            {
-              org_id: propertyOrgId,
-              property_id: propertyId,
-              unit_id: unitId || null,
-              offering_id: offeringId,
-              plan_id: planId ?? null,
-              period_start: monthlyLog.period_start,
-              period_end: periodEnd,
-              service_period_start: servicePeriodStart,
-              service_period_end: servicePeriodEnd,
-              charge_type: 'plan_fee',
-              amount,
-              source_basis: basis,
-              rent_basis: rentBasis ?? null,
-              rent_amount: rentAmount ?? null,
-              calculated_at: new Date().toISOString(),
-            },
-            {
-              onConflict:
-                'org_id,unit_id,offering_id,assignment_id,charge_type,service_period_start,service_period_end',
-            },
-          )
-          .select('id')
-          .maybeSingle();
-
-        if (beError) {
-          logger.error({ error: beError }, 'Error creating billing event (dual-write)');
-          // Continue anyway - don't fail the transaction
-        } else if (billingEvent?.id) {
-          billingEventId = billingEvent.id;
-        }
-      } else {
-        logger.warn({ monthlyLogId }, 'Monthly log not found; skipping billing event creation');
+      if (beError) {
+        logger.error({ error: beError }, 'Error creating billing event (dual-write)');
+        // Continue anyway - don't fail the transaction
+      } else if (billingEvent?.id) {
+        billingEventId = billingEvent.id;
       }
     } else {
-      logger.warn({ propertyId }, 'Property org_id not found; skipping billing event creation');
+      logger.warn({ monthlyLogId }, 'Monthly log not found; skipping billing event creation');
     }
   }
 
   // Create transaction (always, for backward compatibility)
   const memo = legacyMemo || `Management Fee - ${planId || 'Standard'} Plan`;
   const nowIso = new Date().toISOString();
+  if (!monthlyLogId) {
+    throw new Error('monthlyLogId is required to write service fee');
+  }
+
+  const transactionInsert: Database['public']['Tables']['transactions']['Insert'] = {
+    monthly_log_id: monthlyLogId,
+    transaction_type: 'Charge',
+    total_amount: amount,
+    date: nowIso.split('T')[0],
+    memo,
+    service_offering_id: offeringId || null,
+    plan_id: planId ?? null,
+    fee_category: feeCategory,
+    legacy_memo: legacyMemo || null,
+    org_id: propertyOrgId,
+    status: 'Due',
+    updated_at: nowIso,
+  };
+
   const { data: transaction, error: txError } = await db
     .from('transactions')
-    .insert({
-      monthly_log_id: monthlyLogId,
-      transaction_type: 'Charge',
-      total_amount: amount,
-      date: nowIso.split('T')[0],
-      memo,
-      service_offering_id: offeringId || null,
-      plan_id: planId ?? null,
-      fee_category: feeCategory,
-      legacy_memo: legacyMemo || null,
-      org_id: propertyOrgId,
-      status: 'Due',
-      updated_at: nowIso,
-    })
+    .insert(transactionInsert)
     .select('id')
     .single();
 

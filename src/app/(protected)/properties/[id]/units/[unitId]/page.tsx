@@ -34,6 +34,7 @@ import {
   type MonthlyLogStatus,
 } from '@/components/monthly-logs/types';
 import type { Tables } from '@/types/database';
+import { logDebug } from '@/shared/lib/logger';
 
 type UnitSubNavKey = 'details' | 'services' | 'ledger' | 'bills' | 'monthly_logs';
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
@@ -686,17 +687,25 @@ export default async function UnitDetailsNested({
     today: new Date(),
   });
 
-  console.info('[unit-finance] summary', {
-    unitId: unitIdString,
-    leaseId: activeLeaseId,
-    counts: {
-      transactionLines: transactionLines.length,
-      transactions: transactions.length,
-      tlBySource: tlCounts,
-    },
-    debug: unitFinanceDebug,
-    fin: unitFin,
-  });
+  const shouldLogFinanceDebug =
+    process.env.DEBUG_FINANCE === 'true' || process.env.NODE_ENV !== 'production';
+  if (shouldLogFinanceDebug) {
+    logDebug(
+      '[unit-finance] summary',
+      {
+        unitId: unitIdString,
+        leaseId: activeLeaseId,
+        counts: {
+          transactionLines: transactionLines.length,
+          transactions: transactions.length,
+          tlBySource: tlCounts,
+        },
+        debug: unitFinanceDebug,
+        fin: unitFin,
+      },
+      { force: true },
+    );
+  }
 
   type LeaseSectionProps = Parameters<typeof LeaseSection>[0];
   const leaseItems: LeaseSectionProps['leases'] = (leases as unknown as LeaseSectionProps['leases']).map(

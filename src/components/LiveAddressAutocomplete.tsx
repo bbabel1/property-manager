@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { isDebugLoggingEnabled, logDebug, logError } from '@/shared/lib/logger'
 
 interface LiveAddressAutocompleteProps {
   value: string
@@ -57,6 +58,7 @@ export default function LiveAddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const debugEnabled = isDebugLoggingEnabled()
 
   useEffect(() => {
     // Clear previous timeout
@@ -87,12 +89,17 @@ export default function LiveAddressAutocomplete({
   const searchAddresses = async (query: string) => {
     if (query.length < 3) return
 
-    console.log('🔍 Searching for addresses:', query)
+    if (debugEnabled) {
+      logDebug(
+        'LiveAddressAutocomplete: search triggered',
+        { queryLength: query.length },
+        { force: true },
+      )
+    }
     setIsLoading(true)
     try {
       // Use Nominatim (OpenStreetMap) for free geocoding
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=10&countrycodes=us&bounded=1&viewbox=-125,50,-65,25`
-      console.log('📡 Fetching from:', url)
       
       const response = await fetch(url, {
         method: 'GET',
@@ -107,7 +114,6 @@ export default function LiveAddressAutocomplete({
       }
 
       const data: NominatimResult[] = await response.json()
-      console.log('✅ Received data:', data.length, 'results')
       
       // Filter for addresses (not just points of interest)
       const addressResults = data.filter(result => 
@@ -117,12 +123,20 @@ export default function LiveAddressAutocomplete({
         (result.address && (result.address.house_number || result.address.road))
       )
 
-      console.log('📍 Filtered to', addressResults.length, 'address results')
+      if (debugEnabled) {
+        logDebug(
+          'LiveAddressAutocomplete: results received',
+          { totalResults: data.length, filteredResults: addressResults.length },
+          { force: true },
+        )
+      }
       setSuggestions(addressResults)
       setShowSuggestions(addressResults.length > 0)
       setSelectedIndex(-1)
     } catch (error) {
-      console.error('❌ Error searching addresses:', error)
+      logError('LiveAddressAutocomplete: error searching addresses', {
+        error: error instanceof Error ? error.message : error,
+      })
       setSuggestions([])
       setShowSuggestions(false)
     } finally {

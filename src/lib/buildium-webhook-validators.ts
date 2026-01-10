@@ -1,13 +1,12 @@
 import { z } from 'zod'
 import type {
   BuildiumGLAccount,
+  BuildiumGLAccountExtended,
   BuildiumProperty,
   BuildiumUnit,
   BuildiumVendor,
   BuildiumWorkOrder,
 } from '@/types/buildium'
-
-export type BuildiumGLAccountExtended = BuildiumGLAccount & { IsSecurityDepositLiability?: boolean | null }
 
 type ParseResult<T> =
   | { ok: true; data: T }

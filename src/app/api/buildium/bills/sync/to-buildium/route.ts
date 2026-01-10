@@ -5,6 +5,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { buildiumFetch } from '@/lib/buildium-http'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { mapTransactionBillToBuildium } from '@/lib/buildium-mappers'
+import type { BuildiumBillExtended } from '@/types/buildium'
 
 // POST /api/buildium/bills/sync/to-buildium
 // Body: { localId: string }
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to sync bill to Buildium', details: errorData }, { status: response.status })
     }
 
-    const buildiumBill = response.json ?? {}
+    const buildiumBill = (response.json ?? {}) as Partial<BuildiumBillExtended>
     const newBuildiumId = buildiumBill?.Id as number | undefined
     if (newBuildiumId && !isUpdate) {
       // Update local transaction with newly assigned Buildium Bill Id

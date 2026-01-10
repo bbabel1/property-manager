@@ -13,5 +13,5 @@
     }
   },
   "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["../node_modules", "../src/lib/nyc-api-client.ts"]
+  "exclude": ["../node_modules"]
 }

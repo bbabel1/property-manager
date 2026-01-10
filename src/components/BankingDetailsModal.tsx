@@ -9,6 +9,7 @@ import CreateBankAccountModal from './CreateBankAccountModal';
 import { Dropdown } from './ui/Dropdown';
 import type { BankGlAccountSummary, BankingDetailsFormValues } from '@/components/forms/types';
 import { fetchWithSupabaseAuth } from '@/lib/supabase/fetch';
+import { logError } from '@/shared/lib/logger';
 
 type BankingDetailsModalProps = {
   isOpen: boolean;
@@ -68,7 +69,10 @@ export default function BankingDetailsModal({
       const bankAccountsData = (await response.json()) as BankGlAccountSummary[];
       setBankAccounts(bankAccountsData);
     } catch (error) {
-      console.error('Error fetching bank accounts:', error);
+      logError('Error fetching bank accounts', {
+        error: error instanceof Error ? error.message : error,
+        propertyId: property.id,
+      });
       setError('Failed to fetch bank accounts');
     } finally {
       setIsLoadingBankAccounts(false);
@@ -81,8 +85,6 @@ export default function BankingDetailsModal({
     setError(null);
 
     try {
-      console.log('🔍 BankingDetailsModal: Submitting form data:', formData);
-
       const response = await fetchWithSupabaseAuth(`/api/properties/${property.id}/banking`, {
         method: 'PUT',
         headers: {
@@ -97,12 +99,14 @@ export default function BankingDetailsModal({
       }
 
       const result = await response.json();
-      console.log('Banking details updated successfully:', result);
 
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error updating banking details:', error);
+      logError('Error updating banking details', {
+        error: error instanceof Error ? error.message : error,
+        propertyId: property.id,
+      });
       setError(
         error instanceof Error
           ? error.message

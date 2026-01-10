@@ -122,3 +122,4 @@ After running the sync, check for balance drift:
 3. **No reconciliations found**: Check that bank accounts have `is_bank_account=true` and `buildium_gl_account_id` set
 4. **High unmatched count**: Verify transaction mapping between Buildium and local database
 
+

@@ -64,8 +64,8 @@
     "transactions": [],
     "reserve": 0,
     "expected": {
-      "cash_balance": 400,
-      "usedArFallback": true
+      "cash_balance": 0,
+      "usedArFallback": false
     }
   },
   {

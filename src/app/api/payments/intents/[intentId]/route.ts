@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth/guards';
 import { hasSupabaseAdmin } from '@/lib/supabase-client';
 import { supabaseAdmin } from '@/lib/db';
-import PaymentService from '@/lib/payments/payment-service';
+import PaymentIntentService from '@/lib/payments/payment-intent-service';
 
 export async function GET(
   _request: Request,
@@ -28,7 +28,7 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const payment = await PaymentService.findPaymentByIntentId(intentRow.org_id, intentId);
+    const payment = await PaymentIntentService.findPaymentByIntentId(intentRow.org_id, intentId);
 
     return NextResponse.json({
       data: {

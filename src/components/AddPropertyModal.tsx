@@ -471,7 +471,6 @@ export default function AddPropertyModal({
       }
 
       const result = await response.json();
-      console.log('Property created successfully:', result);
       setSubmitSuccess('Property created successfully');
 
       const propertyId: string | undefined = result?.property?.id;

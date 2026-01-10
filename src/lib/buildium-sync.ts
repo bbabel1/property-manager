@@ -282,6 +282,8 @@ const coerceInsertPayload = <T extends TableName>(value: unknown): TableInsert<T
   value as unknown as TableInsert<T>;
 const toStringId = (value: PrimitiveId): string => String(value);
 const toNumberId = (value: PrimitiveId): number => Number(value);
+const enableTenantPersist =
+  (process.env.BUILDIUM_TENANT_PERSIST_ENABLED || '').toLowerCase() !== 'false';
 
 export class BuildiumSyncService {
   /**
@@ -1735,6 +1737,7 @@ export class BuildiumSyncService {
       };
 
       let buildiumId: number | null = null;
+      let buildiumLeaseResponse: BuildiumLease | null = null;
 
       let propertyId = toNumber(localLease.buildium_property_id ?? localLease.PropertyId);
       let propertyOrgId: string | null = localLease.org_id ?? null;
@@ -2128,11 +2131,46 @@ export class BuildiumSyncService {
           buildiumRequestPayload as LeaseUpdateInput,
         );
         buildiumId = buildiumLease.Id;
+        buildiumLeaseResponse = buildiumLease;
         logger.info({ leaseId: localLease.id, buildiumId }, 'Lease updated in Buildium');
       } else {
         const buildiumLease = await client.createLease(buildiumRequestPayload as LeaseCreateInput);
         buildiumId = buildiumLease.Id;
+        buildiumLeaseResponse = buildiumLease;
         logger.info({ leaseId: localLease.id, buildiumId }, 'Lease created in Buildium');
+      }
+
+      if (buildiumLeaseResponse) {
+        const buildiumTenantIdsFromResponse = Array.isArray(buildiumLeaseResponse.Tenants)
+          ? buildiumLeaseResponse.Tenants.map((t) =>
+              t && typeof t.Id !== 'undefined' && t.Id !== null ? Number(t.Id) : null,
+            ).filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+          : [];
+        logger.info(
+          {
+            leaseId: localLease.id,
+            buildiumId,
+            buildiumTenantCount: Array.isArray(buildiumLeaseResponse.Tenants)
+              ? buildiumLeaseResponse.Tenants.length
+              : 0,
+            buildiumTenantIdsFromResponse,
+          },
+          'Buildium lease sync completed with tenant data',
+        );
+
+        // Persist any newly created Buildium tenant ids locally (feature-flagged)
+        if (enableTenantPersist) {
+          await this.persistBuildiumTenantIdsFromLease(
+            localLease.id,
+            buildiumLeaseResponse,
+            leaseOrgId,
+          );
+        } else {
+          logger.info(
+            { leaseId: localLease.id, buildiumId, feature: 'BUILDIUM_TENANT_PERSIST_ENABLED=false' },
+            'Skipping Buildium tenant persistence due to feature flag',
+          );
+        }
       }
 
       await db
@@ -2305,6 +2343,14 @@ export class BuildiumSyncService {
 
     if (error) throw error;
     const leaseContacts = (leaseContactsRaw ?? null) as LeaseContactQueryResult;
+
+    logger.info(
+      {
+        leaseId: localLease.id,
+        leaseContactsCount: Array.isArray(leaseContacts) ? leaseContacts.length : 0,
+      },
+      'Loaded lease contacts for Buildium tenant payload',
+    );
 
     if (!leaseContacts?.length) return { tenantIds: [], tenantDetails: [] };
 
@@ -2490,7 +2536,220 @@ export class BuildiumSyncService {
       tenantDetails.push(tenantPayload);
     }
 
+    logger.info(
+      {
+        leaseId: localLease.id,
+        tenantIdsCount: tenantIds.size,
+        tenantDetailsCount: tenantDetails.length,
+      },
+      'Prepared Buildium tenant payload',
+    );
+
     return { tenantIds: Array.from(tenantIds), tenantDetails };
+  }
+
+  private async persistBuildiumTenantIdsFromLease(
+    localLeaseId: PrimitiveId,
+    buildiumLease: BuildiumLease | null,
+    orgId?: string | null,
+  ): Promise<void> {
+    if (!buildiumLease) return;
+
+    const persons: Array<{
+      id: number | null;
+      email: string | null;
+      first: string | null;
+      last: string | null;
+      role: 'tenant' | 'guarantor';
+    }> = [];
+
+    const normalizeString = (v: unknown): string | null =>
+      typeof v === 'string' && v.trim().length ? v.trim() : null;
+    const normalizeEmail = (v: unknown): string | null =>
+      typeof v === 'string' && v.trim().length ? v.trim().toLowerCase() : null;
+
+    const pushPerson = (p: any, role: 'tenant' | 'guarantor') => {
+      const id = p?.Id != null ? Number(p.Id) : null;
+      persons.push({
+        id: Number.isFinite(id) ? id : null,
+        email: normalizeEmail(p?.Email ?? p?.AlternateEmail),
+        first: normalizeString(p?.FirstName ?? p?.first_name),
+        last: normalizeString(p?.LastName ?? p?.last_name),
+        role,
+      });
+    };
+
+    for (const t of Array.isArray(buildiumLease?.Tenants) ? buildiumLease.Tenants : []) {
+      pushPerson(t, 'tenant');
+    }
+    for (const c of Array.isArray((buildiumLease as any)?.Cosigners) ? (buildiumLease as any).Cosigners : []) {
+      pushPerson(c, 'guarantor');
+    }
+
+    if (!persons.length) return;
+
+    const db = supabaseAdmin || supabase;
+    const { data: leaseContacts, error } = await db
+      .from('lease_contacts')
+      .select(
+        `
+          id,
+          role,
+          tenant_id,
+          tenants:tenants (
+            buildium_tenant_id,
+            contact:contacts (
+              primary_email,
+              first_name,
+              last_name,
+              company_name,
+              is_company
+            )
+          )
+        `,
+      )
+      .eq('lease_id', toNumberId(localLeaseId));
+    if (error) {
+      logger.warn(
+        { leaseId: localLeaseId, error: error.message },
+        'Failed to load lease contacts for Buildium tenant persistence',
+      );
+      return;
+    }
+
+    type LeaseContactCandidate = {
+      leaseContactId: string;
+      tenantId: PrimitiveId;
+      role: string;
+      email: string | null;
+      nameKey: string | null;
+      existingBuildiumId: number | null;
+    };
+
+    const candidates: LeaseContactCandidate[] = [];
+    for (const row of leaseContacts || []) {
+      const lcRole = (row?.role ?? '').toString().trim().toLowerCase();
+      const tenantRecord = Array.isArray((row as any)?.tenants)
+        ? (row as any).tenants[0]
+        : (row as any).tenants;
+      const contactRecord = tenantRecord?.contact
+        ? Array.isArray(tenantRecord.contact)
+          ? tenantRecord.contact[0]
+          : tenantRecord.contact
+        : null;
+      const email = normalizeEmail(contactRecord?.primary_email);
+      const first = normalizeString(contactRecord?.first_name);
+      const last = normalizeString(contactRecord?.last_name);
+      const nameKey =
+        first && last
+          ? `${first.toLowerCase()}|${last.toLowerCase()}`
+          : first
+            ? `${first.toLowerCase()}|`
+            : last
+              ? `|${last.toLowerCase()}`
+              : null;
+      candidates.push({
+        leaseContactId: String(row?.id ?? ''),
+        tenantId: (row as any)?.tenant_id,
+        role: lcRole,
+        email,
+        nameKey,
+        existingBuildiumId: tenantRecord?.buildium_tenant_id
+          ? Number(tenantRecord.buildium_tenant_id)
+          : null,
+      });
+    }
+
+    const matchedLeaseContacts = new Set<string>();
+    let updatedCount = 0;
+
+    const findMatch = (person: typeof persons[number]): LeaseContactCandidate | null => {
+      // role mapping: tenant -> 'tenant', guarantor -> 'guarantor'
+      const roleMatches = candidates.filter(
+        (c) => !matchedLeaseContacts.has(c.leaseContactId) && c.role === person.role,
+      );
+      const byEmail =
+        person.email &&
+        roleMatches.find((c) => c.email && c.email.toLowerCase() === person.email!.toLowerCase());
+      if (byEmail) return byEmail;
+      const personNameKey =
+        person.first || person.last
+          ? `${(person.first || '').toLowerCase()}|${(person.last || '').toLowerCase()}`
+          : null;
+      if (personNameKey) {
+        const byName = roleMatches.find((c) => c.nameKey === personNameKey);
+        if (byName) return byName;
+      }
+      return null;
+    };
+
+    for (const person of persons) {
+      if (!person.id) continue;
+      const match = findMatch(person);
+      if (!match) continue;
+      matchedLeaseContacts.add(match.leaseContactId);
+
+      if (match.existingBuildiumId === person.id) continue;
+      if (match.existingBuildiumId && match.existingBuildiumId !== person.id) {
+        logger.warn(
+          {
+            leaseId: localLeaseId,
+            tenantId: match.tenantId,
+            existingBuildiumId: match.existingBuildiumId,
+            buildiumPersonId: person.id,
+            role: match.role,
+          },
+          'Skipping Buildium tenant id update because a different id is already set',
+        );
+        continue;
+      }
+
+      const { error: updateError } = await db
+        .from('tenants')
+        .update({
+          buildium_tenant_id: person.id,
+          updated_at: new Date().toISOString(),
+          ...(orgId ? { org_id: orgId } : {}),
+        })
+        .eq('id', toStringId(match.tenantId));
+      if (updateError) {
+        logger.warn(
+          {
+            leaseId: localLeaseId,
+            tenantId: match.tenantId,
+            buildiumPersonId: person.id,
+            error: updateError.message,
+          },
+          'Failed to persist Buildium tenant id after lease sync',
+        );
+        continue;
+      }
+      updatedCount += 1;
+    }
+
+    logger.info(
+      {
+        leaseId: localLeaseId,
+        buildiumId: buildiumLease.Id,
+        personsEvaluated: persons.length,
+        leaseContacts: candidates.length,
+        updatedCount,
+      },
+      'Persisted Buildium tenant ids after lease sync',
+    );
+
+    if (persons.length > 0 && updatedCount === 0) {
+      const ids = persons.map((p) => p.id).filter(Boolean);
+      logger.warn(
+        {
+          leaseId: localLeaseId,
+          buildiumId: buildiumLease.Id,
+          buildiumTenantIds: ids,
+          message: 'No local tenant rows updated after Buildium sync',
+        },
+        'Buildium tenant ids were present but did not persist locally',
+      );
+    }
   }
 
   private async ensureBuildiumTenantId(
@@ -2501,6 +2760,15 @@ export class BuildiumSyncService {
     orgId?: string,
   ): Promise<number | null> {
     try {
+      logger.info(
+        {
+          tenantId: tenantRecord?.id,
+          orgId,
+          hasEmail: Boolean(contactData.email),
+          hasPhone: Boolean(contactData.phoneNumbers),
+        },
+        'Attempting to resolve Buildium tenant id for lease sync',
+      );
       const payload: TenantEdgeCreatePayload = {
         FirstName: contactData.firstName || 'Tenant',
         LastName: contactData.lastName || 'Tenant',
@@ -2524,10 +2792,134 @@ export class BuildiumSyncService {
 
       let buildiumTenantId: number | null = null;
 
+      const normalizePhone = (raw?: string | null): string | null => {
+        if (!raw) return null;
+        const digits = String(raw).replace(/\D+/g, '');
+        if (!digits) return null;
+        return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+      };
+
+      const persistTenantIdLocally = async (id: number): Promise<number | null> => {
+        if (!id || Number.isNaN(id) || !tenantRecord?.id) return null;
+        const { error: updateError } = await db
+          .from('tenants')
+          .update({ buildium_tenant_id: id, updated_at: new Date().toISOString() })
+          .eq('id', toStringId(tenantRecord.id));
+
+        if (updateError) {
+          logger.error(
+            { tenantId: tenantRecord.id, buildiumTenantId: id, error: updateError },
+            'Failed to update tenant with buildium_tenant_id',
+          );
+          return null;
+        }
+
+        logger.info(
+          { tenantId: tenantRecord.id, buildiumTenantId: id },
+          'Successfully updated tenant with buildium_tenant_id',
+        );
+        return id;
+      };
+
+      const lookupExistingBuildiumTenantId = async (): Promise<number | null> => {
+        const candidates: any[] = [];
+        const addCandidates = (list: any) => {
+          if (Array.isArray(list)) candidates.push(...list);
+        };
+        if (client) {
+          try {
+            const list = await client.makeRequest<any[]>('GET', '/rentals/tenants?limit=200');
+            addCandidates(list);
+          } catch (err) {
+            logger.debug(
+              { error: err instanceof Error ? err.message : String(err) },
+              'Tenant lookup via Buildium client failed',
+            );
+          }
+        }
+        if (!candidates.length) {
+          try {
+            const edgeClient = await getOrgScopedBuildiumEdgeClient(orgId);
+            const res = await edgeClient.listTenantsFromBuildium({ limit: 200 });
+            if (res.success && Array.isArray(res.data)) addCandidates(res.data);
+          } catch (err) {
+            logger.debug(
+              { error: err instanceof Error ? err.message : String(err) },
+              'Tenant lookup via Edge client failed',
+            );
+          }
+        }
+        if (!candidates.length) return null;
+
+        const emailLower = contactData.email ? contactData.email.toLowerCase() : null;
+        const phoneSet = new Set<string>();
+        if (contactData.phoneNumbers?.Mobile) {
+          const n = normalizePhone(contactData.phoneNumbers.Mobile);
+          if (n) phoneSet.add(n);
+        }
+        if (contactData.phoneNumbers?.Work) {
+          const n = normalizePhone(contactData.phoneNumbers.Work);
+          if (n) phoneSet.add(n);
+        }
+        if (contactData.phoneNumbers?.Home) {
+          const n = normalizePhone(contactData.phoneNumbers.Home);
+          if (n) phoneSet.add(n);
+        }
+        const nameKey =
+          (contactData.firstName || contactData.lastName) && !contactData.isCompany
+            ? `${(contactData.firstName || '').toLowerCase()}|${(contactData.lastName || '').toLowerCase()}`
+            : null;
+
+        const extractPhones = (candidate: any): string[] => {
+          const phones = candidate?.PhoneNumbers || candidate?.phoneNumbers || {};
+          const out: string[] = [];
+          if (Array.isArray(phones)) {
+            for (const p of phones) {
+              const n = normalizePhone((p as any)?.Number);
+              if (n) out.push(n);
+            }
+          } else if (phones && typeof phones === 'object') {
+            for (const v of Object.values(phones as Record<string, unknown>)) {
+              const n = normalizePhone(typeof v === 'string' ? v : (v as any)?.Number);
+              if (n) out.push(n);
+            }
+          }
+          return out;
+        };
+
+        for (const candidate of candidates) {
+          const candidateId = candidate?.Id != null ? Number(candidate.Id) : null;
+          if (!candidateId || Number.isNaN(candidateId)) continue;
+
+          const candEmail =
+            typeof candidate?.Email === 'string'
+              ? candidate.Email.toLowerCase()
+              : typeof candidate?.AlternateEmail === 'string'
+                ? candidate.AlternateEmail.toLowerCase()
+                : null;
+          if (emailLower && candEmail === emailLower) return candidateId;
+
+          const candPhones = extractPhones(candidate);
+          if (phoneSet.size && candPhones.some((p) => phoneSet.has(p))) return candidateId;
+
+          const candNameKey =
+            candidate?.FirstName || candidate?.LastName
+              ? `${String(candidate.FirstName || '').toLowerCase()}|${String(candidate.LastName || '').toLowerCase()}`
+              : null;
+          if (nameKey && candNameKey === nameKey) return candidateId;
+        }
+        return null;
+      };
+
+      // Try to find existing tenant before creating to avoid duplicates
+      const existingTenantId = await lookupExistingBuildiumTenantId();
+      if (existingTenantId) {
+        const persisted = await persistTenantIdLocally(existingTenantId);
+        if (persisted) return persisted;
+      }
+
       if (client) {
         try {
-          // Use /rentals/tenants for creating standalone tenants (before lease exists)
-          // /leases/tenants requires LeaseId and is for adding tenants to existing leases
           const created = await client.makeRequest<{ Id?: number | string | null }>(
             'POST',
             '/rentals/tenants',
@@ -2536,13 +2928,26 @@ export class BuildiumSyncService {
           const createdId = created?.Id ?? null;
           buildiumTenantId = createdId != null ? Number(createdId) : null;
         } catch (apiError) {
+          const message = apiError instanceof Error ? apiError.message : String(apiError);
           logger.debug(
             {
               tenantId: tenantRecord.id,
-              error: apiError instanceof Error ? apiError.message : String(apiError),
+              error: message,
             },
-            'Standalone tenant creation not available (expected); tenant will be created as part of lease',
+            'Standalone tenant creation not available (expected); attempting lookup',
           );
+          const fallbackTenantId = await lookupExistingBuildiumTenantId();
+          if (fallbackTenantId) {
+            const persisted = await persistTenantIdLocally(fallbackTenantId);
+            if (persisted) return persisted;
+          }
+          // If duplicate/exists, let lease payload create or reuse
+          if (!/409/i.test(message) && !/duplicate/i.test(message) && !/exists/i.test(message)) {
+            logger.info(
+              { tenantId: tenantRecord.id, error: message },
+              'Will rely on lease payload tenant creation',
+            );
+          }
         }
       }
 
@@ -2555,6 +2960,11 @@ export class BuildiumSyncService {
         if (result.success && result.data?.Id) {
           buildiumTenantId = Number(result.data.Id);
         } else {
+          const fallbackTenantId = await lookupExistingBuildiumTenantId();
+          if (fallbackTenantId) {
+            const persisted = await persistTenantIdLocally(fallbackTenantId);
+            if (persisted) return persisted;
+          }
           logger.info(
             { tenantId: tenantRecord.id, error: result.error },
             'Standalone tenant creation not available; tenant will be created as part of lease creation',
@@ -2570,24 +2980,7 @@ export class BuildiumSyncService {
 
       if (!tenantRecord?.id) return null;
 
-      const { error: updateError } = await db
-        .from('tenants')
-        .update({ buildium_tenant_id: buildiumTenantId, updated_at: new Date().toISOString() })
-        .eq('id', toStringId(tenantRecord.id));
-
-      if (updateError) {
-        logger.error(
-          { tenantId: tenantRecord.id, buildiumTenantId, error: updateError },
-          'Failed to update tenant with buildium_tenant_id',
-        );
-        return null;
-      }
-
-      logger.info(
-        { tenantId: tenantRecord.id, buildiumTenantId },
-        'Successfully updated tenant with buildium_tenant_id',
-      );
-      return buildiumTenantId;
+      return await persistTenantIdLocally(buildiumTenantId);
     } catch (error) {
       logger.error(
         { tenantId: tenantRecord?.id, error },

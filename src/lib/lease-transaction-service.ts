@@ -246,6 +246,27 @@ export class LeaseTransactionService {
     );
 
     if (params?.persist) {
+      let orgIdForHeader = params.orgId ?? null;
+      if (!orgIdForHeader) {
+        const { data: leaseRow, error: leaseErr } = await supabaseAdmin
+          .from('lease')
+          .select('org_id')
+          .eq('buildium_lease_id', leaseId)
+          .maybeSingle();
+        if (leaseErr) {
+          logger.error(
+            { leaseId, error: leaseErr.message },
+            'Failed to resolve org for lease transactions persistence',
+          );
+        }
+        orgIdForHeader = (leaseRow as { org_id?: string | null } | null)?.org_id ?? null;
+      }
+
+      if (!orgIdForHeader) {
+        logger.warn({ leaseId }, 'Skipping lease transaction persistence: org_id not resolved');
+        return items;
+      }
+
       for (const tx of items) {
         try {
           const header = mapLeaseTransactionFromBuildium(tx);
@@ -261,16 +282,17 @@ export class LeaseTransactionService {
           }
 
           const timestamp = new Date().toISOString();
+          const headerWithOrg = { ...header, org_id: orgIdForHeader };
           if (existing) {
             await supabaseAdmin
               .from('transactions')
-              .update({ ...header, updated_at: timestamp })
+              .update({ ...headerWithOrg, updated_at: timestamp })
               .eq('id', existing.id);
           } else {
             await supabaseAdmin
               .from('transactions')
               .insert({
-                ...header,
+                ...headerWithOrg,
                 created_at: timestamp,
                 updated_at: timestamp,
               });

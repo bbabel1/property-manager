@@ -23,10 +23,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const propertyId = searchParams.get('propertyId');
-    const unitId = searchParams.get('unitId');
+    const propertyId = searchParams.get('propertyId') || null;
+    const unitId = searchParams.get('unitId') || null;
+    const scopeValueForQuery = propertyId ?? unitId;
 
-    if (!propertyId && !unitId) {
+    if (!scopeValueForQuery) {
       return NextResponse.json(
         { error: { code: 'BAD_REQUEST', message: 'propertyId or unitId is required' } },
         { status: 400 },
@@ -34,8 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
-    const scopeColumn = propertyId ? 'property_id' : 'unit_id';
-    const scopeValue = propertyId || unitId;
+    const scopeColumn: 'property_id' | 'unit_id' = propertyId ? 'property_id' : 'unit_id';
 
     const db = supabaseAdmin ?? supabase;
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
         'id, plan_id, property_id, unit_id, plan_fee_amount, plan_fee_percent, plan_fee_frequency, service_plans(name)',
       )
       .eq('org_id', orgId)
-      .eq(scopeColumn, scopeValue)
+      .eq(scopeColumn, scopeValueForQuery)
       .is('effective_end', null)
       .order('effective_start', { ascending: false })
       .limit(1)
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     if (assignmentError) {
       logger.error(
-        { error: assignmentError, userId: user.id, orgId, scopeColumn, scopeValue },
+        { error: assignmentError, userId: user.id, orgId, scopeColumn, scopeValue: scopeValueForQuery },
         'Error fetching service plan assignment',
       );
       return NextResponse.json(

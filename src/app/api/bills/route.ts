@@ -48,6 +48,10 @@ const normalizeEntityId = (value?: string | null) => {
 
 type TransactionInsert = DatabaseSchema['public']['Tables']['transactions']['Insert'];
 type TransactionLineInsert = DatabaseSchema['public']['Tables']['transaction_lines']['Insert'];
+type ApprovalState = DatabaseSchema['public']['Enums']['approval_state_enum'];
+const APPROVAL_STATES: ApprovalState[] = ['draft', 'pending_approval', 'approved', 'rejected', 'voided'];
+const isApprovalState = (value: string): value is ApprovalState =>
+  APPROVAL_STATES.includes(value as ApprovalState);
 
 export async function GET(request: Request) {
   const { roles } = await requireAuth();
@@ -56,7 +60,8 @@ export async function GET(request: Request) {
   }
 
   const searchParams = new URL(request.url).searchParams;
-  const approvalState = searchParams.get('approval_state');
+  const approvalStateRaw = searchParams.get('approval_state');
+  const approvalStateValue = approvalStateRaw?.trim() || null;
 
   let query = supabaseAdmin
     .from('transactions')
@@ -65,7 +70,11 @@ export async function GET(request: Request) {
     )
     .eq('transaction_type', 'Bill');
 
-  if (approvalState) {
+  if (approvalStateValue) {
+    if (!isApprovalState(approvalStateValue)) {
+      return NextResponse.json({ error: 'Invalid approval_state' }, { status: 400 });
+    }
+    const approvalState: ApprovalState = approvalStateValue;
     query = query.eq('bill_workflow.approval_state', approvalState);
   }
 

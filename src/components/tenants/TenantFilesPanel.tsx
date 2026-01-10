@@ -207,19 +207,16 @@ export default function TenantFilesPanel({
                           <ActionButton aria-label="Actions" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => console.log('Delete file', file.id)}
-                          >
+                          <DropdownMenuItem className="text-destructive focus:text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('Email file', file.id)}>
+                          <DropdownMenuItem>
                             <Mail className="mr-2 h-4 w-4" /> Email
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('Download file', file.id)}>
+                          <DropdownMenuItem>
                             <Download className="mr-2 h-4 w-4" /> Download
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => console.log('View file', file.id)}>
+                          <DropdownMenuItem>
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
                         </DropdownMenuContent>

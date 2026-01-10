@@ -313,6 +313,7 @@ const normalizeLiability = (value: MaybeNumber): number => {
 };
 
 const isPaymentLikeTx = (tx: BasicTransaction): boolean => {
+  if (isChargeLikeTx(tx)) return false;
   const typeRaw =
     tx?.transaction_type ?? tx?.TransactionType ?? tx?.TransactionTypeEnum ?? tx?.type ?? '';
   const type = String(typeRaw || '').toLowerCase();
@@ -325,10 +326,34 @@ const isPaymentLikeTx = (tx: BasicTransaction): boolean => {
   );
 };
 
+const isChargeLikeTx = (tx: BasicTransaction): boolean => {
+  const typeRaw =
+    tx?.transaction_type ?? tx?.TransactionType ?? tx?.TransactionTypeEnum ?? tx?.type ?? '';
+  const type = String(typeRaw || '').toLowerCase();
+  return (
+    type.includes('charge') ||
+    type.includes('invoice') ||
+    type.includes('debit') ||
+    type.includes('bill') ||
+    type.includes('fee')
+  );
+};
+
 export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult {
   let transactionLines = Array.isArray(params.transactionLines) ? params.transactionLines : [];
   const transactions = Array.isArray(params.transactions) ? params.transactions : [];
   const propertyReserve = normalizeNumber(params.propertyReserve ?? 0);
+  const txKindById = new Map<string, 'payment' | 'charge'>();
+
+  for (const tx of transactions) {
+    const txId = tx?.id != null ? String(tx.id) : '';
+    if (!txId) continue;
+    if (isPaymentLikeTx(tx)) {
+      txKindById.set(txId, 'payment');
+    } else if (isChargeLikeTx(tx)) {
+      txKindById.set(txId, 'charge');
+    }
+  }
 
   // Filter by entity type if provided
   if (params.entityType) {
@@ -352,10 +377,17 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
   for (const line of transactionLines) {
     const txIdRaw = line?.transaction_id;
     const txId = txIdRaw != null ? String(txIdRaw) : '';
+    const txKind = txId ? txKindById.get(txId) : undefined;
     const { bankSigned, depositSigned, prepaySigned, arSigned, flags } = classifyLine(line);
     bankTotal += bankSigned;
-    depositTotal += depositSigned;
-    prepayTotal += prepaySigned;
+    const includeLiability =
+      txKind !== 'charge' ||
+      // If we do not have a transaction type for the line, keep legacy behavior to avoid losing data
+      txKind === undefined;
+    if (includeLiability) {
+      depositTotal += depositSigned;
+      prepayTotal += prepaySigned;
+    }
     arFallback += arSigned;
     if (flags.bank) {
       bankLineCount++;
@@ -462,6 +494,23 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
   }).catch(() => {});
   // #endregion
 
+  // Heuristic correction:
+  // In some edge cases (notably tenant security deposit payments routed to Undeposited Funds),
+  // Buildium/journal ingestion can produce bank lines whose sign matches the deposit liability
+  // (e.g., bankTotal = -2500 and depositsHeld = -2500), even though economically the deposit
+  // represents cash held, not a cash outflow. When we have bank lines, no reliable payment
+  // header amount, and the bank/deposit totals move in lockstep, treat the bank total as
+  // positive cash so that cash_balance and available_balance stay consistent.
+  if (
+    bankLineCount > 0 &&
+    !paymentsTotal &&
+    depositsHeld < 0 &&
+    bankTotal < 0 &&
+    Math.abs(Math.abs(bankTotal) - Math.abs(depositsHeld)) < 0.0001
+  ) {
+    bankTotal = -bankTotal;
+  }
+
   let usedPaymentFallback = false;
   const incompleteBankLines =
     bankLineCount > 0 &&
@@ -526,24 +575,6 @@ export function rollupFinances(params: FinanceRollupParams): FinanceRollupResult
         location: 'finance/model.ts:318',
         message: 'Using paymentsTotal (no bank lines)',
         data: { cashBalance: paymentsTotal },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        runId: 'run1',
-        hypothesisId: 'C',
-      }),
-    }).catch(() => {});
-    // #endregion
-  } else if (arFallback) {
-    cashBalance = arFallback;
-    usedArFallback = true;
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10e44e33-6af1-4518-9366-235df67f3a5e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: 'finance/model.ts:321',
-        message: 'Using arFallback',
-        data: { cashBalance: arFallback },
         timestamp: Date.now(),
         sessionId: 'debug-session',
         runId: 'run1',

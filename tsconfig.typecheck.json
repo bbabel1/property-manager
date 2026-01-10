@@ -7,16 +7,6 @@
   ],
   "exclude": [
     "node_modules",
-    ".next/**",
-    "scripts",
-    "backups",
-    "supabase/functions",
-    "src/app/api/**/*",
-    "src/lib/webhooks.ts",
-    "src/lib/relationship-resolver.ts",
-    "src/lib/hooks/useSupabase.ts",
-    "src/lib/data-integrity-validator.ts",
-    "src/lib/nyc-api-client.ts",
-    "src/schemas/buildium.ts"
+    "supabase/functions/**"
   ]
 }

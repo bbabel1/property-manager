@@ -89,34 +89,34 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 1. **Create `charges` table**:
    ```sql
-               CREATE TABLE public.charges (
-                 id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                 org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-                 lease_id bigint NOT NULL REFERENCES public.lease(id) ON DELETE CASCADE,
-                 transaction_id uuid REFERENCES public.transactions(id) ON DELETE SET NULL,
-                 
-                 -- Charge details
-                 charge_type text NOT NULL, -- 'rent', 'late_fee', 'utility', 'other'
-                 amount numeric(14,2) NOT NULL,
-                 due_date date NOT NULL,
-                 description text,
-                 
-                 -- Proration tracking
-                 is_prorated boolean DEFAULT false,
-                 proration_days integer,
-                 base_amount numeric(14,2), -- Original amount before proration
-                 
-                 -- Status
-                 status text NOT NULL DEFAULT 'open', -- 'open', 'paid', 'cancelled'
-                 paid_amount numeric(14,2) DEFAULT 0,
-                 
-                 -- Buildium sync
-                 buildium_charge_id integer,
-                 
-                 -- Timestamps
-                 created_at timestamptz NOT NULL DEFAULT now(),
-                 updated_at timestamptz NOT NULL DEFAULT now()
-               );
+                           CREATE TABLE public.charges (
+                             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                             org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+                             lease_id bigint NOT NULL REFERENCES public.lease(id) ON DELETE CASCADE,
+                             transaction_id uuid REFERENCES public.transactions(id) ON DELETE SET NULL,
+                             
+                             -- Charge details
+                             charge_type text NOT NULL, -- 'rent', 'late_fee', 'utility', 'other'
+                             amount numeric(14,2) NOT NULL,
+                             due_date date NOT NULL,
+                             description text,
+                             
+                             -- Proration tracking
+                             is_prorated boolean DEFAULT false,
+                             proration_days integer,
+                             base_amount numeric(14,2), -- Original amount before proration
+                             
+                             -- Status
+                             status text NOT NULL DEFAULT 'open', -- 'open', 'paid', 'cancelled'
+                             paid_amount numeric(14,2) DEFAULT 0,
+                             
+                             -- Buildium sync
+                             buildium_charge_id integer,
+                             
+                             -- Timestamps
+                             created_at timestamptz NOT NULL DEFAULT now(),
+                             updated_at timestamptz NOT NULL DEFAULT now()
+                           );
    ```
 
 
@@ -124,26 +124,26 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 2. **Create `receivables` table** (aggregates charges for a lease):
    ```sql
-               CREATE TABLE public.receivables (
-                 id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                 org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-                 lease_id bigint NOT NULL REFERENCES public.lease(id) ON DELETE CASCADE,
-                 
-                 -- Receivable details
-                 receivable_type text NOT NULL, -- 'rent', 'fee', 'utility', 'other'
-                 total_amount numeric(14,2) NOT NULL,
-                 due_date date NOT NULL,
-                 description text,
-                 
-                 -- Status
-                 status text NOT NULL DEFAULT 'open', -- 'open', 'partial', 'paid', 'cancelled'
-                 paid_amount numeric(14,2) DEFAULT 0,
-                 outstanding_amount numeric(14,2) NOT NULL,
-                 
-                 -- Timestamps
-                 created_at timestamptz NOT NULL DEFAULT now(),
-                 updated_at timestamptz NOT NULL DEFAULT now()
-               );
+                           CREATE TABLE public.receivables (
+                             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                             org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+                             lease_id bigint NOT NULL REFERENCES public.lease(id) ON DELETE CASCADE,
+                             
+                             -- Receivable details
+                             receivable_type text NOT NULL, -- 'rent', 'fee', 'utility', 'other'
+                             total_amount numeric(14,2) NOT NULL,
+                             due_date date NOT NULL,
+                             description text,
+                             
+                             -- Status
+                             status text NOT NULL DEFAULT 'open', -- 'open', 'partial', 'paid', 'cancelled'
+                             paid_amount numeric(14,2) DEFAULT 0,
+                             outstanding_amount numeric(14,2) NOT NULL,
+                             
+                             -- Timestamps
+                             created_at timestamptz NOT NULL DEFAULT now(),
+                             updated_at timestamptz NOT NULL DEFAULT now()
+                           );
    ```
 
 
@@ -151,19 +151,19 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 3. **Create `payment_allocations` table** (links payments to specific charges):
    ```sql
-               CREATE TABLE public.payment_allocations (
-                 id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                 org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-                 payment_transaction_id uuid NOT NULL REFERENCES public.transactions(id) ON DELETE CASCADE,
-                 charge_id uuid NOT NULL REFERENCES public.charges(id) ON DELETE CASCADE,
-                 
-                 -- Allocation details
-                 allocated_amount numeric(14,2) NOT NULL,
-                 allocation_order integer NOT NULL, -- For deterministic ordering
-                 
-                 -- Timestamps
-                 created_at timestamptz NOT NULL DEFAULT now()
-               );
+                           CREATE TABLE public.payment_allocations (
+                             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                             org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+                             payment_transaction_id uuid NOT NULL REFERENCES public.transactions(id) ON DELETE CASCADE,
+                             charge_id uuid NOT NULL REFERENCES public.charges(id) ON DELETE CASCADE,
+                             
+                             -- Allocation details
+                             allocated_amount numeric(14,2) NOT NULL,
+                             allocation_order integer NOT NULL, -- For deterministic ordering
+                             
+                             -- Timestamps
+                             created_at timestamptz NOT NULL DEFAULT now()
+                           );
    ```
 
 
@@ -215,21 +215,21 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 1. **Create `AllocationEngine` class** with transaction-safe allocation:
    ```typescript
-               class AllocationEngine {
-                 async allocatePayment(
-                   paymentAmount: number,
-                   leaseId: number,
-                   paymentTransactionId: string,
-                   allocationOrder?: AllocationOrder,
-                   manualAllocations?: ManualAllocation[],
-                   externalId?: string // For idempotent retries
-                 ): Promise<AllocationResult>
-                 
-                 async getOutstandingCharges(
-                   leaseId: number,
-                   order: AllocationOrder
-                 ): Promise<Charge[]>
-               }
+                           class AllocationEngine {
+                             async allocatePayment(
+                               paymentAmount: number,
+                               leaseId: number,
+                               paymentTransactionId: string,
+                               allocationOrder?: AllocationOrder,
+                               manualAllocations?: ManualAllocation[],
+                               externalId?: string // For idempotent retries
+                             ): Promise<AllocationResult>
+                             
+                             async getOutstandingCharges(
+                               leaseId: number,
+                               order: AllocationOrder
+                             ): Promise<Charge[]>
+                           }
    ```
 
 
@@ -276,36 +276,36 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 1. **Create `charge_schedules` table** with org scoping and GL account linkage:
    ```sql
-               CREATE TABLE public.charge_schedules (
-                 id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-                 org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-                 lease_id bigint NOT NULL REFERENCES public.lease(id) ON DELETE CASCADE,
-                 gl_account_id uuid NOT NULL REFERENCES public.gl_accounts(id) ON DELETE RESTRICT,
-                 
-                 -- Schedule details
-                 charge_type charge_type_enum NOT NULL,
-                 amount numeric(14,2) NOT NULL CHECK (amount >= 0),
-                 frequency rent_cycle_enum NOT NULL, -- Reuse existing enum
-                 start_date date NOT NULL,
-                 end_date date, -- Optional end date
-                 max_occurrences integer, -- Alternative end condition
-                 description text,
-                 
-                 -- Timezone-safe date handling (store as date, compute in UTC)
-                 timezone text DEFAULT 'UTC',
-                 
-                 -- Status
-                 is_active boolean DEFAULT true,
-                 
-                 -- Timestamps
-                 created_at timestamptz NOT NULL DEFAULT now(),
-                 updated_at timestamptz NOT NULL DEFAULT now()
-               );
-               
-               -- Index for schedule lookup
-               CREATE INDEX idx_charge_schedules_lease_active 
-                 ON public.charge_schedules(lease_id, is_active) 
-                 WHERE is_active = true;
+                           CREATE TABLE public.charge_schedules (
+                             id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                             org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+                             lease_id bigint NOT NULL REFERENCES public.lease(id) ON DELETE CASCADE,
+                             gl_account_id uuid NOT NULL REFERENCES public.gl_accounts(id) ON DELETE RESTRICT,
+                             
+                             -- Schedule details
+                             charge_type charge_type_enum NOT NULL,
+                             amount numeric(14,2) NOT NULL CHECK (amount >= 0),
+                             frequency rent_cycle_enum NOT NULL, -- Reuse existing enum
+                             start_date date NOT NULL,
+                             end_date date, -- Optional end date
+                             max_occurrences integer, -- Alternative end condition
+                             description text,
+                             
+                             -- Timezone-safe date handling (store as date, compute in UTC)
+                             timezone text DEFAULT 'UTC',
+                             
+                             -- Status
+                             is_active boolean DEFAULT true,
+                             
+                             -- Timestamps
+                             created_at timestamptz NOT NULL DEFAULT now(),
+                             updated_at timestamptz NOT NULL DEFAULT now()
+                           );
+                           
+                           -- Index for schedule lookup
+                           CREATE INDEX idx_charge_schedules_lease_active 
+                             ON public.charge_schedules(lease_id, is_active) 
+                             WHERE is_active = true;
    ```
 
 
@@ -313,10 +313,10 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 2. **Add `charge_schedule_id` to charges table**:
    ```sql
-               ALTER TABLE public.charges 
-                 ADD COLUMN charge_schedule_id uuid REFERENCES public.charge_schedules(id) ON DELETE SET NULL;
-               
-               CREATE INDEX idx_charges_schedule_id ON public.charges(charge_schedule_id);
+                           ALTER TABLE public.charges 
+                             ADD COLUMN charge_schedule_id uuid REFERENCES public.charge_schedules(id) ON DELETE SET NULL;
+                           
+                           CREATE INDEX idx_charges_schedule_id ON public.charges(charge_schedule_id);
    ```
 
 
@@ -363,14 +363,14 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 - Create `returned_payment_policies` table for org-level config:
      ```sql
-                     CREATE TABLE public.returned_payment_policies (
-                       org_id uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
-                       auto_create_nsf_fee boolean DEFAULT false,
-                       nsf_fee_amount numeric(14,2),
-                       nsf_fee_gl_account_id uuid REFERENCES public.gl_accounts(id),
-                       created_at timestamptz NOT NULL DEFAULT now(),
-                       updated_at timestamptz NOT NULL DEFAULT now()
-                     );
+                                         CREATE TABLE public.returned_payment_policies (
+                                           org_id uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
+                                           auto_create_nsf_fee boolean DEFAULT false,
+                                           nsf_fee_amount numeric(14,2),
+                                           nsf_fee_gl_account_id uuid REFERENCES public.gl_accounts(id),
+                                           created_at timestamptz NOT NULL DEFAULT now(),
+                                           updated_at timestamptz NOT NULL DEFAULT now()
+                                         );
      ```
 
 
@@ -400,15 +400,15 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 - Extend `org_gl_settings` or create `org_control_accounts` table:
      ```sql
-                     CREATE TABLE public.org_control_accounts (
-                       org_id uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
-                       ar_account_id uuid NOT NULL REFERENCES public.gl_accounts(id),
-                       undeposited_funds_account_id uuid REFERENCES public.gl_accounts(id),
-                       late_fee_income_account_id uuid REFERENCES public.gl_accounts(id),
-                       rent_income_account_id uuid NOT NULL REFERENCES public.gl_accounts(id),
-                       created_at timestamptz NOT NULL DEFAULT now(),
-                       updated_at timestamptz NOT NULL DEFAULT now()
-                     );
+                                         CREATE TABLE public.org_control_accounts (
+                                           org_id uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
+                                           ar_account_id uuid NOT NULL REFERENCES public.gl_accounts(id),
+                                           undeposited_funds_account_id uuid REFERENCES public.gl_accounts(id),
+                                           late_fee_income_account_id uuid REFERENCES public.gl_accounts(id),
+                                           rent_income_account_id uuid NOT NULL REFERENCES public.gl_accounts(id),
+                                           created_at timestamptz NOT NULL DEFAULT now(),
+                                           updated_at timestamptz NOT NULL DEFAULT now()
+                                         );
      ```
 
 
@@ -441,13 +441,13 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 - Add JSONB `metadata` column to `transactions` table if not exists:
      ```sql
-                     ALTER TABLE public.transactions 
-                       ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
-                     
-                     CREATE INDEX idx_transactions_metadata_charge_id 
-                       ON public.transactions USING gin ((metadata->>'charge_id'));
-                     CREATE INDEX idx_transactions_metadata_payment_id 
-                       ON public.transactions USING gin ((metadata->>'payment_id'));
+                                         ALTER TABLE public.transactions 
+                                           ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+                                         
+                                         CREATE INDEX idx_transactions_metadata_charge_id 
+                                           ON public.transactions USING gin ((metadata->>'charge_id'));
+                                         CREATE INDEX idx_transactions_metadata_payment_id 
+                                           ON public.transactions USING gin ((metadata->>'payment_id'));
      ```
 
 
@@ -527,30 +527,30 @@ This plan aligns the repository's tenant ledger, rent charges, payments, and pos
 
 - Compare AR subledger (sum of `charges.amount_open`) vs AR GL balance:
      ```sql
-                     -- AR Subledger (charges)
-                     SELECT org_id, SUM(amount_open) as ar_subledger_balance
-                     FROM public.charges
-                     WHERE status IN ('open', 'partial')
-                     GROUP BY org_id;
-                     
-                     -- AR GL Balance (transaction_lines)
-                     SELECT 
-                       tl.org_id,
-                       SUM(CASE WHEN tl.posting_type = 'Debit' THEN tl.amount ELSE -tl.amount END) as ar_gl_balance
-                     FROM public.transaction_lines tl
-                     JOIN public.gl_accounts ga ON ga.id = tl.gl_account_id
-                     WHERE ga.type = 'asset' 
-                       AND (ga.sub_type = 'AccountsReceivable' OR ga.name ILIKE '%accounts receivable%')
-                     GROUP BY tl.org_id;
-                     
-                     -- Reconciliation query
-                     SELECT 
-                       s.org_id,
-                       s.ar_subledger_balance,
-                       g.ar_gl_balance,
-                       (s.ar_subledger_balance - g.ar_gl_balance) as variance
-                     FROM (subledger query) s
-                     FULL OUTER JOIN (gl query) g ON s.org_id = g.org_id;
+                                         -- AR Subledger (charges)
+                                         SELECT org_id, SUM(amount_open) as ar_subledger_balance
+                                         FROM public.charges
+                                         WHERE status IN ('open', 'partial')
+                                         GROUP BY org_id;
+                                         
+                                         -- AR GL Balance (transaction_lines)
+                                         SELECT 
+                                           tl.org_id,
+                                           SUM(CASE WHEN tl.posting_type = 'Debit' THEN tl.amount ELSE -tl.amount END) as ar_gl_balance
+                                         FROM public.transaction_lines tl
+                                         JOIN public.gl_accounts ga ON ga.id = tl.gl_account_id
+                                         WHERE ga.type = 'asset' 
+                                           AND (ga.sub_type = 'AccountsReceivable' OR ga.name ILIKE '%accounts receivable%')
+                                         GROUP BY tl.org_id;
+                                         
+                                         -- Reconciliation query
+                                         SELECT 
+                                           s.org_id,
+                                           s.ar_subledger_balance,
+                                           g.ar_gl_balance,
+                                           (s.ar_subledger_balance - g.ar_gl_balance) as variance
+                                         FROM (subledger query) s
+                                         FULL OUTER JOIN (gl query) g ON s.org_id = g.org_id;
      ```
 
 
@@ -628,9 +628,3 @@ flowchart TD
 - Verify charge/payment sync maintains allocations
 - Idempotency: duplicate syncs don't create duplicate charges
 - External ID mapping: Buildium charge ID → local charge
-
-## Documentation Updates
-
-- Update `docs/database/database-schema.md` with new tables (`charges`, `payment_allocations`, `charge_schedules`, `org_control_accounts`)
-- Add `docs/ar-system.md` explaining A/R data model, allocation engine, and reconciliation
-- Update `docs/MONTHLY_LOG_README.md` with allocation details and `amount_open` calculations

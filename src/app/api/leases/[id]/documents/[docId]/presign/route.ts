@@ -123,7 +123,9 @@ export async function GET(
           { status: 502 },
         );
       }
-      const json = await res.json();
+      const json =
+        (res.json as { DownloadUrl?: string | null; ExpirationDateTime?: string | null } | null) ??
+        {};
       return NextResponse.json(
         { getUrl: json?.DownloadUrl, expiresAt: json?.ExpirationDateTime || null },
         { status: 200 },

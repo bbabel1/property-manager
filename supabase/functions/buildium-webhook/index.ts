@@ -367,6 +367,11 @@ async function ensureDepositMetaEdge(params: {
   const { supabase, transactionId, orgId, buildiumDepositId, status } = params;
   const nowIso = new Date().toISOString();
 
+  if (!orgId) {
+    console.warn('Skipping deposit_meta upsert; missing org_id', { transactionId, buildiumDepositId });
+    return;
+  }
+
   const { data: existing, error: existingErr } = await supabase
     .from('deposit_meta')
     .select('id, status, deposit_id')
@@ -387,6 +392,7 @@ async function ensureDepositMetaEdge(params: {
       transactionId;
   }
 
+  const depositIdString = depositId ? String(depositId) : String(transactionId);
   const currentStatus = (existing?.status as 'posted' | 'reconciled' | 'voided' | null) ?? null;
   const resolvedStatus =
     currentStatus === 'reconciled' || currentStatus === 'voided'
@@ -398,7 +404,7 @@ async function ensureDepositMetaEdge(params: {
   const payload = {
     transaction_id: transactionId,
     org_id: orgId,
-    deposit_id: depositId,
+    deposit_id: depositIdString,
     status: resolvedStatus,
     buildium_deposit_id: buildiumDepositId,
     buildium_sync_status: 'synced',
