@@ -46,7 +46,13 @@ export class PostingEngine {
     const idempotencyKey =
       event.idempotencyKey ??
       (event.externalId ? `${event.externalId}_${event.eventType}` : null)
-    const leaseId = headerOverrides?.lease_id ?? this.extractLeaseId(event) ?? leaseContext?.lease_id ?? null
+    const rawLeaseId = headerOverrides?.lease_id ?? this.extractLeaseId(event) ?? leaseContext?.lease_id ?? null
+    // Ensure lease_id is a number (bigint), not a UUID string - coerce to number if possible, filter out non-numeric strings
+    const leaseId: number | null = rawLeaseId != null && typeof rawLeaseId === 'number' 
+      ? rawLeaseId 
+      : (typeof rawLeaseId === 'string' && /^\d+$/.test(rawLeaseId) 
+          ? Number(rawLeaseId) 
+          : null)
     const accountEntityType = event.accountEntityType ?? (leaseContext ? ('Rental' as const) : null)
     const accountEntityId = event.accountEntityId ?? (leaseContext?.buildium_property_id ?? null)
     const reversalOf =
@@ -73,13 +79,15 @@ export class PostingEngine {
     const header: TransactionInsert = {
       org_id: event.orgId,
       transaction_type: headerOverrides?.transaction_type ?? 'GeneralJournalEntry',
-      status: headerOverrides?.status,
+      status: headerOverrides?.status ?? ('' as Database['public']['Enums']['transaction_status_enum']), // Default to empty string to match database default
       memo,
+      email_receipt: headerOverrides?.email_receipt ?? false,
+      print_receipt: headerOverrides?.print_receipt ?? false,
       date: postingDate,
       created_at: headerOverrides?.created_at ?? createdAt,
       updated_at: headerOverrides?.updated_at ?? createdAt,
       total_amount: headerOverrides?.total_amount ?? computeNetAmount(lines),
-      lease_id: leaseId ?? undefined,
+      ...(leaseId != null && typeof leaseId === 'number' ? { lease_id: leaseId } : {}),
       bank_gl_account_id: headerOverrides?.bank_gl_account_id ?? undefined,
       bank_gl_account_buildium_id: headerOverrides?.bank_gl_account_buildium_id ?? undefined,
       buildium_application_id: headerOverrides?.buildium_application_id ?? undefined,
@@ -150,7 +158,7 @@ export class PostingEngine {
     if (error) throw error
     if (!data) return undefined
     return {
-      lease_id: data.id ?? leaseId,
+      lease_id: leaseId ?? null,
       org_id: data.org_id ?? null,
       property_id: data.property_id ?? null,
       unit_id: data.unit_id ?? null,
