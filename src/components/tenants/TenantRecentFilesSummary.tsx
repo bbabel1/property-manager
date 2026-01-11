@@ -1,15 +1,21 @@
 "use client"
 
-import { useState } from 'react'
-import AddLink from '@/components/ui/AddLink'
-import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog'
+import { useState } from 'react';
+import AddLink from '@/components/ui/AddLink';
+import TenantFileUploadDialog, { TenantFileRow } from '@/components/tenants/TenantFileUploadDialog';
 
-export default function TenantRecentFilesSummary({ uploaderName }: { uploaderName?: string | null }) {
-  const [open, setOpen] = useState(false)
+export default function TenantRecentFilesSummary({
+  tenantId,
+  uploaderName,
+}: {
+  tenantId: string | null;
+  uploaderName?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
 
   const handleSaved = (_row: TenantFileRow) => {
-    setOpen(false)
-  }
+    setOpen(false);
+  };
 
   return (
     <div className="rounded-lg border border-border bg-background shadow-sm">
@@ -27,9 +33,10 @@ export default function TenantRecentFilesSummary({ uploaderName }: { uploaderNam
       <TenantFileUploadDialog
         open={open}
         onOpenChange={setOpen}
+        tenantId={tenantId}
         uploaderName={uploaderName || undefined}
         onSaved={handleSaved}
       />
     </div>
-  )
+  );
 }

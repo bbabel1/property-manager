@@ -451,6 +451,10 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
     }
   }
 
+  const buildiumTenantId = toNumber(tenant?.buildium_tenant_id);
+  const orgId = tenant?.org_id ?? null;
+  const tenantId = tenant?.id ?? id;
+
   return (
     <NavTabs defaultValue="summary" className="space-y-6 p-6">
       <div className="flex items-start justify-between">
