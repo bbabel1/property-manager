@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { LeaseTransactionService } from '@/lib/lease-transaction-service'
 import { supabaseAdmin } from '@/lib/db'
 import { getServerSupabaseClient, requireSupabaseAdmin } from '@/lib/supabase-client'
+import { buildiumFetch } from '@/lib/buildium-http'
+import { logger } from '@/lib/logger'
 
 const UpdateSchema = z.object({
   transaction_type: z.enum(['Charge', 'Payment']),
@@ -261,11 +263,14 @@ export async function DELETE(
     const uuidLike = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/.test(raw)
 
     let txIdLocal: string | null = null
+    let buildiumTransactionId: number | null = null
+    let buildiumLeaseId: number | null = null
+    let orgId: string | null = null
 
     if (uuidLike) {
       const { data: existing } = await db
         .from('transactions')
-        .select('id, lease_id')
+        .select('id, lease_id, buildium_transaction_id, buildium_lease_id, org_id')
         .eq('id', raw)
         .maybeSingle()
       console.log('[DELETE lookup uuid]', { existing })
@@ -276,6 +281,9 @@ export async function DELETE(
           return NextResponse.json({ error: 'Transaction does not belong to this lease' }, { status: 403 })
         }
         txIdLocal = existing.id
+        buildiumTransactionId = existing.buildium_transaction_id != null ? Number(existing.buildium_transaction_id) : null
+        buildiumLeaseId = existing.buildium_lease_id != null ? Number(existing.buildium_lease_id) : null
+        orgId = existing.org_id ?? null
       }
     }
 
@@ -284,7 +292,7 @@ export async function DELETE(
       if (Number.isFinite(n)) {
         const { data: existing } = await db
           .from('transactions')
-          .select('id, lease_id')
+          .select('id, lease_id, buildium_transaction_id, buildium_lease_id, org_id')
           .eq('buildium_transaction_id', n)
           .maybeSingle()
         console.log('[DELETE lookup buildium]', { existing })
@@ -294,11 +302,74 @@ export async function DELETE(
             return NextResponse.json({ error: 'Transaction does not belong to this lease' }, { status: 403 })
           }
           txIdLocal = existing.id
+          buildiumTransactionId = existing.buildium_transaction_id != null ? Number(existing.buildium_transaction_id) : null
+          buildiumLeaseId = existing.buildium_lease_id != null ? Number(existing.buildium_lease_id) : null
+          orgId = existing.org_id ?? null
         }
       }
     }
 
     if (txIdLocal) {
+      // Delete from Buildium first if it has a Buildium transaction ID
+      if (buildiumTransactionId != null && buildiumLeaseId != null) {
+        try {
+          // Get transaction type to determine the correct Buildium endpoint
+          const { data: txData } = await db
+            .from('transactions')
+            .select('transaction_type')
+            .eq('id', txIdLocal)
+            .maybeSingle()
+
+          const transactionType = (txData as { transaction_type?: string } | null)?.transaction_type?.toLowerCase() ?? ''
+          
+          // Map transaction type to Buildium endpoint suffix (same pattern as create)
+          const TRANSACTION_ENDPOINT_MAP: Record<string, string> = {
+            payment: '/payments',
+            charge: '/charges',
+            credit: '/credits',
+            refund: '/refunds',
+            applydeposit: '/applydeposit',
+          }
+          const endpointSuffix = TRANSACTION_ENDPOINT_MAP[transactionType] ?? '/transactions'
+          const buildiumPath = `/leases/${buildiumLeaseId}${endpointSuffix}/${buildiumTransactionId}`
+
+          console.log('[DELETE transaction] Deleting from Buildium:', {
+            buildiumLeaseId,
+            buildiumTransactionId,
+            transactionType,
+            endpoint: buildiumPath,
+            orgId,
+          })
+
+          const buildiumResponse = await buildiumFetch('DELETE', buildiumPath, undefined, undefined, orgId ?? undefined)
+
+          if (!buildiumResponse.ok) {
+            logger.warn('[DELETE transaction] Buildium deletion failed (non-fatal):', {
+              buildiumLeaseId,
+              buildiumTransactionId,
+              transactionType,
+              endpoint: buildiumPath,
+              status: buildiumResponse.status,
+              error: buildiumResponse.errorText,
+            })
+          } else {
+            console.log('[DELETE transaction] Successfully deleted from Buildium')
+          }
+        } catch (buildiumError) {
+          // Non-fatal - log but continue with local deletion
+          logger.error('[DELETE transaction] Buildium deletion error (non-fatal):', {
+            error: buildiumError,
+            buildiumLeaseId,
+            buildiumTransactionId,
+          })
+        }
+      } else {
+        console.log('[DELETE transaction] No Buildium transaction ID, skipping Buildium deletion:', {
+          hasBuildiumTransactionId: buildiumTransactionId != null,
+          hasBuildiumLeaseId: buildiumLeaseId != null,
+        })
+      }
+
       // Remove overlays that block transaction deletion via restrictive FKs
       const { error: depositDeleteErr } = await db
         .from('deposit_items')

@@ -1653,9 +1653,16 @@ export async function POST(req: NextRequest) {
     }
     const supabaseUrl = supabaseUrlEnv;
     const serviceRole = serviceRoleEnv;
+    const secret = webhookSecretToUse;
     if (!supabaseUrl || !serviceRole) {
       console.warn(
         '[buildium-webhook] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY; cannot forward lease transactions',
+      );
+      return;
+    }
+    if (!secret) {
+      console.warn(
+        '[buildium-webhook] Missing BUILDIUM_WEBHOOK_SECRET; cannot forward lease transactions',
       );
       return;
     }
@@ -1680,21 +1687,29 @@ export async function POST(req: NextRequest) {
         enrichedEvents.push(cloned);
       }
 
+      const payload = JSON.stringify({
+        Events: enrichedEvents,
+        credentials: {
+          baseUrl: buildiumCreds.baseUrl,
+          clientId: buildiumCreds.clientId,
+          clientSecret: buildiumCreds.clientSecret,
+        },
+      });
+      const timestamp = String(Date.now());
+      // Edge function verifies Buildium HMAC signatures; emulate Buildium headers here.
+      const signature = computeHmac(`${timestamp}.${payload}`, secret).base64;
+
       const res = await fetch(`${supabaseUrl}/functions/v1/buildium-lease-transactions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Edge function expects bearer auth for service role
+          // Supabase Edge Functions are JWT-gated by default; use service role for server-to-server calls.
           Authorization: `Bearer ${serviceRole}`,
+          // Buildium signature headers expected by the edge function.
+          'buildium-webhook-timestamp': timestamp,
+          'x-buildium-signature': signature,
         },
-        body: JSON.stringify({
-          Events: enrichedEvents,
-          credentials: {
-            baseUrl: buildiumCreds.baseUrl,
-            clientId: buildiumCreds.clientId,
-            clientSecret: buildiumCreds.clientSecret,
-          },
-        }),
+        body: payload,
       });
       if (!res.ok) {
         const details = await res.json().catch(() => ({}));

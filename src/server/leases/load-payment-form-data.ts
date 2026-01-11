@@ -324,6 +324,23 @@ async function loadPaymentFormDataInternal(
       return chosen;
     };
 
+    // Guard autoprefill: only suggest account/amount if the latest transaction is a charge.
+    let latestTransactionType: string | null = null;
+    try {
+      const { data: latestTx } = (await dbClient
+        .from('transactions')
+        .select('transaction_type, date, id')
+        .eq('lease_id', leaseRow.id)
+        .order('date', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(1)) as { data: Array<{ transaction_type?: string | null }> | null };
+
+      const latest = Array.isArray(latestTx) ? latestTx[0] : null;
+      if (latest?.transaction_type) latestTransactionType = String(latest.transaction_type);
+    } catch (latestTxError) {
+      console.warn('loadPaymentFormData: failed to fetch latest transaction', latestTxError);
+    }
+
     // Look up the most recent outstanding charge to prefill account/amount.
     let suggestedAccountId: string | null = null;
     let suggestedAmount: number | null = null;
@@ -517,6 +534,15 @@ async function loadPaymentFormDataInternal(
       } catch (missingAccountError) {
         console.warn('loadPaymentFormData: failed to load missing suggested account', missingAccountError);
       }
+    }
+
+    const latestIsCharge =
+      latestTransactionType &&
+      latestTransactionType.trim().toLowerCase() === 'charge';
+    const allowSuggestedPrefill = !latestTransactionType || latestIsCharge;
+    if (!allowSuggestedPrefill) {
+      suggestedAccountId = null;
+      suggestedAmount = null;
     }
 
     const prefill =

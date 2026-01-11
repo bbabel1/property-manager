@@ -4,7 +4,16 @@ import { requireAuth } from '@/lib/auth/guards'
 import { hasSupabaseAdmin } from '@/lib/supabase-client'
 import { arService } from '@/lib/ar-service'
 import { CHARGE_TYPES, type ChargeType } from '@/types/ar'
-import { amountsRoughlyEqual } from '@/lib/lease-transaction-helpers'
+import {
+  amountsRoughlyEqual,
+  fetchLeaseContextById,
+  fetchBuildiumGlAccountMap,
+  buildLinesFromAllocations,
+  castLeaseTransactionLinesForPersistence,
+} from '@/lib/lease-transaction-helpers'
+import { LeaseTransactionService } from '@/lib/lease-transaction-service'
+import type { BuildiumLeaseTransactionCreate } from '@/types/buildium'
+import { supabaseAdmin } from '@/lib/db'
 
 const EnterChargeSchema = z.object({
   date: z.string().min(1),
@@ -50,6 +59,8 @@ export async function POST(
     }
 
     const chargeType = (parsed.data.charge_type ?? 'rent') as ChargeType
+    
+    // Create charge locally first
     const result = await arService.createChargeWithReceivable({
       leaseId,
       chargeType,
@@ -71,6 +82,142 @@ export async function POST(
       transactionDate: parsed.data.transaction_date ?? parsed.data.date,
     })
 
+    // Sync to Buildium if we have a transaction ID
+    let buildiumTransactionId: number | null = null
+    if (result.transaction?.id) {
+      try {
+        const leaseContext = await fetchLeaseContextById(leaseId)
+        const glAccountMap = await fetchBuildiumGlAccountMap(
+          parsed.data.allocations.map((line) => line.account_id)
+        )
+        const buildiumLines = buildLinesFromAllocations(parsed.data.allocations, glAccountMap)
+        const lines = castLeaseTransactionLinesForPersistence(buildiumLines)
+
+        const buildiumPayload: BuildiumLeaseTransactionCreate = {
+          TransactionType: 'Charge',
+          TransactionDate: parsed.data.date,
+          Amount: parsed.data.amount,
+          Memo: parsed.data.memo ?? undefined,
+          Lines: lines,
+        }
+
+        console.log('[charge-creation] Syncing to Buildium:', {
+          leaseId,
+          buildiumLeaseId: leaseContext.buildiumLeaseId,
+          transactionId: result.transaction.id,
+        })
+
+        // Create in Buildium - this will also create a local transaction via upsertLeaseTransactionWithLines
+        const buildiumSyncResult = await LeaseTransactionService.createInBuildiumAndDB(
+          leaseContext.buildiumLeaseId,
+          buildiumPayload,
+          leaseContext.orgId ?? undefined,
+        )
+
+        if (buildiumSyncResult?.buildium?.Id) {
+          buildiumTransactionId = buildiumSyncResult.buildium.Id
+          
+          console.log('[charge-creation] Buildium sync result:', {
+            buildiumId: buildiumSyncResult.buildium.Id,
+            localId: buildiumSyncResult.localId,
+            originalTransactionId: result.transaction.id,
+            isDuplicate: buildiumSyncResult.localId && buildiumSyncResult.localId !== result.transaction.id,
+          })
+          
+          // If createInBuildiumAndDB created a different local transaction, update our original one
+          // and delete the duplicate (if any)
+          if (buildiumSyncResult.localId && buildiumSyncResult.localId !== result.transaction.id) {
+            console.log('[charge-creation] Buildium sync created duplicate transaction, cleaning up:', {
+              originalId: result.transaction.id,
+              buildiumCreatedId: buildiumSyncResult.localId,
+              buildiumTransactionId: buildiumTransactionId,
+            })
+            
+            // Delete the duplicate transaction FIRST (before updating original)
+            // This frees up the buildium_transaction_id for the original transaction
+            console.log('[charge-creation] Deleting duplicate transaction first to free up Buildium ID')
+            
+            // Delete related records first (same pattern as other delete endpoints)
+            const { error: depositDeleteErr } = await supabaseAdmin
+              .from('deposit_items')
+              .delete()
+              .eq('payment_transaction_id', buildiumSyncResult.localId)
+            if (depositDeleteErr) {
+              console.error('[charge-creation] Failed to delete deposit_items:', depositDeleteErr)
+            } else {
+              console.log('[charge-creation] Deleted deposit_items for duplicate transaction')
+            }
+
+            const { error: paymentDeleteErr } = await supabaseAdmin
+              .from('payment')
+              .delete()
+              .eq('transaction_id', buildiumSyncResult.localId)
+            if (paymentDeleteErr) {
+              console.error('[charge-creation] Failed to delete payment records:', paymentDeleteErr)
+            } else {
+              console.log('[charge-creation] Deleted payment records for duplicate transaction')
+            }
+
+            // Delete the duplicate transaction using the safe delete function
+            // This temporarily disables balance validation trigger
+            console.log('[charge-creation] Calling delete_transaction_safe for:', buildiumSyncResult.localId)
+            const { error: deleteError, data: deleteData } = await supabaseAdmin.rpc('delete_transaction_safe', {
+              p_transaction_id: buildiumSyncResult.localId,
+            })
+
+            if (deleteError) {
+              console.error('[charge-creation] Failed to delete duplicate transaction:', {
+                error: deleteError,
+                transactionId: buildiumSyncResult.localId,
+                errorCode: (deleteError as any).code,
+                errorMessage: (deleteError as any).message,
+                errorDetails: (deleteError as any).details,
+              })
+            } else {
+              console.log('[charge-creation] Successfully deleted duplicate transaction, now updating original:', {
+                deletedId: buildiumSyncResult.localId,
+                deleteData,
+              })
+              
+              // Now update our original transaction with Buildium ID (after duplicate is deleted)
+              const { error: updateError } = await supabaseAdmin
+                .from('transactions')
+                .update({
+                  buildium_transaction_id: buildiumTransactionId,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', result.transaction.id)
+
+              if (updateError) {
+                console.error('[charge-creation] Failed to update transaction with Buildium ID:', updateError)
+              } else {
+                console.log('[charge-creation] Successfully updated original transaction with Buildium ID:', buildiumTransactionId)
+              }
+            }
+          } else {
+            // Update our transaction with Buildium ID if it's the same one
+            console.log('[charge-creation] Buildium sync used same transaction, updating with Buildium ID')
+            const { error: updateError } = await supabaseAdmin
+              .from('transactions')
+              .update({
+                buildium_transaction_id: buildiumTransactionId,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', result.transaction.id)
+
+            if (updateError) {
+              console.error('[charge-creation] Failed to update transaction with Buildium ID:', updateError)
+            } else {
+              console.log('[charge-creation] Updated transaction with Buildium ID:', buildiumTransactionId)
+            }
+          }
+        }
+      } catch (buildiumError) {
+        console.error('[charge-creation] Buildium sync failed (non-fatal):', buildiumError)
+        // Non-fatal - charge was created locally, just log the error
+      }
+    }
+
     const transactionPayload = result.transaction ?? {
       id: result.charge.transactionId ?? null,
       transaction_type: 'Charge',
@@ -78,6 +225,7 @@ export async function POST(
       date: parsed.data.date,
       memo: parsed.data.memo ?? null,
       lease_id: leaseId,
+      buildium_transaction_id: buildiumTransactionId,
     }
 
     return NextResponse.json(
@@ -93,6 +241,16 @@ export async function POST(
   } catch (error) {
     console.error('Error creating lease charge:', error)
     if (error instanceof Error) {
+      // Log additional context for property_id validation errors
+      if (error.message.includes('property_id') || error.message.includes('unit_id')) {
+        console.error('[charge-creation] Property/unit validation error context:', {
+          leaseId,
+          errorMessage: error.message,
+          errorCode: (error as any).code,
+          errorDetails: (error as any).details,
+          errorHint: (error as any).hint,
+        })
+      }
       if (error.message === 'UNAUTHENTICATED') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }

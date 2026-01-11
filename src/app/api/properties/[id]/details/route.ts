@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guards'
-import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id'
+import { resolveResourceOrg, requireOrgMember } from '@/lib/auth/org-guards'
 import type { Database } from '@/types/database'
 
 type PropertyRow = Database['public']['Tables']['properties']['Row']
@@ -98,13 +98,25 @@ type PropertySelection = Pick<
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { supabase, user } = await requireAuth()
-    const { id } = await params
+    const { id: propertyId } = await params
+    const resolved = await resolveResourceOrg(supabase, 'property', propertyId)
+    if (!resolved.ok) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 })
+    }
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId: resolved.orgId })
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : ''
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401
+      return NextResponse.json({ error: 'Forbidden' }, { status })
+    }
+
     const { searchParams } = new URL(req.url)
     const includeRaw = searchParams.get('include') || ''
     const include = new Set(includeRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean))
     const includeUnits = include.has('units') || include.has('all')
 
-    const orgId = await resolveOrgIdFromRequest(req, user.id, supabase)
+    const orgId = resolved.orgId
 
     // Base property with aggregate unit counts and occupancy_rate. Avoid deep joins.
     const { data: property, error } = await supabase
@@ -118,7 +130,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 	        occupancy_rate,
         operating_bank_gl_account_id, deposit_trust_gl_account_id
       `)
-      .eq('id', id)
+      .eq('id', propertyId)
       .eq('org_id', orgId)
       .single<PropertySelection>()
 
@@ -154,7 +166,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       const { data: poc } = await supabase
         .from('property_ownerships_cache')
         .select('owner_id, contact_id, display_name, primary_email, ownership_percentage, disbursement_percentage, primary')
-        .eq('property_id', id)
+        .eq('property_id', propertyId)
         .returns<OwnershipCacheSelection[]>()
       owners = (poc || []).map((o) => ({
         id: o.owner_id ?? null,
@@ -177,7 +189,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           .select(
             'owner_id, primary, ownership_percentage, disbursement_percentage, owners ( id, contact_id, contacts ( display_name, company_name, first_name, last_name ) )',
           )
-          .eq('property_id', id)
+          .eq('property_id', propertyId)
           .eq('org_id', orgId)
         const list = (Array.isArray(ownerships) ? ownerships : []) as OwnershipWithContact[]
         owners = list.map((o) => {
@@ -233,7 +245,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             .maybeSingle<Pick<GlAccountRow, 'id' | 'name' | 'bank_account_number'>>()
         : Promise.resolve({ data: null } as { data: Pick<GlAccountRow, 'id' | 'name' | 'bank_account_number'> | null }),
       includeUnits
-        ? supabase.from('units').select('*').eq('property_id', id).eq('org_id', orgId).order('unit_number')
+        ? supabase.from('units').select('*').eq('property_id', propertyId).eq('org_id', orgId).order('unit_number')
         : Promise.resolve({ data: [] as UnitRow[] }),
     ])
     const op = opRes.data
@@ -264,7 +276,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       const { data: managerAssignment } = await supabase
         .from('property_staff')
         .select('staff_id, staff:staff_id(id, first_name, last_name, email, phone)')
-        .eq('property_id', id)
+        .eq('property_id', propertyId)
         .eq('role', 'Property Manager')
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -293,7 +305,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         const { data: assignment } = await supabase
           .from('service_plan_assignments')
           .select('plan_id, service_plans(name)')
-          .eq('property_id', id)
+          .eq('property_id', propertyId)
           .eq('org_id', orgId)
           .is('unit_id', null)
           .is('effective_end', null)

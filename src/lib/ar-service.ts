@@ -442,6 +442,19 @@ export class ArService {
       lease_id: lease.id,
     });
 
+    console.log('[postMultiAllocationCharge] Lease context:', {
+      lease_id: lease.id,
+      property_id: lease.property_id,
+      unit_id: lease.unit_id,
+      org_id: lease.org_id,
+    });
+    console.log('[postMultiAllocationCharge] Lines property/unit IDs:', lines.map((l) => ({
+      gl_account_id: l.gl_account_id,
+      property_id: l.property_id,
+      unit_id: l.unit_id,
+      lease_id: l.lease_id,
+    })));
+
     const { transactionId } = await this.postingEngine.postEvent({
       eventType: 'other_transaction',
       orgId: lease.org_id,

@@ -2,12 +2,24 @@ import { NextResponse } from 'next/server'
 import { requireSupabaseAdmin } from '@/lib/supabase-client'
 import { requireAuth } from '@/lib/auth/guards'
 
-export async function GET() {
+const SHARED_SECRET = process.env.WEBHOOK_SETTINGS_ADMIN_SECRET || ''
+
+async function authorize(req: Request) {
+  const headerSecret = req.headers.get('x-webhook-admin-secret')
+  if (SHARED_SECRET && headerSecret && headerSecret === SHARED_SECRET) {
+    return true
+  }
+
+  const { roles } = await requireAuth()
+  if (!roles.includes('platform_admin')) {
+    throw new Error('FORBIDDEN')
+  }
+  return true
+}
+
+export async function GET(req: Request) {
   try {
-    const { roles } = await requireAuth()
-    if (!roles.includes('platform_admin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    await authorize(req)
 
     const admin = requireSupabaseAdmin('webhook settings GET')
     const { data, error } = await admin
@@ -24,16 +36,20 @@ export async function GET() {
     }
     return NextResponse.json({ events: data || [] })
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to load webhook settings' }, { status: 500 })
+    const msg = err?.message || ''
+    if (msg === 'UNAUTHENTICATED') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    if (msg === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    return NextResponse.json({ error: msg || 'Failed to load webhook settings' }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const { roles } = await requireAuth()
-    if (!roles.includes('platform_admin')) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    await authorize(req)
 
     const admin = requireSupabaseAdmin('webhook settings POST')
     const body = await req.json().catch(() => ({}))
@@ -51,6 +67,13 @@ export async function POST(req: Request) {
     if (error) throw error
     return NextResponse.json({ event: data })
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'Failed to update webhook setting' }, { status: 500 })
+    const msg = err?.message || ''
+    if (msg === 'UNAUTHENTICATED') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    if (msg === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    return NextResponse.json({ error: msg || 'Failed to update webhook setting' }, { status: 500 })
   }
 }

@@ -9,20 +9,44 @@ import { hasPermission } from '@/lib/permissions'
 type LeaseRouteContext = { params: Promise<{ id: string }> }
 
 export async function GET(_req: NextRequest, context: LeaseRouteContext) {
-  const { supabase, user, roles } = await requireAuth()
-  if (!hasPermission(roles, 'leases.read')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  try {
+    const { supabase, user, roles } = await requireAuth()
+    if (!hasPermission(roles, 'leases.read')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { id } = await context.params
+    const leaseId = Number(id)
+    const { data: scopedLease, error: scopedErr } = await supabase
+      .from('lease')
+      .select('id, org_id')
+      .eq('id', leaseId)
+      .maybeSingle()
+    if (scopedErr) return NextResponse.json({ error: scopedErr.message }, { status: 500 })
+    if (!scopedLease) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+
+    const orgId = String((scopedLease as any).org_id)
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId })
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : ''
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401
+      return NextResponse.json({ error: 'Forbidden' }, { status })
+    }
+
+    const db = requireSupabaseAdmin('lease route GET')
+    const { data, error } = await db.from('lease').select('*').eq('id', leaseId).eq('org_id', orgId).maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!data) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+
+    return NextResponse.json(data)
+  } catch (err) {
+    if (err instanceof Error && err.message === 'UNAUTHENTICATED') {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    logger.error({ error: err }, 'Error fetching lease')
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
-
-  const db = requireSupabaseAdmin('lease route GET')
-  const { id } = await context.params
-  const leaseId = Number(id)
-  const { data, error } = await db.from('lease').select('*').eq('id', leaseId).maybeSingle()
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 })
-  if (!data) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
-
-  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((data as any).org_id) })
-  return NextResponse.json(data)
 }
 
 export async function PUT(request: NextRequest, context: LeaseRouteContext) {
@@ -35,18 +59,31 @@ export async function PUT(request: NextRequest, context: LeaseRouteContext) {
     const db = requireSupabaseAdmin('lease route PUT')
     const { id } = await context.params
     const leaseId = Number(id)
+
+    const { data: scopedLease, error: scopedErr } = await supabase
+      .from('lease')
+      .select('id, org_id')
+      .eq('id', leaseId)
+      .maybeSingle()
+    if (scopedErr) return NextResponse.json({ error: scopedErr.message }, { status: 500 })
+    if (!scopedLease) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
+    const orgId = String((scopedLease as any).org_id)
+    try {
+      await requireOrgMember({ client: supabase, userId: user.id, orgId })
+    } catch (memberErr) {
+      const msg = memberErr instanceof Error ? memberErr.message : ''
+      const status = msg === 'ORG_FORBIDDEN' ? 403 : 401
+      return NextResponse.json({ error: 'Forbidden' }, { status })
+    }
+
     const { data: leaseRow, error: leaseErr } = await db
       .from('lease')
       .select('*')
       .eq('id', leaseId)
+      .eq('org_id', orgId)
       .maybeSingle()
     if (leaseErr) return NextResponse.json({ error: leaseErr.message }, { status: 404 })
     if (!leaseRow) return NextResponse.json({ error: 'Lease not found' }, { status: 404 })
-    await requireOrgMember({
-      client: supabase,
-      userId: user.id,
-      orgId: String((leaseRow as any).org_id),
-    })
 
     const url = new URL(request.url)
     const syncBuildium = url.searchParams.get('syncBuildium') === 'true'

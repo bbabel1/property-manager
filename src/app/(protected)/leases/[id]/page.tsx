@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { randomUUID } from 'crypto';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -109,6 +110,19 @@ const readAmountFromLine = (line: unknown): number => {
   return toNumber(val) ?? 0;
 };
 
+const buildInternalUrl = (path: string, origin?: string | null): string => {
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    origin ||
+    'http://localhost:3000';
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return `${base.replace(/\/$/, '')}${path}`;
+  }
+};
+
 export default async function LeaseDetailsPage({
   params,
   searchParams,
@@ -125,6 +139,10 @@ export default async function LeaseDetailsPage({
   const initialTab = sp?.tab === 'financials' ? 'financials' : 'summary';
   // Use admin when available to avoid RLS mismatches between source pages and details page
   const supabase = (supabaseAdmin || supaClient) as SupabaseClient<Database>;
+
+  const requestHeaders = await headers();
+  const cookieHeader = requestHeaders.get('cookie');
+  const originHeader = requestHeaders.get('origin');
 
   // Warm payment form cache so the receive-payment page loads faster when clicked
   void warmPaymentFormCache(leaseId);
@@ -452,9 +470,14 @@ export default async function LeaseDetailsPage({
 
   // Fetch property owners (primary owner) for header card
   let primaryOwner: { id?: string; name?: string } | null = null;
-  try {
-    if (lease.property_id) {
-      const res = await fetch(`/api/properties/${lease.property_id}/details`, {
+  if (lease.property_id) {
+    try {
+      const propertyDetailsUrl = buildInternalUrl(
+        `/api/properties/${lease.property_id}/details`,
+        originHeader,
+      );
+      const res = await fetch(propertyDetailsUrl, {
+        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
         next: { revalidate: 60, tags: [`property-details:${lease.property_id}`] },
       });
       if (res.ok) {
@@ -492,126 +515,128 @@ export default async function LeaseDetailsPage({
           primaryOwner = { name: String(data.primary_owner_name) };
         }
       }
-      // Fallback to PropertyService when cache/API lacks owners
-      if (!primaryOwner) {
-        try {
-          const { PropertyService } = await import('@/lib/property-service');
-          const svc = await PropertyService.getPropertyById(String(lease.property_id));
-          if (svc) {
-            const owners2 = Array.isArray((svc as { owners?: unknown }).owners)
-              ? (svc as { owners?: unknown[] }).owners || []
-              : [];
-            const po2 =
-              owners2.find(
-                (
-                  o,
-                ): o is {
-                  primary?: boolean;
-                  display_name?: string | null;
-                  company_name?: string | null;
-                  first_name?: string | null;
-                  last_name?: string | null;
-                  owner_id?: string | number;
-                  id?: string | number;
-                } =>
-                  typeof o === 'object' &&
-                  o !== null &&
-                  (o as { primary?: boolean }).primary === true,
-              ) || owners2[0];
-            if (po2) {
-              const name2 =
-                (po2 as { display_name?: string | null }).display_name ||
-                (po2 as { company_name?: string | null }).company_name ||
-                [
-                  (po2 as { first_name?: string | null }).first_name,
-                  (po2 as { last_name?: string | null }).last_name,
-                ]
-                  .filter(Boolean)
-                  .join(' ')
-                  .trim() ||
-                'Owner';
-              primaryOwner = {
-                id: String(
-                  (po2 as { owner_id?: string | number; id?: string | number }).owner_id ||
-                    (po2 as { id?: string | number }).id ||
-                    '',
-                ),
-                name: name2,
-              };
-            } else if ((svc as { primary_owner_name?: string | null }).primary_owner_name) {
-              primaryOwner = {
-                name: String((svc as { primary_owner_name?: string | null }).primary_owner_name),
-              };
-            }
-          }
-        } catch {}
-      }
-      // Final fallback: query cache table directly (server/admin)
-      if (!primaryOwner) {
-        try {
-          const { data: poc } = await supabase
-            .from('property_ownerships_cache')
-            .select('owner_id, display_name, primary')
-            .eq('property_id', lease.property_id);
-          const list = Array.isArray(poc) ? poc : [];
-          if (list.length) {
-            const po3 =
-              list.find(
-                (o) =>
-                  typeof o === 'object' &&
-                  o !== null &&
-                  (o as { primary?: boolean }).primary === true,
-              ) || list[0];
-            const name3 = (po3 as { display_name?: string | null })?.display_name || 'Owner';
-            primaryOwner = {
-              id: String((po3 as { owner_id?: string | number })?.owner_id || ''),
-              name: name3,
-            };
-          }
-        } catch {}
-      }
-      // Deep fallback: join ownerships → owners → contacts for display name
-      if (!primaryOwner) {
-        try {
-          const { data: own } = await supabase
-            .from('ownerships')
-            .select(
-              'primary, owner_id, owners ( contact_id, contacts ( display_name, first_name, last_name, company_name ) )',
-            )
-            .eq('property_id', lease.property_id);
-          const list = Array.isArray(own) ? own : [];
-          if (list.length) {
-            const po4 =
-              list.find(
-                (o) => typeof o === 'object' && o && (o as { primary?: boolean }).primary,
-              ) || list[0];
-            const contact =
-              po4 && typeof po4 === 'object' && po4.owners && typeof po4.owners === 'object'
-                ? ((
-                    po4.owners as {
-                      contacts?: {
-                        display_name?: string | null;
-                        company_name?: string | null;
-                        first_name?: string | null;
-                        last_name?: string | null;
-                      } | null;
-                    }
-                  ).contacts ?? null)
-                : null;
-            const name4 =
-              contact?.display_name ||
-              contact?.company_name ||
-              [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+    } catch (error) {
+      console.error('Failed to load property owners from property details API', error);
+    }
+    // Fallback to PropertyService when cache/API lacks owners
+    if (!primaryOwner) {
+      try {
+        const { PropertyService } = await import('@/lib/property-service');
+        const svc = await PropertyService.getPropertyById(String(lease.property_id));
+        if (svc) {
+          const owners2 = Array.isArray((svc as { owners?: unknown }).owners)
+            ? (svc as { owners?: unknown[] }).owners || []
+            : [];
+          const po2 =
+            owners2.find(
+              (
+                o,
+              ): o is {
+                primary?: boolean;
+                display_name?: string | null;
+                company_name?: string | null;
+                first_name?: string | null;
+                last_name?: string | null;
+                owner_id?: string | number;
+                id?: string | number;
+              } =>
+                typeof o === 'object' &&
+                o !== null &&
+                (o as { primary?: boolean }).primary === true,
+            ) || owners2[0];
+          if (po2) {
+            const name2 =
+              (po2 as { display_name?: string | null }).display_name ||
+              (po2 as { company_name?: string | null }).company_name ||
+              [
+                (po2 as { first_name?: string | null }).first_name,
+                (po2 as { last_name?: string | null }).last_name,
+              ]
+                .filter(Boolean)
+                .join(' ')
+                .trim() ||
               'Owner';
             primaryOwner = {
-              id: String((po4 as { owner_id?: string | number })?.owner_id || ''),
-              name: name4,
+              id: String(
+                (po2 as { owner_id?: string | number; id?: string | number }).owner_id ||
+                  (po2 as { id?: string | number }).id ||
+                  '',
+              ),
+              name: name2,
+            };
+          } else if ((svc as { primary_owner_name?: string | null }).primary_owner_name) {
+            primaryOwner = {
+              name: String((svc as { primary_owner_name?: string | null }).primary_owner_name),
             };
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
-  } catch {}
+    // Final fallback: query cache table directly (server/admin)
+    if (!primaryOwner) {
+      try {
+        const { data: poc } = await supabase
+          .from('property_ownerships_cache')
+          .select('owner_id, display_name, primary')
+          .eq('property_id', lease.property_id);
+        const list = Array.isArray(poc) ? poc : [];
+        if (list.length) {
+          const po3 =
+            list.find(
+              (o) =>
+                typeof o === 'object' &&
+                o !== null &&
+                (o as { primary?: boolean }).primary === true,
+            ) || list[0];
+          const name3 = (po3 as { display_name?: string | null })?.display_name || 'Owner';
+          primaryOwner = {
+            id: String((po3 as { owner_id?: string | number })?.owner_id || ''),
+            name: name3,
+          };
+        }
+      } catch {}
+    }
+    // Deep fallback: join ownerships → owners → contacts for display name
+    if (!primaryOwner) {
+      try {
+        const { data: own } = await supabase
+          .from('ownerships')
+          .select(
+            'primary, owner_id, owners ( contact_id, contacts ( display_name, first_name, last_name, company_name ) )',
+          )
+          .eq('property_id', lease.property_id);
+        const list = Array.isArray(own) ? own : [];
+        if (list.length) {
+          const po4 =
+            list.find(
+              (o) => typeof o === 'object' && o && (o as { primary?: boolean }).primary,
+            ) || list[0];
+          const contact =
+            po4 && typeof po4 === 'object' && po4.owners && typeof po4.owners === 'object'
+              ? ((
+                  po4.owners as {
+                    contacts?: {
+                      display_name?: string | null;
+                      company_name?: string | null;
+                      first_name?: string | null;
+                      last_name?: string | null;
+                    } | null;
+                  }
+                ).contacts ?? null)
+              : null;
+          const name4 =
+            contact?.display_name ||
+            contact?.company_name ||
+            [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim() ||
+            'Owner';
+          primaryOwner = {
+            id: String((po4 as { owner_id?: string | number })?.owner_id || ''),
+            name: name4,
+          };
+        }
+      } catch {}
+    }
+  }
 
   // Calculate balances from local transactions only (no Buildium API calls)
   let balances: { balance: number; prepayments: number; depositsHeld: number } = {
@@ -1621,6 +1646,20 @@ export default async function LeaseDetailsPage({
       </div>
 
       <TabsContent value="summary" className="space-y-6 px-6 pb-6">
+        <div className="flex items-center justify-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild>
+              <Link prefetch href={buildDefaultPaymentHref(`/leases/${lease.id}`)}>
+                Receive payment
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link prefetch href={`/leases/${lease.id}/add-charge`}>
+                Enter charge
+              </Link>
+            </Button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
             <InfoCard title="Lease details">

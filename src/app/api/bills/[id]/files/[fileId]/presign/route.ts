@@ -51,11 +51,6 @@ export async function GET(
   if (!transaction) {
     return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
   }
-  await requireOrgMember({
-    client: supabase,
-    userId: user.id,
-    orgId: String(transaction.org_id),
-  });
 
   // Resolve org_id from transaction or related entities (same pattern as file upload)
   let resolvedOrgId = transaction.org_id;
@@ -111,6 +106,18 @@ export async function GET(
     );
   }
 
+  try {
+    await requireOrgMember({
+      client: supabase,
+      userId: user.id,
+      orgId: String(resolvedOrgId),
+    });
+  } catch (memberErr) {
+    const msg = memberErr instanceof Error ? memberErr.message : '';
+    const status = msg === 'ORG_FORBIDDEN' ? 403 : 401;
+    return NextResponse.json({ error: 'Forbidden' }, { status });
+  }
+
   // Look up the file directly
   // Note: Since bills aren't a direct Buildium entity type,
   // files might be associated via Vendor entity type with the bill's vendor
@@ -137,37 +144,19 @@ export async function GET(
   }
 
   // Ensure the file is tied to this bill context (same org already enforced)
-  const { data: firstLine } = await admin
-    .from('transaction_lines')
-    .select('property_id, unit_id, buildium_property_id, buildium_unit_id')
-    .eq('transaction_id', billId)
-    .limit(1)
-    .maybeSingle();
-
-  const propertyIds = new Set<string>();
-  const unitIds = new Set<string>();
-  if (transaction?.lease_id) {
-    const { data: leaseLine } = await admin
-      .from('lease')
-      .select('property_id, unit_id')
-      .eq('id', transaction.lease_id)
-      .maybeSingle();
-    if (leaseLine?.property_id) propertyIds.add(String(leaseLine.property_id));
-    if (leaseLine?.unit_id) unitIds.add(String(leaseLine.unit_id));
-  }
-  if (firstLine?.property_id) propertyIds.add(String(firstLine.property_id));
-  if (firstLine?.unit_id) unitIds.add(String(firstLine.unit_id));
-
-  const fileProperty = file?.entity_type === 'Properties' ? String(file.entity_id) : null;
-  const fileUnit = file?.entity_type === 'Units' ? String(file.entity_id) : null;
   const buildiumBillId = Number(transaction.buildium_bill_id) || null;
+  const entityType = String(file.entity_type || '').toLowerCase();
+  const buildiumEntityType = String(file.buildium_entity_type || '').toLowerCase();
+  const entityId = file.entity_id ? String(file.entity_id) : null;
 
-  const isBillFile =
-    (buildiumBillId && Number(file?.buildium_entity_id) === buildiumBillId) ||
-    (fileProperty && propertyIds.has(fileProperty)) ||
-    (fileUnit && unitIds.has(fileUnit));
+  const matchesBill =
+    (entityType === 'transactions' || entityType === 'bills') ? entityId === billId : false;
+  const matchesBuildiumBill =
+    buildiumBillId && Number(file.buildium_entity_id) === buildiumBillId
+      ? true
+      : buildiumBillId && buildiumEntityType === 'bills' && Number(file.buildium_entity_id) === buildiumBillId;
 
-  if (!isBillFile) {
+  if (!matchesBill && !matchesBuildiumBill) {
     return NextResponse.json({ error: 'File does not belong to this bill' }, { status: 404 });
   }
 

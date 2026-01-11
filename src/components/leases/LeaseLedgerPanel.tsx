@@ -244,8 +244,20 @@ export default function LeaseLedgerPanel({
     setDetailState({ status: 'idle', row: null });
   };
 
-  const getTransactionReference = (row: LedgerRow) =>
-    (row.transactionId ?? row.id ?? '').toString();
+  const getTransactionReference = (row: LedgerRow) => {
+    // Always prefer the local transaction UUID (row.id) for deletion
+    // The row.id is set from tx.id or tx.Id in the lease page, which should be the database UUID
+    // Only fall back to Buildium transaction ID if local ID is truly missing
+    if (row.id && row.id.trim() !== '' && row.id !== '0') {
+      return row.id;
+    }
+    // Fall back to Buildium transaction ID only if local ID is missing
+    if (row.transactionId != null && row.transactionId !== 0) {
+      return String(row.transactionId);
+    }
+    // Last resort
+    return row.id || String(row.transactionId ?? '');
+  };
 
   const getNumericTransactionId = (row: LedgerRow) => {
     const ref = row.transactionId ?? row.id;

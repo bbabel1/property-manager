@@ -96,24 +96,70 @@ export async function getOrgGlSettingsOrThrow(orgId: string): Promise<OrgGlSetti
   const db: SupabaseClient = (supabaseAdmin || supa) as unknown as SupabaseClient
   const control = await getOrgControlAccountsOrThrow(orgId).catch(() => null)
 
-  const { data, error } = await db
-    .from('settings_gl_accounts')
-    .select(
-      `
-      org_id,
-      ar_lease,
-      rent_income,
-      cash_operating,
-      cash_trust,
-      tenant_deposit_liability,
-      late_fee_income,
-      write_off
-    `,
+  let typedData: OrgGlSettings | null = null
+  let settingsTableMissing = false
+  try {
+    const { data, error } = await db
+      .from('settings_gl_accounts')
+      .select(
+        `
+        org_id,
+        ar_lease,
+        rent_income,
+        cash_operating,
+        cash_trust,
+        tenant_deposit_liability,
+        late_fee_income,
+        write_off
+      `,
+      )
+      .eq('org_id', orgId)
+      .maybeSingle()
+    if (error) throw error
+    typedData = data as OrgGlSettings | null
+  } catch (err: any) {
+    const code = err?.code ?? err?.details ?? ''
+    const message = String(err?.message ?? '')
+    settingsTableMissing =
+      code === 'PGRST205' ||
+      message.includes("Could not find the table 'public.settings_gl_accounts'")
+    if (!settingsTableMissing) {
+      throw err
+    }
+    console.warn(
+      `[gl-settings] settings_gl_accounts missing for org ${orgId}; using control accounts fallback`,
     )
-    .eq('org_id', orgId)
-    .maybeSingle()
-  if (error) throw error
-  const typedData = data as OrgGlSettings | null
+  }
+
+  if (!typedData && settingsTableMissing) {
+    if (!control) {
+      throw new Error(
+        `GL account settings table missing for org ${orgId} and no control accounts are configured`,
+      )
+    }
+    const fallback: OrgGlSettings = {
+      org_id: control.org_id,
+      ar_lease: control.ar_account_id,
+      rent_income: control.rent_income_account_id,
+      // Best-effort cash account; undeposited if present, else AR/rent as last resort.
+      cash_operating:
+        control.undeposited_funds_account_id ??
+        control.ar_account_id ??
+        control.rent_income_account_id,
+      cash_trust: null,
+      tenant_deposit_liability: null,
+      late_fee_income: control.late_fee_income_account_id ?? null,
+      write_off: null,
+      undeposited_funds_account_id: control.undeposited_funds_account_id ?? null,
+    }
+    for (const k of ['ar_lease', 'rent_income'] as const) {
+      if (!fallback[k]) {
+        throw new Error(`Control accounts missing for org ${orgId}`)
+      }
+    }
+    return fallback
+  }
+
   if (!typedData) {
     throw new Error(`GL account settings missing for org ${orgId}`)
   }

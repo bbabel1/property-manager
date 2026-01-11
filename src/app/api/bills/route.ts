@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { hasPermission } from '@/lib/permissions';
 import { supabaseAdmin } from '@/lib/db';
 import { resolveOrgIdFromRequest } from '@/lib/org/resolve-org-id';
+import { requireOrgMember } from '@/lib/auth/org-guards';
 import type { Database as DatabaseSchema } from '@/types/database';
 
 const DebitLineSchema = z.object({
@@ -62,12 +63,13 @@ export async function GET(request: NextRequest) {
     }
 
     const orgId = await resolveOrgIdFromRequest(request, user.id, supabase);
+    await requireOrgMember({ client: supabase, userId: user.id, orgId });
 
     const searchParams = new URL(request.url).searchParams;
     const approvalStateRaw = searchParams.get('approval_state');
     const approvalStateValue = approvalStateRaw?.trim() || null;
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('transactions')
       .select(
         '*, bill_workflow:bill_workflow(approval_state, submitted_at, approved_at, rejected_at, voided_at), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at)',

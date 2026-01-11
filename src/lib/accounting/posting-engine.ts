@@ -76,6 +76,29 @@ export class PostingEngine {
       updated_at: createdAt,
     }))
 
+    // Resolve property_id and unit_id for header from scope or event
+    const headerPropertyId = headerOverrides?.property_id ?? scope.propertyId ?? event.propertyId ?? leaseContext?.property_id ?? null
+    const headerUnitId = headerOverrides?.unit_id ?? scope.unitId ?? event.unitId ?? leaseContext?.unit_id ?? null
+
+    console.log('[postingEngine.postEvent] Header scope resolution:', {
+      event_propertyId: event.propertyId,
+      event_unitId: event.unitId,
+      scope_propertyId: scope.propertyId,
+      scope_unitId: scope.unitId,
+      leaseContext_property_id: leaseContext?.property_id,
+      leaseContext_unit_id: leaseContext?.unit_id,
+      headerOverrides_property_id: headerOverrides?.property_id,
+      headerOverrides_unit_id: headerOverrides?.unit_id,
+      resolved_headerPropertyId: headerPropertyId,
+      resolved_headerUnitId: headerUnitId,
+    })
+    console.log('[postingEngine.postEvent] Line payload property/unit IDs:', linePayload.map((l) => ({
+      gl_account_id: l.gl_account_id,
+      property_id: l.property_id,
+      unit_id: l.unit_id,
+      lease_id: l.lease_id,
+    })))
+
     const header: TransactionInsert = {
       org_id: event.orgId,
       transaction_type: headerOverrides?.transaction_type ?? 'GeneralJournalEntry',
@@ -88,6 +111,8 @@ export class PostingEngine {
       updated_at: headerOverrides?.updated_at ?? createdAt,
       total_amount: headerOverrides?.total_amount ?? computeNetAmount(lines),
       ...(leaseId != null && typeof leaseId === 'number' ? { lease_id: leaseId } : {}),
+      ...(headerPropertyId != null ? { property_id: headerPropertyId } : {}),
+      ...(headerUnitId != null ? { unit_id: headerUnitId } : {}),
       bank_gl_account_id: headerOverrides?.bank_gl_account_id ?? undefined,
       bank_gl_account_buildium_id: headerOverrides?.bank_gl_account_buildium_id ?? undefined,
       buildium_application_id: headerOverrides?.buildium_application_id ?? undefined,
@@ -100,6 +125,14 @@ export class PostingEngine {
       buildium_lease_id: headerOverrides?.buildium_lease_id ?? leaseContext?.buildium_lease_id ?? undefined,
       buildium_unit_id: headerOverrides?.buildium_unit_id ?? leaseContext?.buildium_unit_id ?? undefined,
     }
+
+    console.log('[postingEngine.postEvent] Final header:', {
+      org_id: header.org_id,
+      property_id: header.property_id,
+      unit_id: header.unit_id,
+      lease_id: header.lease_id,
+      transaction_type: header.transaction_type,
+    })
 
     const { data, error } = await (this.db as any).rpc('post_transaction', {
       p_header: header as unknown as Database['public']['Tables']['transactions']['Insert'],

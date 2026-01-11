@@ -21,47 +21,60 @@ type BillLinePayload = {
 };
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { supabase, user, roles } = await requireAuth();
-  if (!hasPermission(roles, 'bills.read')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  try {
+    const { supabase, user, roles } = await requireAuth();
+    if (!hasPermission(roles, 'bills.read')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { id } = await context.params;
+    const { data: scopedBill, error: scopedBillErr } = await supabase
+      .from('transactions')
+      .select('id, org_id, transaction_type')
+      .eq('id', id)
+      .eq('transaction_type', 'Bill')
+      .maybeSingle();
+
+    if (scopedBillErr) {
+      return NextResponse.json({ error: scopedBillErr.message }, { status: 500 });
+    }
+    if (!scopedBill) {
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+    }
+
+    const orgId = String((scopedBill as any).org_id);
+    await requireOrgMember({ client: supabase, userId: user.id, orgId });
+
+    const { data, error } = await supabaseAdmin
+      .from('transactions')
+      .select(
+        '*, org_id, bill_workflow:bill_workflow(*), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at)',
+      )
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .eq('transaction_type', 'Bill')
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ data });
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAUTHENTICATED') {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (error.message === 'ORG_FORBIDDEN' || error.message === 'FORBIDDEN') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+    logger.error({ error }, 'Unexpected error fetching bill');
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const { id } = await context.params;
-  const { data: billHeader, error: headerErr } = await supabaseAdmin
-    .from('transactions')
-    .select('id, org_id, transaction_type')
-    .eq('id', id)
-    .eq('transaction_type', 'Bill')
-    .maybeSingle();
-  if (headerErr) return NextResponse.json({ error: headerErr.message }, { status: 500 });
-  if (!billHeader) return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
-
-  await requireOrgMember({
-    client: supabase,
-    userId: user.id,
-    orgId: String((billHeader as any).org_id),
-  });
-
-  const { data, error } = await supabaseAdmin
-    .from('transactions')
-    .select(
-      '*, org_id, bill_workflow:bill_workflow(*), bill_applications:bill_applications(id, applied_amount, source_transaction_id, source_type, applied_at, created_at, updated_at)',
-    )
-    .eq('id', id)
-    .eq('org_id', (billHeader as any).org_id)
-    .eq('transaction_type', 'Bill')
-    .maybeSingle();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  if (!data) {
-    return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
-  }
-
-  await requireOrgMember({ client: supabase, userId: user.id, orgId: String((data as any).org_id) });
-
-  return NextResponse.json({ data });
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {

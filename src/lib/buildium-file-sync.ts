@@ -345,11 +345,6 @@ export async function uploadLeaseDocumentToBuildium(options: {
         ? fileRow.file_name
         : fileName
 
-    const genericUploadPayload: UploadRequestPayload = {
-      FileName: fileName,
-      Title: uploadTitle
-    }
-
     const descriptionValue =
       typeof fileRow.description === 'string' && fileRow.description.trim()
         ? fileRow.description.trim()
@@ -473,55 +468,29 @@ export async function uploadLeaseDocumentToBuildium(options: {
 
     let ticket: BuildiumUploadTicket | null = null
 
-    const shouldUseGenericUpload = categoryId != null
-
-    if (shouldUseGenericUpload) {
-      try {
-        ticket = (await buildiumClient.createFileUploadRequest(
-          'Lease',
-          buildiumLeaseId,
-          genericUploadPayload,
-        )) as unknown as BuildiumUploadTicket
-      } catch (primaryError) {
-        logger.warn(
-          {
-            leaseId: buildiumLeaseId,
-            fileId,
-            error: primaryError instanceof Error ? primaryError.message : primaryError
-          },
-          'General Buildium file upload request failed; retrying with lease-scoped endpoint'
-        )
-      }
-    } else {
-      logger.debug(
-        { leaseId: buildiumLeaseId, fileId },
-        'Skipping Buildium general file upload endpoint due to missing category mapping',
-      )
+    // The generic /files/uploadRequests endpoint has proven slow/unreliable for lease docs.
+    // Go straight to the lease-scoped endpoint to avoid multi-minute retries.
+    const leaseScopedPayload: UploadRequestPayload = {
+      FileName: fileName,
+      FileTitle: uploadTitle,
+      ContentType: mimeType ?? 'application/octet-stream',
+      Description: descriptionValue ?? '',
+      Category: resolvedCategoryLabel,
+      IsPrivate: true
     }
 
-    if (!ticket) {
-      const leaseScopedPayload: UploadRequestPayload = {
-        FileName: fileName,
-        FileTitle: uploadTitle,
-        ContentType: mimeType ?? 'application/octet-stream',
-        Description: descriptionValue ?? '',
-        Category: resolvedCategoryLabel,
-        IsPrivate: true
-      }
-
-      if (Number.isFinite(buildiumPropertyId) && buildiumPropertyId > 0) {
-        leaseScopedPayload.PropertyId = buildiumPropertyId
-      }
-      if (Number.isFinite(buildiumUnitId) && buildiumUnitId > 0) {
-        leaseScopedPayload.UnitId = buildiumUnitId
-      }
-
-      ticket = (await buildiumClient.createLeaseDocumentUploadRequest(
-        buildiumLeaseId,
-        leaseScopedPayload as Required<Pick<UploadRequestPayload, 'FileName' | 'ContentType'>> &
-          UploadRequestPayload,
-      )) as unknown as BuildiumUploadTicket
+    if (Number.isFinite(buildiumPropertyId) && buildiumPropertyId > 0) {
+      leaseScopedPayload.PropertyId = buildiumPropertyId
     }
+    if (Number.isFinite(buildiumUnitId) && buildiumUnitId > 0) {
+      leaseScopedPayload.UnitId = buildiumUnitId
+    }
+
+    ticket = (await buildiumClient.createLeaseDocumentUploadRequest(
+      buildiumLeaseId,
+      leaseScopedPayload as Required<Pick<UploadRequestPayload, 'FileName' | 'ContentType'>> &
+        UploadRequestPayload,
+    )) as unknown as BuildiumUploadTicket
 
     if (!ticket) {
       throw new Error('Failed to obtain Buildium upload ticket')

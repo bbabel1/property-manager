@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import {
 } from '@/components/monthly-logs/types';
 import type { Tables } from '@/types/database';
 import { logDebug } from '@/shared/lib/logger';
+import { buildLedgerGroups, mapTransactionLine, type LedgerLine } from '@/server/financials/ledger-utils';
 
 type UnitSubNavKey = 'details' | 'services' | 'ledger' | 'bills' | 'monthly_logs';
 type BillStatusLabel = '' | 'Overdue' | 'Due' | 'Partially paid' | 'Paid' | 'Cancelled';
@@ -127,18 +129,6 @@ const monthlyLogStatusVariant = (status: MonthlyLogStatus): 'default' | 'seconda
     default:
       return 'outline';
   }
-};
-
-const readableTransactionType = (value: unknown) => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return 'Transaction';
-  return raw
-    .replace(/[_-]+/g, ' ')
-    .toLowerCase()
-    .split(' ')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
 };
 
 const normalizeBillStatus = (value: unknown): BillStatusLabel => {
@@ -255,11 +245,33 @@ type LeaseContactRow = {
 type ApplianceRow = Pick<Tables<'appliances'>, 'id' | 'name' | 'type' | 'installation_date'>;
 type TransactionLineRow = Pick<
   Tables<'transaction_lines'>,
-  'id' | 'transaction_id' | 'memo' | 'amount' | 'posting_type' | 'gl_account_id'
+  | 'id'
+  | 'transaction_id'
+  | 'memo'
+  | 'amount'
+  | 'posting_type'
+  | 'gl_account_id'
+  | 'date'
+  | 'created_at'
+  | 'property_id'
+  | 'unit_id'
+  | 'lease_id'
+  | 'buildium_lease_id'
 > & {
   gl_accounts?: Pick<
     Tables<'gl_accounts'>,
-    'name' | 'type' | 'sub_type' | 'is_bank_account' | 'is_security_deposit_liability' | 'exclude_from_cash_balances'
+    | 'name'
+    | 'type'
+    | 'sub_type'
+    | 'account_number'
+    | 'is_bank_account'
+    | 'is_security_deposit_liability'
+    | 'exclude_from_cash_balances'
+  > | null;
+  units?: Pick<Tables<'units'>, 'unit_number' | 'unit_name'> | null;
+  transactions?: Pick<
+    Tables<'transactions'>,
+    'id' | 'transaction_type' | 'memo' | 'reference_number'
   > | null;
 };
 type TransactionRow = Pick<
@@ -451,7 +463,7 @@ export default async function UnitDetailsNested({
   };
 
   const lineSelect =
-    'id, transaction_id, memo, amount, posting_type, gl_account_id, gl_accounts(name, type, sub_type, is_bank_account, is_security_deposit_liability, exclude_from_cash_balances)';
+    'id, transaction_id, property_id, unit_id, lease_id, buildium_lease_id, date, created_at, memo, amount, posting_type, gl_account_id, gl_accounts(name, account_number, type, sub_type, is_bank_account, is_security_deposit_liability, exclude_from_cash_balances), units(unit_number, unit_name), transactions(id, transaction_type, memo, reference_number)';
   if (unit?.id) {
     try {
       const { data: lines } = await db
@@ -644,8 +656,6 @@ export default async function UnitDetailsNested({
   }
 
   const memoByTransactionId = new Map<string, string>();
-  const accountNamesByTransactionId = new Map<string, string>();
-  const accountNameSetByTransactionId = new Map<string, Set<string>>();
   for (const line of transactionLines) {
     const txIdValue = line?.transaction_id;
     if (txIdValue == null) continue;
@@ -655,20 +665,6 @@ export default async function UnitDetailsNested({
     if (memo && !memoByTransactionId.has(txId)) {
       memoByTransactionId.set(txId, memo);
     }
-    const accountName =
-      typeof line?.gl_accounts?.name === 'string'
-        ? line.gl_accounts.name.trim()
-        : typeof line?.gl_account_id === 'string'
-          ? line.gl_account_id
-          : '';
-    if (accountName) {
-      const set = accountNameSetByTransactionId.get(txId) ?? new Set<string>();
-      set.add(accountName);
-      accountNameSetByTransactionId.set(txId, set);
-    }
-  }
-  for (const [txId, set] of accountNameSetByTransactionId.entries()) {
-    accountNamesByTransactionId.set(txId, Array.from(set).join(', '));
   }
 
   const propertyReserveRaw =
@@ -737,100 +733,21 @@ export default async function UnitDetailsNested({
   const leaseSectionProperty = property as LeaseSectionProps['property'];
   const leaseSectionUnit = unit as LeaseSectionProps['unit'];
 
-  const ledgerRows = (() => {
-    if (!Array.isArray(transactions) || transactions.length === 0) return [];
-
-    const entries = transactions
-      .map((tx, idx) => {
-        const rawId =
-          tx?.id != null
-            ? String(tx.id)
-            : tx?.buildium_transaction_id != null
-              ? `buildium:${tx.buildium_transaction_id}`
-              : null;
-        if (!rawId) return null;
-        const rawDate = typeof tx?.date === 'string' ? tx.date : null;
-        const memoFromTx = typeof tx?.memo === 'string' ? tx.memo.trim() : '';
-        const txIdForMemo = tx?.id != null ? String(tx.id) : null;
-        const resolvedMemo =
-          memoFromTx || (txIdForMemo ? memoByTransactionId.get(txIdForMemo) || '' : '');
-        const accountLabel = txIdForMemo ? accountNamesByTransactionId.get(txIdForMemo) || '' : '';
-        const amount = signedAmountFromTransaction(tx);
-        const typeRaw = tx?.transaction_type ?? null;
-        const typeNormalized = String(typeRaw ?? '').toLowerCase();
-        return {
-          id: rawId,
-          date: rawDate,
-          amount,
-          memo: resolvedMemo,
-          typeLabel: readableTransactionType(typeRaw),
-          typeKey: typeNormalized,
-          accountLabel,
-          sortIndex: idx,
-        };
-      })
-      .filter(
-        (
-          entry,
-        ): entry is {
-          id: string;
-          date: string | null;
-          amount: number;
-          memo: string;
-          typeLabel: string;
-          typeKey: string;
-          accountLabel: string;
-          sortIndex: number;
-        } => Boolean(entry),
-      );
-
-    const toTimestamp = (value: string | null) => {
-      if (!value) return Number.NaN;
-      const iso = value.includes('T') ? value : `${value}T00:00:00Z`;
-      const ms = Date.parse(iso);
-      return Number.isNaN(ms) ? Number.NaN : ms;
-    };
-
-    const typePriority = (typeKey: string) => {
-      if (!typeKey) return 2;
-      const t = typeKey.toLowerCase();
-      if (t.includes('charge') || t.includes('invoice') || t.includes('debit') || t === 'bill') return 0;
-      if (t.includes('payment') || t.includes('credit') || t.includes('refund') || t.includes('adjustment')) return 1;
-      return 2;
-    };
-
-    entries.sort((a, b) => {
-      if (!a || !b) return 0;
-      const timeA = toTimestamp(a.date);
-      const timeB = toTimestamp(b.date);
-      const safeA = Number.isNaN(timeA) ? Number.MAX_SAFE_INTEGER : timeA;
-      const safeB = Number.isNaN(timeB) ? Number.MAX_SAFE_INTEGER : timeB;
-      if (safeA !== safeB) return safeA - safeB;
-      const typeA = typePriority(a.typeKey);
-      const typeB = typePriority(b.typeKey);
-      if (typeA !== typeB) return typeA - typeB;
-      if ((a.sortIndex ?? 0) !== (b.sortIndex ?? 0)) {
-        return (a.sortIndex ?? 0) - (b.sortIndex ?? 0);
-      }
-      return a.id.localeCompare(b.id);
-    });
-
-    let running = 0;
-    const withBalances = entries.filter((entry): entry is NonNullable<typeof entry> => entry !== null).map((entry) => {
-      running += entry.amount;
+  const ledgerLineUnitLabel = unitLabel || 'Unit';
+  const ledgerLines = transactionLines
+    .map((line): LedgerLine | null => {
+      const mapped = mapTransactionLine(line);
+      if (!mapped) return null;
       return {
-        ...entry,
-        typeKey: undefined,
-        amountLabel: formatSignedCurrency(entry.amount),
-        balanceLabel: formatSignedCurrency(running),
-        runningBalance: running,
-        dateLabel: formatDateString(entry.date),
+        ...mapped,
+        propertyId: mapped.propertyId ?? propertyIdString,
+        propertyLabel: mapped.propertyLabel ?? propertyNameLabel ?? 'Property',
+        unitId: mapped.unitId ?? unitIdString,
+        unitLabel: mapped.unitLabel ?? ledgerLineUnitLabel,
       };
-    });
-
-    return withBalances;
-  })();
-  const ledgerRowsDisplay = ledgerRows.slice().reverse();
+    })
+    .filter((line): line is LedgerLine => Boolean(line));
+  const ledgerGroups = buildLedgerGroups([], ledgerLines);
 
   let billRows: {
     id: string;
@@ -1007,7 +924,7 @@ export default async function UnitDetailsNested({
   });
 
   const billCountLabel = `${visibleBillRows.length} match${visibleBillRows.length === 1 ? '' : 'es'}`;
-  const ledgerCountLabel = `${ledgerRows.length} entr${ledgerRows.length === 1 ? 'y' : 'ies'}`;
+  const ledgerCountLabel = `${ledgerLines.length} entr${ledgerLines.length === 1 ? 'y' : 'ies'}`;
 
   return (
     <div className="space-y-6">
@@ -1177,16 +1094,20 @@ export default async function UnitDetailsNested({
             <Table className="text-sm">
               <TableHeader>
                 <TableRow className="border-border border-b">
-                  <TableHead className="w-[9rem]">Date</TableHead>
-                  <TableHead className="w-[12rem]">Type</TableHead>
-                  <TableHead className="w-[16rem]">Account</TableHead>
-                  <TableHead>Memo</TableHead>
-                  <TableHead className="w-[10rem] text-right">Amount</TableHead>
-                  <TableHead className="w-[10rem] text-right">Balance</TableHead>
+                  <TableHead className="text-muted-foreground w-[12rem]">Date</TableHead>
+                  <TableHead className="text-muted-foreground w-[8rem]">Unit</TableHead>
+                  <TableHead className="text-muted-foreground">Transaction</TableHead>
+                  <TableHead className="text-muted-foreground">Memo</TableHead>
+                  <TableHead className="text-muted-foreground w-[10rem] text-right">
+                    Amount
+                  </TableHead>
+                  <TableHead className="text-muted-foreground w-[10rem] text-right">
+                    Balance
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-border divide-y">
-                {ledgerRowsDisplay.length === 0 ? (
+                {ledgerGroups.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={6}
@@ -1196,32 +1117,104 @@ export default async function UnitDetailsNested({
                     </TableCell>
                   </TableRow>
                 ) : (
-                    ledgerRowsDisplay.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.dateLabel}</TableCell>
-                        <TableCell className="text-foreground">{row.typeLabel}</TableCell>
-                        <TableCell className="text-foreground">
-                          {row.accountLabel || '—'}
-                        </TableCell>
-                        <TableCell className="text-foreground">{row.memo || '—'}</TableCell>
-                        <TableCell
-                          className={cn(
-                            'text-right',
-                          (row.amount ?? 0) < 0 ? 'text-destructive' : 'text-foreground',
+                  ledgerGroups.map((group) => {
+                    const detailChrono = [...group.lines].sort((a, b) => {
+                      const dateCmp = a.line.date.localeCompare(b.line.date);
+                      if (dateCmp !== 0) return dateCmp;
+                      return (a.line.createdAt || '').localeCompare(b.line.createdAt || '');
+                    });
+
+                    let running = group.prior;
+                    const detailWithBalance = detailChrono.map(({ line, signed }) => {
+                      running += signed;
+                      return { line, signed, runningAfter: running };
+                    });
+                    const detailDisplay = detailWithBalance.slice().reverse();
+
+                    return (
+                      <Fragment key={group.id}>
+                        <TableRow className="bg-muted/40">
+                          <TableCell colSpan={6} className="text-primary font-medium">
+                            <span className="text-muted-foreground mr-2">—</span>
+                            {group.name}
+                            {group.number ? (
+                              <span className="text-muted-foreground ml-2 text-xs">
+                                {group.number}
+                              </span>
+                            ) : null}
+                            {group.type ? (
+                              <span className="text-muted-foreground ml-3 text-xs uppercase">
+                                {group.type}
+                              </span>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className="bg-background">
+                          <TableCell
+                            colSpan={5}
+                            className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
+                          >
+                            Prior balance
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-right font-semibold">
+                            {formatSignedCurrency(group.prior)}
+                          </TableCell>
+                        </TableRow>
+                        {detailDisplay.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={6}
+                              className="text-muted-foreground py-4 text-center text-sm"
+                            >
+                              No activity in selected period.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          detailDisplay.map(({ line, signed, runningAfter }, idx) => {
+                            const txnLabel = [
+                              line.transactionType || 'Transaction',
+                              line.transactionReference ? `#${line.transactionReference}` : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ');
+                            const memo = line.memo || line.transactionMemo || '—';
+                            const unitDisplay = line.unitLabel || ledgerLineUnitLabel;
+
+                            return (
+                              <TableRow key={`${group.id}-${line.date}-${idx}`}>
+                                <TableCell>{formatDateString(line.date)}</TableCell>
+                                <TableCell>{unitDisplay}</TableCell>
+                                <TableCell>{txnLabel || '—'}</TableCell>
+                                <TableCell>{memo}</TableCell>
+                                <TableCell
+                                  className={cn(
+                                    'text-right font-medium',
+                                    signed < 0 ? 'text-destructive' : '',
+                                  )}
+                                >
+                                  {formatSignedCurrency(signed)}
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {formatSignedCurrency(runningAfter)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
-                      >
-                        {row.amountLabel}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          'text-right',
-                          row.runningBalance < 0 ? 'text-destructive' : 'text-foreground',
-                        )}
-                      >
-                        {row.balanceLabel}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        <TableRow className="bg-muted/30">
+                          <TableCell colSpan={4} className="font-semibold">
+                            Total {group.name}
+                          </TableCell>
+                          <TableCell className="text-foreground text-right font-semibold">
+                            {formatSignedCurrency(group.net)}
+                          </TableCell>
+                          <TableCell className="text-foreground text-right font-semibold">
+                            {formatSignedCurrency(group.prior + group.net)}
+                          </TableCell>
+                        </TableRow>
+                      </Fragment>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
