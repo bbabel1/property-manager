@@ -634,7 +634,12 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
 
             <RecentNotesSection tenantId={id} />
 
-            <RecentFilesSection />
+            <RecentFilesSection
+              tenantId={tenantId}
+              buildiumTenantId={buildiumTenantId}
+              orgId={orgId}
+              uploaderName={name}
+            />
           </div>
           <div className="hidden lg:block" />
         </div>
@@ -646,7 +651,12 @@ export default async function TenantDetailsPage({ params }: { params: Promise<{ 
         </div>
       </NavTabsContent>
       <NavTabsContent value="files" className="space-y-6">
-        <TenantFilesPanel tenantId={tenant?.id ?? null} uploaderName={name} />
+        <TenantFilesPanel
+          tenantId={tenantId}
+          buildiumTenantId={buildiumTenantId}
+          orgId={orgId}
+          uploaderName={name}
+        />
       </NavTabsContent>
       <NavTabsContent value="notes" className="space-y-6">
         <TenantNotesTable tenantId={id} />
